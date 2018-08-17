@@ -1,0 +1,132 @@
+# tlm_adjoint is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, version 3 of the License.
+# 
+# tlm_adjoint is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+# 
+# You should have received a copy of the GNU Lesser General Public License
+# along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+
+tlm_adjoint was developed out of a custom extension to dolfin-adjoint, and
+previously made use of code derived from dolfin-adjoint, particularly in an
+earlier version of the EquationSolver.adjoint_derivative_action method in
+python/tlm_adjoint/equations.py.
+
+Early development work leading to tlm_adjoint was conducted as part of a U.K.
+Natural Environment Research Council funded project (NE/L005166/1).
+
+================================================================================
+
+The 'vector' function in python/tlm_adjoint/base.py follows
+Function::init_vector in dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0.
+Code first added 2018-08-03. Copyright notice from dolfin/function/Function.cpp,
+DOLFIN 2017.2.0.post0, follows.
+
+// Copyright (C) 2003-2012 Anders Logg
+//
+// This file is part of DOLFIN.
+//
+// DOLFIN is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// DOLFIN is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with DOLFIN. If not, see <http://www.gnu.org/licenses/>.
+//
+// Modified by Garth N. Wells 2005-2010
+// Modified by Martin Sandve Alnes 2008-2014
+// Modified by Andre Massing 2009
+
+================================================================================
+
+The 'eigendecompose' function in python/tlm_adjoint/eigendecomposition.py
+loosely follows the slepc4py 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license
+information follows.
+
+=========================
+LICENSE: SLEPc for Python
+=========================
+
+:Author:  Lisandro Dalcin
+:Contact: dalcinl@gmail.com
+
+
+Copyright (c) 2015, Lisandro Dalcin.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+
+The configuration in examples/basal_sliding/basal.py and
+examples/basal_sliding/basal_fp.py is based upon experiment 3 in [1] (see also
+[2, 3] for equations and configuration parameters).
+
+[1]  D. N. Golberg and P. Heimbach, "Parameter and state estimation with a
+     time-dependent adjoint marine ice sheet model", The Cyrosphere, 7(6), pp.
+     1659--1678, 2013
+[2]  D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and ice
+     shelf buttressing in marine ice sheets", Journal of Geophysical Research:
+     Earth Surface, 114(F4), F04026, 2009
+[3]  D. N. Goldberg, "A variationally derived, depth-integrated approximation to
+     a higher-order glaciological flow model", Journal of Glaciology, 57(201),
+     pp. 157--170, 2011
+
+================================================================================
+
+The FixedPointSolver class in python/tlm_adjoint/base_equations.py derives
+tangent-linear and adjoint information using the approach described in [4, 5].
+
+[4]  J. G. Gilbert, "Automatic differentiation and iterative processes",
+     Optimization Methods and Software, 1(1), pp. 13--21, 1992
+[5]  B. Christianson, "Reverse accumulation and attractive fixed points",
+     Optimization Methods and Software, 3(4), pp. 311--326, 1994
+     
+================================================================================
+
+tlm_adjoint implements the binomial checkpointing strategy described in [6],
+choosing the maximum step size permitted when choosing the next snapshot block.
+tlm_adjoint further implements multi-stage offline checkpointing, using a brute
+force approach to yield behaviour described in [7].
+
+[6]  A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation of
+     checkpointing for the reverse or adjoint mode of computational
+     differentiation", ACM Transactions on Mathematical Software, 26(1),
+     pp. 19--45, 2000     
+[7]  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
+     checkpointing", SIAM Journal on Scientific Computing, 31(3),
+     pp. 1946--1967, 2009
+     
+================================================================================
