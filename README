@@ -25,3 +25,5 @@ tlm_adjoint optionally requires
   SciPy, for gradient-based optimisation
   h5py (compiled with MPI enabled), for checkpointing using HDF5
   slec4py, for eigendecomposition functionality
+  
+License: GNU LGPL version 3
