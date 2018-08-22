@@ -477,7 +477,7 @@ class EquationManager:
       self._cp = Checkpoint(checkpoint_ics = cp_method != "none",
                             checkpoint_data = cp_method != "none")
   
-  def add_tlm(self, M, dM):
+  def add_tlm(self, M, dM, max_depth = 1):
     """
     Add a tangent-linear model defined by the parameter c, where
     M = M_0 + c dM, M is a Function or a list or tuple of Function objects,
@@ -502,7 +502,7 @@ class EquationManager:
       self._tlm_state = "deriving"
     elif self._tlm_state == "stopped_initial":
       self._tlm_state = "stopped_deriving"
-    self._tlm[(M, dM)] = [TangentLinearMap(), TangentLinearMap()]
+    self._tlm[(M, dM)] = [TangentLinearMap(), TangentLinearMap(), max_depth]
   
   def tlm_enabled(self):
     """
@@ -667,9 +667,10 @@ class EquationManager:
         raise ManagerException("Cannot add tangent-linear equations after finalisation")
 
       X = eq.X()
+      eq_tlm_depth = tlm_depth(X[0])
       if annotate_tlm is None:
         annotate_tlm = annotate
-      for i, ((M, dM), (tlm_map, tlm_map_next)) in enumerate(reversed(self._tlm.items())):
+      for i, ((M, dM), (tlm_map, tlm_map_next, max_depth)) in enumerate(reversed(self._tlm.items())):
         if not tlm_skip is None and i >= tlm_skip:
           continue
         eq_tlm_eqs = self._tlm_eqs.get(eq, None)
@@ -682,7 +683,7 @@ class EquationManager:
               tlm_eq = eq_tlm_eqs[(M, dM)] = eq.tangent_linear(M, dM, tlm_map)
               break
         if not tlm_eq is None:
-          tlm_eq.solve(manager = self, annotate = annotate_tlm, _tlm_skip = i)
+          tlm_eq.solve(manager = self, annotate = annotate_tlm, _tlm_skip = i + 1 if max_depth - eq_tlm_depth > 1 else i)
           for x in X:
             tlm_map_next[x] = tlm_map[x]
     
@@ -996,8 +997,8 @@ class EquationManager:
     
     self._blocks.append(self._block)
     self._block = []
-    for (M, dM), (tlm_map, tlm_map_next) in self._tlm.items():
-      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap()]
+    for (M, dM), (tlm_map, tlm_map_next, max_depth) in self._tlm.items():
+      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(), max_depth]
     self._checkpoint(final = False)
   
   def finalise(self):
@@ -1012,8 +1013,8 @@ class EquationManager:
     
     self._blocks.append(self._block)
     self._block = []
-    for (M, dM), (tlm_map, tlm_map_next) in self._tlm.items():
-      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap()]
+    for (M, dM), (tlm_map, tlm_map_next, max_depth) in self._tlm.items():
+      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(), max_depth]
     self._checkpoint(final = True)
   
   def dependency_graph_png(self, divider = [255, 127, 127], p = 5):
@@ -1302,8 +1303,8 @@ def stop_manager(manager = None, annotation = True, tlm = True):
 def stop_annotating(*args, **kwargs):
   stop_manager(*args, **kwargs)
 
-def add_tlm(M, dM, manager = None):
-  (_manager() if manager is None else manager).add_tlm(M, dM)
+def add_tlm(M, dM, max_depth = 1, manager = None):
+  (_manager() if manager is None else manager).add_tlm(M, dM, max_depth = max_depth)
 
 def tlm_enabled(manager = None):
   return (_manager() if manager is None else manager).tlm_enabled()
