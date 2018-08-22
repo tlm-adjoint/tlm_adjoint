@@ -668,10 +668,11 @@ class EquationManager:
 
       X = eq.X()
       eq_tlm_depth = tlm_depth(X[0])
+      depth = 0 if tlm_skip is None else tlm_skip[1]
       if annotate_tlm is None:
         annotate_tlm = annotate
       for i, ((M, dM), (tlm_map, tlm_map_next, max_depth)) in enumerate(reversed(self._tlm.items())):
-        if not tlm_skip is None and i >= tlm_skip:
+        if not tlm_skip is None and i >= tlm_skip[0]:
           continue
         eq_tlm_eqs = self._tlm_eqs.get(eq, None)
         if eq_tlm_eqs is None:
@@ -683,7 +684,8 @@ class EquationManager:
               tlm_eq = eq_tlm_eqs[(M, dM)] = eq.tangent_linear(M, dM, tlm_map)
               break
         if not tlm_eq is None:
-          tlm_eq.solve(manager = self, annotate = annotate_tlm, _tlm_skip = i + 1 if max_depth - eq_tlm_depth > 1 else i)
+          tlm_eq.solve(manager = self, annotate = annotate_tlm,
+            _tlm_skip = [i + 1, depth + 1] if max_depth - depth > 1 else [i, 0])
           for x in X:
             tlm_map_next[x] = tlm_map[x]
     
