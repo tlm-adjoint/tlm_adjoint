@@ -1389,11 +1389,14 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
       return J[0].value()
 
     set(M, x)      
+    old_manager = _manager()
+    set_manager(manager)
     manager.reset()
     clear_caches()  # Could use new caches here
     manager.start()
     J[0] = forward(M)
     manager.stop()    
+    set_manager(old_manager)
     J_M[0] = M
     return J[0].value()
   
