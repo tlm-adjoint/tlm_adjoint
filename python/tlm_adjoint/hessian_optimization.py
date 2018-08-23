@@ -91,7 +91,7 @@ class SingleBlockHessian(Hessian):
       manager._cp.add_equation((0, len(manager._block) - 1), eq,
         nl_deps = self._manager._cp[(0, i)], copy = False)
 
-      for (M, dM), (tlm_map, tlm_map_next) in manager._tlm.items():
+      for (M, dM), (tlm_map, tlm_map_next, max_depth) in manager._tlm.items():
         # Generate the associated tangent-linear equation (or extract it from
         # the cache)
         eq_tlm_eqs = manager._tlm_eqs.get(eq, None)
