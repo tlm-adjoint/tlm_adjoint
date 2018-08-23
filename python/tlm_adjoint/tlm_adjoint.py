@@ -309,7 +309,7 @@ class EquationManager:
         verbose                   Whether to enable increased verbosity.
                                   Logical, optional, default False.
     """
-    # "multistage" name, and "snaps_in_ram",  "snaps_on_disk" and "verbose" in
+    # "multistage" name, and "snaps_in_ram", "snaps_on_disk" and "verbose" in
     # "multistage" method, are similar to adj_checkpointing arguments in
     # dolfin-adjoint 2017.1.0
   
