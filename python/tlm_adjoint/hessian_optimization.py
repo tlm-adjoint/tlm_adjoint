@@ -17,8 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .tlm_adjoint import Checkpoint, Functional, Hessian, HessianException, \
-  manager as _manager
+from .hessian import Hessian, HessianException
+from .manager import manager as _manager
+from .tlm_adjoint import Checkpoint
 
 from collections import OrderedDict
 
