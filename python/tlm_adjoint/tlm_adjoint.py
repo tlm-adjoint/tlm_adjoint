@@ -856,16 +856,14 @@ class EquationManager:
       if cp_verbose: info("forward: configuring storage for reverse")
       self._cp = Checkpoint(checkpoint_ics = True,
                             checkpoint_data = True)
-      self._cp_manager.forward()
-      if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
     else:
       if cp_verbose: info("forward: configuring storage for snapshot")
       self._cp = Checkpoint(checkpoint_ics = True,
                             checkpoint_data = False)
       if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
       self._cp_manager.snapshot()      
-      self._cp_manager.forward()
-      if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
+    self._cp_manager.forward()
+    if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
 
   def _restore_checkpoint(self, n):
     if self._cp_method == "none":
