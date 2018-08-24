@@ -43,11 +43,10 @@ __all__ = \
     "minimize_scipy",
     "new_block",
     "reset",
-    "start_annotating",
     "start_manager",
-    "stop_annotating",
     "stop_manager",
     "taylor_test",
+    "tlm",
     "tlm_depth",
     "tlm_enabled"
   ]
@@ -1295,19 +1294,18 @@ def annotation_enabled(manager = None):
 
 def start_manager(manager = None, annotation = True, tlm = True):
   (_manager() if manager is None else manager).start(annotation = annotation, tlm = tlm)
-def start_annotating(*args, **kwargs):
-  start_manager(*args, **kwargs)
 
 def stop_manager(manager = None, annotation = True, tlm = True):
   (_manager() if manager is None else manager).stop(annotation = annotation, tlm = tlm)
-def stop_annotating(*args, **kwargs):
-  stop_manager(*args, **kwargs)
 
 def add_tlm(M, dM, max_depth = 1, manager = None):
   (_manager() if manager is None else manager).add_tlm(M, dM, max_depth = max_depth)
 
 def tlm_enabled(manager = None):
   return (_manager() if manager is None else manager).tlm_enabled()
+
+def tlm(self, M, dM, x):
+  return (_manager() if manager is None else manager).tlm(M, dM, x)
 
 def compute_gradient(Js, M, rhs_cache = True, manager = None):
   return (_manager() if manager is None else manager).compute_gradient(Js, M, rhs_cache = rhs_cache)
