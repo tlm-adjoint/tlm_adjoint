@@ -122,7 +122,6 @@ class AssembleSolver(Equation):
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps)
     self._rhs = rhs
-    self._rank = rank
     self._form_compiler_parameters = form_compiler_parameters
 
   def _replace(self, replace_map):
@@ -135,12 +134,7 @@ class AssembleSolver(Equation):
     else:
       rhs = replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
       
-    if self._rank == 0:
-      function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
-    else:
-      assemble(rhs,
-        form_compiler_parameters = self._form_compiler_parameters,
-        tensor = x.vector())
+    function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):    
     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
