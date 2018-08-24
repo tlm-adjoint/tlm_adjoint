@@ -53,8 +53,6 @@ if not "AssembleSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"].add(Parameters("AssembleSolver"))
 if not "match_quadrature" in parameters["tlm_adjoint"]["AssembleSolver"]:
   parameters["tlm_adjoint"]["AssembleSolver"].add("match_quadrature", False)
-if not "defer_adjoint_assembly" in parameters["tlm_adjoint"]["AssembleSolver"]:
-  parameters["tlm_adjoint"]["AssembleSolver"].add("defer_adjoint_assembly", False)
 if not "EquationSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"].add(Parameters("EquationSolver"))
 if not "cache_jacobian" in parameters["tlm_adjoint"]["EquationSolver"]:
@@ -75,22 +73,17 @@ def extract_form_compiler_parameters(forms, form_compiler_parameters):
           "quadrature_degree":ffc.analysis._extract_common_quadrature_degree(integral_metadata)}
 
 class AssembleSolver(Equation):
-  def __init__(self, rhs, x, bcs = [], form_compiler_parameters = {},
-    match_quadrature = None, defer_adjoint_assembly = None):
-    if isinstance(bcs, DirichletBC):
-      bcs = [bcs]
+  def __init__(self, rhs, x, form_compiler_parameters = {},
+    match_quadrature = None):
     if match_quadrature is None:
       match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]
-    if defer_adjoint_assembly is None:
-      defer_adjoint_assembly = parameters["tlm_adjoint"]["AssembleSolver"]["defer_adjoint_assembly"]
-    if match_quadrature and defer_adjoint_assembly:
-      raise EquationException("Cannot both match quadrature and defer adjoint assembly")
       
     rank = len(rhs.arguments())
-    if rank == 0:
-      e = x.ufl_element()
-      if e.family() != "Real" or e.degree() != 0:
-        raise EquationException("Rank 0 forms can only be assigned to R0 functions")
+    if rank != 0:
+      raise EquationException("Must be a rank 0 form")
+    e = x.ufl_element()
+    if e.family() != "Real" or e.degree() != 0:
+      raise EquationException("Rank 0 forms can only be assigned to R0 functions")
   
     deps = []
     dep_ids = set()
@@ -121,8 +114,6 @@ class AssembleSolver(Equation):
     deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
-    hbcs = [homogenized(bc) for bc in bcs]
-    
     form_compiler_parameters_ = parameters["form_compiler"].copy()
     form_compiler_parameters_.update(form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
@@ -132,11 +123,7 @@ class AssembleSolver(Equation):
     Equation.__init__(self, x, deps, nl_deps = nl_deps)
     self._rhs = rhs
     self._rank = rank
-    self._bcs = copy.copy(bcs)
-    self._hbcs = hbcs
     self._form_compiler_parameters = form_compiler_parameters
-    
-    self._defer_adjoint_assembly = defer_adjoint_assembly
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
@@ -154,8 +141,6 @@ class AssembleSolver(Equation):
       assemble(rhs,
         form_compiler_parameters = self._form_compiler_parameters,
         tensor = x.vector())
-    for bc in self._bcs:
-      bc.apply(x.vector())
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):    
     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -170,21 +155,14 @@ class AssembleSolver(Equation):
       return adj_x
     
     dep = eq_deps[dep_index]
-    dF = ufl.algorithms.expand_derivatives(derivative(-self._rhs, dep, du = TrialFunction(dep.function_space())))
+    dF = ufl.algorithms.expand_derivatives(derivative(-self._rhs, dep, du = TestFunction(dep.function_space())))
     if dF.empty():
       return None
     
     dF = replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-    if self._rank == 0:
-      return (function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
-    elif self._defer_adjoint_assembly:
-      return action(adjoint(dF), adj_x)
-    else:
-      return assemble(action(adjoint(dF), adj_x), form_compiler_parameters = self._form_compiler_parameters)
+    return (function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
-    for bc in self._hbcs:
-      bc.apply(b.vector())
     return b
   
   def tangent_linear(self, M, dM, tlm_map):
@@ -208,9 +186,8 @@ class AssembleSolver(Equation):
     if tlm_rhs.empty():
       return None
     else:
-      return AssembleSolver(tlm_rhs, tlm_map[x], self._hbcs,
-        form_compiler_parameters = self._form_compiler_parameters,
-        defer_adjoint_assembly = self._defer_adjoint_assembly)
+      return AssembleSolver(tlm_rhs, tlm_map[x],
+        form_compiler_parameters = self._form_compiler_parameters)
     
 def _linear_solver(linear_solver_parameters):
   linear_solver = linear_solver_parameters["linear_solver"]
