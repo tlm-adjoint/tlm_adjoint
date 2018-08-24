@@ -370,14 +370,12 @@ class EquationSolver(Equation):
       if cache_jacobian:
         update_default_parameters(linear_solver_parameters, {"lu_solver":{"reuse_factorization":True, "same_nonzero_pattern":True}})
       update_default_parameters(linear_solver_parameters, {"lu_solver":LUSolver.default_parameters()})
-      checkpoint_ic = not linear
     else:
       update_default_parameters(linear_solver_parameters, {"preconditioner":"default",
                                                            "krylov_solver":KrylovSolver.default_parameters()})
       nonzero_initial_guess = linear_solver_parameters["krylov_solver"].get("nonzero_initial_guess", False)
       if nonzero_initial_guess is None:
         nonzero_initial_guess = linear_solver_parameters["krylov_solver"]["nonzero_initial_guess"] = False
-      checkpoint_ic = not linear or nonzero_initial_guess
     
     form_compiler_parameters_ = parameters["form_compiler"].copy()
     form_compiler_parameters_.update(form_compiler_parameters)
