@@ -97,7 +97,8 @@ class AssembleSolver(Equation):
     if dep_index == 0:
       return adj_x
     else:
-      dF = ufl.derivative(self._rhs, self.dependencies()[dep_index], argument = TestFunction(self.dependencies()[dep_index].function_space()))
+      dep = self.dependencies()[dep_index]
+      dF = ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space()))
       dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
       return (-adj_x.vector().sum(), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
@@ -234,16 +235,17 @@ class EquationSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
   
   def adjoint_jacobian_solve(self, nl_deps, b):
-    J = replace(self._J, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+    J = replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
     apply_bcs(J, self._hbcs)
     apply_bcs(b, self._hbcs)
     x = function_new(b)
-    solve(J, x.vector(), b, solver_parameters = self._solver_parameters)  # FIXME: Use linear solver parameters
+    solve(J, x.vector(), b, solver_parameters = self._solver_parameters)
     return x
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    dF = action(adjoint(ufl.derivative(self._F, self.dependencies()[dep_index], argument = TrialFunction(adj_x.function_space()))), adj_x)
+    dep = self.dependencies()[dep_index]
+    dF = action(adjoint(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space()))), adj_x)
     dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
   
@@ -270,5 +272,5 @@ class EquationSolver(Equation):
     else:    
       return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters,
-        solver_parameters = self._solver_parameters,  # FIXME: Use linear solver parameters
+        solver_parameters = self._solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None)

@@ -135,17 +135,17 @@ def function_assign(x, y):
   if isinstance(y, (int, float)):
     x.vector()[:] = float(y)
   else:
-    x.vector()[:] = y.vector()
+    function_set_values(x, function_get_values(y))
 
 def function_axpy(x, alpha, y):
-  x.vector()[:] = function_get_values(x) + alpha * function_get_values(y)
+  function_set_values(x, function_get_values(x) + alpha * function_get_values(y))
 
 def function_comm(x):
   import petsc4py
   return petsc4py.PETSc.Comm(x.comm)
 
 def function_inner(x, y):
-  return x.vector().inner(y.vector())
+  return function_get_values(x).dot(function_get_values(y))
 
 def function_local_size(x):
   return x.vector().local_size()
