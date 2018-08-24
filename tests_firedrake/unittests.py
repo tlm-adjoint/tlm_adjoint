@@ -42,7 +42,9 @@ class tests(unittest.TestCase):
       AssignmentSolver(x, y[0]).solve(replace = True)
       for i in range(len(y) - 1):
         AssignmentSolver(y[i], y[i + 1]).solve(replace = True)
-      AssignmentSolver(y[-1], z).solve(replace = True)
+      EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z,
+        solver_parameters = {"ksp_type":"cg",
+                             "preconditioner":"sor"}).solve(replace = True)
       J = Functional(name = "J")
       J.assign(z)
 
@@ -68,4 +70,4 @@ if __name__ == "__main__":
   numpy.random.seed(1201)
   unittest.main()
 
-  tests().test_AssignmentSolver()
+#  tests().test_AssignmentSolver()

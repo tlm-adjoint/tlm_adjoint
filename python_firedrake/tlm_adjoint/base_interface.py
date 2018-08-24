@@ -87,11 +87,11 @@ class Function(base_Function):
     return self.__static
 
 def new_id():
-  return Variable().id()
+  return Constant(0).count()
   
 class ReplacementFunction(ufl.classes.Coefficient):
   def __init__(self, x):
-    ufl.classes.Coefficient.__init__(self, x.function_space(), count = Constant(0).count())
+    ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_id())
     self.__space = x.function_space()
     self.__id = x.id()
     self.__name = x.name()
@@ -182,11 +182,11 @@ def subtract_adjoint_derivative_action(x, y):
     alpha, y = y
     if isinstance(y, base_Function):
       y = y.vector()
-    x.vector().axpy(-alpha, y)
+    function_axpy(x, -alpha, y)
   else:
     if isinstance(y, base_Function):
       y = y.vector()
-    x.vector().axpy(-1.0, y)
+    function_axpy(x, -1.0, y)
   return
     
 def finalise_adjoint_derivative_action(x):
