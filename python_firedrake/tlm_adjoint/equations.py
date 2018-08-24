@@ -34,8 +34,105 @@ __all__ = \
     "NullSolver",
     "ScaleSolver",
     
+    "AssembleSolver",
     "EquationSolver"
   ]
+  
+class AssembleSolver(Equation):
+  def __init__(self, rhs, x, form_compiler_parameters = {}):
+    rank = len(rhs.arguments())
+    if rank != 0:
+      raise EquationException("Must be a rank 0 form")
+  
+    deps = []
+    dep_ids = set()
+    nl_deps = []
+    nl_dep_ids = set()
+    for dep in rhs.coefficients():
+      if isinstance(dep, base_Function):
+        dep_id = dep.id()
+        if not dep_id in dep_ids:
+          deps.append(dep)
+          dep_ids.add(dep_id)
+        if not dep_id in nl_dep_ids:
+          n_nl_deps = 0
+          for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(rhs, dep, argument = TrialFunction(dep.function_space()))).coefficients():
+            if isinstance(nl_dep, base_Function):
+              nl_dep_id = nl_dep.id()
+              if not nl_dep_id in nl_dep_ids:
+                nl_deps.append(nl_dep)
+                nl_dep_ids.add(nl_dep_id)
+              n_nl_deps += 1
+          if not dep_id in nl_dep_ids and n_nl_deps > 0:
+            nl_deps.append(dep)
+            nl_dep_ids.add(dep_id)
+    if x.id() in dep_ids:
+      raise EquationException("Invalid non-linear dependency")
+    del(dep_ids, nl_dep_ids)
+    deps.insert(0, x)
+    deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
+    nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
+    
+    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_.update(form_compiler_parameters)
+    form_compiler_parameters = form_compiler_parameters_
+    
+    Equation.__init__(self, x, deps, nl_deps = nl_deps)
+    self._rhs = rhs
+    self._rank = rank
+    self._form_compiler_parameters = form_compiler_parameters
+
+  def _replace(self, replace_map):
+    Equation._replace(self, replace_map)
+    self._rhs = replace(self._rhs, replace_map)
+
+  def forward_solve(self, x, deps = None):
+    if deps is None:
+      rhs = self._rhs
+    else:
+      rhs = replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
+      
+    if self._rank == 0:
+      function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
+    else:
+      assemble(rhs,
+        form_compiler_parameters = self._form_compiler_parameters,
+        tensor = x.vector())
+    
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    if dep_index == 0:
+      return adj_x
+    else:
+      dF = ufl.derivative(self._rhs, self.dependencies()[dep_index], argument = TestFunction(self.dependencies()[dep_index].function_space()))
+      dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+      return (-adj_x.vector().sum(), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+  
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+  
+  def tangent_linear(self, M, dM, tlm_map):
+    x = self.x()
+    if x in M:
+      raise EquationException("Invalid tangent-linear parameter")
+  
+    tlm_rhs = ufl.classes.Zero()
+    for m, dm in zip(M, dM):
+      tlm_rhs += ufl.derivative(self._rhs, m, argument = dm)
+    
+    for dep in self.dependencies():
+      if dep != x and not dep in M:
+        tau_dep = tlm_map[dep]
+        if not tau_dep is None:
+          tlm_rhs += ufl.derivative(self._rhs, dep, argument = tau_dep)
+    
+    if isinstance(tlm_rhs, ufl.classes.Zero):
+      return None
+    tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
+    if tlm_rhs.empty():
+      return None
+    else:
+      return AssembleSolver(tlm_rhs, tlm_map[x],
+        form_compiler_parameters = self._form_compiler_parameters)
   
 class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
@@ -146,6 +243,7 @@ class EquationSolver(Equation):
     J = replace(self._J, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
     apply_bcs(J, self._hbcs)
+    apply_bcs(b, self._hbcs)
     x = function_new(b)
     solve(J, x.vector(), b, solver_parameters = self._solver_parameters)  # FIXME: Use linear solver parameters
     return x

@@ -45,23 +45,11 @@ class tests(unittest.TestCase):
       EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z).solve(replace = True)
 
       J = Functional(name = "J")
-      J_0 = Function(space)
-      J_1 = Function(space)
-      EquationSolver(inner(test, trial) * dx == inner(test, z * z) * dx,
-        J_0).solve(replace = True)
-      EquationSolver(inner(test, trial) * dx == inner(test, 2 * x * x) * dx,
-        J_1).solve(replace = True)
-      J.assign(J_0)
-      J.addto(J_1)
-#      J.assign(inner(z, z) * dx)
-#      J.addto(2 * inner(x, x) * dx)
+      J.assign(inner(z, z) * dx)
+      J.addto(2 * inner(x, x) * dx)
       
       K = Functional(name = "K")
-      K_0 = Function(space)
-      EquationSolver(inner(test, trial) * dx == inner(test, z * z) * dx,
-        K_0).solve(replace = True)
-      K.assign(K_0)
-#      K.assign(inner(z, z) * dx)
+      K.assign(inner(z, z) * dx)
 
       return J, K
     

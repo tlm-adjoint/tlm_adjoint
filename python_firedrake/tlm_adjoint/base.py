@@ -38,6 +38,7 @@ __all__ = \
     "Constant",
     "DirichletBC",
     "FunctionSpace",
+    "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
     "action",
