@@ -371,7 +371,7 @@ class EquationManager:
       info("  Snapshots in RAM: %i" % self._cp_manager.snapshots_in_ram())
       info("  Snapshots on disk: %i" % self._cp_manager.snapshots_on_disk())
     else:
-      raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
+      raise ManagerException("Unrecognised checkpointing method: %s" % self._cp_method)
   
   def new(self):
     """
@@ -532,9 +532,9 @@ class EquationManager:
       elif x in self._tlm[(M, dM)][0]:
         return self._tlm[(M, dM)][0][x]
       else:
-        return None
+        raise ManagerException("Tangent-linear not found")
     else:
-      return None
+      raise ManagerException("Tangent-linear not found")
   
   def annotation_enabled(self):
     """
