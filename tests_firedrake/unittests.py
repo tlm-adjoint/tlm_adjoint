@@ -42,29 +42,49 @@ class tests(unittest.TestCase):
       AssignmentSolver(x, y[0]).solve(replace = True)
       for i in range(len(y) - 1):
         AssignmentSolver(y[i], y[i + 1]).solve(replace = True)
-      EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z,
-        solver_parameters = {"ksp_type":"cg",
-                             "preconditioner":"sor"}).solve(replace = True)
-      J = Functional(name = "J")
-      J.assign(z)
+      EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z).solve(replace = True)
 
-      return J
+      J = Functional(name = "J")
+      J_0 = Function(space)
+      J_1 = Function(space)
+      EquationSolver(inner(test, trial) * dx == inner(test, z * z) * dx,
+        J_0).solve(replace = True)
+      EquationSolver(inner(test, trial) * dx == inner(test, 2 * x * x) * dx,
+        J_1).solve(replace = True)
+      J.assign(J_0)
+      J.addto(J_1)
+#      J.assign(inner(z, z) * dx)
+#      J.addto(2 * inner(x, x) * dx)
+      
+      K = Functional(name = "K")
+      K_0 = Function(space)
+      EquationSolver(inner(test, trial) * dx == inner(test, z * z) * dx,
+        K_0).solve(replace = True)
+      K.assign(K_0)
+#      K.assign(inner(z, z) * dx)
+
+      return J, K
     
     start_manager()
-    J = forward(x)
+    J, K = forward(x)
     stop_manager()
     
     J_val = J.value()
+    K_val = K.value()
+    self.assertAlmostEqual(J_val, 66048.0, places = 10)
+    self.assertAlmostEqual(K_val, 65536.0, places = 10)
     
-    dJs = compute_gradient(J, x)    
+    dJs = compute_gradient([J, K], x)    
     dm = Function(space, name = "dm")
     function_assign(dm, 1.0)
-    min_order = taylor_test(lambda x : forward(x), x, J_val = J_val, dJ = dJs, dm = dm)  # Usage as in dolfin-adjoint tests
-#    self.assertGreaterEqual(min_order, 2.00)
+    min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, dJ = dJs[0], dm = dm)  # Usage as in dolfin-adjoint tests
+    self.assertGreaterEqual(min_order, 2.00)
+    min_order = taylor_test(lambda x : forward(x)[1], x, J_val = K_val, dJ = dJs[1], dm = dm)  # Usage as in dolfin-adjoint tests
+    self.assertGreaterEqual(min_order, 2.00)
 
-    ddJ = Hessian(lambda m : forward(m))
-    min_order = taylor_test(lambda x : forward(x), x, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
-#    self.assertGreaterEqual(min_order, 3.00)
+    ddJ = Hessian(lambda m : forward(m)[0])
+    min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
+    self.assertGreaterEqual(min_order, 3.00)
     
 if __name__ == "__main__":
   numpy.random.seed(1201)
