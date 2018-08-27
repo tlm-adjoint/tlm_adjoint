@@ -17,8 +17,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import Constant, FunctionSpace, UnitIntervalMesh, base_Function, \
-  firedrake, homogenize
+from .base import Constant, FunctionSpace, UnitIntervalMesh, as_backend_type, \
+  base_Function, firedrake, homogenize
 
 import copy
 import numpy
@@ -43,10 +43,10 @@ __all__ = \
     "function_global_size",
     "function_inner",
     "function_is_static",
+    "function_linf_norm",
     "function_local_indices",
     "function_local_size",
     "function_max_value",
-    "function_min_value",
     "function_new",
     "function_set_values",
     "function_zero",
@@ -160,8 +160,10 @@ def function_set_values(x, values):
 def function_max_value(x):
   return x.vector().max()
 
-def function_min_value(x):
-  return function_get_values(x).min()
+def function_linf_norm(x):
+  x_v = as_backend_type(x.vector()).vec()
+  import petsc4py.PETSc
+  return x_v.norm(norm_type = petsc4py.PETSc.NormType.NORM_INFINITY)
   
 def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)

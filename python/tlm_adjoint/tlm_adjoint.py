@@ -1456,7 +1456,7 @@ def taylor_test(forward, m, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
   
   # This combination seems to reproduce dolfin-adjoint behaviour
   eps = numpy.array([2 ** -p for p in range(size)], dtype = numpy.float64)
-  eps = seed * eps * max(1.0, abs(function_max_value(m0)), abs(function_min_value(m0)))
+  eps = seed * eps * max(1.0, function_linf_norm(m0))
   if dm is None:
     dm = function_new(m1, static = True)
     function_set_values(dm, numpy.random.random(function_local_size(dm)))

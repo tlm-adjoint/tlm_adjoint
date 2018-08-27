@@ -43,6 +43,7 @@ __all__ = \
     "UnitIntervalMesh",
     "action",
     "adjoint",
+    "as_backend_type",
     "assemble",
     "firedrake",
     "homogenize",

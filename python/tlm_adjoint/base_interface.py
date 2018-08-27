@@ -46,10 +46,10 @@ __all__ = \
     "function_global_size",
     "function_inner",
     "function_is_static",
+    "function_linf_norm",
     "function_local_indices",
     "function_local_size",
     "function_max_value",
-    "function_min_value",
     "function_new",
     "function_set_values",
     "function_zero",
@@ -137,8 +137,8 @@ def function_set_values(x, values):
 def function_max_value(x):
   return x.vector().max()
 
-def function_min_value(x):
-  return x.vector().min()
+def function_linf_norm(x):
+  return x.vector().norm("linf")
   
 def function_new(x, name = None, static = False):
   if isinstance(x, base_Function):

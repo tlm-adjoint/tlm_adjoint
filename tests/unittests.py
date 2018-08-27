@@ -271,7 +271,7 @@ class tests(unittest.TestCase):
     error = Function(space, name = "error")
     function_assign(error, alpha_ref)
     function_axpy(error, -1.0, alpha)
-    self.assertLess(max(abs(function_max_value(error)), abs(function_min_value(error))), 1.0e-7)
+    self.assertLess(function_linf_norm(error), 1.0e-7)
 
   def test_overrides(self):
     reset("memory")
@@ -382,7 +382,7 @@ class tests(unittest.TestCase):
     error = Function(space, name = "error")
     function_assign(error, x_ref)
     function_axpy(error, -1.0, x)
-    self.assertLess(max(abs(function_max_value(error)), abs(function_min_value(error))), 1.0e-13)
+    self.assertLess(function_linf_norm(error), 1.0e-13)
 
     J_val = J.value()    
     dJ = compute_gradient(J, bc)    
