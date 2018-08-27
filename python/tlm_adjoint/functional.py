@@ -80,7 +80,7 @@ class Functional:
     if self._fn is None:
       new_fn = function_new(term, name = self._name) if is_function(term) else Function(self._space, name = self._name)
     else:
-      new_fn = function_new(new_fn, name = self._name)
+      new_fn = function_new(self._fn, name = self._name)
     if is_function(term):
       AssignmentSolver(term, new_fn).solve(manager = manager, annotate = annotate, replace = True, tlm = tlm)
     else:
