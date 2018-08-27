@@ -690,8 +690,8 @@ class tests(unittest.TestCase):
     
     J_val = J.value()
     K_val = K.value()
-    self.assertAlmostEqual(J_val, 66048.0, places = 10)
-    self.assertAlmostEqual(K_val, 65536.0, places = 10)
+    self.assertEqual(J_val, 66048.0)
+    self.assertEqual(K_val, 65536.0)
     
     dJs = compute_gradient([J, K], x)    
     dm = Function(space, name = "dm")

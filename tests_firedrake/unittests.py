@@ -287,7 +287,7 @@ class tests(unittest.TestCase):
 
     J_val = J.value()
     info("J = %.16e" % J_val)
-    self.assertAlmostEqual(J_val, 9.8320117858590805e-01, places = 15)
+    self.assertEqual(J_val, 9.8320117858590805e-01)
     
     dJ = K.value()
     info("TLM sensitivity = %.16e" % dJ)
@@ -368,7 +368,7 @@ class tests(unittest.TestCase):
     stop_manager()
 
     J_val = J.value()
-    self.assertAlmostEqual(J_val, 9.8320117858590805e-01 ** 2, places = 15)
+    self.assertEqual(J_val, 9.8320117858590805e-01 ** 2)
 
     dJ = compute_gradient(J, T_0)    
     min_order = taylor_test(forward, T_0, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
@@ -376,7 +376,7 @@ class tests(unittest.TestCase):
     
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ)  # Usage as in dolfin-adjoint tests
-    self.assertGreater(min_order, 2.99)
+    self.assertGreater(min_order, 3.00)
 
   def test_AxpySolver(self):    
     reset("memory")
@@ -458,8 +458,8 @@ class tests(unittest.TestCase):
     
     J_val = J.value()
     K_val = K.value()
-    self.assertAlmostEqual(J_val, 66048.0, places = 16)
-    self.assertAlmostEqual(K_val, 65536.0, places = 16)
+    self.assertEqual(J_val, 66048.0)
+    self.assertEqual(K_val, 65536.0)
     
     dJs = compute_gradient([J, K], x)    
     dm = Function(space, name = "dm")
