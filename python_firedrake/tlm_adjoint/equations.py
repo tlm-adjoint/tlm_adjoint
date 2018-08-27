@@ -43,6 +43,8 @@ class AssembleSolver(Equation):
     rank = len(rhs.arguments())
     if rank != 0:
       raise EquationException("Must be a rank 0 form")
+    if not getattr(x.function_space(), "_tlm_adjoint__real_space", False):
+      raise EquationException("Rank 0 forms can only be assigned to real functions")
   
     deps = []
     dep_ids = set()
@@ -70,8 +72,6 @@ class AssembleSolver(Equation):
       raise EquationException("Invalid non-linear dependency")
     del(dep_ids, nl_dep_ids)
     deps.insert(0, x)
-    deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
-    nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
     form_compiler_parameters_ = parameters["form_compiler"].copy()
     form_compiler_parameters_.update(form_compiler_parameters)
@@ -98,9 +98,11 @@ class AssembleSolver(Equation):
       return adj_x
     else:
       dep = self.dependencies()[dep_index]
-      dF = ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space()))
+      dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space())))
+      if dF.empty():
+        return None
       dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
-      return (-adj_x.vector().sum(), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+      return (-adj_x.vector().max(), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
     return b
@@ -187,11 +189,8 @@ class EquationSolver(Equation):
     if x in deps:
       deps.remove(x)
     deps.insert(0, x)
-      
-    deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
-    nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
-    hbcs = [homogenized(bc) for bc in bcs]
+    hbcs = [homogenized_bc(bc) for bc in bcs]
     
     form_compiler_parameters_ = parameters["form_compiler"].copy()
     form_compiler_parameters_.update(form_compiler_parameters)
@@ -237,15 +236,18 @@ class EquationSolver(Equation):
   def adjoint_jacobian_solve(self, nl_deps, b):
     J = replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
-    apply_bcs(J, self._hbcs)
-    apply_bcs(b, self._hbcs)
+    for bc in self._hbcs:
+      bc.apply(J, b)
     x = function_new(b)
     solve(J, x.vector(), b, solver_parameters = self._solver_parameters)
     return x
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     dep = self.dependencies()[dep_index]
-    dF = action(adjoint(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space()))), adj_x)
+    dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space())))
+    if dF.empty():
+      return None
+    dF = action(adjoint(dF), adj_x)
     dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
   

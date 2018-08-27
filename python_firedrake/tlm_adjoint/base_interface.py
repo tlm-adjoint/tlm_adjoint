@@ -74,8 +74,13 @@ def copy_parameters_dict(parameters):
 
 firedrake.functionspaceimpl.WithGeometry.id = lambda self : id(self)
 
-def RealFunctionSpace():
-  return FunctionSpace(UnitIntervalMesh(1), "Discontinuous Lagrange", 0)
+def RealFunctionSpace(comm = None):
+  if comm is None:
+    import petsc4py.PETSc
+    comm = petsc4py.PETSc.COMM_WORLD
+  space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm.tompi4py()), "Discontinuous Lagrange", 0)
+  space._tlm_adjoint__real_space = True
+  return space
 
 base_Function.id = lambda self : id(self)  
 class Function(base_Function):
@@ -145,7 +150,9 @@ def function_comm(x):
   return petsc4py.PETSc.Comm(x.comm)
 
 def function_inner(x, y):
-  return function_get_values(x).dot(function_get_values(y))
+  x_v = as_backend_type(x.vector()).vec()
+  y_v = as_backend_type(y.vector()).vec()
+  return x_v.dot(y_v)
 
 def function_local_size(x):
   return x.vector().local_size()
@@ -155,10 +162,10 @@ def function_get_values(x):
 
 def function_set_values(x, values):
   x.vector().set_local(values)
-  x.vector().apply("insert")
 
 def function_max_value(x):
-  return x.vector().max()
+  x_v = as_backend_type(x.vector()).vec()
+  return x_v.max()[1]
 
 def function_linf_norm(x):
   x_v = as_backend_type(x.vector()).vec()
