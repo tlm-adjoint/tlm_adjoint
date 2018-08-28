@@ -54,7 +54,7 @@ class tests(unittest.TestCase):
       eq.solve(replace = True)
       
       J = Functional(name = "J")
-      J.assign(x * dx)
+      J.assign(x)
       
       return J
     
