@@ -142,6 +142,8 @@ def solve(*args, **kwargs):
   if annotate or tlm:
     if isinstance(args[0], ufl.classes.Equation):
       eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
+      if not J is None:
+        raise ManagerException("Custom Jacobians not supported")
       if not tol is None or not M is None:
         raise ManagerException("Adaptive solves not supported")
       bcs = copy.copy(bcs)
@@ -269,7 +271,7 @@ _orig_Function_assign = base_Function.assign
 def _Function_assign(self, rhs, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, rhs)
   if not isinstance(rhs, base_Function):
-    # Only assignment to a function annotated
+    # Only assignment to a Function annotated
     return
   
   if annotate is None:
