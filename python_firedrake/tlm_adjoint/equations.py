@@ -35,6 +35,7 @@ __all__ = \
     "ScaleSolver",
     
     "AssembleSolver",
+    "DirichletBCSolver",
     "EquationSolver"
   ]
   
@@ -276,3 +277,53 @@ class EquationSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters,
         solver_parameters = self._solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None)
+        
+class DirichletBCSolver(Equation):
+  def __init__(self, y, x, forward_domain, *bc_args, **bc_kwargs):
+    bc_kwargs = copy.copy(bc_kwargs)
+    adjoint_domain = bc_kwargs.pop("adjoint_domain", forward_domain)
+  
+    Equation.__init__(self, x, [x, y], nl_deps = [])
+    self._forward_domain = forward_domain
+    self._adjoint_domain = adjoint_domain
+    self._bc_args = bc_args
+    self._bc_kwargs = bc_kwargs
+
+  def forward_solve(self, x, deps = None):
+    _, y = self.dependencies() if deps is None else deps
+    function_zero(x)
+    DirichletBC(x.function_space(), y, self._forward_domain, *self._bc_args, **self._bc_kwargs).apply(x.vector())
+    
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    if dep_index == 0:
+      return adj_x
+    elif dep_index == 1:
+      _, y = self.dependencies()
+      F = function_new(y)
+      DirichletBC(y.function_space(), adj_x, self._adjoint_domain,
+                  *self._bc_args, **self._bc_kwargs).apply(F.vector())
+      return (-1.0, F)
+    else:
+      return None
+
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+  
+  def tangent_linear(self, M, dM, tlm_map):
+    x, y = self.dependencies()
+    
+    tau_y = None
+    for i, m in enumerate(M):
+      if m == x:
+        raise EquationException("Invalid tangent-linear parameter")
+      elif m == y:
+        tau_y = dM[i]
+    if tau_y is None:
+      tau_y = tlm_map[y]
+    
+    if tau_y is None:
+      return None
+    else:
+      return DirichletBCSolver(tau_y, tlm_map[x], self._forward_domain,
+        adjoint_domain = self._adjoint_domain,
+        *self._bc_args, **self._bc_kwargs)      

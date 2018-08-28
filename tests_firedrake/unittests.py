@@ -224,7 +224,63 @@ class tests(unittest.TestCase):
     dJ = compute_gradient(J, alpha)
     min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
+
+  def test_bc(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
     
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    F = Function(space, name = "F", static = True)
+    F.interpolate(Expression("sin(pi * x[0]) * sin(3.0 * pi * x[1])", element = space.ufl_element()))
+    
+    def forward(bc):
+      x_0 = Function(space, name = "x_0")
+      x_1 = Function(space, name = "x_1")
+      x = Function(space, name = "x")
+      
+      DirichletBCSolver(bc, x_1, "on_boundary").solve(replace = True)
+      
+      EquationSolver(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
+        x_0, DirichletBC(space, 0.0, "on_boundary"),
+        solver_parameters = {"ksp_type":"cg",
+                             "pc_type":"jacobi",
+                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve(replace = True)
+      
+      AxpySolver(x_0, 1.0, x_1, x).solve(replace = True)
+      
+      J = Functional(name = "J")
+      J.assign(inner(x, x) * dx)
+      return x, J
+    
+    bc_mesh = mesh
+    bc_space = space
+    bc = Function(bc_space, name = "bc", static = True)
+    function_assign(bc, 1.0)
+    
+    start_manager()
+    x, J = forward(bc)
+    stop_manager()
+    
+    x_ref = Function(space, name = "x_ref")
+    solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
+      x_ref, DirichletBC(space, 1.0, "on_boundary"),
+      solver_parameters = {"ksp_type":"cg",
+                           "pc_type":"jacobi",
+                           "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+    error = Function(space, name = "error")
+    function_assign(error, x_ref)
+    function_axpy(error, -1.0, x)
+    self.assertEqual(function_linf_norm(error), 0.0)
+
+    J_val = J.value()    
+    dJ = compute_gradient(J, bc)    
+    min_order = taylor_test(lambda bc : forward(bc)[1], bc, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
+    self.assertGreater(min_order, 1.99)
+
   def test_recursive_tlm(self):
     n_steps = 20
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":4, "snaps_in_ram":2, "verbose":True})
@@ -376,7 +432,7 @@ class tests(unittest.TestCase):
     
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ)  # Usage as in dolfin-adjoint tests
-    self.assertGreater(min_order, 3.00)
+    self.assertGreater(min_order, 2.99)
 
   def test_AxpySolver(self):    
     reset("memory")
@@ -481,6 +537,7 @@ if __name__ == "__main__":
 #  tests().test_AxpySolver()
 #  tests().test_second_order_adjoint()
 #  tests().test_recursive_tlm()
+#  tests().test_bc()
 #  tests().test_replace()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
