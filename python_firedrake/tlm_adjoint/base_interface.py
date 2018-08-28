@@ -82,7 +82,7 @@ def RealFunctionSpace(comm = None):
   space._tlm_adjoint__real_space = True
   return space
 
-base_Function.id = lambda self : id(self)  
+base_Function.id = lambda self : self.count()
 class Function(base_Function):
   def __init__(self, space, name = None, static = False):
     base_Function.__init__(self, space, name = name)
