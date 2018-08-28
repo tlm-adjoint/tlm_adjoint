@@ -23,17 +23,15 @@ from firedrake import *
 
 import firedrake
 
-base_Constant = firedrake.Constant
-base_DirichletBC = firedrake.DirichletBC
 base_Function = firedrake.Function
+base_solve = solve
 
 __all__ = \
   [
     "base",
     
-    "base_Constant",
-    "base_DirichletBC",
     "base_Function",
+    "base_solve",
     
     "Constant",
     "DirichletBC",

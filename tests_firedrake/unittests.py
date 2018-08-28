@@ -244,11 +244,11 @@ class tests(unittest.TestCase):
       
       DirichletBCSolver(bc, x_1, "on_boundary").solve(replace = True)
       
-      EquationSolver(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
+      solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
         x_0, DirichletBC(space, 0.0, "on_boundary"),
         solver_parameters = {"ksp_type":"cg",
                              "pc_type":"jacobi",
-                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve(replace = True)
+                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
       AxpySolver(x_0, 1.0, x_1, x).solve(replace = True)
       
@@ -405,14 +405,12 @@ class tests(unittest.TestCase):
                                          "pc_type":"jacobi",
                                          "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16,
                                          "snes_rtol":1.0e-13, "snes_atol":1.0e-15})
-      cycle = AssignmentSolver(T_np1, T_n)
       for n in range(n_steps):
         eq.solve()
-        cycle.solve()
+        T_n.assign(T_np1)
         if n < n_steps - 1:
           new_block()
       eq.replace()
-      cycle.replace()
     
       J = Functional(name = "J")
       J.assign(T_n[0] * T_n[0] * dx)
@@ -453,10 +451,10 @@ class tests(unittest.TestCase):
       AssignmentSolver(x, y[0]).solve(replace = True)
       for i in range(len(y) - 1):
         AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve(replace = True)
-      EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z[1],
+      solve(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z[1],
         solver_parameters = {"ksp_type":"cg",
                              "pc_type":"jacobi",
-                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve(replace = True)
+                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
       J = Functional(name = "J")
       J.assign(inner(z[1], z[1]) * dx)
