@@ -225,6 +225,41 @@ class tests(unittest.TestCase):
     min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
 
+  def test_overrides(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    F = Function(space, name = "F", static = True)
+    F.interpolate(Expression("1.0 + sin(pi * x[0]) * sin(3.0 * pi * x[1])", element = space.ufl_element()))
+    
+    bc = DirichletBC(space, "1.0", "on_boundary")
+    
+    def forward(F):
+      G = [Function(space, name = "G_%i" % i) for i in range(1)]
+      
+      G[0] = project(F, space)
+      
+      J = Functional(name = "J")
+      J.assign(inner(G[-1], G[-1]) * dx)
+      
+      return J, G[-1]
+    
+    start_manager()
+    J, G = forward(F)
+    stop_manager()
+    
+    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 17)
+
+    J_val = J.value()    
+    dJ = compute_gradient(J, F)    
+    min_order = taylor_test(lambda F : forward(F)[0], F, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
+    self.assertGreater(min_order, 1.99)
+
   def test_bc(self):
     reset("memory")
     clear_caches()
@@ -536,6 +571,7 @@ if __name__ == "__main__":
 #  tests().test_second_order_adjoint()
 #  tests().test_recursive_tlm()
 #  tests().test_bc()
+#  tests().test_overrides()
 #  tests().test_replace()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()

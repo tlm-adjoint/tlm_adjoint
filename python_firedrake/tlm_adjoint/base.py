@@ -24,6 +24,7 @@ from firedrake import *
 import firedrake
 
 base_Function = firedrake.Function
+base_project = project
 base_solve = solve
 
 __all__ = \
@@ -31,10 +32,12 @@ __all__ = \
     "base",
     
     "base_Function",
+    "base_project",
     "base_solve",
     
     "Constant",
     "DirichletBC",
+    "Function",
     "FunctionSpace",
     "TestFunction",
     "TrialFunction",
@@ -43,9 +46,12 @@ __all__ = \
     "adjoint",
     "as_backend_type",
     "assemble",
+    "dx",
     "firedrake",
     "homogenize",
+    "inner",
     "parameters",
+    "project",
     "solve",
     "replace"
   ]

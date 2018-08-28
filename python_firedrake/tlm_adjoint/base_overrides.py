@@ -18,7 +18,6 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .base import *
-from .base_interface import warning
 
 from .equations import AssignmentSolver, EquationSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled
@@ -27,6 +26,7 @@ import copy
 
 __all__ = \
   [
+    "project",
     "solve"
   ]
 
@@ -63,6 +63,33 @@ def solve(*args, **kwargs):
     return return_value
   else:
     return base_solve(*args, **kwargs)
+
+def project(v, V, bcs = None, mesh = None, solver_parameters = None,
+  form_compiler_parameters = None, name = None, annotate = None, tlm = None):
+  if annotate is None:
+    annotate = annotation_enabled()
+  if tlm is None:
+    tlm = tlm_enabled()
+  if annotate or tlm:
+    if not mesh is None:
+      raise ManagerException("'mesh' argument not supported")
+    if not form_compiler_parameters is None:
+      # Firedrake documentation indicates that this is ignored
+      raise ManagerException("'form_compiler_parameters' argument not supported")
+    # Since a zero initial guess is used, _pre_annotate is not needed
+    return_value = base_project(v, V, bcs = bcs, mesh = mesh,
+      solver_parameters = solver_parameters,
+      form_compiler_parameters = form_compiler_parameters, name = name)
+    test, trial = TestFunction(V), TrialFunction(V)
+    eq = EquationSolver(inner(test, trial) * dx == inner(test, v) * dx,
+      return_value, [] if bcs is None else bcs,
+      solver_parameters = {} if solver_parameters is None else solver_parameters)
+    eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+    return return_value
+  else:
+    return base_project(v, V, bcs = bcs, mesh = mesh,
+      solver_parameters = solver_parameters,
+      form_compiler_parameters = form_compiler_parameters, name = name)
 
 _orig_Function_assign = base_Function.assign
 def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
