@@ -225,6 +225,49 @@ class tests(unittest.TestCase):
     min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
 
+  def test_minimize_scipy(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    
+    def forward(alpha, x_ref = None):
+      clear_caches()
+    
+      x = Function(space, name = "x")
+      solve(inner(test, trial) * dx == inner(test, alpha) * dx,
+        x, solver_parameters = {"ksp_type":"cg",
+                                "pc_type":"jacobi",
+                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+
+      if x_ref is None:
+        x_ref = Function(space, name = "x_ref", static = True)
+        function_assign(x_ref, x)
+      
+      J = Functional(name = "J")
+      J.assign(inner(x - x_ref, x - x_ref) * dx)
+      return x_ref, J
+    
+    alpha_ref = Function(space, name = "alpha_ref", static = True)
+    alpha_ref.interpolate(Expression("exp(x[0] + x[1])", element = space.ufl_element()))
+    x_ref, _ = forward(alpha_ref)
+    
+    alpha0 = Function(space, name = "alpha0", static = True)
+    start_manager()
+    _, J = forward(alpha0, x_ref = x_ref)
+    stop_manager()
+    
+    alpha, _ = minimize_scipy(lambda alpha : forward(alpha, x_ref = x_ref)[1], alpha0, J0 = J,
+      method = "L-BFGS-B", options = {"ftol":0.0, "gtol":1.0e-10})
+    
+    error = Function(space, name = "error")
+    function_assign(error, alpha_ref)
+    function_axpy(error, -1.0, alpha)
+    self.assertLess(function_linf_norm(error), 1.0e-7)
+
   def test_overrides(self):
     reset("memory")
     clear_caches()
@@ -561,6 +604,60 @@ class tests(unittest.TestCase):
     ddJ = Hessian(lambda m : forward(m)[0])
     min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 3.00)
+  
+  def test_HEP(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    M = assemble(inner(test, trial) * dx)
+    M.force_evaluation()
+    def M_action(F):
+      M_m = as_backend_type(M).mat()
+      G = function_new(F)
+      M_m.mult(as_backend_type(F.vector()).vec(), as_backend_type(G.vector()).vec())
+      return function_get_values(G)
+    
+    import slepc4py.SLEPc
+    lam, V_r = eigendecompose(space, M_action, problem_type = slepc4py.SLEPc.EPS.ProblemType.HEP)
+    diff = Function(space)
+    for lam_val, v_r in zip(lam, V_r):
+      function_set_values(diff, M_action(v_r))
+      function_axpy(diff, -lam_val, v_r)
+      self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 16)
+
+  def test_NHEP(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    N = assemble(inner(test, trial.dx(0)) * dx)
+    N.force_evaluation()
+    def N_action(F):
+      N_m = as_backend_type(N).mat()
+      G = function_new(F)
+      N_m.mult(as_backend_type(F.vector()).vec(), as_backend_type(G.vector()).vec())
+      return function_get_values(G)
+    
+    lam, (V_r, V_i) = eigendecompose(space, N_action)
+    diff = Function(space)
+    for lam_val, v_r, v_i in zip(lam, V_r, V_i):
+      function_set_values(diff, N_action(v_r))
+      function_axpy(diff, -float(lam_val.real), v_r)
+      function_axpy(diff, +float(lam_val.imag), v_i)
+      self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 7)
+      function_set_values(diff, N_action(v_i))
+      function_axpy(diff, -float(lam_val.real), v_i)
+      function_axpy(diff, -float(lam_val.imag), v_r)
+      self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 7)
     
 if __name__ == "__main__":
   numpy.random.seed(1201)
@@ -572,6 +669,10 @@ if __name__ == "__main__":
 #  tests().test_recursive_tlm()
 #  tests().test_bc()
 #  tests().test_overrides()
+#  tests().test_minimize_scipy()
 #  tests().test_replace()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
+
+#  tests().test_HEP()
+#  tests().test_NHEP()

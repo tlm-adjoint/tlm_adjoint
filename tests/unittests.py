@@ -720,11 +720,11 @@ class tests(unittest.TestCase):
     
     import slepc4py.SLEPc
     lam, V_r = eigendecompose(space, M_action, problem_type = slepc4py.SLEPc.EPS.ProblemType.HEP)
-    diff = Function(space).vector()
+    diff = Function(space)
     for lam_val, v_r in zip(lam, V_r):
-      diff[:] = M * v_r.vector()
-      diff.axpy(-lam_val, v_r.vector())
-      self.assertAlmostEqual(diff.norm("linf"), 0.0, places = 16)
+      function_set_values(diff, M_action(v_r))
+      function_axpy(diff, -lam_val, v_r)
+      self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 16)
 
   def test_NHEP(self):
     reset("memory")
@@ -740,16 +740,16 @@ class tests(unittest.TestCase):
       return (N * F.vector()).get_local()
     
     lam, (V_r, V_i) = eigendecompose(space, N_action)
-    diff = Function(space).vector()
+    diff = Function(space)
     for lam_val, v_r, v_i in zip(lam, V_r, V_i):
-      diff[:] = N * v_r.vector()
-      diff.axpy(-float(lam_val.real), v_r.vector())
-      diff.axpy(+float(lam_val.imag), v_i.vector())
-      self.assertAlmostEqual(diff.norm("linf"), 0.0, places = 7)
-      diff[:] = N * v_i.vector()
-      diff.axpy(-float(lam_val.real), v_i.vector())
-      diff.axpy(-float(lam_val.imag), v_r.vector())
-      self.assertAlmostEqual(diff.norm("linf"), 0.0, places = 7)
+      function_set_values(diff, N_action(v_r))
+      function_axpy(diff, -float(lam_val.real), v_r)
+      function_axpy(diff, +float(lam_val.imag), v_i)
+      self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 7)
+      function_set_values(diff, N_action(v_i))
+      function_axpy(diff, -float(lam_val.real), v_i)
+      function_axpy(diff, -float(lam_val.imag), v_r)
+      self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 7)
     
 if __name__ == "__main__":
   numpy.random.seed(1201)
