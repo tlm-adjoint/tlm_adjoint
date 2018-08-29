@@ -23,7 +23,11 @@ from firedrake import *
 
 import firedrake
 
+extract_args = firedrake.solving._extract_args
+
 base_Function = firedrake.Function
+base_LinearSolver = firedrake.LinearSolver
+base_assemble = assemble
 base_project = project
 base_solve = solve
 
@@ -32,6 +36,8 @@ __all__ = \
     "base",
     
     "base_Function",
+    "base_LinearSolver",
+    "base_assemble",
     "base_project",
     "base_solve",
     
@@ -39,6 +45,8 @@ __all__ = \
     "DirichletBC",
     "Function",
     "FunctionSpace",
+    "LinearSolver",
+    "Parameters",
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
@@ -47,6 +55,7 @@ __all__ = \
     "as_backend_type",
     "assemble",
     "dx",
+    "extract_args",
     "firedrake",
     "homogenize",
     "inner",

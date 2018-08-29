@@ -283,9 +283,17 @@ class tests(unittest.TestCase):
     bc = DirichletBC(space, "1.0", "on_boundary")
     
     def forward(F):
-      G = [Function(space, name = "G_%i" % i) for i in range(1)]
+      G = [Function(space, name = "G_%i" % i) for i in range(2)]
       
       G[0] = project(F, space)
+      
+      A = assemble(inner(test, trial) * dx)
+      b = assemble(inner(test, G[0]) * dx)
+      bc.apply(A, b)
+      solver = LinearSolver(A, solver_parameters = {"ksp_type":"cg",
+                                                    "pc_type":"jacobi",
+                                                    "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+      solver.solve(G[1].vector(), b)
       
       J = Functional(name = "J")
       J.assign(inner(G[-1], G[-1]) * dx)
