@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base_interface import *
+from .backend_interface import *
 
 from .functional import Functional
 from .manager import manager as _manager, set_manager

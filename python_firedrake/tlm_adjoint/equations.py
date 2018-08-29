@@ -17,9 +17,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import *
+from .backend import *
+from .backend_interface import *
+
 from .base_equations import *
-from .base_interface import *
 
 from collections import OrderedDict
 import copy
@@ -52,7 +53,7 @@ class AssembleSolver(Equation):
     nl_deps = []
     nl_dep_ids = set()
     for dep in rhs.coefficients():
-      if isinstance(dep, base_Function):
+      if isinstance(dep, backend_Function):
         dep_id = dep.id()
         if not dep_id in dep_ids:
           deps.append(dep)
@@ -60,7 +61,7 @@ class AssembleSolver(Equation):
         if not dep_id in nl_dep_ids:
           n_nl_deps = 0
           for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(rhs, dep, argument = TrialFunction(dep.function_space()))).coefficients():
-            if isinstance(nl_dep, base_Function):
+            if isinstance(nl_dep, backend_Function):
               nl_dep_id = nl_dep.id()
               if not nl_dep_id in nl_dep_ids:
                 nl_deps.append(nl_dep)
@@ -159,7 +160,7 @@ class EquationSolver(Equation):
     nl_deps = []
     nl_dep_ids = set()
     for dep in F.coefficients():
-      if isinstance(dep, base_Function):
+      if isinstance(dep, backend_Function):
         dep_id = dep.id()
         if not dep_id in dep_ids:
           deps.append(dep)
@@ -167,7 +168,7 @@ class EquationSolver(Equation):
         if not dep_id in nl_dep_ids:
           n_nl_deps = 0
           for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(F, dep, argument = TrialFunction(dep.function_space()))).coefficients():
-            if isinstance(nl_dep, base_Function):
+            if isinstance(nl_dep, backend_Function):
               nl_dep_id = nl_dep.id()
               if not nl_dep_id in nl_dep_ids:
                 nl_deps.append(nl_dep)

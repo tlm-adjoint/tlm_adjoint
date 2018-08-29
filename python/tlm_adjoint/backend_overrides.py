@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import *
+from .backend import *
 
 from .equations import AssignmentSolver, EquationSolver
 from .tlm_adjoint import ManagerException, annotation_enabled, tlm_enabled
@@ -56,7 +56,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
 # Aim for compatibility with FEniCS 2017.1.0 API
 
 def assemble(form, tensor = None, form_compiler_parameters = None, add_values = False, *args, **kwargs):
-  b = base_assemble(form, tensor = tensor,
+  b = backend_assemble(form, tensor = tensor,
     form_compiler_parameters = form_compiler_parameters,
     add_values = add_values, *args, **kwargs)
   if tensor is None:
@@ -87,7 +87,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
   if not x0 is None:
     raise ManagerException("Non-linear boundary condition case not supported")
     
-  A, b = base_assemble_system(A_form, b_form, bcs = bcs, x0 = x0,
+  A, b = backend_assemble_system(A_form, b_form, bcs = bcs, x0 = x0,
     form_compiler_parameters = form_compiler_parameters,
     add_values = add_values, finalize_tensor = finalize_tensor,
     keep_diagonal = keep_diagonal, A_tensor = A_tensor, b_tensor = b_tensor,
@@ -160,10 +160,10 @@ def solve(*args, **kwargs):
         solver_parameters = solver_parameters, cache_jacobian = False,
         pre_assemble = False)
       eq._pre_annotate(annotate = annotate)
-      return_value = base_solve(*args, **kwargs)
+      return_value = backend_solve(*args, **kwargs)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
       return return_value
-    elif isinstance(args[0], base_Matrix):
+    elif isinstance(args[0], backend_Matrix):
       A, x, b = args[:3]
       solver_parameters = {"linear_solver":"default"}
       if len(args) > 3:
@@ -183,13 +183,13 @@ def solve(*args, **kwargs):
         solver_parameters = solver_parameters, cache_jacobian = False,
         pre_assemble = False)
       eq._pre_annotate(annotate = annotate)
-      return_value = base_solve(*args, **kwargs)
+      return_value = backend_solve(*args, **kwargs)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
       return return_value
     else:
       raise ManagerException("Unexpected equation arguments")
   else:
-    return base_solve(*args, **kwargs)
+    return backend_solve(*args, **kwargs)
 
 def project(v, V = None, bcs = None, mesh = None, function = None,
   solver_type = "lu", preconditioner_type = "default",
@@ -205,7 +205,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
     tlm = tlm_enabled()
   if annotate or tlm:
     if function is None:
-      return_value = base_project(v, V = V, bcs = bcs, mesh = mesh,
+      return_value = backend_project(v, V = V, bcs = bcs, mesh = mesh,
         function = function, solver_type = solver_type,
         preconditioner_type = preconditioner_type,
         form_compiler_parameters = form_compiler_parameters)
@@ -229,7 +229,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
       # ?? Other solver parameters ?
         
       eq._pre_annotate(annotate = annotate)
-      return_value = base_project(v, V = V, bcs = bcs, mesh = mesh,
+      return_value = backend_project(v, V = V, bcs = bcs, mesh = mesh,
         function = function, solver_type = solver_type,
         preconditioner_type = preconditioner_type,
         form_compiler_parameters = form_compiler_parameters)
@@ -237,29 +237,29 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
       
     return return_value
   else:
-    return base_project(v, V = V, bcs = bcs, mesh = mesh, function = function,
+    return backend_project(v, V = V, bcs = bcs, mesh = mesh, function = function,
       solver_type = solver_type, preconditioner_type = preconditioner_type,
       form_compiler_parameters = form_compiler_parameters)
 
 _orig_DirichletBC_apply = DirichletBC.apply
 def _DirichletBC_apply(self, *args):
-  if (len(args) > 1 and not isinstance(args[0], base_Matrix)) or len(args) > 2:
+  if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) or len(args) > 2:
     raise ManagerException("Non-linear boundary condition case not supported")
     
   _orig_DirichletBC_apply(self, *args)
   
-  if isinstance(args[0], base_Matrix):
+  if isinstance(args[0], backend_Matrix):
     bc = self
 
     A = args[0]
     if hasattr(A, "_tlm_adjoint__bcs"):
       A._tlm_adjoint__bcs.append(bc)
     
-    if len(args) > 1 and isinstance(args[1], base_Vector):
+    if len(args) > 1 and isinstance(args[1], backend_Vector):
       b = args[1]
       if hasattr(b, "_tlm_adjoint__bcs"):
         b._tlm_adjoint__bcs.append(bc)
-  elif isinstance(args[0], base_Vector):
+  elif isinstance(args[0], backend_Vector):
     bc = self
 
     b = args[0]
@@ -267,10 +267,10 @@ def _DirichletBC_apply(self, *args):
       b._tlm_adjoint__bcs.append(bc)
 DirichletBC.apply = _DirichletBC_apply
 
-_orig_Function_assign = base_Function.assign
+_orig_Function_assign = backend_Function.assign
 def _Function_assign(self, rhs, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, rhs)
-  if not isinstance(rhs, base_Function):
+  if not isinstance(rhs, backend_Function):
     # Only assignment to a Function annotated
     return
   
@@ -282,16 +282,16 @@ def _Function_assign(self, rhs, annotate = None, tlm = None):
     eq = AssignmentSolver(rhs, self)
     eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
   return return_value
-base_Function.assign = _Function_assign
+backend_Function.assign = _Function_assign
 
-_orig_Function_vector = base_Function.vector
+_orig_Function_vector = backend_Function.vector
 def _Function_vector(self):
   return_value = _orig_Function_vector(self)
   return_value._tlm_adjoint__function = self
   return return_value
-base_Function.vector = _Function_vector
+backend_Function.vector = _Function_vector
 
-_orig_Matrix_mul = base_Matrix.__mul__
+_orig_Matrix_mul = backend_Matrix.__mul__
 def _Matrix_mul(self, other):
   return_value = _orig_Matrix_mul(self, other)
   if hasattr(self, "_tlm_adjoint__form") and hasattr(other, "_tlm_adjoint__function"):
@@ -301,15 +301,15 @@ def _Matrix_mul(self, other):
     return_value._tlm_adjoint__bcs = []
     return_value._tlm_adjoint__form_compiler_parameters = self._tlm_adjoint__form_compiler_parameters
   return return_value
-base_Matrix.__mul__ = _Matrix_mul
+backend_Matrix.__mul__ = _Matrix_mul
 
-class LUSolver(base_LUSolver):
+class LUSolver(backend_LUSolver):
   def __init__(self, *args):
-    base_LUSolver.__init__(self, *args)
-    if len(args) >= 1 and isinstance(args[0], base_Matrix):
+    backend_LUSolver.__init__(self, *args)
+    if len(args) >= 1 and isinstance(args[0], backend_Matrix):
       self._tlm_adjoint__A = args[0]
       self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
-    elif len(args) >= 2 and isinstance(args[1], base_Matrix):
+    elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
       self._tlm_adjoint__A = args[1]
       self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"
     elif len(args) >= 1 and isinstance(args[0], str):
@@ -318,18 +318,18 @@ class LUSolver(base_LUSolver):
       self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
       
   def set_operator(self, A):
-    base_LUSolver.set_operator(self, A)
+    backend_LUSolver.set_operator(self, A)
     self._tlm_adjoint__A = A
 
   def solve(self, *args, annotate = None, tlm = None):
-    base_LUSolver.solve(self, *args)
+    backend_LUSolver.solve(self, *args)
     
     if annotate is None:
       annotate = annotation_enabled()
     if tlm is None:
       tlm = tlm_enabled()
     if annotate or tlm:
-      if isinstance(args[0], base_Matrix):
+      if isinstance(args[0], backend_Matrix):
         A, x, b = args
         self._tlm_adjoint__A = A
       else:
@@ -347,14 +347,14 @@ class LUSolver(base_LUSolver):
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
 
-class KrylovSolver(base_KrylovSolver):
+class KrylovSolver(backend_KrylovSolver):
   def __init__(self, *args):
-    base_KrylovSolver.__init__(self, *args)
-    if len(args) >= 1 and isinstance(args[0], base_Matrix):
+    backend_KrylovSolver.__init__(self, *args)
+    if len(args) >= 1 and isinstance(args[0], backend_Matrix):
       self._tlm_adjoint__A = args[0]
       self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
       self._tlm_adjoint__preconditioner = args[2] if len(args) >= 3 else "default"
-    elif len(args) >= 2 and isinstance(args[1], base_Matrix):
+    elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
       self._tlm_adjoint__A = args[1]
       self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"
       self._tlm_adjoint__preconditioner = args[3] if len(args) >= 4 else "default"
@@ -366,7 +366,7 @@ class KrylovSolver(base_KrylovSolver):
       self._tlm_adjoint__preconditioner = args[2] if len(args) >= 3 else "default"
       
   def set_operator(self, A):
-    base_KrylovSolver.set_operator(self, A)
+    backend_KrylovSolver.set_operator(self, A)
     self._tlm_adjoint__A = A
 
   def set_operators(self, A, P):
@@ -378,7 +378,7 @@ class KrylovSolver(base_KrylovSolver):
     if tlm is None:
       tlm = tlm_enabled()
     if annotate or tlm:
-      if isinstance(args[0], base_Matrix):
+      if isinstance(args[0], backend_Matrix):
         A, x, b = args
         self._tlm_adjoint__A = None
       else:
@@ -396,7 +396,7 @@ class KrylovSolver(base_KrylovSolver):
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
 
       eq._pre_annotate(annotate = annotate)
-      base_KrylovSolver.solve(self, *args)
+      backend_KrylovSolver.solve(self, *args)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
     else:
-      base_KrylovSolver.solve(self, *args)
+      backend_KrylovSolver.solve(self, *args)

@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import *
+from .backend import *
 
 import copy
 from collections import OrderedDict
@@ -52,21 +52,21 @@ __all__ = \
 class CacheException(Exception):
   pass
   
-class Constant(base_Constant):
+class Constant(backend_Constant):
   # Following FEniCS 2017.1.0 API
   def __init__(self, value, cell = None, name = None, static = False):
-    base_Constant.__init__(self, value, cell = cell, name = name)
+    backend_Constant.__init__(self, value, cell = cell, name = name)
     self.__static = static
   
   def is_static(self):
     return self.__static
   
-class Function(base_Function):
+class Function(backend_Function):
   def __init__(self, *args, **kwargs):
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
     
-    base_Function.__init__(self, *args, **kwargs)
+    backend_Function.__init__(self, *args, **kwargs)
     self.__static = static
   
   def is_static(self):
@@ -80,7 +80,7 @@ def homogenized(bc):
     hbc.homogenize()
     return hbc
 
-class DirichletBC(base_DirichletBC):
+class DirichletBC(backend_DirichletBC):
   # Following FEniCS 2017.1.0 API
   def __init__(self, *args, **kwargs):
     if isinstance(args[0], DirichletBC):
@@ -92,7 +92,7 @@ class DirichletBC(base_DirichletBC):
     static = kwargs.pop("static", False)
     homogeneous = kwargs.pop("homogeneous", homogeneous)
     
-    base_DirichletBC.__init__(self, *args, **kwargs)
+    backend_DirichletBC.__init__(self, *args, **kwargs)
     
     if homogeneous is None:
       if static:
@@ -113,7 +113,7 @@ class DirichletBC(base_DirichletBC):
   
   def homogenize(self):
     if not self.__homogeneous:
-      base_DirichletBC.homogenize(self)
+      backend_DirichletBC.homogenize(self)
       self.__homogeneous = True
 
 def is_static(expr):
@@ -281,7 +281,7 @@ def replaced_function(x):
 def replaced_form(form):
   replace_map = OrderedDict()
   for c in form.coefficients():
-    if isinstance(c, base_Function):
+    if isinstance(c, backend_Function):
       replace_map[c] = replaced_function(c)
   return replace(form, replace_map)
 

@@ -17,8 +17,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import Constant, FunctionSpace, UnitIntervalMesh, as_backend_type, \
-  base_Function, firedrake, homogenize
+from .backend import Constant, FunctionSpace, UnitIntervalMesh, \
+  as_backend_type, backend_Function, firedrake, homogenize
 
 import copy
 import numpy
@@ -82,10 +82,10 @@ def RealFunctionSpace(comm = None):
   space._tlm_adjoint__real_space = True
   return space
 
-base_Function.id = lambda self : self.count()
-class Function(base_Function):
+backend_Function.id = lambda self : self.count()
+class Function(backend_Function):
   def __init__(self, space, name = None, static = False):
-    base_Function.__init__(self, space, name = name)
+    backend_Function.__init__(self, space, name = name)
     self.__static = static
     
   def is_static(self):
@@ -126,10 +126,10 @@ def replaced_function(x):
   return x._tlm_adjoint__ReplacementFunction
 
 def is_function(x):
-  return isinstance(x, base_Function)
+  return isinstance(x, backend_Function)
 
 def function_is_static(x):
-  return isinstance(x, base_Function) and hasattr(x, "is_static") and x.is_static()
+  return isinstance(x, backend_Function) and hasattr(x, "is_static") and x.is_static()
   
 def function_copy(x, name = None, static = False):
   y = Function(x.function_space(), name = name, static = static)
@@ -189,11 +189,11 @@ def subtract_adjoint_derivative_action(x, y):
     return
   if isinstance(y, tuple):
     alpha, y = y
-    if isinstance(y, base_Function):
+    if isinstance(y, backend_Function):
       y = y.vector()
     function_axpy(x, -alpha, y)
   else:
-    if isinstance(y, base_Function):
+    if isinstance(y, backend_Function):
       y = y.vector()
     function_axpy(x, -1.0, y)
   return

@@ -17,12 +17,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import *
-
-from collections import OrderedDict
+from .backend import *
 
 from .caches import Constant, DirichletBC, Function
 from .equations import AssignmentSolver, Equation, EquationSolver
+
+from collections import OrderedDict
 
 __all__ = \
   [
@@ -144,7 +144,7 @@ class TimeFunction:
     # Note that this keeps references to the Function objects on each time level
     self._fns = OrderedDict()
     for level in levels:
-      fn = base_Function(*args, **kwargs)
+      fn = backend_Function(*args, **kwargs)
       fn._tlm_adjoint__tfn = self
       fn._tlm_adjoint__level = level
       self._fns[level] = fn
@@ -211,7 +211,7 @@ class TimeSystem:
       
     if len(args) == 1 and isinstance(args[0], Equation):
       eq = args[0]
-    elif len(args) == 2 and isinstance(args[0], base_Function) and isinstance(args[1], base_Function) and hasattr(args[1], "_tlm_adjoint__tfn"):
+    elif len(args) == 2 and isinstance(args[0], backend_Function) and isinstance(args[1], backend_Function) and hasattr(args[1], "_tlm_adjoint__tfn"):
      eq = AssignmentSolver(args[0], args[1])
     else:
      eq = EquationSolver(*args, **kwargs)

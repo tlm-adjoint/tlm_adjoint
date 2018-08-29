@@ -17,8 +17,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import *
-from .base_interface import copy_parameters_dict
+from .backend import *
+from .backend_interface import copy_parameters_dict
 
 from .equations import AssignmentSolver, EquationSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled
@@ -57,7 +57,7 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inve
   if inverse:
     raise ManagerException("Local inverses not supported")
 
-  b = base_assemble(f, tensor = tensor, bcs = bcs,
+  b = backend_assemble(f, tensor = tensor, bcs = bcs,
     form_compiler_parameters = form_compiler_parameters, inverse = inverse,
     *args, **kwargs)
   if tensor is None:
@@ -100,11 +100,11 @@ def solve(*args, **kwargs):
       form_compiler_parameters = form_compiler_parameters,
       solver_parameters = solver_parameters)
     eq._pre_annotate(annotate = annotate)
-    return_value = base_solve(*args, **kwargs)
+    return_value = backend_solve(*args, **kwargs)
     eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
     return return_value
   else:
-    return base_solve(*args, **kwargs)
+    return backend_solve(*args, **kwargs)
 
 def project(v, V, bcs = None, mesh = None, solver_parameters = None,
   form_compiler_parameters = None, name = None, annotate = None, tlm = None):
@@ -119,7 +119,7 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
       # Firedrake documentation indicates that this is ignored
       raise ManagerException("'form_compiler_parameters' argument not supported")
     # Since a zero initial guess is used, _pre_annotate is not needed
-    return_value = base_project(v, V, bcs = bcs, mesh = mesh,
+    return_value = backend_project(v, V, bcs = bcs, mesh = mesh,
       solver_parameters = solver_parameters,
       form_compiler_parameters = form_compiler_parameters, name = name)
     test, trial = TestFunction(V), TrialFunction(V)
@@ -129,7 +129,7 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
     eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
     return return_value
   else:
-    return base_project(v, V, bcs = bcs, mesh = mesh,
+    return backend_project(v, V, bcs = bcs, mesh = mesh,
       solver_parameters = solver_parameters,
       form_compiler_parameters = form_compiler_parameters, name = name)
 
@@ -143,10 +143,10 @@ def _DirichletBC_apply(self, r, u = None):
     u._tlm_adjoint__bcs.append(self)
 DirichletBC.apply = _DirichletBC_apply
 
-_orig_Function_assign = base_Function.assign
+_orig_Function_assign = backend_Function.assign
 def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, expr, subset = subset)
-  if not isinstance(expr, base_Function) or not subset is None:
+  if not isinstance(expr, backend_Function) or not subset is None:
     # Only assignment to a Function annotated
     return
   
@@ -158,16 +158,16 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
     eq = AssignmentSolver(expr, self)
     eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
   return return_value
-base_Function.assign = _Function_assign
+backend_Function.assign = _Function_assign
 
-_orig_Function_vector = base_Function.vector
+_orig_Function_vector = backend_Function.vector
 def _Function_vector(self):
   return_value = _orig_Function_vector(self)
   return_value._tlm_adjoint__function = self
   return return_value
-base_Function.vector = _Function_vector
+backend_Function.vector = _Function_vector
 
-class LinearSolver(base_LinearSolver):
+class LinearSolver(backend_LinearSolver):
   def __init__(self, A, P = None, solver_parameters = None, nullspace = None,
     transpose_nullspace = None, near_nullspace = None, options_prefix = None):
     if not P is None:
@@ -177,7 +177,7 @@ class LinearSolver(base_LinearSolver):
     if not options_prefix is None:
       raise ManagerException("Options prefixes not supported")
   
-    base_LinearSolver.__init__(self, A, P = P,
+    backend_LinearSolver.__init__(self, A, P = P,
       solver_parameters = solver_parameters, nullspace = nullspace,
       transpose_nullspace = transpose_nullspace,
       near_nullspace = near_nullspace, options_prefix = options_prefix)
@@ -197,7 +197,7 @@ class LinearSolver(base_LinearSolver):
       tlm = tlm_enabled()
     if annotate or tlm:
       A = self._tlm_adjoint__A
-      if not isinstance(x, base_Function):
+      if not isinstance(x, backend_Function):
         x = x._tlm_adjoint__function
       bcs = A._tlm_adjoint__bcs
       if bcs != b._tlm_adjoint__bcs:
@@ -212,7 +212,7 @@ class LinearSolver(base_LinearSolver):
         form_compiler_parameters = form_compiler_parameters)
 
       eq._pre_annotate(annotate = annotate)
-      base_LinearSolver.solve(self, x, b)
+      backend_LinearSolver.solve(self, x, b)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
     else:
-      base_LinearSolver.solve(self, x, b)
+      backend_LinearSolver.solve(self, x, b)

@@ -44,25 +44,25 @@
 # Modified by Martin Sandve Alnes 2008-2014
 # Modified by Andre Massing 2009
 
-base = "FEniCS"
+backend = "FEniCS"
 
 from fenics import *
 
 import fenics
 
-base_Matrix = fenics.GenericMatrix
-base_Vector = fenics.GenericVector
+backend_Matrix = fenics.GenericMatrix
+backend_Vector = fenics.GenericVector
 extract_args = fenics.fem.solving._extract_args
 
-base_Constant = fenics.Constant
-base_DirichletBC = fenics.DirichletBC
-base_Function = fenics.Function
-base_KrylovSolver = fenics.KrylovSolver
-base_LUSolver = LUSolver
-base_assemble = fenics.assemble
-base_assemble_system = fenics.assemble_system
-base_project = project
-base_solve = fenics.solve
+backend_Constant = fenics.Constant
+backend_DirichletBC = fenics.DirichletBC
+backend_Function = fenics.Function
+backend_KrylovSolver = fenics.KrylovSolver
+backend_LUSolver = LUSolver
+backend_assemble = fenics.assemble
+backend_assemble_system = fenics.assemble_system
+backend_project = project
+backend_solve = fenics.solve
   
 def copy_vector(x):
   return x.copy()
@@ -86,19 +86,19 @@ def copy_parameters_dict(parameters):
   
 __all__ = \
   [  
-    "base",
+    "backend",
     
-    "base_Constant",
-    "base_DirichletBC",
-    "base_Function",
-    "base_KrylovSolver",
-    "base_LUSolver",
-    "base_Matrix",
-    "base_Vector",
-    "base_assemble",
-    "base_assemble_system",
-    "base_project",
-    "base_solve",
+    "backend_Constant",
+    "backend_DirichletBC",
+    "backend_Function",
+    "backend_KrylovSolver",
+    "backend_LUSolver",
+    "backend_Matrix",
+    "backend_Vector",
+    "backend_assemble",
+    "backend_assemble_system",
+    "backend_project",
+    "backend_solve",
     
     "Constant",
     "DirichletBC",
@@ -134,13 +134,13 @@ __all__ = \
     "copy_parameters_dict",
     "copy_vector",
     
-    "clear_base_caches"
+    "clear_backend_caches"
   ]
 
 from collections import OrderedDict
 layout_cache = OrderedDict()
 matrix_cache = OrderedDict()
-def clear_base_caches():
+def clear_backend_caches():
   layout_cache.clear()
   matrix_cache.clear()
       
@@ -174,13 +174,13 @@ def matrix(space_0, space_1):
 # The following workaround various FEniCS 2017.2.0 memory leaks
 # Following FEniCS 2017.2.0 API
 
-_orig_Function__init__ = base_Function.__init__
+_orig_Function__init__ = backend_Function.__init__
 def _Function__init__(self, *args, **kwargs):
   if len(args) == 1 and isinstance(args[0], FunctionSpace):
     _orig_Function__init__(self, args[0], vector(args[0]), **kwargs)
   else:
     _orig_Function__init__(self, *args, **kwargs)
-base_Function.__init__ = _Function__init__
+backend_Function.__init__ = _Function__init__
 
 _orig_assemble = fenics.assemble
 def assemble(form, tensor = None, *args, **kwargs):
@@ -192,7 +192,7 @@ def assemble(form, tensor = None, *args, **kwargs):
     elif rank == 2:
       tensor = matrix(arguments[0].function_space(), arguments[1].function_space())
   return _orig_assemble(form, tensor = tensor, *args, **kwargs)
-base_assemble = fenics.assemble = assemble
+backend_assemble = fenics.assemble = assemble
 
 _orig_assemble_system = fenics.assemble_system
 def assemble_system(A_form, b_form, bcs = None, x0 = None,
@@ -207,4 +207,4 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
   return _orig_assemble_system(A_form, b_form, bcs = bcs, x0 = x0,
     form_compiler_parameters = form_compiler_parameters, add_values = add_values,
     finalize_tensor = finalize_tensor, keep_diagonal = keep_diagonal, A_tensor = A_tensor, b_tensor = b_tensor, *args, **kwargs)
-base_assemble_system = fenics.assemble_system = assemble_system
+backend_assemble_system = fenics.assemble_system = assemble_system

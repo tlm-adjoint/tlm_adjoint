@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-base = "NumPy"
+backend = "NumPy"
 
 __all__ = \
   [
-    "base"
+    "backend"
   ]

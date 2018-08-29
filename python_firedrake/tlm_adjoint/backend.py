@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-base = "Firedrake"
+backend = "Firedrake"
 
 from firedrake import *
 
@@ -25,21 +25,21 @@ import firedrake
 
 extract_args = firedrake.solving._extract_args
 
-base_Function = firedrake.Function
-base_LinearSolver = firedrake.LinearSolver
-base_assemble = assemble
-base_project = project
-base_solve = solve
+backend_Function = firedrake.Function
+backend_LinearSolver = firedrake.LinearSolver
+backend_assemble = assemble
+backend_project = project
+backend_solve = solve
 
 __all__ = \
   [
-    "base",
+    "backend",
     
-    "base_Function",
-    "base_LinearSolver",
-    "base_assemble",
-    "base_project",
-    "base_solve",
+    "backend_Function",
+    "backend_LinearSolver",
+    "backend_assemble",
+    "backend_project",
+    "backend_solve",
     
     "Constant",
     "DirichletBC",

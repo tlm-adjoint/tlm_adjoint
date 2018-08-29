@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import FunctionSpace, UnitIntervalMesh, assemble, assign_vector, \
-  base_Constant, base_Function, clear_base_caches, copy_parameters_dict, info, \
-  warning
+from .backend import FunctionSpace, UnitIntervalMesh, assemble, assign_vector, \
+  backend_Constant, backend_Function, clear_backend_caches, \
+  copy_parameters_dict, info, warning
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
   homogenized as homogenized_bc, is_static, linear_solver_cache, \
@@ -64,7 +64,7 @@ __all__ = \
 def clear_caches():
   assembly_cache().clear()
   linear_solver_cache().clear()
-  #clear_base_caches()
+  #clear_backend_caches()
 
 #def info(message):
 
@@ -97,10 +97,10 @@ class RealFunctionSpace(FunctionSpace):
 #def replaced_function(x):
 
 def is_function(x):
-  return isinstance(x, base_Function)
+  return isinstance(x, backend_Function)
 
 def function_is_static(x):
-  return isinstance(x, base_Function) and is_static(x)
+  return isinstance(x, backend_Function) and is_static(x)
   
 def function_copy(x, name = None, static = False):
   y = x.copy(deepcopy = True)
@@ -110,7 +110,7 @@ def function_copy(x, name = None, static = False):
   return y
 
 def function_assign(x, y):
-  if isinstance(y, (int, float, base_Constant)):
+  if isinstance(y, (int, float, backend_Constant)):
     function_set_values(x, numpy.ones(x.vector().local_size(), dtype = numpy.float64) * float(y))
   else:
     assign_vector(x.vector(), y.vector())
@@ -141,7 +141,7 @@ def function_linf_norm(x):
   return x.vector().norm("linf")
   
 def function_new(x, name = None, static = False):
-  if isinstance(x, base_Function):
+  if isinstance(x, backend_Function):
     y = function_copy(x, name = name, static = static)
     function_zero(y)
     return y
@@ -162,7 +162,7 @@ def subtract_adjoint_derivative_action(x, y):
     return
   if isinstance(y, tuple):
     alpha, y = y
-    if isinstance(y, base_Function):
+    if isinstance(y, backend_Function):
       y = y.vector()
     x.vector().axpy(-alpha, y)
   elif isinstance(y, ufl.classes.Form):
@@ -171,7 +171,7 @@ def subtract_adjoint_derivative_action(x, y):
     else:
       x._tlm_adjoint__adj_b = -y
   else:
-    if isinstance(y, base_Function):
+    if isinstance(y, backend_Function):
       y = y.vector()
     x.vector().axpy(-1.0, y)
   return

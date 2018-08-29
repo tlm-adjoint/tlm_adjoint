@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .base import *
+from .backend import *
+from .backend_interface import *
 from .base_equations import *
-from .base_interface import *
 from .equations import *
 from .functional import *
 from .hessian import *
