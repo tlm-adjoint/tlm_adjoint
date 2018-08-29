@@ -700,7 +700,11 @@ class EquationManager:
     deps = eq.dependencies()
     for dep in deps:
       if not dep.id() in self._replace_map:
-        self._replace_map[dep.id()] = replaced_function(dep)
+        replaced_dep = self._replace_map[dep.id()] = replaced_function(dep)
+        if hasattr(dep, "_tlm_adjoint__tlm_basename"):
+          replaced_dep._tlm_adjoint__tlm_basename = dep._tlm_adjoint__tlm_basename
+        if hasattr(dep, "_tlm_adjoint__tlm_depth"):
+          replaced_dep._tlm_adjoint__tlm_depth = dep._tlm_adjoint__tlm_depth      
     eq._replace(OrderedDict([(dep, self._replace_map[dep.id()]) for dep in deps]))
     if eq in self._tlm_eqs:
       for tlm_eq in self._tlm_eqs[eq].values():

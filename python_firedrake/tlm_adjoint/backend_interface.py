@@ -101,10 +101,6 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__id = x.id()
     self.__name = x.name()
     self.__static = function_is_static(x)
-    if hasattr(x, "_tlm_adjoint__tlm_basename"):
-      self._tlm_adjoint__tlm_basename = x._tlm_adjoint__tlm_basename
-    if hasattr(x, "_tlm_adjoint__tlm_depth"):
-      self._tlm_adjoint__tlm_depth = x._tlm_adjoint__tlm_depth
   
   def function_space(self):
     return self.__space
