@@ -13,6 +13,19 @@ To use the NumPy backend copy (or make symbolic links)
 
 and add the 'python_numpy' subdirectory to the Python search path.
 
+To use the Firedrake backend copy (or make symbolic links)
+
+  python/tlm_adjoint/base_equations.py         -> python_firedrake/tlm_adjoint/base_equations.py
+  python/tlm_adjoint/binomial_checkpointing.py -> python_firedrake/tlm_adjoint/binomial_checkpointing.py
+  python/tlm_adjoint/eigendecomposition.py     -> python_firedrake/tlm_adjoint/eigendecomposition.py
+  python/tlm_adjoint/functional.py             -> python_firedrake/tlm_adjoint/functional.py
+  python/tlm_adjoint/hessian.py                -> python_firedrake/tlm_adjoint/hessian.py
+  python/tlm_adjoint/hessian_optimization.py   -> python_firedrake/tlm_adjoint/hessian_optimization.py
+  python/tlm_adjoint/manager.py                -> python_firedrake/tlm_adjoint/manager.py
+  python/tlm_adjoint/tlm_adjoint.py            -> python_firedrake/tlm_adjoint/tlm_adjoint.py
+
+and add the 'python_firedrake' subdirectory to the Python search path.
+
 tlm_adjoint requires
 
   FEniCS (specifically DOLFIN, UFL, and FFC), tested against version 2017.2.0
