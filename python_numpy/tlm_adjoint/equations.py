@@ -27,6 +27,13 @@ import numpy
 
 __all__ = \
   [
+    "AssignmentSolver",
+    "AxpySolver",
+    "Equation",
+    "EquationException",
+    "NullSolver",
+    "ScaleSolver",
+    
     "LinearEquation",
     "Matrix",
     "RHS",
@@ -70,7 +77,7 @@ class RHS:
   def add_forward(self, B, deps):
     raise EquationException("Method not overridden")
 
-  def add_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
     raise EquationException("Method not overridden")
 
   def tangent_linear_rhs(self, M, dM, tlm_map):
@@ -84,9 +91,9 @@ class IdentityRHS(RHS):
     x, = deps
     b.vector()[:] += x.vector()
 
-  def add_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
     if dep_index == 0:
-      b.vector()[:] += adj_x.vector()
+      b.vector()[:] -= adj_x.vector()
 
   def tangent_linear_rhs(self, M, dM, tlm_map):
     x, = self.dependencies()
@@ -114,10 +121,16 @@ class Matrix:
   def nonlinear_dependencies(self):
     return self._nl_deps
   
-  def add_forward_action(self, B, nl_deps, X):
+  def add_forward_action(self, b, nl_deps, X):
     raise EquationException("Method not overridden")
   
   def reset_add_forward_action(self):
+    pass
+  
+  def add_adjoint_action(self, b, nl_deps, X):
+    raise EquationException("Method not overridden")
+  
+  def reset_add_adjoint_action(self):
     pass
   
   def forward_solve(self, B, nl_deps):
@@ -132,10 +145,10 @@ class Matrix:
   def reset_adjoint_jacobian_action(self):
     pass
   
-  def subtract_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_X, X):
+  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_X, X):
     raise EquationException("Method not overridden")
   
-  def reset_subtract_adjoint_derivative_action(self):
+  def reset_add_adjoint_derivative_action(self):
     pass
   
   def adjoint_jacobian_solve(self, B, nl_deps):
@@ -144,7 +157,7 @@ class Matrix:
   def reset_adjoint_jacobian_solve(self):
     pass
   
-  def tangent_linear_rhs(self, M, dM, tlm_map):
+  def tangent_linear_rhs(self, M, dM, tlm_map, X):
     raise EquationException("Method not overridden")
 
 class MatrixActionRHS(RHS):
@@ -154,14 +167,14 @@ class MatrixActionRHS(RHS):
     A_nl_deps = A.nonlinear_dependencies()
     if len(A_nl_deps) == 0:
       x_indices = list(range(len(X)))
-      RHS.__init__(self, list(X), nl_deps = [])
+      RHS.__init__(self, X, nl_deps = [])
     else:
       nl_deps = list(A_nl_deps)
       nl_dep_ids = {dep.id():i for i, dep in enumerate(nl_deps)}
       x_indices = []
       for x in X:
         x_id = x.id()
-        if not x_id in nl_deps:
+        if not x_id in nl_dep_ids:
           nl_deps.append(x)
           nl_dep_ids[x_id] = len(nl_deps) - 1
         x_indices.append(nl_dep_ids[x_id])
@@ -171,19 +184,25 @@ class MatrixActionRHS(RHS):
     self._x_indices = x_indices
   
   def add_forward(self, B, deps):
+    if is_function(B):
+      B = (B,)
     X = [deps[j] for j in self._x_indices]
-    self._A.add_forward_action(B, deps[:len(self._A.nonlinear_dependencies())], X[0] if len(X) == 1 else X)
+    self._A.add_forward_action(B[0] if len(B) == 1 else B, deps[:len(self._A.nonlinear_dependencies())], X[0] if len(X) == 1 else X)
 
-  def add_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+    if is_function(adj_X):
+      adj_X = (adj_X,)
+    sb = function_new(b)
     A_nl_deps = self._A.nonlinear_dependencies()
     if dep_index < len(A_nl_deps):
       X = [nl_deps[j] for j in self._x_indices]
-      self._A.subtract_adjoint_derivative_action(b, nl_deps[:len(A_nl_deps)], dep_index, adj_X, X[0] if len(X) == 1 else X)
+      self._A.add_adjoint_derivative_action(sb, nl_deps[:len(A_nl_deps)], dep_index, adj_X[0] if len(adj_X) == 1 else adj_X, X[0] if len(X) == 1 else X)
     elif dep_index < len(self.dependencies()):
-      X = [None for x in self.X()]
+      X = [None for j in self._x_indices]
       i = self._x_indices.index(dep_index)
       X[i] = adj_X[i]
-      raise NotImplementedError
+      self._A.add_adjoint_action(sb, nl_deps[:len(A_nl_deps)], X[0] if len(X) == 1 else X)
+    b.vector()[:] -= sb.vector()
 
 class LinearEquation(Equation):
   def __init__(self, B, X, A = None):
@@ -246,7 +265,7 @@ class LinearEquation(Equation):
     del(dep_ids, nl_dep_ids)
     
     Equation.__init__(self, X, deps, nl_deps = nl_deps)
-    self._B = copy.copy(B)
+    self._B = list(B)
     self._b_dep_indices = b_dep_indices
     self._b_nl_dep_indices = b_nl_dep_indices
     self._A = A
@@ -254,7 +273,7 @@ class LinearEquation(Equation):
       self._A_dep_indices = A_dep_indices
       self._A_nl_dep_indices = A_nl_dep_indices
       self._A_x_indices = A_x_indices
-    self._deps_map = {dep.id():i for i, dep in enumerate(self.nonlinear_dependencies())}
+      self._A_nl_deps_map = {dep.id():i for i, dep in enumerate(self._A.nonlinear_dependencies())}
     
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
@@ -289,8 +308,7 @@ class LinearEquation(Equation):
       
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     if is_function(adj_X):
-      adj_X = (adj_X,)
-      
+      adj_X = (adj_X,)      
     if dep_index < len(self.X()):
       if self._A is None:
         return adj_X[dep_index]
@@ -299,26 +317,27 @@ class LinearEquation(Equation):
         X[dep_index] = adj_X[dep_index]
         self._A.adjoint_jacobian_action([nl_deps[j] for j in self._A_nl_dep_indices], X[0] if len(X) == 1 else X)
     else:
-      F = function_new(self.dependencies()[dep_index])
+      dep = self.dependencies()[dep_index]
+      F = function_new(dep)
       for i, b in enumerate(self._B):
         try:
-          b_dep_index = b.dependencies().index(self.dependencies()[dep_index])
+          b_dep_index = b.dependencies().index(dep)
         except ValueError:
           continue
-        b.add_adjoint_derivative_action(F,
+        b.subtract_adjoint_derivative_action(F,
           [nl_deps[j] for j in self._b_nl_dep_indices[i]],
           b_dep_index,
           adj_X[0] if len(adj_X) == 1 else adj_X)
       if not self._A is None:
-        dep_id = self.dependencies()[dep_index].id()
-        if dep_id in self._deps_map:
+        dep_id = dep.id()
+        if dep_id in self._A_nl_deps_map:
           X = [nl_deps[j] for j in self._A_x_indices]
-          self._A.subtract_adjoint_derivative_action(F,
+          self._A.add_adjoint_derivative_action(F,
             [nl_deps[j] for j in self._A_nl_dep_indices],
-            self._deps_map[dep_id],
+            self._A_nl_deps_map[dep_id],
             adj_X[0] if len(adj_X) == 1 else adj_X,
             X[0] if len(X) == 1 else X)
-      return (-1.0, F)
+      return F
 
   def tangent_linear(self, M, dM, tlm_map):
     X = self.X()
@@ -336,11 +355,12 @@ class LinearEquation(Equation):
         tlm_B = [tlm_B]
     for b in self._B:
       tlm_b = b.tangent_linear_rhs(M, dM, tlm_map)
-      if not tlm_b is None:
-        if isinstance(tlm_b, RHS):
-          tlm_B.append(tlm_b)
-        else:
-          tlm_B += list(tlm_b)
+      if tlm_b is None:
+        pass
+      elif isinstance(tlm_b, RHS):
+        tlm_B.append(tlm_b)
+      else:
+        tlm_B += list(tlm_b)
           
     if len(tlm_B) == 0:
       return None
@@ -355,9 +375,9 @@ class SumRHS(RHS):
     y, = deps
     b.vector()[:] += y.vector().sum()
     
-  def add_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
     if dep_index == 0:
-      b.vector()[:] += adj_x.vector().sum()
+      b.vector()[:] -= adj_x.vector().sum()
       
   def tangent_linear_rhs(self, M, dM, tlm_map):
     y, = self.dependencies()
@@ -389,7 +409,7 @@ class InnerProductRHS(RHS):
       else:
         self._dot = lambda x : alpha * x
     elif alpha == 1.0:
-      self._dot = lambda x : M.dot(X)
+      self._dot = lambda x : M.dot(x)
     else:
       self._dot = lambda x : alpha * M.dot(x)
     
@@ -397,11 +417,11 @@ class InnerProductRHS(RHS):
     y, z = deps
     b.vector()[:] += y.vector().dot(self._dot(z.vector()))
     
-  def add_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
     if dep_index == 0:
-      b.vector()[:] += adj_x.vector().sum() * self._dot(nl_deps[1].vector())
+      b.vector()[:] -= adj_x.vector().sum() * self._dot(nl_deps[1].vector())
     elif dep_index == 1:
-      b.vector()[:] += adj_x.vector().sum() * self._dot(nl_deps[0].vector())
+      b.vector()[:] -= adj_x.vector().sum() * self._dot(nl_deps[0].vector())
       
   def tangent_linear_rhs(self, M, dM, tlm_map):
     y, z = self.dependencies()
@@ -522,7 +542,7 @@ class ContractionRHS(RHS):
   def add_forward(self, b, deps):
     b.vector()[:] += self._c.value(deps)
 
-  def add_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
     if dep_index < len(self._c.I()):
       A, I, alpha = self._c.A(), self._c.I(), self._c.alpha()
       Y = [None for i in range(len(A.shape))]
@@ -532,7 +552,7 @@ class ContractionRHS(RHS):
           Y[i] = nl_dep
       Y[self._j] = adj_x
       
-      b.vector()[:] += ContractionMatrix(A, list(range(k)) + list(range(k + 1, len(A.shape))), A_T = self._A_T, alpha = alpha).value(Y[:k] + Y[k + 1:])
+      b.vector()[:] -= ContractionMatrix(A, list(range(k)) + list(range(k + 1, len(A.shape))), A_T = self._A_T, alpha = alpha).value(Y[:k] + Y[k + 1:])
 
   def tangent_linear_rhs(self, M, dM, tlm_map):
     Y = list(self.dependencies())
