@@ -628,7 +628,7 @@ class EquationManager:
     """
     Process the provided equation, annotating and / or deriving (and solving)
     tangent-linear models as required. Assumes that the equation has already
-    been solved, and that the initial condition for eq.X() have been recorded on
+    been solved, and that the initial condition for eq.X() has been recorded on
     the adjoint tape if necessary.
     
     annotate (default self.annotation_enabled()):
