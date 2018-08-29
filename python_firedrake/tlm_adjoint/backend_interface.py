@@ -72,7 +72,9 @@ def warning(message):
 def copy_parameters_dict(parameters):
   return copy.deepcopy(parameters)
 
-firedrake.functionspaceimpl.WithGeometry.id = lambda self : id(self)
+ufl.classes.FunctionSpace.id = lambda self : id(self)
+firedrake.functionspaceimpl.FunctionSpace.id = lambda self : id(self)
+firedrake.functionspaceimpl.MixedFunctionSpace.id = lambda self : id(self)
 
 def RealFunctionSpace(comm = None):
   if comm is None:
