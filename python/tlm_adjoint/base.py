@@ -124,6 +124,7 @@ __all__ = \
     "info",
     "inner",
     "parameters",
+    "project",
     "replace",
     "solve",
     "system",

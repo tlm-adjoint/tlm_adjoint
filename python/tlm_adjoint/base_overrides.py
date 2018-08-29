@@ -370,7 +370,7 @@ class KrylovSolver(base_KrylovSolver):
     self._tlm_adjoint__A = A
 
   def set_operators(self, A, P):
-    raise ManagerException("Preconditioner operators not supported")
+    raise ManagerException("Preconditioner matrices not supported")
 
   def solve(self, *args, annotate = None, tlm = None):
     if annotate is None:
