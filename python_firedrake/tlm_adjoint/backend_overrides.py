@@ -64,7 +64,7 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inve
     tensor = b
   
   if not isinstance(b, float):
-    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     if not form_compiler_parameters is None:
       form_compiler_parameters_.update(form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_

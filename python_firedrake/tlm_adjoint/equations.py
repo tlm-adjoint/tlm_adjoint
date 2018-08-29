@@ -75,7 +75,7 @@ class AssembleSolver(Equation):
     del(dep_ids, nl_dep_ids)
     deps.insert(0, x)
     
-    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     form_compiler_parameters_.update(form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     
@@ -194,7 +194,7 @@ class EquationSolver(Equation):
     
     hbcs = [homogenized_bc(bc) for bc in bcs]
     
-    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     form_compiler_parameters_.update(form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     

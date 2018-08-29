@@ -17,10 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Constant, FunctionSpace, UnitIntervalMesh, \
+from .backend import Constant, FunctionSpace, Parameters, UnitIntervalMesh, \
   as_backend_type, backend_Function, firedrake, homogenize
 
-import copy
 import numpy
 import ufl
 import sys
@@ -70,7 +69,11 @@ def warning(message):
   sys.stderr.flush()
 
 def copy_parameters_dict(parameters):
-  return copy.deepcopy(parameters)
+  parameters_copy = parameters.copy()
+  for key, value in parameters.items():
+    if isinstance(value, (Parameters, dict)):
+      parameters_copy[key] = copy_parameters_dict(value)
+  return parameters_copy
 
 ufl.classes.FunctionSpace.id = lambda self : id(self)
 firedrake.functionspaceimpl.FunctionSpace.id = lambda self : id(self)
