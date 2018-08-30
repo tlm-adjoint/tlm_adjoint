@@ -44,7 +44,7 @@ class tests(unittest.TestCase):
       
       return x, J
     
-    m = Function(space, name = "m")
+    m = Function(space, name = "m", static = True)
     function_set_values(m, numpy.array([7.0, 8.0, 9.0], dtype = numpy.float64))
     
     start_manager()
@@ -54,11 +54,11 @@ class tests(unittest.TestCase):
     self.assertEqual(abs(A.dot(m.vector()) - x.vector()).max(), 0.0)
 
     dJ = compute_gradient(J, m)
-    min_order = taylor_test(lambda m : forward(m)[1], m, J.value(), dJ = dJ)
+    min_order = taylor_test(lambda m : forward(m)[1], m, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 2.00)
     
     ddJ = Hessian(lambda m : forward(m)[1])
-    min_order = taylor_test(lambda m : forward(m)[1], m, J.value(), dJ = dJ, ddJ = ddJ)
+    min_order = taylor_test(lambda m : forward(m)[1], m, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 3.00)
 
   def test_InnerProductEquation(self):
@@ -85,7 +85,7 @@ class tests(unittest.TestCase):
     stop_manager()
 
     dJ = compute_gradient(J, F)
-    min_order = taylor_test(forward, F, J.value(), dJ = dJ)
+    min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
 
   def test_SumEquation(self):
@@ -110,9 +110,11 @@ class tests(unittest.TestCase):
     start_manager()
     J = forward(F)
     stop_manager()
+    
+    self.assertEqual(J.value(), F.vector().sum())
 
     dJ = compute_gradient(J, F)
-    self.assertAlmostEqual(abs(function_get_values(dJ) - 1.0).max(), 0.0, places = 17)
+    self.assertEqual(abs(function_get_values(dJ) - 1.0).max(), 0.0)
     
 if __name__ == "__main__":
   numpy.random.seed(1201)

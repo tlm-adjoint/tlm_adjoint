@@ -73,17 +73,12 @@ def warning(message):
 def copy_parameters_dict(parameters):
   return copy.deepcopy(parameters)
   
-FunctionSpace_id_counter = [0]
 class FunctionSpace:
   def __init__(self, dim):
-    id = FunctionSpace_id_counter[0]
-    FunctionSpace_id_counter[0] += 1
-      
     self._dim = dim
-    self._id = id
   
   def id(self):
-    return self._id
+    return self._dim
   
   def dim(self):
     return self._dim
@@ -166,8 +161,7 @@ def function_axpy(x, alpha, y):
   x.vector()[:] += alpha * y.vector()
 
 def function_comm(x):
-  import petsc4py.PETSc
-  return petsc4py.PETSc.COMM_WORLD
+  raise InterfaceException("NumPy backend is serial only")
 
 def function_inner(x, y):
   return x.vector().dot(y.vector())
@@ -213,7 +207,9 @@ def subtract_adjoint_derivative_action(x, y):
     else:
       x.vector()[:] -= alpha * y
   else:
-    x.vector()[:] -= y.vector()
+    if is_function(y):
+      y = y.vector()
+    x.vector()[:] -= y
     
 def finalise_adjoint_derivative_action(x):
   pass
