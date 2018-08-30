@@ -27,14 +27,7 @@ import copy
 import ufl
 
 __all__ = \
-  [
-    "AssignmentSolver",
-    "AxpySolver",
-    "Equation",
-    "EquationException",
-    "NullSolver",
-    "ScaleSolver",
-    
+  [    
     "AssembleSolver",
     "DirichletBCSolver",
     "EquationSolver"

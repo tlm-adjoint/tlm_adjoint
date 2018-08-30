@@ -33,15 +33,7 @@ import numpy
 import ufl
 
 __all__ = \
-  [
-    "AssignmentSolver",
-    "AxpySolver",
-    "Equation",
-    "EquationException",
-    "NullSolver",
-    "ScaleSolver",
-    "extract_form_compiler_parameters",
-
+ [
     "AssembleSolver",
     "DirichletBCSolver",
     "EquationSolver"
