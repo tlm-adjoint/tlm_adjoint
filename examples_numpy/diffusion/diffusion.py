@@ -36,30 +36,31 @@ def K(kappa):
   K = K.tocsr()
   return K
   
-def K_kappa(psi):
+def dK_dkappa_adj_action(psi, adj_psi):
   psi = psi.vector()
-  K = scipy.sparse.lil_matrix(((N + 1) * (N + 1), (N + 1) * (N + 1)), dtype = numpy.float64)
+  adj_psi = adj_psi.vector()
+  b = numpy.zeros(psi.shape, dtype = numpy.float64)
   for i in range(1, N):
     for j in range(1, N):
       if i > 1:
-        K[index(i, j), index(i, j)] += -0.5 * psi[index(i - 1, j)] * dt / (dx * dx)
-        K[index(i - 1, j), index(i, j)] += -0.5 * psi[index(i - 1, j)] * dt / (dx * dx)
+        b[index(i, j)] += -0.5 * psi[index(i - 1, j)] * adj_psi[index(i, j)]
+        b[index(i - 1, j)] += -0.5 * psi[index(i - 1, j)] * adj_psi[index(i, j)]
       if j > 1:
-        K[index(i, j), index(i, j)] += -0.5 * psi[index(i, j - 1)] * dt / (dx * dx)
-        K[index(i, j - 1), index(i, j)] += -0.5 * psi[index(i, j - 1)] * dt / (dx * dx)
+        b[index(i, j)] += -0.5 * psi[index(i, j - 1)] * adj_psi[index(i, j)]
+        b[index(i, j - 1)] += -0.5 * psi[index(i, j - 1)] * adj_psi[index(i, j)]
       if i < N - 1:
-        K[index(i, j), index(i, j)] += -0.5 * psi[index(i + 1, j)] * dt / (dx * dx)
-        K[index(i + 1, j), index(i, j)] += -0.5 * psi[index(i + 1, j)] * dt / (dx * dx)
+        b[index(i, j)] += -0.5 * psi[index(i + 1, j)] * adj_psi[index(i, j)]
+        b[index(i + 1, j)] += -0.5 * psi[index(i + 1, j)] * adj_psi[index(i, j)]
       if j < N - 1:
-        K[index(i, j), index(i, j)] += -0.5 * psi[index(i, j + 1)] * dt / (dx * dx)
-        K[index(i, j + 1), index(i, j)] += -0.5 * psi[index(i, j + 1)] * dt / (dx * dx)
-      K[index(i, j), index(i, j)] += 2.0 * psi[index(i, j)] * dt / (dx * dx)
-      K[index(i - 1, j), index(i, j)] += 0.5 * psi[index(i, j)] * dt / (dx * dx)
-      K[index(i, j - 1), index(i, j)] += 0.5 * psi[index(i, j)] * dt / (dx * dx)
-      K[index(i + 1, j), index(i, j)] += 0.5 * psi[index(i, j)] * dt / (dx * dx)
-      K[index(i, j + 1), index(i, j)] += 0.5 * psi[index(i, j)] * dt / (dx * dx)
-  K = K.tocsr()
-  return K
+        b[index(i, j)] += -0.5 * psi[index(i, j + 1)] * adj_psi[index(i, j)]
+        b[index(i, j + 1)] += -0.5 * psi[index(i, j + 1)] * adj_psi[index(i, j)]
+      b[index(i, j)] += 2.0 * psi[index(i, j)] * adj_psi[index(i, j)]
+      b[index(i - 1, j)] += 0.5 * psi[index(i, j)] * adj_psi[index(i, j)]
+      b[index(i, j - 1)] += 0.5 * psi[index(i, j)] * adj_psi[index(i, j)]
+      b[index(i + 1, j)] += 0.5 * psi[index(i, j)] * adj_psi[index(i, j)]
+      b[index(i, j + 1)] += 0.5 * psi[index(i, j)] * adj_psi[index(i, j)]
+  b *= dt / (dx * dx)
+  return b
 
 def A(kappa, alpha = 1.0, beta = 1.0):
   return (alpha * scipy.sparse.identity((N + 1) * (N + 1), dtype = numpy.float64) + beta * K(kappa)).tocsr()
@@ -136,7 +137,7 @@ def forward(psi_0, kappa):
     
     def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_x, x):
       if nl_dep_index == 0:
-        b.vector()[:] += self._beta * K_kappa(x).dot(adj_x.vector())
+        b.vector()[:] += self._beta * dK_dkappa_adj_action(x, adj_x)
     
     def adjoint_jacobian_solve(self, b, nl_deps):
       self._assemble_A(kappa)
