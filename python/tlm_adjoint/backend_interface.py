@@ -19,7 +19,7 @@
 
 from .backend import FunctionSpace, UnitIntervalMesh, assemble, assign_vector, \
   backend_Constant, backend_Function, clear_backend_caches, \
-  copy_parameters_dict, info, warning
+  copy_parameters_dict, info, update_parameters_dict, warning
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
   homogenized as homogenized_bc, is_static, linear_solver_cache, \
@@ -59,6 +59,7 @@ __all__ = \
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
+    "update_parameters_dict",
     "warning"
   ]
   
@@ -72,6 +73,8 @@ def clear_caches():
 #def warning(message):
 
 #def copy_parameters_dict(parameters):
+
+#def update_parameters_dict(parameters, new_parameters):
 
 #class FunctionSpace:
 #  def id(self):

@@ -83,6 +83,17 @@ def copy_parameters_dict(parameters):
     else:
       new_parameters[key] = value
   return new_parameters
+
+def update_parameters_dict(parameters, new_parameters):
+  for key, value in new_parameters.items():
+    if key in parameters \
+      and isinstance(parameters[key], (Parameters, dict)) \
+      and isinstance(value, (Parameters, dict)):
+      update_parameters_dict(parameters[key], value)
+    elif isinstance(value, (Parameters, dict)):
+      parameters[key] = copy_parameters_dict(value)
+    else:
+      parameters[key] = value
   
 __all__ = \
   [  
@@ -133,6 +144,7 @@ __all__ = \
     "assign_vector",
     "copy_parameters_dict",
     "copy_vector",
+    "update_parameters_dict",
     
     "clear_backend_caches"
   ]

@@ -340,10 +340,10 @@ class LinearSolverCache(Cache):
     if index is None:
       if is_lu_solver:
         solver = LUSolver(linear_solver)
-        solver.parameters.update(linear_solver_parameters.get("lu_solver", {}))
+        update_parameters_dict(solver.parameters, linear_solver_parameters.get("lu_solver", {}))
       else:
         solver = KrylovSolver(linear_solver, linear_solver_parameters.get("preconditioner", "default"))
-        solver.parameters.update(linear_solver_parameters.get("krylov_solver", {}))
+        update_parameters_dict(solver.parameters, linear_solver_parameters.get("krylov_solver", {}))
       index = self.append(key, solver)
     else:
       solver = self[index]

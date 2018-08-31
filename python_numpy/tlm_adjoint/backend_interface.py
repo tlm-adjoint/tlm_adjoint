@@ -54,6 +54,7 @@ __all__ = \
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
+    "update_parameters_dict",
     "warning"
   ]
 
@@ -73,6 +74,17 @@ def warning(message):
 
 def copy_parameters_dict(parameters):
   return copy.deepcopy(parameters)
+
+def update_parameters_dict(parameters, new_parameters):
+  for key, value in new_parameters.items():
+    if key in parameters \
+      and isinstance(parameters[key], dict) \
+      and isinstance(value, dict):
+      update_parameters_dict(parameters[key], value)
+    elif isinstance(value, dict):
+      parameters[key] = copy_parameters_dict(value)
+    else:
+      parameters[key] = value
   
 class FunctionSpace:
   def __init__(self, dim):

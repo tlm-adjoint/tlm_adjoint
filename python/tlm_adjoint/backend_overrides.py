@@ -65,7 +65,7 @@ def assemble(form, tensor = None, form_compiler_parameters = None, add_values = 
   if not isinstance(tensor, float):
     form_compiler_parameters_ = parameters["form_compiler"].copy()
     if not form_compiler_parameters is None:
-      form_compiler_parameters_.update(form_compiler_parameters)
+      update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
   
     if add_values and hasattr(tensor, "_tlm_adjoint__form"):
@@ -103,7 +103,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
 
   form_compiler_parameters_ = parameters["form_compiler"].copy()
   if not form_compiler_parameters is None:
-    form_compiler_parameters_.update(form_compiler_parameters)
+    update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
   form_compiler_parameters = form_compiler_parameters_
     
   if add_values and hasattr(A_tensor, "_tlm_adjoint__form"):

@@ -107,10 +107,10 @@ class AssembleSolver(Equation):
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
     form_compiler_parameters_ = parameters["form_compiler"].copy()
-    form_compiler_parameters_.update(form_compiler_parameters)
+    update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     if match_quadrature:
-      form_compiler_parameters.update(extract_form_compiler_parameters(rhs, form_compiler_parameters))
+      update_parameters_dict(form_compiler_parameters, extract_form_compiler_parameters(rhs, form_compiler_parameters))
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps)
     self._rhs = rhs
@@ -184,10 +184,10 @@ def _linear_solver(linear_solver_parameters):
   is_lu_linear_solver = linear_solver == "default" or has_lu_solver_method(linear_solver)
   if is_lu_linear_solver:
     solver = LUSolver(linear_solver)
-    solver.parameters.update(linear_solver_parameters["lu_solver"])
+    update_parameters_dict(solver.parameters, linear_solver_parameters["lu_solver"])
   else:
     solver = KrylovSolver(linear_solver, linear_solver_parameters["preconditioner"])
-    solver.parameters.update(linear_solver_parameters["krylov_solver"])
+    update_parameters_dict(solver.parameters, linear_solver_parameters["krylov_solver"])
   return solver
    
 class FunctionAlias(backend_Function):
@@ -341,10 +341,10 @@ class EquationSolver(Equation):
         nonzero_initial_guess = linear_solver_parameters["krylov_solver"]["nonzero_initial_guess"] = False
     
     form_compiler_parameters_ = parameters["form_compiler"].copy()
-    form_compiler_parameters_.update(form_compiler_parameters)
+    update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     if match_quadrature:
-      form_compiler_parameters.update(extract_form_compiler_parameters(F, form_compiler_parameters))
+      update_parameters_dict(form_compiler_parameters, extract_form_compiler_parameters(F, form_compiler_parameters))
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps)    
     self._F = F

@@ -55,6 +55,7 @@ __all__ = \
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
+    "update_parameters_dict",
     "warning"
   ]
   
@@ -75,6 +76,17 @@ def copy_parameters_dict(parameters):
     if isinstance(value, (Parameters, dict)):
       parameters_copy[key] = copy_parameters_dict(value)
   return parameters_copy
+
+def update_parameters_dict(parameters, new_parameters):
+  for key, value in new_parameters.items():
+    if key in parameters \
+      and isinstance(parameters[key], (Parameters, dict)) \
+      and isinstance(value, (Parameters, dict)):
+      update_parameters_dict(parameters[key], value)
+    elif isinstance(value, (Parameters, dict)):
+      parameters[key] = copy_parameters_dict(value)
+    else:
+      parameters[key] = value
 
 ufl.classes.FunctionSpace.id = lambda self : id(self)
 firedrake.functionspaceimpl.FunctionSpace.id = lambda self : id(self)
