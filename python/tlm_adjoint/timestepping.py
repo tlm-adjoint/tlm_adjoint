@@ -17,9 +17,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
+from .backend_interface import *
 
-from .caches import Constant, DirichletBC, Function
 from .equations import AssignmentSolver, Equation, EquationSolver
 
 from collections import OrderedDict
@@ -28,9 +27,6 @@ __all__ = \
   [
     "FinalTimeLevel",
     "N",
-    "StaticConstant",
-    "StaticDirichletBC",
-    "StaticFunction",
     "TimeFunction",
     "TimeLevel",
     "TimeLevels",
@@ -144,18 +140,18 @@ class TimeFunction:
     # Note that this keeps references to the Function objects on each time level
     self._fns = OrderedDict()
     for level in levels:
-      fn = backend_Function(*args, **kwargs)
+      fn = Function(*args, **kwargs)
       fn._tlm_adjoint__tfn = self
       fn._tlm_adjoint__level = level
       self._fns[level] = fn
       
       initial_level = InitialTimeLevel(level._i)
-      initial_fn = self._fns[initial_level] = fn.copy(deepcopy = False)
+      initial_fn = self._fns[initial_level] = function_alias(fn)
       initial_fn._tlm_adjoint__tfn = self
       initial_fn._tlm_adjoint__level = initial_level
       
       final_level = FinalTimeLevel(level._i)
-      final_fn = self._fns[final_level] = fn.copy(deepcopy = False)
+      final_fn = self._fns[final_level] = function_alias(fn)
       final_fn._tlm_adjoint__tfn = self
       final_fn._tlm_adjoint__level = final_level
       
@@ -180,18 +176,6 @@ class TimeFunction:
                            for target_level, source_level in self._levels._cycle_map.items()]
     for eq in self._cycle_eqs:
       eq.solve(manager = manager, replace = False)
- 
-class StaticConstant(Constant):
-  def __init__(self, *args, **kwargs):
-    Constant.__init__(self, static = True, *args, **kwargs)
- 
-class StaticFunction(Function):
-  def __init__(self, *args, **kwargs):
-    Function.__init__(self, static = True, *args, **kwargs)
- 
-class StaticDirichletBC(DirichletBC):
-  def __init__(self, *args, **kwargs):
-    DirichletBC.__init__(self, static = True, *args, **kwargs)
 
 class TimeSystem:
   def __init__(self):
@@ -211,7 +195,7 @@ class TimeSystem:
       
     if len(args) == 1 and isinstance(args[0], Equation):
       eq = args[0]
-    elif len(args) == 2 and isinstance(args[0], backend_Function) and isinstance(args[1], backend_Function) and hasattr(args[1], "_tlm_adjoint__tfn"):
+    elif len(args) == 2 and is_function(args[0]) and is_function(args[1]) and hasattr(args[1], "_tlm_adjoint__tfn"):
      eq = AssignmentSolver(args[0], args[1])
     else:
      eq = EquationSolver(*args, **kwargs)

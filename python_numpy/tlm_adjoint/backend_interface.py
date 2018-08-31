@@ -33,6 +33,7 @@ __all__ = \
     "clear_caches",
     "copy_parameters_dict",
     "finalise_adjoint_derivative_action",
+    "function_alias",
     "function_assign",
     "function_axpy",
     "function_comm",
@@ -185,6 +186,9 @@ def function_linf_norm(x):
   
 def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)
+
+def function_alias(x):
+  return Function(x.function_space(), name = x.name(), static = function_is_static(x), _data = x.vector())
 
 def function_zero(x):
   x.vector()[:] = 0.0

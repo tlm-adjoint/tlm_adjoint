@@ -34,6 +34,7 @@ __all__ = \
     "clear_caches",
     "copy_parameters_dict",
     "finalise_adjoint_derivative_action",
+    "function_alias",
     "function_assign",
     "function_axpy",
     "function_comm",
@@ -89,8 +90,8 @@ def RealFunctionSpace(comm = None):
 
 backend_Function.id = lambda self : self.count()
 class Function(backend_Function):
-  def __init__(self, space, name = None, static = False):
-    backend_Function.__init__(self, space, name = name)
+  def __init__(self, space, name = None, static = False, val = None):
+    backend_Function.__init__(self, space, name = name, val = val)
     self.__static = static
     
   def is_static(self):
@@ -175,6 +176,9 @@ def function_linf_norm(x):
   
 def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)
+
+def function_alias(x):
+  return Function(x.function_space(), name = x.name(), static = function_is_static(x), val = x.dat)
 
 def function_global_size(x):
   return x.function_space().dim()

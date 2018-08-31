@@ -464,7 +464,69 @@ class tests(unittest.TestCase):
     self.assertGreater(orders_0.min(), 0.87)
     self.assertGreater(orders_1.min(), 2.00)
     self.assertGreater(orders_2.min(), 2.94)
-    
+
+  def test_timestepping(self):    
+    for n_steps in [1, 2, 5, 20]:
+      reset("multistage", {"blocks":n_steps, "snaps_on_disk":4, "snaps_in_ram":2, "verbose":True})
+      clear_caches()
+      stop_manager()
+      
+      mesh = UnitIntervalMesh(100)
+      space = FunctionSpace(mesh, "Lagrange", 1)
+      test, trial = TestFunction(space), TrialFunction(space)
+      T_0 = Function(space, name = "T_0", static = True)
+      T_0.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])", element = space.ufl_element()))
+      dt = Constant(0.01)
+      space_r0 = FunctionSpace(mesh, "R", 0)
+      kappa = Function(space_r0, name = "kappa", static = True)
+      function_assign(kappa, 1.0)
+      
+      def forward(T_0, kappa):
+        from tlm_adjoint.timestepping import N, TimeFunction, TimeLevels, \
+          TimeSystem, n
+
+        levels = TimeLevels([n, n + 1], {n:n + 1})
+        T = TimeFunction(levels, space, name = "T")
+        T[n].rename("T_n", T[n].label())
+        T[n + 1].rename("T_np1", T[n + 1].label())
+        
+        system = TimeSystem()
+        
+        system.add_solve(T_0, T[0])
+        
+        system.add_solve(inner(test, trial) * dx + dt * inner(grad(test), kappa * grad(trial)) * dx == inner(test, T[n]) * dx,
+          T[n + 1], DirichletBC(space, 1.0, "on_boundary"),
+          solver_parameters = {"ksp_type":"cg",
+                               "pc_type":"jacobi",
+                               "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+                                                     
+        for n_step in range(n_steps):
+          system.timestep()
+          if n_step < n_steps - 1:
+            new_block()
+        system.finalise()
+          
+        J = Functional(name = "J")
+        J.assign(inner(T[N], T[N]) * dx)
+        return J
+      
+      start_manager()  
+      J = forward(T_0, kappa)
+      stop_manager()
+
+      J_val = J.value()
+      if n_steps == 20:
+        self.assertAlmostEqual(J_val, 9.4790204396919131e-01, places = 12)
+
+      controls = [Control("T_0"), Control(kappa)]
+      dJ = compute_gradient(J, controls)      
+      min_order = taylor_test(lambda T_0 : forward(T_0, kappa), controls[0], J_val = J_val, dJ = dJ[0])  # Usage as in dolfin-adjoint tests
+      self.assertGreater(min_order, 1.99)
+      dm = Function(space_r0, name = "dm")
+      function_assign(dm, 1.0)
+      min_order = taylor_test(lambda kappa : forward(T_0, kappa), controls[1], J_val = J_val, dJ = dJ[1], dm = dm)  # Usage as in dolfin-adjoint tests
+      self.assertGreater(min_order, 1.99)
+
   def test_second_order_adjoint(self):    
     n_steps = 20
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":4, "snaps_in_ram":2, "verbose":True})
@@ -674,6 +736,7 @@ if __name__ == "__main__":
 #  tests().test_AssignmentSolver()
 #  tests().test_AxpySolver()
 #  tests().test_second_order_adjoint()
+#  tests().test_timestepping()
 #  tests().test_recursive_tlm()
 #  tests().test_bc()
 #  tests().test_overrides()
