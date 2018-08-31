@@ -201,7 +201,6 @@ def subtract_adjoint_derivative_action(x, y):
     if isinstance(y, backend_Function):
       y = y.vector()
     function_axpy(x, -1.0, y)
-  return
     
 def finalise_adjoint_derivative_action(x):
   pass
