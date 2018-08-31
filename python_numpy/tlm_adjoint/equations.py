@@ -22,6 +22,7 @@ from .backend_interface import *
 from .base_equations import *
 
 from collections import OrderedDict
+import copy
 import numpy
 
 __all__ = \
@@ -182,6 +183,10 @@ class MatrixActionRHS(RHS):
       
     self._A = A
     self._x_indices = x_indices
+    
+  def replace(self, replace_map):
+    RHS.replace(self, replace_map)
+    self._A.replace(replace_map)
   
   def add_forward(self, B, deps):
     if is_function(B):
@@ -210,6 +215,24 @@ class MatrixActionRHS(RHS):
   def reset_subtract_adjoint_derivative_action(self):
     self._A.reset_add_adjoint_derivative_action()
     self._A.reset_add_adjoint_action()
+    
+  def tangent_linear_rhs(self, M, dM, tlm_map):
+    deps = self.dependencies()
+    A_nl_deps = self._A.nonlinear_dependencies()
+    
+    X = [deps[j] for j in self._x_indices]
+    tlm_X = copy.copy(X)
+    for i, tlm_x in enumerate(tlm_X):
+      if tlm_x in M:
+        tlm_X[i] = dM[M.index(tlm_x)]
+      else:
+        tlm_X[i] = tlm_map[tlm_x]
+    tlm_B = [MatrixActionRHS(self._A, tlm_X)]
+    
+    if len(A_nl_deps) > 0:
+      tlm_B.append(self._A.tangent_linear_rhs(M, dM, tlm_map, X))
+    
+    return tlm_B
 
 class LinearEquation(Equation):
   def __init__(self, B, X, A = None):
