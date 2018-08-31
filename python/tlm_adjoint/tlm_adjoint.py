@@ -192,7 +192,8 @@ class TangentLinearMap:
   A map from forward to tangent-linear variables.
   """
 
-  def __init__(self):
+  def __init__(self, name_suffix):
+    self._name_suffix = name_suffix
     self.clear()
   
   def __contains__(self, x):
@@ -205,7 +206,7 @@ class TangentLinearMap:
       else:
         basename = getattr(x, "_tlm_adjoint__tlm_basename", x.name())
         depth = tlm_depth(x) + 1
-        tlm_x = self._map[x.id()] = function_new(x, name = "%s_tlm_%i" % (basename, depth))
+        tlm_x = self._map[x.id()] = function_new(x, name = "%s%s" % (basename, self._name_suffix))
         tlm_x._tlm_adjoint__tlm_basename = basename
         tlm_x._tlm_adjoint__tlm_depth = depth
     return self._map[x.id()]
@@ -216,6 +217,9 @@ class TangentLinearMap:
   
   def clear(self):
     self._map = OrderedDict()
+  
+  def name_suffix(self):
+    return self._name_suffix
     
 class Ids:
   def __init__(self):
@@ -343,14 +347,20 @@ class EquationManager:
     info("Annotation state: %s" % self._annotation_state)
     info("Tangent-linear state: %s" % self._tlm_state)
     info("Equations:")
-    for i, block in enumerate(self._blocks + ([self._block] if len(self._block) > 0 else [])):
-      info("  Block %i" % i)
-      for j, eq in enumerate(block):
+    for n, block in enumerate(self._blocks + ([self._block] if len(self._block) > 0 else [])):
+      info("  Block %i" % n)
+      for i, eq in enumerate(block):
         eq_X = eq.X()
-        info("    Equation %i, %s (Python id %i) solving for (%s) (ids (%s))" % (j, type(eq).__name__, id(eq), ", ".join(eq_x.name() for eq_x in eq_X), ", ".join(map(lambda i : "%i" % i, [eq_x.id() for eq_x in eq_X]))))
+        if len(eq_X) == 1:
+          X_name = eq_X[0].name()
+          X_ids = "id %i" % eq_X[0].id()
+        else:
+          X_name = "(%s)" % (",".join(eq_x.name() for eq_x in eq_X))
+          X_ids = "ids (%s)" % (",".join(["%i" % eq_x.id() for eq_x in eq_X]))
+        info("    Equation %i, %s (Python id %i) solving for %s (%s)" % (i, type(eq).__name__, id(eq), X_name, X_ids))
         nl_dep_ids = set([dep.id() for dep in eq.nonlinear_dependencies()])
-        for k, dep in enumerate(eq.dependencies()):
-          info("      Dependency %i, %s (id %i)%s, %s" % (k, dep.name(), dep.id(), ", replaced" if isinstance(dep, ReplacementFunction) else "", "non-linear" if dep.id() in nl_dep_ids else "linear"))
+        for j, dep in enumerate(eq.dependencies()):
+          info("      Dependency %i, %s (id %i)%s, %s" % (j, dep.name(), dep.id(), ", replaced" if isinstance(dep, ReplacementFunction) else "", "non-linear" if dep.id() in nl_dep_ids else "linear"))
     info("Storage:")
     info("  Recording initial conditions: %s" % ("yes" if self._cp.checkpoint_ics() else "no"))
     info("  Recording equation non-linear dependencies: %s" % ("yes" if self._cp.checkpoint_data() else "no"))
@@ -501,7 +511,11 @@ class EquationManager:
       self._tlm_state = "deriving"
     elif self._tlm_state == "stopped_initial":
       self._tlm_state = "stopped_deriving"
-    self._tlm[(M, dM)] = [TangentLinearMap(), TangentLinearMap(), max_depth]
+    if len(M) == 1:
+      tlm_map_name_suffix = "_tlm(%s,%s)" % (M[0].name(), dM[0].name())
+    else:
+      tlm_map_name_suffix = "_tlm((%s),(%s))" % (",".join(m.name() for m in M), ",".join(dm.name() for dm in dM))
+    self._tlm[(M, dM)] = [TangentLinearMap(tlm_map_name_suffix), TangentLinearMap(tlm_map_name_suffix), max_depth]
   
   def tlm_enabled(self):
     """
@@ -1001,7 +1015,7 @@ class EquationManager:
     self._blocks.append(self._block)
     self._block = []
     for (M, dM), (tlm_map, tlm_map_next, max_depth) in self._tlm.items():
-      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(), max_depth]
+      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(tlm_map_next.name_suffix()), max_depth]
     self._checkpoint(final = False)
   
   def finalise(self):
@@ -1017,7 +1031,7 @@ class EquationManager:
     self._blocks.append(self._block)
     self._block = []
     for (M, dM), (tlm_map, tlm_map_next, max_depth) in self._tlm.items():
-      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(), max_depth]
+      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(tlm_map_next.name_suffix()), max_depth]
     self._checkpoint(final = True)
   
   def dependency_graph_png(self, divider = [255, 127, 127], p = 5):
