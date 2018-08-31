@@ -363,9 +363,7 @@ class tests(unittest.TestCase):
       J.assign(inner(x, x) * dx)
       return x, J
     
-    bc_mesh = BoundaryMesh(mesh, "exterior")
-    bc_space = FunctionSpace(bc_mesh, "Lagrange", 2)
-    bc = Function(bc_space, name = "bc", static = True)
+    bc = Function(space, name = "bc", static = True)
     function_assign(bc, 1.0)
     
     start_manager()
