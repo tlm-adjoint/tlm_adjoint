@@ -146,9 +146,9 @@ def forward(psi_0, kappa):
       self._A_kappa = None
       
     def _assemble_A(self, kappa):
-      if self._A_kappa is None or self._A_kappa != kappa:
+      if self._A_kappa is None or abs(self._A_kappa - kappa.vector()).max() > 0.0:
         self._A = A(kappa, alpha = self._alpha, beta = self._beta)
-        self._A_kappa = kappa
+        self._A_kappa = kappa.vector().copy()
     
     def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_x, x):
       if nl_dep_index == 0:
@@ -200,7 +200,7 @@ psi_0 = Function(space, name = "psi_0", static = True)
 psi_0_a = psi_0.vector().reshape((N + 1, N + 1))
 for i in range(N + 1):
   for j in range(N + 1):
-    psi_0_a[i, j] = numpy.exp(x[0]) * numpy.sin(numpy.pi * x[i]) * numpy.sin(10.0 * numpy.pi * x[i]) * numpy.sin(2.0 * numpy.pi * y[j])
+    psi_0_a[i, j] = numpy.exp(x[i]) * numpy.sin(numpy.pi * x[i]) * numpy.sin(10.0 * numpy.pi * x[i]) * numpy.sin(2.0 * numpy.pi * y[j])
 
 kappa = Function(space, name = "kappa", static = True)
 kappa.vector()[:] = kappa_0
@@ -214,7 +214,7 @@ stop_manager()
 info("J = %.16e" % J.value())
 info("Reference J = %.16e" % J_ref.value())
 info("Error = %.16e" % abs(J_ref.value() - J.value()))
-assert(abs(J_ref.value() - J.value()) < 1.0e-20)
+assert(abs(J_ref.value() - J.value()) < 1.0e-14)
 
 dJ_dpsi_0, dJ_dkappa = compute_gradient(J, [psi_0, kappa])
 del(J)
@@ -222,7 +222,7 @@ del(J)
 min_order = taylor_test(lambda psi_0 : forward_reference(psi_0, kappa), psi_0, J_val = J_ref.value(), dJ = dJ_dpsi_0, seed = 1.0e-5)
 assert(min_order > 1.99)
 
-min_order = taylor_test(lambda kappa : forward_reference(psi_0, kappa), kappa, J_val = J_ref.value(), dJ = dJ_dkappa, seed = 1.0e-5)
+min_order = taylor_test(lambda kappa : forward_reference(psi_0, kappa), kappa, J_val = J_ref.value(), dJ = dJ_dkappa, seed = 1.0e-4)
 assert(min_order > 1.99)
 
 reset()
@@ -238,7 +238,7 @@ dJ_dpsi_0_tlm = J.tlm(psi_0, zeta).value()
 info("dJ_dpsi_0_adj = %.16e" % dJ_dpsi_0_adj)
 info("dJ_dpsi_0_tlm = %.16e" % dJ_dpsi_0_tlm)
 info("Error = %.16e" % abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj))
-assert(abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj) < 1.0e-14)
+assert(abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj) < 1.0e-13)
 
 reset()
 clear_caches()
@@ -254,5 +254,5 @@ info("Error = %.16e" % abs(dJ_dkappa_tlm - dJ_dkappa_adj))
 assert(abs(dJ_dkappa_tlm - dJ_dkappa_adj) < 1.0e-14)
 
 ddJ = Hessian(lambda kappa : forward(psi_0, kappa))
-min_order = taylor_test(lambda kappa : forward_reference(psi_0, kappa), kappa, m0 = kappa, J_val = J_ref.value(), dJ = dJ_dkappa, ddJ = ddJ, seed = 1.0e-3)
-assert(min_order > 2.99)
+min_order = taylor_test(lambda kappa : forward_reference(psi_0, kappa), kappa, m0 = kappa, J_val = J_ref.value(), dJ = dJ_dkappa, ddJ = ddJ, seed = 1.0e-2)
+assert(min_order > 2.96)
