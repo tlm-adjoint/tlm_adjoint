@@ -510,8 +510,8 @@ class tests(unittest.TestCase):
 
         levels = TimeLevels([n, n + 1], {n:n + 1})
         T = TimeFunction(levels, space, name = "T")
-        T[n].rename("T_n", T[n].label())
-        T[n + 1].rename("T_np1", T[n + 1].label())
+        T[n].rename("T_n", "a Function")
+        T[n + 1].rename("T_np1", "a Function")
         
         system = TimeSystem()
         
@@ -688,8 +688,8 @@ class tests(unittest.TestCase):
     
     J_val = J.value()
     K_val = K.value()
-    self.assertAlmostEqual(J_val, 66048.0, places = 10)
-    self.assertAlmostEqual(K_val, 65536.0, places = 10)
+    self.assertAlmostEqual(J_val, 66048.0, places = 9)
+    self.assertAlmostEqual(K_val, 65536.0, places = 9)
     
     dJs = compute_gradient([J, K], x)    
     dm = Function(space, name = "dm")

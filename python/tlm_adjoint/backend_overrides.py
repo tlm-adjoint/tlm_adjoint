@@ -37,7 +37,8 @@ __all__ = \
   ]
 
 def parameters_dict_equal(parameters_a, parameters_b):
-  for key_a, value_a in parameters_a.items():
+  for key_a in parameters_a:
+    value_a = parameters_a[key_a]
     if not key_a in parameters_b:
       return False
     value_b = parameters_b[key_a]
@@ -63,7 +64,7 @@ def assemble(form, tensor = None, form_compiler_parameters = None, add_values = 
     tensor = b
       
   if not isinstance(tensor, float):
-    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     if not form_compiler_parameters is None:
       update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
@@ -101,7 +102,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
   elif isinstance(bcs, DirichletBC):
     bcs = [bcs]
 
-  form_compiler_parameters_ = parameters["form_compiler"].copy()
+  form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
   if not form_compiler_parameters is None:
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
   form_compiler_parameters = form_compiler_parameters_
@@ -152,8 +153,8 @@ def solve(*args, **kwargs):
         (x in lhs.coefficients() or x in rhs.coefficients()):
         F = function_new(x)
         AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
-        lhs = replace(lhs, OrderedDict([(x, F)]))
-        rhs = replace(rhs, OrderedDict([(x, F)]))
+        lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
+        rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
         eq = lhs == rhs
       eq = EquationSolver(eq, x, bcs,
         form_compiler_parameters = form_compiler_parameters,

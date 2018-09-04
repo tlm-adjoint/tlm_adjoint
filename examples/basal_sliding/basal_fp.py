@@ -35,7 +35,8 @@ import slepc4py.SLEPc
 import types
 import ufl
 
-PETScOptions().set("citations", "petsc.bib")
+import petsc4py.PETSc
+petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:
 # GHS09 D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and
@@ -257,13 +258,11 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
 
       def adjoint_jacobian_solve(self, nl_deps, b):
         if self._adjoint_J_solver.index() is None:
-          J = replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, bcs = self._hbcs, linear_solver_parameters = self._linear_solver_parameters)
-          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, bcs = self._hbcs,
-            linear_solver_parameters = {"linear_solver":"umfpack", "lu_solver":{"reuse_factorization":True, "same_nonzero_pattern":True}})
-          
-          _, (J, _) = jacobian_assembly_cache.assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
-          J_solver.set_operator(J)
+          J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+          _, (J_mat, _) = jacobian_assembly_cache.assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
+#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs, linear_solver_parameters = self._linear_solver_parameters)
+          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
+            linear_solver_parameters = {"linear_solver":"umfpack"})
         else:
           J_solver = jacobian_linear_solver_cache[self._adjoint_J_solver]
       
@@ -318,7 +317,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
          + inner(test_v_x, nu * h * (u_y + v_x)) * dx
          + inner(test_u, rho * g * h * (Constant(numpy.tan(theta), static = True))) * dx
          + inner(tests, rho * g * h * grad(h)) * dx)
-    F = replace(F, {U:trials})  
+    F = ufl.replace(F, {U:trials})  
     U_eq = CachedJacobianEquationSolver(lhs(F) == rhs(F),
       U, solver_parameters = {"linear_solver":"cg", "preconditioner":"amg",
                               "krylov_solver":{"relative_tolerance":1.0e-12, "absolute_tolerance":1.0e-16}})
@@ -478,7 +477,7 @@ for i, lam_val in enumerate(lam):
 v_file = File("eigenvectors.pvd", "compressed")
 for i, v in enumerate(V):
   function_set_values(v, function_get_values(v) / numpy.sqrt(assemble(inner(v, v) * dx)))
-  v.rename("eigenvector", v.label())
+  v.rename("eigenvector", "a Function")
   v_file << (v, float(i + 1))
 
 del(beta_sq_ref)

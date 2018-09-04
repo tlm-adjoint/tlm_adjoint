@@ -33,7 +33,8 @@ import petsc4py.PETSc
 import slepc4py.SLEPc
 import ufl
 
-PETScOptions().set("citations", "petsc.bib")
+import petsc4py.PETSc
+petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:
 # GHS09 D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and
@@ -156,8 +157,8 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
            + inner(test_u, rho * g * h * (Constant(numpy.tan(theta), static = True))) * dx
            + inner(tests, rho * g * h * grad(h)) * dx)
 
-      J_1 = replace(derivative(F, U, du = trials), {marker:U})
-      F = replace(F, {marker:U})
+      J_1 = ufl.replace(derivative(F, U, du = trials), {marker:U})
+      F = ufl.replace(F, {marker:U})
 
       EquationSolver.__init__(self, F == 0, U, initial_guess = initial_guess,
         solver_parameters = {"nonlinear_solver":"newton",
@@ -177,7 +178,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       
     def _replace(self, replace_map):
       EquationSolver._replace(self, replace_map)
-      self._J_1 = replace(self._J_1, replace_map)
+      self._J_1 = ufl.replace(self._J_1, replace_map)
     
     def forward_solve(self, x, deps = None):
       U = x
@@ -187,9 +188,9 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
         J_2 = self._J
       else:
         replace_map = OrderedDict(zip(self.dependencies(), deps))
-        F = replace(self._F, replace_map)
-        J_1 = replace(self._J_1, replace_map)
-        J_2 = replace(self._J, replace_map)
+        F = ufl.replace(self._F, replace_map)
+        J_1 = ufl.replace(self._J_1, replace_map)
+        J_2 = ufl.replace(self._J, replace_map)
     
       function_zero(U)
       r = assemble(F, form_compiler_parameters = self._form_compiler_parameters)
@@ -365,7 +366,7 @@ for i, lam_val in enumerate(lam):
 v_file = File("eigenvectors.pvd", "compressed")
 for i, v in enumerate(V):
   function_set_values(v, function_get_values(v) / numpy.sqrt(assemble(inner(v, v) * dx)))
-  v.rename("eigenvector", v.label())
+  v.rename("eigenvector", "a Function")
   v_file << (v, float(i + 1))
 
 del(beta_sq_ref)

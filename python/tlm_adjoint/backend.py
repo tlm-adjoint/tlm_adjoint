@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-# 'vector' follows Function::init_vector in dolfin/function/Function.cpp,
-# DOLFIN 2017.2.0.post0
-# Code first added 2018-08-03
+# This file previously included a 'vector' function, which followed
+# Function::init_vector in dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0
+# Code first added 2018-08-03, removed 2018-09-04
 #
 # Copyright notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0
 #
@@ -50,7 +50,7 @@ from fenics import *
 
 import fenics
 
-backend_Matrix = fenics.GenericMatrix
+backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_Vector = fenics.GenericVector
 extract_args = fenics.fem.solving._extract_args
 
@@ -63,21 +63,11 @@ backend_assemble = fenics.assemble
 backend_assemble_system = fenics.assemble_system
 backend_project = project
 backend_solve = fenics.solve
-  
-def copy_vector(x):
-  return x.copy()
-  
-def assign_vector(x, y):
-  if isinstance(y, float):
-    x[:] = y
-  else:
-    x.zero()
-    x.axpy(1.0, y)
-  return
 
 def copy_parameters_dict(parameters):
   new_parameters = {}
-  for key, value in parameters.items():
+  for key in parameters:
+    value = parameters[key]
     if isinstance(value, (Parameters, dict)):
       new_parameters[key] = copy_parameters_dict(value)
     else:
@@ -85,7 +75,8 @@ def copy_parameters_dict(parameters):
   return new_parameters
 
 def update_parameters_dict(parameters, new_parameters):
-  for key, value in new_parameters.items():
+  for key in new_parameters:
+    value = new_parameters[key]
     if key in parameters \
       and isinstance(parameters[key], (Parameters, dict)) \
       and isinstance(value, (Parameters, dict)):
@@ -118,12 +109,10 @@ __all__ = \
     "KrylovSolver",
     "LUSolver",
     "NewtonSolver",
-    "ParameterValue",
     "Parameters",
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
-    "Variable",
     "action",
     "adjoint",
     "assemble",
@@ -136,87 +125,9 @@ __all__ = \
     "inner",
     "parameters",
     "project",
-    "replace",
     "solve",
     "system",
-    "warning",
   
-    "assign_vector",
     "copy_parameters_dict",
-    "copy_vector",
-    "update_parameters_dict",
-    
-    "clear_backend_caches"
+    "update_parameters_dict"
   ]
-
-from collections import OrderedDict
-layout_cache = OrderedDict()
-matrix_cache = OrderedDict()
-def clear_backend_caches():
-  layout_cache.clear()
-  matrix_cache.clear()
-      
-# Following Function::init_vector in dolfin/function/Function.cpp,
-# DOLFIN 2017.2.0.post0 (see copyright information above)
-# Code first added 2018-08-03
-def vector(space):
-  from fenics import DefaultFactory, TensorLayout
-  factory = DefaultFactory()
-  comm = space.mesh().mpi_comm()
-  if space.id() in layout_cache:
-    layout = layout_cache[space.id()]
-  else:
-    layout_cache[space.id()] = layout = factory.create_layout(comm, 1)
-    layout.init([space.dofmap().index_map()], TensorLayout.Ghosts_GHOSTED)
-  v = factory.create_vector(comm)
-  v.init(layout)
-  v.zero()
-  return v
-# End of code following Function::init_vector in dolfin/function/Function.cpp,
-# DOLFIN 2017.2.0.post0
-
-def matrix(space_0, space_1):
-  key = (space_0.id(), space_1.id())
-  if not key in matrix_cache:
-    factory = DefaultFactory()
-    comm = space_0.mesh().mpi_comm()
-    matrix_cache[key] = factory.create_matrix(comm)
-  return matrix_cache[key].copy()
-
-# The following workaround various FEniCS 2017.2.0 memory leaks
-# Following FEniCS 2017.2.0 API
-
-_orig_Function__init__ = backend_Function.__init__
-def _Function__init__(self, *args, **kwargs):
-  if len(args) == 1 and isinstance(args[0], FunctionSpace):
-    _orig_Function__init__(self, args[0], vector(args[0]), **kwargs)
-  else:
-    _orig_Function__init__(self, *args, **kwargs)
-backend_Function.__init__ = _Function__init__
-
-_orig_assemble = fenics.assemble
-def assemble(form, tensor = None, *args, **kwargs):
-  if tensor is None:
-    arguments = form.arguments()
-    rank = len(form.arguments()) 
-    if rank == 1:
-      tensor = vector(arguments[0].function_space())
-    elif rank == 2:
-      tensor = matrix(arguments[0].function_space(), arguments[1].function_space())
-  return _orig_assemble(form, tensor = tensor, *args, **kwargs)
-backend_assemble = fenics.assemble = assemble
-
-_orig_assemble_system = fenics.assemble_system
-def assemble_system(A_form, b_form, bcs = None, x0 = None,
-  form_compiler_parameters = None, add_values = False,
-  finalize_tensor = True, keep_diagonal = False, A_tensor = None, b_tensor = None, *args, **kwargs):
-  if A_tensor is None:
-    arguments = A_form.arguments()
-    A_tensor = matrix(arguments[0].function_space(), arguments[1].function_space())
-  if b_tensor is None:
-    arguments = b_form.arguments()
-    tensor = vector(arguments[0].function_space())
-  return _orig_assemble_system(A_form, b_form, bcs = bcs, x0 = x0,
-    form_compiler_parameters = form_compiler_parameters, add_values = add_values,
-    finalize_tensor = finalize_tensor, keep_diagonal = keep_diagonal, A_tensor = A_tensor, b_tensor = b_tensor, *args, **kwargs)
-backend_assemble_system = fenics.assemble_system = assemble_system

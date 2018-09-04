@@ -22,7 +22,8 @@ from tlm_adjoint import *
 from tlm_adjoint import manager as _manager
 stop_manager()
 
-PETScOptions().set("citations", "petsc.bib")
+import petsc4py.PETSc
+petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 import numpy
 numpy.random.seed(2212983)

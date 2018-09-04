@@ -22,10 +22,10 @@ Natural Environment Research Council funded project (NE/L005166/1).
 
 ================================================================================
 
-The 'vector' function in python/tlm_adjoint/backend.py follows
-Function::init_vector in dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0.
-Code first added 2018-08-03. Copyright notice from dolfin/function/Function.cpp,
-DOLFIN 2017.2.0.post0, follows.
+The file python/tlm_adjoint/backend.py previously included a 'vector' function,
+which followed Function::init_vector in dolfin/function/Function.cpp, DOLFIN
+2017.2.0.post0. Code first added 2018-08-03, removed 2018-09-04. Copyright
+notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0, follows.
 
 // Copyright (C) 2003-2012 Anders Logg
 //

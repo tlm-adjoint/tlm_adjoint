@@ -30,7 +30,8 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 
-PETScOptions().set("citations", "petsc.bib")
+import petsc4py.PETSc
+petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 # Seed the random number generator, to ensure reproducibility of the later
 # Taylor verification
@@ -189,6 +190,7 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
   T_np1 = T_inflow + trial
   # Timestep equation, subject to homogenised boundary conditions
   T_nph = Constant(0.5, static = True) * (T_n + T_np1)
+  perp = lambda v : as_vector([-v[1], v[0]])
   F = (inner(test, (T_np1 - T_n) / dt) * dx
      + inner(test, dot(perp(grad(psi)), grad(T_nph))) * dx
      + inner(grad(test), kappa * grad(T_nph)) * dx)  
@@ -291,7 +293,8 @@ if verify:
 def project(b, space, name):
   x = Function(space, name = name)
   test, trial = TestFunction(space), TrialFunction(space)
-  LUSolver("umfpack").solve(assemble(inner(test, trial) * dx), x.vector(), b.vector())
+  M = assemble(inner(test, trial) * dx)
+  LUSolver(M, "umfpack").solve(x.vector(), b.vector())
   return x
 File("dJ_dinflow.pvd", "compressed") << project(dJ_dinflow, inflow_space, name = "dJ_dinflow")
 File("dJ_dkappa.pvd",  "compressed") << project(dJ_dkappa,   kappa_space, name = "dJ_dkappa")

@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import FunctionSpace, UnitIntervalMesh, assemble, assign_vector, \
-  backend_Constant, backend_Function, clear_backend_caches, \
-  copy_parameters_dict, info, update_parameters_dict, warning
+from .backend import FunctionSpace, UnitIntervalMesh, assemble, \
+  backend_Constant, backend_Function, copy_parameters_dict, fenics, info, \
+  update_parameters_dict
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
   homogenized as homogenized_bc, is_static, linear_solver_cache, \
@@ -66,11 +66,12 @@ __all__ = \
 def clear_caches():
   assembly_cache().clear()
   linear_solver_cache().clear()
-  #clear_backend_caches()
 
 #def info(message):
 
-#def warning(message):
+def warning(message):
+  sys.stderr.write("%s\n" % message)
+  sys.stderr.flush()
 
 #def copy_parameters_dict(parameters):
 
@@ -82,8 +83,10 @@ def clear_caches():
 class RealFunctionSpace(FunctionSpace):
   def __init__(self, comm = None):
     if comm is None:
-      import petsc4py.PETSc
-      comm = petsc4py.PETSc.COMM_WORLD
+      if hasattr(fenics, "mpi_comm_world"):
+        comm = fenics.mpi_comm_world()
+      else:
+        comm = fenics.MPI.comm_world
     FunctionSpace.__init__(self, UnitIntervalMesh(comm, comm.size), "R", 0)
 
 #class Function:
@@ -109,7 +112,7 @@ def function_is_static(x):
 def function_copy(x, name = None, static = False):
   y = x.copy(deepcopy = True)
   if not name is None:
-    y.rename(name, y.label())
+    y.rename(name, "a Function")
   y.is_static = lambda : static
   return y
 
@@ -117,7 +120,8 @@ def function_assign(x, y):
   if isinstance(y, (int, float, backend_Constant)):
     function_set_values(x, numpy.ones(x.vector().local_size(), dtype = numpy.float64) * float(y))
   else:
-    assign_vector(x.vector(), y.vector())
+    x.vector().zero()
+    x.vector().axpy(1.0, y.vector())
 
 def function_axpy(x, alpha, y):
   x.vector().axpy(alpha, y.vector())
@@ -154,7 +158,7 @@ def function_new(x, name = None, static = False):
 
 def function_alias(x):
   y = x.copy(deepcopy = False)
-  y.rename(x.name(), x.label())
+  y.rename(x.name(), "a Function")
   static = function_is_static(x)
   y.is_static = lambda : static
   return y

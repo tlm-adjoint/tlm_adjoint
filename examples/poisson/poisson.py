@@ -23,7 +23,8 @@ from tlm_adjoint import *
 # Disable the manager until it is needed
 stop_manager()
 
-PETScOptions().set("citations", "poisson_petsc.bib")
+import petsc4py.PETSc
+petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 # Seed the random number generator, to ensure reproducibility of the later
 # Taylor verification

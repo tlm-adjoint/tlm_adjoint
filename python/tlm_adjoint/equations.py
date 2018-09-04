@@ -47,8 +47,8 @@ if not "match_quadrature" in parameters["tlm_adjoint"]["AssembleSolver"]:
   parameters["tlm_adjoint"]["AssembleSolver"].add("match_quadrature", False)
 if not "EquationSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"].add(Parameters("EquationSolver"))
-if not "cache_jacobian" in parameters["tlm_adjoint"]["EquationSolver"]:
-  parameters["tlm_adjoint"]["EquationSolver"].add_unset("cache_jacobian", ParameterValue.Type_Bool)
+if not "enable_jacobian_caching" in parameters["tlm_adjoint"]["EquationSolver"]:
+  parameters["tlm_adjoint"]["EquationSolver"].add("enable_jacobian_caching", True)
 if not "pre_assemble" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"].add("pre_assemble", True)
 if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
@@ -106,7 +106,7 @@ class AssembleSolver(Equation):
     deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
-    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     if match_quadrature:
@@ -118,13 +118,13 @@ class AssembleSolver(Equation):
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
-    self._rhs = replace(self._rhs, replace_map)
+    self._rhs = ufl.replace(self._rhs, replace_map)
 
   def forward_solve(self, x, deps = None):
     if deps is None:
       rhs = self._rhs
     else:
-      rhs = replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
+      rhs = ufl.replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
       
     function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
     
@@ -145,7 +145,7 @@ class AssembleSolver(Equation):
     if dF.empty():
       return None
     
-    dF = replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+    dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
     return (function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
@@ -175,7 +175,7 @@ class AssembleSolver(Equation):
       return AssembleSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters)
     
-def _linear_solver(linear_solver_parameters):
+def _linear_solver(A, linear_solver_parameters):
   linear_solver = linear_solver_parameters["linear_solver"]
   if linear_solver in ["direct", "lu"]:
     linear_solver = "default"
@@ -183,27 +183,33 @@ def _linear_solver(linear_solver_parameters):
     linear_solver = "gmres"
   is_lu_linear_solver = linear_solver == "default" or has_lu_solver_method(linear_solver)
   if is_lu_linear_solver:
-    solver = LUSolver(linear_solver)
+    solver = LUSolver(A, linear_solver)
     update_parameters_dict(solver.parameters, linear_solver_parameters["lu_solver"])
   else:
-    solver = KrylovSolver(linear_solver, linear_solver_parameters["preconditioner"])
+    solver = KrylovSolver(A, linear_solver, linear_solver_parameters["preconditioner"])
     update_parameters_dict(solver.parameters, linear_solver_parameters["krylov_solver"])
   return solver
    
 class FunctionAlias(backend_Function):
   def __init__(self, space):
     ufl.classes.Coefficient.__init__(self, space, count = new_id())
-    self._clear()
   
   def _alias(self, x):
-    self.this = x.this
+    self._clear()
+    if hasattr(x, "_cpp_object"):
+      self._cpp_object = x._cpp_object
+    if hasattr(x, "this"):
+      self.this = x.this
   
   def _clear(self):
-    self.this = None
+    if hasattr(self, "_cpp_object"):
+      del(self._cpp_object)
+    if hasattr(self, "this"):
+      del(self.this)
 
 def alias_form(form, deps):
   adeps = [FunctionAlias(dep.function_space()) for dep in deps]
-  return_value = replace(form, OrderedDict(zip(deps, adeps)))
+  return_value = ufl.replace(form, OrderedDict(zip(deps, adeps)))
   assert(not "_tlm_adjoint__adeps" in return_value._cache)
   return_value._cache["_tlm_adjoint__adeps"] = adeps
   return return_value
@@ -232,9 +238,8 @@ class EquationSolver(Equation):
     if isinstance(bcs, DirichletBC):
       bcs = [bcs]
     if cache_jacobian is None:
-      cache_jacobian = parameters["tlm_adjoint"]["EquationSolver"]["cache_jacobian"]
-      if cache_jacobian:
-        raise EquationException("Cannot unconditionally enable Jacobian caching via 'parameters'")
+      if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:
+        cache_jacobian = False
     if pre_assemble is None:
       pre_assemble = parameters["tlm_adjoint"]["EquationSolver"]["pre_assemble"]
     if match_quadrature is None:
@@ -303,7 +308,8 @@ class EquationSolver(Equation):
       cache_jacobian = is_static(J) and is_static_bcs(bcs)
     
     def update_default_parameters(old_parameters, new_parameters):
-      for key, value in new_parameters.items():
+      for key in new_parameters:
+        value = new_parameters[key]
         if not key in old_parameters:
           if isinstance(value, (Parameters, dict)):
             old_parameters[key] = copy_parameters_dict(value)
@@ -322,7 +328,10 @@ class EquationSolver(Equation):
       update_default_parameters(solver_parameters, {"nonlinear_solver":"newton"})
       nl_solver = solver_parameters["nonlinear_solver"]
       if nl_solver == "newton":
-        update_default_parameters(solver_parameters, {"newton_solver":NewtonSolver().default_parameters()})
+        if hasattr(NewtonSolver, "default_parameters"):
+          update_default_parameters(solver_parameters, {"newton_solver":NewtonSolver.default_parameters()})
+        else:
+          update_default_parameters(solver_parameters, {"newton_solver":NewtonSolver().parameters})
         linear_solver_parameters = solver_parameters["newton_solver"]
       else:
         raise EquationException("Unsupported non-linear solver: %s" % nl_solver)
@@ -330,17 +339,22 @@ class EquationSolver(Equation):
     linear_solver = linear_solver_parameters["linear_solver"]
     is_lu_linear_solver = linear_solver in ["default", "direct", "lu"] or has_lu_solver_method(linear_solver)
     if is_lu_linear_solver:
-      if cache_jacobian:
-        update_default_parameters(linear_solver_parameters, {"lu_solver":{"reuse_factorization":True, "same_nonzero_pattern":True}})
-      update_default_parameters(linear_solver_parameters, {"lu_solver":LUSolver.default_parameters()})
+      if hasattr(LUSolver, "default_parameters"):
+        update_default_parameters(linear_solver_parameters, {"lu_solver":LUSolver.default_parameters()})
+      else:
+        update_default_parameters(linear_solver_parameters, {"lu_solver":LUSolver().parameters})
     else:
-      update_default_parameters(linear_solver_parameters, {"preconditioner":"default",
-                                                           "krylov_solver":KrylovSolver.default_parameters()})
+      if hasattr(KrylovSolver, "default_parameters"):
+        update_default_parameters(linear_solver_parameters, {"preconditioner":"default",
+                                                             "krylov_solver":KrylovSolver.default_parameters()})
+      else:
+        update_default_parameters(linear_solver_parameters, {"preconditioner":"default",
+                                                             "krylov_solver":KrylovSolver().parameters})
       nonzero_initial_guess = linear_solver_parameters["krylov_solver"].get("nonzero_initial_guess", False)
       if nonzero_initial_guess is None:
         nonzero_initial_guess = linear_solver_parameters["krylov_solver"]["nonzero_initial_guess"] = False
     
-    form_compiler_parameters_ = parameters["form_compiler"].copy()
+    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     if match_quadrature:
@@ -367,20 +381,20 @@ class EquationSolver(Equation):
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
-    self._F = replace(self._F, replace_map)
-    self._lhs = replace(self._lhs, replace_map)
+    self._F = ufl.replace(self._F, replace_map)
+    self._lhs = ufl.replace(self._lhs, replace_map)
     if self._rhs != 0:
-      self._rhs = replace(self._rhs, replace_map)
-    self._J = replace(self._J, replace_map)
+      self._rhs = ufl.replace(self._rhs, replace_map)
+    self._J = ufl.replace(self._J, replace_map)
     if hasattr(self, "_forward_b_pa") and not self._forward_b_pa is None:
       if not self._forward_b_pa[0] is None:
-        self._forward_b_pa[0][0] = replace(self._forward_b_pa[0][0], replace_map)
+        self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)
       for i, (mat_form, mat_index) in self._forward_b_pa[1].items():
-        self._forward_b_pa[1][i][0] = replace(mat_form, replace_map)
+        self._forward_b_pa[1][i][0] = ufl.replace(mat_form, replace_map)
     if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
       for dep_index, mat_cache in self._derivative_mats:
         if isinstance(mat_cache, ufl.classes.Form):
-          self._derivative_mats[dep_index] = replace(mat_cache, replace_map)
+          self._derivative_mats[dep_index] = ufl.replace(mat_cache, replace_map)
     
   def _pre_assembled_rhs(self, deps, b_bc = None):
     eq_deps = self.dependencies()
@@ -431,7 +445,7 @@ class EquationSolver(Equation):
     for i, (mat_form, mat_index) in mat_forms.items():
       if mat_index.index() is None:
         if not deps is None:
-          mat_form = replace(mat_form, OrderedDict(zip(eq_deps, deps)))
+          mat_form = ufl.replace(mat_form, OrderedDict(zip(eq_deps, deps)))
         mat_index, (mat, _) = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
         mat_forms[i][1] = mat_index
       else:
@@ -449,12 +463,12 @@ class EquationSolver(Equation):
     if not static_form is None:
       if static_form[1].index() is None:
         static_form[1], static_b = assembly_cache().assemble(
-          static_form[0] if deps is None else replace(static_form[0], OrderedDict(zip(eq_deps, deps))),
+          static_form[0] if deps is None else ufl.replace(static_form[0], OrderedDict(zip(eq_deps, deps))),
           form_compiler_parameters = self._form_compiler_parameters)
       else:
         static_b = assembly_cache()[static_form[1]]
       if b is None:
-        b = copy_vector(static_b)
+        b = static_b.copy()
       else:
         b.axpy(1.0, static_b)
     
@@ -475,7 +489,7 @@ class EquationSolver(Equation):
         
         if self._forward_J_mat.index() is None or \
           self._forward_J_solver.index() is None:
-          J = self._J if deps is None else replace(self._J, OrderedDict(zip(eq_deps, deps)))
+          J = self._J if deps is None else ufl.replace(self._J, OrderedDict(zip(eq_deps, deps)))
           
         if self._forward_J_mat.index() is None:
           # Assemble and cache the Jacobian (and bc RHS terms)
@@ -508,8 +522,7 @@ class EquationSolver(Equation):
       
         if self._forward_J_solver.index() is None:
           # Construct and cache the linear solver
-          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, bcs = self._bcs, linear_solver_parameters = self._linear_solver_parameters)
-          J_solver.set_operator(J_mat)
+          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs, linear_solver_parameters = self._linear_solver_parameters)
         else:
           # Extract the linear solver from the cache
           J_solver = linear_solver_cache()[self._forward_J_solver]
@@ -552,11 +565,10 @@ class EquationSolver(Equation):
             alias_clear(rhs)
         
         # Construct the linear solver
-        J_solver = _linear_solver(self._linear_solver_parameters)
-        J_solver.set_operator(J_mat)
+        J_solver = _linear_solver(J_mat, self._linear_solver_parameters)
         
-#      J_mat_debug, b_debug = assemble_system(self._J if deps is None else replace(self._J, OrderedDict(zip(eq_deps, deps))),
-#                                             self._rhs if deps is None else replace(self._rhs, OrderedDict(zip(eq_deps, deps))),
+#      J_mat_debug, b_debug = assemble_system(self._J if deps is None else ufl.replace(self._J, OrderedDict(zip(eq_deps, deps))),
+#                                             self._rhs if deps is None else ufl.replace(self._rhs, OrderedDict(zip(eq_deps, deps))),
 #                                             self._bcs,
 #                                             form_compiler_parameters = self._form_compiler_parameters)
 #      assert((J_mat - J_mat_debug).norm("linf") == 0.0)
@@ -617,7 +629,7 @@ class EquationSolver(Equation):
         #  Cache entry cleared
       elif self._defer_adjoint_assembly:
         #assert(isinstance(mat_cache, ufl.classes.Form)
-        return action(replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), adj_x)
+        return action(ufl.replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), adj_x)
       else:
         #assert(isinstance(mat_cache, ufl.classes.Form)
         return alias_assemble(mat_cache, list(nl_deps) + [adj_x],
@@ -631,12 +643,12 @@ class EquationSolver(Equation):
     dF = adjoint(dF)
     
     if self._pre_assemble and is_static(dF):
-      dF = replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+      dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
       self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
       return mat * adj_x.vector()
     elif self._defer_adjoint_assembly:
       self._derivative_mats[dep_index] = dF
-      dF = replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+      dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
       return action(dF, adj_x)
     else:
       self._derivative_mats[dep_index] = dF = \
@@ -650,11 +662,9 @@ class EquationSolver(Equation):
   def adjoint_jacobian_solve(self, nl_deps, b):
     if self._cache_jacobian:
       if self._adjoint_J_solver.index() is None:
-        J = replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, bcs = self._hbcs, linear_solver_parameters = self._linear_solver_parameters)
-        
-        _, (J, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
-        J_solver.set_operator(J)
+        J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+        _, (J_mat, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
+        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs, linear_solver_parameters = self._linear_solver_parameters)
       else:
         J_solver = linear_solver_cache()[self._adjoint_J_solver]
     else:
@@ -665,13 +675,12 @@ class EquationSolver(Equation):
         test = TestFunction(self._adjoint_J.arguments()[0].function_space())
         test_shape = test.ufl_element().value_shape()
         dummy_rhs = inner(test, Constant(0.0 if len(test_shape) == 0 else numpy.zeros(test_shape, dtype = numpy.float64))) * dx
-        J, _ = assemble_system(self._adjoint_J, dummy_rhs, self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
+        J_mat, _ = assemble_system(self._adjoint_J, dummy_rhs, self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
       else:
-        J = assemble(self._adjoint_J, form_compiler_parameters = self._form_compiler_parameters)
+        J_mat = assemble(self._adjoint_J, form_compiler_parameters = self._form_compiler_parameters)
       alias_clear(self._adjoint_J)
       
-      J_solver = _linear_solver(self._linear_solver_parameters)
-      J_solver.set_operator(J)
+      J_solver = _linear_solver(J_mat, self._linear_solver_parameters)
       
     for bc in self._hbcs:
       bc.apply(b.vector())

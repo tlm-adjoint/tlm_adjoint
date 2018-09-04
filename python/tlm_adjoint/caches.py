@@ -189,7 +189,7 @@ def split_action(form, x):
     return ufl.classes.Form([]), form
   
   try:
-    lhs, rhs = system(replace(form, OrderedDict([(x, trial)])))
+    lhs, rhs = system(ufl.replace(form, OrderedDict([(x, trial)])))
   except ufl.UFLException:
     # UFL error encountered
     return ufl.classes.Form([]), form
@@ -207,6 +207,8 @@ def parameters_key(parameters):
     sub_parameters = parameters[name]
     if isinstance(sub_parameters, (Parameters, dict)):
       key.append((name, parameters_key(sub_parameters)))
+    elif isinstance(sub_parameters, list):
+      key.append((name, tuple(sub_parameters)))
     else:
       key.append((name, sub_parameters))
   return tuple(key)
@@ -245,7 +247,7 @@ class Cache:
     return index
 
 def new_id():
-  return Variable().id()
+  return Constant(0).id()
   
 class ReplacementFunction(ufl.classes.Coefficient):
   def __init__(self, x):
@@ -279,7 +281,7 @@ def replaced_form(form):
   for c in form.coefficients():
     if isinstance(c, backend_Function):
       replace_map[c] = replaced_function(c)
-  return replace(form, replace_map)
+  return ufl.replace(form, replace_map)
 
 def assemble_key(form, bcs, form_compiler_parameters):  
   return (ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form)))),
@@ -324,7 +326,7 @@ def linear_solver_key(form, bcs, linear_solver_parameters):
           tuple(bcs), parameters_key(linear_solver_parameters))
 
 class LinearSolverCache(Cache):
-  def linear_solver(self, form, bcs = [], linear_solver_parameters = {}):
+  def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}):
     linear_solver = linear_solver_parameters["linear_solver"]
     if linear_solver in ["direct", "lu"]:
       linear_solver = "default"
@@ -339,10 +341,10 @@ class LinearSolverCache(Cache):
     index = self._keys.get(key, None)
     if index is None:
       if is_lu_solver:
-        solver = LUSolver(linear_solver)
+        solver = LUSolver(A, linear_solver)
         update_parameters_dict(solver.parameters, linear_solver_parameters.get("lu_solver", {}))
       else:
-        solver = KrylovSolver(linear_solver, linear_solver_parameters.get("preconditioner", "default"))
+        solver = KrylovSolver(A, linear_solver, linear_solver_parameters.get("preconditioner", "default"))
         update_parameters_dict(solver.parameters, linear_solver_parameters.get("krylov_solver", {}))
       index = self.append(key, solver)
     else:
