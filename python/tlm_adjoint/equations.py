@@ -522,7 +522,9 @@ class EquationSolver(Equation):
       
         if self._forward_J_solver.index() is None:
           # Construct and cache the linear solver
-          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs, linear_solver_parameters = self._linear_solver_parameters)
+          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
+            linear_solver_parameters = self._linear_solver_parameters,
+            form_compiler_parameters = self._form_compiler_parameters)
         else:
           # Extract the linear solver from the cache
           J_solver = linear_solver_cache()[self._forward_J_solver]
@@ -664,7 +666,9 @@ class EquationSolver(Equation):
       if self._adjoint_J_solver.index() is None:
         J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
         _, (J_mat, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
-        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs, linear_solver_parameters = self._linear_solver_parameters)
+        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs,
+          linear_solver_parameters = self._linear_solver_parameters,
+          form_compiler_parameters = self._form_compiler_parameters)
       else:
         J_solver = linear_solver_cache()[self._adjoint_J_solver]
     else:

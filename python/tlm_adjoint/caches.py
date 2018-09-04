@@ -321,12 +321,12 @@ class AssemblyCache(Cache):
       
     return index, b
 
-def linear_solver_key(form, bcs, linear_solver_parameters):
+def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
   return (ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form)))),
-          tuple(bcs), parameters_key(linear_solver_parameters))
+          tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
 
 class LinearSolverCache(Cache):
-  def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}):
+  def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):
     linear_solver = linear_solver_parameters["linear_solver"]
     if linear_solver in ["direct", "lu"]:
       linear_solver = "default"
@@ -337,7 +337,7 @@ class LinearSolverCache(Cache):
     else:
       is_lu_solver = has_lu_solver_method(linear_solver)
     
-    key = linear_solver_key(form, bcs, linear_solver_parameters)
+    key = linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters)
     index = self._keys.get(key, None)
     if index is None:
       if is_lu_solver:

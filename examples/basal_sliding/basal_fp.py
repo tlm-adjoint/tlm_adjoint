@@ -260,9 +260,12 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
         if self._adjoint_J_solver.index() is None:
           J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
           _, (J_mat, _) = jacobian_assembly_cache.assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
-#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs, linear_solver_parameters = self._linear_solver_parameters)
+#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
+#            linear_solver_parameters = self._linear_solver_parameters,
+#            form_compiler_parameters = self._form_compiler_parameters)
           self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
-            linear_solver_parameters = {"linear_solver":"umfpack"})
+            linear_solver_parameters = {"linear_solver":"umfpack"},
+            form_compiler_parameters = self._form_compiler_parameters)
         else:
           J_solver = jacobian_linear_solver_cache[self._adjoint_J_solver]
       
