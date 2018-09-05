@@ -22,7 +22,7 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheIndex, Constant, Function, assembly_cache, \
-  homogenized, is_static, is_static_bcs, linear_solver_cache, new_id, \
+  homogenized, is_static, is_static_bcs, linear_solver_cache, new_count, \
   split_action, split_form
 from .manager import manager as _manager
 
@@ -192,7 +192,7 @@ def _linear_solver(A, linear_solver_parameters):
    
 class FunctionAlias(backend_Function):
   def __init__(self, space):
-    ufl.classes.Coefficient.__init__(self, space, count = new_id())
+    ufl.classes.Coefficient.__init__(self, space, count = new_count())
   
   def _alias(self, x):
     self._clear()

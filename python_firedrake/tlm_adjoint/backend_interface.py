@@ -109,12 +109,12 @@ class Function(backend_Function):
   def is_static(self):
     return self.__static
 
-def new_id():
+def new_count():
   return Constant(0).count()
   
 class ReplacementFunction(ufl.classes.Coefficient):
   def __init__(self, x):
-    ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_id())
+    ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_count())
     self.__space = x.function_space()
     self.__id = x.id()
     self.__name = x.name()

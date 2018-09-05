@@ -40,7 +40,7 @@ __all__ = \
     "is_static",
     "is_static_bcs",
     "linear_solver_cache",
-    "new_id",
+    "new_count",
     "replaced_form",
     "replaced_function",
     "set_assembly_cache",
@@ -246,12 +246,12 @@ class Cache:
     self._keys[key] = index
     return index
 
-def new_id():
-  return Constant(0).id()
+def new_count():
+  return Constant(0).count()
   
 class ReplacementFunction(ufl.classes.Coefficient):
   def __init__(self, x):
-    ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_id())
+    ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_count())
     self.__space = x.function_space()
     self.__id = x.id()
     self.__name = x.name()
