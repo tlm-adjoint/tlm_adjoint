@@ -444,7 +444,10 @@ class EquationManager:
           create_cp_path()
           cp_filename = os.path.join(cp_path, "%i.hdf5" % self._id)
           import h5py
-          self._cp_hdf5_file = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm.tompi4py())
+          if self._comm.size > 1:
+            self._cp_hdf5_file = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm.tompi4py())
+          else:
+            self._cp_hdf5_file = h5py.File(cp_filename, "w")
       else:
         raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
     
