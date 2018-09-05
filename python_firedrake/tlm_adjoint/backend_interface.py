@@ -143,7 +143,7 @@ def is_function(x):
   return isinstance(x, backend_Function)
 
 def function_is_static(x):
-  return isinstance(x, backend_Function) and hasattr(x, "is_static") and x.is_static()
+  return hasattr(x, "is_static") and x.is_static()
   
 def function_copy(x, name = None, static = False):
   y = Function(x.function_space(), name = name, static = static)

@@ -105,7 +105,7 @@ def is_function(x):
   return isinstance(x, backend_Function)
 
 def function_is_static(x):
-  return isinstance(x, backend_Function) and is_static(x)
+  return is_static(x)
   
 def function_copy(x, name = None, static = False):
   y = x.copy(deepcopy = True)
