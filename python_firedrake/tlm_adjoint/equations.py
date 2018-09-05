@@ -32,9 +32,27 @@ __all__ = \
     "DirichletBCSolver",
     "EquationSolver"
   ]
-  
+
+if not "tlm_adjoint" in parameters:
+  parameters["tlm_adjoint"] = {}
+if not "AssembleSolver" in parameters["tlm_adjoint"]:
+  parameters["tlm_adjoint"]["AssembleSolver"] = {}
+if not "match_quadrature" in parameters["tlm_adjoint"]["AssembleSolver"]:
+  parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
+if not "EquationSolver" in parameters["tlm_adjoint"]:
+  parameters["tlm_adjoint"]["EquationSolver"] = {}
+if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
+  parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"] = False
+
+def extract_form_compiler_parameters(form, form_compiler_parameters):
+  return {"quadrature_degree":ufl.algorithms.estimate_total_polynomial_degree(form)}
+
 class AssembleSolver(Equation):
-  def __init__(self, rhs, x, form_compiler_parameters = {}):
+  def __init__(self, rhs, x, form_compiler_parameters = {},
+    match_quadrature = None):
+    if match_quadrature is None:
+      match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]
+      
     rank = len(rhs.arguments())
     if rank != 0:
       raise EquationException("Must be a rank 0 form")
@@ -73,6 +91,8 @@ class AssembleSolver(Equation):
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
+    if match_quadrature:
+      update_parameters_dict(form_compiler_parameters, extract_form_compiler_parameters(rhs, form_compiler_parameters))
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps)
     self._rhs = rhs
@@ -133,9 +153,11 @@ class EquationSolver(Equation):
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
-    initial_guess = None):
+    initial_guess = None, match_quadrature = None):
     if isinstance(bcs, DirichletBC):
       bcs = [bcs]
+    if match_quadrature is None:
+      match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]
     
     lhs, rhs = eq.lhs, eq.rhs
     linear = isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form)
@@ -195,6 +217,8 @@ class EquationSolver(Equation):
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
+    if match_quadrature:
+      update_parameters_dict(form_compiler_parameters, extract_form_compiler_parameters(F, form_compiler_parameters))
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps)    
     self._F = F

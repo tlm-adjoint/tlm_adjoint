@@ -56,10 +56,8 @@ if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
 if not "defer_adjoint_assembly" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"].add("defer_adjoint_assembly", False)
 
-def extract_form_compiler_parameters(forms, form_compiler_parameters):
-  if not isinstance(forms, (list, tuple)):
-    forms = [forms]
-  (form_data,), _, _, _ = ffc.analysis.analyze_forms(forms, form_compiler_parameters)
+def extract_form_compiler_parameters(form, form_compiler_parameters):
+  (form_data,), _, _, _ = ffc.analysis.analyze_forms((form,), form_compiler_parameters)
   integral_metadata = [integral_data.metadata for integral_data in form_data.integral_data]
   return {"quadrature_rule":ffc.analysis._extract_common_quadrature_rule(integral_metadata),
           "quadrature_degree":ffc.analysis._extract_common_quadrature_degree(integral_metadata)}
