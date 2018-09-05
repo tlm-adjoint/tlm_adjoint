@@ -261,7 +261,7 @@ class EquationManager:
     invalid cross-block dependencies.
     
     Arguments:
-    comm  (Optional) PETSc communicator. Default petsc4py.PETSc.COMM_WORLD.
+    comm  (Optional) PETSc communicator. Default default_comm().
 
     cp_method  (Optional) Checkpointing method. Default "memory".      
       Possible methods
@@ -317,8 +317,9 @@ class EquationManager:
     # dolfin-adjoint 2017.1.0
   
     if comm is None:
-      import petsc4py.PETSc
-      comm = petsc4py.PETSc.COMM_WORLD
+      comm = default_comm()
+    if hasattr(comm, "tompi4py"):
+      comm = comm.tompi4py()
   
     self._comm = comm
     self._id = self._ids.next()
@@ -445,7 +446,7 @@ class EquationManager:
           cp_filename = os.path.join(cp_path, "%i.hdf5" % self._id)
           import h5py
           if self._comm.size > 1:
-            self._cp_hdf5_file = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm.tompi4py())
+            self._cp_hdf5_file = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm)
           else:
             self._cp_hdf5_file = h5py.File(cp_filename, "w")
       else:
@@ -1364,7 +1365,7 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
   M0 = [m0 if is_function(m0) else m0.m() for m0 in M0]
   if manager is None:
     manager = _manager()
-  comm = manager.comm().tompi4py()  
+  comm = manager.comm()
 
   N = [0]
   for m in M0:

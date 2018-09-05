@@ -30,7 +30,7 @@ and add the 'python_firedrake' subdirectory to the Python search path.
 Together with the backend libraries, tlm_adjoint requires
 
   NumPy
-  petsc4py
+  mpi4py and petsc4py, for the FEniCS or Firedrake backends
 
 tlm_adjoint optionally requires
 

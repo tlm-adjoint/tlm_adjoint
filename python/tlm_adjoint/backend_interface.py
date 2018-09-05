@@ -37,6 +37,7 @@ __all__ = \
     "apply_bcs",
     "clear_caches",
     "copy_parameters_dict",
+    "default_comm",
     "finalise_adjoint_derivative_action",
     "function_alias",
     "function_assign",
@@ -83,10 +84,7 @@ def warning(message):
 class RealFunctionSpace(FunctionSpace):
   def __init__(self, comm = None):
     if comm is None:
-      if hasattr(fenics, "mpi_comm_world"):
-        comm = fenics.mpi_comm_world()
-      else:
-        comm = fenics.MPI.comm_world
+      comm = default_comm()
     FunctionSpace.__init__(self, UnitIntervalMesh(comm, comm.size), "R", 0)
 
 #class Function:
@@ -125,6 +123,12 @@ def function_assign(x, y):
 
 def function_axpy(x, alpha, y):
   x.vector().axpy(alpha, y.vector())
+
+def default_comm():
+  if hasattr(fenics, "mpi_comm_world"):
+    return fenics.mpi_comm_world()
+  else:
+    return fenics.MPI.comm_world
 
 def function_comm(x):
   return x.function_space().mesh().mpi_comm()

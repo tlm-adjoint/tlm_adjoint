@@ -33,7 +33,6 @@ import petsc4py.PETSc
 import slepc4py.SLEPc
 import ufl
 
-import petsc4py.PETSc
 petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:

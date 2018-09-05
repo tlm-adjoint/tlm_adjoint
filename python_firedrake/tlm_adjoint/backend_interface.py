@@ -33,6 +33,7 @@ __all__ = \
     "apply_bcs",
     "clear_caches",
     "copy_parameters_dict",
+    "default_comm",
     "finalise_adjoint_derivative_action",
     "function_alias",
     "function_assign",
@@ -94,9 +95,8 @@ firedrake.functionspaceimpl.MixedFunctionSpace.id = lambda self : id(self)
 
 def RealFunctionSpace(comm = None):
   if comm is None:
-    import petsc4py.PETSc
-    comm = petsc4py.PETSc.COMM_WORLD
-  space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm.tompi4py()), "Discontinuous Lagrange", 0)
+    comm = default_comm()
+  space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm), "Discontinuous Lagrange", 0)
   space._tlm_adjoint__real_space = True
   return space
 
@@ -159,9 +159,12 @@ def function_assign(x, y):
 def function_axpy(x, alpha, y):
   function_set_values(x, function_get_values(x) + alpha * function_get_values(y))
 
+def default_comm():
+  import mpi4py.MPI
+  return mpi4py.MPI.COMM_WORLD
+
 def function_comm(x):
-  import petsc4py
-  return petsc4py.PETSc.Comm(x.comm)
+  return x.comm
 
 def function_inner(x, y):
   x_v = as_backend_type(x.vector()).vec()

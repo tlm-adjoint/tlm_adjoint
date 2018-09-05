@@ -31,6 +31,7 @@ __all__ = \
     "ReplacementFunction",
     "apply_bcs",
     "clear_caches",
+    "default_comm",
     "copy_parameters_dict",
     "finalise_adjoint_derivative_action",
     "function_alias",
@@ -173,8 +174,23 @@ def function_assign(x, y):
 def function_axpy(x, alpha, y):
   x.vector()[:] += alpha * y.vector()
 
+class SerialComm:
+  def allgather(self, v):
+    w = v.view()
+    w.setflags(write = False)
+    return (w,)
+
+  def rank(self):
+    return 0
+  
+  def size(self):
+    return 1
+
+def default_comm():
+  return SerialComm()
+
 def function_comm(x):
-  raise InterfaceException("NumPy backend is serial only")
+  return SerialComm()
 
 def function_inner(x, y):
   return x.vector().dot(y.vector())
