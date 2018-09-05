@@ -151,7 +151,7 @@ def function_copy(x, name = None, static = False):
   return y
 
 def function_assign(x, y):
-  if isinstance(y, (int, float)):
+  if isinstance(y, (int, float, Constant)):
     x.vector()[:] = float(y)
   else:
     function_set_values(x, function_get_values(y))
