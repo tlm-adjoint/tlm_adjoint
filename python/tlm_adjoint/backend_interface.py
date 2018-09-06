@@ -193,8 +193,7 @@ def subtract_adjoint_derivative_action(x, y):
     if isinstance(y, backend_Function):
       y = y.vector()
     x.vector().axpy(-1.0, y)
-  return
-
+    
 def finalise_adjoint_derivative_action(x):
   if hasattr(x, "_tlm_adjoint__adj_b"):
     assemble(x._tlm_adjoint__adj_b, tensor = x.vector(), add_values = True)
