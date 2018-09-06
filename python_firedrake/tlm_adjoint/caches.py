@@ -198,8 +198,7 @@ class LinearSolverCache(Cache):
     key = linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters)
     index = self._keys.get(key, None)
     if index is None:
-      solver = LinearSolver(A)
-      update_parameters_dict(solver.parameters, linear_solver_parameters)
+      solver = LinearSolver(A, solver_parameters = linear_solver_parameters)
       index = self.append(key, solver)
     else:
       solver = self[index]

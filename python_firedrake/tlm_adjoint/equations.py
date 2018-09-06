@@ -21,13 +21,15 @@ from .backend import *
 from .backend_interface import *
 
 from .base_equations import *
+from .caches import CacheIndex, Constant, DirichletBC, Function, is_static, \
+  is_static_bcs, linear_solver_cache
 
 from collections import OrderedDict
 import copy
 import ufl
 
 __all__ = \
-  [    
+  [
     "AssembleSolver",
     "DirichletBCSolver",
     "EquationSolver"
@@ -41,6 +43,8 @@ if not "match_quadrature" in parameters["tlm_adjoint"]["AssembleSolver"]:
   parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
 if not "EquationSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"]["EquationSolver"] = {}
+if not "enable_jacobian_caching" in parameters["tlm_adjoint"]["EquationSolver"]:
+  parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] = True
 if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"] = False
 if not "defer_adjoint_assembly" in parameters["tlm_adjoint"]["EquationSolver"]:
@@ -155,10 +159,13 @@ class EquationSolver(Equation):
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
-    initial_guess = None,
+    initial_guess = None, cache_jacobian = None,
     match_quadrature = None, defer_adjoint_assembly = None):
     if isinstance(bcs, DirichletBC):
       bcs = [bcs]
+    if cache_jacobian is None:
+      if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:
+        cache_jacobian = False
     if match_quadrature is None:
       match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]
     if defer_adjoint_assembly is None:
@@ -221,6 +228,11 @@ class EquationSolver(Equation):
     
     hbcs = [homogenized_bc(bc) for bc in bcs]
     
+    if cache_jacobian is None:
+      cache_jacobian = is_static(J) and is_static_bcs(bcs)
+    
+    # Note: solver_parameters is not updated to include default parameters
+
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
@@ -238,7 +250,9 @@ class EquationSolver(Equation):
     self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
     self._linear = linear
     
+    self._cache_jacobian = cache_jacobian
     self._defer_adjoint_assembly = defer_adjoint_assembly
+    self.reset_forward_solve()
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
@@ -252,7 +266,7 @@ class EquationSolver(Equation):
     eq_deps = self.dependencies()
     if not self._initial_guess_index is None:
       function_assign(x, (eq_deps if deps is None else deps)[self._initial_guess_index])
-  
+    
     if deps is None:
       replace_deps = lambda F : F
     else:
@@ -260,20 +274,35 @@ class EquationSolver(Equation):
       replace_deps = lambda F : ufl.replace(F, replace_map)
   
     if self._linear:
-      solve(replace_deps(self._lhs) == replace_deps(self._rhs), x, self._bcs,
-        form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
+      if self._cache_jacobian:
+        # Case 2: Linear, Jacobian cached, without pre-assembly
+        if self._forward_J_solver.index() is None:
+          J = replace_deps(self._J)
+          # Assemble the Jacobian
+          J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+          # Construct and cache the linear solver
+          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
+            linear_solver_parameters = self._solver_parameters,
+            form_compiler_parameters = self._form_compiler_parameters)
+        else:
+          # Extract the linear solver from the cache
+          J_solver = linear_solver_cache()[self._forward_J_solver]
+          
+        # Assemble the RHS without pre-assembly
+        b = assemble(replace_deps(self._rhs))
+        
+        J_solver.solve(x.vector(), b)
+      else:
+        # Case 4: Linear, Jacobian not cached, without pre-assembly
+        solve(replace_deps(self._lhs) == replace_deps(self._rhs), x, self._bcs,
+          form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
     else:
+      # Case 5: Non-linear
       solve(replace_deps(self._F) == 0, x, self._bcs, J = replace_deps(self._J),
         form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
-  
-  def adjoint_jacobian_solve(self, nl_deps, b):
-    J = ufl.replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
-    J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
-    for bc in self._hbcs:
-      bc.apply(J, b)
-    x = function_new(b)
-    solve(J, x.vector(), b, solver_parameters = self._solver_parameters)
-    return x
+    
+  def reset_forward_solve(self):
+    self._forward_J_solver = CacheIndex()
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     dep = self.dependencies()[dep_index]
@@ -286,6 +315,15 @@ class EquationSolver(Equation):
       return dF
     else:
       return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
+  
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    J = ufl.replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+    J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
+    for bc in self._hbcs:
+      bc.apply(J)
+    x = function_new(b)
+    solve(J, x.vector(), b, solver_parameters = self._solver_parameters)
+    return x
   
   def tangent_linear(self, M, dM, tlm_map):
     x = self.x()
@@ -312,6 +350,7 @@ class EquationSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters,
         solver_parameters = self._solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
+        cache_jacobian = self._cache_jacobian,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
         
 class DirichletBCSolver(Equation):
