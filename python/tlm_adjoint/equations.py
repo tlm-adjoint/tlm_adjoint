@@ -728,24 +728,17 @@ class DirichletBCSolver(Equation):
   def __init__(self, y, x, forward_domain, *bc_args, **bc_kwargs):
     bc_kwargs = copy.copy(bc_kwargs)
     adjoint_domain = bc_kwargs.pop("adjoint_domain", forward_domain)
-    allow_extrapolation = bc_kwargs.pop("allow_extrapolation", True)
   
     Equation.__init__(self, x, [x, y], nl_deps = [])
     self._forward_domain = forward_domain
     self._adjoint_domain = adjoint_domain
     self._bc_args = bc_args
     self._bc_kwargs = bc_kwargs
-    self._allow_extrapolation = allow_extrapolation
 
   def forward_solve(self, x, deps = None):
     _, y = self.dependencies() if deps is None else deps
-    if self._allow_extrapolation:
-      allow_extrapolation = y.get_allow_extrapolation()
-      y.set_allow_extrapolation(True)
     function_zero(x)
     DirichletBC(x.function_space(), y, self._forward_domain, *self._bc_args, **self._bc_kwargs).apply(x.vector())
-    if self._allow_extrapolation:
-      y.set_allow_extrapolation(allow_extrapolation)
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     if dep_index == 0:
@@ -753,13 +746,8 @@ class DirichletBCSolver(Equation):
     elif dep_index == 1:
       _, y = self.dependencies()
       F = function_new(y)
-      if self._allow_extrapolation:
-        allow_extrapolation = adj_x.get_allow_extrapolation()
-        adj_x.set_allow_extrapolation(True)
       DirichletBC(y.function_space(), adj_x, self._adjoint_domain,
                   *self._bc_args, **self._bc_kwargs).apply(F.vector())
-      if self._allow_extrapolation:
-        adj_x.set_allow_extrapolation(allow_extrapolation)
       return (-1.0, F)
     else:
       return None
@@ -783,5 +771,5 @@ class DirichletBCSolver(Equation):
       return None
     else:
       return DirichletBCSolver(tau_y, tlm_map[x], self._forward_domain,
-        adjoint_domain = self._adjoint_domain, allow_extrapolation = self._allow_extrapolation,
+        adjoint_domain = self._adjoint_domain,
         *self._bc_args, **self._bc_kwargs)      
