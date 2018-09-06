@@ -70,7 +70,13 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inve
     form_compiler_parameters = form_compiler_parameters_
     
     tensor._tlm_adjoint__form = f
-    tensor._tlm_adjoint__bcs = []
+    if isinstance(b, backend_Matrix):
+      if bcs is None:
+        tensor._tlm_adjoint__bcs = []
+      elif isinstance(bcs, base_DirichletBC):
+        tensor._tlm_adjoint__bcs = [bcs]
+      else:
+        tensor._tlm_adjoint__bcs = copy.copy(bcs)
     tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
   
   return tensor
@@ -139,8 +145,6 @@ def _DirichletBC_apply(self, r, u = None):
   
   if hasattr(r, "_tlm_adjoint__bcs"):
     r._tlm_adjoint__bcs.append(self)
-  if not u is None and hasattr(u, "_tlm_adjoint__bcs"):
-    u._tlm_adjoint__bcs.append(self)
 DirichletBC.apply = _DirichletBC_apply
 
 _orig_Function_assign = backend_Function.assign
@@ -200,8 +204,6 @@ class LinearSolver(backend_LinearSolver):
       if not isinstance(x, backend_Function):
         x = x._tlm_adjoint__function
       bcs = A._tlm_adjoint__bcs
-      if bcs != b._tlm_adjoint__bcs:
-        raise ManagerException("Non-matching boundary conditions")
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise ManagerException("Non-matching form compiler parameters")

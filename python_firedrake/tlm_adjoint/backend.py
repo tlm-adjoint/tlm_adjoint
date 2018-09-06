@@ -25,6 +25,8 @@ import firedrake
 
 extract_args = firedrake.solving._extract_args
 
+backend_Matrix = firedrake.matrix.Matrix
+
 backend_Constant = Constant
 backend_DirichletBC = DirichletBC
 backend_Function = Function
@@ -60,6 +62,7 @@ __all__ = \
     "backend_DirichletBC",
     "backend_Function",
     "backend_LinearSolver",
+    "backend_Matrix",
     "backend_assemble",
     "backend_project",
     "backend_solve",

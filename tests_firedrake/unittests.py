@@ -289,7 +289,7 @@ class tests(unittest.TestCase):
       
       A = assemble(inner(test, trial) * dx)
       b = assemble(inner(test, G[0]) * dx)
-      bc.apply(A, b)
+      bc.apply(A)
       solver = LinearSolver(A, solver_parameters = {"ksp_type":"cg",
                                                     "pc_type":"jacobi",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
