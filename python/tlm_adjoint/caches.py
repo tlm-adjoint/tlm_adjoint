@@ -35,7 +35,6 @@ __all__ = \
     "LinearSolverCache",
     "ReplacementFunction",
     "assembly_cache",
-    "homogenized",
     "is_homogeneous_bcs",
     "is_static",
     "is_static_bcs",
@@ -53,9 +52,11 @@ class CacheException(Exception):
   pass
   
 class Constant(backend_Constant):
-  # Following FEniCS 2017.1.0 API
-  def __init__(self, value, cell = None, name = None, static = False):
-    backend_Constant.__init__(self, value, cell = cell, name = name)
+  def __init__(self, *args, **kwargs):
+    kwargs = copy.copy(kwargs)
+    static = kwargs.pop("static", False)
+    
+    backend_Constant.__init__(self, *args, **kwargs)
     self.__static = static
   
   def is_static(self):
@@ -72,36 +73,13 @@ class Function(backend_Function):
   def is_static(self):
     return self.__static
 
-def homogenized(bc):
-  if isinstance(bc, DirichletBC) and bc.is_homogeneous():
-    return bc
-  else:
-    hbc = DirichletBC(bc, static = is_static_bcs([bc]), homogeneous = is_homogeneous_bcs([bc]))
-    hbc.homogenize()
-    return hbc
-
 class DirichletBC(backend_DirichletBC):
-  # Following FEniCS 2017.1.0 API
-  def __init__(self, *args, **kwargs):
-    if isinstance(args[0], DirichletBC):
-      homogeneous = args[0].is_homogeneous()
-    else:
-      homogeneous = None
-      
+  def __init__(self, *args, **kwargs):      
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
-    homogeneous = kwargs.pop("homogeneous", homogeneous)
+    homogeneous = kwargs.pop("homogeneous", False)
     
-    backend_DirichletBC.__init__(self, *args, **kwargs)
-    
-    if homogeneous is None:
-      if static:
-        b = Function(self.function_space()).vector()
-        self.apply(b)
-        homogeneous = b.norm("linf") == 0.0
-      else:
-        homogeneous = False
-    
+    backend_DirichletBC.__init__(self, *args, **kwargs)    
     self.__static = static
     self.__homogeneous = homogeneous
   

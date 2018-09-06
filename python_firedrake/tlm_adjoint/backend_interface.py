@@ -17,16 +17,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Constant, FunctionSpace, Parameters, UnitIntervalMesh, \
-  as_backend_type, assemble, backend_Function, firedrake, homogenize, \
+from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
+  assemble, backend_Constant, backend_Function, firedrake, homogenize, \
   copy_parameters_dict, update_parameters_dict
+  
+from .caches import Function, ReplacementFunction, is_static, is_static_bcs, \
+  replaced_function
 
 import numpy
 import ufl
 import sys
 
 __all__ = \
-  [  
+  [
     "Function",
     "FunctionSpace",
     "RealFunctionSpace",
@@ -88,49 +91,25 @@ def RealFunctionSpace(comm = None):
   return space
 
 backend_Function.id = lambda self : self.count()
-class Function(backend_Function):
-  def __init__(self, space, name = None, static = False, val = None):
-    backend_Function.__init__(self, space, name = name, val = val)
-    self.__static = static
-    
-  def is_static(self):
-    return self.__static
+#class Function:
+#  def __init__(self, space, name = None, static = False):
+#  def function_space(self):
+#  def id(self):
+#  def name(self):
 
-def new_count():
-  return Constant(0).count()
-  
-class ReplacementFunction(ufl.classes.Coefficient):
-  def __init__(self, x):
-    ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_count())
-    self.__space = x.function_space()
-    self.__id = x.id()
-    self.__name = x.name()
-    self.__static = function_is_static(x)
-  
-  def function_space(self):
-    return self.__space
-  
-  def id(self):
-    return self.__id
-  
-  def name(self):
-    return self.__name
-  
-  def is_static(self):
-    return self.__static
+# class ReplacementFunction:
+#  def __init__(self, x):
+#  def function_space(self):
+#  def id(self):
+#  def name(self):
 
-def replaced_function(x):
-  if isinstance(x, ReplacementFunction):
-    return x
-  if not hasattr(x, "_tlm_adjoint__ReplacementFunction"):
-    x._tlm_adjoint__ReplacementFunction = ReplacementFunction(x)
-  return x._tlm_adjoint__ReplacementFunction
+#def replaced_function(x):
 
 def is_function(x):
   return isinstance(x, backend_Function)
 
 def function_is_static(x):
-  return hasattr(x, "is_static") and x.is_static()
+  return is_static(x)
   
 def function_copy(x, name = None, static = False):
   y = Function(x.function_space(), name = name, static = static)
@@ -138,7 +117,7 @@ def function_copy(x, name = None, static = False):
   return y
 
 def function_assign(x, y):
-  if isinstance(y, (int, float, Constant)):
+  if isinstance(y, (int, float, backend_Constant)):
     x.vector()[:] = float(y)
   else:
     function_set_values(x, function_get_values(y))
@@ -219,4 +198,11 @@ def apply_bcs(x, bcs):
     bc.apply(x.vector())
 
 def homogenized_bc(bc):
-  return homogenize(bc)
+  if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
+    return bc
+  else:
+    hbc = homogenize(bc)
+    static = is_static_bcs([bc])
+    hbc.is_static = static
+    hbc.is_homogeneous = lambda : True
+    return hbc

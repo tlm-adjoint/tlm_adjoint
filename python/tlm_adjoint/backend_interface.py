@@ -21,12 +21,13 @@ from .backend import FunctionSpace, UnitIntervalMesh, assemble, \
   backend_Constant, backend_Function, copy_parameters_dict, fenics, info, \
   update_parameters_dict
 
-from .caches import Function, ReplacementFunction, assembly_cache, \
-  homogenized as homogenized_bc, is_static, linear_solver_cache, \
+from .caches import DirichletBC, Function, ReplacementFunction, \
+  assembly_cache, is_static, is_static_bcs, linear_solver_cache, \
   replaced_function
 
 import numpy
 import ufl
+import sys
 
 __all__ = \
   [
@@ -203,4 +204,10 @@ def apply_bcs(x, bcs):
   for bc in bcs:
     bc.apply(x.vector())
 
-#def homogenized_bc(bc):
+def homogenized_bc(bc):
+  if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
+    return bc
+  else:
+    hbc = DirichletBC(bc, static = is_static_bcs([bc]), homogeneous = False)
+    hbc.homogenize()
+    return hbc

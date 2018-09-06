@@ -22,8 +22,8 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheIndex, Constant, Function, assembly_cache, \
-  homogenized, is_static, is_static_bcs, linear_solver_cache, new_count, \
-  split_action, split_form
+  is_static, is_static_bcs, linear_solver_cache, new_count, split_action, \
+  split_form
 from .manager import manager as _manager
 
 from collections import OrderedDict
@@ -300,7 +300,7 @@ class EquationSolver(Equation):
     deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
-    hbcs = [homogenized(bc) for bc in bcs]
+    hbcs = [homogenized_bc(bc) for bc in bcs]
     
     if cache_jacobian is None:
       cache_jacobian = is_static(J) and is_static_bcs(bcs)

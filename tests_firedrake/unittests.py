@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*
+# -*- coding: utf-8 -*-
 
 # Copyright(c) 2018 The University of Edinburgh
 #
@@ -97,8 +97,8 @@ class tests(unittest.TestCase):
       x_n = Function(space, name = "x_n")
       x_n.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1])", element = space.ufl_element()))
       x_np1 = Function(space, name = "x_np1")
-      dt = Constant(0.01)
-      bc = DirichletBC(space, 0.0, "on_boundary")
+      dt = Constant(0.01, static = True)
+      bc = DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True)
       
       eqs = [EquationSolver(inner(test, trial / dt) * dx + inner(grad(test), kappa * grad(trial)) * dx == inner(test, x_n / dt) * dx,
                x_np1, bc, solver_parameters = {"ksp_type":"cg",
@@ -280,7 +280,7 @@ class tests(unittest.TestCase):
     F = Function(space, name = "F", static = True)
     F.interpolate(Expression("1.0 + sin(pi * x[0]) * sin(3.0 * pi * x[1])", element = space.ufl_element()))
     
-    bc = DirichletBC(space, "1.0", "on_boundary")
+    bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
       G = [Function(space, name = "G_%i" % i) for i in range(2)]
@@ -331,7 +331,7 @@ class tests(unittest.TestCase):
       DirichletBCSolver(bc, x_1, "on_boundary").solve(replace = True)
       
       solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
-        x_0, DirichletBC(space, 0.0, "on_boundary"),
+        x_0, DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True),
         solver_parameters = {"ksp_type":"cg",
                              "pc_type":"jacobi",
                              "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
@@ -351,7 +351,7 @@ class tests(unittest.TestCase):
     
     x_ref = Function(space, name = "x_ref")
     solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
-      x_ref, DirichletBC(space, 1.0, "on_boundary"),
+      x_ref, DirichletBC(space, 1.0, "on_boundary", static = True, homogeneous = False),
       solver_parameters = {"ksp_type":"cg",
                            "pc_type":"jacobi",
                            "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
@@ -377,11 +377,11 @@ class tests(unittest.TestCase):
     r0 = FiniteElement("Discontinuous Lagrange", mesh.ufl_cell(), 0)
     space = FunctionSpace(mesh, r0 * r0)
     test = TestFunction(space)
-    dt = Constant(0.01)
+    dt = Constant(0.01, static = True)
     control_space = FunctionSpace(mesh, r0)
     alpha = Function(control_space, name = "alpha", static = True)
     function_assign(alpha, 1.0)
-    inv_V = Constant(1.0 / assemble(Constant(1.0) * dx(mesh)))
+    inv_V = Constant(1.0 / assemble(Constant(1.0) * dx(mesh)), static = True)
     dalpha = Function(control_space, name = "dalpha", static = True)
     function_assign(dalpha, 1.0)
     
@@ -393,8 +393,8 @@ class tests(unittest.TestCase):
       
       # Forward model initialisation and definition
       T_n.assign(Constant((1.0, 0.0)))
-      eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt - Constant(0.5) * T_n[1] - Constant(0.5) * T_np1[1]) * dx
-                        + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(alpha * (Constant(0.5) * T_n[0] + Constant(0.5) * T_np1[0]))) * dx == 0,
+      eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt - Constant(0.5, static = True) * T_n[1] - Constant(0.5, static = True) * T_np1[1]) * dx
+                        + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(alpha * (Constant(0.5, static = True) * T_n[0] + Constant(0.5, static = True) * T_np1[0]))) * dx == 0,
              T_np1, solver_parameters = {"snes_type":"newtonls",
                                          "ksp_type":"gmres",
                                          "pc_type":"jacobi",
@@ -474,7 +474,7 @@ class tests(unittest.TestCase):
       test, trial = TestFunction(space), TrialFunction(space)
       T_0 = Function(space, name = "T_0", static = True)
       T_0.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])", element = space.ufl_element()))
-      dt = Constant(0.01)
+      dt = Constant(0.01, static = True)
       space_r0 = FunctionSpace(mesh, "R", 0)
       kappa = Function(space_r0, name = "kappa", static = True)
       function_assign(kappa, 1.0)
@@ -485,15 +485,15 @@ class tests(unittest.TestCase):
 
         levels = TimeLevels([n, n + 1], {n:n + 1})
         T = TimeFunction(levels, space, name = "T")
-        T[n].rename("T_n", T[n].label())
-        T[n + 1].rename("T_np1", T[n + 1].label())
+        T[n].rename("T_n", "a Function")
+        T[n + 1].rename("T_np1", "a Function")
         
         system = TimeSystem()
         
         system.add_solve(T_0, T[0])
         
         system.add_solve(inner(test, trial) * dx + dt * inner(grad(test), kappa * grad(trial)) * dx == inner(test, T[n]) * dx,
-          T[n + 1], DirichletBC(space, 1.0, "on_boundary"),
+          T[n + 1], DirichletBC(space, 1.0, "on_boundary", static = True, homogeneous = False),
           solver_parameters = {"ksp_type":"cg",
                                "pc_type":"jacobi",
                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
@@ -537,15 +537,15 @@ class tests(unittest.TestCase):
     test = TestFunction(space)
     T_0 = Function(space, name = "T_0", static = True)
     T_0.assign(Constant((1.0, 0.0)))
-    dt = Constant(0.01)
+    dt = Constant(0.01, static = True)
     
     def forward(T_0):
       T_n = Function(space, name = "T_n")
       T_np1 = Function(space, name = "T_np1")
       
       AssignmentSolver(T_0, T_n).solve(replace = True)
-      eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt - Constant(0.5) * T_n[1] - Constant(0.5) * T_np1[1]) * dx
-                        + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(Constant(0.5) * T_n[0] + Constant(0.5) * T_np1[0])) * dx == 0,
+      eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt - Constant(0.5, static = True) * T_n[1] - Constant(0.5, static = True) * T_np1[1]) * dx
+                        + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(Constant(0.5, static = True) * T_n[0] + Constant(0.5, static = True) * T_np1[0])) * dx == 0,
              T_np1, solver_parameters = {"snes_type":"newtonls",
                                          "ksp_type":"gmres",
                                          "pc_type":"jacobi",

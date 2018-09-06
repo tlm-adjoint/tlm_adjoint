@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*
+# -*- coding: utf-8 -*-
 
 # Copyright(c) 2018 The University of Edinburgh
 #
@@ -348,7 +348,7 @@ class tests(unittest.TestCase):
       x_1 = Function(space, name = "x_1")
       x = Function(space, name = "x")
       
-      DirichletBCSolver(bc, x_1, "on_boundary", adjoint_domain = "1").solve(replace = True)
+      DirichletBCSolver(bc, x_1, "on_boundary").solve(replace = True)
       
       solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
         x_0, DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True),

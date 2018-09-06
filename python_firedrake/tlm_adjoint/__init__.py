@@ -21,6 +21,7 @@ from .backend import *
 from .backend_interface import *
 from .backend_overrides import *
 from .base_equations import *
+from .caches import *
 from .eigendecomposition import *
 from .equations import *
 from .functional import *
