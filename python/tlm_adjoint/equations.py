@@ -21,10 +21,9 @@ from .backend import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheIndex, Constant, Function, assembly_cache, \
-  is_static, is_static_bcs, linear_solver_cache, new_count, split_action, \
-  split_form
-from .manager import manager as _manager
+from .caches import CacheIndex, Constant, DirichletBC, Function, \
+  assembly_cache, is_static, is_static_bcs, linear_solver_cache, new_count, \
+  split_action, split_form
 
 from collections import OrderedDict
 import copy
@@ -33,7 +32,7 @@ import numpy
 import ufl
 
 __all__ = \
- [
+  [
     "AssembleSolver",
     "DirichletBCSolver",
     "EquationSolver"
@@ -576,7 +575,7 @@ class EquationSolver(Equation):
         
       J_solver.solve(x.vector(), b)
     else:
-      # Case 5: Non-linear, Jacobian not cached, without pre-assembly
+      # Case 5: Non-linear
       if deps is None:
         lhs, J, rhs = self._lhs, self._J, self._rhs
       else:    
