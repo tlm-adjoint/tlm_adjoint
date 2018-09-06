@@ -43,6 +43,8 @@ if not "EquationSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"]["EquationSolver"] = {}
 if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"] = False
+if not "defer_adjoint_assembly" in parameters["tlm_adjoint"]["EquationSolver"]:
+  parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"] = False
 
 def extract_form_compiler_parameters(form, form_compiler_parameters):
   return {"quadrature_degree":ufl.algorithms.estimate_total_polynomial_degree(form)}
@@ -153,11 +155,16 @@ class EquationSolver(Equation):
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
-    initial_guess = None, match_quadrature = None):
+    initial_guess = None,
+    match_quadrature = None, defer_adjoint_assembly = None):
     if isinstance(bcs, DirichletBC):
       bcs = [bcs]
     if match_quadrature is None:
       match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]
+    if defer_adjoint_assembly is None:
+      defer_adjoint_assembly = parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"]
+    if match_quadrature and defer_adjoint_assembly:
+      raise EquationException("Cannot both match quadrature and defer adjoint assembly")
     
     lhs, rhs = eq.lhs, eq.rhs
     linear = isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form)
@@ -230,6 +237,8 @@ class EquationSolver(Equation):
     self._solver_parameters = copy_parameters_dict(solver_parameters)
     self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
     self._linear = linear
+    
+    self._defer_adjoint_assembly = defer_adjoint_assembly
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
@@ -273,7 +282,10 @@ class EquationSolver(Equation):
       return None
     dF = action(adjoint(dF), adj_x)
     dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
-    return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
+    if self._defer_adjoint_assembly:
+      return dF
+    else:
+      return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
   
   def tangent_linear(self, M, dM, tlm_map):
     x = self.x()
@@ -299,7 +311,8 @@ class EquationSolver(Equation):
       return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters,
         solver_parameters = self._solver_parameters,
-        initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None)
+        initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
+        defer_adjoint_assembly = self._defer_adjoint_assembly)
         
 class DirichletBCSolver(Equation):
   def __init__(self, y, x, forward_domain, *bc_args, **bc_kwargs):

@@ -18,7 +18,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import Constant, FunctionSpace, Parameters, UnitIntervalMesh, \
-  as_backend_type, backend_Function, firedrake, homogenize
+  as_backend_type, assemble, backend_Function, firedrake, homogenize
 
 import numpy
 import ufl
@@ -212,13 +212,20 @@ def subtract_adjoint_derivative_action(x, y):
     if isinstance(y, backend_Function):
       y = y.vector()
     function_axpy(x, -alpha, y)
+  elif isinstance(y, ufl.classes.Form):
+    if hasattr(x, "_tlm_adjoint__adj_b"):
+      x._tlm_adjoint__adj_b -= y
+    else:
+      x._tlm_adjoint__adj_b = -y
   else:
     if isinstance(y, backend_Function):
       y = y.vector()
     function_axpy(x, -1.0, y)
     
 def finalise_adjoint_derivative_action(x):
-  pass
+  if hasattr(x, "_tlm_adjoint__adj_b"):
+    function_axpy(x, 1.0, assemble(x._tlm_adjoint__adj_b))
+    delattr(x, "_tlm_adjoint__adj_b")
 
 def apply_bcs(x, bcs):
   for bc in bcs:
