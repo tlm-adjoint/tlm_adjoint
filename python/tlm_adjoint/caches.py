@@ -184,7 +184,7 @@ def split_action(form, x):
     return ufl.classes.Form([]), form
   
   trial = TrialFunction(x.function_space())
-  if x in ufl.algorithms.expand_derivatives(derivative(form, x, du = trial)).coefficients():
+  if x in ufl.algorithms.expand_derivatives(ufl.derivative(form, x, argument = trial)).coefficients():
     # Non-linear
     return ufl.classes.Form([]), form
   

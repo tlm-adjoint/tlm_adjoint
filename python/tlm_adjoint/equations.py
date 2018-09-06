@@ -87,7 +87,7 @@ class AssembleSolver(Equation):
           dep_ids.add(dep_id)
         if not dep_id in nl_dep_ids:
           n_nl_deps = 0
-          for nl_dep in ufl.algorithms.expand_derivatives(derivative(rhs, dep, du = TrialFunction(dep.function_space()))).coefficients():
+          for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(rhs, dep, argument = TrialFunction(dep.function_space()))).coefficients():
             if isinstance(nl_dep, backend_Function):
               nl_dep_id = nl_dep.id()
               if not nl_dep_id in nl_dep_ids:
@@ -139,7 +139,7 @@ class AssembleSolver(Equation):
       return adj_x
     
     dep = eq_deps[dep_index]
-    dF = ufl.algorithms.expand_derivatives(derivative(-self._rhs, dep, du = TestFunction(dep.function_space())))
+    dF = ufl.algorithms.expand_derivatives(ufl.derivative(-self._rhs, dep, argument = TestFunction(dep.function_space())))
     if dF.empty():
       return None
     
@@ -156,13 +156,13 @@ class AssembleSolver(Equation):
   
     tlm_rhs = ufl.classes.Zero()
     for m, dm in zip(M, dM):
-      tlm_rhs += derivative(self._rhs, m, du = dm)
+      tlm_rhs += ufl.derivative(self._rhs, m, argument = dm)
     
     for dep in self.dependencies():
       if dep != x and not dep in M:
         tau_dep = tlm_map[dep]
         if not tau_dep is None:
-          tlm_rhs += derivative(self._rhs, dep, du = tau_dep)
+          tlm_rhs += ufl.derivative(self._rhs, dep, argument = tau_dep)
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
       return None
@@ -258,7 +258,7 @@ class EquationSolver(Equation):
       F = lhs
       if rhs != 0:
         F -= rhs
-      J = ufl.algorithms.expand_derivatives(derivative(F, x, du = TrialFunction(x.function_space())))
+      J = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
     
     deps = []
     dep_ids = set()
@@ -272,7 +272,7 @@ class EquationSolver(Equation):
           dep_ids.add(dep_id)
         if not dep_id in nl_dep_ids:
           n_nl_deps = 0
-          for nl_dep in ufl.algorithms.expand_derivatives(derivative(F, dep, du = TrialFunction(dep.function_space()))).coefficients():
+          for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(F, dep, argument = TrialFunction(dep.function_space()))).coefficients():
             if isinstance(nl_dep, backend_Function):
               nl_dep_id = nl_dep.id()
               if not nl_dep_id in nl_dep_ids:
@@ -636,7 +636,7 @@ class EquationSolver(Equation):
           form_compiler_parameters = self._form_compiler_parameters)
 
     dep = eq_deps[dep_index]
-    dF = ufl.algorithms.expand_derivatives(derivative(self._F, dep, du = TrialFunction(dep.function_space())))
+    dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space())))
     if dF.empty():
       self._derivative_mats[dep_index] = None
       return None
@@ -702,13 +702,13 @@ class EquationSolver(Equation):
   
     tlm_rhs = ufl.classes.Zero()
     for m, dm in zip(M, dM):
-      tlm_rhs -= derivative(self._F, m, du = dm)
+      tlm_rhs -= ufl.derivative(self._F, m, argument = dm)
       
     for dep in self.dependencies():
       if dep != x and not dep in M:
         tau_dep = tlm_map[dep]
         if not tau_dep is None:
-          tlm_rhs -= derivative(self._F, dep, du = tau_dep)
+          tlm_rhs -= ufl.derivative(self._F, dep, argument = tau_dep)
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
       return None

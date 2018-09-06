@@ -117,7 +117,6 @@ __all__ = \
     "adjoint",
     "assemble",
     "assemble_system",
-    "derivative",
     "dx",
     "extract_args",
     "has_lu_solver_method",
