@@ -18,7 +18,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import Constant, FunctionSpace, Parameters, UnitIntervalMesh, \
-  as_backend_type, assemble, backend_Function, firedrake, homogenize
+  as_backend_type, assemble, backend_Function, firedrake, homogenize, \
+  copy_parameters_dict, update_parameters_dict
 
 import numpy
 import ufl
@@ -71,23 +72,9 @@ def warning(message):
   sys.stderr.write("%s\n" % message)
   sys.stderr.flush()
 
-def copy_parameters_dict(parameters):
-  parameters_copy = parameters.copy()
-  for key, value in parameters.items():
-    if isinstance(value, (Parameters, dict)):
-      parameters_copy[key] = copy_parameters_dict(value)
-  return parameters_copy
+#def copy_parameters_dict(parameters):
 
-def update_parameters_dict(parameters, new_parameters):
-  for key, value in new_parameters.items():
-    if key in parameters \
-      and isinstance(parameters[key], (Parameters, dict)) \
-      and isinstance(value, (Parameters, dict)):
-      update_parameters_dict(parameters[key], value)
-    elif isinstance(value, (Parameters, dict)):
-      parameters[key] = copy_parameters_dict(value)
-    else:
-      parameters[key] = value
+#def update_parameters_dict(parameters, new_parameters):
 
 ufl.classes.FunctionSpace.id = lambda self : id(self)
 firedrake.functionspaceimpl.FunctionSpace.id = lambda self : id(self)

@@ -51,18 +51,18 @@ from fenics import *
 import fenics
 
 backend_Matrix = fenics.cpp.la.GenericMatrix
-backend_Vector = fenics.GenericVector
+backend_Vector = GenericVector
 extract_args = fenics.fem.solving._extract_args
 
-backend_Constant = fenics.Constant
-backend_DirichletBC = fenics.DirichletBC
-backend_Function = fenics.Function
-backend_KrylovSolver = fenics.KrylovSolver
+backend_Constant = Constant
+backend_DirichletBC = DirichletBC
+backend_Function = Function
+backend_KrylovSolver = KrylovSolver
 backend_LUSolver = LUSolver
-backend_assemble = fenics.assemble
-backend_assemble_system = fenics.assemble_system
+backend_assemble = assemble
+backend_assemble_system = assemble_system
 backend_project = project
-backend_solve = fenics.solve
+backend_solve = solve
 
 def copy_parameters_dict(parameters):
   new_parameters = {}
@@ -85,9 +85,9 @@ def update_parameters_dict(parameters, new_parameters):
       parameters[key] = copy_parameters_dict(value)
     else:
       parameters[key] = value
-  
+
 __all__ = \
-  [  
+  [
     "backend",
     
     "backend_Constant",
@@ -119,6 +119,7 @@ __all__ = \
     "assemble_system",
     "dx",
     "extract_args",
+    "fenics",
     "has_lu_solver_method",
     "info",
     "inner",
@@ -126,7 +127,7 @@ __all__ = \
     "project",
     "solve",
     "system",
-  
+    
     "copy_parameters_dict",
     "update_parameters_dict"
   ]
