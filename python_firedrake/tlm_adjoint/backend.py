@@ -61,6 +61,5 @@ __all__ = \
     "inner",
     "parameters",
     "project",
-    "solve",
-    "replace"
+    "solve"
   ]

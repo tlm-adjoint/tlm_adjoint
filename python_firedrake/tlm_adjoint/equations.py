@@ -102,13 +102,13 @@ class AssembleSolver(Equation):
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
-    self._rhs = replace(self._rhs, replace_map)
+    self._rhs = ufl.replace(self._rhs, replace_map)
 
   def forward_solve(self, x, deps = None):
     if deps is None:
       rhs = self._rhs
     else:
-      rhs = replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
+      rhs = ufl.replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
       
     function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
     
@@ -120,7 +120,7 @@ class AssembleSolver(Equation):
       dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space())))
       if dF.empty():
         return None
-      dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+      dF = ufl.replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
       return (-adj_x.vector().max(), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
@@ -242,11 +242,11 @@ class EquationSolver(Equation):
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
-    self._F = replace(self._F, replace_map)
-    self._lhs = replace(self._lhs, replace_map)
+    self._F = ufl.replace(self._F, replace_map)
+    self._lhs = ufl.replace(self._lhs, replace_map)
     if self._rhs != 0:
-      self._rhs = replace(self._rhs, replace_map)
-    self._J = replace(self._J, replace_map)
+      self._rhs = ufl.replace(self._rhs, replace_map)
+    self._J = ufl.replace(self._J, replace_map)
     
   def forward_solve(self, x, deps = None):  
     eq_deps = self.dependencies()
@@ -257,7 +257,7 @@ class EquationSolver(Equation):
       replace_deps = lambda F : F
     else:
       replace_map = OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(eq_deps, deps)])
-      replace_deps = lambda F : replace(F, replace_map)
+      replace_deps = lambda F : ufl.replace(F, replace_map)
   
     if self._linear:
       solve(replace_deps(self._lhs) == replace_deps(self._rhs), x, self._bcs,
@@ -267,7 +267,7 @@ class EquationSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
   
   def adjoint_jacobian_solve(self, nl_deps, b):
-    J = replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+    J = ufl.replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
     for bc in self._hbcs:
       bc.apply(J, b)
@@ -281,7 +281,7 @@ class EquationSolver(Equation):
     if dF.empty():
       return None
     dF = action(adjoint(dF), adj_x)
-    dF = replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+    dF = ufl.replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
     if self._defer_adjoint_assembly:
       return dF
     else:
