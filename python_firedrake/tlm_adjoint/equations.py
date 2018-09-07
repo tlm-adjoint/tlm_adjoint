@@ -211,17 +211,28 @@ class EquationSolver(Equation):
           
     if initial_guess == x:
       initial_guess = None
-      x_id = x.id()
     if not initial_guess is None:
       initial_guess_id = initial_guess.id()
       if not initial_guess_id in dep_ids:
         deps.append(initial_guess)
         dep_ids.add(initial_guess_id)
-    del(dep_ids, nl_dep_ids)
+      if not initial_guess_id in nl_dep_ids:
+        # This leads to storage of the initial guess, but this is not required
+        # e.g. for a linear equation solved with a direct solver
+        nl_deps.append(initial_guess)
+        nl_dep_ids.add(initial_guess_id)
     
-    if x in deps:
+    x_id = x.id()
+    if x_id in dep_ids:
       deps.remove(x)
     deps.insert(0, x)
+    if initial_guess is None and not x_id in nl_dep_ids:
+      # This leads to storage of the initial guess, but this is not required
+      # e.g. for a linear equation solved with a direct solver
+      nl_deps.append(x)
+      nl_dep_ids.add(x_id)
+    
+    del(dep_ids, nl_dep_ids)
       
     deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())

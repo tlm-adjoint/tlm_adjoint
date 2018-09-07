@@ -284,15 +284,13 @@ class EquationSolver(Equation):
           
     if initial_guess == x:
       initial_guess = None
-      x_id = x.id()
     if not initial_guess is None:
       initial_guess_id = initial_guess.id()
       if not initial_guess_id in dep_ids:
         deps.append(initial_guess)
         dep_ids.add(initial_guess_id)
-    del(dep_ids, nl_dep_ids)
     
-    if x in deps:
+    if x.id() in dep_ids:
       deps.remove(x)
     deps.insert(0, x)
       
@@ -350,6 +348,13 @@ class EquationSolver(Equation):
       nonzero_initial_guess = linear_solver_parameters["krylov_solver"].get("nonzero_initial_guess", False)
       if nonzero_initial_guess is None:
         nonzero_initial_guess = linear_solver_parameters["krylov_solver"]["nonzero_initial_guess"] = False
+      if nonzero_initial_guess:
+        initial_guess_id = (x if initial_guess is None else initial_guess).id()
+        if not initial_guess_id in nl_dep_ids:
+          nl_deps.append(x if initial_guess is None else initial_guess)
+          nl_dep_ids.add(initial_guess_id)
+    
+    del(dep_ids, nl_dep_ids)
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
