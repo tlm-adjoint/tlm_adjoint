@@ -117,15 +117,25 @@ class AssembleSolver(Equation):
     function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    if dep_index == 0:
+    # Derived from EquationSolver.derivative_action (see dolfin-adjoint
+    # reference below). Code first added 2017-12-07.
+    # Re-written 2018-01-28
+    # Updated to adjoint only form 2018-01-29
+    # Firedrake version first added to tlm_adjoint repository 2018-08-24
+    
+    eq_deps = self.dependencies()
+    if dep_index < 0 or dep_index >= len(eq_deps):
+      return None
+    elif dep_index == 0:
       return adj_x
-    else:
-      dep = self.dependencies()[dep_index]
-      dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space())))
-      if dF.empty():
-        return None
-      dF = ufl.replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
-      return (-adj_x.vector().max(), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+    
+    dep = eq_deps[dep_index]
+    dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space())))
+    if dF.empty():
+      return None
+    
+    dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+    return (-function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
     return b
@@ -231,8 +241,6 @@ class EquationSolver(Equation):
       # e.g. for a linear equation solved with a direct solver
       nl_deps.append(x)
       nl_dep_ids.add(x_id)
-    
-    del(dep_ids, nl_dep_ids)
       
     deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
@@ -243,7 +251,9 @@ class EquationSolver(Equation):
       cache_jacobian = is_static(J) and is_static_bcs(bcs)
     
     # Note: solver_parameters is not updated to include default parameters
-
+    
+    del(dep_ids, nl_dep_ids)
+    
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
@@ -256,14 +266,16 @@ class EquationSolver(Equation):
     self._bcs = copy.copy(bcs)
     self._hbcs = hbcs
     self._J = J
-    self._form_compiler_parameters = copy_parameters_dict(form_compiler_parameters)
+    self._form_compiler_parameters = form_compiler_parameters
     self._solver_parameters = copy_parameters_dict(solver_parameters)
+    self._linear_solver_parameters = solver_parameters
     self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
     self._linear = linear
     
     self._cache_jacobian = cache_jacobian
     self._defer_adjoint_assembly = defer_adjoint_assembly
     self.reset_forward_solve()
+    self.reset_adjoint_jacobian_solve()
 
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
@@ -273,7 +285,7 @@ class EquationSolver(Equation):
       self._rhs = ufl.replace(self._rhs, replace_map)
     self._J = ufl.replace(self._J, replace_map)
     
-  def forward_solve(self, x, deps = None):  
+  def forward_solve(self, x, deps = None):
     eq_deps = self.dependencies()
     if not self._initial_guess_index is None:
       function_assign(x, (eq_deps if deps is None else deps)[self._initial_guess_index])
@@ -281,7 +293,7 @@ class EquationSolver(Equation):
     if deps is None:
       replace_deps = lambda F : F
     else:
-      replace_map = OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(eq_deps, deps)])
+      replace_map = OrderedDict(zip(eq_deps, deps))
       replace_deps = lambda F : ufl.replace(F, replace_map)
   
     if self._linear:
@@ -293,7 +305,7 @@ class EquationSolver(Equation):
           J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
           # Construct and cache the linear solver
           self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
-            linear_solver_parameters = self._solver_parameters,
+            linear_solver_parameters = self._linear_solver_parameters,
             form_compiler_parameters = self._form_compiler_parameters)
         else:
           # Extract the linear solver from the cache
@@ -306,7 +318,7 @@ class EquationSolver(Equation):
       else:
         # Case 4: Linear, Jacobian not cached, without pre-assembly
         solve(replace_deps(self._lhs) == replace_deps(self._rhs), x, self._bcs,
-          form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
+          form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._linear_solver_parameters)
     else:
       # Case 5: Non-linear
       solve(replace_deps(self._F) == 0, x, self._bcs, J = replace_deps(self._J),
@@ -316,25 +328,58 @@ class EquationSolver(Equation):
     self._forward_J_solver = CacheIndex()
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    dep = self.dependencies()[dep_index]
+    # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action' in
+    # dolfin-adjoint file dolfin_adjoint/adjrhs.py (see e.g. dolfin-adjoint
+    # version 2017.1.0)
+    # Code first added to JRM personal repository 2016-05-22
+    # Code first added to dolfin_adjoint_custom repository 2016-06-02
+    # Re-written 2018-01-28
+    # Firedrake version first added to tlm_adjoint repository 2018-08-24
+    
+    eq_deps = self.dependencies()
+    if dep_index < 0 or dep_index >= len(eq_deps):
+      return None
+    elif dep_index == 0:
+      return adj_x
+    
+    dep = eq_deps[dep_index]
     dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space())))
     if dF.empty():
       return None
-    dF = action(adjoint(dF), adj_x)
-    dF = ufl.replace(dF, OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
+    dF = adjoint(dF)
+    
+    dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+    dF = action(dF, adj_x)
     if self._defer_adjoint_assembly:
       return dF
     else:
       return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
   
   def adjoint_jacobian_solve(self, nl_deps, b):
-    J = ufl.replace(adjoint(self._J), OrderedDict([(eq_dep, dep) for eq_dep, dep in zip(self.nonlinear_dependencies(), nl_deps)]))
-    J = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
-    for bc in self._hbcs:
-      bc.apply(J)
-    x = function_new(b)
-    solve(J, x.vector(), b, solver_parameters = self._solver_parameters)
+    if self._cache_jacobian:
+      if self._adjoint_J_solver.index() is None:
+        J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+        J_mat = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
+        for bc in self._hbcs:
+          bc.apply(J_mat)
+        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat,
+          linear_solver_parameters = self._linear_solver_parameters,
+          form_compiler_parameters = self._form_compiler_parameters)
+      else:
+        J_solver = linear_solver_cache()[self._adjoint_J_solver]
+      x = function_new(b)
+      J_solver.solve(x.vector(), b)
+    else:
+      J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+      J_mat = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
+      for bc in self._hbcs:
+        bc.apply(J_mat)
+      x = function_new(b)
+      solve(J_mat, x.vector(), b, solver_parameters = self._linear_solver_parameters)
     return x
+  
+  def reset_adjoint_jacobian_solve(self):
+    self._adjoint_J_solver = CacheIndex()
   
   def tangent_linear(self, M, dM, tlm_map):
     x = self.x()
@@ -359,7 +404,7 @@ class EquationSolver(Equation):
     else:    
       return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters,
-        solver_parameters = self._solver_parameters,
+        solver_parameters = self._linear_solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
         cache_jacobian = self._cache_jacobian,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
