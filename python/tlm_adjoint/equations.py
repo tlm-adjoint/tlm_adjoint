@@ -125,7 +125,7 @@ class AssembleSolver(Equation):
       
     function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
     
-  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):    
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
     # reference below). Code first added 2017-12-07.
     # Re-written 2018-01-28
@@ -138,12 +138,12 @@ class AssembleSolver(Equation):
       return adj_x
     
     dep = eq_deps[dep_index]
-    dF = ufl.algorithms.expand_derivatives(ufl.derivative(-self._rhs, dep, argument = TestFunction(dep.function_space())))
+    dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space())))
     if dF.empty():
       return None
     
     dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-    return (function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+    return (-function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
     return b
@@ -290,7 +290,8 @@ class EquationSolver(Equation):
         deps.append(initial_guess)
         dep_ids.add(initial_guess_id)
     
-    if x.id() in dep_ids:
+    x_id = x.id()
+    if x_id in dep_ids:
       deps.remove(x)
     deps.insert(0, x)
       
@@ -606,7 +607,7 @@ class EquationSolver(Equation):
     self._forward_J_mat = CacheIndex()
     self._forward_J_solver = CacheIndex()
     self._forward_b_pa = None
-    
+  
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action' in
     # dolfin-adjoint file dolfin_adjoint/adjrhs.py (see e.g. dolfin-adjoint
@@ -659,7 +660,7 @@ class EquationSolver(Equation):
         alias_form(action(dF, adj_x), list(self.nonlinear_dependencies()) + [adj_x])
       return alias_assemble(dF, list(nl_deps) + [adj_x],
         form_compiler_parameters = self._form_compiler_parameters)
-
+  
   def reset_adjoint_derivative_action(self):
     self._derivative_mats = OrderedDict()
 
@@ -694,7 +695,7 @@ class EquationSolver(Equation):
     J_solver.solve(adj_x.vector(), b.vector())
     
     return adj_x
-    
+  
   def reset_adjoint_jacobian_solve(self):
     self._adjoint_J = None
     self._adjoint_J_solver = CacheIndex()
