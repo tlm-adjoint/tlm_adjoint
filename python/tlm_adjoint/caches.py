@@ -261,9 +261,11 @@ def replaced_form(form):
       replace_map[c] = replaced_function(c)
   return ufl.replace(form, replace_map)
 
+def form_key(form):
+  return ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form))))
+
 def assemble_key(form, bcs, form_compiler_parameters):  
-  return (ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form)))),
-          tuple(bcs), parameters_key(form_compiler_parameters))
+  return (form_key(form), tuple(bcs), parameters_key(form_compiler_parameters))
 
 class AssemblyCache(Cache):
   def assemble(self, form, bcs = [], form_compiler_parameters = {}):  
@@ -300,8 +302,7 @@ class AssemblyCache(Cache):
     return index, b
 
 def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
-  return (ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form)))),
-          tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
+  return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
 
 class LinearSolverCache(Cache):
   def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):
