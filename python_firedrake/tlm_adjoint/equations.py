@@ -272,7 +272,7 @@ class EquationSolver(Equation):
     self._J = J
     self._form_compiler_parameters = form_compiler_parameters
     self._solver_parameters = copy_parameters_dict(solver_parameters)
-    self._linear_solver_parameters = solver_parameters
+    self._linear_solver_parameters = self._solver_parameters
     self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
     self._linear = linear
     
