@@ -21,8 +21,8 @@ from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
   assemble, backend_Constant, backend_Function, firedrake, homogenize, \
   copy_parameters_dict, update_parameters_dict
   
-from .caches import Function, ReplacementFunction, is_static, is_static_bcs, \
-  linear_solver_cache, replaced_function
+from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
+  is_static_bcs, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -65,6 +65,7 @@ __all__ = \
   ]
   
 def clear_caches():
+  assembly_cache().clear()
   linear_solver_cache().clear()
 
 def info(message):

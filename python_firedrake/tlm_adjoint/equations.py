@@ -21,8 +21,8 @@ from .backend import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheIndex, Constant, DirichletBC, Function, is_static, \
-  is_static_bcs, linear_solver_cache
+from .caches import CacheIndex, Constant, DirichletBC, Function, \
+  assembly_cache, is_static, is_static_bcs, linear_solver_cache
 
 from collections import OrderedDict
 import copy
@@ -45,6 +45,8 @@ if not "EquationSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"]["EquationSolver"] = {}
 if not "enable_jacobian_caching" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] = True
+if not "pre_assemble" in parameters["tlm_adjoint"]["EquationSolver"]:
+  parameters["tlm_adjoint"]["EquationSolver"]["pre_assemble"] = True
 if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"] = False
 if not "defer_adjoint_assembly" in parameters["tlm_adjoint"]["EquationSolver"]:
@@ -169,13 +171,15 @@ class EquationSolver(Equation):
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
-    initial_guess = None, cache_jacobian = None,
+    initial_guess = None, cache_jacobian = None, pre_assemble = None,
     match_quadrature = None, defer_adjoint_assembly = None):
     if isinstance(bcs, DirichletBC):
       bcs = [bcs]
     if cache_jacobian is None:
       if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:
         cache_jacobian = False
+    if pre_assemble is None:
+      pre_assemble = parameters["tlm_adjoint"]["EquationSolver"]["pre_assemble"]
     if match_quadrature is None:
       match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]
     if defer_adjoint_assembly is None:
@@ -273,8 +277,10 @@ class EquationSolver(Equation):
     self._linear = linear
     
     self._cache_jacobian = cache_jacobian
+    self._pre_assemble = pre_assemble
     self._defer_adjoint_assembly = defer_adjoint_assembly
     self.reset_forward_solve()
+    self.reset_adjoint_derivative_action()
     self.reset_adjoint_jacobian_solve()
 
   def _replace(self, replace_map):
@@ -342,19 +348,41 @@ class EquationSolver(Equation):
     elif dep_index == 0:
       return adj_x
     
+    if dep_index in self._derivative_mats:
+      mat_cache = self._derivative_mats[dep_index]
+      if mat_cache is None:
+        return None
+      elif isinstance(mat_cache, CacheIndex):
+        if not mat_cache.index() is None:
+          mat = assembly_cache()[mat_cache]
+          dF = function_new(eq_deps[dep_index])
+          as_backend_type(mat).mat().mult(as_backend_type(adj_x.vector()).vec(), as_backend_type(dF.vector()).vec())
+          return dF
+        #else:
+        #  Cache entry cleared
     dep = eq_deps[dep_index]
     dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space())))
     if dF.empty():
+      self._derivative_mats[dep_index] = None
       return None
     dF = adjoint(dF)
     
     dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-    dF = action(dF, adj_x)
-    if self._defer_adjoint_assembly:
+    if self._pre_assemble and is_static(dF):
+      self._derivative_mats[dep_index], mat = assembly_cache().assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
+      dF = function_new(dep)
+      as_backend_type(mat).mat().mult(as_backend_type(adj_x.vector()).vec(), as_backend_type(dF.vector()).vec())
       return dF
     else:
-      return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
+      dF = action(dF, adj_x)
+      if self._defer_adjoint_assembly:
+        return dF
+      else:
+        return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
   
+  def reset_adjoint_derivative_action(self):
+    self._derivative_mats = OrderedDict()
+
   def adjoint_jacobian_solve(self, nl_deps, b):
     if self._cache_jacobian:
       if self._adjoint_J_solver.index() is None:
@@ -407,6 +435,7 @@ class EquationSolver(Equation):
         solver_parameters = self._linear_solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
         cache_jacobian = self._cache_jacobian,
+        pre_assemble = self._pre_assemble,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
         
 class DirichletBCSolver(Equation):

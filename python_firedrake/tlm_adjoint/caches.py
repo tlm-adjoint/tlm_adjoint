@@ -25,6 +25,7 @@ import ufl
 
 __all__ = \
   [
+    "AssemblyCache",
     "Cache",
     "CacheException",
     "CacheIndex",
@@ -33,6 +34,7 @@ __all__ = \
     "Function",
     "LinearSolverCache",
     "ReplacementFunction",
+    "assembly_cache",
     "is_homogeneous_bcs",
     "is_static",
     "is_static_bcs",
@@ -40,6 +42,7 @@ __all__ = \
     "new_count",
     "replaced_form",
     "replaced_function",
+    "set_assembly_cache",
     "set_linear_solver_cache",
   ]
 
@@ -189,9 +192,41 @@ def replaced_form(form):
       replace_map[c] = replaced_function(c)
   return ufl.replace(form, replace_map)
 
+def form_key(form):
+  return ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form))))
+
+def assemble_key(form, bcs, form_compiler_parameters):  
+  return (form_key(form), tuple(bcs), parameters_key(form_compiler_parameters))
+
+class AssemblyCache(Cache):
+  def assemble(self, form, bcs = [], form_compiler_parameters = {}):  
+    key = assemble_key(form, bcs, form_compiler_parameters)
+    index = self._keys.get(key, None)
+    if index is None:
+      rank = len(form.arguments())
+      if rank == 0:
+        if len(bcs) > 0:
+          raise CacheException("Unexpected boundary conditions for rank 0 form")
+        b = assemble(form, form_compiler_parameters = form_compiler_parameters)
+      elif rank == 1:
+        b = assemble(form, form_compiler_parameters = form_compiler_parameters)
+        for bc in bcs:
+          bc.apply(b)
+      elif rank == 2:
+        b = assemble(form, form_compiler_parameters = form_compiler_parameters)
+        for bc in bcs:
+          bc.apply(b)
+        b.force_evaluation()
+      else:
+        raise CacheException("Unexpected form rank %i" % rank)
+      index = self.append(key, b)
+    else:
+      b = self[index]
+      
+    return index, b
+
 def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
-  return (ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form)))),
-          tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
+  return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
 
 class LinearSolverCache(Cache):
   def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):
@@ -205,8 +240,12 @@ class LinearSolverCache(Cache):
 
     return index, solver
 
-_caches = [LinearSolverCache()]
-def linear_solver_cache():
+_caches = [AssemblyCache(), LinearSolverCache()]
+def assembly_cache():
   return _caches[0]
+def set_assembly_cache(assembly_cache):
+  _caches[0] = assembly_cache
+def linear_solver_cache():
+  return _caches[1]
 def set_linear_solver_cache(linear_solver_cache):
-  _caches[0] = linear_solver_cache
+  _caches[1] = linear_solver_cache
