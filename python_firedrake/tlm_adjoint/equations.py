@@ -22,7 +22,8 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheIndex, Constant, DirichletBC, Function, \
-  assembly_cache, is_static, is_static_bcs, linear_solver_cache, new_count
+  assembly_cache, is_static, is_static_bcs, linear_solver, \
+  linear_solver_cache, new_count
 
 from collections import OrderedDict
 import copy
@@ -165,7 +166,7 @@ class AssembleSolver(Equation):
     else:
       return AssembleSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters)
-      
+  
 class FunctionAlias(backend_Function):
   def __init__(self, space):
     ufl.classes.Coefficient.__init__(self, space, count = new_count())
@@ -440,26 +441,33 @@ class EquationSolver(Equation):
     if self._cache_jacobian:
       if self._adjoint_J_solver.index() is None:
         J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-        J_mat = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
-        for bc in self._hbcs:
-          bc.apply(J_mat)
-        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat,
+        _, J_mat = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
+        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs,
           linear_solver_parameters = self._linear_solver_parameters,
           form_compiler_parameters = self._form_compiler_parameters)
       else:
         J_solver = linear_solver_cache()[self._adjoint_J_solver]
-      x = function_new(b)
-      J_solver.solve(x.vector(), b)
+      
+      adj_x = function_new(b)
+      J_solver.solve(adj_x.vector(), b.vector())
+    
+      return adj_x
     else:
-      J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-      J_mat = assemble(J, form_compiler_parameters = self._form_compiler_parameters)
-      for bc in self._hbcs:
-        bc.apply(J_mat)
-      x = function_new(b)
-      solve(J_mat, x.vector(), b, solver_parameters = self._linear_solver_parameters)
-    return x
+      if self._adjoint_J is None:
+        self._adjoint_J = alias_form(adjoint(self._J), self.nonlinear_dependencies())
+      alias_replace(self._adjoint_J, nl_deps)
+      J_mat = assemble(self._adjoint_J, form_compiler_parameters = self._form_compiler_parameters)
+      
+      J_solver = linear_solver(J_mat, self._linear_solver_parameters)
+      
+      adj_x = function_new(b)
+      J_solver.solve(adj_x.vector(), b.vector())
+      alias_clear(self._adjoint_J)
+    
+      return adj_x
   
   def reset_adjoint_jacobian_solve(self):
+    self._adjoint_J = None
     self._adjoint_J_solver = CacheIndex()
   
   def tangent_linear(self, M, dM, tlm_map):

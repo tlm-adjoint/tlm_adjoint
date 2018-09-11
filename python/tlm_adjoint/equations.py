@@ -22,8 +22,8 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheIndex, Constant, DirichletBC, Function, \
-  assembly_cache, is_static, is_static_bcs, linear_solver_cache, new_count, \
-  split_action, split_form
+  assembly_cache, is_static, is_static_bcs, linear_solver, \
+  linear_solver_cache, new_count, split_action, split_form
 
 from collections import OrderedDict
 import copy
@@ -171,22 +171,7 @@ class AssembleSolver(Equation):
     else:
       return AssembleSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters)
-      
-def _linear_solver(A, linear_solver_parameters):
-  linear_solver = linear_solver_parameters["linear_solver"]
-  if linear_solver in ["direct", "lu"]:
-    linear_solver = "default"
-  elif linear_solver == "iterative":
-    linear_solver = "gmres"
-  is_lu_linear_solver = linear_solver == "default" or has_lu_solver_method(linear_solver)
-  if is_lu_linear_solver:
-    solver = LUSolver(A, linear_solver)
-    update_parameters_dict(solver.parameters, linear_solver_parameters["lu_solver"])
-  else:
-    solver = KrylovSolver(A, linear_solver, linear_solver_parameters["preconditioner"])
-    update_parameters_dict(solver.parameters, linear_solver_parameters["krylov_solver"])
-  return solver
-   
+  
 class FunctionAlias(backend_Function):
   def __init__(self, space):
     ufl.classes.Coefficient.__init__(self, space, count = new_count())
@@ -570,7 +555,7 @@ class EquationSolver(Equation):
             alias_clear(rhs)
         
         # Construct the linear solver
-        J_solver = _linear_solver(J_mat, self._linear_solver_parameters)
+        J_solver = linear_solver(J_mat, self._linear_solver_parameters)
         
 #      J_mat_debug, b_debug = assemble_system(self._J if deps is None else ufl.replace(self._J, OrderedDict(zip(eq_deps, deps))),
 #                                             self._rhs if deps is None else ufl.replace(self._rhs, OrderedDict(zip(eq_deps, deps))),
@@ -674,6 +659,13 @@ class EquationSolver(Equation):
           form_compiler_parameters = self._form_compiler_parameters)
       else:
         J_solver = linear_solver_cache()[self._adjoint_J_solver]
+
+      for bc in self._hbcs:
+        bc.apply(b.vector())
+      adj_x = function_new(b)
+      J_solver.solve(adj_x.vector(), b.vector())
+    
+      return adj_x
     else:
       if self._adjoint_J is None:
         self._adjoint_J = alias_form(adjoint(self._J), self.nonlinear_dependencies())
@@ -685,16 +677,16 @@ class EquationSolver(Equation):
         J_mat, _ = assemble_system(self._adjoint_J, dummy_rhs, self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
       else:
         J_mat = assemble(self._adjoint_J, form_compiler_parameters = self._form_compiler_parameters)
+      
+      J_solver = linear_solver(J_mat, self._linear_solver_parameters)
+      
+      for bc in self._hbcs:
+        bc.apply(b.vector())
+      adj_x = function_new(b)
+      J_solver.solve(adj_x.vector(), b.vector())
       alias_clear(self._adjoint_J)
-      
-      J_solver = _linear_solver(J_mat, self._linear_solver_parameters)
-      
-    for bc in self._hbcs:
-      bc.apply(b.vector())
-    adj_x = function_new(b)
-    J_solver.solve(adj_x.vector(), b.vector())
     
-    return adj_x
+      return adj_x
   
   def reset_adjoint_jacobian_solve(self):
     self._adjoint_J = None

@@ -38,6 +38,7 @@ __all__ = \
     "is_homogeneous_bcs",
     "is_static",
     "is_static_bcs",
+    "linear_solver",
     "linear_solver_cache",
     "new_count",
     "replaced_form",
@@ -228,12 +229,15 @@ class AssemblyCache(Cache):
 def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
   return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
 
+def linear_solver(A, linear_solver_parameters):
+  return LinearSolver(A, solver_parameters = linear_solver_parameters)
+
 class LinearSolverCache(Cache):
   def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):
     key = linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters)
     index = self._keys.get(key, None)
     if index is None:
-      solver = LinearSolver(A, solver_parameters = linear_solver_parameters)
+      solver = linear_solver(A, linear_solver_parameters)
       index = self.append(key, solver)
     else:
       solver = self[index]
