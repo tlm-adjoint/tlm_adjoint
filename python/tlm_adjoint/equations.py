@@ -171,7 +171,7 @@ class AssembleSolver(Equation):
     else:
       return AssembleSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters)
-    
+      
 def _linear_solver(A, linear_solver_parameters):
   linear_solver = linear_solver_parameters["linear_solver"]
   if linear_solver in ["direct", "lu"]:
@@ -190,19 +190,19 @@ def _linear_solver(A, linear_solver_parameters):
 class FunctionAlias(backend_Function):
   def __init__(self, space):
     ufl.classes.Coefficient.__init__(self, space, count = new_count())
+    self.__base_keys = set(self.__dict__.keys())
+    self.__base_keys.add("_FunctionAlias__base_keys")
   
   def _alias(self, x):
     self._clear()
-    if hasattr(x, "_cpp_object"):
-      self._cpp_object = x._cpp_object
-    if hasattr(x, "this"):
-      self.this = x.this
+    for key, value in x.__dict__.items():
+      if not key in self.__base_keys:
+        self.__dict__[key] = value
   
   def _clear(self):
-    if hasattr(self, "_cpp_object"):
-      del(self._cpp_object)
-    if hasattr(self, "this"):
-      del(self.this)
+    for key in list(self.__dict__):
+      if not key in self.__base_keys:
+        del(self.__dict__[key])
 
 def alias_form(form, deps):
   adeps = [FunctionAlias(dep.function_space()) for dep in deps]
@@ -224,7 +224,7 @@ def alias_assemble(form, deps, *args, **kwargs):
   return_value = assemble(form, *args, **kwargs)
   alias_clear(form)
   return return_value
-   
+  
 class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
@@ -633,10 +633,10 @@ class EquationSolver(Equation):
         #else:
         #  Cache entry cleared
       elif self._defer_adjoint_assembly:
-        #assert(isinstance(mat_cache, ufl.classes.Form)
+        #assert(isinstance(mat_cache, ufl.classes.Form))
         return action(ufl.replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), adj_x)
       else:
-        #assert(isinstance(mat_cache, ufl.classes.Form)
+        #assert(isinstance(mat_cache, ufl.classes.Form))
         return alias_assemble(mat_cache, list(nl_deps) + [adj_x],
           form_compiler_parameters = self._form_compiler_parameters)
 

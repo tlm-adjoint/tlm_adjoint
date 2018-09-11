@@ -22,7 +22,7 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheIndex, Constant, DirichletBC, Function, \
-  assembly_cache, is_static, is_static_bcs, linear_solver_cache
+  assembly_cache, is_static, is_static_bcs, linear_solver_cache, new_count
 
 from collections import OrderedDict
 import copy
@@ -165,6 +165,44 @@ class AssembleSolver(Equation):
     else:
       return AssembleSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters)
+      
+class FunctionAlias(backend_Function):
+  def __init__(self, space):
+    ufl.classes.Coefficient.__init__(self, space, count = new_count())
+    self.__base_keys = set(self.__dict__.keys())
+    self.__base_keys.add("_FunctionAlias__base_keys")
+  
+  def _alias(self, x):
+    self._clear()
+    for key, value in x.__dict__.items():
+      if not key in self.__base_keys:
+        self.__dict__[key] = value
+  
+  def _clear(self):
+    for key in list(self.__dict__):
+      if not key in self.__base_keys:
+        del(self.__dict__[key])
+
+def alias_form(form, deps):
+  adeps = [FunctionAlias(dep.function_space()) for dep in deps]
+  return_value = ufl.replace(form, OrderedDict(zip(deps, adeps)))
+  assert(not "_tlm_adjoint__adeps" in return_value._cache)
+  return_value._cache["_tlm_adjoint__adeps"] = adeps
+  return return_value
+
+def alias_replace(form, deps):
+  for adep, dep in zip(form._cache["_tlm_adjoint__adeps"], deps):
+    adep._alias(dep)
+
+def alias_clear(form):
+  for adep in form._cache["_tlm_adjoint__adeps"]:
+    adep._clear()
+    
+def alias_assemble(form, deps, *args, **kwargs):
+  alias_replace(form, deps)
+  return_value = assemble(form, *args, **kwargs)
+  alias_clear(form)
+  return return_value
   
 class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
@@ -290,6 +328,10 @@ class EquationSolver(Equation):
     if self._rhs != 0:
       self._rhs = ufl.replace(self._rhs, replace_map)
     self._J = ufl.replace(self._J, replace_map)
+    if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
+      for dep_index, mat_cache in self._derivative_mats:
+        if isinstance(mat_cache, ufl.classes.Form):
+          self._derivative_mats[dep_index] = ufl.replace(mat_cache, replace_map)
     
   def forward_solve(self, x, deps = None):
     eq_deps = self.dependencies()
@@ -360,6 +402,14 @@ class EquationSolver(Equation):
           return dF
         #else:
         #  Cache entry cleared
+      elif self._defer_adjoint_assembly:
+        #assert(isinstance(mat_cache, ufl.classes.Form))
+        return action(ufl.replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), adj_x)
+      else:
+        #assert(isinstance(mat_cache, ufl.classes.Form))
+        return alias_assemble(mat_cache, list(nl_deps) + [adj_x],
+          form_compiler_parameters = self._form_compiler_parameters)
+
     dep = eq_deps[dep_index]
     dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space())))
     if dF.empty():
@@ -367,18 +417,21 @@ class EquationSolver(Equation):
       return None
     dF = adjoint(dF)
     
-    dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
     if self._pre_assemble and is_static(dF):
+      dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
       self._derivative_mats[dep_index], mat = assembly_cache().assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
       dF = function_new(dep)
       as_backend_type(mat).mat().mult(as_backend_type(adj_x.vector()).vec(), as_backend_type(dF.vector()).vec())
       return dF
+    elif self._defer_adjoint_assembly:
+      self._derivative_mats[dep_index] = dF
+      dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+      return action(dF, adj_x)
     else:
-      dF = action(dF, adj_x)
-      if self._defer_adjoint_assembly:
-        return dF
-      else:
-        return assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
+      self._derivative_mats[dep_index] = dF = \
+        alias_form(action(dF, adj_x), list(self.nonlinear_dependencies()) + [adj_x])
+      return alias_assemble(dF, list(nl_deps) + [adj_x],
+        form_compiler_parameters = self._form_compiler_parameters)
   
   def reset_adjoint_derivative_action(self):
     self._derivative_mats = OrderedDict()
