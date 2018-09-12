@@ -23,7 +23,7 @@ from .backend_interface import *
 from .base_equations import *
 from .caches import CacheIndex, Constant, DirichletBC, Function, \
   assembly_cache, is_static, is_static_bcs, linear_solver, \
-  linear_solver_cache, new_count
+  linear_solver_cache, new_count, split_action, split_form
 
 from collections import OrderedDict
 import copy
@@ -329,11 +329,97 @@ class EquationSolver(Equation):
     if self._rhs != 0:
       self._rhs = ufl.replace(self._rhs, replace_map)
     self._J = ufl.replace(self._J, replace_map)
+    if hasattr(self, "_forward_b_pa") and not self._forward_b_pa is None:
+      if not self._forward_b_pa[0] is None:
+        self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)
+      for i, (mat_form, mat_index) in self._forward_b_pa[1].items():
+        self._forward_b_pa[1][i][0] = ufl.replace(mat_form, replace_map)
     if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
       for dep_index, mat_cache in self._derivative_mats:
         if isinstance(mat_cache, ufl.classes.Form):
           self._derivative_mats[dep_index] = ufl.replace(mat_cache, replace_map)
     
+  def _pre_assembled_rhs(self, deps):
+    eq_deps = self.dependencies()
+    
+    if self._forward_b_pa is None:
+      # Split into static and non-static components
+      static_form, non_static_form = split_form(self._rhs)
+
+      mat_forms = OrderedDict()
+      if not non_static_form.empty():
+        for i, dep in enumerate(eq_deps):
+          mat_form, non_static_form = split_action(non_static_form, dep)
+          if not mat_form.empty():
+            # The non-static part contains a component with can be represented
+            # as the action of a static matrix ...
+            if is_static(dep):
+              # ... on a static dependency. This is part of the static
+              # component.
+              static_form += action(mat_form, dep)
+            else:
+              # ... on a non-static dependency.
+              mat_forms[i] = [mat_form, CacheIndex()]
+          if non_static_form.empty():
+            break
+
+      if not non_static_form.empty():
+        # Attempt to split the remaining non-static component into static and
+        # non-static components
+        static_form_term, non_static_form = split_form(non_static_form)
+        static_form += static_form_term
+        
+      if non_static_form.empty():
+        non_static_form = None
+      else:
+        non_static_form = alias_form(non_static_form, eq_deps)
+
+      if static_form.empty():
+        static_form = None
+      else:
+        static_form = [static_form, CacheIndex()]
+
+      self._forward_b_pa = [static_form, mat_forms, non_static_form]
+    else:
+      static_form, mat_forms, non_static_form = self._forward_b_pa
+    
+    b = None
+
+    if not non_static_form is None:
+      b = alias_assemble(non_static_form, eq_deps if deps is None else deps,
+        form_compiler_parameters = self._form_compiler_parameters,
+        tensor = b)
+     
+    for i, (mat_form, mat_index) in mat_forms.items():
+      if mat_index.index() is None:
+        if not deps is None:
+          mat_form = ufl.replace(mat_form, OrderedDict(zip(eq_deps, deps)))
+        mat_index, mat = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
+        mat_forms[i][1] = mat_index
+      else:
+        mat = assembly_cache()[mat_index]
+      if b is None:
+        b = Function(self._rhs.arguments()[0].function_space()).vector()
+        as_backend_type(mat).mat().mult(as_backend_type((eq_deps if deps is None else deps)[i].vector()).vec(), as_backend_type(b.vector()).vec())
+      else:
+        sb = function_new(b).vector()
+        as_backend_type(mat).mat().mult(as_backend_type((eq_deps if deps is None else deps)[i].vector()).vec(), as_backend_type(sb.vector()).vec())
+        function_axpy(b, 1.0, sb)  # Works even though b and sb are Vector objects
+        
+    if not static_form is None:
+      if static_form[1].index() is None:
+        static_form[1], static_b = assembly_cache().assemble(
+          static_form[0] if deps is None else ufl.replace(static_form[0], OrderedDict(zip(eq_deps, deps))),
+          form_compiler_parameters = self._form_compiler_parameters)
+      else:
+        static_b = assembly_cache()[static_form[1]]
+      if b is None:
+        b = static_b.copy()
+      else:
+        function_axpy(b, 1.0, static_b)  # Works even though b and sb are Vector objects
+    
+    return b
+
   def forward_solve(self, x, deps = None):
     eq_deps = self.dependencies()
     if not self._initial_guess_index is None:
@@ -347,7 +433,7 @@ class EquationSolver(Equation):
   
     if self._linear:
       if self._cache_jacobian:
-        # Case 2: Linear, Jacobian cached, without pre-assembly
+        # Cases 1 and 2: Linear, Jacobian cached, with or without pre-assembly
         if self._forward_J_solver.index() is None:
           J = replace_deps(self._J)
           # Assemble the Jacobian
@@ -359,15 +445,37 @@ class EquationSolver(Equation):
         else:
           # Extract the linear solver from the cache
           J_solver = linear_solver_cache()[self._forward_J_solver]
-          
-        # Assemble the RHS without pre-assembly
-        b = assemble(replace_deps(self._rhs))
+        
+        if self._pre_assemble:
+          # Assemble the RHS with pre-assembly
+          b = self._pre_assembled_rhs(deps)
+        else:
+          # Assemble the RHS without pre-assembly
+          b = assemble(replace_deps(self._rhs))
         
         J_solver.solve(x.vector(), b)
       else:
-        # Case 4: Linear, Jacobian not cached, without pre-assembly
-        solve(replace_deps(self._lhs) == replace_deps(self._rhs), x, self._bcs,
-          form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._linear_solver_parameters)
+        if self._pre_assemble:
+          # Case 3: Linear, Jacobian not cached, with pre-assembly
+          
+          # Assemble the Jacobian
+          J = replace_deps(self._J)
+          J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+
+          # Assemble the RHS with pre-assembly
+          b = self._pre_assembled_rhs(deps)
+        else:
+          # Case 4: Linear, Jacobian not cached, without pre-assembly
+          
+          # Assemble the Jacobian and RHS
+          J, rhs = replace_deps(self._J), replace_deps(self._rhs)
+          J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+          b = assemble(rhs, form_compiler_parameters = self._form_compiler_parameters)
+        
+        # Construct the linear solver
+        J_solver = linear_solver(J_mat, self._linear_solver_parameters)
+        
+      J_solver.solve(x.vector(), b)
     else:
       # Case 5: Non-linear
       solve(replace_deps(self._F) == 0, x, self._bcs, J = replace_deps(self._J),
@@ -375,6 +483,7 @@ class EquationSolver(Equation):
     
   def reset_forward_solve(self):
     self._forward_J_solver = CacheIndex()
+    self._forward_b_pa = None
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action' in

@@ -45,6 +45,8 @@ __all__ = \
     "replaced_function",
     "set_assembly_cache",
     "set_linear_solver_cache",
+    "split_action",
+    "split_form"
   ]
 
 class CacheException(Exception):
@@ -110,6 +112,73 @@ def is_homogeneous_bcs(bcs):
     if not hasattr(bc, "is_homogeneous") or not bc.is_homogeneous():
       return False
   return True
+
+def split_form(form):
+  def sum_terms(*terms):
+    sum = ufl.classes.Zero()
+    for term in terms:
+      sum += term
+    return sum
+  def expand(terms):
+    new_terms = []
+    for term in terms:
+      if isinstance(term, ufl.classes.Sum):
+        new_terms += expand(term.ufl_operands)
+      else:
+        new_terms.append(term)
+    return new_terms
+
+  static_integrals, non_static_integrals = [], []
+  
+  for integral in form.integrals():
+    integral_args = [integral.integral_type(),
+                     integral.ufl_domain(),
+                     integral.subdomain_id(),
+                     integral.metadata(),
+                     integral.subdomain_data()]
+  
+    static_operands, non_static_operands = [], []
+    for operand in expand([integral.integrand()]):
+      if is_static(operand):
+        static_operands.append(operand)
+      else:
+        non_static_operands.append(operand)
+    if len(static_operands) > 0:
+      static_integrals.append(ufl.classes.Integral(sum_terms(*static_operands), *integral_args))
+    if len(non_static_operands) > 0:
+      non_static_integrals.append(ufl.classes.Integral(sum_terms(*non_static_operands), *integral_args))
+  
+  static_form = ufl.classes.Form(static_integrals)
+  non_static_form = ufl.classes.Form(non_static_integrals)
+  
+  return static_form, non_static_form
+
+def split_action(form, x):
+  if len(form.arguments()) != 1:
+    # Not a linear form
+    return ufl.classes.Form([]), form
+  
+  if not x in form.coefficients():
+    # No dependence on x
+    return ufl.classes.Form([]), form
+  
+  trial = TrialFunction(x.function_space())
+  if x in ufl.algorithms.expand_derivatives(ufl.derivative(form, x, argument = trial)).coefficients():
+    # Non-linear
+    return ufl.classes.Form([]), form
+  
+  try:
+    lhs, rhs = system(ufl.replace(form, OrderedDict([(x, trial)])))
+  except ufl.UFLException:
+    # UFL error encountered
+    return ufl.classes.Form([]), form
+  
+  if not is_static(lhs):
+    # Non-static bi-linear form
+    return ufl.classes.Form([]), form
+  
+  # Success
+  return lhs, -rhs
   
 def parameters_key(parameters):
   key = []

@@ -178,7 +178,7 @@ def subtract_adjoint_derivative_action(x, y):
     alpha, y = y
     if isinstance(y, backend_Function):
       y = y.vector()
-    function_axpy(x, -alpha, y)
+    function_axpy(x, -alpha, y)  # Works even if x or y are Vector objects
   elif isinstance(y, ufl.classes.Form):
     if hasattr(x, "_tlm_adjoint__adj_b"):
       x._tlm_adjoint__adj_b -= y
@@ -187,7 +187,7 @@ def subtract_adjoint_derivative_action(x, y):
   else:
     if isinstance(y, backend_Function):
       y = y.vector()
-    function_axpy(x, -1.0, y)
+    function_axpy(x, -1.0, y)  # Works even if x or y are Vector objects
     
 def finalise_adjoint_derivative_action(x):
   if hasattr(x, "_tlm_adjoint__adj_b"):

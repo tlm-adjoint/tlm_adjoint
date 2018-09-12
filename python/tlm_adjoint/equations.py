@@ -429,6 +429,11 @@ class EquationSolver(Equation):
       static_form, mat_forms, non_static_form = self._forward_b_pa
     
     b = None
+
+    if not non_static_form is None:
+      b = alias_assemble(non_static_form, eq_deps if deps is None else deps,
+        form_compiler_parameters = self._form_compiler_parameters,
+        tensor = b)
      
     for i, (mat_form, mat_index) in mat_forms.items():
       if mat_index.index() is None:
@@ -442,11 +447,6 @@ class EquationSolver(Equation):
         b = mat * (eq_deps if deps is None else deps)[i].vector()
       else:
         b.axpy(1.0, mat * (eq_deps if deps is None else deps)[i].vector())
-
-    if not non_static_form is None:
-      b = alias_assemble(non_static_form, eq_deps if deps is None else deps,
-        form_compiler_parameters = self._form_compiler_parameters,
-        tensor = b, add_values = not b is None)
         
     if not static_form is None:
       if static_form[1].index() is None:
@@ -659,7 +659,7 @@ class EquationSolver(Equation):
           form_compiler_parameters = self._form_compiler_parameters)
       else:
         J_solver = linear_solver_cache()[self._adjoint_J_solver]
-
+      
       for bc in self._hbcs:
         bc.apply(b.vector())
       adj_x = function_new(b)
