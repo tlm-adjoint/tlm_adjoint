@@ -18,6 +18,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
+from .backend_code_generator_interface import *
 
 import copy
 from collections import OrderedDict
@@ -283,17 +284,7 @@ class AssemblyCache(Cache):
         for bc in bcs:
           bc.apply(b)
       elif rank == 2:
-        if len(bcs) > 0:
-          test = TestFunction(form.arguments()[0].function_space())
-          test_shape = test.ufl_element().value_shape()
-          dummy_rhs = inner(test, Constant(0.0 if len(test_shape) == 0 else numpy.zeros(test_shape, dtype = numpy.float64))) * dx
-          b, b_bc = assemble_system(form, dummy_rhs, bcs, form_compiler_parameters = form_compiler_parameters)
-          if b_bc.norm("linf") > 0.0:
-            b = (b, b_bc)
-          else:
-            b = (b, None)
-        else:
-          b = (assemble(form, form_compiler_parameters = form_compiler_parameters), None)
+        b = assemble_matrix(form, bcs, form_compiler_parameters)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
       index = self.append(key, b)
@@ -304,21 +295,6 @@ class AssemblyCache(Cache):
 
 def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
   return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
-
-def linear_solver(A, linear_solver_parameters):
-  linear_solver = linear_solver_parameters.get("linear_solver", "default")
-  if linear_solver in ["direct", "lu"]:
-    linear_solver = "default"
-  elif linear_solver == "iterative":
-    linear_solver = "gmres"
-  is_lu_linear_solver = linear_solver == "default" or has_lu_solver_method(linear_solver)
-  if is_lu_linear_solver:
-    solver = LUSolver(A, linear_solver)
-    update_parameters_dict(solver.parameters, linear_solver_parameters.get("lu_solver", {}))
-  else:
-    solver = KrylovSolver(A, linear_solver, linear_solver_parameters.get("preconditioner", "default"))
-    update_parameters_dict(solver.parameters, linear_solver_parameters.get("krylov_solver", {}))
-  return solver
 
 class LinearSolverCache(Cache):
   def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):

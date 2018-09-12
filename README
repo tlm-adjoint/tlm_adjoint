@@ -17,6 +17,7 @@ To use the Firedrake backend copy (or make symbolic links)
 
   python/tlm_adjoint/base_equations.py         -> python_firedrake/tlm_adjoint/base_equations.py
   python/tlm_adjoint/binomial_checkpointing.py -> python_firedrake/tlm_adjoint/binomial_checkpointing.py
+  python/tlm_adjoint/caches.py                 -> python_firedrake/tlm_adjoint/caches.py
   python/tlm_adjoint/eigendecomposition.py     -> python_firedrake/tlm_adjoint/eigendecomposition.py
   python/tlm_adjoint/functional.py             -> python_firedrake/tlm_adjoint/functional.py
   python/tlm_adjoint/hessian.py                -> python_firedrake/tlm_adjoint/hessian.py

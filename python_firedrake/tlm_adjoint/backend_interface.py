@@ -17,8 +17,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
-  assemble, backend_Constant, backend_Function, copy_parameters_dict, firedrake
+from .backend import *
+from .backend_code_generator_interface import *
 
 from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
   is_static_bcs, linear_solver_cache, replaced_function

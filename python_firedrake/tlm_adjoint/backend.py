@@ -35,25 +35,6 @@ backend_assemble = assemble
 backend_project = project
 backend_solve = solve
 
-def copy_parameters_dict(parameters):
-  parameters_copy = parameters.copy()
-  for key, value in parameters.items():
-    if isinstance(value, (Parameters, dict)):
-      parameters_copy[key] = copy_parameters_dict(value)
-  return parameters_copy
-
-def update_parameters_dict(parameters, new_parameters):
-  for key in new_parameters:
-    value = new_parameters[key]
-    if key in parameters \
-      and isinstance(parameters[key], (Parameters, dict)) \
-      and isinstance(value, (Parameters, dict)):
-      update_parameters_dict(parameters[key], value)
-    elif isinstance(value, (Parameters, dict)):
-      parameters[key] = copy_parameters_dict(value)
-    else:
-      parameters[key] = value
-
 __all__ = \
   [
     "backend",
@@ -88,8 +69,5 @@ __all__ = \
     "parameters",
     "project",
     "solve",
-    "system",
-    
-    "copy_parameters_dict",
-    "update_parameters_dict"
+    "system"
   ]

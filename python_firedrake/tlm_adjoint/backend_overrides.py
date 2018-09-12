@@ -18,7 +18,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend_interface import copy_parameters_dict
+from .backend_code_generator_interface import *
+from .backend_interface import *
 
 from .equations import AssignmentSolver, EquationSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled

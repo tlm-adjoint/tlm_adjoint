@@ -18,6 +18,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
+from .backend_code_generator_interface import *
 from .backend_interface import *
 from .backend_overrides import *
 from .base_equations import *
