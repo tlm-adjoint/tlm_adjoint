@@ -399,12 +399,12 @@ class EquationSolver(Equation):
       else:
         mat = assembly_cache()[mat_index]
       if b is None:
-        b = Function(self._rhs.arguments()[0].function_space()).vector()
+        b = Function(self._rhs.arguments()[0].function_space())
         as_backend_type(mat).mat().mult(as_backend_type((eq_deps if deps is None else deps)[i].vector()).vec(), as_backend_type(b.vector()).vec())
       else:
-        sb = function_new(b).vector()
+        sb = function_new(b)
         as_backend_type(mat).mat().mult(as_backend_type((eq_deps if deps is None else deps)[i].vector()).vec(), as_backend_type(sb.vector()).vec())
-        function_axpy(b, 1.0, sb)  # Works even though b and sb are Vector objects
+        function_axpy(b, 1.0, sb)
         
     if not static_form is None:
       if static_form[1].index() is None:
@@ -416,7 +416,7 @@ class EquationSolver(Equation):
       if b is None:
         b = static_b.copy()
       else:
-        function_axpy(b, 1.0, static_b)  # Works even though b and sb are Vector objects
+        function_axpy(b, 1.0, static_b)
     
     return b
 
@@ -425,19 +425,38 @@ class EquationSolver(Equation):
     if not self._initial_guess_index is None:
       function_assign(x, (eq_deps if deps is None else deps)[self._initial_guess_index])
     
-    if deps is None:
-      replace_deps = lambda F : F
-    else:
-      replace_map = OrderedDict(zip(eq_deps, deps))
-      replace_deps = lambda F : ufl.replace(F, replace_map)
-  
     if self._linear:
+      alias_clear_J, alias_clear_rhs = False, False
       if self._cache_jacobian:
         # Cases 1 and 2: Linear, Jacobian cached, with or without pre-assembly
+        
+        if self._forward_J_mat.index() is None or \
+          self._forward_J_solver.index() is None:
+          J = self._J if deps is None else ufl.replace(self._J, OrderedDict(zip(eq_deps, deps)))
+          
+        if self._forward_J_mat.index() is None:
+          # Assemble and cache the Jacobian
+          self._forward_J_mat, J_mat = assembly_cache().assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+        else:
+          # Extract the Jacobian from the cache
+          J_mat = assembly_cache()[self._forward_J_mat]
+          
+        if self._pre_assemble:
+          # Assemble the RHS with pre-assembly
+          b = self._pre_assembled_rhs(deps)
+        else:
+          # Assemble the RHS without pre-assembly
+          if deps is None:
+            rhs = self._rhs
+          else:
+            if self._forward_eq is None:
+              self._forward_eq = None, None, alias_form(self._rhs, eq_deps)
+            _, _, rhs = self._forward_eq
+            alias_replace(rhs, deps)
+            alias_clear_rhs = True
+          b = assemble(rhs, form_compiler_parameters = self._form_compiler_parameters)
+      
         if self._forward_J_solver.index() is None:
-          J = replace_deps(self._J)
-          # Assemble the Jacobian
-          J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
           # Construct and cache the linear solver
           self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
             linear_solver_parameters = self._linear_solver_parameters,
@@ -445,21 +464,19 @@ class EquationSolver(Equation):
         else:
           # Extract the linear solver from the cache
           J_solver = linear_solver_cache()[self._forward_J_solver]
-        
-        if self._pre_assemble:
-          # Assemble the RHS with pre-assembly
-          b = self._pre_assembled_rhs(deps)
-        else:
-          # Assemble the RHS without pre-assembly
-          b = assemble(replace_deps(self._rhs))
-        
-        J_solver.solve(x.vector(), b)
       else:
         if self._pre_assemble:
           # Case 3: Linear, Jacobian not cached, with pre-assembly
           
           # Assemble the Jacobian
-          J = replace_deps(self._J)
+          if deps is None:
+            J = self._J
+          else:
+            if self._forward_eq is None:
+              self._forward_eq = None, alias_form(self._J, eq_deps), None
+            _, J, _ = self._forward_eq
+            alias_replace(J, deps)
+            alias_clear_J = True
           J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
 
           # Assemble the RHS with pre-assembly
@@ -468,20 +485,59 @@ class EquationSolver(Equation):
           # Case 4: Linear, Jacobian not cached, without pre-assembly
           
           # Assemble the Jacobian and RHS
-          J, rhs = replace_deps(self._J), replace_deps(self._rhs)
+          if deps is None:
+            J, rhs = self._J, self._rhs
+          else:
+            if self._forward_eq is None:
+              self._forward_eq = None, alias_form(self._J, eq_deps), alias_form(self._rhs, eq_deps)
+            _, J, rhs = self._forward_eq
+            alias_replace(J, deps)
+            alias_clear_J = True
+            alias_replace(rhs, deps)
+            alias_clear_rhs = True
           J_mat = assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
           b = assemble(rhs, form_compiler_parameters = self._form_compiler_parameters)
         
         # Construct the linear solver
         J_solver = linear_solver(J_mat, self._linear_solver_parameters)
         
+#      b_debug = assemble(self._rhs if deps is None else ufl.replace(self._rhs, OrderedDict(zip(eq_deps, deps))),
+#                         form_compiler_parameters = self._form_compiler_parameters)
+#      b_error = function_copy(x)
+#      function_assign(b_error, b)
+#      function_axpy(b_error, -1.0, b_debug)
+#      assert(function_linf_norm(b_error) <= 1.0e-14 * function_linf_norm(b))
+        
       J_solver.solve(x.vector(), b)
+      if alias_clear_J:
+        alias_clear(J)
+      if alias_clear_rhs:
+        alias_clear(rhs)
     else:
       # Case 5: Non-linear
-      solve(replace_deps(self._F) == 0, x, self._bcs, J = replace_deps(self._J),
+      if deps is None:
+        lhs, J, rhs = self._lhs, self._J, self._rhs
+      else:    
+        if self._forward_eq is None:
+          self._forward_eq = (alias_form(self._lhs, eq_deps),
+                              alias_form(self._J, eq_deps),
+                              (0 if self._rhs == 0 else alias_form(self._rhs, eq_deps)))
+        lhs, J, rhs = self._forward_eq
+        alias_replace(lhs, deps)
+        alias_replace(J, deps)
+        if rhs != 0:
+          alias_replace(rhs, deps)
+      solve(lhs == rhs, x, self._bcs, J = J,
         form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
+      if not deps is None:
+        alias_clear(lhs)
+        alias_clear(J)
+        if rhs != 0:
+          alias_clear(rhs)
     
   def reset_forward_solve(self):
+    self._forward_eq = None
+    self._forward_J_mat = CacheIndex()
     self._forward_J_solver = CacheIndex()
     self._forward_b_pa = None
   

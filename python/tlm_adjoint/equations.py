@@ -472,6 +472,7 @@ class EquationSolver(Equation):
       function_assign(x, (eq_deps if deps is None else deps)[self._initial_guess_index])
     
     if self._linear:
+      alias_clear_J, alias_clear_rhs = False, False
       if self._cache_jacobian:
         # Cases 1 and 2: Linear, Jacobian cached, with or without pre-assembly
         
@@ -498,9 +499,8 @@ class EquationSolver(Equation):
               self._forward_eq = None, None, alias_form(self._rhs, eq_deps)
             _, _, rhs = self._forward_eq
             alias_replace(rhs, deps)
+            alias_clear_rhs = True
           b = assemble(rhs, form_compiler_parameters = self._form_compiler_parameters)
-          if not deps is None:
-            alias_clear(rhs)
 
           # Add bc RHS terms
           for bc in self._hbcs:
@@ -528,12 +528,11 @@ class EquationSolver(Equation):
               self._forward_eq = None, alias_form(self._J, eq_deps), None
             _, J, _ = self._forward_eq
             alias_replace(J, deps)
+            alias_clear_J = True
           test = TestFunction(J.arguments()[0].function_space())
           test_shape = test.ufl_element().value_shape()
           dummy_rhs = inner(test, Constant(0.0 if len(test_shape) == 0 else numpy.zeros(test_shape, dtype = numpy.float64))) * dx
           J_mat, b_bc = assemble_system(J, dummy_rhs, self._bcs, form_compiler_parameters = self._form_compiler_parameters)
-          if not deps is None:
-            alias_clear(J)
 
           # Assemble the RHS with pre-assembly
           b = self._pre_assembled_rhs(deps, b_bc = b_bc)
@@ -548,11 +547,10 @@ class EquationSolver(Equation):
               self._forward_eq = None, alias_form(self._J, eq_deps), alias_form(self._rhs, eq_deps)
             _, J, rhs = self._forward_eq
             alias_replace(J, deps)
+            alias_clear_J = True
             alias_replace(rhs, deps)
+            alias_clear_rhs = True
           J_mat, b = assemble_system(J, rhs, self._bcs, form_compiler_parameters = self._form_compiler_parameters)
-          if not deps is None:
-            alias_clear(J)
-            alias_clear(rhs)
         
         # Construct the linear solver
         J_solver = linear_solver(J_mat, self._linear_solver_parameters)
@@ -562,9 +560,13 @@ class EquationSolver(Equation):
 #                                             self._bcs,
 #                                             form_compiler_parameters = self._form_compiler_parameters)
 #      assert((J_mat - J_mat_debug).norm("linf") == 0.0)
-#      assert((b - b_debug).norm("linf") <= 1.0e-15 * b.norm("linf"))
+#      assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
         
       J_solver.solve(x.vector(), b)
+      if alias_clear_J:
+        alias_clear(J)
+      if alias_clear_rhs:
+        alias_clear(rhs)
     else:
       # Case 5: Non-linear
       if deps is None:
