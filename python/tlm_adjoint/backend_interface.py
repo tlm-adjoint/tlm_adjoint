@@ -18,12 +18,10 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import FunctionSpace, UnitIntervalMesh, assemble, \
-  backend_Constant, backend_Function, copy_parameters_dict, fenics, info, \
-  update_parameters_dict
+  backend_Constant, backend_Function, copy_parameters_dict, fenics, info
 
-from .caches import DirichletBC, Function, ReplacementFunction, \
-  assembly_cache, is_static, is_static_bcs, linear_solver_cache, \
-  replaced_function
+from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
+  is_static_bcs, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -35,7 +33,6 @@ __all__ = \
     "FunctionSpace",
     "RealFunctionSpace",
     "ReplacementFunction",
-    "apply_bcs",
     "clear_caches",
     "copy_parameters_dict",
     "default_comm",
@@ -56,12 +53,10 @@ __all__ = \
     "function_new",
     "function_set_values",
     "function_zero",
-    "homogenized_bc",
     "info",
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
-    "update_parameters_dict",
     "warning"
   ]
   
@@ -76,8 +71,6 @@ def warning(message):
   sys.stderr.flush()
 
 #def copy_parameters_dict(parameters):
-
-#def update_parameters_dict(parameters, new_parameters):
 
 #class FunctionSpace:
 #  def id(self):
@@ -199,15 +192,3 @@ def finalise_adjoint_derivative_action(x):
   if hasattr(x, "_tlm_adjoint__adj_b"):
     assemble(x._tlm_adjoint__adj_b, tensor = x.vector(), add_values = True)
     delattr(x, "_tlm_adjoint__adj_b")
-
-def apply_bcs(x, bcs):
-  for bc in bcs:
-    bc.apply(x.vector())
-
-def homogenized_bc(bc):
-  if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
-    return bc
-  else:
-    hbc = DirichletBC(bc, static = is_static_bcs([bc]), homogeneous = False)
-    hbc.homogenize()
-    return hbc

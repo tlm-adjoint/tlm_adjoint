@@ -205,6 +205,16 @@ def alias_assemble(form, deps, *args, **kwargs):
   alias_clear(form)
   return return_value
   
+def homogenized_bc(bc):
+  if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
+    return bc
+  else:
+    hbc = homogenize(bc)
+    static = is_static_bcs([bc])
+    hbc.is_static = static
+    hbc.is_homogeneous = lambda : True
+    return hbc
+    
 class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS

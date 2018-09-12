@@ -18,9 +18,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
-  assemble, backend_Constant, backend_Function, firedrake, homogenize, \
-  copy_parameters_dict, update_parameters_dict
-  
+  assemble, backend_Constant, backend_Function, copy_parameters_dict, firedrake
+
 from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
   is_static_bcs, linear_solver_cache, replaced_function
 
@@ -34,7 +33,6 @@ __all__ = \
     "FunctionSpace",
     "RealFunctionSpace",
     "ReplacementFunction",
-    "apply_bcs",
     "clear_caches",
     "copy_parameters_dict",
     "default_comm",
@@ -55,12 +53,10 @@ __all__ = \
     "function_new",
     "function_set_values",
     "function_zero",
-    "homogenized_bc",
     "info",
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
-    "update_parameters_dict",
     "warning"
   ]
   
@@ -77,8 +73,6 @@ def warning(message):
   sys.stderr.flush()
 
 #def copy_parameters_dict(parameters):
-
-#def update_parameters_dict(parameters, new_parameters):
 
 ufl.classes.FunctionSpace.id = lambda self : id(self)
 firedrake.functionspaceimpl.FunctionSpace.id = lambda self : id(self)
@@ -162,11 +156,11 @@ def function_new(x, name = None, static = False):
 def function_alias(x):
   return Function(x.function_space(), name = x.name(), static = function_is_static(x), val = x.dat)
 
-def function_global_size(x):
-  return x.function_space().dim()
-
 def function_zero(x):
   x.vector()[:] = 0.0
+
+def function_global_size(x):
+  return x.function_space().dim()
 
 def function_local_indices(x):
   return slice(*x.vector().local_range())
@@ -193,17 +187,3 @@ def finalise_adjoint_derivative_action(x):
   if hasattr(x, "_tlm_adjoint__adj_b"):
     function_axpy(x, 1.0, assemble(x._tlm_adjoint__adj_b))
     delattr(x, "_tlm_adjoint__adj_b")
-
-def apply_bcs(x, bcs):
-  for bc in bcs:
-    bc.apply(x.vector())
-
-def homogenized_bc(bc):
-  if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
-    return bc
-  else:
-    hbc = homogenize(bc)
-    static = is_static_bcs([bc])
-    hbc.is_static = static
-    hbc.is_homogeneous = lambda : True
-    return hbc

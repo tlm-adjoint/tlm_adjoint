@@ -296,20 +296,14 @@ class NullSolver(Equation):
     return None
 
 class AssignmentSolver(Equation):
-  def __init__(self, y, x, bcs = []):
+  def __init__(self, y, x):
     if x == y:
       raise EquationException("Non-linear dependency in linear equation")
-    
-    hbcs = [homogenized_bc(bc) for bc in bcs]
-    
     Equation.__init__(self, x, [x, y], nl_deps = [])
-    self._bcs = copy.copy(bcs)
-    self._hbcs = hbcs
     
   def forward_solve(self, x, deps = None):
     _, y = self.dependencies() if deps is None else deps
     function_assign(x, y)
-    apply_bcs(x, self._bcs)
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     if dep_index == 0:
@@ -320,7 +314,6 @@ class AssignmentSolver(Equation):
       return None
       
   def adjoint_jacobian_solve(self, nl_deps, b):
-    apply_bcs(b, self._hbcs)
     return b
     
   def tangent_linear(self, M, dM, tlm_map):
@@ -338,29 +331,24 @@ class AssignmentSolver(Equation):
     if tau_y is None:
       return None
     else:
-      return AssignmentSolver(tau_y, tlm_map[x], bcs = self._hbcs)
+      return AssignmentSolver(tau_y, tlm_map[x])
 
 class LinearCombinationSolver(Equation):
-  def __init__(self, x, *args, bcs = []):
+  def __init__(self, x, *args):
     alpha = [float(arg[0]) for arg in args]
     y = [arg[1] for arg in args]
     
     if x in y:
       raise EquationException("Non-linear dependency in linear equation")
     
-    hbcs = [homogenize_bc(bc) for bc in bcs]
-    
     Equation.__init__(self, x, [x] + y, nl_deps = [])
     self._alpha = alpha
-    self._bcs = copy.copy(bcs)
-    self._hbcs = hbcs
   
   def forward_solve(self, x, deps = None):
     deps = self.dependencies() if deps is None else list(deps)
     function_zero(x)
     for alpha, y in zip(self._alpha, deps[1:]):
       function_axpy(x, alpha, y)
-    apply_bcs(x, self._bcs)
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     if dep_index == 0:
@@ -371,7 +359,6 @@ class LinearCombinationSolver(Equation):
       return None
       
   def adjoint_jacobian_solve(self, nl_deps, b):
-    apply_bcs(b, self._hbcs)
     return b
   
   def tangent_linear(self, M, dM, tlm_map):
@@ -398,23 +385,23 @@ class LinearCombinationSolver(Equation):
     if len(args) == 0:
       return None
     else:
-      return LinearCombinationSolver(tlm_map[x], *args, bcs = self._hbcs)
+      return LinearCombinationSolver(tlm_map[x], *args)
 
 #class NullSolver(LinearCombinationSolver):
 #  def __init__(self, x):
 #    LinearCombinationSolver.__init__(self, x)
 
 #class AssignmentSolver(LinearCombinationSolver):
-#  def __init__(self, y, x, bcs = []):
-#    LinearCombinationSolver.__init__(self, x, (1.0, y), bcs = bcs)
+#  def __init__(self, y, x):
+#    LinearCombinationSolver.__init__(self, x, (1.0, y))
 
 class ScaleSolver(LinearCombinationSolver):
-  def __init__(self, alpha, y, x_new, bcs = []):
-    LinearCombinationSolver.__init__(self, x_new, (alpha, y), bcs = bcs)
+  def __init__(self, alpha, y, x_new):
+    LinearCombinationSolver.__init__(self, x_new, (alpha, y))
 
 class AxpySolver(LinearCombinationSolver):
-  def __init__(self, x_old, alpha, y, x_new, bcs = []):
-    LinearCombinationSolver.__init__(self, x_new, (1.0, x_old), (alpha, y), bcs = bcs)
+  def __init__(self, x_old, alpha, y, x_new):
+    LinearCombinationSolver.__init__(self, x_new, (1.0, x_old), (alpha, y))
     
 # Derives tangent-linear and adjoint information using the approach described in
 #  J. G. Gilbert, "Automatic differentiation and iterative processes",

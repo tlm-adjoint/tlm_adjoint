@@ -23,16 +23,13 @@ import sys
 
 __all__ = \
   [
-    "InterfaceException",
-  
     "Function",
     "FunctionSpace",
     "RealFunctionSpace",
     "ReplacementFunction",
-    "apply_bcs",
     "clear_caches",
-    "default_comm",
     "copy_parameters_dict",
+    "default_comm",
     "finalise_adjoint_derivative_action",
     "function_alias",
     "function_assign",
@@ -50,17 +47,12 @@ __all__ = \
     "function_new",
     "function_set_values",
     "function_zero",
-    "homogenized_bc",
     "info",
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
-    "update_parameters_dict",
     "warning"
   ]
-
-class InterfaceException(Exception):
-  pass
   
 def clear_caches():
   pass
@@ -76,17 +68,6 @@ def warning(message):
 def copy_parameters_dict(parameters):
   return copy.deepcopy(parameters)
 
-def update_parameters_dict(parameters, new_parameters):
-  for key, value in new_parameters.items():
-    if key in parameters \
-      and isinstance(parameters[key], dict) \
-      and isinstance(value, dict):
-      update_parameters_dict(parameters[key], value)
-    elif isinstance(value, dict):
-      parameters[key] = copy_parameters_dict(value)
-    else:
-      parameters[key] = value
-  
 class FunctionSpace:
   def __init__(self, dim):
     self._dim = dim
@@ -158,19 +139,19 @@ def replaced_function(x):
 
 def is_function(x):
   return isinstance(x, Function)
-    
+
 def function_is_static(x):
   return x.is_static()
   
 def function_copy(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static, _data = x.vector().copy())
-  
+
 def function_assign(x, y):
   if isinstance(y, (int, float)):
     x.vector()[:] = y
   else:
     x.vector()[:] = y.vector()
-    
+
 def function_axpy(x, alpha, y):
   x.vector()[:] += alpha * y.vector()
 
@@ -197,7 +178,7 @@ def function_inner(x, y):
 
 def function_local_size(x):
   return x.vector().shape[0]
-  
+
 def function_get_values(x):
   values = x.vector().view()
   values.setflags(write = False)
@@ -205,10 +186,10 @@ def function_get_values(x):
 
 def function_set_values(x, values):
   x.vector()[:] = values
-  
+
 def function_max_value(x):
   return x.vector().max()
-  
+
 def function_linf_norm(x):
   return abs(x.vector()).max()
   
@@ -220,7 +201,7 @@ def function_alias(x):
 
 def function_zero(x):
   x.vector()[:] = 0.0
-  
+
 def function_global_size(x):
   return x.vector().shape[0]
 
@@ -245,10 +226,3 @@ def subtract_adjoint_derivative_action(x, y):
     
 def finalise_adjoint_derivative_action(x):
   pass
-  
-def apply_bcs(x, bcs):
-  if len(bcs) != 0: 
-    raise InterfaceException("Unexpected boundary condition(s)")
-
-def homogenized_bc(bc):
-  raise InterfaceException("Unexpected boundary condition")
