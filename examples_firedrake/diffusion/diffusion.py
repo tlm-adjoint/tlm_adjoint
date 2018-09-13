@@ -22,7 +22,7 @@ from tlm_adjoint import *
 from tlm_adjoint import manager as _manager
 stop_manager()
 
-import petsc4py
+import petsc4py.PETSc
 petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
 
 import numpy
@@ -33,12 +33,12 @@ import h5py
 mesh = UnitSquareMesh(50, 50)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
-bc = DirichletBC(space, 0.0, "on_boundary")
+bc = DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True)
 
 Psi_n = Function(space, name = "Psi_n")                             
 Psi_np1 = Function(space, name = "Psi_np1")
 
-dt = Constant(0.01)
+dt = Constant(0.01, static = True)
 N = 10
 kappa = Function(space, name = "kappa", static = True)
 function_assign(kappa, 1.0)
