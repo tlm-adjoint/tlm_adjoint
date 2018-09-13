@@ -30,7 +30,7 @@ numpy.random.seed(2212983)
 
 import h5py
 
-mesh = Mesh("square.xml.gz")
+mesh = UnitSquareMesh(50, 50)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 bc = DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True)

@@ -46,12 +46,8 @@ import time
 verify = True
 
 # Configure the mesh
-## Debug configuration
-#N_x, N_y = 4, 2
-#mesh = RectangleMesh(Point(0.0, 0.0), Point(2.0, 1.0), N_x, N_y)
-# Production configuration
 N_x, N_y = 100, 50
-mesh = Mesh("rectangle.xml.gz")
+mesh = RectangleMesh(Point(0.0, 0.0), Point(2.0, 1.0), N_x, N_y)
 
 # Configure the interior domain discrete function space
 space = FunctionSpace(mesh, "Lagrange", 1)
