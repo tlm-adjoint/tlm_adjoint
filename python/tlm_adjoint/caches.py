@@ -135,7 +135,7 @@ def split_form(form):
     integral_args = [integral.integral_type(),
                      integral.ufl_domain(),
                      integral.subdomain_id(),
-                     integral.metadata(),
+                     {},#integral.metadata(),
                      integral.subdomain_data()]
   
     static_operands, non_static_operands = [], []
