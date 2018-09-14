@@ -284,7 +284,7 @@ class AssemblyCache(Cache):
         for bc in bcs:
           bc.apply(b)
       elif rank == 2:
-        b = assemble_matrix(form, bcs, form_compiler_parameters)
+        b = assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
       index = self.append(key, b)
