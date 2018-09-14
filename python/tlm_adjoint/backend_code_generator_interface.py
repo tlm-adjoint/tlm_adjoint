@@ -21,6 +21,7 @@ from .backend import *
 
 import ffc
 import numpy
+import ufl
 
 __all__ = \
   [
@@ -37,7 +38,14 @@ __all__ = \
     "matrix_multiply",
     "process_solver_parameters",
     "rhs_addto",
-    "update_parameters_dict"
+    "update_parameters_dict",
+    
+    "dolfin_form",
+    "clear_dolfin_form",
+    
+    "assemble",
+    "assemble_system",
+    "solve"
   ]
   
 class InterfaceException(Exception):
@@ -170,3 +178,84 @@ def is_real_function(x):
 
 def rhs_addto(x, y):
   x.axpy(1.0, y)
+  
+# The following override assemble, assemble_system, and solve so that DOLFIN
+# Form objects are cached on UFL form objects. The first call to assemble,
+# assemble_system, or (for supported cases) solve defines the
+# form_compiler_parameters used to build the DOLFIN form -- subsequent
+# form_compiler_parameters arguments are *ignored*.
+  
+def dolfin_form(form, form_compiler_parameters):
+  if "_tlm_adjoint__form" in form._cache:
+    dolfin_form = form._cache["_tlm_adjoint__form"]
+    deps = form.coefficients()
+    for i, j in enumerate(form._cache["_tlm_adjoint__deps_map"]):
+      dolfin_form.set_coefficient(i, deps[j].this if hasattr(deps[j], "this") else deps[j]._cpp_object)
+  else:
+    dolfin_form = form._cache["_tlm_adjoint__form"] = Form(form, form_compiler_parameters = form_compiler_parameters)
+    if not hasattr(dolfin_form, "_compiled_form"): dolfin_form._compiled_form = None  # Work around DOLFIN 2018.1.0 bug
+    form._cache["_tlm_adjoint__deps_map"] = tuple(map(dolfin_form.original_coefficient_position, range(dolfin_form.num_coefficients())))
+  return dolfin_form
+
+def clear_dolfin_form(form):
+  for i in range(form.num_coefficients()):
+    form.set_coefficient(i, None)
+
+# Aim for compatibility with FEniCS 2018.1.0 API
+   
+def assemble(form, tensor = None, form_compiler_parameters = None, *args, **kwargs):
+  is_dolfin_form = isinstance(form, Form)
+  if not is_dolfin_form: form = dolfin_form(form, form_compiler_parameters)
+  return_value = backend_assemble(form, tensor = tensor, *args, **kwargs)
+  if not is_dolfin_form: clear_dolfin_form(form)
+  return return_value
+  
+def assemble_system(A_form, b_form, bcs = None, x0 = None,
+  form_compiler_parameters = None, *args, **kwargs):
+  A_is_dolfin_form = isinstance(A_form, Form)
+  b_is_dolfin_form = isinstance(b_form, Form)
+  if not A_is_dolfin_form: A_form = dolfin_form(A_form, form_compiler_parameters)
+  if not b_is_dolfin_form: b_form = dolfin_form(b_form, form_compiler_parameters)
+  return_value = backend_assemble_system(A_form, b_form, bcs = bcs, x0 = x0, *args, **kwargs)
+  if not A_is_dolfin_form: clear_dolfin_form(A_form)
+  if not b_is_dolfin_form: clear_dolfin_form(b_form)
+  return return_value
+
+def solve(*args, **kwargs):
+  if not isinstance(args[0], ufl.classes.Equation):
+    return backend_solve(*args, **kwargs)
+    
+  eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
+  if not tol is None or not M is None:
+    return backend_solve(*args, **kwargs)
+
+  lhs, rhs = eq.lhs, eq.rhs
+  linear = isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form)
+  if linear:
+    lhs = dolfin_form(lhs, form_compiler_parameters)
+    rhs = dolfin_form(rhs, form_compiler_parameters)
+    problem = fenics.cpp.fem.LinearVariationalProblem(lhs, rhs, x.this if hasattr(x, "this") else x._cpp_object, bcs)
+    solver = LinearVariationalSolver(problem)
+    solver.parameters.update(solver_parameters)
+    return_value = solver.solve()
+    clear_dolfin_form(lhs)
+    clear_dolfin_form(rhs)
+    return return_value
+  else:
+    F = lhs
+    assert(rhs == 0)
+    if J is None:
+      if not "_tlm_adjoint__J" in F._cache:
+        F._cache["_tlm_adjoint__J"] = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
+      J = F._cache["_tlm_adjoint__J"]
+    
+    F = dolfin_form(F, form_compiler_parameters)
+    J = dolfin_form(J, form_compiler_parameters)
+    problem = fenics.cpp.fem.NonlinearVariationalProblem(F, x.this if hasattr(x, "this") else x._cpp_object, bcs, J)
+    solver = NonlinearVariationalSolver(problem)
+    solver.parameters.update(solver_parameters)
+    return_value = solver.solve()
+    clear_dolfin_form(F)
+    clear_dolfin_form(J)
+    
+    return return_value

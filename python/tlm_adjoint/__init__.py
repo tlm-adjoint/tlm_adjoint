@@ -17,8 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_code_generator_interface import *
+from .backend import backend
 from .backend_interface import *
 from .backend_overrides import *
 from .base_equations import *

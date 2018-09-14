@@ -18,7 +18,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend_code_generator_interface import *
+from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
   is_static_bcs, linear_solver_cache, replaced_function
