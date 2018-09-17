@@ -119,10 +119,7 @@ def function_axpy(x, alpha, y):
   x.vector().axpy(alpha, y.vector())
 
 def default_comm():
-  if hasattr(fenics, "mpi_comm_world"):
-    return fenics.mpi_comm_world()
-  else:
-    return fenics.MPI.comm_world
+  return mpi_comm_world()
 
 def function_comm(x):
   return x.function_space().mesh().mpi_comm()

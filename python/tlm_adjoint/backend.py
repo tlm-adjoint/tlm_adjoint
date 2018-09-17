@@ -104,8 +104,13 @@ __all__ = \
     "has_lu_solver_method",
     "info",
     "inner",
+    "mpi_comm_world",
     "parameters",
     "project",
     "solve",
     "system"
   ]
+
+if not hasattr(fenics, "mpi_comm_world"):
+  def mpi_comm_world():
+    return fenics.MPI.comm_world
