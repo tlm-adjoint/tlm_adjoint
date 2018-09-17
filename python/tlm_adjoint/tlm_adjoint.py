@@ -1189,12 +1189,13 @@ class EquationManager:
       rhs_cache = OrderedDict()
       def rhs_cache_new(x, static = False):
         space = x.function_space()
+        space_id = function_space_id(space)
         if is_function(x):
-          b = rhs_cache[space.id()] = function_new(x, static = static)
-        elif space.id() in rhs_cache:
-          b = rhs_cache[space.id()] = function_new(rhs_cache[space.id()], static = static)
+          b = rhs_cache[space_id] = function_new(x, static = static)
+        elif space_id in rhs_cache:
+          b = rhs_cache[space_id] = function_new(rhs_cache[space_id], static = static)
         else:
-          b = rhs_cache[space.id()] = Function(space, static = static)
+          b = rhs_cache[space_id] = Function(space, static = static)
         return b
     else:
       rhs_cache_new = lambda x, static = False : function_new(x, static = static)

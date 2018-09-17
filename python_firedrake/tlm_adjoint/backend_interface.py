@@ -52,6 +52,7 @@ __all__ = \
     "function_max_value",
     "function_new",
     "function_set_values",
+    "function_space_id",
     "function_zero",
     "info",
     "is_function",
@@ -74,9 +75,8 @@ def warning(message):
 
 #def copy_parameters_dict(parameters):
 
-ufl.classes.FunctionSpace.id = lambda self : id(self)
-firedrake.functionspaceimpl.FunctionSpace.id = lambda self : id(self)
-firedrake.functionspaceimpl.MixedFunctionSpace.id = lambda self : id(self)
+def function_space_id(space):
+  return id(space)
 
 def RealFunctionSpace(comm = None):
   if comm is None:

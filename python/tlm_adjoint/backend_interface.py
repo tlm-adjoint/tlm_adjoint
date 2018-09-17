@@ -52,6 +52,7 @@ __all__ = \
     "function_max_value",
     "function_new",
     "function_set_values",
+    "function_space_id",
     "function_zero",
     "info",
     "is_function",
@@ -72,8 +73,10 @@ def warning(message):
 
 #def copy_parameters_dict(parameters):
 
+def function_space_id(space):
+  return space.id()
+
 #class FunctionSpace:
-#  def id(self):
 
 class RealFunctionSpace(FunctionSpace):
   def __init__(self, comm = None):
