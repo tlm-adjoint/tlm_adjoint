@@ -30,7 +30,7 @@ class tests(unittest.TestCase):
     stop_manager()
   
     mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "R", 0)
+    space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
     test, trial = TestFunction(space), TrialFunction(space)
     
     x = Function(space, name = "x")
@@ -54,7 +54,7 @@ class tests(unittest.TestCase):
       eq.solve(replace = True)
       
       J = Functional(name = "J")
-      J.assign(x)
+      J.assign(Constant(1.0 / function_global_size(x)) * x * dx)
       
       return J
     
@@ -68,17 +68,19 @@ class tests(unittest.TestCase):
     self.assertAlmostEqual(x_val * numpy.sqrt(x_val + b_val) - a_val, 0.0, places = 14)
 
     dJda, dJdb = compute_gradient(J, [a, b])
-    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), dJ = dJda)
+    dm = Function(space, name = "dm", static = True)
+    function_assign(dm, 1.0)
+    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), dJ = dJda, dm = dm)
     self.assertGreater(min_order, 1.99)
-    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), dJ = dJdb)
+    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), dJ = dJdb, dm = dm)
     self.assertGreater(min_order, 1.99)
     
     ddJ = Hessian(lambda a : forward(a, b))
-    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), ddJ = ddJ)
+    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), ddJ = ddJ, dm = dm)
     self.assertGreater(min_order, 2.99)
     
     ddJ = Hessian(lambda b : forward(a, b))
-    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), ddJ = ddJ)
+    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), ddJ = ddJ, dm = dm)
     self.assertGreater(min_order, 2.99)
 
   def test_higher_order_adjoint(self):
@@ -304,7 +306,7 @@ class tests(unittest.TestCase):
     J, G = forward(F)
     stop_manager()
     
-    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 17)
+    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 16)
 
     J_val = J.value()    
     dJ = compute_gradient(J, F)    
@@ -371,11 +373,11 @@ class tests(unittest.TestCase):
     clear_caches()
     stop_manager()
     
-    # Use an interval of non-unit size to test that volume factors are handled
+    # Use a mesh of non-unit size to test that volume factors are handled
     # correctly
-    mesh = IntervalMesh(1, 0.0, 2.0)
+    mesh = RectangleMesh(5, 5, 1.0, 2.0)
     r0 = FiniteElement("Discontinuous Lagrange", mesh.ufl_cell(), 0)
-    space = FunctionSpace(mesh, r0 * r0)
+    space = VectorFunctionSpace(mesh, r0)
     test = TestFunction(space)
     dt = Constant(0.01, static = True)
     control_space = FunctionSpace(mesh, r0)
@@ -427,14 +429,14 @@ class tests(unittest.TestCase):
 
     J_val = J.value()
     info("J = %.16e" % J_val)
-    self.assertEqual(J_val, 9.8320117858590805e-01)
+    self.assertAlmostEqual(J_val, 9.8320117858590805e-01, places = 14)
     
     dJ = K.value()
     info("TLM sensitivity = %.16e" % dJ)
     
     # Run the adjoint of the forward+TLM system to compute the Hessian action
     ddJ = compute_gradient(K, alpha)
-    ddJ_val = function_max_value(ddJ)
+    ddJ_val = function_max_value(ddJ) * function_global_size(ddJ)
     info("ddJ = %.16e" % ddJ_val)
     
     # Taylor verify the Hessian (and gradient)
@@ -520,7 +522,7 @@ class tests(unittest.TestCase):
       dJ = compute_gradient(J, controls)      
       min_order = taylor_test(lambda T_0 : forward(T_0, kappa), controls[0], J_val = J_val, dJ = dJ[0])  # Usage as in dolfin-adjoint tests
       self.assertGreater(min_order, 1.99)
-      dm = Function(space_r0, name = "dm")
+      dm = Function(space_r0, name = "dm", static = True)
       function_assign(dm, 1.0)
       min_order = taylor_test(lambda kappa : forward(T_0, kappa), controls[1], J_val = J_val, dJ = dJ[1], dm = dm)  # Usage as in dolfin-adjoint tests
       self.assertGreater(min_order, 1.99)
@@ -531,9 +533,9 @@ class tests(unittest.TestCase):
     clear_caches()
     stop_manager()
   
-    mesh = UnitIntervalMesh(1)
+    mesh = UnitSquareMesh(5, 5)
     r0 = FiniteElement("Discontinuous Lagrange", mesh.ufl_cell(), 0)
-    space = FunctionSpace(mesh, r0 * r0)
+    space = VectorFunctionSpace(mesh, r0)
     test = TestFunction(space)
     T_0 = Function(space, name = "T_0", static = True)
     T_0.assign(Constant((1.0, 0.0)))
@@ -568,14 +570,16 @@ class tests(unittest.TestCase):
     stop_manager()
 
     J_val = J.value()
-    self.assertEqual(J_val, 9.8320117858590805e-01 ** 2)
+    self.assertAlmostEqual(J_val, 9.8320117858590805e-01 ** 2, places = 14)
 
     dJ = compute_gradient(J, T_0)    
-    min_order = taylor_test(forward, T_0, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
+    dm = Function(space, name = "dm", static = True)
+    function_assign(dm, 1.0)
+    min_order = taylor_test(forward, T_0, J_val = J_val, dJ = dJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
     
     ddJ = Hessian(forward)
-    min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.99)
 
   def test_AxpySolver(self):    
@@ -584,7 +588,7 @@ class tests(unittest.TestCase):
     stop_manager()
 
     mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "R", 0)
+    space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
     test, trial = TestFunction(space), TrialFunction(space)
     x = Function(space, name = "x", static = True)
     function_assign(x, 1.0)  
@@ -615,7 +619,7 @@ class tests(unittest.TestCase):
     self.assertAlmostEqual(J_val, 25411681.0, places = 7)
     
     dJ = compute_gradient(J, x)    
-    dm = Function(space, name = "dm")
+    dm = Function(space, name = "dm", static = True)
     function_assign(dm, 1.0)
     min_order = taylor_test(forward, x, J_val = J_val, dJ = dJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
@@ -626,7 +630,7 @@ class tests(unittest.TestCase):
     stop_manager()
   
     mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "R", 0)
+    space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
     test, trial = TestFunction(space), TrialFunction(space)
     x = Function(space, name = "x", static = True)
     function_assign(x, 16.0)  
@@ -662,7 +666,7 @@ class tests(unittest.TestCase):
     self.assertEqual(K_val, 65536.0)
     
     dJs = compute_gradient([J, K], x)    
-    dm = Function(space, name = "dm")
+    dm = Function(space, name = "dm", static = True)
     function_assign(dm, 1.0)
     min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, dJ = dJs[0], dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)

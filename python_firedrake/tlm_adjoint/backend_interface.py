@@ -133,7 +133,8 @@ def function_inner(x, y):
   return x_v.dot(y_v)
 
 def function_local_size(x):
-  return x.vector().local_size()
+  local_range = x.vector().local_range()
+  return local_range[1] - local_range[0]
 
 def function_get_values(x):
   return x.vector().get_local()
