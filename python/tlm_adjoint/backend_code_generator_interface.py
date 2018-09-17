@@ -130,7 +130,8 @@ def assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True
     b_bc = None
   return A, b_bc
 
-#def assemble_system(A, b, bcs = [], form_compiler_parameters = {}):
+# Similar interface to assemble_system in FEniCS 2018.1.0
+#def assemble_system(A_form, b_form, bcs = [], form_compiler_parameters = {}):
 
 def linear_solver(A, linear_solver_parameters):
   linear_solver = linear_solver_parameters.get("linear_solver", "default")
@@ -256,6 +257,5 @@ def solve(*args, **kwargs):
     solver.parameters.update(solver_parameters)
     return_value = solver.solve()
     clear_dolfin_form(F)
-    clear_dolfin_form(J)
-    
+    clear_dolfin_form(J)    
     return return_value
