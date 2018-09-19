@@ -19,6 +19,8 @@
 
 from .backend import *
 
+import ufl
+
 __all__ = \
   [
     "InterfaceException",
