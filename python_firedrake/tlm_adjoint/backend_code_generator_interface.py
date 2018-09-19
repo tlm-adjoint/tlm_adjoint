@@ -34,6 +34,7 @@ __all__ = \
     "matrix_multiply",
     "process_solver_parameters",
     "rhs_addto",
+    "rhs_copy",
     "update_parameters_dict"
   ]
   
@@ -119,6 +120,9 @@ def matrix_multiply(A, x, addto = None, space_fn = None):
 
 def is_real_function(x):
   return getattr(x.function_space(), "_tlm_adjoint__real_space", False)
+
+def rhs_copy(x):
+  return x.copy(deepcopy = True)
 
 def rhs_addto(x, y):
   x.vector().set_local(x.vector().get_local() + y.vector().get_local())  # function_axpy

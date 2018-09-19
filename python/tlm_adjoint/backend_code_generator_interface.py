@@ -38,6 +38,7 @@ __all__ = \
     "matrix_multiply",
     "process_solver_parameters",
     "rhs_addto",
+    "rhs_copy",
     "update_parameters_dict",
     
     "dolfin_form",
@@ -176,6 +177,9 @@ def matrix_multiply(A, x, addto = None, space_fn = None):
 def is_real_function(x):
   e = x.ufl_element()
   return e.family() == "Real" and e.degree() == 0
+
+def rhs_copy(x):
+  return x.copy()
 
 def rhs_addto(x, y):
   x.axpy(1.0, y)

@@ -399,7 +399,7 @@ class EquationSolver(Equation):
       else:
         static_b = assembly_cache()[static_form[1]]
       if b is None:
-        b = static_b.copy()
+        b = rhs_copy(static_b)
       else:
         rhs_addto(b, static_b)
     
