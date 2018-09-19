@@ -204,10 +204,8 @@ class TangentLinearMap:
       if function_is_static(x):
         self._map[x.id()] = None
       else:
-        basename = getattr(x, "_tlm_adjoint__tlm_basename", x.name())
         depth = tlm_depth(x) + 1
-        tlm_x = self._map[x.id()] = function_new(x, name = "%s%s" % (basename, self._name_suffix))
-        tlm_x._tlm_adjoint__tlm_basename = basename
+        tlm_x = self._map[x.id()] = function_new(x, name = "%s%s" % (x.name(), self._name_suffix))
         tlm_x._tlm_adjoint__tlm_depth = depth
     return self._map[x.id()]
   
@@ -719,8 +717,6 @@ class EquationManager:
     for dep in deps:
       if not dep.id() in self._replace_map:
         replaced_dep = self._replace_map[dep.id()] = replaced_function(dep)
-        if hasattr(dep, "_tlm_adjoint__tlm_basename"):
-          replaced_dep._tlm_adjoint__tlm_basename = dep._tlm_adjoint__tlm_basename
         if hasattr(dep, "_tlm_adjoint__tlm_depth"):
           replaced_dep._tlm_adjoint__tlm_depth = dep._tlm_adjoint__tlm_depth      
     eq._replace(OrderedDict([(dep, self._replace_map[dep.id()]) for dep in deps]))
