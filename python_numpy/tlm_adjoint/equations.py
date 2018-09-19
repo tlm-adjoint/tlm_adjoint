@@ -37,9 +37,10 @@ __all__ = \
     "InnerProductEquation",
     "InnerProductRHS",
     "MatrixActionRHS",
+    "NormSqEquation",
+    "NormSqRHS",
     "SumRHS",
     
-    "NormSqEquation",
     "SumEquation"
   ]
   
@@ -452,7 +453,7 @@ class SumEquation(LinearEquation):
 class InnerProductRHS(RHS):
   def __init__(self, y, z, alpha = 1.0, M = None):
     RHS.__init__(self, [y, z], nl_deps = [y, z])
-    self._alpha = float(alpha)
+    self._alpha = alpha = float(alpha)
     self._M = M
     if M is None:
       if alpha == 1.0:
@@ -491,47 +492,50 @@ class InnerProductRHS(RHS):
     
     tlm_B = []
     if not tau_y is None:
-      tlm_B.append(InnerProductRHS(tau_y, z, alpha = self._alpha, M = self._M))
+      if tau_y == z:
+        tlm_B.append(NormSqRHS(tau_y, alpha = self._alpha, M = self._M))
+      else:
+        tlm_B.append(InnerProductRHS(tau_y, z, alpha = self._alpha, M = self._M))
     if not tau_z is None:
-      tlm_B.append(InnerProductRHS(y, tau_z, alpha = self._alpha, M = self._M))
+      if y == tau_z:
+        tlm_B.append(NormSqRHS(tau_z, alpha = self._alpha, M = self._M))
+      else:
+        tlm_B.append(InnerProductRHS(y, tau_z, alpha = self._alpha, M = self._M))
     return tlm_B
 
 class InnerProductEquation(LinearEquation):
   def __init__(self, y, z, x, alpha = 1.0, M = None):
     LinearEquation.__init__(self, InnerProductRHS(y, z, alpha = alpha, M = M), x)
 
-class NormSqEquation(Equation):
-  def __init__(self, y, x, M = None):
-    Equation.__init__(self, x, [x, y], nl_deps = [y])
+class NormSqRHS(RHS):
+  def __init__(self, y, alpha = 1.0, M = None):
+    RHS.__init__(self, [y], nl_deps = [y])
+    self._alpha = alpha = float(alpha)
     self._M = M
     if M is None:
-      self._dot = lambda x : x
-    else:
+      if alpha == 1.0:
+        self._dot = lambda x : x
+      else:
+        self._dot = lambda x : alpha * x
+    elif alpha == 1.0:
       self._dot = lambda x : M.dot(x)
-  
-  def forward_solve(self, x, deps = None):
-    _, y = self.dependencies() if deps is None else deps
-    x.vector()[:] = y.vector().dot(self._dot(y.vector()))
-  
-  def adjoint_jacobian_solve(self, nl_deps, b):
-    return b
-    
-  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    if dep_index == 0:
-      return adj_x
-    elif dep_index == 1:
-      return (-2.0, adj_x.vector().sum() * self._dot(nl_deps[0].vector()))
     else:
-      return None
+      self._dot = lambda x : alpha * M.dot(x)
     
-  def tangent_linear(self, M, dM, tlm_map):
-    x, y = self.dependencies()
+  def add_forward(self, b, deps):
+    y, = deps
+    b.vector()[:] += y.vector().dot(self._dot(y.vector()))
+    
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+    if dep_index == 0:
+      b.vector()[:] -= 2.0 * adj_x.vector().sum() * self._dot(nl_deps[0].vector())
+      
+  def tangent_linear_rhs(self, M, dM, tlm_map):
+    y, = self.dependencies()
     
     tau_y = None
     for i, m in enumerate(M):
-      if m == x:
-        raise EquationException("Invalid tangent-linear parameter")
-      elif m == y:
+      if m == y:
         tau_y = dM[i]
     if tau_y is None:
       tau_y = tlm_map[y]
@@ -539,7 +543,11 @@ class NormSqEquation(Equation):
     if tau_y is None:
       return None
     else:
-      return InnerProductEquation(y, tau_y, tlm_map[x], alpha = 2.0, M = self._M)
+      return InnerProductRHS(tau_y, y, alpha = 2.0 * self._alpha, M = self._M)
+
+class NormSqEquation(LinearEquation):
+  def __init__(self, y, x, alpha = 1.0, M = None):
+    LinearEquation.__init__(self, NormSqRHS(y, alpha = alpha, M = M), x)
 
 class ContractionMatrix:
   def __init__(self, A, I, A_T = None, alpha = 1.0):  
