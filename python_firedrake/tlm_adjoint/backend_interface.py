@@ -75,6 +75,8 @@ def warning(message):
 
 #def copy_parameters_dict(parameters):
 
+#class FunctionSpace:
+
 def function_space_id(space):
   return id(space)
 
@@ -85,14 +87,14 @@ def RealFunctionSpace(comm = None):
   space._tlm_adjoint__real_space = True
   return space
 
-backend_Function.id = lambda self : self.count()
 #class Function:
 #  def __init__(self, space, name = None, static = False):
 #  def function_space(self):
 #  def id(self):
 #  def name(self):
+backend_Function.id = lambda self : self.count()
 
-# class ReplacementFunction:
+#class ReplacementFunction:
 #  def __init__(self, x):
 #  def function_space(self):
 #  def id(self):
@@ -107,12 +109,14 @@ def function_is_static(x):
   return is_static(x)
   
 def function_copy(x, name = None, static = False):
-  y = Function(x.function_space(), name = name, static = static)
-  function_assign(y, x)
+  y = x.copy(deepcopy = True)
+  if not name is None:
+    y.rename(name, "a Function")
+  y.is_static = lambda : static
   return y
 
 def function_assign(x, y):
-  if isinstance(y, (int, float, backend_Constant)):
+  if isinstance(y, (int, float)):
     x.vector()[:] = float(y)
   else:
     function_set_values(x, function_get_values(y))
@@ -155,7 +159,7 @@ def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)
 
 def function_alias(x):
-  return Function(x.function_space(), name = x.name(), static = function_is_static(x), val = x.dat)
+  return Function(x.function_space(), name = x.name(), static = x.is_static(), val = x.dat)
 
 def function_zero(x):
   x.vector()[:] = 0.0

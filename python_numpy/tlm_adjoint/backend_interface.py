@@ -69,9 +69,6 @@ def warning(message):
 def copy_parameters_dict(parameters):
   return copy.deepcopy(parameters)
 
-def function_space_id(space):
-  return space.dim()
-
 class FunctionSpace:
   def __init__(self, dim):
     self._dim = dim
@@ -79,9 +76,11 @@ class FunctionSpace:
   def dim(self):
     return self._dim
 
-class RealFunctionSpace(FunctionSpace):
-  def __init__(self):
-    FunctionSpace.__init__(self, 1)
+def function_space_id(space):
+  return space.dim()
+
+def RealFunctionSpace():
+  return FunctionSpace(1)
 
 Function_id_counter = [0]
 class Function:
@@ -198,7 +197,7 @@ def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)
 
 def function_alias(x):
-  return Function(x.function_space(), name = x.name(), static = function_is_static(x), _data = x.vector())
+  return Function(x.function_space(), name = x.name(), static = x.is_static(), _data = x.vector())
 
 def function_zero(x):
   x.vector()[:] = 0.0

@@ -73,16 +73,15 @@ def warning(message):
 
 #def copy_parameters_dict(parameters):
 
+#class FunctionSpace:
+
 def function_space_id(space):
   return space.id()
 
-#class FunctionSpace:
-
-class RealFunctionSpace(FunctionSpace):
-  def __init__(self, comm = None):
-    if comm is None:
-      comm = default_comm()
-    FunctionSpace.__init__(self, UnitIntervalMesh(comm, comm.size), "R", 0)
+def RealFunctionSpace(comm = None):
+  if comm is None:
+    comm = default_comm()
+  return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 #class Function:
 #  def __init__(self, space, name = None, static = False):
@@ -90,7 +89,7 @@ class RealFunctionSpace(FunctionSpace):
 #  def id(self):
 #  def name(self):
 
-# class ReplacementFunction:
+#class ReplacementFunction:
 #  def __init__(self, x):
 #  def function_space(self):
 #  def id(self):
@@ -112,8 +111,8 @@ def function_copy(x, name = None, static = False):
   return y
 
 def function_assign(x, y):
-  if isinstance(y, (int, float, backend_Constant)):
-    function_set_values(x, numpy.ones(x.vector().local_size(), dtype = numpy.float64) * float(y))
+  if isinstance(y, (int, float)):
+    x.vector()[:] = float(y)
   else:
     x.vector().zero()
     x.vector().axpy(1.0, y.vector())
@@ -157,7 +156,7 @@ def function_new(x, name = None, static = False):
 def function_alias(x):
   y = x.copy(deepcopy = False)
   y.rename(x.name(), "a Function")
-  static = function_is_static(x)
+  static = x.is_static()
   y.is_static = lambda : static
   return y
 
