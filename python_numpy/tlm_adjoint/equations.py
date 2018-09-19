@@ -231,7 +231,9 @@ class MatrixActionRHS(RHS):
     tlm_B = [MatrixActionRHS(self._A, tlm_X)]
     
     if len(A_nl_deps) > 0:
-      tlm_B.append(self._A.tangent_linear_rhs(M, dM, tlm_map, X))
+      tlm_b = self._A.tangent_linear_rhs(M, dM, tlm_map, X)
+      if not tlm_b is None:
+        tlm_B.append(tlm_b)
     
     return tlm_B
 
