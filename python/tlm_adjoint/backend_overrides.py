@@ -100,7 +100,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
     b_tensor = b
   if bcs is None:
     bcs = []
-  elif isinstance(bcs, DirichletBC):
+  elif isinstance(bcs, backend_DirichletBC):
     bcs = [bcs]
 
   form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
@@ -198,7 +198,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
   form_compiler_parameters = None, annotate = None, tlm = None):
   if bcs is None:
     bcs = []
-  elif isinstance(bcs, DirichletBC):
+  elif isinstance(bcs, backend_DirichletBC):
     bcs = [bcs]
       
   if annotate is None:
@@ -213,7 +213,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
         form_compiler_parameters = form_compiler_parameters)
       V = return_value.function_space()
       test, trial = TestFunction(V), TrialFunction(V)
-      eq = EquationSolver(inner(test, trial) * dx == inner(test, v) * dx,
+      eq = EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
         return_value, bcs = bcs,
         solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
         form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
@@ -223,7 +223,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
     else:
       V = function.function_space()
       test, trial = TestFunction(V), TrialFunction(V)
-      eq = EquationSolver(inner(test, trial) * dx == inner(test, v) * dx,
+      eq = EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
         function, bcs = bcs,
         solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
         form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
@@ -243,7 +243,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
       solver_type = solver_type, preconditioner_type = preconditioner_type,
       form_compiler_parameters = form_compiler_parameters)
 
-_orig_DirichletBC_apply = DirichletBC.apply
+_orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, *args):
   if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) or len(args) > 2:
     raise ManagerException("Non-linear boundary condition case not supported")
@@ -267,12 +267,12 @@ def _DirichletBC_apply(self, *args):
     b = args[0]
     if hasattr(b, "_tlm_adjoint__bcs"):
       b._tlm_adjoint__bcs.append(bc)
-DirichletBC.apply = _DirichletBC_apply
+backend_DirichletBC.apply = _DirichletBC_apply
 
 _orig_Function_assign = backend_Function.assign
 def _Function_assign(self, rhs, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, rhs)
-  if not isinstance(rhs, backend_Function):
+  if not is_function(rhs):
     # Only assignment to a Function annotated
     return
   
@@ -299,7 +299,7 @@ def _Matrix_mul(self, other):
   if hasattr(self, "_tlm_adjoint__form") and hasattr(other, "_tlm_adjoint__function"):
     if len(self._tlm_adjoint__bcs) > 0:
       raise ManagerException("Matrix action with boundary conditions not supported")
-    return_value._tlm_adjoint__form = action(self._tlm_adjoint__form, other._tlm_adjoint__function)
+    return_value._tlm_adjoint__form = ufl.action(self._tlm_adjoint__form, coefficient = other._tlm_adjoint__function)
     return_value._tlm_adjoint__bcs = []
     return_value._tlm_adjoint__form_compiler_parameters = self._tlm_adjoint__form_compiler_parameters
   return return_value

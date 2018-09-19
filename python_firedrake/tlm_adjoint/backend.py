@@ -20,12 +20,11 @@
 backend = "Firedrake"
 
 from firedrake import *
-
 import firedrake
 
-extract_args = firedrake.solving._extract_args
-
 backend_Matrix = firedrake.matrix.Matrix
+
+extract_args = firedrake.solving._extract_args
 
 backend_Constant = Constant
 backend_DirichletBC = DirichletBC
@@ -48,26 +47,17 @@ __all__ = \
     "backend_project",
     "backend_solve",
     
-    "Constant",
-    "DirichletBC",
-    "Function",
+    "extract_args",
+    
     "FunctionSpace",
     "LinearSolver",
     "Parameters",
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
-    "action",
-    "adjoint",
     "as_backend_type",
     "assemble",
-    "dx",
-    "extract_args",
-    "firedrake",
     "homogenize",
-    "inner",
     "parameters",
-    "project",
-    "solve",
-    "system"
+    "solve"
   ]

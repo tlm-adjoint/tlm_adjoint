@@ -107,9 +107,9 @@ def matrix_multiply(A, x, addto = None, space_fn = None):
     if addto is None:
       raise InterfaceException("Unable to create Function")
     else:
-      b = Function(addto.function_space()).vector()  # function_new
+      b = backend_Function(addto.function_space()).vector()  # function_new
   else:
-    b = Function(space_fn.function_space()).vector()  # function_new
+    b = backend_Function(space_fn.function_space()).vector()  # function_new
   as_backend_type(A).mat().mult(as_backend_type(x).vec(), as_backend_type(b).vec())
   if addto is None:
     return b

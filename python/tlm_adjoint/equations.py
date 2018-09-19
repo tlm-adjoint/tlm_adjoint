@@ -22,9 +22,8 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheIndex, DirichletBC, Function, assembly_cache, \
-  is_static, is_static_bcs, linear_solver, linear_solver_cache, new_count, \
-  split_action, split_form
+from .caches import CacheIndex, DirichletBC, assembly_cache, is_static, \
+  is_static_bcs, linear_solver_cache, new_count, split_action, split_form
 
 from collections import OrderedDict
 import copy
@@ -54,7 +53,7 @@ class AssembleSolver(Equation):
     nl_deps = []
     nl_dep_ids = set()
     for dep in rhs.coefficients():
-      if isinstance(dep, backend_Function):
+      if is_function(dep):
         dep_id = dep.id()
         if not dep_id in dep_ids:
           deps.append(dep)
@@ -62,7 +61,7 @@ class AssembleSolver(Equation):
         if not dep_id in nl_dep_ids:
           n_nl_deps = 0
           for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(rhs, dep, argument = TrialFunction(dep.function_space()))).coefficients():
-            if isinstance(nl_dep, backend_Function):
+            if is_function(nl_dep):
               nl_dep_id = nl_dep.id()
               if not nl_dep_id in nl_dep_ids:
                 nl_deps.append(nl_dep)
@@ -194,6 +193,10 @@ def homogenized_bc(bc):
     hbc.is_static = static
     hbc.is_homogeneous = lambda : True
     return hbc
+
+def adjoint(form):
+  test, trial = form.arguments()
+  return ufl.adjoint(form, reordered_arguments = (TestFunction(trial.function_space()), TrialFunction(test.function_space())))
     
 class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
@@ -202,7 +205,7 @@ class EquationSolver(Equation):
   def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
     initial_guess = None, cache_jacobian = None, pre_assemble = None,
     match_quadrature = None, defer_adjoint_assembly = None):
-    if isinstance(bcs, DirichletBC):
+    if isinstance(bcs, backend_DirichletBC):
       bcs = [bcs]
     if cache_jacobian is None:
       if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:
@@ -221,7 +224,7 @@ class EquationSolver(Equation):
     if linear:
       if x in lhs.coefficients() or x in rhs.coefficients():
         raise EquationException("Invalid non-linear dependency")
-      F = action(lhs, x) - rhs
+      F = ufl.action(lhs, coefficient = x) - rhs
       J = lhs
     else:
       F = lhs
@@ -234,7 +237,7 @@ class EquationSolver(Equation):
     nl_deps = []
     nl_dep_ids = set()
     for dep in F.coefficients():
-      if isinstance(dep, backend_Function):
+      if is_function(dep):
         dep_id = dep.id()
         if not dep_id in dep_ids:
           deps.append(dep)
@@ -242,7 +245,7 @@ class EquationSolver(Equation):
         if not dep_id in nl_dep_ids:
           n_nl_deps = 0
           for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(F, dep, argument = TrialFunction(dep.function_space()))).coefficients():
-            if isinstance(nl_dep, backend_Function):
+            if is_function(nl_dep):
               nl_dep_id = nl_dep.id()
               if not nl_dep_id in nl_dep_ids:
                 nl_deps.append(nl_dep)
@@ -341,7 +344,7 @@ class EquationSolver(Equation):
             if is_static(dep):
               # ... on a static dependency. This is part of the static
               # component.
-              static_form += action(mat_form, dep)
+              static_form += ufl.action(mat_form, coefficient = dep)
             else:
               # ... on a non-static dependency.
               mat_forms[i] = [mat_form, CacheIndex()]
@@ -559,7 +562,7 @@ class EquationSolver(Equation):
         #  Cache entry cleared
       elif self._defer_adjoint_assembly:
         #assert(isinstance(mat_cache, ufl.classes.Form))
-        return action(ufl.replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), adj_x)
+        return ufl.action(ufl.replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), coefficient = adj_x)
       else:
         #assert(isinstance(mat_cache, ufl.classes.Form))
         return alias_assemble(mat_cache, list(nl_deps) + [adj_x],
@@ -579,10 +582,10 @@ class EquationSolver(Equation):
     elif self._defer_adjoint_assembly:
       self._derivative_mats[dep_index] = dF
       dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
-      return action(dF, adj_x)
+      return ufl.action(dF, coefficient = adj_x)
     else:
       self._derivative_mats[dep_index] = dF = \
-        alias_form(action(dF, adj_x), list(self.nonlinear_dependencies()) + [adj_x])
+        alias_form(ufl.action(dF, coefficient = adj_x), list(self.nonlinear_dependencies()) + [adj_x])
       return alias_assemble(dF, list(nl_deps) + [adj_x],
         form_compiler_parameters = self._form_compiler_parameters)
   

@@ -214,14 +214,14 @@ def subtract_adjoint_derivative_action(x, y):
     return
   if isinstance(y, tuple):
     alpha, y = y
-    if is_function(y):
+    if isinstance(y, Function):
       y = y.vector()
     if alpha == 1.0:
       x.vector()[:] -= y
     else:
       x.vector()[:] -= alpha * y
   else:
-    if is_function(y):
+    if isinstance(y, Function):
       y = y.vector()
     x.vector()[:] -= y
     

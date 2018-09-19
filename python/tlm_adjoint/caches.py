@@ -169,7 +169,7 @@ def split_action(form, x):
     return ufl.classes.Form([]), form
   
   try:
-    lhs, rhs = system(ufl.replace(form, OrderedDict([(x, trial)])))
+    lhs, rhs = ufl.system(ufl.replace(form, OrderedDict([(x, trial)])))
   except ufl.UFLException:
     # UFL error encountered
     return ufl.classes.Form([]), form

@@ -47,11 +47,11 @@
 backend = "FEniCS"
 
 from fenics import *
-
 import fenics
 
 backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_Vector = GenericVector
+
 extract_args = fenics.fem.solving._extract_args
 
 backend_Constant = Constant
@@ -63,6 +63,9 @@ backend_assemble = assemble
 backend_assemble_system = assemble_system
 backend_project = project
 backend_solve = solve
+
+cpp_LinearVariationalProblem = fenics.cpp.fem.LinearVariationalProblem
+cpp_NonlinearVariationalProblem = fenics.cpp.fem.NonlinearVariationalProblem
 
 __all__ = \
   [
@@ -80,35 +83,28 @@ __all__ = \
     "backend_project",
     "backend_solve",
     
-    "Constant",
-    "DirichletBC",
+    "extract_args",
+    
+    "cpp_LinearVariationalProblem",
+    "cpp_NonlinearVariationalProblem",
+    
     "Form",
-    "Function",
     "FunctionSpace",
     "KrylovSolver",
-    "LinearVariationalSolver",
     "LUSolver",
-    "NewtonSolver",
+    "LinearVariationalSolver",
     "NonlinearVariationalSolver",
     "Parameters",
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
-    "action",
-    "adjoint",
     "assemble",
     "assemble_system",
-    "dx",
-    "extract_args",
-    "fenics",
     "has_lu_solver_method",
     "info",
-    "inner",
     "mpi_comm_world",
     "parameters",
-    "project",
-    "solve",
-    "system"
+    "solve"
   ]
 
 if not hasattr(fenics, "mpi_comm_world"):

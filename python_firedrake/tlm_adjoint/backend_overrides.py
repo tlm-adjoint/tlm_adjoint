@@ -21,9 +21,10 @@ from .backend import *
 from .backend_interface import *
 
 from .equations import AssignmentSolver, EquationSolver
-from .tlm_adjoint import annotation_enabled, tlm_enabled
+from .tlm_adjoint import ManagerException, annotation_enabled, tlm_enabled
 
 import copy
+import ufl
 
 __all__ = \
   [
@@ -73,7 +74,7 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inve
     if isinstance(b, backend_Matrix):
       if bcs is None:
         tensor._tlm_adjoint__bcs = []
-      elif isinstance(bcs, base_DirichletBC):
+      elif isinstance(bcs, backend_DirichletBC):
         tensor._tlm_adjoint__bcs = [bcs]
       else:
         tensor._tlm_adjoint__bcs = copy.copy(bcs)
@@ -129,7 +130,7 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
       solver_parameters = solver_parameters,
       form_compiler_parameters = form_compiler_parameters, name = name)
     test, trial = TestFunction(V), TrialFunction(V)
-    eq = EquationSolver(inner(test, trial) * dx == inner(test, v) * dx,
+    eq = EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
       return_value, [] if bcs is None else bcs,
       solver_parameters = {} if solver_parameters is None else solver_parameters)
     eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
@@ -139,18 +140,18 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
       solver_parameters = solver_parameters,
       form_compiler_parameters = form_compiler_parameters, name = name)
 
-_orig_DirichletBC_apply = DirichletBC.apply
+_orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, r, u = None):
   _orig_DirichletBC_apply(self, r, u = u)
   
   if hasattr(r, "_tlm_adjoint__bcs"):
     r._tlm_adjoint__bcs.append(self)
-DirichletBC.apply = _DirichletBC_apply
+backend_DirichletBC.apply = _DirichletBC_apply
 
 _orig_Function_assign = backend_Function.assign
 def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, expr, subset = subset)
-  if not isinstance(expr, backend_Function) or not subset is None:
+  if not is_function(expr) or not subset is None:
     # Only assignment to a Function annotated
     return
   
@@ -201,7 +202,7 @@ class LinearSolver(backend_LinearSolver):
       tlm = tlm_enabled()
     if annotate or tlm:
       A = self._tlm_adjoint__A
-      if not isinstance(x, backend_Function):
+      if not is_function(x):
         x = x._tlm_adjoint__function
       bcs = A._tlm_adjoint__bcs
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters

@@ -121,7 +121,7 @@ def assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True
   if len(bcs) > 0:
     test = TestFunction(form.arguments()[0].function_space())
     test_shape = test.ufl_element().value_shape()
-    dummy_rhs = inner(test, Constant(0.0 if len(test_shape) == 0 else numpy.zeros(test_shape, dtype = numpy.float64))) * dx
+    dummy_rhs = ufl.inner(test, backend_Constant(0.0 if len(test_shape) == 0 else numpy.zeros(test_shape, dtype = numpy.float64))) * ufl.dx
     A, b_bc = assemble_system(form, dummy_rhs, bcs, form_compiler_parameters = form_compiler_parameters)
     if b_bc.norm("linf") == 0.0:
       b_bc = None
@@ -155,7 +155,7 @@ def form_form_compiler_parameters(form, form_compiler_parameters):
           "quadrature_degree":ffc.analysis._extract_common_quadrature_degree(integral_metadata)}
 
 def homogenize(bc):
-  hbc = DirichletBC(bc)
+  hbc = backend_DirichletBC(bc)
   hbc.homogenize()
   return hbc
 
@@ -235,7 +235,7 @@ def solve(*args, **kwargs):
   if linear:
     lhs = dolfin_form(lhs, form_compiler_parameters)
     rhs = dolfin_form(rhs, form_compiler_parameters)
-    problem = fenics.cpp.fem.LinearVariationalProblem(lhs, rhs, x.this if hasattr(x, "this") else x._cpp_object, bcs)
+    problem = cpp_LinearVariationalProblem(lhs, rhs, x.this if hasattr(x, "this") else x._cpp_object, bcs)
     solver = LinearVariationalSolver(problem)
     solver.parameters.update(solver_parameters)
     return_value = solver.solve()
@@ -252,7 +252,7 @@ def solve(*args, **kwargs):
     
     F = dolfin_form(F, form_compiler_parameters)
     J = dolfin_form(J, form_compiler_parameters)
-    problem = fenics.cpp.fem.NonlinearVariationalProblem(F, x.this if hasattr(x, "this") else x._cpp_object, bcs, J)
+    problem = cpp_NonlinearVariationalProblem(F, x.this if hasattr(x, "this") else x._cpp_object, bcs, J)
     solver = NonlinearVariationalSolver(problem)
     solver.parameters.update(solver_parameters)
     return_value = solver.solve()
