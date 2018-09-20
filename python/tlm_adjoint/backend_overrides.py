@@ -21,7 +21,7 @@ from .backend import *
 from .backend_interface import *
 
 from .equations import AssignmentSolver, EquationSolver
-from .tlm_adjoint import ManagerException, annotation_enabled, tlm_enabled
+from .tlm_adjoint import annotation_enabled, tlm_enabled
 
 from collections import OrderedDict
 import copy
@@ -29,6 +29,8 @@ import ufl
 
 __all__ = \
   [
+    "OverrideException",
+  
     "KrylovSolver",
     "LUSolver",
     "assemble",
@@ -36,6 +38,9 @@ __all__ = \
     "project",
     "solve"
   ]
+
+class OverrideException(Exception):
+  pass
 
 def parameters_dict_equal(parameters_a, parameters_b):
   for key_a in parameters_a:
@@ -55,7 +60,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
       return False
   return True
 
-# Aim for compatibility with FEniCS 2017.1.0 API
+# Aim for compatibility with FEniCS 2018.1.0 API
 
 def assemble(form, tensor = None, form_compiler_parameters = None, add_values = False, *args, **kwargs):
   b = backend_assemble(form, tensor = tensor,
@@ -72,9 +77,9 @@ def assemble(form, tensor = None, form_compiler_parameters = None, add_values = 
   
     if add_values and hasattr(tensor, "_tlm_adjoint__form"):
       if tensor._tlm_adjoint__bcs != []:
-        raise ManagerException("Non-matching boundary conditions")
+        raise OverrideException("Non-matching boundary conditions")
       elif not parameters_dict_equal(tensor._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-        raise ManagerException("Non-matching form compiler parameters")
+        raise OverrideException("Non-matching form compiler parameters")
       tensor._tlm_adjoint__form += form
     else:
       tensor._tlm_adjoint__form = form
@@ -87,7 +92,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
   form_compiler_parameters = None, add_values = False,
   finalize_tensor = True, keep_diagonal = False, A_tensor = None, b_tensor = None, *args, **kwargs):
   if not x0 is None:
-    raise ManagerException("Non-linear boundary condition case not supported")
+    raise OverrideException("Non-linear boundary condition case not supported")
     
   A, b = backend_assemble_system(A_form, b_form, bcs = bcs, x0 = x0,
     form_compiler_parameters = form_compiler_parameters,
@@ -110,9 +115,9 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
     
   if add_values and hasattr(A_tensor, "_tlm_adjoint__form"):
     if A_tensor._tlm_adjoint__bcs != bcs:
-      raise ManagerException("Non-matching boundary conditions")
+      raise OverrideException("Non-matching boundary conditions")
     elif not parameters_dict_equal(A_tensor._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-      raise ManagerException("Non-matching form compiler parameters")
+      raise OverrideException("Non-matching form compiler parameters")
     A_tensor._tlm_adjoint__form += A_form
   else:
     A_tensor._tlm_adjoint__form = A_form
@@ -121,9 +126,9 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
   
   if add_values and hasattr(b_tensor, "_tlm_adjoint__form"):
     if b_tensor._tlm_adjoint__bcs != bcs:
-      raise ManagerException("Non-matching boundary conditions")
+      raise OverrideException("Non-matching boundary conditions")
     elif not parameters_dict_equal(b_tensor._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-      raise ManagerException("Non-matching form compiler parameters")
+      raise OverrideException("Non-matching form compiler parameters")
     b_tensor._tlm_adjoint__form += b_form
   else:
     b_tensor._tlm_adjoint__form = b_form
@@ -141,55 +146,25 @@ def solve(*args, **kwargs):
     annotate = annotation_enabled()
   if tlm is None:
     tlm = tlm_enabled()
-  if annotate or tlm:
-    if isinstance(args[0], ufl.classes.Equation):
-      eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
-      if not J is None:
-        raise ManagerException("Custom Jacobians not supported")
-      if not tol is None or not M is None:
-        raise ManagerException("Adaptive solves not supported")
-      bcs = copy.copy(bcs)
-      lhs, rhs = eq.lhs, eq.rhs
-      if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
-        (x in lhs.coefficients() or x in rhs.coefficients()):
-        F = function_new(x)
-        AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
-        lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
-        rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
-        eq = lhs == rhs
-      eq = EquationSolver(eq, x, bcs,
-        form_compiler_parameters = form_compiler_parameters,
-        solver_parameters = solver_parameters, cache_jacobian = False,
-        pre_assemble = False)
-      eq._pre_annotate(annotate = annotate)
-      return_value = backend_solve(*args, **kwargs)
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
-      return return_value
-    elif isinstance(args[0], backend_Matrix):
-      A, x, b = args[:3]
-      solver_parameters = {"linear_solver":"default"}
-      if len(args) > 3:
-        solver_parameters["linear_solver"] = args[3]
-      if len(args) > 4:
-        solver_parameters["preconditioner"] = args[4]
-      bcs = A._tlm_adjoint__bcs
-      if bcs != b._tlm_adjoint__bcs:
-        raise ManagerException("Non-matching boundary conditions")
-      form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-      if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-        raise ManagerException("Non-matching form compiler parameters")
-      # ?? Other solver parameters ??
-      eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form,
-        x._tlm_adjoint__function, bcs = bcs,
-        form_compiler_parameters = form_compiler_parameters,
-        solver_parameters = solver_parameters, cache_jacobian = False,
-        pre_assemble = False)
-      eq._pre_annotate(annotate = annotate)
-      return_value = backend_solve(*args, **kwargs)
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
-      return return_value
-    else:
-      raise ManagerException("Unexpected equation arguments")
+  if (annotate or tlm) and isinstance(args[0], ufl.classes.Equation):
+    eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
+    if not J is None:
+      raise OverrideException("Custom Jacobians not supported")
+    if not tol is None or not M is None:
+      raise OverrideException("Adaptive solves not supported")
+    bcs = copy.copy(bcs)
+    lhs, rhs = eq.lhs, eq.rhs
+    if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
+      (x in lhs.coefficients() or x in rhs.coefficients()):
+      F = function_new(x)
+      AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
+      lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
+      rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
+      eq = lhs == rhs
+    EquationSolver(eq, x, bcs,
+      form_compiler_parameters = form_compiler_parameters,
+      solver_parameters = solver_parameters, cache_jacobian = False,
+      pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
   else:
     return backend_solve(*args, **kwargs)
 
@@ -206,38 +181,20 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
   if tlm is None:
     tlm = tlm_enabled()
   if annotate or tlm:
+    if V is None:
+      raise OverrideException("Function space required")
     if function is None:
-      return_value = backend_project(v, V = V, bcs = bcs, mesh = mesh,
-        function = function, solver_type = solver_type,
-        preconditioner_type = preconditioner_type,
-        form_compiler_parameters = form_compiler_parameters)
-      V = return_value.function_space()
-      test, trial = TestFunction(V), TrialFunction(V)
-      eq = EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
-        return_value, bcs = bcs,
-        solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
-        form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-        cache_jacobian = False, pre_assemble = False)
-      # ?? Other solver parameters ??
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+      x = Function(V)
     else:
-      V = function.function_space()
-      test, trial = TestFunction(V), TrialFunction(V)
-      eq = EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
-        function, bcs = bcs,
-        solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
-        form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-        cache_jacobian = False, pre_assemble = False)
+      x = function
+    test, trial = TestFunction(V), TrialFunction(V)
+    EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
+      x, bcs = bcs,
+      solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
+      form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
+      cache_jacobian = False, pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
       # ?? Other solver parameters ?
-        
-      eq._pre_annotate(annotate = annotate)
-      return_value = backend_project(v, V = V, bcs = bcs, mesh = mesh,
-        function = function, solver_type = solver_type,
-        preconditioner_type = preconditioner_type,
-        form_compiler_parameters = form_compiler_parameters)
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
-      
-    return return_value
+    return x
   else:
     return backend_project(v, V = V, bcs = bcs, mesh = mesh, function = function,
       solver_type = solver_type, preconditioner_type = preconditioner_type,
@@ -246,7 +203,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
 _orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, *args):
   if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) or len(args) > 2:
-    raise ManagerException("Non-linear boundary condition case not supported")
+    raise OverrideException("Non-linear boundary condition case not supported")
     
   _orig_DirichletBC_apply(self, *args)
   
@@ -298,7 +255,7 @@ def _Matrix_mul(self, other):
   return_value = _orig_Matrix_mul(self, other)
   if hasattr(self, "_tlm_adjoint__form") and hasattr(other, "_tlm_adjoint__function"):
     if len(self._tlm_adjoint__bcs) > 0:
-      raise ManagerException("Matrix action with boundary conditions not supported")
+      raise OverrideException("Matrix action with boundary conditions not supported")
     return_value._tlm_adjoint__form = ufl.action(self._tlm_adjoint__form, coefficient = other._tlm_adjoint__function)
     return_value._tlm_adjoint__bcs = []
     return_value._tlm_adjoint__form_compiler_parameters = self._tlm_adjoint__form_compiler_parameters
@@ -315,7 +272,7 @@ class LUSolver(backend_LUSolver):
       self._tlm_adjoint__A = args[1]
       self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"
     elif len(args) >= 1 and isinstance(args[0], str):
-      self._tlm_adjoint__linear_solver = args[0]
+      self._tlm_adjoint__linear_solver = args[0]  # FEniCS < 2018.1.0 compatibility
     else:
       self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
       
@@ -340,10 +297,10 @@ class LUSolver(backend_LUSolver):
         
       bcs = A._tlm_adjoint__bcs
       if bcs != b._tlm_adjoint__bcs:
-        raise ManagerException("Non-matching boundary conditions")
+        raise OverrideException("Non-matching boundary conditions")
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-        raise ManagerException("Non-matching form compiler parameters")
+        raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
         bcs = bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "lu_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
@@ -371,8 +328,8 @@ class KrylovSolver(backend_KrylovSolver):
     backend_KrylovSolver.set_operator(self, A)
     self._tlm_adjoint__A = A
 
-  def set_operators(self, A, P):
-    raise ManagerException("Preconditioner matrices not supported")
+  def set_operators(self, *args, **kwargs):
+    raise OverrideException("Preconditioner matrices not supported")
 
   def solve(self, *args, annotate = None, tlm = None):
     if annotate is None:
@@ -389,10 +346,10 @@ class KrylovSolver(backend_KrylovSolver):
         
       bcs = A._tlm_adjoint__bcs
       if bcs != b._tlm_adjoint__bcs:
-        raise ManagerException("Non-matching boundary conditions")
+        raise OverrideException("Non-matching boundary conditions")
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-        raise ManagerException("Non-matching form compiler parameters")
+        raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
         bcs = bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "preconditioner":self._tlm_adjoint__preconditioner, "krylov_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
