@@ -191,7 +191,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
       x = function
     test, trial = TestFunction(V), TrialFunction(V)
     EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
-      x, bcs = bcs,
+      x, bcs,
       solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
       form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
       cache_jacobian = False, pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
@@ -297,7 +297,7 @@ class LUSolver(backend_LUSolver):
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
-        bcs = bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "lu_solver":self.parameters},
+        bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "lu_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
 
@@ -346,7 +346,7 @@ class KrylovSolver(backend_KrylovSolver):
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
-        bcs = bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "preconditioner":self._tlm_adjoint__preconditioner, "krylov_solver":self.parameters},
+        bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "preconditioner":self._tlm_adjoint__preconditioner, "krylov_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
 
       eq._pre_annotate(annotate = annotate)
