@@ -30,7 +30,7 @@ import ufl
 __all__ = \
   [
     "OverrideException",
-  
+    
     "KrylovSolver",
     "LUSolver",
     "assemble",
@@ -146,25 +146,27 @@ def solve(*args, **kwargs):
     annotate = annotation_enabled()
   if tlm is None:
     tlm = tlm_enabled()
-  if (annotate or tlm) and isinstance(args[0], ufl.classes.Equation):
-    eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
-    if not J is None:
-      raise OverrideException("Custom Jacobians not supported")
-    if not tol is None or not M is None:
-      raise OverrideException("Adaptive solves not supported")
-    bcs = copy.copy(bcs)
-    lhs, rhs = eq.lhs, eq.rhs
-    if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
-      (x in lhs.coefficients() or x in rhs.coefficients()):
-      F = function_new(x)
-      AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
-      lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
-      rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
-      eq = lhs == rhs
-    EquationSolver(eq, x, bcs,
-      form_compiler_parameters = form_compiler_parameters,
-      solver_parameters = solver_parameters, cache_jacobian = False,
-      pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+  if annotate or tlm:
+    if isinstance(args[0], ufl.classes.Equation):
+      eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
+      if not J is None:
+        raise OverrideException("Custom Jacobians not supported")
+      if not tol is None or not M is None:
+        raise OverrideException("Adaptive solves not supported")
+      lhs, rhs = eq.lhs, eq.rhs
+      if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
+        (x in lhs.coefficients() or x in rhs.coefficients()):
+        F = function_new(x)
+        AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
+        lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
+        rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
+        eq = lhs == rhs
+      EquationSolver(eq, x, bcs,
+        form_compiler_parameters = form_compiler_parameters,
+        solver_parameters = solver_parameters, cache_jacobian = False,
+        pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+    else:
+      raise OverrideException("Linear system solves not supported")
   else:
     return backend_solve(*args, **kwargs)
 
@@ -202,35 +204,30 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
 
 _orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, *args):
-  if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) or len(args) > 2:
-    raise OverrideException("Non-linear boundary condition case not supported")
-    
   _orig_DirichletBC_apply(self, *args)
-  
+  if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) or len(args) > 2:
+    return
+
   if isinstance(args[0], backend_Matrix):
-    bc = self
-
     A = args[0]
-    if hasattr(A, "_tlm_adjoint__bcs"):
-      A._tlm_adjoint__bcs.append(bc)
-    
-    if len(args) > 1 and isinstance(args[1], backend_Vector):
+    if len(args) > 1:
       b = args[1]
-      if hasattr(b, "_tlm_adjoint__bcs"):
-        b._tlm_adjoint__bcs.append(bc)
-  elif isinstance(args[0], backend_Vector):
-    bc = self
-
+    else:
+      b = None
+  else:
+    A = None
     b = args[0]
-    if hasattr(b, "_tlm_adjoint__bcs"):
-      b._tlm_adjoint__bcs.append(bc)
+
+  if not A is None and hasattr(A, "_tlm_adjoint__bcs"):
+    A._tlm_adjoint__bcs.append(self)
+  if not b is None and hasattr(b, "_tlm_adjoint__bcs"):
+    b._tlm_adjoint__bcs.append(self)
 backend_DirichletBC.apply = _DirichletBC_apply
 
 _orig_Function_assign = backend_Function.assign
 def _Function_assign(self, rhs, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, rhs)
   if not is_function(rhs):
-    # Only assignment to a Function annotated
     return
   
   if annotate is None:
@@ -253,9 +250,7 @@ backend_Function.vector = _Function_vector
 _orig_Matrix_mul = backend_Matrix.__mul__
 def _Matrix_mul(self, other):
   return_value = _orig_Matrix_mul(self, other)
-  if hasattr(self, "_tlm_adjoint__form") and hasattr(other, "_tlm_adjoint__function"):
-    if len(self._tlm_adjoint__bcs) > 0:
-      raise OverrideException("Matrix action with boundary conditions not supported")
+  if hasattr(self, "_tlm_adjoint__form") and hasattr(other, "_tlm_adjoint__function") and len(self._tlm_adjoint__bcs) == 0:
     return_value._tlm_adjoint__form = ufl.action(self._tlm_adjoint__form, coefficient = other._tlm_adjoint__function)
     return_value._tlm_adjoint__bcs = []
     return_value._tlm_adjoint__form_compiler_parameters = self._tlm_adjoint__form_compiler_parameters
