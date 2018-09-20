@@ -686,9 +686,10 @@ class EquationManager:
       depth = 0 if tlm_skip is None else tlm_skip[1]
       if annotate_tlm is None:
         annotate_tlm = annotate
-      for i, ((M, dM), (tlm_map, tlm_map_next, max_depth)) in enumerate(reversed(self._tlm.items())):
+      for i, (M, dM) in enumerate(reversed(self._tlm)):
         if not tlm_skip is None and i >= tlm_skip[0]:
           break
+        tlm_map, tlm_map_next, max_depth = self._tlm[(M, dM)]
         eq_tlm_eqs = self._tlm_eqs.get(eq, None)
         if eq_tlm_eqs is None:
           eq_tlm_eqs = self._tlm_eqs[eq] = OrderedDict()
