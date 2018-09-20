@@ -53,8 +53,8 @@ if not "EquationSolver" in parameters["tlm_adjoint"]:
   parameters["tlm_adjoint"]["EquationSolver"] = {}
 if not "enable_jacobian_caching" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] = True
-if not "pre_assemble" in parameters["tlm_adjoint"]["EquationSolver"]:
-  parameters["tlm_adjoint"]["EquationSolver"]["pre_assemble"] = True
+if not "cache_rhs_assembly" in parameters["tlm_adjoint"]["EquationSolver"]:
+  parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"] = True
 if not "match_quadrature" in parameters["tlm_adjoint"]["EquationSolver"]:
   parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"] = False
 if not "defer_adjoint_assembly" in parameters["tlm_adjoint"]["EquationSolver"]:

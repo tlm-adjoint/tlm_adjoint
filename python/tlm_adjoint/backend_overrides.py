@@ -164,7 +164,7 @@ def solve(*args, **kwargs):
       EquationSolver(eq, x, bcs,
         form_compiler_parameters = form_compiler_parameters,
         solver_parameters = solver_parameters, cache_jacobian = False,
-        pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+        cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
     else:
       raise OverrideException("Linear system solves not supported")
   else:
@@ -194,7 +194,7 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
       x, bcs,
       solver_parameters = {"linear_solver":solver_type, "preconditioner":preconditioner_type},
       form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-      cache_jacobian = False, pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+      cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
       # ?? Other solver parameters ?
     return x
   else:
@@ -298,7 +298,7 @@ class LUSolver(backend_LUSolver):
         raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
         bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "lu_solver":self.parameters},
-        form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
+        form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
       eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
 
 class KrylovSolver(backend_KrylovSolver):
@@ -347,7 +347,7 @@ class KrylovSolver(backend_KrylovSolver):
         raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
         bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "preconditioner":self._tlm_adjoint__preconditioner, "krylov_solver":self.parameters},
-        form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, pre_assemble = False)
+        form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
 
       eq._pre_annotate(annotate = annotate)
       backend_KrylovSolver.solve(self, *args)

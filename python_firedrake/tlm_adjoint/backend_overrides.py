@@ -121,7 +121,7 @@ def solve(*args, **kwargs):
       EquationSolver(eq, x, bcs,
         form_compiler_parameters = form_compiler_parameters,
         solver_parameters = solver_parameters, cache_jacobian = False,
-        pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+        cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
     else:
       raise OverrideException("Linear system solves not supported")
   else:
@@ -142,7 +142,7 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
       x, [] if bcs is None else bcs,
       solver_parameters = {} if solver_parameters is None else solver_parameters,
       form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-      cache_jacobian = False, pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+      cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
     return x
   else:
     return backend_project(v, V, bcs = bcs, mesh = mesh,
@@ -225,7 +225,7 @@ class LinearSolver(backend_LinearSolver):
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
-        cache_jacobian = False, pre_assemble = False)
+        cache_jacobian = False, cache_rhs_assembly = False)
 
       eq._pre_annotate(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)

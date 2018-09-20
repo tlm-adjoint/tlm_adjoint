@@ -203,15 +203,15 @@ class EquationSolver(Equation):
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
-    initial_guess = None, cache_jacobian = None, pre_assemble = None,
+    initial_guess = None, cache_jacobian = None, cache_rhs_assembly = None,
     match_quadrature = None, defer_adjoint_assembly = None):
     if isinstance(bcs, backend_DirichletBC):
       bcs = [bcs]
     if cache_jacobian is None:
       if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:
         cache_jacobian = False
-    if pre_assemble is None:
-      pre_assemble = parameters["tlm_adjoint"]["EquationSolver"]["pre_assemble"]
+    if cache_rhs_assembly is None:
+      cache_rhs_assembly = parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"]
     if match_quadrature is None:
       match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]
     if defer_adjoint_assembly is None:
@@ -304,7 +304,7 @@ class EquationSolver(Equation):
     self._linear = linear
     
     self._cache_jacobian = cache_jacobian
-    self._pre_assemble = pre_assemble
+    self._cache_rhs_assembly = cache_rhs_assembly
     self._defer_adjoint_assembly = defer_adjoint_assembly
     self.reset_forward_solve()
     self.reset_adjoint_derivative_action()
@@ -327,7 +327,7 @@ class EquationSolver(Equation):
         if isinstance(mat_cache, ufl.classes.Form):
           self._derivative_mats[dep_index] = ufl.replace(mat_cache, replace_map)
     
-  def _pre_assembled_rhs(self, deps, b_bc = None):
+  def _cached_rhs(self, deps, b_bc = None):
     eq_deps = self.dependencies()
     
     if self._forward_b_pa is None:
@@ -414,7 +414,8 @@ class EquationSolver(Equation):
     if self._linear:
       alias_clear_J, alias_clear_rhs = False, False
       if self._cache_jacobian:
-        # Cases 1 and 2: Linear, Jacobian cached, with or without pre-assembly
+        # Cases 1 and 2: Linear, Jacobian cached, with or without RHS assembly
+        # caching
         
         if self._forward_J_mat.index() is None or \
           self._forward_J_solver.index() is None:
@@ -427,11 +428,11 @@ class EquationSolver(Equation):
           # Extract the Jacobian from the cache
           J_mat, b_bc = assembly_cache()[self._forward_J_mat]
           
-        if self._pre_assemble:
-          # Assemble the RHS with pre-assembly
-          b = self._pre_assembled_rhs(deps, b_bc = b_bc)
+        if self._cache_rhs_assembly:
+          # Assemble the RHS with RHS assembly caching
+          b = self._cached_rhs(deps, b_bc = b_bc)
         else:
-          # Assemble the RHS without pre-assembly
+          # Assemble the RHS without RHS assembly caching
           if deps is None:
             rhs = self._rhs
           else:
@@ -454,8 +455,8 @@ class EquationSolver(Equation):
           # Extract the linear solver from the cache
           J_solver = linear_solver_cache()[self._forward_J_solver]
       else:
-        if self._pre_assemble:
-          # Case 3: Linear, Jacobian not cached, with pre-assembly
+        if self._cache_rhs_assembly:
+          # Case 3: Linear, Jacobian not cached, with RHS assembly caching
           
           # Assemble the Jacobian
           if deps is None:
@@ -468,10 +469,10 @@ class EquationSolver(Equation):
             alias_clear_J = True
           J_mat, b_bc = assemble_matrix(J, self._bcs, self._form_compiler_parameters, force_evaluation = False)
 
-          # Assemble the RHS with pre-assembly
-          b = self._pre_assembled_rhs(deps, b_bc = b_bc)
+          # Assemble the RHS with RHS assembly caching
+          b = self._cached_rhs(deps, b_bc = b_bc)
         else:
-          # Case 4: Linear, Jacobian not cached, without pre-assembly
+          # Case 4: Linear, Jacobian not cached, without RHS assembly caching
           
           # Assemble the Jacobian and RHS
           if deps is None:
@@ -575,7 +576,7 @@ class EquationSolver(Equation):
       return None
     dF = adjoint(dF)
     
-    if self._pre_assemble and is_static(dF):
+    if self._cache_rhs_assembly and is_static(dF):
       dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
       self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
       return matrix_multiply(mat, adj_x.vector(), space_fn = dep)
@@ -653,7 +654,7 @@ class EquationSolver(Equation):
         solver_parameters = self._linear_solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
         cache_jacobian = self._cache_jacobian,
-        pre_assemble = self._pre_assemble,
+        cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
         
 class DirichletBCSolver(Equation):

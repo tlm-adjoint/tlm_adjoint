@@ -308,7 +308,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
             initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
 #            cache_jacobian = self._cache_jacobian,
             cache_jacobian = True,
-            pre_assemble = self._pre_assemble,
+            cache_rhs_assembly = self._cache_rhs_assembly,
             defer_adjoint_assembly = self._defer_adjoint_assembly)
       
     # GHS09 eqns (1)--(2)
