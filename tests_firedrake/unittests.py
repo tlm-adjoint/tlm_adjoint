@@ -306,12 +306,12 @@ class tests(unittest.TestCase):
     J, G = forward(F)
     stop_manager()
     
-    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 16)
+    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 14)
 
     J_val = J.value()    
     dJ = compute_gradient(J, F)    
     min_order = taylor_test(lambda F : forward(F)[0], F, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
-    self.assertGreater(min_order, 1.99)
+    self.assertGreater(min_order, 1.98)
 
   def test_bc(self):
     reset("memory")

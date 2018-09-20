@@ -21,18 +21,24 @@ from .backend import *
 from .backend_interface import *
 
 from .equations import AssignmentSolver, EquationSolver
-from .tlm_adjoint import ManagerException, annotation_enabled, tlm_enabled
+from .tlm_adjoint import annotation_enabled, tlm_enabled
 
+from collections import OrderedDict
 import copy
 import ufl
 
 __all__ = \
   [
+    "OverrideException",
+    
     "LinearSolver",
     "assemble",
     "project",
     "solve"
   ]
+
+class OverrideException(Exception):
+  pass
 
 def parameters_dict_equal(parameters_a, parameters_b):
   for key_a, value_a in parameters_a.items():
@@ -51,19 +57,19 @@ def parameters_dict_equal(parameters_a, parameters_b):
       return False
   return True
 
-# Following Firedrake API, git master revision
-# efea95b923b9f3319204c6e22f7aaabb792c9abd
+# Aim for compatibility with Firedrake API, git master revision
+# a7e3c6e16728b035b95125321824ca3cc9e40a9f
 
 def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inverse = False, *args, **kwargs):
   if inverse:
-    raise ManagerException("Local inverses not supported")
+    raise OverrideException("Local inverses not supported")
 
   b = backend_assemble(f, tensor = tensor, bcs = bcs,
     form_compiler_parameters = form_compiler_parameters, inverse = inverse,
     *args, **kwargs)
   if tensor is None:
     tensor = b
-  
+      
   if not isinstance(b, float):
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     if not form_compiler_parameters is None:
@@ -92,24 +98,32 @@ def solve(*args, **kwargs):
   if tlm is None:
     tlm = tlm_enabled()
   if annotate or tlm:
-    eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
-      nullspace, transpose_nullspace, near_nullspace, options_prefix = \
-      extract_args(*args, **kwargs)
-    if not J is None or not Jp is None:
-      raise ManagerException("Custom Jacobians not supported")
-    if not M is None:
-      raise ManagerException("Adaptive solves not supported")
-    if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
-      raise ManagerException("Nullspaces not supported")
-    if not options_prefix is None:
-      raise ManagerException("Options prefixes not supported")
-    eq = EquationSolver(eq, x, bcs,
-      form_compiler_parameters = form_compiler_parameters,
-      solver_parameters = solver_parameters)
-    eq._pre_annotate(annotate = annotate)
-    return_value = backend_solve(*args, **kwargs)
-    eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
-    return return_value
+    if isinstance(args[0], ufl.classes.Equation):
+      eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
+        nullspace, transpose_nullspace, near_nullspace, options_prefix = \
+        extract_args(*args, **kwargs)
+      if not J is None or not Jp is None:
+        raise OverrideException("Custom Jacobians not supported")
+      if not M is None:
+        raise OverrideException("Adaptive solves not supported")
+      if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
+        raise OverrideException("Null spaces not supported")
+      if not options_prefix is None:
+        raise OverrideException("Options prefixes not supported")
+      lhs, rhs = eq.lhs, eq.rhs
+      if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
+        (x in lhs.coefficients() or x in rhs.coefficients()):
+        F = function_new(x)
+        AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
+        lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
+        rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
+        eq = lhs == rhs
+      EquationSolver(eq, x, bcs,
+        form_compiler_parameters = form_compiler_parameters,
+        solver_parameters = solver_parameters, cache_jacobian = False,
+        pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+    else:
+      raise OverrideException("Linear system solves not supported")
   else:
     return backend_solve(*args, **kwargs)
 
@@ -121,20 +135,15 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
     tlm = tlm_enabled()
   if annotate or tlm:
     if not mesh is None:
-      raise ManagerException("'mesh' argument not supported")
-    if not form_compiler_parameters is None:
-      # Firedrake documentation indicates that this is ignored
-      raise ManagerException("'form_compiler_parameters' argument not supported")
-    # Since a zero initial guess is used, _pre_annotate is not needed
-    return_value = backend_project(v, V, bcs = bcs, mesh = mesh,
-      solver_parameters = solver_parameters,
-      form_compiler_parameters = form_compiler_parameters, name = name)
+      raise OverrideException("mesh argument not supported")
+    x = Function(V, name = name)
     test, trial = TestFunction(V), TrialFunction(V)
-    eq = EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
-      return_value, [] if bcs is None else bcs,
-      solver_parameters = {} if solver_parameters is None else solver_parameters)
-    eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
-    return return_value
+    EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
+      x, [] if bcs is None else bcs,
+      solver_parameters = {} if solver_parameters is None else solver_parameters,
+      form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
+      cache_jacobian = False, pre_assemble = False).solve(annotate = annotate, replace = True, tlm = tlm)
+    return x
   else:
     return backend_project(v, V, bcs = bcs, mesh = mesh,
       solver_parameters = solver_parameters,
@@ -143,7 +152,9 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
 _orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, r, u = None):
   _orig_DirichletBC_apply(self, r, u = u)
-  
+  if not isinstance(r, backend_Matrix):
+    return
+
   if hasattr(r, "_tlm_adjoint__bcs"):
     r._tlm_adjoint__bcs.append(self)
 backend_DirichletBC.apply = _DirichletBC_apply
@@ -152,7 +163,6 @@ _orig_Function_assign = backend_Function.assign
 def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, expr, subset = subset)
   if not is_function(expr) or not subset is None:
-    # Only assignment to a Function annotated
     return
   
   if annotate is None:
@@ -176,12 +186,12 @@ class LinearSolver(backend_LinearSolver):
   def __init__(self, A, P = None, solver_parameters = None, nullspace = None,
     transpose_nullspace = None, near_nullspace = None, options_prefix = None):
     if not P is None:
-      raise ManagerException("Preconditioner matrices not supported")
+      raise OverrideException("Preconditioner matrices not supported")
     if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
-      raise ManagerException("Nullspaces not supported")
+      raise OverrideException("Null spaces not supported")
     if not options_prefix is None:
-      raise ManagerException("Options prefixes not supported")
-  
+      raise OverrideException("Options prefixes not supported")
+
     backend_LinearSolver.__init__(self, A, P = P,
       solver_parameters = solver_parameters, nullspace = nullspace,
       transpose_nullspace = transpose_nullspace,
@@ -194,7 +204,7 @@ class LinearSolver(backend_LinearSolver):
       
     self._tlm_adjoint__A = A
     self._tlm_adjoint__solver_parameters = solver_parameters
-  
+
   def solve(self, x, b, annotate = None, tlm = None):
     if annotate is None:
       annotate = annotation_enabled()
@@ -204,15 +214,18 @@ class LinearSolver(backend_LinearSolver):
       A = self._tlm_adjoint__A
       if not is_function(x):
         x = x._tlm_adjoint__function
+      if not is_function(b):
+        b = b._tlm_adjoint__function
       bcs = A._tlm_adjoint__bcs
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-        raise ManagerException("Non-matching form compiler parameters")
+        raise OverrideException("Non-matching form compiler parameters")
       solver_parameters = self._tlm_adjoint__solver_parameters
       
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x,
-        bcs = bcs, solver_parameters = solver_parameters,
-        form_compiler_parameters = form_compiler_parameters)
+        bcs, solver_parameters = solver_parameters,
+        form_compiler_parameters = form_compiler_parameters,
+        cache_jacobian = False, pre_assemble = False)
 
       eq._pre_annotate(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)
