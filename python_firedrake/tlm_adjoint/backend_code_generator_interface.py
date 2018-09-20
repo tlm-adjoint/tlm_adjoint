@@ -90,8 +90,8 @@ def assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True
 
 # Similar interface to assemble_system in FEniCS 2018.1.0
 def assemble_system(A_form, b_form, bcs = [], form_compiler_parameters = {}):
-  return (assemble(A_form, bcs = bcs, form_compiler_parameter = form_compiler_parameters),
-          assemble(b_form, form_compiler_parameters = form_compiler_parameter))
+  return (assemble(A_form, bcs = bcs, form_compiler_parameters = form_compiler_parameters),
+          assemble(b_form, form_compiler_parameters = form_compiler_parameters))
 
 def linear_solver(A, linear_solver_parameters):
   return LinearSolver(A, solver_parameters = linear_solver_parameters)
