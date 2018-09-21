@@ -249,8 +249,10 @@ class LinearEquation(Equation):
     nl_deps = []
     nl_dep_ids = {}
     
+    x_ids = set()
     for x in X:
       x_id = x.id()
+      x_ids.add(x_id)
       if x_id in dep_ids:
         raise EquationException("Duplicate solve")
       deps.append(x)
@@ -262,12 +264,16 @@ class LinearEquation(Equation):
     for i, b in enumerate(B):
       for dep in b.dependencies():
         dep_id = dep.id()
+        if dep_id in x_ids:
+          raise EquationException("Invalid non-linear dependency")
         if not dep_id in dep_ids:
           deps.append(dep)
           dep_ids[dep_id] = len(deps) - 1
         b_dep_indices[i].append(dep_ids[dep_id])
       for dep in b.nonlinear_dependencies():
         dep_id = dep.id()
+        if dep_id in x_ids:
+          raise EquationException("Invalid non-linear dependency")
         if not dep_id in nl_dep_ids:
           nl_deps.append(dep)
           nl_dep_ids[dep_id] = len(nl_deps) - 1
