@@ -287,7 +287,7 @@ class TimeSystem:
     
     for tfn in self._tfns:
       for level in tfn.levels():
-        AssignmentSolver(tfn[level._i], tfn[level])._post_annotate(manager = manager, replace = True)
+        AssignmentSolver(tfn[level._i], tfn[level])._post_process(manager = manager, replace = True)
       
   def timestep(self, s = 1, manager = None):
     if self._state == "initial":
@@ -323,7 +323,7 @@ class TimeSystem:
         
     for tfn in self._tfns:
       for level in tfn.levels():
-        AssignmentSolver(tfn[level], tfn[FinalTimeLevel(level._i)])._post_annotate(manager = manager, replace = True)
+        AssignmentSolver(tfn[level], tfn[FinalTimeLevel(level._i)])._post_process(manager = manager, replace = True)
     self._tfns = None
     
     for eq in self._sorted_eqs[2]:

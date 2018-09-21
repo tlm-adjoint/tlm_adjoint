@@ -1343,7 +1343,7 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
            the Functional to be minimized.
   M0       Control parameters initial guess.
   J0       (Optional) Initial functional. If supplied assumes that the forward
-           has already been run, and annotated on the equation manager, using
+           has already been run, and processed by the equation manager, using
            the control parameters given by M0.
   manager  (Optional) The equation manager.
   

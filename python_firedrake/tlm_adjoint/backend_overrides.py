@@ -171,7 +171,7 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
     tlm = tlm_enabled()
   if annotate or tlm:
     eq = AssignmentSolver(expr, self)
-    eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+    eq._post_process(annotate = annotate, replace = True, tlm = tlm)
   return return_value
 backend_Function.assign = _Function_assign
 
@@ -227,8 +227,8 @@ class LinearSolver(backend_LinearSolver):
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False)
 
-      eq._pre_annotate(annotate = annotate)
+      eq._pre_process(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
     else:
       backend_LinearSolver.solve(self, x, b)

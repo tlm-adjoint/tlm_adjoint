@@ -138,14 +138,14 @@ class Equation:
   def nonlinear_dependencies_map(self):
     return self._nl_deps_map
     
-  def _pre_annotate(self, manager = None, annotate = None):
+  def _pre_process(self, manager = None, annotate = None):
     if manager is None:
       manager = _manager()
     for x, checkpoint_ic in zip(self.X(), self._checkpoint_ic):
       if checkpoint_ic:
         manager.add_initial_condition(x, annotate = annotate)
       
-  def _post_annotate(self, manager = None, annotate = None, replace = False, tlm = None, tlm_skip = None):    
+  def _post_process(self, manager = None, annotate = None, replace = False, tlm = None, tlm_skip = None):    
     if manager is None:
       manager = _manager()
     manager.add_equation(self, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = tlm_skip)
@@ -160,7 +160,7 @@ class Equation:
     annotate  (Optional) Whether the equation should be annotated.
     replace   (Optional) Whether, after the equation has been solved, its
               internal Function objects should be replaced with Coefficients.
-              Can be used to save memory in the annotation.
+              Can be used to save memory.
     tlm       (Optional) Whether to derive (and solve) an associated
               tangent-linear equation.
     """
@@ -168,7 +168,7 @@ class Equation:
     if manager is None:
       manager = _manager()
   
-    self._pre_annotate(manager = manager, annotate = annotate)
+    self._pre_process(manager = manager, annotate = annotate)
 
     old_annotating = manager.annotation_enabled()
     annotation_enabled, tlm_enabled = manager.stop()
@@ -176,7 +176,7 @@ class Equation:
     self.forward_solve(X[0] if len(X) == 1 else X)
     manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
-    self._post_annotate(manager = manager, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = _tlm_skip)
+    self._post_process(manager = manager, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = _tlm_skip)
 
   def forward_solve(self, X, deps = None):
     """

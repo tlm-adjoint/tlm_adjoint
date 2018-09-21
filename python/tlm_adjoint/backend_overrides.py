@@ -236,7 +236,7 @@ def _Function_assign(self, rhs, annotate = None, tlm = None):
     tlm = tlm_enabled()
   if annotate or tlm:
     eq = AssignmentSolver(rhs, self)
-    eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+    eq._post_process(annotate = annotate, replace = True, tlm = tlm)
   return return_value
 backend_Function.assign = _Function_assign
 
@@ -299,7 +299,7 @@ class LUSolver(backend_LUSolver):
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
         bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "lu_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
 
 class KrylovSolver(backend_KrylovSolver):
   def __init__(self, *args):
@@ -349,8 +349,8 @@ class KrylovSolver(backend_KrylovSolver):
         bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "preconditioner":self._tlm_adjoint__preconditioner, "krylov_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
 
-      eq._pre_annotate(annotate = annotate)
+      eq._pre_process(annotate = annotate)
       backend_KrylovSolver.solve(self, *args)
-      eq._post_annotate(annotate = annotate, replace = True, tlm = tlm)
+      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
     else:
       backend_KrylovSolver.solve(self, *args)

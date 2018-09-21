@@ -37,13 +37,13 @@ class SingleBlockHessian(Hessian):
   def __init__(self, J, manager = None):
     """
     A Hessian class for the case where a single block equation with memory
-    checkpointing is used. The forward should already be annotated appropriately
-    on the supplied equation manager.
+    checkpointing is used. The forward should already have been processed by
+    the supplied equation manager.
     
     Arguments:
     
     J        The Functional.
-    manager  (Optional) The equation manager used to annotate the forward.
+    manager  (Optional) The equation manager used to process the forward.
     """
   
     self._J = J
@@ -85,7 +85,7 @@ class SingleBlockHessian(Hessian):
     
     for i, eq in enumerate(block):
       eq_X = eq.X()
-      # Copy post-annotation of the equation
+      # Copy annotation of the equation
       manager._block.append(eq)
       manager._cp.configure(checkpoint_ics = False, checkpoint_data = True)
       manager._cp.add_equation((0, len(manager._block) - 1), eq,
@@ -114,13 +114,13 @@ class SingleBlockHessian(Hessian):
             
           tlm_X = tlm_eq.X()
           manager._cp.configure(checkpoint_ics = True, checkpoint_data = True)
-          # Pre-annotate the tangent-linear equation
+          # Pre-process the tangent-linear equation
           for tlm_x, tlm_checkpoint_ic in zip(tlm_X, tlm_eq._checkpoint_ic):
             if tlm_checkpoint_ic:
               manager._cp.add_initial_condition(tlm_x)
           # Solve the tangent-linear equation
           tlm_eq.forward_solve(tlm_X[0] if len(tlm_X) == 1 else tlm_X, tlm_deps)
-          # Post-annotate the tangent-linear equation
+          # Post-process the tangent-linear equation
           manager._block.append(tlm_eq)
           manager._cp.add_equation((0, len(manager._block) - 1), tlm_eq, deps = tlm_deps)
           
