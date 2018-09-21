@@ -98,6 +98,7 @@ __all__ = \
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
+    "adjoint",
     "assemble",
     "assemble_system",
     "has_lu_solver_method",

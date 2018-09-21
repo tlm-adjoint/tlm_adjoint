@@ -55,6 +55,7 @@ __all__ = \
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
+    "adjoint",
     "as_backend_type",
     "assemble",
     "homogenize",

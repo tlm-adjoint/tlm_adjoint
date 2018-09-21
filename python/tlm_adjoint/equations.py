@@ -193,10 +193,6 @@ def homogenized_bc(bc):
     hbc.is_static = static
     hbc.is_homogeneous = lambda : True
     return hbc
-
-def adjoint(form):
-  test, trial = form.arguments()
-  return ufl.adjoint(form, reordered_arguments = (TestFunction(trial.function_space()), TrialFunction(test.function_space())))
     
 class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
@@ -276,7 +272,7 @@ class EquationSolver(Equation):
     if cache_jacobian is None:
       cache_jacobian = is_static(J) and is_static_bcs(bcs)
     
-    solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(linear, solver_parameters)
+    solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(J, linear, solver_parameters)
     if checkpoint_ic:
       initial_guess_id = (x if initial_guess is None else initial_guess).id()
       if not initial_guess_id in nl_dep_ids:
