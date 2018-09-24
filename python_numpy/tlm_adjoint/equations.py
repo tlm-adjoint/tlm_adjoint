@@ -31,6 +31,8 @@ __all__ = \
     "Matrix",
     "RHS",
     
+    "ConstantMatrix",
+    
     "ContractionEquation",
     "ContractionRHS",
     "IdentityRHS",
@@ -161,6 +163,39 @@ class Matrix:
   
   def tangent_linear_rhs(self, M, dM, tlm_map, X):
     raise EquationException("Method not overridden")
+
+class ConstantMatrix(Matrix):
+  def __init__(self, A, A_T = None):
+    Matrix.__init__(self, nl_deps = [])
+    self._A = A
+    self._A_T = A_T
+  
+  def A(self):
+    return self._A
+  
+  def A_T(self):
+    return self._A.T if self._A_T is None else self._A_T
+  
+  def add_forward_action(self, b, nl_deps, x):
+    b.vector()[:] += self._A.dot(x)
+  
+  def add_adjoint_action(self, b, nl_deps, adj_x):
+    b.vector()[:] += self.A_T().dot(x)
+    
+  def forward_solve(self, b, nl_deps):
+    return Function(b.function_space(), _data = numpy.linalg.solve(self._A, b.vector()))
+  
+  def adjoint_action(self, nl_deps, adj_x):
+    return self._A_T().dot(adj_x)
+  
+  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_x, x):
+    return
+  
+  def adjoint_solve(self, b, nl_deps):
+    return Function(b.function_space(), _data = numpy.linalg.solve(self._A_T(), b.vector()))
+    
+  def tangent_linear_rhs(self, M, dM, tlm_map, x):
+    return None
 
 class MatrixActionRHS(RHS):
   def __init__(self, A, X):
