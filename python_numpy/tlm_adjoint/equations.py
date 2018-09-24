@@ -186,13 +186,13 @@ class ConstantMatrix(Matrix):
     return Function(b.function_space(), _data = numpy.linalg.solve(self._A, b.vector()))
   
   def adjoint_action(self, nl_deps, adj_x):
-    return self._A_T().dot(adj_x)
+    return self.A_T().dot(adj_x)
   
   def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_x, x):
     return
   
   def adjoint_solve(self, b, nl_deps):
-    return Function(b.function_space(), _data = numpy.linalg.solve(self._A_T(), b.vector()))
+    return Function(b.function_space(), _data = numpy.linalg.solve(self.A_T(), b.vector()))
     
   def tangent_linear_rhs(self, M, dM, tlm_map, x):
     return None
