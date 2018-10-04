@@ -24,6 +24,54 @@ import numpy
 import unittest
   
 class tests(unittest.TestCase):
+  def test_InterpolationSolver(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitCubeMesh(5, 5, 5)
+    z_space = FunctionSpace(mesh, "Lagrange", 3)
+    y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
+    x_space = FunctionSpace(mesh, "Lagrange", 2)
+
+    def forward(z):
+      y = Function(y_space, name = "y")
+      x = Function(x_space, name = "x")
+      
+      LocalProjectionSolver(z, y).solve(replace = True)
+      InterpolationSolver(y, x).solve(replace = True)
+      
+      J = Functional(name = "J")
+      J.assign(x * x * x * dx)
+      
+      return x, J
+      
+    z = Function(z_space, name = "z", static = True)
+    z.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1]) * exp(x[2])", element = z_space.ufl_element()))
+
+    start_manager()
+    x, J = forward(z)
+    stop_manager()
+
+    x_ref = Function(x_space, name = "x_ref")
+    x_ref.interpolate(z)
+
+    x_error = Function(x_space, name = "x_error")
+    function_assign(x_error, x_ref)
+    function_axpy(x_error, -1.0, x)
+
+    x_error_norm = function_linf_norm(x_error)
+    info("Error norm = %.16e" % x_error_norm)
+    self.assertLess(x_error_norm, 1.0e-14)
+
+    dJ = compute_gradient(J, z)
+    min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, seed = 1.0e-4)
+    self.assertGreater(min_order, 2.00)
+
+    ddJ = Hessian(lambda z : forward(z)[1])
+    min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+
   def test_FixedPointSolver(self):
     reset("memory")
     clear_caches()
@@ -768,6 +816,7 @@ if __name__ == "__main__":
 #  tests().test_replace()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
+#  tests().test_InterpolationSolver()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()
