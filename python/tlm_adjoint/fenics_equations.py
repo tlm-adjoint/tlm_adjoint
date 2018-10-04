@@ -35,7 +35,7 @@ __all__ = \
 
 def greedy_coloring(space):
   """
-  A basic greedy colouring of the (process local) node-node graph.
+  A basic greedy coloring of the (process local) node-node graph.
   """
 
   dofmap = space.dofmap()
@@ -65,7 +65,7 @@ def greedy_coloring(space):
     front = [i]
     seen[i] = True
     while len(front) > 0:
-      # Consider a new node, and the smallest non-negative available colour
+      # Consider a new node, and the smallest non-negative available color
       j = front.pop()
       neighbouring_colors = set(colors[node_node_graph[j]])
       color = 0
@@ -198,7 +198,7 @@ class InterpolationSolver(Equation):
     
     y         A Function. The function to be interpolated.
     x         A Function. The solution to the equation.
-    y_colors  (Optional) An integer NumPy vector. Node-node graph colouring for
+    y_colors  (Optional) An integer NumPy vector. Node-node graph coloring for
               the space for y. Defaults to a basic greedy graph coloring.
               Ignored if P is supplied.
     x_coords  (Optional) Coordinates of nodes in the space for x. Defaults to
@@ -209,7 +209,7 @@ class InterpolationSolver(Equation):
     """
     
     # The process locality assumption can be avoided by additionally defining P
-    # for non-owned nodes, but this requires a parallel graph colouring.
+    # for non-owned nodes, but this requires a parallel graph coloring.
   
     if P is None:
       if x_coords is None:
