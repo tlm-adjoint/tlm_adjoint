@@ -227,12 +227,8 @@ class InterpolationSolver(Equation):
         owned = numpy.array([j >= y_ownership_range[0] and j < y_ownership_range[1]
           for j in [y_dofmap.local_to_global_index(i) for i in y_dofmap.cell_dofs(y_cell)]],
           dtype = numpy.bool)
-        if owned.any():
-          if not owned.all():
-            raise EquationException("Non-process-local node-node graph")
-        if not owned.all():
-          if owned.any():
-            raise EquationException("Non-process-local node-node graph")
+        if owned.any() and not owned.all():
+          raise EquationException("Non-process-local node-node graph")
 
       y_colors_N = numpy.empty((1,), dtype = y_colors.dtype)    
       comm = function_comm(y)
