@@ -35,10 +35,13 @@ class tests(unittest.TestCase):
     x_space = FunctionSpace(mesh, "Lagrange", 2)
 
     def forward(z):
-      y = Function(y_space, name = "y")
-      x = Function(x_space, name = "x")
+      if default_comm().size > 1:
+        y = Function(y_space, name = "y")
+        LocalProjectionSolver(z, y).solve(replace = True)
+      else:
+        y = z
       
-      LocalProjectionSolver(z, y).solve(replace = True)
+      x = Function(x_space, name = "x")
       InterpolationSolver(y, x).solve(replace = True)
       
       J = Functional(name = "J")
