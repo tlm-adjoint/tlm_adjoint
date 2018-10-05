@@ -105,6 +105,7 @@ class LocalProjectionSolver(Equation):
     if solver is None:
       solver = LocalSolver(ufl.inner(self._x_test, self._x_trial) * ufl.dx,
         solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+      solver.solve = lambda x, b : solver.solve_local(x, b, x_space.dofmap())
     self._M_solver = solver
     
     self.reset_forward_solve()
