@@ -77,7 +77,7 @@ def greedy_coloring(space):
         if not seen[k]:
           front.append(k)
           seen[k] = True
-    # If the mesh is not connected then we need to restart the front with a new
+    # If the graph is not connected then we need to restart the front with a new
     # starting node
 
   return colors
