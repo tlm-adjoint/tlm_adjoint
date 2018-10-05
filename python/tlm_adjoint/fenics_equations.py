@@ -102,11 +102,13 @@ class LocalProjectionSolver(Equation):
       TestFunction(x_space), TrialFunction(x_space), TestFunction(y_space), TrialFunction(y_space)
     self._form_compiler_parameters = form_compiler_parameters
     
+    if solver is None:
+      solver = LocalSolver(ufl.inner(self._x_test, self._x_trial) * ufl.dx,
+        solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+    self._M_solver = solver
+    
     self.reset_forward_solve()
-    #self.reset_adjoint_jacobian_solve()
     self.reset_adjoint_derivative_action()
-    if not solver is None:
-      self._M_solver = solver
     
   def forward_solve(self, x, deps = None):
     _, y = self.dependencies() if deps is None else deps
@@ -118,18 +120,10 @@ class LocalProjectionSolver(Equation):
     else:
       P, _ = assembly_cache()[self._P_mat]
     
-    self._cached_M_solver().solve(x.vector(), matrix_multiply(P, y.vector(), space_fn = y))
-    
-  def _cached_M_solver(self):
-    if self._M_solver is None:
-      self._M_solver = LocalSolver(ufl.inner(self._x_test, self._x_trial) * ufl.dx,
-        solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
-      self._M_solver.solve = lambda x, b : self._M_solver.solve_local(x, b, self.x().function_space().dofmap())
-    return self._M_solver
+    self._M_solver.solve(x.vector(), matrix_multiply(P, y.vector(), space_fn = y))
     
   def reset_forward_solve(self):
     self._P_mat = CacheIndex()
-    self._M_solver = None
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     if dep_index == 0:
@@ -156,11 +150,8 @@ class LocalProjectionSolver(Equation):
     
   def adjoint_jacobian_solve(self, nl_deps, b):
     x = function_new(b)
-    self._cached_M_solver().solve(x.vector(), b.vector())
+    self._M_solver.solve(x.vector(), b.vector())
     return x
-
-  def reset_adjoint_jacobian_solve(self, nl_deps, b):
-    self._M_solver = None
     
   def tangent_linear(self, M, dM, tlm_map):
     x, y = self.dependencies()
