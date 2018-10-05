@@ -257,7 +257,7 @@ class InterpolationSolver(Equation):
           except ValueError:
             continue
           y_node = y_cell_nodes[i]
-          y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))  # Broken in parallel with FEniCS <= 2017.2.0
+          y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))  # Broken in parallel with FEniCS 2017.2.0
           P[x_node, y_node] = x_v[0]
         if color < len(y_nodes) - 1: y_v.vector()[y_color_nodes] = 0.0
       del(y_v)
