@@ -167,7 +167,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
         self._z = z
       
       def _replace(self, replace_map):
-        EquationSolver._replace(self, replace_map)
+        Equation._replace(self, replace_map)
         if not self._z is None:
           self._z = replace_map.get(self._z, self._z)
       
