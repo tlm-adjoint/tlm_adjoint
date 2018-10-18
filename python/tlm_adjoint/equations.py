@@ -27,14 +27,43 @@ from .caches import CacheIndex, DirichletBC, assembly_cache, is_static, \
 
 from collections import OrderedDict
 import copy
+import operator
+import numpy
 import ufl
 
 __all__ = \
   [
     "AssembleSolver",
     "DirichletBCSolver",
-    "EquationSolver"
+    "EquationSolver",
+    "ExprEvaluationSolver"
   ]
+
+def extract_dependencies(expr):
+    deps = []
+    dep_ids = set()
+    nl_deps = []
+    nl_dep_ids = set()
+    for dep in ufl.algorithms.extract_coefficients(expr):
+      if is_function(dep):
+        dep_id = dep.id()
+        if not dep_id in dep_ids:
+          deps.append(dep)
+          dep_ids.add(dep_id)
+        if not dep_id in nl_dep_ids:
+          n_nl_deps = 0
+          for nl_dep in ufl.algorithms.extract_coefficients(ufl.algorithms.expand_derivatives(ufl.derivative(expr, dep, argument = TrialFunction(dep.function_space())))):
+            if is_function(nl_dep):
+              nl_dep_id = nl_dep.id()
+              if not nl_dep_id in nl_dep_ids:
+                nl_deps.append(nl_dep)
+                nl_dep_ids.add(nl_dep_id)
+              n_nl_deps += 1
+          if not dep_id in nl_dep_ids and n_nl_deps > 0:
+            nl_deps.append(dep)
+            nl_dep_ids.add(dep_id)
+    
+    return deps, dep_ids, nl_deps, nl_dep_ids
 
 class AssembleSolver(Equation):
   def __init__(self, rhs, x, form_compiler_parameters = {},
@@ -48,28 +77,7 @@ class AssembleSolver(Equation):
     if not is_real_function(x):
       raise EquationException("Rank 0 forms can only be assigned to real functions")
   
-    deps = []
-    dep_ids = set()
-    nl_deps = []
-    nl_dep_ids = set()
-    for dep in rhs.coefficients():
-      if is_function(dep):
-        dep_id = dep.id()
-        if not dep_id in dep_ids:
-          deps.append(dep)
-          dep_ids.add(dep_id)
-        if not dep_id in nl_dep_ids:
-          n_nl_deps = 0
-          for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(rhs, dep, argument = TrialFunction(dep.function_space()))).coefficients():
-            if is_function(nl_dep):
-              nl_dep_id = nl_dep.id()
-              if not nl_dep_id in nl_dep_ids:
-                nl_deps.append(nl_dep)
-                nl_dep_ids.add(nl_dep_id)
-              n_nl_deps += 1
-          if not dep_id in nl_dep_ids and n_nl_deps > 0:
-            nl_deps.append(dep)
-            nl_dep_ids.add(dep_id)
+    deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(rhs)
     if x.id() in dep_ids:
       raise EquationException("Invalid non-linear dependency")
     del(dep_ids, nl_dep_ids)
@@ -228,29 +236,8 @@ class EquationSolver(Equation):
         F -= rhs
       J = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
     
-    deps = []
-    dep_ids = set()
-    nl_deps = []
-    nl_dep_ids = set()
-    for dep in F.coefficients():
-      if is_function(dep):
-        dep_id = dep.id()
-        if not dep_id in dep_ids:
-          deps.append(dep)
-          dep_ids.add(dep_id)
-        if not dep_id in nl_dep_ids:
-          n_nl_deps = 0
-          for nl_dep in ufl.algorithms.expand_derivatives(ufl.derivative(F, dep, argument = TrialFunction(dep.function_space()))).coefficients():
-            if is_function(nl_dep):
-              nl_dep_id = nl_dep.id()
-              if not nl_dep_id in nl_dep_ids:
-                nl_deps.append(nl_dep)
-                nl_dep_ids.add(nl_dep_id)
-              n_nl_deps += 1
-          if not dep_id in nl_dep_ids and n_nl_deps > 0:
-            nl_deps.append(dep)
-            nl_dep_ids.add(dep_id)
-          
+    deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(F)          
+    
     if initial_guess == x:
       initial_guess = None
     if not initial_guess is None:
@@ -701,4 +688,150 @@ class DirichletBCSolver(Equation):
     else:
       return DirichletBCSolver(tau_y, tlm_map[x], self._forward_domain,
         adjoint_domain = self._adjoint_domain,
-        *self._bc_args, **self._bc_kwargs)      
+        *self._bc_args, **self._bc_kwargs)
+
+def evaluate_expr_binary_operator(fn):
+  def evaluate_expr_binary_operator(x):
+    x_0, x_1 = map(evaluate_expr, x.ufl_operands)
+    return fn(x_0, x_1)
+  return evaluate_expr_binary_operator
+
+def evaluate_expr_function(fn):
+  def evaluate_expr_function(x):
+    x_0, = map(evaluate_expr, x.ufl_operands)
+    return fn(x_0)
+  return evaluate_expr_function
+
+evaluate_expr_types = \
+  {
+    ufl.classes.FloatValue:(lambda x : float(x)),
+    ufl.classes.IntValue:(lambda x : float(x)),
+    ufl.classes.Zero:(lambda x : 0.0),
+  }
+for ufl_name, op_name in [("Division", "truediv"),
+                          ("Power", "pow"),
+                          ("Product", "mul"),
+                          ("Sum", "add")]:
+  evaluate_expr_types[getattr(ufl.classes, ufl_name)] = evaluate_expr_binary_operator(getattr(operator, op_name))
+del(ufl_name, op_name)
+for ufl_name, numpy_name in [("Abs", "abs"),
+                             ("Acos", "arccos"),
+                             ("Asin", "arcsin"),
+                             ("Atan", "arctan"),
+                             ("Atan2", "arctan2"),
+                             ("Cos", "cos"),
+                             ("Cosh", "cosh"),
+                             ("Exp", "exp"),
+                             ("MaxValue", "max"),
+                             ("MinValue", "min"),
+                             ("Sin", "sin"),
+                             ("Sinh", "sinh"),
+                             ("Sqrt", "sqrt"),
+                             ("Tan", "tan"),
+                             ("Tanh", "tanh")]:
+  evaluate_expr_types[getattr(ufl.classes, ufl_name)] = evaluate_expr_function(getattr(numpy, numpy_name))
+del(ufl_name, numpy_name)
+
+def evaluate_expr(x):
+  if is_function(x):
+    return function_get_values(x)
+  elif isinstance(x, backend_Constant):
+    return float(x)
+  elif type(x) in evaluate_expr_types:
+    return evaluate_expr_types[type(x)](x)
+  else:
+    raise EquationException("'%s' type not supported" % type(x))
+    
+class ExprEvaluationSolver(Equation):
+  def __init__(self, rhs, x):
+    if isinstance(rhs, ufl.classes.Form):
+      raise EquationException("rhs should not be a Form")
+      
+    deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(rhs)
+    del(dep_ids, nl_dep_ids)
+    x_space_id = function_space_id(x.function_space())
+    for dep in deps:
+      if dep == x:
+        raise EquationException("Invalid non-linear dependency")
+      elif function_space_id(dep.function_space()) != x_space_id:
+        raise EquationException("Invalid function space")
+    deps.insert(0, x)
+    
+    Equation.__init__(self, x, deps, nl_deps = nl_deps)
+    self._rhs = rhs * ufl.dx  # Store the Expr in a Form to aid caching
+    self.reset_forward_solve()
+    self.reset_adjoint_derivative_action()
+    
+  def _replace(self, replace_map):
+    Equation._replace(self, replace_map)
+    self._rhs = ufl.replace(self._rhs, replace_map)
+    
+  def forward_solve(self, x, deps = None):
+    if deps is None:
+      rhs = self._rhs
+    else:
+      if self._forward_rhs is None:
+        self._forward_rhs = alias_form(self._rhs, self.dependencies())
+      rhs = self._forward_rhs
+      alias_replace(rhs, deps)
+    rhs_val = evaluate_expr(rhs.integrals()[0].integrand())
+    if not deps is None:
+      alias_clear(rhs)
+    if isinstance(rhs_val, float):
+      function_assign(x, rhs_val)
+    else:
+      function_set_values(x, rhs_val)
+      
+  def reset_forward_solve(self):
+    self._forward_rhs = None
+    
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    if dep_index == 0:
+      return adj_x
+    else:
+      dep = self.dependencies()[dep_index]
+      if dep_index in self._adjoint_derivatives:
+        dF = self._adjoint_derivatives[dep_index]
+      else:
+        dF = self._adjoint_derivatives[dep_index] \
+          = alias_form(ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = adj_x)),
+                       list(self.nonlinear_dependencies()) + [adj_x])
+      alias_replace(dF, list(nl_deps) + [adj_x])
+      dF_val = evaluate_expr(dF.integrals()[0].integrand())
+      alias_clear(dF)
+      F = function_new(dep)
+      if isinstance(dF_val, float):
+        function_assign(F, dF_val)
+      else:
+        function_set_values(F, dF_val)
+      return (-1.0, F)
+      
+  def reset_adjoint_derivative_action(self):
+    self._adjoint_derivatives = OrderedDict()
+    
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+    
+  def tangent_linear(self, M, dM, tlm_map):
+    x = self.x()
+    if x in M:
+      raise EquationException("Invalid tangent-linear parameter")
+      
+    rhs = self._rhs.integrals()[0].integrand()
+    tlm_rhs = ufl.classes.Zero()
+    for m, dm in zip(M, dM):
+      tlm_rhs += ufl.derivative(rhs, m, argument = dm)
+      
+    for dep in self.dependencies():
+      if dep != x and not dep in M:
+        tau_dep = tlm_map[dep]
+        if not tau_dep is None:
+          tlm_rhs += ufl.derivative(rhs, dep, argument = tau_dep)
+    
+    if isinstance(tlm_rhs, ufl.classes.Zero):
+      return None
+    tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
+    if isinstance(tlm_rhs, ufl.classes.Zero):
+      return None
+    else:
+      return ExprEvaluationSolver(tlm_rhs, tlm_map[x])

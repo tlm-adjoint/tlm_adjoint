@@ -24,6 +24,43 @@ import numpy
 import unittest
   
 class tests(unittest.TestCase):
+  def test_ExprEvaluationSolver(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    
+    def test_expression(y):
+      return y * (sin if is_function(y) else numpy.sin)(y) + 2.0 + (y ** 2) + y / (1.0 + (y ** 2))
+    
+    def forward(y):
+      x = Function(space, name = "x")
+      ExprEvaluationSolver(test_expression(y), x).solve(replace = True)
+      
+      J = Functional(name = "J")
+      J.assign(x * x * x * dx)
+      return x, J
+    
+    y = Function(space, name = "y", static = True)
+    y.interpolate(Expression("cos(3.0 * pi * x[0])", element = space.ufl_element()))
+    start_manager()
+    x, J = forward(y)
+    stop_manager()
+    
+    error_norm = abs(function_get_values(x) - test_expression(function_get_values(y))).max()
+    info("Error norm = %.16e" % error_norm)
+    self.assertEqual(error_norm, 0.0)
+    
+    dJ = compute_gradient(J, y)
+    min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ)
+    self.assertGreater(min_order, 2.00)
+    
+    ddJ = Hessian(lambda y : forward(y)[1])
+    min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ, ddJ = ddJ, seed = 1.0e-3)
+    self.assertGreater(min_order, 2.99)
+    
   def test_InterpolationSolver(self):
     reset("memory")
     clear_caches()
@@ -69,7 +106,7 @@ class tests(unittest.TestCase):
 
     dJ = compute_gradient(J, z)
     min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, seed = 1.0e-4)
-    self.assertGreater(min_order, 2.00)
+    self.assertGreater(min_order, 1.99)
 
     ddJ = Hessian(lambda z : forward(z)[1])
     min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, ddJ = ddJ)
@@ -820,6 +857,7 @@ if __name__ == "__main__":
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
 #  tests().test_InterpolationSolver()
+#  tests().test_ExprEvaluationSolver()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()
