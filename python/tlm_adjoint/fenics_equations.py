@@ -204,8 +204,6 @@ class InterpolationSolver(Equation):
     # for non-owned nodes, but this requires a parallel graph coloring.
   
     if P is None:
-      if x_coords is None:
-        x_coords = function_coords(x)
       y_space = y.function_space()
       if y_colors is None:
         y_colors = greedy_coloring(y_space)
@@ -235,8 +233,20 @@ class InterpolationSolver(Equation):
       
       import scipy.sparse
       P = scipy.sparse.dok_matrix((function_local_size(x), function_local_size(y)), dtype = numpy.float64)
-      y_tree = y_mesh.bounding_box_tree()
-      y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0] for x_coord in x_coords]
+      if x_coords is None and x.function_space().mesh() == y_mesh:
+        if x_coords is None:
+          x_coords = function_coords(x)
+        x_dofmap = x.function_space().dofmap()
+        y_cells = numpy.empty(function_local_size(x), dtype = numpy.int64)
+        for y_cell in range(y_mesh.num_cells()):
+          for y_node in x_dofmap.cell_dofs(y_cell):
+            if y_node < y_cells.shape[0]:
+              y_cells[y_node] = y_cell
+      else:
+        if x_coords is None:
+          x_coords = function_coords(x)
+        y_tree = y_mesh.bounding_box_tree()
+        y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0] for x_coord in x_coords]
       
       y_v = function_new(y)
       x_v = numpy.empty((1,), dtype = numpy.float64)
