@@ -104,7 +104,7 @@ class tests(unittest.TestCase):
 
     x_error_norm = function_linf_norm(x_error)
     info("Error norm = %.16e" % x_error_norm)
-    self.assertLess(x_error_norm, 1.0e-14)
+    self.assertLess(x_error_norm, 1.0e-13)
 
     dJ = compute_gradient(J, z)
     min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, seed = 1.0e-4)

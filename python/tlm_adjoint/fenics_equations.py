@@ -23,6 +23,7 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheIndex, assembly_cache
+from .equations import EquationSolver, alias_assemble, alias_form
 
 import numpy
 import ufl
@@ -89,88 +90,78 @@ def function_coords(x):
     coords[:, i] = function_get_values(interpolate(Expression("x[%i]" % i, element = space.ufl_element()), space))
   return coords
   
-class LocalProjectionSolver(Equation):
-  def __init__(self, y, x, solver = None, form_compiler_parameters = {}):    
-    form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
-    update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
-    form_compiler_parameters = form_compiler_parameters_
+class LocalProjectionSolver(EquationSolver):
+  def __init__(self, rhs, x, solver = None, form_compiler_parameters = {},
+    cache_rhs_assembly = None, match_quadrature = None,
+    defer_adjoint_assembly = None):
+    space = x.function_space()
+    test, trial = TestFunction(space), TrialFunction(space)
     
-    Equation.__init__(self, x, [x, y], nl_deps = [])
-    x_space = x.function_space()
-    y_space = y.function_space()
-    self._x_test, self._x_trial, self._y_test, self._y_trial = \
-      TestFunction(x_space), TrialFunction(x_space), TestFunction(y_space), TrialFunction(y_space)
-    self._form_compiler_parameters = form_compiler_parameters
-    
+    lhs = ufl.inner(test, trial) * ufl.dx
+    if not isinstance(rhs, ufl.classes.Form):
+      rhs = ufl.inner(test, rhs) * ufl.dx
     if solver is None:
-      solver = LocalSolver(ufl.inner(self._x_test, self._x_trial) * ufl.dx,
+      solver = LocalSolver(lhs,
         solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
-      solver.solve = lambda x, b : solver.solve_local(x, b, x_space.dofmap())
-    self._M_solver = solver
+      solver.factorize()
+      solver.solve = lambda x, b : solver.solve_local(x, b, space.dofmap())
     
-    self.reset_forward_solve()
-    self.reset_adjoint_derivative_action()
-    
+    EquationSolver.__init__(self, lhs == rhs, x,
+      form_compiler_parameters = form_compiler_parameters,
+      cache_rhs_assembly = cache_rhs_assembly,
+      match_quadrature = match_quadrature,
+      defer_adjoint_assembly = defer_adjoint_assembly)
+    self._local_solver = solver
+  
   def forward_solve(self, x, deps = None):
-    _, y = self.dependencies() if deps is None else deps
-    
-    if self._P_mat.index() is None:
-      self._P_mat, (P, _) = assembly_cache().assemble(
-        ufl.inner(self._x_test, self._y_trial) * ufl.dx,
+    if self._cache_rhs_assembly:
+      b = self._cached_rhs(deps)
+    elif deps is None:
+      b = assemble(self._rhs,
         form_compiler_parameters = self._form_compiler_parameters)
     else:
-      P, _ = assembly_cache()[self._P_mat]
-    
-    self._M_solver.solve(x.vector(), matrix_multiply(P, y.vector(), space_fn = y))
-    
-  def reset_forward_solve(self):
-    self._P_mat = CacheIndex()
-    
-  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    if dep_index == 0:
-      if self._derivative_mats[0] is None:
-        self._derivative_mats[0], (mat, _) = assembly_cache().assemble(
-          ufl.inner(self._x_test, self._x_trial) * ufl.dx,
-          form_compiler_parameters = self._form_compiler_parameters)
-      else:
-        mat, _ = assembly_cache()[self._derivative_mats[0]]
-      return matrix_multiply(mat, adj_x.vector(), space_fn = adj_x)
-    elif dep_index == 1:
-      if self._derivative_mats[1] is None:
-        self._derivative_mats[1], (mat, _) = assembly_cache().assemble(
-          ufl.inner(self._y_test, self._x_trial) * ufl.dx,
-          form_compiler_parameters = self._form_compiler_parameters)
-      else:
-        mat, _ = assembly_cache()[self._derivative_mats[1]]
-      return (-1.0, matrix_multiply(mat, adj_x.vector(), space_fn = self.dependencies()[1]))
-    else:
-      return None
-  
-  def reset_adjoint_derivative_action(self):
-    self._derivative_mats = [None, None]
+      if self._forward_eq is None:
+        self._forward_eq = None, None, alias_form(self._rhs, self.dependencies())
+      _, _, rhs = self._forward_eq
+      b = alias_assemble(rhs, deps,
+        form_compiler_parameters = self._form_compiler_parameters)
+    self._local_solver.solve(x.vector(), b)
     
   def adjoint_jacobian_solve(self, nl_deps, b):
-    x = function_new(b)
-    self._M_solver.solve(x.vector(), b.vector())
-    return x
-    
+    adj_x = function_new(b)
+    self._local_solver.solve(adj_x.vector(), b.vector())
+    return adj_x
+  
+  #def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+  # A consistent diagonal block adjoint derivative action requires an
+  # appropriate quadrature degree to have been selected
+  
   def tangent_linear(self, M, dM, tlm_map):
-    x, y = self.dependencies()
-    
-    tlm_y = None
+    x = self.x()
+    if x in M:
+      raise EquationException("Invalid tangent-linear parameter")
+  
+    tlm_rhs = ufl.classes.Zero()
     for m, dm in zip(M, dM):
-      if m == x:
-        raise EquationException("Invalid tangent-linear parameter")
-      elif m == y:
-        tlm_y = dm
-    if tlm_y is None:
-      tlm_y = tlm_map[y]
+      tlm_rhs += ufl.derivative(self._rhs, m, argument = dm)
       
-    if tlm_y is None:
+    for dep in self.dependencies():
+      if dep != x and not dep in M:
+        tau_dep = tlm_map[dep]
+        if not tau_dep is None:
+          tlm_rhs += ufl.derivative(self._rhs, dep, argument = tau_dep)
+    
+    if isinstance(tlm_rhs, ufl.classes.Zero):
       return None
-    else:
-      return LocalProjectionSolver(tlm_y, tlm_map[x], solver = self._M_solver,
-        form_compiler_parameters = self._form_compiler_parameters)
+    tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
+    if tlm_rhs.empty():
+      return None
+    else:    
+      return LocalProjectionSolver(tlm_rhs, tlm_map[x],
+        solver = self._local_solver,
+        form_compiler_parameters = self._form_compiler_parameters,
+        cache_rhs_assembly = self._cache_rhs_assembly,
+        defer_adjoint_assembly = self._defer_adjoint_assembly)
   
 class InterpolationSolver(Equation):
   def __init__(self, y, x, y_colors = None, x_coords = None,
