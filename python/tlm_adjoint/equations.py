@@ -531,8 +531,6 @@ class EquationSolver(Equation):
     eq_deps = self.dependencies()
     if dep_index < 0 or dep_index >= len(eq_deps):
       return None
-    elif dep_index == 0:
-      return adj_x
     
     if dep_index in self._derivative_mats:
       mat_cache = self._derivative_mats[dep_index]
