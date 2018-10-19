@@ -594,6 +594,9 @@ class NormSqEquation(LinearEquation):
 
 class ContractionMatrix:
   def __init__(self, A, I, A_T = None, alpha = 1.0):  
+    for i in range(len(I) - 1):
+      if I[i + 1] <= I[i]:
+        raise EquationException("Axes must be in ascending order")
     self._A = A
     self._A_T = A_T
     self._I = tuple(I)
