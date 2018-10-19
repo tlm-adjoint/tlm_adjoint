@@ -32,12 +32,14 @@ class tests(unittest.TestCase):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     
-    def test_expression(y):
-      return y * (sin if is_function(y) else numpy.sin)(y) + 2.0 + (y ** 2) + y / (1.0 + (y ** 2))
+    def test_expression(y, y_int):
+      return y_int * y * (sin if is_function(y) else numpy.sin)(y) + 2.0 + (y ** 2) + y / (1.0 + (y ** 2))
     
     def forward(y):
       x = Function(space, name = "x")
-      ExprEvaluationSolver(test_expression(y), x).solve(replace = True)
+      y_int = Function(RealFunctionSpace(), name = "y_int")
+      AssembleSolver(y * dx, y_int).solve(replace = True)
+      ExprEvaluationSolver(test_expression(y, y_int), x).solve(replace = True)
       
       J = Functional(name = "J")
       J.assign(x * x * x * dx)
@@ -49,7 +51,7 @@ class tests(unittest.TestCase):
     x, J = forward(y)
     stop_manager()
     
-    error_norm = abs(function_get_values(x) - test_expression(function_get_values(y))).max()
+    error_norm = abs(function_get_values(x) - test_expression(function_get_values(y), assemble(y * dx))).max()
     info("Error norm = %.16e" % error_norm)
     self.assertEqual(error_norm, 0.0)
     

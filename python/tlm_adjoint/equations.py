@@ -734,7 +734,10 @@ del(ufl_name, numpy_name)
 
 def evaluate_expr(x):
   if is_function(x):
-    return function_get_values(x)
+    if is_real_function(x):
+      return function_max_value(x)
+    else:
+      return function_get_values(x)
   elif isinstance(x, backend_Constant):
     return float(x)
   elif type(x) in evaluate_expr_types:
@@ -753,12 +756,13 @@ class ExprEvaluationSolver(Equation):
     for dep in deps:
       if dep == x:
         raise EquationException("Invalid non-linear dependency")
-      elif function_space_id(dep.function_space()) != x_space_id:
+      elif function_space_id(dep.function_space()) != x_space_id \
+        and not is_real_function(dep):
         raise EquationException("Invalid function space")
     deps.insert(0, x)
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps)
-    self._rhs = rhs * ufl.dx  # Store the Expr in a Form to aid caching
+    self._rhs = rhs * ufl.dx(x.function_space().mesh())  # Store the Expr in a Form to aid caching
     self.reset_forward_solve()
     self.reset_adjoint_derivative_action()
     
@@ -801,6 +805,15 @@ class ExprEvaluationSolver(Equation):
       alias_clear(dF)
       F = function_new(dep)
       if isinstance(dF_val, float):
+        function_assign(F, dF_val)
+      elif is_real_function(F):
+        dF_val = numpy.array([dF_val.sum()], dtype = numpy.float64)
+        dF_val_ = numpy.empty((1,), dtype = numpy.float64)
+        comm = function_comm(F)
+        import mpi4py
+        (comm.tompi4py() if hasattr(comm, "tompi4py") else comm).Allreduce(
+          dF_val, dF_val_, op = mpi4py.MPI.SUM)
+        dF_val = dF_val_[0]
         function_assign(F, dF_val)
       else:
         function_set_values(F, dF_val)
