@@ -161,9 +161,11 @@ class SerialComm:
     w.setflags(write = False)
     return (w,)
 
+  @property
   def rank(self):
     return 0
   
+  @property
   def size(self):
     return 1
 
