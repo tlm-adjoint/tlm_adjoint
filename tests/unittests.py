@@ -119,8 +119,7 @@ class tests(unittest.TestCase):
     clear_caches()
     stop_manager()
   
-    mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "R", 0)
+    space = RealFunctionSpace()
     test, trial = TestFunction(space), TrialFunction(space)
     
     x = Function(space, name = "x")
@@ -705,8 +704,7 @@ class tests(unittest.TestCase):
     clear_caches()
     stop_manager()
 
-    mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "R", 0)
+    space = RealFunctionSpace()
     test, trial = TestFunction(space), TrialFunction(space)
     x = Function(space, name = "x", static = True)
     function_assign(x, 1.0)  
@@ -748,8 +746,7 @@ class tests(unittest.TestCase):
     clear_caches()
     stop_manager()
   
-    mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "R", 0)
+    space = RealFunctionSpace()
     test, trial = TestFunction(space), TrialFunction(space)
     x = Function(space, name = "x", static = True)
     function_assign(x, 16.0)  
