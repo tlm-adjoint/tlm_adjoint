@@ -36,7 +36,8 @@ __all__ = \
     "AssembleSolver",
     "DirichletBCSolver",
     "EquationSolver",
-    "ExprEvaluationSolver"
+    "ExprEvaluationSolver",
+    "ProjectionSolver"
   ]
 
 def extract_dependencies(expr):
@@ -637,6 +638,15 @@ class EquationSolver(Equation):
         cache_jacobian = self._cache_jacobian,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
+
+class ProjectionSolver(EquationSolver):
+  def __init__(self, rhs, x, *args, **kwargs):
+    space = x.function_space()
+    test, trial = TestFunction(space), TrialFunction(space)
+    if not isinstance(rhs, ufl.classes.Form):
+      rhs = ufl.inner(test, rhs) * ufl.dx
+    EquationSolver.__init__(self, ufl.inner(test, trial) * ufl.dx == rhs, x,
+      *args, **kwargs)
         
 class DirichletBCSolver(Equation):
   def __init__(self, y, x, forward_domain, *bc_args, **bc_kwargs):

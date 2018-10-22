@@ -20,7 +20,7 @@
 from .backend import *
 from .backend_interface import *
 
-from .equations import AssignmentSolver, EquationSolver
+from .equations import AssignmentSolver, EquationSolver, ProjectionSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled
 
 from collections import OrderedDict
@@ -137,9 +137,7 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
     if not mesh is None:
       raise OverrideException("mesh argument not supported")
     x = Function(V, name = name)
-    test, trial = TestFunction(V), TrialFunction(V)
-    EquationSolver(ufl.inner(test, trial) * ufl.dx == ufl.inner(test, v) * ufl.dx,
-      x, [] if bcs is None else bcs,
+    ProjectionSolver(v, x, [] if bcs is None else bcs,
       solver_parameters = {} if solver_parameters is None else solver_parameters,
       form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
       cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
