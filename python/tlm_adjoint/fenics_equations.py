@@ -22,7 +22,6 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheIndex, assembly_cache
 from .equations import EquationSolver, alias_assemble, alias_form
 
 import numpy
