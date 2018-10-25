@@ -113,17 +113,21 @@ class IdentityRHS(RHS):
       return IdentityRHS(tau_x)
 
 class Matrix:
-  def __init__(self, nl_deps = []):
+  def __init__(self, nl_deps = [], ic_dep = False):
     if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
       raise EquationException("Duplicate non-linear dependency")
       
     self._nl_deps = tuple(nl_deps)
+    self._ic_dep = ic_dep
   
   def replace(self, replace_map):
     self._nl_deps = tuple(replace_map.get(dep, dep) for dep in self._nl_deps)
   
   def nonlinear_dependencies(self):
     return self._nl_deps
+  
+  def initial_condition_dependency(self):
+    return self._ic_dep
   
   def add_forward_action(self, b, nl_deps, X):
     raise EquationException("Method not overridden")
@@ -165,8 +169,8 @@ class Matrix:
     raise EquationException("Method not overridden")
 
 class ConstantMatrix(Matrix):
-  def __init__(self, A, A_T = None):
-    Matrix.__init__(self, nl_deps = [])
+  def __init__(self, A, A_T = None, ic_dep = False):
+    Matrix.__init__(self, nl_deps = [], ic_dep = ic_dep)
     self._A = A
     self._A_T = A_T
   
@@ -314,7 +318,9 @@ class LinearEquation(Equation):
           nl_dep_ids[dep_id] = len(nl_deps) - 1
         b_nl_dep_indices[i].append(nl_dep_ids[dep_id])
     
-    if not A is None:
+    if A is None:
+      ic_deps = []
+    else:
       A_dep_indices = []
       A_nl_dep_indices = []
       for dep in A.nonlinear_dependencies():
@@ -335,10 +341,11 @@ class LinearEquation(Equation):
             nl_deps.append(x)
             nl_dep_ids[x_id] = len(nl_deps) - 1
           A_x_indices.append(nl_dep_ids[x_id])
+      ic_deps = X if A.initial_condition_dependency() else []
     
     del(dep_ids, nl_dep_ids)
     
-    Equation.__init__(self, X, deps, nl_deps = nl_deps)
+    Equation.__init__(self, X, deps, nl_deps = nl_deps, ic_deps = ic_deps)
     self._B = list(B)
     self._b_dep_indices = b_dep_indices
     self._b_nl_dep_indices = b_nl_dep_indices
@@ -592,7 +599,7 @@ class NormSqEquation(LinearEquation):
   def __init__(self, y, x, alpha = 1.0, M = None):
     LinearEquation.__init__(self, NormSqRHS(y, alpha = alpha, M = M), x)
 
-class ContractionMatrix:
+class ContractionArray:
   def __init__(self, A, I, A_T = None, alpha = 1.0):  
     for i in range(len(I) - 1):
       if I[i + 1] <= I[i]:
@@ -642,7 +649,7 @@ class ContractionRHS(RHS):
     
     RHS.__init__(self, Y, nl_deps = [] if len(Y) == 1 else Y)
     self._A_T = A_T
-    self._c = ContractionMatrix(A, I, A_T = A_T, alpha = alpha)
+    self._c = ContractionArray(A, I, A_T = A_T, alpha = alpha)
     self._j = j
 
   def add_forward(self, b, deps):
@@ -658,7 +665,7 @@ class ContractionRHS(RHS):
           Y[i] = nl_dep
       Y[self._j] = adj_x
       
-      b.vector()[:] -= ContractionMatrix(A, list(range(k)) + list(range(k + 1, len(A.shape))), A_T = self._A_T, alpha = alpha).value(Y[:k] + Y[k + 1:])
+      b.vector()[:] -= ContractionArray(A, list(range(k)) + list(range(k + 1, len(A.shape))), A_T = self._A_T, alpha = alpha).value(Y[:k] + Y[k + 1:])
 
   def tangent_linear_rhs(self, M, dM, tlm_map):
     Y = list(self.dependencies())

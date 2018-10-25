@@ -112,7 +112,7 @@ def forward_reference(psi_0, kappa):
 def forward(psi_0, kappa):
   class DiffusionMatrix(Matrix):
     def __init__(self, kappa, alpha = 1.0, beta = 1.0):
-      Matrix.__init__(self, nl_deps = [kappa])
+      Matrix.__init__(self, nl_deps = [kappa], ic_dep = False)
       self._x_0_forward = Function(space)
       self._x_0_adjoint = Function(space)
       self._alpha = alpha

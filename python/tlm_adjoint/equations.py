@@ -92,7 +92,7 @@ class AssembleSolver(Equation):
     if match_quadrature:
       update_parameters_dict(form_compiler_parameters, form_form_compiler_parameters(rhs, form_compiler_parameters))
     
-    Equation.__init__(self, x, deps, nl_deps = nl_deps)
+    Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = [])
     self._rhs = rhs
     self._form_compiler_parameters = form_compiler_parameters
 
@@ -251,6 +251,8 @@ class EquationSolver(Equation):
     if x_id in dep_ids:
       deps.remove(x)
     deps.insert(0, x)
+        
+    del(dep_ids, nl_dep_ids)
       
     deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
     nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
@@ -261,13 +263,7 @@ class EquationSolver(Equation):
       cache_jacobian = is_static(J) and is_static_bcs(bcs)
     
     solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(J, linear, solver_parameters)
-    if checkpoint_ic:
-      initial_guess_id = (x if initial_guess is None else initial_guess).id()
-      if not initial_guess_id in nl_dep_ids:
-        nl_deps.append(x if initial_guess is None else initial_guess)
-        nl_dep_ids.add(initial_guess_id)
-        
-    del(dep_ids, nl_dep_ids)
+    ic_deps = [x] if checkpoint_ic else []
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
@@ -275,7 +271,7 @@ class EquationSolver(Equation):
     if match_quadrature:
       update_parameters_dict(form_compiler_parameters, form_form_compiler_parameters(F, form_compiler_parameters))
     
-    Equation.__init__(self, x, deps, nl_deps = nl_deps)    
+    Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = ic_deps)    
     self._F = F
     self._lhs, self._rhs = lhs, rhs
     self._bcs = copy.copy(bcs)
@@ -653,7 +649,7 @@ class DirichletBCSolver(Equation):
     bc_kwargs = copy.copy(bc_kwargs)
     adjoint_domain = bc_kwargs.pop("adjoint_domain", forward_domain)
   
-    Equation.__init__(self, x, [x, y], nl_deps = [])
+    Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
     self._forward_domain = forward_domain
     self._adjoint_domain = adjoint_domain
     self._bc_args = bc_args
@@ -770,7 +766,7 @@ class ExprEvaluationSolver(Equation):
         raise EquationException("Invalid function space")
     deps.insert(0, x)
     
-    Equation.__init__(self, x, deps, nl_deps = nl_deps)
+    Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = [])
     self._rhs = rhs * ufl.dx(x.function_space().mesh())  # Store the Expr in a Form to aid caching
     self.reset_forward_solve()
     self.reset_adjoint_derivative_action()

@@ -120,7 +120,7 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
       nodes_adj = list(bc_adj.keys())
       y_adj = list(bc_adj.values())
     
-      Equation.__init__(self, T, [T, T_bc], nl_deps = [])
+      Equation.__init__(self, T, [T, T_bc], nl_deps = [], ic_deps = [])
       self._nodes = nodes
       self._y = y
       self._nodes_adj = nodes_adj

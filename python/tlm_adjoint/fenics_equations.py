@@ -107,6 +107,7 @@ class LocalProjectionSolver(EquationSolver):
     
     EquationSolver.__init__(self, lhs == rhs, x,
       form_compiler_parameters = form_compiler_parameters,
+      solver_parameters = {"linear_solver":"direct"},
       cache_rhs_assembly = cache_rhs_assembly,
       match_quadrature = match_quadrature,
       defer_adjoint_assembly = defer_adjoint_assembly)
@@ -258,7 +259,7 @@ class InterpolationSolver(Equation):
     if P_T is None:
       P_T = P.T
     
-    Equation.__init__(self, x, [x, y], nl_deps = [])
+    Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
     self._P = P
     self._P_T = P_T
     

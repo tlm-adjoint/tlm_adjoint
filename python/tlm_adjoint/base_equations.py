@@ -41,7 +41,7 @@ class EquationException(Exception):
   pass
 
 class Equation:
-  def __init__(self, X, deps, nl_deps = None):
+  def __init__(self, X, deps, nl_deps = None, ic_deps = None):
     """
     An equation. The equation is expressed in the form:
       F ( X, y_0, y_1, ... ) = 0,
@@ -55,11 +55,14 @@ class Equation:
     
     Arguments:
     
-    x/X      A Function, or a list or tuple of Function objects. The solution to
+    X        A Function, or a list or tuple of Function objects. The solution to
              the equation.
     deps     A list or tuple of Function dependencies, which must include x.
     nl_deps  (Optional) A list or tuple of Function non-linear dependencies.
              Must be a subset of deps. Defaults to deps.
+    ic_deps  (Optional) A list or tuple of Function dependencies whose initial
+             value should be available prior to solving the forward equation.
+             Defaults to the elements of X which are in nl_deps.
     """
 
     if is_function(X):
@@ -76,18 +79,23 @@ class Equation:
       raise EquationException("Duplicate dependency")
     if nl_deps is None:
       nl_deps_map = tuple(range(len(deps)))
-      checkpoint_ic = [True for dep in X]
     else:
       if len(set(map(lambda dep : dep.id(), nl_deps))) != len(nl_deps):
         raise EquationException("Duplicate non-linear dependency")
       nl_deps_map = tuple(dep_ids[dep.id()] for dep in nl_deps)
-      checkpoint_ic = [x in nl_deps for x in X]
+    if ic_deps is None:
+      ic_deps = []
+      for x in X:
+        if x in nl_deps:
+          ic_deps.append(x)
+    elif len(set(map(lambda dep : dep.id(), ic_deps))) != len(ic_deps):
+      raise EquationException("Duplicate initial condition dependency")
 
     self._X = X
     self._deps = tuple(deps)
     self._nl_deps = None if nl_deps is None else tuple(nl_deps)
     self._nl_deps_map = nl_deps_map
-    self._checkpoint_ic = checkpoint_ic
+    self._ic_deps = tuple(ic_deps)
     
   def replace(self, manager = None):
     """
@@ -137,13 +145,15 @@ class Equation:
   
   def nonlinear_dependencies_map(self):
     return self._nl_deps_map
+  
+  def initial_condition_dependencies(self):
+    return self._ic_deps
     
   def _pre_process(self, manager = None, annotate = None):
     if manager is None:
       manager = _manager()
-    for x, checkpoint_ic in zip(self.X(), self._checkpoint_ic):
-      if checkpoint_ic:
-        manager.add_initial_condition(x, annotate = annotate)
+    for dep in self.initial_condition_dependencies():
+      manager.add_initial_condition(dep, annotate = annotate)
       
   def _post_process(self, manager = None, annotate = None, replace = False, tlm = None, tlm_skip = None):    
     if manager is None:
@@ -278,7 +288,7 @@ class Equation:
 
 class NullSolver(Equation):
   def __init__(self, x):
-    Equation.__init__(self, x, [x], nl_deps = [])
+    Equation.__init__(self, x, [x], nl_deps = [], ic_deps = [])
     
   def forward_solve(self, x, deps = None):
     function_zero(x)
@@ -299,7 +309,7 @@ class AssignmentSolver(Equation):
   def __init__(self, y, x):
     if x == y:
       raise EquationException("Non-linear dependency in linear equation")
-    Equation.__init__(self, x, [x, y], nl_deps = [])
+    Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
     
   def forward_solve(self, x, deps = None):
     _, y = self.dependencies() if deps is None else deps
@@ -341,7 +351,7 @@ class LinearCombinationSolver(Equation):
     if x in y:
       raise EquationException("Non-linear dependency in linear equation")
     
-    Equation.__init__(self, x, [x] + y, nl_deps = [])
+    Equation.__init__(self, x, [x] + y, nl_deps = [], ic_deps = [])
     self._alpha = alpha
   
   def forward_solve(self, x, deps = None):
@@ -443,7 +453,6 @@ class FixedPointSolver(Equation):
       if eq_x_id in x_ids:
         raise EquationException("Duplicate solve")
       x_ids.add(eq_x_id)
-    del(x_ids)
     x = eqs[-1].x()
     
     solver_parameters = copy_parameters_dict(solver_parameters)
@@ -458,6 +467,8 @@ class FixedPointSolver(Equation):
     dep_ids = {}
     nl_deps = []
     nl_dep_ids = {}
+    ic_deps = []
+    ic_dep_ids = set()
     
     if solver_parameters["nonzero_initial_guess"]:
       if initial_guess is None:
@@ -476,22 +487,31 @@ class FixedPointSolver(Equation):
     eq_nl_dep_indices = [[] for eq in eqs]
     
     for i, eq in enumerate(eqs):
+      x_ids.remove(eq.x().id())
       for dep in eq.dependencies():
         dep_id = dep.id()
         if not dep_id in dep_ids:
           deps.append(dep)
           dep_ids[dep_id] = len(deps) - 1
         eq_dep_indices[i].append(dep_ids[dep_id])
+        if dep_id in x_ids and not dep_id in ic_dep_ids:
+          ic_deps.append(dep)
+          ic_dep_ids.add(dep_id)
       for dep in eq.nonlinear_dependencies():
         dep_id = dep.id()
         if not dep_id in nl_dep_ids:
           nl_deps.append(dep)
           nl_dep_ids[dep_id] = len(nl_deps) - 1
         eq_nl_dep_indices[i].append(nl_dep_ids[dep_id])
+      for dep in eq.initial_condition_dependencies():
+        dep_id = dep.id()
+        if not dep_id in ic_dep_ids:
+          ic_deps.append(dep)
+          ic_dep_ids.add(dep_id)
     
-    del(dep_ids, nl_dep_ids)
+    del(x_ids, dep_ids, nl_dep_ids, ic_dep_ids)
     
-    Equation.__init__(self, [eq.x() for eq in eqs], deps, nl_deps = nl_deps)
+    Equation.__init__(self, [eq.x() for eq in eqs], deps, nl_deps = nl_deps, ic_deps = ic_deps)
     self._eqs = copy.copy(eqs)
     self._initial_guess_index = None if initial_guess is None else initial_guess_index
     self._eq_dep_indices = eq_dep_indices

@@ -119,7 +119,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
   class VectorNormSolver(Equation):
     def __init__(self, U, U_norm):
       # Assumes compatible spaces
-      Equation.__init__(self, U_norm, [U_norm, U], nl_deps = [U])
+      Equation.__init__(self, U_norm, [U_norm, U], nl_deps = [U], ic_deps = [])
     
     def forward_solve(self, x, deps = None):
       _, U = self.dependencies() if deps is None else deps

@@ -945,17 +945,17 @@ class EquationManager:
             eq_deps = eq.dependencies()
 
             X = []
-            for eq_x, checkpoint_ic in zip(eq.X(), eq._checkpoint_ic):
+            for eq_x in eq.X():
               if eq_x.id() in replace_map:
                 X.append(replace_map[eq_x.id()])
-                if checkpoint_ic:
-                  self._cp.add_initial_condition(eq_x, value = X[-1])
               else:
                 X.append(function_new(eq_x))
                 replace_map[eq_x.id()] = X[-1]
             for dep in eq_deps:
               if not dep.id() in replace_map:
                 replace_map[dep.id()] = function_new(dep, static = function_is_static(dep))
+            for dep in eq.initial_condition_dependencies():
+              self._cp.add_initial_condition(dep, replace_map[dep.id()])
             
             deps = [replace_map[dep.id()] for dep in eq_deps]
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
