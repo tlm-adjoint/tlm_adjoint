@@ -55,14 +55,15 @@ class Equation:
     
     Arguments:
     
-    X        A Function, or a list or tuple of Function objects. The solution to
+    x/X      A Function, or a list or tuple of Function objects. The solution to
              the equation.
     deps     A list or tuple of Function dependencies, which must include x.
     nl_deps  (Optional) A list or tuple of Function non-linear dependencies.
              Must be a subset of deps. Defaults to deps.
     ic_deps  (Optional) A list or tuple of Function dependencies whose initial
              value should be available prior to solving the forward equation.
-             Defaults to the elements of X which are in nl_deps.
+             Defaults to the elements of X which are in nl_deps / x if x is in
+             nl_deps.
     """
 
     if is_function(X):
