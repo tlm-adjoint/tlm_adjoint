@@ -62,7 +62,7 @@ class Equation:
              Must be a subset of deps. Defaults to deps.
     ic_deps  (Optional) A list or tuple of Function dependencies whose initial
              value should be available prior to solving the forward equation.
-             Defaults to the elements of X which are in nl_deps / x if x is in
+             Defaults to the elements of X which are in nl_deps / [x] if x is in
              nl_deps.
     """
 
