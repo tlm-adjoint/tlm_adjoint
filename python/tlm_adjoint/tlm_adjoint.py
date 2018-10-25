@@ -1324,7 +1324,7 @@ def add_tlm(M, dM, max_depth = 1, manager = None):
 def tlm_enabled(manager = None):
   return (_manager() if manager is None else manager).tlm_enabled()
 
-def tlm(self, M, dM, x):
+def tlm(M, dM, x, manager = None):
   return (_manager() if manager is None else manager).tlm(M, dM, x)
 
 def compute_gradient(Js, M, rhs_cache = True, manager = None):
