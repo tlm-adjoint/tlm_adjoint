@@ -499,11 +499,12 @@ class FixedPointSolver(Equation):
           nl_deps.append(dep)
           nl_dep_ids[dep_id] = len(nl_deps) - 1
         eq_nl_dep_indices[i].append(nl_dep_ids[dep_id])
-      for dep in eq.initial_condition_dependencies():
-        dep_id = dep.id()
-        if not dep_id in ic_dep_ids:
-          ic_deps.append(dep)
-          ic_dep_ids.add(dep_id)
+      if i < len(eqs) - 1 or (solver_parameters["nonzero_initial_guess"] and initial_guess is None):
+        for dep in eq.initial_condition_dependencies():
+          dep_id = dep.id()
+          if not dep_id in ic_dep_ids:
+            ic_deps.append(dep)
+            ic_dep_ids.add(dep_id)
     
     del(x_ids, dep_ids, nl_dep_ids, ic_dep_ids)
     

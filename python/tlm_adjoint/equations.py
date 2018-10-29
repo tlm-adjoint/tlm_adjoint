@@ -263,7 +263,7 @@ class EquationSolver(Equation):
       cache_jacobian = is_static(J) and is_static_bcs(bcs)
     
     solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(J, linear, solver_parameters)
-    ic_deps = [x] if checkpoint_ic else []
+    ic_deps = [x] if (initial_guess is None and checkpoint_ic) else []
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
