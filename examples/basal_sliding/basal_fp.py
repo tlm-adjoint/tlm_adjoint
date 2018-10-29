@@ -167,8 +167,9 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       def __init__(self, *args, **kwargs):
         kwargs = copy.copy(kwargs)
         EquationSolver.__init__(self, *args, **kwargs)
-#        info("%s F form compiler parameters: %s" % (self.x().name(), extract_form_compiler_parameters(self._F, parameters["form_compiler"])))
-#        info("%s J form compiler parameters: %s" % (self.x().name(), extract_form_compiler_parameters(self._J, parameters["form_compiler"])))
+#        from tlm_adjoint.backend_code_generator_interface import form_form_compiler_parameters
+#        info("%s F form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._F, parameters["form_compiler"])))
+#        info("%s J form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._J, parameters["form_compiler"])))
     
       def forward_solve(self, x, deps = None):
         depth = tlm_depth(self.x())
