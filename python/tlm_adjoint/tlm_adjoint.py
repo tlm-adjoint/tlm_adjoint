@@ -1038,7 +1038,7 @@ class EquationManager:
   def dependency_graph_png(self, divider = [255, 127, 127], p = 5):
     P = 2 ** p
   
-    blocks = self._blocks
+    blocks = copy.copy(self._blocks)
     if len(self._block) > 0:
       blocks += [self._block]
     
