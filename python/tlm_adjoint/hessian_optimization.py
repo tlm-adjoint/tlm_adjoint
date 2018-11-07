@@ -19,7 +19,7 @@
 
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
-from .tlm_adjoint import Checkpoint
+from .tlm_adjoint import Checkpoint, EquationManager
 
 from collections import OrderedDict
 
@@ -31,6 +31,7 @@ __all__ = \
   
 # Replacing functions makes it much more difficult to derive tangent-linear
 # equations, so disable it
+EquationManager.replace = lambda *args, **kwargs : None
 _manager().replace = lambda *args, **kwargs : None
 
 class SingleBlockHessian(Hessian):
