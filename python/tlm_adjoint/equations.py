@@ -41,30 +41,30 @@ __all__ = \
   ]
 
 def extract_dependencies(expr):
-    deps = []
-    dep_ids = set()
-    nl_deps = []
-    nl_dep_ids = set()
-    for dep in ufl.algorithms.extract_coefficients(expr):
-      if is_function(dep):
-        dep_id = dep.id()
-        if not dep_id in dep_ids:
-          deps.append(dep)
-          dep_ids.add(dep_id)
-        if not dep_id in nl_dep_ids:
-          n_nl_deps = 0
-          for nl_dep in ufl.algorithms.extract_coefficients(ufl.algorithms.expand_derivatives(ufl.derivative(expr, dep, argument = TrialFunction(dep.function_space())))):
-            if is_function(nl_dep):
-              nl_dep_id = nl_dep.id()
-              if not nl_dep_id in nl_dep_ids:
-                nl_deps.append(nl_dep)
-                nl_dep_ids.add(nl_dep_id)
-              n_nl_deps += 1
-          if not dep_id in nl_dep_ids and n_nl_deps > 0:
-            nl_deps.append(dep)
-            nl_dep_ids.add(dep_id)
-    
-    return deps, dep_ids, nl_deps, nl_dep_ids
+  deps = []
+  dep_ids = set()
+  nl_deps = []
+  nl_dep_ids = set()
+  for dep in ufl.algorithms.extract_coefficients(expr):
+    if is_function(dep):
+      dep_id = dep.id()
+      if not dep_id in dep_ids:
+        deps.append(dep)
+        dep_ids.add(dep_id)
+      if not dep_id in nl_dep_ids:
+        n_nl_deps = 0
+        for nl_dep in ufl.algorithms.extract_coefficients(ufl.algorithms.expand_derivatives(ufl.derivative(expr, dep, argument = TrialFunction(dep.function_space())))):
+          if is_function(nl_dep):
+            nl_dep_id = nl_dep.id()
+            if not nl_dep_id in nl_dep_ids:
+              nl_deps.append(nl_dep)
+              nl_dep_ids.add(nl_dep_id)
+            n_nl_deps += 1
+        if not dep_id in nl_dep_ids and n_nl_deps > 0:
+          nl_deps.append(dep)
+          nl_dep_ids.add(dep_id)
+  
+  return deps, dep_ids, nl_deps, nl_dep_ids
 
 class AssembleSolver(Equation):
   def __init__(self, rhs, x, form_compiler_parameters = {},
