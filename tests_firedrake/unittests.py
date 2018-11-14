@@ -323,7 +323,7 @@ class tests(unittest.TestCase):
     bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
-      G = [Function(space, name = "G_%i" % i) for i in range(2)]
+      G = [Function(space, name = "G_%i" % i) for i in range(3)]
       
       G[0] = project(F, space)
       
@@ -334,6 +334,11 @@ class tests(unittest.TestCase):
                                                     "pc_type":"jacobi",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       solver.solve(G[1].vector(), b)
+      
+      b = assemble(inner(test, G[1]) * dx)
+      solve(A, G[2].vector(), b, bcs = [bc], solver_parameters = {"ksp_type":"cg",
+                                                                  "pc_type":"jacobi",
+                                                                  "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
       J = Functional(name = "J")
       J.assign(inner(G[-1], G[-1]) * dx)
