@@ -153,7 +153,7 @@ def _DirichletBC_apply(self, r, u = None):
   if not isinstance(r, backend_Matrix):
     return
 
-  if hasattr(r, "_tlm_adjoint__bcs"):
+  if hasattr(r, "_tlm_adjoint__bcs") and not self in r._tlm_adjoint__bcs:
     r._tlm_adjoint__bcs.append(self)
 backend_DirichletBC.apply = _DirichletBC_apply
 
