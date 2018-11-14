@@ -166,7 +166,30 @@ def solve(*args, **kwargs):
         solver_parameters = solver_parameters, cache_jacobian = False,
         cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
     else:
-      raise OverrideException("Linear system solves not supported")
+      A, x, b = args[:3]
+      linear_solver = "default" if len(args) < 4 else args[3]
+      preconditioner = "default" if len(args) < 5 else args[4]
+      bcs = A._tlm_adjoint__bcs
+      if bcs != b._tlm_adjoint__bcs:
+        raise OverrideException("Non-matching boundary conditions")
+      form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
+      if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
+        raise OverrideException("Non-matching form compiler parameters")
+      
+      A = A._tlm_adjoint__form
+      x = x._tlm_adjoint__function
+      b = b._tlm_adjoint__form
+      A_x_dep = x in ufl.algorithms.extract_coefficients(A)
+      b_x_dep = x in ufl.algorithms.extract_coefficients(b)
+      if A_x_dep or b_x_dep:
+        x_old = function_new(x)
+        AssignmentSolver(x, x_old).solve(annotate = annotate, replace = True, tlm = tlm)
+        if A_x_dep: A = ufl.replace(A, OrderedDict([(x, x_old)]))
+        if b_x_dep: b = ufl.replace(b, OrderedDict([(x, x_old)]))
+        
+      EquationSolver(A == b, x,
+        bcs, solver_parameters = {"linear_solver":linear_solver, "preconditioner":preconditioner},
+        form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
   else:
     return backend_solve(*args, **kwargs)
 
