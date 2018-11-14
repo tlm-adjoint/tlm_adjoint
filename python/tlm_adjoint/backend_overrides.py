@@ -167,8 +167,10 @@ def solve(*args, **kwargs):
         cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
     else:
       A, x, b = args[:3]
-      linear_solver = "default" if len(args) < 4 else args[3]
-      preconditioner = "default" if len(args) < 5 else args[4]
+      solver_parameters = {}
+      solver_parameters["linear_solver"] = "default" if len(args) < 4 else args[3]
+      solver_parameters["preconditioner"] = "default" if len(args) < 5 else args[4]
+      
       bcs = A._tlm_adjoint__bcs
       if bcs != b._tlm_adjoint__bcs:
         raise OverrideException("Non-matching boundary conditions")
@@ -187,9 +189,14 @@ def solve(*args, **kwargs):
         if A_x_dep: A = ufl.replace(A, OrderedDict([(x, x_old)]))
         if b_x_dep: b = ufl.replace(b, OrderedDict([(x, x_old)]))
         
-      EquationSolver(A == b, x,
-        bcs, solver_parameters = {"linear_solver":linear_solver, "preconditioner":preconditioner},
-        form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+      eq = EquationSolver(A == b, x,
+        bcs, solver_parameters = solver_parameters,
+        form_compiler_parameters = form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False)
+        
+      eq._pre_process(annotate = annotate)
+      backend_solve(*args, **kwargs)
+      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
   else:
     return backend_solve(*args, **kwargs)
 
