@@ -216,9 +216,9 @@ def _DirichletBC_apply(self, *args):
     A = None
     b = args[0]
 
-  if not A is None and hasattr(A, "_tlm_adjoint__bcs"):
+  if not A is None and hasattr(A, "_tlm_adjoint__bcs") and not self in A._tlm_adjoint__bcs:
     A._tlm_adjoint__bcs.append(self)
-  if not b is None and hasattr(b, "_tlm_adjoint__bcs"):
+  if not b is None and hasattr(b, "_tlm_adjoint__bcs") and not self in b._tlm_adjoint__bcs:
     b._tlm_adjoint__bcs.append(self)
 backend_DirichletBC.apply = _DirichletBC_apply
 
