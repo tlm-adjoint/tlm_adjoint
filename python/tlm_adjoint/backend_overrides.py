@@ -156,10 +156,10 @@ def solve(*args, **kwargs):
       lhs, rhs = eq.lhs, eq.rhs
       if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
         (x in lhs.coefficients() or x in rhs.coefficients()):
-        F = function_new(x)
+        x_old = function_new(x, name = "x_old")
         AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
-        lhs = ufl.replace(lhs, OrderedDict([(x, F)]))
-        rhs = ufl.replace(rhs, OrderedDict([(x, F)]))
+        lhs = ufl.replace(lhs, OrderedDict([(x, x_old)]))
+        rhs = ufl.replace(rhs, OrderedDict([(x, x_old)]))
         eq = lhs == rhs
       EquationSolver(eq, x, bcs,
         form_compiler_parameters = form_compiler_parameters,
@@ -184,7 +184,7 @@ def solve(*args, **kwargs):
       A_x_dep = x in ufl.algorithms.extract_coefficients(A)
       b_x_dep = x in ufl.algorithms.extract_coefficients(b)
       if A_x_dep or b_x_dep:
-        x_old = function_new(x)
+        x_old = function_new(x, name = "x_old")
         AssignmentSolver(x, x_old).solve(annotate = annotate, replace = True, tlm = tlm)
         if A_x_dep: A = ufl.replace(A, OrderedDict([(x, x_old)]))
         if b_x_dep: b = ufl.replace(b, OrderedDict([(x, x_old)]))
