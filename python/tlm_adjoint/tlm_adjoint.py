@@ -439,6 +439,7 @@ class EquationManager:
           for name in self._cp_hdf5_file:
             del(self._cp_hdf5_file[name])
           self._cp_hdf5_file.attrs.clear()
+          self._cp_hdf5_file.flush()
         else:
           create_cp_path()
           cp_filename = os.path.join(cp_path, "%i.hdf5" % self._id)
@@ -773,6 +774,7 @@ class EquationManager:
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
         d[self._comm.rank] = ics_key
+      self._cp_hdf5_file.flush()
     else:
       raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
   
@@ -816,6 +818,7 @@ class EquationManager:
           del(self._cp_hdf5_file["/%s/%s" % (hdf5_name, name)])
       if delete:
         del(self._cp_hdf5_file["/%i" % n])
+        self._cp_hdf5_file.flush()
         
       cp = Checkpoint(ics_keys, ics_values)
     else:
