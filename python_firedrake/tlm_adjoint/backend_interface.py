@@ -159,7 +159,7 @@ def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)
 
 def function_alias(x):
-  return Function(x.function_space(), name = x.name(), static = x.is_static(), val = x.dat)
+  return Function(x.function_space(), name = x.name(), static = is_static(x), val = x.dat)
 
 def function_zero(x):
   x.vector()[:] = 0.0

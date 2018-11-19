@@ -156,7 +156,7 @@ def function_new(x, name = None, static = False):
 def function_alias(x):
   y = x.copy(deepcopy = False)
   y.rename(x.name(), "a Function")
-  static = x.is_static()
+  static = is_static(x)
   y.is_static = lambda : static
   return y
 
