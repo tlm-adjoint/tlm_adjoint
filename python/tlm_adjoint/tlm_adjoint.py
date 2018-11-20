@@ -43,8 +43,12 @@ __all__ = \
     "minimize_scipy",
     "new_block",
     "reset",
+    "start_annotating",
     "start_manager",
+    "start_tlm",
+    "stop_annotating",
     "stop_manager",
+    "stop_tlm",
     "taylor_test",
     "tlm",
     "tlm_depth",
@@ -1317,9 +1321,17 @@ def annotation_enabled(manager = None):
 
 def start_manager(manager = None, annotation = True, tlm = True):
   (_manager() if manager is None else manager).start(annotation = annotation, tlm = tlm)
+def start_annotating(manager = None):
+  (_manager() if manager is None else manager).start(annotation = True, tlm = False)
+def start_tlm(manager = None):
+  (_manager() if manager is None else manager).start(annotation = False, tlm = True)
 
 def stop_manager(manager = None, annotation = True, tlm = True):
   (_manager() if manager is None else manager).stop(annotation = annotation, tlm = tlm)
+def stop_annotating(manager = None):
+  (_manager() if manager is None else manager).stop(annotation = True, tlm = False)
+def stop_tlm(manager = None):
+  (_manager() if manager is None else manager).stop(annotation = False, tlm = True)
 
 def add_tlm(M, dM, max_depth = 1, manager = None):
   (_manager() if manager is None else manager).add_tlm(M, dM, max_depth = max_depth)
