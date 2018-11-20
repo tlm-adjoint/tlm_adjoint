@@ -39,7 +39,7 @@ class Functional:
     If fn is supplied:
       space:  (Optional) The FunctionSpace for the functional. Default
               fn.function_space().
-      name:   (Optional) The name of the functional. Default fn.name()
+      name:   (Optional) The name of the functional. Default fn.name().
     If fn is not supplied:
       space:  (Optional) The FunctionSpace for the functional. Default
               RealFunctionSpace().
