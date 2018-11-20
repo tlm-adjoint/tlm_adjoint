@@ -347,7 +347,7 @@ if verify:
   errors_1 = []
   eps_values = numpy.array([1.0e-6 * (2 ** -p) for p in range(0, 6)], dtype = numpy.float64)
   for eps in eps_values:
-    kappa_perturb = function_copy(kappa, static = True)
+    kappa_perturb = function_copy(kappa, name = "kappa_perturb", static = True)
     function_axpy(kappa_perturb, eps, perturb)
     T_inflow_perturb = inversion(kappa_perturb, T_N_ref)
     _, J_perturb, K_perturb = forward(T_inflow_perturb, kappa_perturb, T_N_ref = T_N_ref)

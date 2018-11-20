@@ -580,7 +580,7 @@ class FixedPointSolver(Equation):
     report = self._solver_parameters["report"]
     
     self._init_adjoint_jacobian_solve()
-    adj_X = [function_copy(b) for b in B]
+    adj_X = [function_copy(b, name = "%s_adj" % x.name(), static = False) for x, b in zip(self.X(), B)]
     x = adj_X[-1]
     
     eq_nl_deps = [[nl_deps[j] for j in self._eq_nl_dep_indices[i]] for i in range(len(self._eqs))]

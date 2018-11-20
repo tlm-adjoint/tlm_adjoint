@@ -103,10 +103,13 @@ def is_function(x):
 def function_is_static(x):
   return is_static(x)
   
-def function_copy(x, name = None, static = False):
-  y = x.copy(deepcopy = True)
-  if not name is None:
-    y.rename(name, "a Function")
+def function_copy(x, name = None, static = None, value = None):
+  if name is None: name = x.name()
+  if static is None: static = is_static(x)
+  if value is None: value = x
+
+  y = value.copy(deepcopy = True)
+  y.rename(name, "a Function")
   y.is_static = lambda : static
   return y
 
@@ -147,8 +150,10 @@ def function_linf_norm(x):
   
 def function_new(x, name = None, static = False):
   if isinstance(x, backend_Function):
-    y = function_copy(x, name = name, static = static)
-    function_zero(y)
+    y = x.copy(deepcopy = True)
+    if not name is None: y.rename(name, "a Function")
+    y.is_static = lambda : static
+    y.vector().zero()
     return y
   else:
     return Function(x.function_space(), name = name, static = static)

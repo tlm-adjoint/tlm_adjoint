@@ -133,15 +133,15 @@ class Checkpoint:
   def initial_condition(self, x, copy = True):
     ic = self._ics[x.id()]
     if copy:
-      ic = function_copy(ic, static = function_is_static(ic))
+      ic = function_copy(ic)
     return ic
   
   def initial_conditions(self, copy = True):
-    return tuple(self._ics.keys()), tuple((function_copy(ic, static = function_is_static(ic)) for ic in self._ics.values()) if copy else self._ics.values())
+    return tuple(self._ics.keys()), tuple((function_copy(ic) for ic in self._ics.values()) if copy else self._ics.values())
   
   def data(self, copy = True):
     return tuple(self._deps.keys()), tuple(self._deps.values()), \
-           tuple(self._data.keys()), tuple((function_copy(F, static = function_is_static(F)) for F in self._data.values()) if copy else self._data.values())
+           tuple(self._data.keys()), tuple((function_copy(F) for F in self._data.values()) if copy else self._data.values())
   
   def _data_key(self, x):
     x_id = x.id()
@@ -153,7 +153,7 @@ class Checkpoint:
       
     x_id = x.id()
     if self._checkpoint_ics and not x_id in self._seen_ics:
-      self._ics[x_id] = function_copy(value, static = function_is_static(x)) if copy else value
+      self._ics[x_id] = function_copy(x, value = value) if copy else value
       self._seen_ics.add(x_id)
       if self._checkpoint_data:
         # Optimization: Reference the ic in the data
@@ -184,7 +184,7 @@ class Checkpoint:
       for eq_dep, dep in zip(eq.nonlinear_dependencies(), [deps[i] for i in eq.nonlinear_dependencies_map()] if nl_deps is None else nl_deps):
         dep_key = self._data_key(eq_dep)
         if not dep_key in self._data:
-          self._data[dep_key] = function_copy(dep, static = function_is_static(eq_dep)) if copy else dep
+          self._data[dep_key] = function_copy(eq_dep, value = dep) if copy else dep
         dep_keys.append(dep_key)
       self._deps[key] = dep_keys
 
