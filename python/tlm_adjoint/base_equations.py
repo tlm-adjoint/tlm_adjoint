@@ -640,12 +640,12 @@ class FixedPointSolver(Equation):
       eq.reset_adjoint_jacobian_solve()
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-    m = self.dependencies()[dep_index]
-    F = function_new(m)
+    dep = self.dependencies()[dep_index]
+    F = function_new(dep)
     for i in range(len(self._eqs)):
       eq_deps = self._eqs[i].dependencies()
-      if m in eq_deps:
-        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_deps.index(m), adj_X[i])
+      if dep in eq_deps:
+        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_deps.index(dep), adj_X[i])
         subtract_adjoint_derivative_action(F, sb)
         del(sb)
     finalise_adjoint_derivative_action(F)
