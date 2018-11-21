@@ -176,7 +176,6 @@ class Equation:
   
     self._pre_process(manager = manager, annotate = annotate)
 
-    old_annotating = manager.annotation_enabled()
     annotation_enabled, tlm_enabled = manager.stop()
     X = self.X()
     self.forward_solve(X[0] if len(X) == 1 else X)
