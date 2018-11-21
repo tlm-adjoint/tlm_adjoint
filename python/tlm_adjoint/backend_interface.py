@@ -20,8 +20,8 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
-from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
-  is_static_bcs, linear_solver_cache, replaced_function
+from .caches import Function, ReplacementFunction, assembly_cache, \
+  function_is_static, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -100,12 +100,11 @@ def RealFunctionSpace(comm = None):
 def is_function(x):
   return isinstance(x, backend_Function)
 
-def function_is_static(x):
-  return is_static(x)
+#def function_is_static(x):
   
 def function_copy(x, name = None, static = None, value = None):
   if name is None: name = x.name()
-  if static is None: static = is_static(x)
+  if static is None: static = function_is_static(x)
   if value is None: value = x
 
   y = value.copy(deepcopy = True)
@@ -161,7 +160,7 @@ def function_new(x, name = None, static = False):
 def function_alias(x):
   y = x.copy(deepcopy = False)
   y.rename(x.name(), "a Function")
-  static = is_static(x)
+  static = function_is_static(x)
   y.is_static = lambda : static
   return y
 

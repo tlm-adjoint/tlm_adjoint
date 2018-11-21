@@ -20,8 +20,8 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
-from .caches import Function, ReplacementFunction, assembly_cache, is_static, \
-  is_static_bcs, linear_solver_cache, replaced_function
+from .caches import Function, ReplacementFunction, assembly_cache, \
+  function_is_static, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -105,12 +105,11 @@ backend_Function.id = lambda self : self.count()
 def is_function(x):
   return isinstance(x, backend_Function)
 
-def function_is_static(x):
-  return is_static(x)
+#def function_is_static(x):
   
 def function_copy(x, name = None, static = None, value = None):
   if name is None: name = x.name()
-  if static is None: static = is_static(x)
+  if static is None: static = function_is_static(x)
   if value is None: value = x
 
   y = value.copy(deepcopy = True)
@@ -162,7 +161,8 @@ def function_new(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static)
 
 def function_alias(x):
-  return Function(x.function_space(), name = x.name(), static = is_static(x), val = x.dat)
+  return Function(x.function_space(), name = x.name(),
+    static = function_is_static(x), val = x.dat)
 
 def function_zero(x):
   x.vector()[:] = 0.0

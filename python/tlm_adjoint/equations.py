@@ -22,8 +22,9 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheIndex, DirichletBC, assembly_cache, is_static, \
-  is_static_bcs, linear_solver_cache, new_count, split_action, split_form
+from .caches import CacheIndex, DirichletBC, assembly_cache, bcs_is_static, \
+  function_is_static, is_static, linear_solver_cache, new_count, split_action, \
+  split_form
 
 from collections import OrderedDict
 import copy
@@ -198,7 +199,7 @@ def homogenized_bc(bc):
     return bc
   else:
     hbc = homogenize(bc)
-    static = is_static_bcs([bc])
+    static = bcs_is_static([bc])
     hbc.is_static = static
     hbc.is_homogeneous = lambda : True
     return hbc
@@ -260,7 +261,7 @@ class EquationSolver(Equation):
     hbcs = [homogenized_bc(bc) for bc in bcs]
     
     if cache_jacobian is None:
-      cache_jacobian = is_static(J) and is_static_bcs(bcs)
+      cache_jacobian = is_static(J) and bcs_is_static(bcs)
     
     solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(J, linear, solver_parameters)
     ic_deps = [x] if (initial_guess is None and checkpoint_ic) else []
@@ -321,7 +322,7 @@ class EquationSolver(Equation):
           if not mat_form.empty():
             # The non-static part contains a component with can be represented
             # as the action of a static matrix ...
-            if is_static(dep):
+            if function_is_static(dep):
               # ... on a static dependency. This is part of the static
               # component.
               static_form += ufl.action(mat_form, coefficient = dep)

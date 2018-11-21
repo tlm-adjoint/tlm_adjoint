@@ -36,9 +36,10 @@ __all__ = \
     "LinearSolverCache",
     "ReplacementFunction",
     "assembly_cache",
+    "bcs_is_static",
+    "function_is_static",
     "is_homogeneous_bcs",
     "is_static",
-    "is_static_bcs",
     "linear_solver",
     "linear_solver_cache",
     "new_count",
@@ -96,13 +97,16 @@ class DirichletBC(backend_DirichletBC):
       backend_DirichletBC.homogenize(self)
       self.__homogeneous = True
 
-def is_static(expr):
-  for c in ufl.algorithms.extract_coefficients(expr):
+def is_static(e):
+  for c in ufl.algorithms.extract_coefficients(e):
     if not hasattr(c, "is_static") or not c.is_static():
       return False
   return True
 
-def is_static_bcs(bcs):
+def function_is_static(x):
+  return x.is_static() if hasattr(x, "is_static") else False
+
+def bcs_is_static(bcs):
   for bc in bcs:
     if not hasattr(bc, "is_static") or not bc.is_static():
       return False
@@ -235,7 +239,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__space = x.function_space()
     self.__id = x.id()
     self.__name = x.name()
-    self.__static = is_static(x)
+    self.__static = function_is_static(x)
   
   def function_space(self):
     return self.__space
