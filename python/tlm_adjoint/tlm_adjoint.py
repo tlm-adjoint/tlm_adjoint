@@ -758,7 +758,7 @@ class EquationManager:
     ics_keys, ics_values = cp.initial_conditions(copy = False)
     
     if cp_format == "pickle":
-      ics_values = [(fn.name(), self._checkpoint_space_index(fn), function_get_values(fn), function_is_static(fn)) for fn in ics_values]
+      ics_values = [(fn.name(), self._checkpoint_space_index(fn), function_get_values(fn)) for fn in ics_values]
       data = (ics_keys, ics_values)
       cp_filename = os.path.join(cp_path, "%i_%i_%i" % (self._id, n, self._comm.rank))
       h = open(cp_filename, "wb")
@@ -774,7 +774,6 @@ class EquationManager:
         d[function_local_indices(ics_value)] = values
         d.attrs["name"] = ics_value.name()
         d.attrs["space_index"] = self._checkpoint_space_index(ics_value)
-        d.attrs["static"] = function_is_static(ics_value)
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
         d[self._comm.rank] = ics_key
@@ -797,11 +796,11 @@ class EquationManager:
       ics_values = []
       ics_fns.reverse()
       while len(ics_fns) > 0:
-        name, i, values, static = ics_fns.pop()
-        F = Function(self._cp_disk_spaces[i], name = name, static = static)
+        name, i, values = ics_fns.pop()
+        F = Function(self._cp_disk_spaces[i], name = name)
         function_set_values(F, values)
         ics_values.append(F)
-        del(name, i, values, static)
+        del(name, i, values)
         
       cp = Checkpoint(ics_keys, ics_values)
     elif cp_format == "hdf5":
@@ -810,7 +809,7 @@ class EquationManager:
       hdf5_name = "/%i/ics" % n
       for name, g in self._cp_hdf5_file[hdf5_name].items():
         d = g["value"]
-        F = Function(self._cp_disk_spaces[d.attrs["space_index"]], name = d.attrs["name"], static = d.attrs["static"])
+        F = Function(self._cp_disk_spaces[d.attrs["space_index"]], name = d.attrs["name"])
         function_set_values(F, d[function_local_indices(F)])
         ics_values.append(F)
         

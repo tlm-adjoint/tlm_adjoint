@@ -142,13 +142,10 @@ def is_function(x):
 
 def function_is_static(x):
   return x.is_static()
-  
-def function_copy(x, name = None, static = None, value = None):
-  if name is None: name = x.name()
-  if static is None: static = x.is_static()
-  if value is None: value = x
 
-  return Function(x.function_space(), name = name, static = static, _data = value.vector().copy())
+def function_copy(x, name = None, static = False, value = None):
+  return Function(x.function_space(), name = name, static = static,
+    _data = (x if value is None else value).vector().copy())
 
 def function_assign(x, y):
   if isinstance(y, (int, float)):

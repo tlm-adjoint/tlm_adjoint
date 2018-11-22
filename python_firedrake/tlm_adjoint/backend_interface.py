@@ -106,14 +106,10 @@ def is_function(x):
   return isinstance(x, backend_Function)
 
 #def function_is_static(x):
-  
-def function_copy(x, name = None, static = None, value = None):
-  if name is None: name = x.name()
-  if static is None: static = function_is_static(x)
-  if value is None: value = x
 
-  y = value.copy(deepcopy = True)
-  y.rename(name, "a Function")
+def function_copy(x, name = None, static = False, value = None):
+  y = (x if value is None else value).copy(deepcopy = True)
+  if not name is None: y.rename(name, "a Function")
   y.is_static = lambda : static
   return y
 
