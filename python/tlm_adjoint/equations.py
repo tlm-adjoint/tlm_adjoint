@@ -208,7 +208,8 @@ class EquationSolver(Equation):
   # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
-  def __init__(self, eq, x, bcs = [], form_compiler_parameters = {}, solver_parameters = {},
+  def __init__(self, eq, x, bcs = [], form_compiler_parameters = {},
+    solver_parameters = {}, adjoint_solver_parameters = None,
     initial_guess = None, cache_jacobian = None, cache_rhs_assembly = None,
     match_quadrature = None, defer_adjoint_assembly = None):
     if isinstance(bcs, backend_DirichletBC):
@@ -263,7 +264,9 @@ class EquationSolver(Equation):
     if cache_jacobian is None:
       cache_jacobian = is_static(J) and bcs_is_static(bcs)
     
-    solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(J, linear, solver_parameters)
+    solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
+    if not adjoint_solver_parameters is None:
+      _, adjoint_solver_parameters, _ = process_solver_parameters(adjoint_solver_parameters, J, linear = True)
     ic_deps = [x] if (initial_guess is None and checkpoint_ic) else []
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
@@ -281,6 +284,7 @@ class EquationSolver(Equation):
     self._form_compiler_parameters = form_compiler_parameters
     self._solver_parameters = solver_parameters
     self._linear_solver_parameters = linear_solver_parameters
+    self._adjoint_solver_parameters = adjoint_solver_parameters
     self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
     self._linear = linear
     
@@ -578,7 +582,7 @@ class EquationSolver(Equation):
         J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
         _, (J_mat, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
         self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs,
-          linear_solver_parameters = self._linear_solver_parameters,
+          linear_solver_parameters = self._linear_solver_parameters if self._adjoint_solver_parameters is None else self._adjoint_solver_parameters,
           form_compiler_parameters = self._form_compiler_parameters)
       else:
         J_solver = linear_solver_cache()[self._adjoint_J_solver]
@@ -594,7 +598,8 @@ class EquationSolver(Equation):
       alias_replace(self._adjoint_J, nl_deps)
       J_mat, _ = assemble_matrix(self._adjoint_J, self._hbcs, self._form_compiler_parameters, force_evaluation = False)
       
-      J_solver = linear_solver(J_mat, self._linear_solver_parameters)
+      J_solver = linear_solver(J_mat,
+        self._linear_solver_parameters if self._adjoint_solver_parameters is None else self._adjoint_solver_parameters)
       
       apply_rhs_bcs(b.vector(), self._hbcs)
       adj_x = function_new(b)
@@ -631,6 +636,7 @@ class EquationSolver(Equation):
       return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters,
         solver_parameters = self._linear_solver_parameters,
+        adjoint_solver_parameters = self._adjoint_solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
         cache_jacobian = self._cache_jacobian,
         cache_rhs_assembly = self._cache_rhs_assembly,

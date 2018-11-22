@@ -78,7 +78,7 @@ def update_parameters_dict(parameters, new_parameters):
     else:
       parameters[key] = value
       
-def process_solver_parameters(J, linear, solver_parameters):
+def process_solver_parameters(solver_parameters, J, linear):
   solver_parameters = copy_parameters_dict(solver_parameters)
   return solver_parameters, solver_parameters, True
 
