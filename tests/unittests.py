@@ -379,7 +379,7 @@ class tests(unittest.TestCase):
     bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
-      G = [Function(space, name = "G_%i" % i) for i in range(5)]
+      G = [Function(space, name = "G_%i" % i) for i in range(6)]
       
       G[0] = project(F, space, function = G[0])
       
@@ -405,6 +405,11 @@ class tests(unittest.TestCase):
       
       A, b = assemble_system(inner(test, trial) * dx, inner(test, G[3]) * dx, bcs = bc)
       solver.solve(A, G[4].vector(), b)
+      
+      solver = LinearVariationalSolver(LinearVariationalProblem(
+        inner(test, trial) * dx, inner(test, G[4]) * dx, G[5]))
+      solver.parameters.update({"linear_solver":"cg", "krylov_solver":{"absolute_tolerance":1.0e-16, "relative_tolerance":1.0e-14}})
+      solver.solve()
       
       J = Functional(name = "J")
       J.assign(inner(G[-1], G[-1]) * dx)

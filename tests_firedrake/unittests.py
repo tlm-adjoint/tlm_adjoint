@@ -323,7 +323,7 @@ class tests(unittest.TestCase):
     bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
-      G = [Function(space, name = "G_%i" % i) for i in range(3)]
+      G = [Function(space, name = "G_%i" % i) for i in range(4)]
       
       G[0] = project(F, space)
       
@@ -340,6 +340,13 @@ class tests(unittest.TestCase):
                                                                   "pc_type":"jacobi",
                                                                   "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
+      solver = LinearVariationalSolver(LinearVariationalProblem(
+        inner(test, trial) * dx, inner(test, G[2]) * dx, G[3]))
+      solver.parameters.update(solver_parameters = {"ksp_type":"cg",
+                                                    "pc_type":"jacobi",
+                                                    "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+      solver.solve()
+      
       J = Functional(name = "J")
       J.assign(inner(G[-1], G[-1]) * dx)
       
@@ -349,7 +356,7 @@ class tests(unittest.TestCase):
     J, G = forward(F)
     stop_manager()
     
-    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 14)
+    self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0, places = 13)
 
     J_val = J.value()    
     dJ = compute_gradient(J, F)    

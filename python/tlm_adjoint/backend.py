@@ -59,6 +59,7 @@ backend_DirichletBC = DirichletBC
 backend_Function = Function
 backend_KrylovSolver = KrylovSolver
 backend_LUSolver = LUSolver
+backend_LinearVariationalSolver = LinearVariationalSolver
 backend_assemble = assemble
 backend_assemble_system = assemble_system
 backend_project = project
@@ -76,6 +77,7 @@ __all__ = \
     "backend_Function",
     "backend_KrylovSolver",
     "backend_LUSolver",
+    "backend_LinearVariationalSolver",
     "backend_Matrix",
     "backend_Vector",
     "backend_assemble",

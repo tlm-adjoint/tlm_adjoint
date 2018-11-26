@@ -32,6 +32,7 @@ __all__ = \
     "OverrideException",
     
     "LinearSolver",
+    "LinearVariationalSolver",
     "assemble",
     "project",
     "solve"
@@ -258,3 +259,43 @@ class LinearSolver(backend_LinearSolver):
       eq._post_process(annotate = annotate, replace = True, tlm = tlm)
     else:
       backend_LinearSolver.solve(self, x, b)
+
+# Aim for compatibility with Firedrake API, git master revision
+# 556fec2d04d05f31de2b19c728358c1a4a39100b
+
+class LinearVariationalSolver(backend_LinearVariationalSolver):
+  def __init__(self, *args, **kwargs):
+    problem, = args
+    if "nullspace" in kwargs or "transpose_nullspace" in kwargs:
+      raise OverrideException("Null spaces not supported")
+    if "options_prefix" in kwargs:
+      raise OverrideException("Options prefixes not supported")
+  
+    backend_LinearVariationalSolver.__init__(self, *args, **kwargs)
+    self.__problem = problem
+  
+  def set_transfer_operators(self, *args, **kwargs):
+    raise OverrideException("Transfer operators not supported")
+  
+  def solve(self, bounds = None, annotate = None, tlm = None):
+    if annotate is None:
+      annotate = annotation_enabled()
+    if tlm is None:
+      tlm = tlm_enabled()
+    if annotate or tlm:
+      if not bounds is None:
+        raise OverrideException("Bounds not supported")        
+      if not self.__problem.Jp is None:
+        raise OverrideException("Preconditioners not supported")
+      
+      x = self.__problem.u
+      L = ufl.rhs(ufl.replace(self.__problem.F, OrderedDict([(x, TrialFunction(x.function_space()))])))
+      form_compiler_parameters = self.__problem.form_compiler_parameters
+      if form_compiler_parameters is None: form_compiler_parameters = {}
+      
+      EquationSolver(self.__problem.J == L, x, self.__problem.bcs,
+        solver_parameters = self.parameters,
+        form_compiler_parameters = form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+    else:
+      backend_LinearVariationalSolver.solve(self, bounds = bounds)

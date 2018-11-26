@@ -31,6 +31,7 @@ __all__ = \
   [
     "OverrideException",
     
+    "LinearVariationalSolver",
     "KrylovSolver",
     "LUSolver",
     "assemble",
@@ -382,3 +383,22 @@ class KrylovSolver(backend_KrylovSolver):
       eq._post_process(annotate = annotate, replace = True, tlm = tlm)
     else:
       backend_KrylovSolver.solve(self, *args)
+      
+class LinearVariationalSolver(backend_LinearVariationalSolver):
+  def __init__(self, problem):
+    backend_LinearVariationalSolver.__init__(self, problem)
+    self.__problem = problem
+  
+  def solve(self, annotate = None, tlm = None):
+    if annotate is None:
+      annotate = annotation_enabled()
+    if tlm is None:
+      tlm = tlm_enabled()
+    if annotate or tlm:
+      EquationSolver(self.__problem.a_ufl == self.__problem.L_ufl,
+        self.__problem.u_ufl, self.__problem.bcs(),
+        solver_parameters = self.parameters,
+        form_compiler_parameters = self.__problem.form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+    else:
+      backend_LinearVariationalSolver.solve(self)
