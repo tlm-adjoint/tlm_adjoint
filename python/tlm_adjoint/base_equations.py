@@ -414,7 +414,7 @@ class AxpySolver(LinearCombinationSolver):
 #  B. Christianson, "Reverse accumulation and attractive fixed points",
 #    Optimization Methods and Software, 3(4), pp. 311--326, 1994
 class FixedPointSolver(Equation):
-  def __init__(self, eqs, solver_parameters = {}, initial_guess = None):
+  def __init__(self, eqs, solver_parameters, initial_guess = None):
     """
     A fixed point solver.
     
@@ -425,8 +425,8 @@ class FixedPointSolver(Equation):
       solution of the fixed point iteration. All equations must solve for single
       and distinct Function objects.
     solver_parameters
-      (Optional) Solver parameters dictionary. Parameters (based on KrylovSolver
-      parameters in FEniCS 2017.2.0):
+      Solver parameters dictionary. Parameters (based on KrylovSolver parameters
+      in FEniCS 2017.2.0):
         absolute_tolerance     Absolute tolerance for the solution change
                                2-norm. Float, required.
         relative_tolerance     Relative tolerance for the solution change
