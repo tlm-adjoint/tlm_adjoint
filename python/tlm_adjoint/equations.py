@@ -652,20 +652,15 @@ class ProjectionSolver(EquationSolver):
       *args, **kwargs)
         
 class DirichletBCSolver(Equation):
-  def __init__(self, y, x, forward_domain, *bc_args, **bc_kwargs):
-    bc_kwargs = copy.copy(bc_kwargs)
-    adjoint_domain = bc_kwargs.pop("adjoint_domain", forward_domain)
-  
+  def __init__(self, y, x, *args, **kwargs):  
     Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
-    self._forward_domain = forward_domain
-    self._adjoint_domain = adjoint_domain
-    self._bc_args = bc_args
-    self._bc_kwargs = bc_kwargs
+    self._bc_args = copy.copy(args)
+    self._bc_kwargs = copy.copy(kwargs)
 
   def forward_solve(self, x, deps = None):
     _, y = self.dependencies() if deps is None else deps
     function_zero(x)
-    DirichletBC(x.function_space(), y, self._forward_domain, *self._bc_args, **self._bc_kwargs).apply(x.vector())
+    DirichletBC(x.function_space(), y, *self._bc_args, **self._bc_kwargs).apply(x.vector())
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     if dep_index == 0:
@@ -673,8 +668,7 @@ class DirichletBCSolver(Equation):
     elif dep_index == 1:
       _, y = self.dependencies()
       F = function_new(y)
-      DirichletBC(y.function_space(), adj_x, self._adjoint_domain,
-                  *self._bc_args, **self._bc_kwargs).apply(F.vector())
+      DirichletBC(y.function_space(), adj_x, *self._bc_args, **self._bc_kwargs).apply(F.vector())
       return (-1.0, F)
     else:
       return None
@@ -697,9 +691,7 @@ class DirichletBCSolver(Equation):
     if tau_y is None:
       return None
     else:
-      return DirichletBCSolver(tau_y, tlm_map[x], self._forward_domain,
-        adjoint_domain = self._adjoint_domain,
-        *self._bc_args, **self._bc_kwargs)
+      return DirichletBCSolver(tau_y, tlm_map[x], *self._bc_args, **self._bc_kwargs)
 
 def evaluate_expr_binary_operator(fn):
   def evaluate_expr_binary_operator(x):
