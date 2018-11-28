@@ -154,12 +154,17 @@ class Functional:
   
     return 0.0 if self._fn is None else function_max_value(self._fn)
     
-  def tlm(self, M, dM, manager = None): 
+  def tlm(self, M, dM, max_depth = 1, manager = None): 
     """
     Return a Functional associated with evaluation of the tangent-linear of the
     functional.
     """
    
     if manager is None:
-      manager = _manager()      
-    return Functional(fn = manager.tlm(M, dM, self.fn()))
+      manager = _manager()
+      
+    J_fn = self.fn()
+    for depth in range(max_depth):
+      J_fn = manager.tlm(M, dM, J_fn)
+      
+    return Functional(fn = J_fn)
