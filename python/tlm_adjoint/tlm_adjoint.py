@@ -1474,8 +1474,8 @@ def taylor_test(forward, m, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
            vector) of the control (or 1 if this is less than 1).
   dm       A perturbation direction. A Function with values generated using
            numpy.random.random is used if not supplied.
-  size     (Optional) The number of perturbed forward runs used in the test.
   m0       (Optional) The reference value of the control.
+  size     (Optional) The number of perturbed forward runs used in the test.
   manager  (Optional) The equation manager.
   """
 
