@@ -24,8 +24,12 @@ from .manager import manager as _manager
 
 __all__ = \
   [
-    "Functional"
+    "Functional",
+    "FunctionalException"
   ]
+
+class FunctionalException(Exception):
+  pass
 
 class Functional:
   def __init__(self, fn = None, space = None, name = None):
@@ -54,6 +58,8 @@ class Functional:
     else:
       if space is None:
         space = fn.function_space()
+      elif function_space_id(space) != function_space_id(fn.function_space()):
+        raise FunctionalException("Invalid function space")
       if name is None:
         name = fn.name()
     
@@ -78,7 +84,7 @@ class Functional:
       manager = _manager()
 
     if self._fn is None:
-      new_fn = function_new(term, name = self._name) if is_function(term) else Function(self._space, name = self._name)
+      new_fn = Function(self._space, name = self._name)
     else:
       new_fn = function_new(self._fn, name = self._name)
     if is_function(term):
