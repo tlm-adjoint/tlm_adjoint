@@ -224,10 +224,10 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
               tlm_rhs -= derivative(self._F, dep, du = tau_dep)
         
         if isinstance(tlm_rhs, ufl.classes.Zero):
-          return None
+          return NullSolver(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-          return None
+          return NullSolver(tlm_map[x])
         else:    
           return CachedJacobianEquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
             form_compiler_parameters = self._form_compiler_parameters,

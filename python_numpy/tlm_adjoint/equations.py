@@ -465,7 +465,7 @@ class LinearEquation(Equation):
         tlm_B += list(tlm_b)
           
     if len(tlm_B) == 0:
-      return None
+      return NullSolver([tlm_map[x] for x in self.X()])
     else:
       return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()], A = self._A)
 

@@ -168,7 +168,7 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
         tau_T_bc = tlm_map[T_bc]
         
       if tau_T_bc is None:
-        return None
+        return NullSolver(tlm_map[T])
       else:
         return InflowBCSolver(tau_T_bc, tlm_map[T])
   

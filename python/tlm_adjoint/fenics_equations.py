@@ -152,10 +152,10 @@ class LocalProjectionSolver(EquationSolver):
           tlm_rhs += ufl.derivative(self._rhs, dep, argument = tau_dep)
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
-      return None
+      return NullSolver(tlm_map[x])
     tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
     if tlm_rhs.empty():
-      return None
+      return NullSolver(tlm_map[x])
     else:    
       return LocalProjectionSolver(tlm_rhs, tlm_map[x],
         solver = self._local_solver,
@@ -293,6 +293,6 @@ class InterpolationSolver(Equation):
       tlm_y = tlm_map[y]
       
     if tlm_y is None:
-      return None
+      return NullSolver(tlm_map[x])
     else:
       return InterpolationSolver(tlm_y, tlm_map[x], P = self._P, P_T = self._P_T)

@@ -148,10 +148,10 @@ class AssembleSolver(Equation):
           tlm_rhs += ufl.derivative(self._rhs, dep, argument = tau_dep)
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
-      return None
+      return NullSolver(tlm_map[x])
     tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
     if tlm_rhs.empty():
-      return None
+      return NullSolver(tlm_map[x])
     else:
       return AssembleSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters)
@@ -628,10 +628,10 @@ class EquationSolver(Equation):
           tlm_rhs -= ufl.derivative(self._F, dep, argument = tau_dep)
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
-      return None
+      return NullSolver(tlm_map[x])
     tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
     if tlm_rhs.empty():
-      return None
+      return NullSolver(tlm_map[x])
     else:    
       return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters,
@@ -689,7 +689,7 @@ class DirichletBCSolver(Equation):
       tau_y = tlm_map[y]
     
     if tau_y is None:
-      return None
+      return NullSolver(tlm_map[x])
     else:
       return DirichletBCSolver(tau_y, tlm_map[x], *self._bc_args, **self._bc_kwargs)
 
@@ -846,9 +846,9 @@ class ExprEvaluationSolver(Equation):
           tlm_rhs += ufl.derivative(rhs, dep, argument = tau_dep)
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
-      return None
+      return NullSolver(tlm_map[x])
     tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
     if isinstance(tlm_rhs, ufl.classes.Zero):
-      return None
+      return NullSolver(tlm_map[x])
     else:
       return ExprEvaluationSolver(tlm_rhs, tlm_map[x])

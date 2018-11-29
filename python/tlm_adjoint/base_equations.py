@@ -282,23 +282,30 @@ class Equation:
     raise EquationException("Method not overridden")
 
 class NullSolver(Equation):
-  def __init__(self, x):
-    Equation.__init__(self, x, [x], nl_deps = [], ic_deps = [])
+  def __init__(self, X):
+    if is_function(X):
+      X = (X,)
+    Equation.__init__(self, X, X, nl_deps = [], ic_deps = [])
     
-  def forward_solve(self, x, deps = None):
-    function_zero(x)
+  def forward_solve(self, X, deps = None):
+    if is_function(X):
+      X = (X,)
+    for x in X:
+      function_zero(x)
     
-  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    if dep_index == 0:
-      return adj_x
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
+    if is_function(adj_X):
+      adj_X = (adj_X,)
+    if dep_index < len(adj_X):
+      return adj_X[dep_index]
     else:
       return None
       
-  def adjoint_jacobian_solve(self, nl_deps, b):
-    return b
+  def adjoint_jacobian_solve(self, nl_deps, B):
+    return B
     
   def tangent_linear(self, M, dM, tlm_map):
-    return None
+    return NullSolver([tlm_map[x] for x in self.X()])
 
 class AssignmentSolver(Equation):
   def __init__(self, y, x):
@@ -334,7 +341,7 @@ class AssignmentSolver(Equation):
       tau_y = tlm_map[y]
     
     if tau_y is None:
-      return None
+      return NullSolver(tlm_map[x])
     else:
       return AssignmentSolver(tau_y, tlm_map[x])
 
@@ -388,13 +395,9 @@ class LinearCombinationSolver(Equation):
       if not tau_y is None:
         args.append((alpha, tau_y))
     if len(args) == 0:
-      return None
+      return NullSolver(tlm_map[x])
     else:
       return LinearCombinationSolver(tlm_map[x], *args)
-
-#class NullSolver(LinearCombinationSolver):
-#  def __init__(self, x):
-#    LinearCombinationSolver.__init__(self, x)
 
 #class AssignmentSolver(LinearCombinationSolver):
 #  def __init__(self, y, x):
