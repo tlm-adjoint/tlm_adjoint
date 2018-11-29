@@ -196,9 +196,9 @@ class TimeSystem:
     if len(args) == 1 and isinstance(args[0], Equation):
       eq = args[0]
     elif len(args) == 2 and is_function(args[0]) and is_function(args[1]) and hasattr(args[1], "_tlm_adjoint__tfn"):
-     eq = AssignmentSolver(args[0], args[1])
+      eq = AssignmentSolver(args[0], args[1])
     else:
-     eq = EquationSolver(*args, **kwargs)
+      eq = EquationSolver(*args, **kwargs)
   
     X = eq.X()
     level = X[0]._tlm_adjoint__level
