@@ -452,7 +452,9 @@ class EquationSolver(Equation):
             _, J, _ = self._forward_eq
             alias_replace(J, deps)
             alias_clear_J = True
-          J_mat, b_bc = assemble_matrix(J, self._bcs, self._form_compiler_parameters, force_evaluation = False)
+          J_mat, b_bc = assemble_matrix(J, self._bcs,
+            self._form_compiler_parameters, self._solver_parameters,
+            force_evaluation = False)
 
           # Assemble the RHS with RHS assembly caching
           b = self._cached_rhs(deps, b_bc = b_bc)
@@ -596,7 +598,9 @@ class EquationSolver(Equation):
       if self._adjoint_J is None:
         self._adjoint_J = alias_form(adjoint(self._J), self.nonlinear_dependencies())
       alias_replace(self._adjoint_J, nl_deps)
-      J_mat, _ = assemble_matrix(self._adjoint_J, self._hbcs, self._form_compiler_parameters, force_evaluation = False)
+      J_mat, _ = assemble_matrix(self._adjoint_J, self._hbcs,
+        self._form_compiler_parameters, self._solver_parameters,
+        force_evaluation = False)
       
       J_solver = linear_solver(J_mat,
         self._linear_solver_parameters if self._adjoint_solver_parameters is None else self._adjoint_solver_parameters)

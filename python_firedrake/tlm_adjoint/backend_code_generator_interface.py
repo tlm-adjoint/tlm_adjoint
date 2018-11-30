@@ -82,8 +82,9 @@ def process_solver_parameters(solver_parameters, J, linear):
   solver_parameters = copy_parameters_dict(solver_parameters)
   return solver_parameters, solver_parameters, True
 
-def assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True):
-  A = assemble(form, bcs = bcs, form_compiler_parameters = form_compiler_parameters)
+def assemble_matrix(form, bcs, form_compiler_parameters, solver_parameters = {}, force_evaluation = True):
+  mat_type = solver_parameters.get("mat_type", None)
+  A = assemble(form, bcs = bcs, form_compiler_parameters = form_compiler_parameters, mat_type = mat_type)
   if force_evaluation:
     A.force_evaluation()
   return A, None

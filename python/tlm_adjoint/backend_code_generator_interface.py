@@ -121,7 +121,7 @@ def process_solver_parameters(solver_parameters, J, linear):
   
   return solver_parameters, linear_solver_parameters, checkpoint_ic
 
-def assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True):
+def assemble_matrix(form, bcs, form_compiler_parameters, solver_parameters = {}, force_evaluation = True):
   if len(bcs) > 0:
     test = TestFunction(form.arguments()[0].function_space())
     test_shape = test.ufl_element().value_shape()
