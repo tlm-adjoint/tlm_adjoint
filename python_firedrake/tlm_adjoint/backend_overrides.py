@@ -235,8 +235,8 @@ class LinearSolver(backend_LinearSolver):
     else:
       solver_parameters = copy_parameters_dict(solver_parameters)
       
-    self._tlm_adjoint__A = A
-    self._tlm_adjoint__solver_parameters = solver_parameters
+    self.__A = A
+    self.__solver_parameters = solver_parameters
 
   def solve(self, x, b, annotate = None, tlm = None):
     if annotate is None:
@@ -244,7 +244,7 @@ class LinearSolver(backend_LinearSolver):
     if tlm is None:
       tlm = tlm_enabled()
     if annotate or tlm:
-      A = self._tlm_adjoint__A
+      A = self.__A
       if not is_function(x):
         x = x._tlm_adjoint__function
       if not is_function(b):
@@ -253,7 +253,7 @@ class LinearSolver(backend_LinearSolver):
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
-      solver_parameters = self._tlm_adjoint__solver_parameters
+      solver_parameters = self.__solver_parameters
       solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
       
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x,

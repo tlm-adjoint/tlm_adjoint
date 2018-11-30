@@ -290,19 +290,19 @@ class LUSolver(backend_LUSolver):
   def __init__(self, *args):
     backend_LUSolver.__init__(self, *args)
     if len(args) >= 1 and isinstance(args[0], backend_Matrix):
-      self._tlm_adjoint__A = args[0]
-      self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
+      self.__A = args[0]
+      self.__linear_solver = args[1] if len(args) >= 2 else "default"
     elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
-      self._tlm_adjoint__A = args[1]
-      self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"
+      self.__A = args[1]
+      self.__linear_solver = args[2] if len(args) >= 3 else "default"
     elif len(args) >= 1 and isinstance(args[0], str):
-      self._tlm_adjoint__linear_solver = args[0]  # FEniCS < 2018.1.0 compatibility
+      self.__linear_solver = args[0]  # FEniCS < 2018.1.0 compatibility
     else:
-      self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
+      self.__linear_solver = args[1] if len(args) >= 2 else "default"
       
   def set_operator(self, A):
     backend_LUSolver.set_operator(self, A)
-    self._tlm_adjoint__A = A
+    self.__A = A
 
   def solve(self, *args, annotate = None, tlm = None):
     backend_LUSolver.solve(self, *args)
@@ -314,9 +314,9 @@ class LUSolver(backend_LUSolver):
     if annotate or tlm:
       if isinstance(args[0], backend_Matrix):
         A, x, b = args
-        self._tlm_adjoint__A = A
+        self.__A = A
       else:
-        A = self._tlm_adjoint__A
+        A = self.__A
         x, b = args
         
       bcs = A._tlm_adjoint__bcs
@@ -326,7 +326,7 @@ class LUSolver(backend_LUSolver):
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
-        bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "lu_solver":self.parameters},
+        bcs, solver_parameters = {"linear_solver":self.__linear_solver, "lu_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
       eq._post_process(annotate = annotate, replace = True, tlm = tlm)
 
@@ -334,23 +334,23 @@ class KrylovSolver(backend_KrylovSolver):
   def __init__(self, *args):
     backend_KrylovSolver.__init__(self, *args)
     if len(args) >= 1 and isinstance(args[0], backend_Matrix):
-      self._tlm_adjoint__A = args[0]
-      self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
-      self._tlm_adjoint__preconditioner = args[2] if len(args) >= 3 else "default"
+      self.__A = args[0]
+      self.__linear_solver = args[1] if len(args) >= 2 else "default"
+      self.__preconditioner = args[2] if len(args) >= 3 else "default"
     elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
-      self._tlm_adjoint__A = args[1]
-      self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"
-      self._tlm_adjoint__preconditioner = args[3] if len(args) >= 4 else "default"
+      self.__A = args[1]
+      self.__linear_solver = args[2] if len(args) >= 3 else "default"
+      self.__preconditioner = args[3] if len(args) >= 4 else "default"
     elif len(args) >= 1 and isinstance(args[0], str):
-      self._tlm_adjoint__linear_solver = args[0]
-      self._tlm_adjoint__preconditioner = args[1] if len(args) >= 2 else "default"
+      self.__linear_solver = args[0]
+      self.__preconditioner = args[1] if len(args) >= 2 else "default"
     else:
-      self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"
-      self._tlm_adjoint__preconditioner = args[2] if len(args) >= 3 else "default"
+      self.__linear_solver = args[1] if len(args) >= 2 else "default"
+      self.__preconditioner = args[2] if len(args) >= 3 else "default"
       
   def set_operator(self, A):
     backend_KrylovSolver.set_operator(self, A)
-    self._tlm_adjoint__A = A
+    self.__A = A
 
   def set_operators(self, *args, **kwargs):
     raise OverrideException("Preconditioner matrices not supported")
@@ -363,9 +363,9 @@ class KrylovSolver(backend_KrylovSolver):
     if annotate or tlm:
       if isinstance(args[0], backend_Matrix):
         A, x, b = args
-        self._tlm_adjoint__A = None
+        self.__A = None
       else:
-        A = self._tlm_adjoint__A
+        A = self.__A
         x, b = args
         
       bcs = A._tlm_adjoint__bcs
@@ -375,7 +375,7 @@ class KrylovSolver(backend_KrylovSolver):
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
-        bcs, solver_parameters = {"linear_solver":self._tlm_adjoint__linear_solver, "preconditioner":self._tlm_adjoint__preconditioner, "krylov_solver":self.parameters},
+        bcs, solver_parameters = {"linear_solver":self.__linear_solver, "preconditioner":self.__preconditioner, "krylov_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
 
       eq._pre_process(annotate = annotate)
