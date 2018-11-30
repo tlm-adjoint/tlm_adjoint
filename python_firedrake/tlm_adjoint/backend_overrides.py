@@ -109,8 +109,8 @@ def solve(*args, **kwargs):
         raise OverrideException("Adaptive solves not supported")
       if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
         raise OverrideException("Null spaces not supported")
-      if not options_prefix is None:
-        raise OverrideException("Options prefixes not supported")
+      solver_parameters = copy.copy(solver_parameters)
+      solver_parameters["_tlm_adjoint__options_prefix"] = options_prefix
       lhs, rhs = eq.lhs, eq.rhs
       if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
         (x in lhs.coefficients() or x in rhs.coefficients()):
@@ -224,8 +224,6 @@ class LinearSolver(backend_LinearSolver):
       raise OverrideException("Preconditioner matrices not supported")
     if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
       raise OverrideException("Null spaces not supported")
-    if not options_prefix is None:
-      raise OverrideException("Options prefixes not supported")
 
     backend_LinearSolver.__init__(self, A, P = P,
       solver_parameters = solver_parameters, nullspace = nullspace,
@@ -256,11 +254,14 @@ class LinearSolver(backend_LinearSolver):
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       solver_parameters = self._tlm_adjoint__solver_parameters
+      solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
       
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False)
+      
+      del(solver_parameters["_tlm_adjoint__options_prefix"])
 
       eq._pre_process(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)
@@ -273,8 +274,6 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
     problem, = args
     if "nullspace" in kwargs or "transpose_nullspace" in kwargs:
       raise OverrideException("Null spaces not supported")
-    if "options_prefix" in kwargs:
-      raise OverrideException("Options prefixes not supported")
   
     backend_LinearVariationalSolver.__init__(self, *args, **kwargs)
     self.__problem = problem
@@ -297,10 +296,13 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
       L = ufl.rhs(ufl.replace(self.__problem.F, OrderedDict([(x, TrialFunction(x.function_space()))])))
       form_compiler_parameters = self.__problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
+      self.parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
       
       EquationSolver(self.__problem.J == L, x, self.__problem.bcs,
         solver_parameters = self.parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+      
+      del(self.parameters["_tlm_adjoint__options_prefix"])
     else:
       backend_LinearVariationalSolver.solve(self, bounds = bounds)

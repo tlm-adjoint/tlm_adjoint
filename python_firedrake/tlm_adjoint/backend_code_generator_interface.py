@@ -19,6 +19,7 @@
 
 from .backend import *
 
+import copy
 import ufl
 
 __all__ = \
@@ -37,7 +38,9 @@ __all__ = \
     "process_solver_parameters",
     "rhs_addto",
     "rhs_copy",
-    "update_parameters_dict"
+    "update_parameters_dict",
+    
+    "solve"
   ]
   
 class InterfaceException(Exception):
@@ -95,7 +98,10 @@ def assemble_system(A_form, b_form, bcs = [], form_compiler_parameters = {}):
           assemble(b_form, form_compiler_parameters = form_compiler_parameters))
 
 def linear_solver(A, linear_solver_parameters):
-  return LinearSolver(A, solver_parameters = linear_solver_parameters)
+  linear_solver_parameters = copy.copy(linear_solver_parameters)
+  options_prefix = linear_solver_parameters.pop("_tlm_adjoint__options_prefix", None)
+  return LinearSolver(A, solver_parameters = linear_solver_parameters,
+    options_prefix = options_prefix)
 
 def form_form_compiler_parameters(form, form_compiler_parameters):
   return {"quadrature_degree":ufl.algorithms.estimate_total_polynomial_degree(form)}
@@ -129,3 +135,20 @@ def rhs_copy(x):
 
 def rhs_addto(x, y):
   x.vector().set_local(x.vector().get_local() + y.vector().get_local())  # function_axpy
+
+def solve(*args, **kwargs):
+  if not isinstance(args[0], ufl.classes.Equation):
+    return backend_solve(*args, **kwargs)
+  
+  eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
+    nullspace, transpose_nullspace, near_nullspace, options_prefix = \
+    extract_args(*args, **kwargs)
+
+  solver_parameters = copy.copy(solver_parameters)
+  options_prefix = solver_parameters.pop("_tlm_adjoint__options_prefix", options_prefix)
+
+  return backend_solve(eq, x, bcs, J = J, Jp = Jp, M = M,
+    form_compiler_parameters = form_compiler_parameters, 
+    solver_parameters = solver_parameters, nullspace = nullspace,
+    transpose_nullspace = transpose_nullspace, near_nullspace = near_nullspace,
+    options_prefix = options_prefix)
