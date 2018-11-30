@@ -201,7 +201,7 @@ class TangentLinearMap:
     self.clear()
   
   def __contains__(self, x):
-    return x.id() in self._map
+    return not self._map.get(x.id(), None) is None
   
   def __getitem__(self, x):
     if not x.id() in self._map:
