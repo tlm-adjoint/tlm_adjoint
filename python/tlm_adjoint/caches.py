@@ -70,8 +70,8 @@ class Function(backend_Function):
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
     
-    backend_Function.__init__(self, *args, **kwargs)
     self.__static = static
+    backend_Function.__init__(self, *args, **kwargs)
   
   def is_static(self):
     return self.__static
