@@ -59,7 +59,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
   return True
 
 # Aim for compatibility with Firedrake API, git master revision
-# b7b1294fcfcb651f9507d8f5fafbe5cf42f672ff
+# 556fec2d04d05f31de2b19c728358c1a4a39100b
 
 def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inverse = False, *args, **kwargs):
   if inverse:
@@ -165,7 +165,10 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
   if annotate or tlm:
     if not mesh is None:
       raise OverrideException("mesh argument not supported")
-    x = Function(V, name = name)
+    if is_function(V):
+      x = V
+    else:
+      x = Function(V, name = name)
     ProjectionSolver(v, x, [] if bcs is None else bcs,
       solver_parameters = {} if solver_parameters is None else solver_parameters,
       form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
@@ -190,7 +193,7 @@ _orig_Function_assign = backend_Function.assign
 def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
   return_value = _orig_Function_assign(self, expr, subset = subset)
   if not is_function(expr) or not subset is None:
-    return
+    return return_value
   
   if annotate is None:
     annotate = annotation_enabled()
@@ -201,6 +204,11 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
     eq._post_process(annotate = annotate, replace = True, tlm = tlm)
   return return_value
 backend_Function.assign = _Function_assign
+
+_orig_Function_project = backend_Function.project
+def _Function_project(self, b, *args, **kwargs):
+  return project(b, self, *args, **kwargs)
+backend_Function.project = _Function_project
 
 _orig_Function_vector = backend_Function.vector
 def _Function_vector(self):
@@ -259,9 +267,6 @@ class LinearSolver(backend_LinearSolver):
       eq._post_process(annotate = annotate, replace = True, tlm = tlm)
     else:
       backend_LinearSolver.solve(self, x, b)
-
-# Aim for compatibility with Firedrake API, git master revision
-# 556fec2d04d05f31de2b19c728358c1a4a39100b
 
 class LinearVariationalSolver(backend_LinearVariationalSolver):
   def __init__(self, *args, **kwargs):
