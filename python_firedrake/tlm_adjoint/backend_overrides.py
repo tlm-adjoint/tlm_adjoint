@@ -33,6 +33,8 @@ __all__ = \
     
     "LinearSolver",
     "LinearVariationalSolver",
+    "NonlinearVariationalProblem",
+    "NonlinearVariationalSolver",
     "assemble",
     "project",
     "solve"
@@ -274,6 +276,8 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
     problem, = args
     if "nullspace" in kwargs or "transpose_nullspace" in kwargs:
       raise OverrideException("Null spaces not supported")
+    if "appctx" in kwargs:
+      raise OverrideException("Preconditioners not supported")
   
     backend_LinearVariationalSolver.__init__(self, *args, **kwargs)
     self.__problem = problem
@@ -306,3 +310,54 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
       del(self.parameters["_tlm_adjoint__options_prefix"])
     else:
       backend_LinearVariationalSolver.solve(self, bounds = bounds)
+
+class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
+  def __init__(self, F, u, bcs = None, J = None, Jp = None,
+    form_compiler_parameters = None):
+    if not J is None:
+      raise OverrideException("Custom Jacobians not supported")
+    if not Jp is None:
+      raise OverrideException("Preconditioners not supported")
+    
+    backend_NonlinearVariationalProblem.__init__(self, F, u, bcs = bcs, J = J,
+      Jp = Jp, form_compiler_parameters = form_compiler_parameters)
+
+class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
+  def __init__(self, *args, **kwargs):
+    problem, = args
+    if "nullspace" in kwargs or "transpose_nullspace" in kwargs or "near_nullspace" in kwargs:
+      raise OverrideException("Null spaces not supported")
+    if "appctx" in kwargs:
+      raise OverrideException("Preconditioners not supported")
+    if "pre_jacobian_callback" in kwargs or "pre_function_callback" in kwargs:
+      raise OverrideException("Callbacks not supported")
+  
+    backend_NonlinearVariationalSolver.__init__(self, *args, **kwargs)
+    self.__problem = problem
+  
+  def set_transfer_operators(self, *args, **kwargs):
+    raise OverrideException("Transfer operators not supported")
+  
+  def solve(self, bounds = None, annotate = None, tlm = None):
+    if annotate is None:
+      annotate = annotation_enabled()
+    if tlm is None:
+      tlm = tlm_enabled()
+    if annotate or tlm:
+      if not bounds is None:
+        raise OverrideException("Bounds not supported")        
+      if not self.__problem.Jp is None:
+        raise OverrideException("Preconditioners not supported")
+      
+      form_compiler_parameters = self.__problem.form_compiler_parameters
+      if form_compiler_parameters is None: form_compiler_parameters = {}
+      self.parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
+      
+      EquationSolver(self.__problem.F == 0, self.__problem.u, self.__problem.bcs,
+        solver_parameters = self.parameters,
+        form_compiler_parameters = form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+      
+      del(self.parameters["_tlm_adjoint__options_prefix"])
+    else:
+      backend_NonlinearVariationalSolver.solve(self, bounds = bounds)

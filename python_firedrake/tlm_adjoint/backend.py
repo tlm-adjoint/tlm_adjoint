@@ -31,6 +31,8 @@ backend_DirichletBC = DirichletBC
 backend_Function = Function
 backend_LinearSolver = LinearSolver
 backend_LinearVariationalSolver = LinearVariationalSolver
+backend_NonlinearVariationalProblem = NonlinearVariationalProblem
+backend_NonlinearVariationalSolver = NonlinearVariationalSolver
 backend_assemble = assemble
 backend_project = project
 backend_solve = solve
@@ -44,6 +46,8 @@ __all__ = \
     "backend_Function",
     "backend_LinearSolver",
     "backend_LinearVariationalSolver",
+    "backend_NonlinearVariationalProblem",
+    "backend_NonlinearVariationalSolver",
     "backend_Matrix",
     "backend_assemble",
     "backend_project",

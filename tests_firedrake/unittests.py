@@ -323,7 +323,7 @@ class tests(unittest.TestCase):
     bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
-      G = [Function(space, name = "G_%i" % i) for i in range(4)]
+      G = [Function(space, name = "G_%i" % i) for i in range(5)]
       
       G[0] = project(F, space)
       
@@ -345,6 +345,15 @@ class tests(unittest.TestCase):
       solver.parameters.update(solver_parameters = {"ksp_type":"cg",
                                                     "pc_type":"jacobi",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+      solver.solve()
+      
+      solver = NonlinearVariationalSolver(NonlinearVariationalProblem(
+        inner(test, G[4]) * dx - inner(test, G[3]) * dx, G[4]))
+      solver.parameters.update(solver_parameters = {"snes_type":"newtonls",
+                                                    "ksp_type":"cg",
+                                                    "pc_type":"jacobi",
+                                                    "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16,
+                                                    "snes_rtol":1.0e-13, "snes_atol":1.0e-15})
       solver.solve()
       
       J = Functional(name = "J")
