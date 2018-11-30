@@ -659,6 +659,7 @@ class FixedPointSolver(Equation):
       eq.reset_adjoint_derivative_action()
     
   def tangent_linear(self, M, dM, tlm_map):
-    return FixedPointSolver([eq.tangent_linear(M, dM, tlm_map) for eq in self._eqs],
+    return FixedPointSolver([NullSolver(tlm_map[eq.x()]) if tlm_eq is None else tlm_eq
+        for eq, tlm_eq in zip(self._eqs, [eq.tangent_linear(M, dM, tlm_map) for eq in self._eqs])],
       solver_parameters = self._solver_parameters,
       initial_guess = None if self._initial_guess_index is None else tlm_map[self.dependencies()[self._initial_guess_index]])

@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+from .base_equations import *
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import Checkpoint, EquationManager
@@ -103,6 +104,7 @@ class SingleBlockHessian(Hessian):
           for dep in eq.dependencies():
             if dep in M or dep in tlm_map:
               tlm_eq = eq_tlm_eqs[(M, dM)] = eq.tangent_linear(M, dM, tlm_map)
+              if tlm_eq is None: tlm_eq = eq_tlm_eqs[(M, dM)] = NullSolver([tlm_map[eq_x] for eq_x in eq_X])
               break
         if not tlm_eq is None:
           # Extract the dependency values from storage for use in the solution of
