@@ -158,11 +158,11 @@ class TimeFunction:
     self._levels = levels
     self._cycle_eqs = None
   
-  def __getitem__(self, key):
-    if isinstance(key, BaseTimeLevel):
-      return self._fns[key]
+  def __getitem__(self, level):
+    if isinstance(level, BaseTimeLevel):
+      return self._fns[level]
     else:
-      return self._fns[InitialTimeLevel(key)]
+      return self._fns[InitialTimeLevel(level)]
     
   def __len__(self):
     return len(self._fns)
