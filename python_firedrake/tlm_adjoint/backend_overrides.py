@@ -300,14 +300,13 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
       L = ufl.rhs(ufl.replace(self.__problem.F, OrderedDict([(x, TrialFunction(x.function_space()))])))
       form_compiler_parameters = self.__problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
-      self.parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
+      solver_parameters = copy.copy(self.parameters)
+      solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix
       
       EquationSolver(self.__problem.J == L, x, self.__problem.bcs,
-        solver_parameters = self.parameters,
+        solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
-      
-      del(self.parameters["_tlm_adjoint__options_prefix"])
     else:
       backend_LinearVariationalSolver.solve(self, bounds = bounds)
 
@@ -351,13 +350,12 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
       
       form_compiler_parameters = self.__problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
-      self.parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
+      solver_parameters = copy.copy(self.parameters)
+      solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix
       
       EquationSolver(self.__problem.F == 0, self.__problem.u, self.__problem.bcs,
-        solver_parameters = self.parameters,
+        solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
-      
-      del(self.parameters["_tlm_adjoint__options_prefix"])
     else:
       backend_NonlinearVariationalSolver.solve(self, bounds = bounds)
