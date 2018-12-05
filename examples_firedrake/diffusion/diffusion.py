@@ -31,6 +31,7 @@ numpy.random.seed(2212983)
 import h5py
 
 mesh = UnitSquareMesh(50, 50)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 bc = DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True)
@@ -43,10 +44,9 @@ N = 10
 kappa = Function(space, name = "kappa", static = True)
 function_assign(kappa, 1.0)
 Psi_0 = Function(space, name = "Psi_0", static = True)
-Psi_0.interpolate(Expression("exp(x[0]) * sin(pi * x[0])" +
-                             " * sin(10.0 * pi * x[0])" +
-                             " * sin(2.0 * pi * x[1])",
-                             element = space.ufl_element()))
+Psi_0.interpolate(exp(X[0]) * sin(pi * X[0])
+                * sin(10.0 * pi * X[0])
+                * sin(2.0 * pi * X[1]))
 
 zeta_1 = Function(space, name = "zeta_1", static = True)
 zeta_2 = Function(space, name = "zeta_2", static = True)

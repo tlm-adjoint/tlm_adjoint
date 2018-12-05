@@ -30,6 +30,7 @@ class tests(unittest.TestCase):
     stop_manager()
     
     mesh = UnitIntervalMesh(20)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     
     def test_expression(y, y_int):
@@ -46,7 +47,7 @@ class tests(unittest.TestCase):
       return x, J
     
     y = Function(space, name = "y", static = True)
-    y.interpolate(Expression("cos(3.0 * pi * x[0])", element = space.ufl_element()))
+    y.interpolate(cos(3.0 * pi * X[0]))
     start_manager()
     x, J = forward(y)
     stop_manager()
@@ -128,6 +129,7 @@ class tests(unittest.TestCase):
     stop_manager()
     
     mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
     
@@ -135,7 +137,7 @@ class tests(unittest.TestCase):
       clear_caches()
     
       x_n = Function(space, name = "x_n")
-      x_n.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1])", element = space.ufl_element()))
+      x_n.interpolate(sin(pi * X[0]) * sin(2.0 * pi * X[1]))
       x_np1 = Function(space, name = "x_np1")
       dt = Constant(0.01, static = True)
       bc = DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True)
@@ -271,6 +273,7 @@ class tests(unittest.TestCase):
     stop_manager()
     
     mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
     
@@ -292,7 +295,7 @@ class tests(unittest.TestCase):
       return x_ref, J
     
     alpha_ref = Function(space, name = "alpha_ref", static = True)
-    alpha_ref.interpolate(Expression("exp(x[0] + x[1])", element = space.ufl_element()))
+    alpha_ref.interpolate(exp(X[0] + X[1]))
     x_ref, _ = forward(alpha_ref)
     
     alpha0 = Function(space, name = "alpha0", static = True)
@@ -314,11 +317,12 @@ class tests(unittest.TestCase):
     stop_manager()
     
     mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
     F = Function(space, name = "F", static = True)
-    F.interpolate(Expression("1.0 + sin(pi * x[0]) * sin(3.0 * pi * x[1])", element = space.ufl_element()))
+    F.interpolate(1.0 + sin(pi * X[0]) * sin(3.0 * pi * X[1]))
     
     bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
@@ -378,11 +382,12 @@ class tests(unittest.TestCase):
     stop_manager()
     
     mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
     F = Function(space, name = "F", static = True)
-    F.interpolate(Expression("sin(pi * x[0]) * sin(3.0 * pi * x[1])", element = space.ufl_element()))
+    F.interpolate(sin(pi * X[0]) * sin(3.0 * pi * X[1]))
     
     def forward(bc):
       x_0 = Function(space, name = "x_0")
@@ -531,10 +536,11 @@ class tests(unittest.TestCase):
       stop_manager()
       
       mesh = UnitIntervalMesh(100)
+      X = SpatialCoordinate(mesh)
       space = FunctionSpace(mesh, "Lagrange", 1)
       test, trial = TestFunction(space), TrialFunction(space)
       T_0 = Function(space, name = "T_0", static = True)
-      T_0.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])", element = space.ufl_element()))
+      T_0.interpolate(sin(pi * X[0]) + sin(10.0 * pi * X[0]))
       dt = Constant(0.01, static = True)
       space_r0 = FunctionSpace(mesh, "R", 0)
       kappa = Function(space_r0, name = "kappa", static = True)
