@@ -147,14 +147,10 @@ def solve(*args, **kwargs):
         if A_x_dep: A = ufl.replace(A, OrderedDict([(x, x_old)]))
         if b_x_dep: b = ufl.replace(b, OrderedDict([(x, x_old)]))
         
-      eq = EquationSolver(A == b, x,
+      EquationSolver(A == b, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
-        cache_jacobian = False, cache_rhs_assembly = False)
-        
-      eq._pre_process(annotate = annotate)
-      backend_solve(*args, **kwargs)
-      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
   else:
     backend_solve(*args, **kwargs)
 
@@ -202,8 +198,7 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
   if tlm is None:
     tlm = tlm_enabled()
   if annotate or tlm:
-    eq = AssignmentSolver(expr, self)
-    eq._post_process(annotate = annotate, replace = True, tlm = tlm)
+    AssignmentSolver(expr, self).solve(annotate = annotate, replace = True, tlm = tlm)
   return return_value
 backend_Function.assign = _Function_assign
 
