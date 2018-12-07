@@ -237,7 +237,7 @@ class EquationSolver(Equation):
     else:
       F = lhs
       if rhs != 0:
-        F -= rhs
+        raise EquationException("Invalid right-hand-side")
       nl_solve_J = J
       J = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
     
