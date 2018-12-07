@@ -105,8 +105,8 @@ def solve(*args, **kwargs):
       eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
         nullspace, transpose_nullspace, near_nullspace, options_prefix = \
         extract_args(*args, **kwargs)
-      if not J is None or not Jp is None:
-        raise OverrideException("Custom Jacobians not supported")
+      if not Jp is None:
+        raise OverrideException("Preconditioners not supported")
       if not M is None:
         raise OverrideException("Adaptive solves not supported")
       if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
@@ -121,7 +121,7 @@ def solve(*args, **kwargs):
         lhs = ufl.replace(lhs, OrderedDict([(x, x_old)]))
         rhs = ufl.replace(rhs, OrderedDict([(x, x_old)]))
         eq = lhs == rhs
-      EquationSolver(eq, x, bcs,
+      EquationSolver(eq, x, bcs, J = J,
         form_compiler_parameters = form_compiler_parameters,
         solver_parameters = solver_parameters, cache_jacobian = False,
         cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
@@ -156,7 +156,7 @@ def solve(*args, **kwargs):
       backend_solve(*args, **kwargs)
       eq._post_process(annotate = annotate, replace = True, tlm = tlm)
   else:
-    return backend_solve(*args, **kwargs)
+    backend_solve(*args, **kwargs)
 
 def project(v, V, bcs = None, mesh = None, solver_parameters = None,
   form_compiler_parameters = None, name = None, annotate = None, tlm = None):
@@ -223,7 +223,7 @@ class LinearSolver(backend_LinearSolver):
   def __init__(self, A, P = None, solver_parameters = None, nullspace = None,
     transpose_nullspace = None, near_nullspace = None, options_prefix = None):
     if not P is None:
-      raise OverrideException("Preconditioner matrices not supported")
+      raise OverrideException("Preconditioners not supported")
     if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
       raise OverrideException("Null spaces not supported")
 
@@ -313,8 +313,6 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
 class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
   def __init__(self, F, u, bcs = None, J = None, Jp = None,
     form_compiler_parameters = None):
-    if not J is None:
-      raise OverrideException("Custom Jacobians not supported")
     if not Jp is None:
       raise OverrideException("Preconditioners not supported")
     
@@ -353,7 +351,8 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
       solver_parameters = copy.copy(self.parameters)
       solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix
       
-      EquationSolver(self.__problem.F == 0, self.__problem.u, self.__problem.bcs,
+      EquationSolver(self.__problem.F == 0, self.__problem.u,
+        self.__problem.bcs, J = self.__problem.J,
         solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)

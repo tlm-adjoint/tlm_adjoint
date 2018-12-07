@@ -379,7 +379,7 @@ class tests(unittest.TestCase):
     bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
-      G = [Function(space, name = "G_%i" % i) for i in range(6)]
+      G = [Function(space, name = "G_%i" % i) for i in range(7)]
       
       G[0] = project(F, space, function = G[0])
       
@@ -409,6 +409,19 @@ class tests(unittest.TestCase):
       solver = LinearVariationalSolver(LinearVariationalProblem(
         inner(test, trial) * dx, inner(test, G[4]) * dx, G[5]))
       solver.parameters.update({"linear_solver":"cg", "krylov_solver":{"absolute_tolerance":1.0e-16, "relative_tolerance":1.0e-14}})
+      solver.solve()
+      
+      solver = NonlinearVariationalSolver(NonlinearVariationalProblem(
+        inner(test, G[6]) * dx - inner(test, G[5]) * dx, G[6],
+        J = inner(test, trial) * dx))
+      solver.parameters.update({"nonlinear_solver":"newton",
+                                "newton_solver":{"linear_solver":"cg",
+                                                 "preconditioner":"sor",
+                                                 "krylov_solver":{"relative_tolerance":1.0e-14,
+                                                                  "absolute_tolerance":1.0e-16},
+                                                 "relative_tolerance":1.0e-13,
+                                                 "absolute_tolerance":1.0e-15,
+                                                 "report":False}})
       solver.solve()
       
       J = Functional(name = "J")

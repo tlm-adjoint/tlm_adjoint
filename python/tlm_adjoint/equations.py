@@ -205,10 +205,10 @@ def homogenized_bc(bc):
     return hbc
     
 class EquationSolver(Equation):
-  # eq, x, bcs, form_compiler_parameters and solver_parameters argument usage
+  # eq, x, bcs, J, form_compiler_parameters and solver_parameters argument usage
   # based on the interface for the solve function in FEniCS (see e.g. FEniCS
   # 2017.1.0)
-  def __init__(self, eq, x, bcs = [], form_compiler_parameters = {},
+  def __init__(self, eq, x, bcs = [], J = None, form_compiler_parameters = {},
     solver_parameters = {}, adjoint_solver_parameters = None,
     initial_guess = None, cache_jacobian = None, cache_rhs_assembly = None,
     match_quadrature = None, defer_adjoint_assembly = None):
@@ -232,11 +232,13 @@ class EquationSolver(Equation):
       if x in lhs.coefficients() or x in rhs.coefficients():
         raise EquationException("Invalid non-linear dependency")
       F = ufl.action(lhs, coefficient = x) - rhs
+      nl_solve_J = None
       J = lhs
     else:
       F = lhs
       if rhs != 0:
         F -= rhs
+      nl_solve_J = J
       J = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
     
     deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(F)          
@@ -264,7 +266,11 @@ class EquationSolver(Equation):
     if cache_jacobian is None:
       cache_jacobian = is_static(J) and bcs_is_static(bcs)
     
-    solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
+    if nl_solve_J is None:
+      solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
+    else:
+      _, linear_solver_parameters, _ = process_solver_parameters(solver_parameters, J, linear)
+      solver_parameters, _, checkpoint_ic = process_solver_parameters(solver_parameters, nl_solve_J, linear)
     if not adjoint_solver_parameters is None:
       _, adjoint_solver_parameters, _ = process_solver_parameters(adjoint_solver_parameters, J, linear = True)
     ic_deps = [x] if (initial_guess is None and checkpoint_ic) else []
@@ -281,6 +287,7 @@ class EquationSolver(Equation):
     self._bcs = copy.copy(bcs)
     self._hbcs = hbcs
     self._J = J
+    self._nl_solve_J = nl_solve_J
     self._form_compiler_parameters = form_compiler_parameters
     self._solver_parameters = solver_parameters
     self._linear_solver_parameters = linear_solver_parameters
@@ -302,6 +309,8 @@ class EquationSolver(Equation):
     if self._rhs != 0:
       self._rhs = ufl.replace(self._rhs, replace_map)
     self._J = ufl.replace(self._J, replace_map)
+    if not self._nl_solve_J is None:
+      self._nl_solve_J = ufl.replace(self._nl_solve_J, replace_map)
     if hasattr(self, "_forward_b_pa") and not self._forward_b_pa is None:
       if not self._forward_b_pa[0] is None:
         self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)
@@ -499,11 +508,11 @@ class EquationSolver(Equation):
     else:
       # Case 5: Non-linear
       if deps is None:
-        lhs, J, rhs = self._lhs, self._J, self._rhs
+        lhs, J, rhs = self._lhs, (self._J if self._nl_solve_J is None else self._nl_solve_J), self._rhs
       else:    
         if self._forward_eq is None:
           self._forward_eq = (alias_form(self._lhs, eq_deps),
-                              alias_form(self._J, eq_deps),
+                              alias_form(self._J if self._nl_solve_J is None else self._nl_solve_J, eq_deps),
                               (0 if self._rhs == 0 else alias_form(self._rhs, eq_deps)))
         lhs, J, rhs = self._forward_eq
         alias_replace(lhs, deps)

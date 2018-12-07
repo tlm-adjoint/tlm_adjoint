@@ -32,6 +32,8 @@ __all__ = \
     "OverrideException",
     
     "LinearVariationalSolver",
+    "NonlinearVariationalProblem",
+    "NonlinearVariationalSolver",
     "KrylovSolver",
     "LUSolver",
     "assemble",
@@ -150,8 +152,6 @@ def solve(*args, **kwargs):
   if annotate or tlm:
     if isinstance(args[0], ufl.classes.Equation):
       eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters = extract_args(*args, **kwargs)
-      if not J is None:
-        raise OverrideException("Custom Jacobians not supported")
       if not tol is None or not M is None:
         raise OverrideException("Adaptive solves not supported")
       lhs, rhs = eq.lhs, eq.rhs
@@ -162,7 +162,7 @@ def solve(*args, **kwargs):
         lhs = ufl.replace(lhs, OrderedDict([(x, x_old)]))
         rhs = ufl.replace(rhs, OrderedDict([(x, x_old)]))
         eq = lhs == rhs
-      EquationSolver(eq, x, bcs,
+      EquationSolver(eq, x, bcs, J = J,
         form_compiler_parameters = form_compiler_parameters,
         solver_parameters = solver_parameters, cache_jacobian = False,
         cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
@@ -199,7 +199,7 @@ def solve(*args, **kwargs):
       backend_solve(*args, **kwargs)
       eq._post_process(annotate = annotate, replace = True, tlm = tlm)
   else:
-    return backend_solve(*args, **kwargs)
+    backend_solve(*args, **kwargs)
 
 def project(v, V = None, bcs = None, mesh = None, function = None,
   solver_type = "lu", preconditioner_type = "default",
@@ -353,7 +353,7 @@ class KrylovSolver(backend_KrylovSolver):
     self.__A = A
 
   def set_operators(self, *args, **kwargs):
-    raise OverrideException("Preconditioner matrices not supported")
+    raise OverrideException("Preconditioners not supported")
 
   def solve(self, *args, annotate = None, tlm = None):
     if annotate is None:
@@ -402,3 +402,43 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
     else:
       backend_LinearVariationalSolver.solve(self)
+
+class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
+  def __init__(self, F, u, bcs = None, J = None,
+    form_compiler_parameters = None):      
+    backend_NonlinearVariationalProblem.__init__(self, F, u, bcs = bcs, J = J,
+      form_compiler_parameters = form_compiler_parameters)
+    if bcs is None:
+      self._tlm_adjoint__bcs = []
+    elif isinstance(bcs, backend_DirichletBC):
+      self._tlm_adjoint__bcs = [bcs]
+    else:
+      self._tlm_adjoint__bcs = copy.copy(bcs)
+      
+  def set_bounds(self, *args, **kwargs):
+    raise OverrideException("Bounds not supported")
+    
+class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
+  def __init__(self, problem):
+    backend_NonlinearVariationalSolver.__init__(self, problem)
+    self.__problem = problem
+  
+  def solve(self, annotate = None, tlm = None):
+    if annotate is None:
+      annotate = annotation_enabled()
+    if tlm is None:
+      tlm = tlm_enabled()
+    if annotate or tlm:
+      eq = EquationSolver(self.__problem.F_ufl == 0,
+        self.__problem.u_ufl, self.__problem._tlm_adjoint__bcs,
+        J = self.__problem.J_ufl,
+        solver_parameters = self.parameters,
+        form_compiler_parameters = self.__problem.form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False)
+        
+      eq._pre_process(annotate = annotate)
+      return_value = backend_NonlinearVariationalSolver.solve(self)
+      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
+      return return_value
+    else:
+      return backend_NonlinearVariationalSolver.solve(self)
