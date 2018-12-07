@@ -215,6 +215,8 @@ class TimeSystem:
       raise TimesteppingException("Invalid time level: %s" % level)
   
   def assemble(self, initialise = True):
+    if self._state != "initial":
+      raise TimesteppingException("Invalid state")      
     self._state = "assembled"
   
     if self._sorted_eqs is None:
