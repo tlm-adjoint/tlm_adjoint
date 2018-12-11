@@ -1396,7 +1396,7 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
   """
 
   if not isinstance(M0, (list, tuple)):
-    (M,), return_value = minimize_scipy(lambda M : forward(M[0]), [M0], J0 = J0, manager = manager, **kwargs)
+    (M,), return_value = minimize_scipy(forward, [M0], J0 = J0, manager = manager, **kwargs)
     return M, return_value
 
   M0 = [m0 if is_function(m0) else m0.m() for m0 in M0]
@@ -1449,7 +1449,7 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
     manager.reset()
     clear_caches()  # Could use new caches here
     manager.start()
-    J[0] = forward(M)
+    J[0] = forward(*M)
     manager.stop()    
     set_manager(old_manager)
     J_M[0] = M
