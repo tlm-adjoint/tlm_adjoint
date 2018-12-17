@@ -82,7 +82,7 @@ class Equation:
     if ic_deps is None:
       ic_deps = []
       for x in X:
-        if x in nl_deps:
+        if x in (deps if nl_deps is None else nl_deps):
           ic_deps.append(x)
     elif len(set(map(lambda dep : dep.id(), ic_deps))) != len(ic_deps):
       raise EquationException("Duplicate initial condition dependency")
