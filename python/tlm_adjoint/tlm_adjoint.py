@@ -937,8 +937,8 @@ class EquationManager:
                   replace_map[1][eq_dep_id] = function_new(eq_dep)
                   
             deps = [replace_map[1][eq_dep.id()] for eq_dep in eq_deps]
-#            for eq_dep, dep in zip(eq.initial_condition_dependencies(), deps):
-#              self._cp.add_initial_condition(eq_dep, dep)
+#            for eq_dep in eq.initial_condition_dependencies():
+#              self._cp.add_initial_condition(eq_dep, replace_map[1][eq_dep.id()])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
             self._cp.add_equation((n1, i), eq, deps = deps)
           self._cp_manager.add(n1)
@@ -985,8 +985,8 @@ class EquationManager:
                   replace_map[1][eq_dep_id] = function_new(eq_dep)
                   
             deps = [replace_map[1][eq_dep.id()] for eq_dep in eq_deps]
-            for eq_dep, dep in zip(eq.initial_condition_dependencies(), deps):
-              self._cp.add_initial_condition(eq_dep, dep)
+            for eq_dep in eq.initial_condition_dependencies():
+              self._cp.add_initial_condition(eq_dep, replace_map[1][eq_dep.id()])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
             self._cp.add_equation((n, i), eq, deps = deps)
           replace_map[0] = replace_map[1]
