@@ -844,9 +844,8 @@ class EquationManager:
     n = len(self._blocks) - 1
     if final or n % cp_period == cp_period - 1:
       self._save_disk_checkpoint(self._cp, n = (n // cp_period) * cp_period)
-      if not final:
-        self._cp = Checkpoint(checkpoint_ics = True,
-                              checkpoint_data = False)
+      self._cp = Checkpoint(checkpoint_ics = True,
+                            checkpoint_data = False)
 
   def _save_multistage_checkpoint(self):
     cp_verbose = self._cp_parameters["verbose"]
