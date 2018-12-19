@@ -378,7 +378,6 @@ class EquationManager:
       pass
     elif self._cp_method == "periodic_disk":
       info("  Function spaces referenced: %i" % len(self._cp_disk_spaces))
-      info("  Blocks in RAM: %i" % (len(self._cp_manager) + (1 if len(self._block) > 0 else 0)))
     elif self._cp_method == "multistage":
       info("  Function spaces referenced: %i" % len(self._cp_disk_spaces))
       info("  Snapshots in RAM: %i" % self._cp_manager.snapshots_in_ram())
@@ -491,7 +490,7 @@ class EquationManager:
       if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
     else:
       self._cp = Checkpoint(checkpoint_ics = cp_method != "none",
-                            checkpoint_data = cp_method != "none")
+                            checkpoint_data = cp_method == "memory")
   
   def add_tlm(self, M, dM, max_depth = 1):
     """
@@ -842,14 +841,12 @@ class EquationManager:
   def _periodic_disk_checkpoint(self, final = False):
     cp_period = self._cp_parameters["period"]
 
-    n = len(self._blocks) - 1  
-    self._cp_manager.add(n)
+    n = len(self._blocks) - 1
     if final or n % cp_period == cp_period - 1:
       self._save_disk_checkpoint(self._cp, n = (n // cp_period) * cp_period)
       if not final:
         self._cp = Checkpoint(checkpoint_ics = True,
-                              checkpoint_data = True)
-        self._cp_manager.clear()
+                              checkpoint_data = False)
 
   def _save_multistage_checkpoint(self):
     cp_verbose = self._cp_parameters["verbose"]
