@@ -35,7 +35,10 @@ __all__ = \
     "FixedPointSolver",
     "LinearCombinationSolver",
     "NullSolver",
-    "ScaleSolver"
+    "ScaleSolver",
+    
+    "Matrix",
+    "RHS"
   ]
 
 class EquationException(Exception):
@@ -664,3 +667,101 @@ class FixedPointSolver(Equation):
         for eq, tlm_eq in zip(self._eqs, [eq.tangent_linear(M, dM, tlm_map) for eq in self._eqs])],
       solver_parameters = self._solver_parameters,
       initial_guess = None if self._initial_guess_index is None else tlm_map[self.dependencies()[self._initial_guess_index]])
+
+class Matrix:
+  def __init__(self, nl_deps = None, has_ic_dep = False):
+    if not nl_deps is None:
+      if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
+        raise EquationException("Duplicate non-linear dependency")
+      
+    self._nl_deps = None if nl_deps is None else tuple(nl_deps)
+    self._has_ic_dep = has_ic_dep
+  
+  def replace(self, replace_map):
+    if not self._nl_deps is None:
+      self._nl_deps = tuple(replace_map.get(dep, dep) for dep in self._nl_deps)
+  
+  def nonlinear_dependencies(self):
+    return tuple() if self._nl_deps is None else self._nl_deps
+  
+  def has_initial_condition_dependency(self):
+    return self._has_ic_dep
+  
+  def add_forward_action(self, B, nl_deps, X):
+    raise EquationException("Method not overridden")
+  
+  def reset_add_forward_action(self):
+    pass
+  
+  def add_adjoint_action(self, b, nl_deps, X, x_index = 0):
+    raise EquationException("Method not overridden")
+  
+  def reset_add_adjoint_action(self):
+    pass
+  
+  def forward_solve(self, B, nl_deps):
+    raise EquationException("Method not overridden")
+  
+  def reset_forward_solve(self):
+    pass
+  
+  def adjoint_action(self, nl_deps, adj_X, x_index = 0):
+    raise EquationException("Method not overridden")
+  
+  def reset_adjoint_action(self):
+    pass
+  
+  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, X, adj_X):
+    raise EquationException("Method not overridden")
+  
+  def reset_add_adjoint_derivative_action(self):
+    pass
+  
+  def adjoint_solve(self, B, nl_deps):
+    raise EquationException("Method not overridden")
+  
+  def reset_adjoint_solve(self):
+    pass
+  
+  def tangent_linear_rhs(self, M, dM, tlm_map, X):
+    raise EquationException("Method not overridden")
+  
+class RHS:
+  def __init__(self, deps, nl_deps = None):
+    if len(set(dep.id() for dep in deps)) != len(deps):
+      raise EquationException("Duplicate dependency")
+    if not nl_deps is None:
+      if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
+        raise EquationException("Duplicate non-linear dependency")
+    
+    self._deps = tuple(deps)
+    self._nl_deps = None if nl_deps is None else tuple(nl_deps)
+    
+  def replace(self, replace_map):
+    self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
+    if not self._nl_deps is None:
+      self._nl_deps = tuple(replace_map.get(dep, dep) for dep in self._nl_deps)
+  
+  def dependencies(self):
+    return self._deps
+  
+  def nonlinear_dependencies(self):
+    if self._nl_deps is None:
+      return self.dependencies()
+    else:
+      return self._nl_deps
+
+  def add_forward(self, B, deps):
+    raise EquationException("Method not overridden")
+  
+  def reset_add_forward(self):
+    pass
+
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+    raise EquationException("Method not overridden")
+  
+  def reset_subtract_adjoint_derivative_action(self):
+    pass
+
+  def tangent_linear_rhs(self, M, dM, tlm_map):
+    raise EquationException("Method not overridden")

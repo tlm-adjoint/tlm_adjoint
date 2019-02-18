@@ -29,8 +29,6 @@ import numpy
 __all__ = \
   [    
     "LinearEquation",
-    "Matrix",
-    "RHS",
     
     "ConstantMatrix",
     
@@ -46,46 +44,6 @@ __all__ = \
     
     "SumEquation"
   ]
-  
-class RHS:
-  def __init__(self, deps, nl_deps = None):
-    if len(set(dep.id() for dep in deps)) != len(deps):
-      raise EquationException("Duplicate dependency")
-    if not nl_deps is None:
-      if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
-        raise EquationException("Duplicate non-linear dependency")
-    
-    self._deps = tuple(deps)
-    self._nl_deps = None if nl_deps is None else tuple(nl_deps)
-    
-  def replace(self, replace_map):
-    self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
-    if not self._nl_deps is None:
-      self._nl_deps = tuple(replace_map.get(dep, dep) for dep in self._nl_deps)
-  
-  def dependencies(self):
-    return self._deps
-  
-  def nonlinear_dependencies(self):
-    if self._nl_deps is None:
-      return self.dependencies()
-    else:
-      return self._nl_deps
-
-  def add_forward(self, B, deps):
-    raise EquationException("Method not overridden")
-  
-  def reset_add_forward(self):
-    pass
-
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
-    raise EquationException("Method not overridden")
-  
-  def reset_subtract_adjoint_derivative_action(self):
-    pass
-
-  def tangent_linear_rhs(self, M, dM, tlm_map):
-    raise EquationException("Method not overridden")
 
 class IdentityRHS(RHS):
   def __init__(self, x):
@@ -113,65 +71,9 @@ class IdentityRHS(RHS):
     else: 
       return IdentityRHS(tau_x)
 
-class Matrix:
-  def __init__(self, nl_deps = [], ic_dep = False):
-    if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
-      raise EquationException("Duplicate non-linear dependency")
-      
-    self._nl_deps = tuple(nl_deps)
-    self._ic_dep = ic_dep
-  
-  def replace(self, replace_map):
-    self._nl_deps = tuple(replace_map.get(dep, dep) for dep in self._nl_deps)
-  
-  def nonlinear_dependencies(self):
-    return self._nl_deps
-  
-  def initial_condition_dependency(self):
-    return self._ic_dep
-  
-  def add_forward_action(self, b, nl_deps, X):
-    raise EquationException("Method not overridden")
-  
-  def reset_add_forward_action(self):
-    pass
-  
-  def add_adjoint_action(self, b, nl_deps, X):
-    raise EquationException("Method not overridden")
-  
-  def reset_add_adjoint_action(self):
-    pass
-  
-  def forward_solve(self, B, nl_deps):
-    raise EquationException("Method not overridden")
-  
-  def reset_forward_solve(self):
-    pass
-  
-  def adjoint_action(self, nl_deps, adj_X):
-    raise EquationException("Method not overridden")
-  
-  def reset_adjoint_action(self):
-    pass
-  
-  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_X, X):
-    raise EquationException("Method not overridden")
-  
-  def reset_add_adjoint_derivative_action(self):
-    pass
-  
-  def adjoint_solve(self, B, nl_deps):
-    raise EquationException("Method not overridden")
-  
-  def reset_adjoint_solve(self):
-    pass
-  
-  def tangent_linear_rhs(self, M, dM, tlm_map, X):
-    raise EquationException("Method not overridden")
-
 class ConstantMatrix(Matrix):
-  def __init__(self, A, A_T = None, ic_dep = False):
-    Matrix.__init__(self, nl_deps = [], ic_dep = ic_dep)
+  def __init__(self, A, A_T = None, has_ic_dep = False):
+    Matrix.__init__(self, nl_deps = [], has_ic_dep = has_ic_dep)
     self._A = A
     self._A_T = A_T
   
@@ -184,7 +86,7 @@ class ConstantMatrix(Matrix):
   def add_forward_action(self, b, nl_deps, x):
     b.vector()[:] += self._A.dot(x)
   
-  def add_adjoint_action(self, b, nl_deps, adj_x):
+  def add_adjoint_action(self, b, nl_deps, adj_x, x_index = 0):
     b.vector()[:] += self.A_T().dot(x)
     
   def forward_solve(self, b, nl_deps):
@@ -193,7 +95,7 @@ class ConstantMatrix(Matrix):
   def adjoint_action(self, nl_deps, adj_x):
     return self.A_T().dot(adj_x)
   
-  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_x, x):
+  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, x, adj_x):
     return
   
   def adjoint_solve(self, b, nl_deps):
@@ -245,12 +147,9 @@ class MatrixActionRHS(RHS):
     A_nl_deps = self._A.nonlinear_dependencies()
     if dep_index < len(A_nl_deps):
       X = [nl_deps[j] for j in self._x_indices]
-      self._A.add_adjoint_derivative_action(sb, nl_deps[:len(A_nl_deps)], dep_index, adj_X[0] if len(adj_X) == 1 else adj_X, X[0] if len(X) == 1 else X)
+      self._A.add_adjoint_derivative_action(sb, nl_deps[:len(A_nl_deps)], dep_index, X[0] if len(X) == 1 else X, adj_X[0] if len(adj_X) == 1 else adj_X)
     elif dep_index < len(self.dependencies()):
-      X = [None for j in self._x_indices]
-      i = self._x_indices.index(dep_index)
-      X[i] = adj_X[i]
-      self._A.add_adjoint_action(sb, nl_deps[:len(A_nl_deps)], X[0] if len(X) == 1 else X)
+      self._A.add_adjoint_action(sb, nl_deps[:len(A_nl_deps)], adj_X[0] if len(adj_X) == 1 else adj_X, x_index = self._x_indices.index(dep_index))
     b.vector()[:] -= sb.vector()
   
   def reset_subtract_adjoint_derivative_action(self):
@@ -342,7 +241,7 @@ class LinearEquation(Equation):
             nl_deps.append(x)
             nl_dep_ids[x_id] = len(nl_deps) - 1
           A_x_indices.append(nl_dep_ids[x_id])
-      ic_deps = X if A.initial_condition_dependency() else []
+      ic_deps = X if A.has_initial_condition_dependency() else []
     
     del(dep_ids, nl_dep_ids)
     
@@ -405,9 +304,7 @@ class LinearEquation(Equation):
       if self._A is None:
         return adj_X[dep_index]
       else:
-        X = [None for adj_x in adj_X]
-        X[dep_index] = adj_X[dep_index]
-        self._A.adjoint_action([nl_deps[j] for j in self._A_nl_dep_indices], X[0] if len(X) == 1 else X)
+        return self._A.adjoint_action([nl_deps[j] for j in self._A_nl_dep_indices], adj_X[0] if len(adj_X) == 1 else adj_X, x_index = dep_index)
     else:
       dep = self.dependencies()[dep_index]
       F = function_new(dep)
@@ -431,8 +328,8 @@ class LinearEquation(Equation):
           self._A.add_adjoint_derivative_action(F,
             [nl_deps[j] for j in self._A_nl_dep_indices],
             A_nl_dep_index,
-            adj_X[0] if len(adj_X) == 1 else adj_X,
-            X[0] if len(X) == 1 else X)
+            X[0] if len(X) == 1 else X,
+            adj_X[0] if len(adj_X) == 1 else adj_X)
       return F
   
   def reset_adjoint_derivative_action(self):
