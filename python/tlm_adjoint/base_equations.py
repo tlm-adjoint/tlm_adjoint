@@ -37,6 +37,7 @@ __all__ = \
     "NullSolver",
     "ScaleSolver",
     
+    "LinearEquation",
     "Matrix",
     "RHS"
   ]
@@ -314,7 +315,7 @@ class NullSolver(Equation):
 class AssignmentSolver(Equation):
   def __init__(self, y, x):
     if x == y:
-      raise EquationException("Non-linear dependency in linear equation")
+      raise EquationException("Invalid dependency in linear equation")
     Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
     
   def forward_solve(self, x, deps = None):
@@ -355,7 +356,7 @@ class LinearCombinationSolver(Equation):
     y = [arg[1] for arg in args]
     
     if x in y:
-      raise EquationException("Non-linear dependency in linear equation")
+      raise EquationException("Invalid dependency in linear equation")
     
     Equation.__init__(self, x, [x] + y, nl_deps = [], ic_deps = [])
     self._alpha = alpha
@@ -667,6 +668,199 @@ class FixedPointSolver(Equation):
         for eq, tlm_eq in zip(self._eqs, [eq.tangent_linear(M, dM, tlm_map) for eq in self._eqs])],
       solver_parameters = self._solver_parameters,
       initial_guess = None if self._initial_guess_index is None else tlm_map[self.dependencies()[self._initial_guess_index]])
+
+class LinearEquation(Equation):
+  def __init__(self, B, X, A = None):
+    if isinstance(B, RHS):
+      B = (B,)
+    if is_function(X):
+      X = (X,)
+    if len(X) != len(B):
+      raise EquationException("Invalid Equation")
+  
+    deps = []
+    dep_ids = {}
+    nl_deps = []
+    nl_dep_ids = {}
+    
+    x_ids = set()
+    for x in X:
+      x_id = x.id()
+      x_ids.add(x_id)
+      if x_id in dep_ids:
+        raise EquationException("Duplicate solve")
+      deps.append(x)
+      dep_ids[x_id] = len(deps) - 1
+    
+    b_dep_indices = [[] for b in B]
+    b_nl_dep_indices = [[] for b in B]
+    
+    for i, b in enumerate(B):
+      for dep in b.dependencies():
+        dep_id = dep.id()
+        if dep_id in x_ids:
+          raise EquationException("Invalid dependency in linear Equation")
+        if not dep_id in dep_ids:
+          deps.append(dep)
+          dep_ids[dep_id] = len(deps) - 1
+        b_dep_indices[i].append(dep_ids[dep_id])
+      for dep in b.nonlinear_dependencies():
+        dep_id = dep.id()
+        if dep_id in x_ids:
+          raise EquationException("Invalid dependency in linear Equation")
+        if not dep_id in nl_dep_ids:
+          nl_deps.append(dep)
+          nl_dep_ids[dep_id] = len(nl_deps) - 1
+        b_nl_dep_indices[i].append(nl_dep_ids[dep_id])
+    
+    if A is None:
+      ic_deps = []
+    else:
+      A_dep_indices = []
+      A_nl_dep_indices = []
+      for dep in A.nonlinear_dependencies():
+        dep_id = dep.id()
+        if not dep_id in dep_ids:
+          deps.append(dep)
+          dep_ids[dep_id] = len(deps) - 1
+        A_dep_indices.append(dep_ids[dep_id])
+        if not dep_id in nl_dep_ids:
+          nl_deps.append(dep)
+          nl_dep_ids[dep_id] = len(nl_deps) - 1
+        A_nl_dep_indices.append(nl_dep_ids[dep_id])
+      if len(A.nonlinear_dependencies()) > 0:
+        A_x_indices = []
+        for x in X:
+          x_id = x.id()
+          if not x_id in nl_dep_ids:
+            nl_deps.append(x)
+            nl_dep_ids[x_id] = len(nl_deps) - 1
+          A_x_indices.append(nl_dep_ids[x_id])
+      ic_deps = X if A.has_initial_condition_dependency() else []
+    
+    del(x_ids, dep_ids, nl_dep_ids)
+    
+    Equation.__init__(self, X, deps, nl_deps = nl_deps, ic_deps = ic_deps)
+    self._B = tuple(B)
+    self._b_dep_indices = b_dep_indices
+    self._b_nl_dep_indices = b_nl_dep_indices
+    self._A = A
+    if not A is None:
+      self._A_dep_indices = A_dep_indices
+      self._A_nl_dep_indices = A_nl_dep_indices
+      if len(A.nonlinear_dependencies()) > 0:
+        self._A_x_indices = A_x_indices
+    
+  def _replace(self, replace_map):
+    Equation._replace(self, replace_map)
+    for b in self._B:
+      b.replace(replace_map)
+    if not self._A is None:
+      self._A.replace(replace_map)
+    
+  def forward_solve(self, X, deps = None):
+    if is_function(X):
+      X = (X,)      
+    if deps is None:
+      deps = self.dependencies()
+      
+    for x in X:
+      function_zero(x)    
+    for i, b in enumerate(self._B):
+      b.add_forward(X[0] if len(X) == 1 else X, [deps[j] for j in self._b_dep_indices[i]])
+    if not self._A is None:
+      if len(X) == 1:
+        X_new = (self._A.forward_solve(X[0], [deps[j] for j in self._A_dep_indices]),)
+      else:
+        X_new = self._A.forward_solve(X, [deps[j] for j in self._A_dep_indices])
+      for x, x_new in zip(X, X_new):
+        function_assign(x, x_new)
+  
+  def reset_forward_solve(self):
+    for b in self._B:
+      b.reset_add_forward()
+    if not self._A is None:
+      self._A.reset_forward_solve()
+      
+  def adjoint_jacobian_solve(self, nl_deps, B):
+    if self._A is None:
+      return B
+    else:
+      return self._A.adjoint_solve(B, [nl_deps[j] for j in self._A_nl_dep_indices])
+      
+  def reset_adjoint_jacobian_solve(self):
+    if not self._A is None:
+      self._A.reset_adjoint_solve()
+  
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
+    if is_function(adj_X):
+      adj_X = (adj_X,)      
+    if dep_index < len(self.X()):
+      if self._A is None:
+        return adj_X[dep_index]
+      else:
+        return self._A.adjoint_action([nl_deps[j] for j in self._A_nl_dep_indices], adj_X[0] if len(adj_X) == 1 else adj_X, x_index = dep_index)
+    else:
+      dep = self.dependencies()[dep_index]
+      F = function_new(dep)
+      for i, b in enumerate(self._B):
+        try:
+          b_dep_index = b.dependencies().index(dep)
+        except ValueError:
+          b_dep_index = None
+        if not b_dep_index is None:
+          b.subtract_adjoint_derivative_action(F,
+            [nl_deps[j] for j in self._b_nl_dep_indices[i]],
+            b_dep_index,
+            adj_X[0] if len(adj_X) == 1 else adj_X)
+      if not self._A is None:
+        try:
+          A_nl_dep_index = self._A.nonlinear_dependencies().index(dep)
+        except ValueError:
+          A_nl_dep_index = None
+        if not A_nl_dep_index is None:
+          X = [nl_deps[j] for j in self._A_x_indices]
+          self._A.add_adjoint_derivative_action(F,
+            [nl_deps[j] for j in self._A_nl_dep_indices],
+            A_nl_dep_index,
+            X[0] if len(X) == 1 else X,
+            adj_X[0] if len(adj_X) == 1 else adj_X)
+      return F
+  
+  def reset_adjoint_derivative_action(self):
+    for b in self._B:
+      b.reset_subtract_adjoint_derivative_action()
+    if not self._A is None:
+      self._A.reset_adjoint_action()
+      self._A.reset_add_adjoint_derivative_action()
+
+  def tangent_linear(self, M, dM, tlm_map):
+    X = self.X()
+    for x in X:
+      if x in M:
+        raise EquationException("Invalid tangent-linear parameter")
+    
+    if self._A is None:
+      tlm_B = []
+    else:
+      tlm_B = self._A.tangent_linear_rhs(M, dM, tlm_map, X[0] if len(X) == 1 else X)
+      if tlm_B is None:
+        tlm_B = []
+      elif isinstance(tlm_B, RHS):
+        tlm_B = [tlm_B]
+    for b in self._B:
+      tlm_b = b.tangent_linear_rhs(M, dM, tlm_map)
+      if tlm_b is None:
+        pass
+      elif isinstance(tlm_b, RHS):
+        tlm_B.append(tlm_b)
+      else:
+        tlm_B += list(tlm_b)
+          
+    if len(tlm_B) == 0:
+      return NullSolver([tlm_map[x] for x in self.X()])
+    else:
+      return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()], A = self._A)
 
 class Matrix:
   def __init__(self, nl_deps = None, has_ic_dep = False):
