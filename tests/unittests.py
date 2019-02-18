@@ -377,7 +377,7 @@ class tests(unittest.TestCase):
     F = Function(space, name = "F", static = True)
     F.interpolate(Expression("1.0 + sin(pi * x[0]) * sin(3.0 * pi * x[1])", element = space.ufl_element()))
     
-    bc = DirichletBC(space, "1.0", "on_boundary", static = True, homogeneous = False)
+    bc = DirichletBC(space, 1.0, "on_boundary", static = True, homogeneous = False)
     
     def forward(F):
       G = [Function(space, name = "G_%i" % i) for i in range(7)]
