@@ -113,7 +113,7 @@ def forward_reference(psi_0, kappa):
 def forward(psi_0, kappa):
   class DiffusionMatrix(Matrix):
     def __init__(self, kappa, alpha = 1.0, beta = 1.0):
-      Matrix.__init__(self, nl_deps = [kappa], ic_dep = False)
+      Matrix.__init__(self, nl_deps = [kappa], has_ic_dep = False)
       self._x_0_forward = Function(space)
       self._x_0_adjoint = Function(space)
       self._alpha = alpha
@@ -128,7 +128,9 @@ def forward(psi_0, kappa):
     def reset_add_forward_action(self):
       self.reset_forward_solve()
   
-    def add_adjoint_action(self, b, nl_deps, x):
+    def add_adjoint_action(self, b, nl_deps, x, x_index = 0):
+      if x_index != 0:
+        raise EquationException("Invalid index")
       self.add_forward_action(b, nl_deps, x)
     
     def reset_add_adjoint_action(self):
@@ -151,7 +153,7 @@ def forward(psi_0, kappa):
         self._A = A(kappa, alpha = self._alpha, beta = self._beta)
         self._A_kappa = kappa.vector().copy()
     
-    def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, adj_x, x):
+    def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, x, adj_x):
       if nl_dep_index == 0:
         b.vector()[:] += self._beta * dK_dkappa_adjoint_action(x, adj_x)
     

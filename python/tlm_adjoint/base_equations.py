@@ -676,8 +676,6 @@ class LinearEquation(Equation):
       B = (B,)
     if is_function(X):
       X = (X,)
-    if len(X) != len(B):
-      raise EquationException("Invalid Equation")
   
     deps = []
     dep_ids = {}
