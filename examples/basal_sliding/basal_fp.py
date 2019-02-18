@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright(c) 2018 The University of Edinburgh
-#
+# For tlm_adjoint copyright information see ACKNOWLEDGEMENTS in the tlm_adjoint
+# root directory
+
 # This file is part of tlm_adjoint.
 # 
 # tlm_adjoint is free software: you can redistribute it and/or modify
