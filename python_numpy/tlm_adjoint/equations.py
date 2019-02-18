@@ -84,6 +84,8 @@ class ConstantMatrix(Matrix):
     b.vector()[:] += self._A.dot(x)
   
   def add_adjoint_action(self, b, nl_deps, adj_x, x_index = 0):
+    if x_index != 0:
+      raise EquationException("Invalid index")
     b.vector()[:] += self.A_T().dot(x)
     
   def forward_solve(self, b, nl_deps):
