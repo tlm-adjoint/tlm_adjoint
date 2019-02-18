@@ -39,6 +39,7 @@ __all__ = \
     
     "LinearEquation",
     "Matrix",
+    "MatrixActionRHS",
     "RHS"
   ]
 
@@ -959,3 +960,94 @@ class RHS:
 
   def tangent_linear_rhs(self, M, dM, tlm_map):
     raise EquationException("Method not overridden")
+
+class MatrixActionRHS(RHS):
+  def __init__(self, A, X):
+    if is_function(X):
+      X = (X,)
+    if len(set(x.id() for x in X)) != len(X):
+      raise EquationException("Invalid dependency")
+    
+    A_nl_deps = A.nonlinear_dependencies()
+    if len(A_nl_deps) == 0:
+      x_indices = list(range(len(X)))
+      RHS.__init__(self, X, nl_deps = [])
+    else:
+      nl_deps = list(A_nl_deps)
+      nl_dep_ids = {dep.id():i for i, dep in enumerate(nl_deps)}
+      x_indices = []
+      for x in X:
+        x_id = x.id()
+        if not x_id in nl_dep_ids:
+          nl_deps.append(x)
+          nl_dep_ids[x_id] = len(nl_deps) - 1
+        x_indices.append(nl_dep_ids[x_id])
+      RHS.__init__(self, nl_deps, nl_deps = nl_deps)
+      
+    self._A = A
+    self._x_indices = x_indices
+    
+  def replace(self, replace_map):
+    RHS.replace(self, replace_map)
+    self._A.replace(replace_map)
+  
+  def add_forward(self, B, deps):
+    if is_function(B):
+      B = (B,)
+    X = [deps[j] for j in self._x_indices]
+    self._A.add_forward_action(B[0] if len(B) == 1 else B,
+      deps[:len(self._A.nonlinear_dependencies())],
+      X[0] if len(X) == 1 else X)
+
+  def reset_add_forward(self):
+    self._A.reset_add_forward_action()
+
+  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+    if is_function(adj_X):
+      adj_X = (adj_X,)
+    N_A_nl_deps = len(self._A.nonlinear_dependencies())
+    if dep_index < N_A_nl_deps:
+      X = [nl_deps[j] for j in self._x_indices]
+      sb = function_new(b)
+      self._A.add_adjoint_derivative_action(sb,
+        nl_deps[:N_A_nl_deps], dep_index,
+        X[0] if len(X) == 1 else X,
+        adj_X[0] if len(adj_X) == 1 else adj_X)
+      function_axpy(b, -1.0, sb)
+      del(sb)
+    elif dep_index < len(self.dependencies()):
+      sb = function_new(b)
+      self._A.add_adjoint_action(sb,
+        nl_deps[:N_A_nl_deps],
+        adj_X[0] if len(adj_X) == 1 else adj_X,
+        x_index = self._x_indices.index(dep_index))
+      function_axpy(b, -1.0, sb)
+      del(sb)
+  
+  def reset_subtract_adjoint_derivative_action(self):
+    self._A.reset_add_adjoint_derivative_action()
+    self._A.reset_add_adjoint_action()
+    
+  def tangent_linear_rhs(self, M, dM, tlm_map):
+    deps = self.dependencies()
+    N_A_nl_deps = len(self._A.nonlinear_dependencies())
+    
+    X = [deps[j] for j in self._x_indices]
+    tlm_X = []
+    for i, x in enumerate(X):
+      if x in M:
+        tlm_X.append(dM[M.index(x)])
+      else:
+        tlm_X.append(tlm_map[x])
+    tlm_B = [MatrixActionRHS(self._A, tlm_X)]
+    
+    if N_A_nl_deps > 0:
+      tlm_b = self._A.tangent_linear_rhs(M, dM, tlm_map, X)
+      if tlm_b is None:
+        pass
+      elif isinstance(tlm_b, RHS):
+        tlm_B.append(tlm_b)
+      else:
+        tlm_B += list(tlm_b)
+    
+    return tlm_B
