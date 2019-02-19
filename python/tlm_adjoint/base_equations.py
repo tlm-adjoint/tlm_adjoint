@@ -533,6 +533,7 @@ class FixedPointSolver(Equation):
     self._solver_parameters = solver_parameters
     
     self._tdeps = None
+    self._adj_X = None
     
   def _replace(self, replace_map):
     Equation._replace(self, replace_map)
