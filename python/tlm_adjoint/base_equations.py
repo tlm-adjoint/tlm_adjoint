@@ -444,6 +444,14 @@ class FixedPointSolver(Equation):
                                optional, default 1000.
         nonzero_initial_guess  Whether to use a non-zero initial guess for the
                                forward solve. Logical, optional, default True.
+        nonzero_adjoint_initial_guess
+                               Whether to use a non-zero initial guess for the
+                               adjoint solve. If True, the solution on the
+                               previous adjoint_jacobian_solve call is retained
+                               and used as an initial guess for a later call. If
+                               False, or on the first call, the adjoint equation
+                               right-hand-side is used as an initial guess.
+                               Logical, optional, default False.
         report                 Whether to display output during fixed point
                                iteration. Optional, default False.
     initial_guess
@@ -463,6 +471,7 @@ class FixedPointSolver(Equation):
     # Based on KrylovSolver parameters in FEniCS 2017.2.0
     for key, default_value in [("maximum_iterations", 1000),
                                ("nonzero_initial_guess", True),
+                               ("nonzero_adjoint_initial_guess", False),
                                ("report", False)]:
       if not key in solver_parameters:
         solver_parameters[key] = default_value
@@ -587,8 +596,7 @@ class FixedPointSolver(Equation):
     maximum_iterations = self._solver_parameters["maximum_iterations"]
     report = self._solver_parameters["report"]
     
-    self._init_adjoint_jacobian_solve()
-    adj_X = [function_copy(b) for b in B]
+    adj_X = self._init_adjoint_jacobian_solve(B)
     x = adj_X[-1]
     
     eq_nl_deps = [[nl_deps[j] for j in self._eq_nl_dep_indices[i]] for i in range(len(self._eqs))]
@@ -601,14 +609,15 @@ class FixedPointSolver(Equation):
     
       for i in range(len(self._eqs) - 1, - 1, -1):
         i = (i - 1) % len(self._eqs)
-        function_assign(adj_X[i], B[i])
+        b = function_copy(B[i])
           
         for j, k in self._tdeps[i]:
           sb = self._eqs[k].adjoint_derivative_action(eq_nl_deps[k], j, adj_X[k])
-          subtract_adjoint_derivative_action(adj_X[i], sb)
+          subtract_adjoint_derivative_action(b, sb)
           del(sb)
-        finalise_adjoint_derivative_action(adj_X[i])
-        adj_X[i] = self._eqs[i].adjoint_jacobian_solve(eq_nl_deps[i], adj_X[i])
+        finalise_adjoint_derivative_action(b)
+        
+        adj_X[i] = self._eqs[i].adjoint_jacobian_solve(eq_nl_deps[i], b)
       x = adj_X[-1]
 
       r = x_0;  del(x_0)
@@ -630,7 +639,7 @@ class FixedPointSolver(Equation):
       
     return adj_X
           
-  def _init_adjoint_jacobian_solve(self):  
+  def _init_adjoint_jacobian_solve(self, B):  
     if self._tdeps is None:
       eq_x_ids = {eq.x().id():i for i, eq in enumerate(self._eqs)}
       self._tdeps = [[] for eq in self._eqs]
@@ -641,11 +650,20 @@ class FixedPointSolver(Equation):
             k = eq_x_ids[dep_id]
             if k != i:
               self._tdeps[k].append((j, i))
+              
+    if self._solver_parameters["nonzero_adjoint_initial_guess"]:
+      if self._adj_X is None:
+        self._adj_X = [function_copy(b) for b in B]
+      adj_X = self._adj_X
+    else:
+      adj_X = [function_copy(b) for b in B]
+    return adj_X
   
   def reset_adjoint_jacobian_solve(self):
     self._tdeps = None
     for eq in self._eqs:
       eq.reset_adjoint_jacobian_solve()
+    self._adj_X = None
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     dep = self.dependencies()[dep_index]
