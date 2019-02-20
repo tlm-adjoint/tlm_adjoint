@@ -80,21 +80,15 @@ class ConstantMatrix(Matrix):
   def A_T(self):
     return self._A.T if self._A_T is None else self._A_T
   
-  def forward_action(self, nl_deps, x, b = None, method = "assign"):
-    if b is None: b = function_new(x)
+  def forward_action(self, nl_deps, x, b, method = "assign"):
     getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A.dot(x.vector()))
-    return b
   
-  def add_adjoint_action(self, b, nl_deps, adj_x, x_index = 0):
-    if x_index != 0:
-      raise EquationException("Invalid index")
-    b.vector()[:] += self.A_T().dot(x)
+  def adjoint_action(self, nl_deps, adj_x, b, b_index = 0, method = "assign"):
+    if b_index != 0: raise EquationException("Invalid index")
+    getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A_T().dot(x.vector()))
     
   def forward_solve(self, b, nl_deps):
     return Function(b.function_space(), _data = numpy.linalg.solve(self._A, b.vector()))
-  
-  def adjoint_action(self, nl_deps, adj_x):
-    return self.A_T().dot(adj_x)
   
   def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, x, adj_x):
     return

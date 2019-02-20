@@ -120,22 +120,19 @@ def forward(psi_0, kappa):
       self._beta = beta
       self.reset_forward_solve()
       
-    def forward_action(self, nl_deps, x, b = None, method = "assign"):
+    def forward_action(self, nl_deps, x, b, method = "assign"):
       kappa, = nl_deps
       self._assemble_A(kappa)
-      if b is None: b = function_new(x)
       getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A.dot(x.vector()))
-      return b
     
     def reset_forward_action(self):
       self.reset_forward_solve()
   
-    def add_adjoint_action(self, b, nl_deps, x, x_index = 0):
-      if x_index != 0:
-        raise EquationException("Invalid index")
-      self.forward_action(nl_deps, x, b, method = "add")
+    def adjoint_action(self, nl_deps, x, b, b_index = 0, method = "assign"):
+      if b_index != 0: raise EquationException("Invalid index")
+      self.forward_action(nl_deps, x, b, method = method)
     
-    def reset_add_adjoint_action(self):
+    def reset_adjoint_action(self):
       self.reset_forward_action()
   
     def forward_solve(self, b, nl_deps):

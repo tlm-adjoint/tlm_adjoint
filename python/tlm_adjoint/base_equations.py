@@ -817,7 +817,12 @@ class LinearEquation(Equation):
       if self._A is None:
         return adj_X[dep_index]
       else:
-        return self._A.adjoint_action([nl_deps[j] for j in self._A_nl_dep_indices], adj_X[0] if len(adj_X) == 1 else adj_X, x_index = dep_index)
+        dep = self.dependencies()[dep_index]
+        F = function_new(dep)
+        self._A.adjoint_action([nl_deps[j] for j in self._A_nl_dep_indices],
+          adj_X[0] if len(adj_X) == 1 else adj_X,
+          F, b_index = dep_index)
+        return F
     else:
       dep = self.dependencies()[dep_index]
       F = function_new(dep)
@@ -899,7 +904,7 @@ class Matrix:
   def has_initial_condition_dependency(self):
     return self._has_ic_dep
   
-  def forward_action(self, nl_deps, X, B = None, method = "assign"):
+  def forward_action(self, nl_deps, X, B, method = "assign"):
     """
     Evaluate the (forward) action of the matrix.
     
@@ -908,11 +913,8 @@ class Matrix:
     nl_deps      A list or tuple of Function objects defining the values of
                  non-linear dependencies.
     x/X          The argument of the matrix action.
-    b/B          (Optional) The result of the matrix action. Created if not
-                 supplied.
+    b/B          The result of the matrix action.
     method       (Optional) One of {"assign", "add", "sub"}.
-    
-    Returns b/B.
     """
     
     raise EquationException("Method not overridden")
@@ -920,22 +922,29 @@ class Matrix:
   def reset_forward_action(self):
     pass
   
-  def add_adjoint_action(self, b, nl_deps, X, x_index = 0):
+  def adjoint_action(self, nl_deps, adj_X, b, b_index = 0, method = "assign"):
+    """
+    Evaluate the adjoint action of the matrix.
+    
+    Arguments:
+    
+    nl_deps      A list or tuple of Function objects defining the values of
+                 non-linear dependencies.
+    adj_x/adj_X  The argument of the matrix action.
+    b            The result of the matrix action.
+    b_index      (Optional) The element of the matrix action B to return.
+    method       (Optional) One of {"assign", "add", "sub"}.
+    """
+    
     raise EquationException("Method not overridden")
   
-  def reset_add_adjoint_action(self):
+  def reset_adjoint_action(self):
     pass
   
   def forward_solve(self, B, nl_deps):
     raise EquationException("Method not overridden")
   
   def reset_forward_solve(self):
-    pass
-  
-  def adjoint_action(self, nl_deps, adj_X, x_index = 0):
-    raise EquationException("Method not overridden")
-  
-  def reset_adjoint_action(self):
     pass
   
   def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, X, adj_X):
@@ -1048,17 +1057,13 @@ class MatrixActionRHS(RHS):
       function_axpy(b, -1.0, sb)
       del(sb)
     elif dep_index < len(self.dependencies()):
-      sb = function_new(b)
-      self._A.add_adjoint_action(sb,
-        nl_deps[:N_A_nl_deps],
+      self._A.adjoint_action(nl_deps[:N_A_nl_deps],
         adj_X[0] if len(adj_X) == 1 else adj_X,
-        x_index = self._x_indices.index(dep_index))
-      function_axpy(b, -1.0, sb)
-      del(sb)
+        b, b_index = self._x_indices.index(dep_index), method = "sub")
   
   def reset_subtract_adjoint_derivative_action(self):
     self._A.reset_add_adjoint_derivative_action()
-    self._A.reset_add_adjoint_action()
+    self._A.reset_adjoint_action()
     
   def tangent_linear_rhs(self, M, dM, tlm_map):
     deps = self.dependencies()
