@@ -135,7 +135,7 @@ def forward(psi_0, kappa):
     def reset_adjoint_action(self):
       self.reset_forward_action()
   
-    def forward_solve(self, b, nl_deps):
+    def forward_solve(self, nl_deps, b):
       self._assemble_A(kappa)
       x = function_new(self._x_0_forward)
       x.vector()[:], fail = scipy.sparse.linalg.cg(self._A, b.vector(), x0 = self._x_0_forward.vector(), tol = 1.0e-10, atol = 1.0e-14)
@@ -157,7 +157,7 @@ def forward(psi_0, kappa):
         getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(
           self._beta * dK_dkappa_adjoint_action(x, adj_x))
     
-    def adjoint_solve(self, b, nl_deps):
+    def adjoint_solve(self, nl_deps, b):
       self._assemble_A(kappa)
       x = function_new(self._x_0_adjoint)
       x.vector()[:], fail = scipy.sparse.linalg.cg(self._A, b.vector(), x0 = self._x_0_adjoint.vector(), tol = 1.0e-10, atol = 1.0e-14)

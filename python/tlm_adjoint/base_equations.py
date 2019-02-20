@@ -788,9 +788,9 @@ class LinearEquation(Equation):
       b.add_forward(X[0] if len(X) == 1 else X, [deps[j] for j in self._b_dep_indices[i]])
     if not self._A is None:
       if len(X) == 1:
-        X_new = (self._A.forward_solve(X[0], [deps[j] for j in self._A_dep_indices]),)
+        X_new = (self._A.forward_solve([deps[j] for j in self._A_dep_indices], X[0]),)
       else:
-        X_new = self._A.forward_solve(X, [deps[j] for j in self._A_dep_indices])
+        X_new = self._A.forward_solve([deps[j] for j in self._A_dep_indices], X)
       for x, x_new in zip(X, X_new):
         function_assign(x, x_new)
   
@@ -804,7 +804,7 @@ class LinearEquation(Equation):
     if self._A is None:
       return B
     else:
-      return self._A.adjoint_solve(B, [nl_deps[j] for j in self._A_nl_dep_indices])
+      return self._A.adjoint_solve([nl_deps[j] for j in self._A_nl_dep_indices], B)
       
   def reset_adjoint_jacobian_solve(self):
     if not self._A is None:
@@ -941,7 +941,7 @@ class Matrix:
   def reset_adjoint_action(self):
     pass
   
-  def forward_solve(self, B, nl_deps):
+  def forward_solve(self, nl_deps, B):
     raise EquationException("Method not overridden")
   
   def reset_forward_solve(self):
@@ -968,7 +968,7 @@ class Matrix:
   def reset_adjoint_derivative_action(self):
     pass
   
-  def adjoint_solve(self, B, nl_deps):
+  def adjoint_solve(self, nl_deps, B):
     raise EquationException("Method not overridden")
   
   def reset_adjoint_solve(self):

@@ -87,13 +87,13 @@ class ConstantMatrix(Matrix):
     if b_index != 0: raise EquationException("Invalid index")
     getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A_T().dot(x.vector()))
     
-  def forward_solve(self, b, nl_deps):
+  def forward_solve(self, nl_deps, b):
     return Function(b.function_space(), _data = numpy.linalg.solve(self._A, b.vector()))
   
   def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, method = "assign"):
     return
   
-  def adjoint_solve(self, b, nl_deps):
+  def adjoint_solve(self, nl_deps, b):
     return Function(b.function_space(), _data = numpy.linalg.solve(self.A_T(), b.vector()))
     
   def tangent_linear_rhs(self, M, dM, tlm_map, x):
