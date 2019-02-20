@@ -832,10 +832,10 @@ class LinearEquation(Equation):
         except ValueError:
           b_dep_index = None
         if not b_dep_index is None:
-          b.subtract_adjoint_derivative_action(F,
-            [nl_deps[j] for j in self._b_nl_dep_indices[i]],
+          b.subtract_adjoint_derivative_action([nl_deps[j] for j in self._b_nl_dep_indices[i]],
             b_dep_index,
-            adj_X[0] if len(adj_X) == 1 else adj_X)
+            adj_X[0] if len(adj_X) == 1 else adj_X,
+            F)
       if not self._A is None:
         try:
           A_nl_dep_index = self._A.nonlinear_dependencies().index(dep)
@@ -1008,7 +1008,7 @@ class RHS:
   def reset_add_forward(self):
     pass
 
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
     raise EquationException("Method not overridden")
   
   def reset_subtract_adjoint_derivative_action(self):
@@ -1058,7 +1058,7 @@ class MatrixActionRHS(RHS):
   def reset_add_forward(self):
     self._A.reset_forward_action()
 
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
     if is_function(adj_X):
       adj_X = (adj_X,)
     N_A_nl_deps = len(self._A.nonlinear_dependencies())

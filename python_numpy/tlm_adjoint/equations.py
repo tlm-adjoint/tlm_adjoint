@@ -50,7 +50,7 @@ class IdentityRHS(RHS):
     x, = deps
     b.vector()[:] += x.vector()
 
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
     if dep_index == 0:
       b.vector()[:] -= adj_x.vector()
 
@@ -107,7 +107,7 @@ class SumRHS(RHS):
     y, = deps
     b.vector()[:] += y.vector().sum()
     
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
     if dep_index == 0:
       b.vector()[:] -= adj_x.vector().sum()
       
@@ -149,7 +149,7 @@ class InnerProductRHS(RHS):
     y, z = deps
     b.vector()[:] += y.vector().dot(self._dot(z.vector()))
     
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
     if dep_index == 0:
       b.vector()[:] -= adj_x.vector().sum() * self._dot(nl_deps[1].vector())
     elif dep_index == 1:
@@ -206,7 +206,7 @@ class NormSqRHS(RHS):
     y, = deps
     b.vector()[:] += y.vector().dot(self._dot(y.vector()))
     
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
     if dep_index == 0:
       b.vector()[:] -= 2.0 * adj_x.vector().sum() * self._dot(nl_deps[0].vector())
       
@@ -285,7 +285,7 @@ class ContractionRHS(RHS):
   def add_forward(self, b, deps):
     b.vector()[:] += self._c.value(deps)
 
-  def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_x):
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
     if dep_index < len(self._c.I()):
       A, I, alpha = self._c.A(), self._c.I(), self._c.alpha()
       Y = [None for i in range(len(A.shape))]
