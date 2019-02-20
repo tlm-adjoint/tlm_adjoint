@@ -152,9 +152,10 @@ def forward(psi_0, kappa):
         self._A = A(kappa, alpha = self._alpha, beta = self._beta)
         self._A_kappa = kappa.vector().copy()
     
-    def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, x, adj_x):
+    def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, method = "assign"):
       if nl_dep_index == 0:
-        b.vector()[:] += self._beta * dK_dkappa_adjoint_action(x, adj_x)
+        getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(
+          self._beta * dK_dkappa_adjoint_action(x, adj_x))
     
     def adjoint_solve(self, b, nl_deps):
       self._assemble_A(kappa)

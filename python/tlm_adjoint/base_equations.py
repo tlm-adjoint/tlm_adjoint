@@ -843,11 +843,11 @@ class LinearEquation(Equation):
           A_nl_dep_index = None
         if not A_nl_dep_index is None:
           X = [nl_deps[j] for j in self._A_x_indices]
-          self._A.add_adjoint_derivative_action(F,
-            [nl_deps[j] for j in self._A_nl_dep_indices],
+          self._A.adjoint_derivative_action([nl_deps[j] for j in self._A_nl_dep_indices],
             A_nl_dep_index,
             X[0] if len(X) == 1 else X,
-            adj_X[0] if len(adj_X) == 1 else adj_X)
+            adj_X[0] if len(adj_X) == 1 else adj_X,
+            F, method = "add")
       return F
   
   def reset_adjoint_derivative_action(self):
@@ -855,7 +855,7 @@ class LinearEquation(Equation):
       b.reset_subtract_adjoint_derivative_action()
     if not self._A is None:
       self._A.reset_adjoint_action()
-      self._A.reset_add_adjoint_derivative_action()
+      self._A.reset_adjoint_derivative_action()
 
   def tangent_linear(self, M, dM, tlm_map):
     X = self.X()
@@ -947,10 +947,25 @@ class Matrix:
   def reset_forward_solve(self):
     pass
   
-  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, X, adj_X):
+  def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b, method = "assign"):
+    """
+    Evaluate the action of the adjoint of a derivative of the matrix action.
+    
+    Arguments:
+    
+    nl_deps      A list or tuple of Function objects defining the values of
+                 non-linear dependencies.
+    nl_dep_index The index of the dependency in self.nonlinear_dependencies()
+                 with respect to which a derivative should be taken.
+    x/X          The argument of the forward matrix action.
+    adj_x/adj_X  The direction of the adjoint derivative action.
+    b            The result.
+    method       (Optional) One of {"assign", "add", "sub"}.
+    """
+    
     raise EquationException("Method not overridden")
   
-  def reset_add_adjoint_derivative_action(self):
+  def reset_adjoint_derivative_action(self):
     pass
   
   def adjoint_solve(self, B, nl_deps):
@@ -1049,20 +1064,17 @@ class MatrixActionRHS(RHS):
     N_A_nl_deps = len(self._A.nonlinear_dependencies())
     if dep_index < N_A_nl_deps:
       X = [nl_deps[j] for j in self._x_indices]
-      sb = function_new(b)
-      self._A.add_adjoint_derivative_action(sb,
-        nl_deps[:N_A_nl_deps], dep_index,
+      self._A.adjoint_derivative_action(nl_deps[:N_A_nl_deps], dep_index,
         X[0] if len(X) == 1 else X,
-        adj_X[0] if len(adj_X) == 1 else adj_X)
-      function_axpy(b, -1.0, sb)
-      del(sb)
+        adj_X[0] if len(adj_X) == 1 else adj_X,
+        b, method = "sub")
     elif dep_index < len(self.dependencies()):
       self._A.adjoint_action(nl_deps[:N_A_nl_deps],
         adj_X[0] if len(adj_X) == 1 else adj_X,
         b, b_index = self._x_indices.index(dep_index), method = "sub")
   
   def reset_subtract_adjoint_derivative_action(self):
-    self._A.reset_add_adjoint_derivative_action()
+    self._A.reset_adjoint_derivative_action()
     self._A.reset_adjoint_action()
     
   def tangent_linear_rhs(self, M, dM, tlm_map):

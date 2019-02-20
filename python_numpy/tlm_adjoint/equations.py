@@ -90,7 +90,7 @@ class ConstantMatrix(Matrix):
   def forward_solve(self, b, nl_deps):
     return Function(b.function_space(), _data = numpy.linalg.solve(self._A, b.vector()))
   
-  def add_adjoint_derivative_action(self, b, nl_deps, nl_dep_index, x, adj_x):
+  def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, method = "assign"):
     return
   
   def adjoint_solve(self, b, nl_deps):
