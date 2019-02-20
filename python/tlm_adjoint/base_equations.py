@@ -899,10 +899,25 @@ class Matrix:
   def has_initial_condition_dependency(self):
     return self._has_ic_dep
   
-  def add_forward_action(self, B, nl_deps, X):
+  def forward_action(self, nl_deps, X, B = None, method = "assign"):
+    """
+    Evaluate the (forward) action of the matrix.
+    
+    Arguments:
+    
+    nl_deps      A list or tuple of Function objects defining the values of
+                 non-linear dependencies.
+    x/X          The argument of the matrix action.
+    b/B          (Optional) The result of the matrix action. Created if not
+                 supplied.
+    method       (Optional) One of {"assign", "add", "sub"}.
+    
+    Returns b/B.
+    """
+    
     raise EquationException("Method not overridden")
   
-  def reset_add_forward_action(self):
+  def reset_forward_action(self):
     pass
   
   def add_adjoint_action(self, b, nl_deps, X, x_index = 0):
@@ -1012,12 +1027,12 @@ class MatrixActionRHS(RHS):
     if is_function(B):
       B = (B,)
     X = [deps[j] for j in self._x_indices]
-    self._A.add_forward_action(B[0] if len(B) == 1 else B,
-      deps[:len(self._A.nonlinear_dependencies())],
-      X[0] if len(X) == 1 else X)
+    self._A.forward_action(deps[:len(self._A.nonlinear_dependencies())],
+      X[0] if len(X) == 1 else X,
+      B[0] if len(B) == 1 else B, method = "add")
 
   def reset_add_forward(self):
-    self._A.reset_add_forward_action()
+    self._A.reset_forward_action()
 
   def subtract_adjoint_derivative_action(self, b, nl_deps, dep_index, adj_X):
     if is_function(adj_X):

@@ -80,8 +80,10 @@ class ConstantMatrix(Matrix):
   def A_T(self):
     return self._A.T if self._A_T is None else self._A_T
   
-  def add_forward_action(self, b, nl_deps, x):
-    b.vector()[:] += self._A.dot(x)
+  def forward_action(self, nl_deps, x, b = None, method = "assign"):
+    if b is None: b = function_new(x)
+    getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A.dot(x.vector()))
+    return b
   
   def add_adjoint_action(self, b, nl_deps, adj_x, x_index = 0):
     if x_index != 0:
