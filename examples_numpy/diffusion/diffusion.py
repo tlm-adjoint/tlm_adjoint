@@ -123,7 +123,11 @@ def forward(psi_0, kappa):
     def forward_action(self, nl_deps, x, b, method = "assign"):
       kappa, = nl_deps
       self._assemble_A(kappa)
-      getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A.dot(x.vector()))
+      sb = self._A.dot(x.vector())
+      if method == "assign":
+        b.vector()[:] = sb
+      else:
+        getattr(b.vector()[:], {"add":"__iadd__", "sub":"__isub__"}[method])(sb)
     
     def reset_forward_action(self):
       self.reset_forward_solve()
@@ -153,9 +157,12 @@ def forward(psi_0, kappa):
         self._A_kappa = kappa.vector().copy()
     
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, method = "assign"):
+      sb = self._beta * dK_dkappa_adjoint_action(x, adj_x)
       if nl_dep_index == 0:
-        getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(
-          self._beta * dK_dkappa_adjoint_action(x, adj_x))
+        if method == "assign":
+          b.vector()[:] = sb
+        else:
+          getattr(b.vector()[:], {"add":"__iadd__", "sub":"__isub__"}[method])(sb)
     
     def adjoint_solve(self, nl_deps, b):
       self._assemble_A(kappa)
@@ -195,7 +202,7 @@ def forward(psi_0, kappa):
     eq.replace()
   
   J = Functional(name = "J")
-  NormSqEquation(psi_n, J.fn(), M = mass).solve(replace = True)
+  NormSqSolver(psi_n, J.fn(), M = ConstantMatrix(mass)).solve(replace = True)
   
   return J
 

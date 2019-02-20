@@ -24,7 +24,7 @@ import numpy
 import unittest
   
 class tests(unittest.TestCase):
-  def test_ContractionEquation(self):
+  def test_ContractionSolver(self):
     reset("memory")
     clear_caches()
     stop_manager()
@@ -35,13 +35,13 @@ class tests(unittest.TestCase):
     
     def forward(m):
       x = Function(space, name = "x")
-      ContractionEquation(A, (1,), (m,), x).solve(replace = True)
+      ContractionSolver(A, (1,), (m,), x).solve(replace = True)
       
       norm_sq = Function(space_0, name = "norm_sq")
-      NormSqEquation(x, norm_sq).solve(replace = True)
+      NormSqSolver(x, norm_sq).solve(replace = True)
       
       J = Functional(name = "J")
-      NormSqEquation(norm_sq, J.fn()).solve(replace = True)
+      NormSqSolver(norm_sq, J.fn()).solve(replace = True)
       
       return x, J
     
@@ -62,7 +62,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda m : forward(m)[1], m, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 3.00)
 
-  def test_InnerProductEquation(self):
+  def test_InnerProductSolver(self):
     reset("memory")
     clear_caches()
     stop_manager()
@@ -74,7 +74,7 @@ class tests(unittest.TestCase):
       AssignmentSolver(F, G).solve(replace = True)
 
       J = Functional(name = "J")
-      InnerProductEquation(F, G, J.fn()).solve(replace = True)
+      InnerProductSolver(F, G, J.fn()).solve(replace = True)
       
       return J
 
@@ -89,7 +89,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
 
-  def test_SumEquation(self):
+  def test_SumSolver(self):
     reset("memory")
     clear_caches()
     stop_manager()
@@ -101,7 +101,7 @@ class tests(unittest.TestCase):
       AssignmentSolver(F, G).solve(replace = True)
 
       J = Functional(name = "J")
-      SumEquation(G, J.fn()).solve(replace = True)
+      SumSolver(G, J.fn()).solve(replace = True)
       
       return J
 
@@ -121,6 +121,6 @@ if __name__ == "__main__":
   numpy.random.seed(1201)
   unittest.main()
 
-#  tests().test_ContractionEquation()
-#  tests().test_InnerProductEquation()
-#  tests().test_SumEquation()
+#  tests().test_ContractionSolver()
+#  tests().test_InnerProductSolver()
+#  tests().test_SumSolver()

@@ -37,10 +37,16 @@ __all__ = \
     "NullSolver",
     "ScaleSolver",
     
+    "InnerProductRHS",
+    "InnerProductSolver",
     "LinearEquation",
     "Matrix",
     "MatrixActionRHS",
-    "RHS"
+    "NormSqRHS",
+    "NormSqSolver",
+    "RHS",
+    "SumRHS",
+    "SumSolver"
   ]
 
 class EquationException(Exception):
@@ -1017,6 +1023,18 @@ class RHS:
   def tangent_linear_rhs(self, M, dM, tlm_map):
     raise EquationException("Method not overridden")
 
+class InnerProductSolver(LinearEquation):
+  def __init__(self, y, z, x, alpha = 1.0, M = None):
+    LinearEquation.__init__(self, InnerProductRHS(y, z, alpha = alpha, M = M), x)
+
+class NormSqSolver(LinearEquation):
+  def __init__(self, y, x, alpha = 1.0, M = None):
+    LinearEquation.__init__(self, NormSqRHS(y, alpha = alpha, M = M), x)
+
+class SumSolver(LinearEquation):
+  def __init__(self, y, x):
+    LinearEquation.__init__(self, SumRHS(y), x)
+
 class MatrixActionRHS(RHS):
   def __init__(self, A, X):
     if is_function(X):
@@ -1100,3 +1118,161 @@ class MatrixActionRHS(RHS):
         tlm_B += list(tlm_b)
     
     return tlm_B
+
+class InnerProductRHS(RHS):
+  def __init__(self, x, y, alpha = 1.0, M = None):
+    """
+    An equation representing an inner product.
+    
+    Arguments:
+    
+    x, y   Inner product arguments. May be the same Function.
+    alpha  (Optional) Scale the result of the inner product by alpha.
+    M      (Optional) Matrix defining the inner product. Assumed symmetric, and
+           must have no non-linear dependencies. Defaults to an identity matrix.
+    """
+    
+    if not M is None and len(M.nonlinear_dependencies()) > 0:
+      raise EquationException("Non-linear matrix dependencies not supported")
+
+    norm_sq = x == y
+    if norm_sq:
+      deps = [x]
+    else:
+      deps = [x, y]
+        
+    RHS.__init__(self, deps, nl_deps = deps)
+    self._x = x
+    self._y = y
+    self._norm_sq = norm_sq
+    self._alpha = alpha
+    self._M = M
+    
+  def replace(self, replace_map):
+    RHS.replace(self, replace_map)
+    self._x = replace_map.get(self._x, self._x)
+    self._y = replace_map.get(self._y, self._y)
+    if not self._M is None:
+      self._M.replace(replace_map)
+    
+  def add_forward(self, b, deps):
+    if self._norm_sq:
+      x, y = deps[0], deps[0]
+      M_deps = deps[1:]
+    else:
+      x, y = deps[:2]
+      M_deps = deps[2:]
+    
+    if self._M is None:
+      Y = y
+    else:
+      Y = function_new(x)
+      self._M.forward_action(M_deps, y, Y, method = "assign")
+      
+    function_set_values(b, function_get_values(b) + self._alpha * function_inner(x, Y))
+  
+  def reset_add_forward(self):
+    if not self._M is None:
+      self._M.reset_forward_action()
+      
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
+    if self._norm_sq:
+      if dep_index == 0:
+        x = nl_deps[0]
+        M_deps = nl_deps[1:]
+        
+        if self._M is None:
+          X = x
+        else:
+          X = function_new(x)
+          self._M.forward_action(M_deps, x, X, method = "assign")
+          
+        function_axpy(b, -2.0 * self._alpha * function_get_values(adj_x).sum(), X)
+    elif dep_index == 0:
+      x, y = nl_deps[:2]
+      M_deps = nl_deps[2:]
+      
+      if self._M is None:
+        Y = y
+      else:
+        Y = function_new(x)
+        self._M.forward_action(M_deps, y, Y, method = "assign")
+    
+      function_axpy(b, -self._alpha * function_get_values(adj_x).sum(), Y)
+    elif dep_index == 1:
+      x, y = nl_deps[:2]
+      M_deps = nl_deps[2:]
+      
+      if self._M is None:
+        X = x
+      else:
+        X = function_new(y)
+        self._M.forward_action(M_deps, x, X, method = "assign")
+    
+      function_axpy(b, -self._alpha * function_get_values(adj_x).sum(), X)
+      
+  def reset_subtract_adjoint_derivative_action(self):
+    if not self._M is None:
+      self._M.reset_forward_action()
+      
+  def tangent_linear_rhs(self, M, dM, tlm_map):
+    tlm_B = []
+    
+    if self._norm_sq:
+      x = self.dependencies()[0]
+      
+      try:
+        tlm_x = dM[M.index(x)]
+      except ValueError:
+        tlm_x = tlm_map[x]
+      if not tlm_x is None:
+        tlm_B.append(InnerProductRHS(x, tlm_x, alpha = 2.0 * self._alpha, M = self._M))
+    else:
+      x, y = self.dependencies()[:2]
+      
+      try:
+        tlm_x = dM[M.index(x)]
+      except ValueError:
+        tlm_x = tlm_map[x]
+      if not tlm_x is None:
+        tlm_B.append(InnerProductRHS(tlm_x, y), alpha = self._alpha, M = self._M)
+      
+      try:
+        tlm_y = dM[M.index(y)]
+      except ValueError:
+        tlm_y = tlm_map[y]
+      if not tlm_y is None:
+        tlm_B.append(InnerProductRHS(x, tlm_y), alpha = self._alpha, M = self._M)
+    
+    return tlm_B
+
+class NormSqRHS(InnerProductRHS):
+  def __init__(self, x, alpha = 1.0, M = None):
+    InnerProductRHS.__init__(self, x, x, alpha = alpha, M = M)
+
+class SumRHS(RHS):
+  def __init__(self, x):
+    RHS.__init__(self, [x], nl_deps = [])
+    
+  def add_forward(self, b, deps):
+    y, = deps
+    function_set_values(b, function_get_values(b) + function_get_values(y).sum())
+    
+  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
+    if dep_index == 0:
+      function_set_values(b, function_get_values(b) - function_get_values(adj_x).sum())
+      
+  def tangent_linear_rhs(self, M, dM, tlm_map):
+    y, = self.dependencies()
+    
+    tau_y = None
+    for i, m in enumerate(M):
+      if m == y:
+        tau_y = dM[i]
+    if tau_y is None:
+      tau_y = tlm_map[y]
+    
+    if tau_y is None:
+      return None
+    else:
+      return SumRHS(tau_y)

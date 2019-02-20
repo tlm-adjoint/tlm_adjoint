@@ -29,44 +29,9 @@ import numpy
 __all__ = \
   [     
     "ConstantMatrix",
-    
-    "ContractionEquation",
     "ContractionRHS",
-    "IdentityRHS",
-    "InnerProductEquation",
-    "InnerProductRHS",
-    "NormSqEquation",
-    "NormSqRHS",
-    "SumRHS",
-    
-    "SumEquation"
+    "ContractionSolver"
   ]
-
-class IdentityRHS(RHS):
-  def __init__(self, x):
-    RHS.__init__(self, [x], nl_deps = [])
-
-  def add_forward(self, b, deps):
-    x, = deps
-    b.vector()[:] += x.vector()
-
-  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
-    if dep_index == 0:
-      b.vector()[:] -= adj_x.vector()
-
-  def tangent_linear_rhs(self, M, dM, tlm_map):
-    x, = self.dependencies()
-    tau_x = None
-    for m, dm in zip(M, dM):
-      if m == x:
-        tau_x = dm
-    if tau_x is None:
-      tau_x = tlm_map[x]
-      
-    if tau_x is None:
-      return None
-    else: 
-      return IdentityRHS(tau_x)
 
 class ConstantMatrix(Matrix):
   def __init__(self, A, A_T = None, has_ic_dep = False):
@@ -81,11 +46,19 @@ class ConstantMatrix(Matrix):
     return self._A.T if self._A_T is None else self._A_T
   
   def forward_action(self, nl_deps, x, b, method = "assign"):
-    getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A.dot(x.vector()))
+    sb = self._A.dot(x.vector())
+    if method == "assign":
+      b.vector()[:] = sb
+    else:
+      getattr(b.vector()[:], {"add":"__iadd__", "sub":"__isub__"}[method])(sb)
   
   def adjoint_action(self, nl_deps, adj_x, b, b_index = 0, method = "assign"):
     if b_index != 0: raise EquationException("Invalid index")
-    getattr(b.vector()[:], {"assign":"__assign__", "add":"__iadd__", "sub":"__isub__"}[method])(self._A_T().dot(x.vector()))
+    sb = self._A_T().dot(x.vector())
+    if method == "assign":
+      b.vector()[:] = sb
+    else:
+      getattr(b.vector()[:], {"add":"__iadd__", "sub":"__isub__"}[method])(sb)
     
   def forward_solve(self, nl_deps, b):
     return Function(b.function_space(), _data = numpy.linalg.solve(self._A, b.vector()))
@@ -98,136 +71,6 @@ class ConstantMatrix(Matrix):
     
   def tangent_linear_rhs(self, M, dM, tlm_map, x):
     return None
-
-class SumRHS(RHS):
-  def __init__(self, x):
-    RHS.__init__(self, [x], nl_deps = [])
-    
-  def add_forward(self, b, deps):
-    y, = deps
-    b.vector()[:] += y.vector().sum()
-    
-  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
-    if dep_index == 0:
-      b.vector()[:] -= adj_x.vector().sum()
-      
-  def tangent_linear_rhs(self, M, dM, tlm_map):
-    y, = self.dependencies()
-    
-    tau_y = None
-    for i, m in enumerate(M):
-      if m == y:
-        tau_y = dM[i]
-    if tau_y is None:
-      tau_y = tlm_map[y]
-    
-    if tau_y is None:
-      return None
-    else:
-      return SumRHS(tau_y)
-
-class SumEquation(LinearEquation):
-  def __init__(self, y, x):
-    LinearEquation.__init__(self, SumRHS(y), x)
-
-class InnerProductRHS(RHS):
-  def __init__(self, y, z, alpha = 1.0, M = None):
-    RHS.__init__(self, [y, z], nl_deps = [y, z])
-    self._alpha = alpha = float(alpha)
-    self._M = M
-    if M is None:
-      if alpha == 1.0:
-        self._dot = lambda x : x
-      else:
-        self._dot = lambda x : alpha * x
-    elif alpha == 1.0:
-      self._dot = lambda x : M.dot(x)
-    else:
-      self._dot = lambda x : alpha * M.dot(x)
-    
-  def add_forward(self, b, deps):
-    y, z = deps
-    b.vector()[:] += y.vector().dot(self._dot(z.vector()))
-    
-  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
-    if dep_index == 0:
-      b.vector()[:] -= adj_x.vector().sum() * self._dot(nl_deps[1].vector())
-    elif dep_index == 1:
-      b.vector()[:] -= adj_x.vector().sum() * self._dot(nl_deps[0].vector())
-      
-  def tangent_linear_rhs(self, M, dM, tlm_map):
-    y, z = self.dependencies()
-    
-    tau_y = None
-    tau_z = None
-    for i, m in enumerate(M):
-      if m == y:
-        tau_y = dM[i]
-      elif m == z:
-        tau_z = dM[i]
-    if tau_y is None:
-      tau_y = tlm_map[y]
-    if tau_z is None:
-      tau_z = tlm_map[z]
-    
-    tlm_B = []
-    if not tau_y is None:
-      if tau_y == z:
-        tlm_B.append(NormSqRHS(tau_y, alpha = self._alpha, M = self._M))
-      else:
-        tlm_B.append(InnerProductRHS(tau_y, z, alpha = self._alpha, M = self._M))
-    if not tau_z is None:
-      if y == tau_z:
-        tlm_B.append(NormSqRHS(tau_z, alpha = self._alpha, M = self._M))
-      else:
-        tlm_B.append(InnerProductRHS(y, tau_z, alpha = self._alpha, M = self._M))
-    return tlm_B
-
-class InnerProductEquation(LinearEquation):
-  def __init__(self, y, z, x, alpha = 1.0, M = None):
-    LinearEquation.__init__(self, InnerProductRHS(y, z, alpha = alpha, M = M), x)
-
-class NormSqRHS(RHS):
-  def __init__(self, y, alpha = 1.0, M = None):
-    RHS.__init__(self, [y], nl_deps = [y])
-    self._alpha = alpha = float(alpha)
-    self._M = M
-    if M is None:
-      if alpha == 1.0:
-        self._dot = lambda x : x
-      else:
-        self._dot = lambda x : alpha * x
-    elif alpha == 1.0:
-      self._dot = lambda x : M.dot(x)
-    else:
-      self._dot = lambda x : alpha * M.dot(x)
-    
-  def add_forward(self, b, deps):
-    y, = deps
-    b.vector()[:] += y.vector().dot(self._dot(y.vector()))
-    
-  def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
-    if dep_index == 0:
-      b.vector()[:] -= 2.0 * adj_x.vector().sum() * self._dot(nl_deps[0].vector())
-      
-  def tangent_linear_rhs(self, M, dM, tlm_map):
-    y, = self.dependencies()
-    
-    tau_y = None
-    for i, m in enumerate(M):
-      if m == y:
-        tau_y = dM[i]
-    if tau_y is None:
-      tau_y = tlm_map[y]
-    
-    if tau_y is None:
-      return None
-    else:
-      return InnerProductRHS(tau_y, y, alpha = 2.0 * self._alpha, M = self._M)
-
-class NormSqEquation(LinearEquation):
-  def __init__(self, y, x, alpha = 1.0, M = None):
-    LinearEquation.__init__(self, NormSqRHS(y, alpha = alpha, M = M), x)
 
 class ContractionArray:
   def __init__(self, A, I, A_T = None, alpha = 1.0):  
@@ -319,6 +162,6 @@ class ContractionRHS(RHS):
           tlm_B.append(ContractionRHS(A, I, Y[:j] + [tau_y] + Y[j + 1:], A_T = self._A_T, alpha = alpha))
       return tlm_B
 
-class ContractionEquation(LinearEquation):
+class ContractionSolver(LinearEquation):
   def __init__(self, A, I, Y, x, A_T = None, alpha = 1.0):
     LinearEquation.__init__(self, ContractionRHS(A, I, Y, A_T = A_T, alpha = alpha), x)
