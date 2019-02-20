@@ -164,7 +164,7 @@ class LocalProjectionSolver(EquationSolver):
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
   
-class InterpolationSolver(Equation):
+class InterpolationSolver(LinearEquation):
   def __init__(self, y, x, y_colors = None, x_coords = None,
     P = None, P_T = None):
     """
@@ -257,43 +257,31 @@ class InterpolationSolver(Equation):
       del(y_v)
       P = P.tocsr()
     
-    if P_T is None:
-      P_T = P.T
-    
-    Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
-    self._P = P
-    self._P_T = P_T
-    
-  def forward_solve(self, x, deps = None):
-    _, y = self.dependencies() if deps is None else deps
-    function_set_values(x, self._P.dot(function_get_values(y)))
-    
-  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    if dep_index == 0:
-      return adj_x
-    elif dep_index == 1:
-      F = function_new(self.dependencies()[1])
-      function_set_values(F, self._P_T.dot(function_get_values(adj_x)))
-      return (-1.0, F)
-    else:
-      return None
-    
-  def adjoint_jacobian_solve(self, nl_deps, b):
-    return b
-    
-  def tangent_linear(self, M, dM, tlm_map):
-    x, y = self.dependencies()
-    
-    tlm_y = None
-    for m, dm in zip(M, dM):
-      if m == x:
-        raise EquationException("Invalid tangent-linear parameter")
-      elif m == y:
-        tlm_y = dm
-    if tlm_y is None:
-      tlm_y = tlm_map[y]
+    class InterpolationMatrix(Matrix):
+      def __init__(self, P, P_T = None):
+        Matrix.__init__(self, nl_deps = [], has_ic_dep = False)
+        self._P = P
+        self._P_T = P.T if P_T is None else P_T
+        
+      def forward_action(self, nl_deps, x, b, method = "assign"):
+        if method == "assign":
+          function_set_values(b, self._P.dot(function_get_values(x)))
+        elif method == "add":
+          b.vector()[:] += self._P.dot(function_get_values(x))
+        elif method == "sub":
+          b.vector()[:] -= self._P.dot(function_get_values(x))
+        else:
+          raise EquationException("Invalid method: '%s'" % method)
+        
+      def adjoint_action(self, nl_deps, adj_x, b, b_index = 0, method = "assign"):
+        if b_index != 0: raise EquationException("Invalid index")
+        if method == "assign":
+          function_set_values(b, self._P_T.dot(function_get_values(adj_x)))
+        elif method == "add":
+          b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
+        elif method == "sub":
+          b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
+        else:
+          raise EquationException("Invalid method: '%s'" % method)
       
-    if tlm_y is None:
-      return NullSolver(tlm_map[x])
-    else:
-      return InterpolationSolver(tlm_y, tlm_map[x], P = self._P, P_T = self._P_T)
+    LinearEquation.__init__(self, MatrixActionRHS(InterpolationMatrix(P, P_T = P_T), y), x)
