@@ -33,6 +33,7 @@ __all__ = \
     "Equation",
     "EquationException",
     "FixedPointSolver",
+    "InitialGuessSolver",
     "LinearCombinationSolver",
     "NullSolver",
     "ScaleSolver",
@@ -422,6 +423,36 @@ class ScaleSolver(LinearCombinationSolver):
 class AxpySolver(LinearCombinationSolver):
   def __init__(self, x_old, alpha, y, x_new):
     LinearCombinationSolver.__init__(self, x_new, (1.0, x_old), (alpha, y))
+    
+class InitialGuessSolver(Equation):
+  def __init__(self, y, x):
+    Equation.__init__(self, x, deps = [x, y], nl_deps = [], ic_deps = [])
+  
+  def forward_solve(self, x, deps = None):
+    _, y = self.dependencies() if deps is None else deps
+    function_assign(x, y)
+  
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    if dep_index == 0:
+      return adj_x
+    else:
+      return None
+    
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return function_new(b)
+    
+  def tangent_linear(self, M, dM, tlm_map):
+    x, y = self.dependencies()
+    if x in M:
+      raise EquationException("Invalid tangent-linear parameter")
+    try:
+      tlm_y = dM[M.index(y)]
+    except ValueError:
+      tlm_y = tlm_map[y]
+    if tlm_y is None:
+      return NullSolver(tlm_map[x])
+    else:
+      return InitialGuessSolver(tlm_y, tlm_map[x])
     
 # Derives tangent-linear and adjoint information using the approach described in
 #  J. G. Gilbert, "Automatic differentiation and iterative processes",
