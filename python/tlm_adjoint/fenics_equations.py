@@ -345,7 +345,7 @@ class PointInterpolationSolver(Equation):
 
         for i in range(len(X)):
           if owner[i] == -1:
-            raise EquationException("Unable to finding owning process for point")
+            raise EquationException("Unable to find owning process for point")
           if owner[i] != rank:
             y_cells[i] = -1
       
