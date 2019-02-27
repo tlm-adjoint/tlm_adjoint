@@ -283,7 +283,7 @@ class PointInterpolationSolver(Equation):
     P = None, P_T = None):
     """
     Defines an equation which interpolates the scalar function y at the points
-    X_coords.
+    X_coords. It is assumed that the given points are all within the y mesh.
     
     Internally this builds (or uses a supplied) interpolation matrix for the
     *local process only*. This works correctly in parallel if y is in a
@@ -327,13 +327,19 @@ class PointInterpolationSolver(Equation):
         if hasattr(comm, "tompi4py"): comm = comm.tompi4py()
         rank = comm.rank
     
-        y_cells = []
-        owner_local = numpy.empty(len(X), dtype = numpy.int64)
+        y_cells = numpy.empty(len(X), dtype = numpy.int64)
+        distances_local = numpy.empty(len(X), dtype = numpy.float64)
         for i, x_coord in enumerate(X_coords):
-          y_cell, distance = y_tree.compute_closest_entity(Point(*x_coord))
-          owner_local[i] = rank if distance == 0.0 else -1
-          y_cells.append(y_cell)
-
+          y_cells[i], distances_local[i] = y_tree.compute_closest_entity(Point(*x_coord))
+        distances = numpy.empty(len(X), dtype = numpy.float64)
+        comm.Allreduce(distances_local, distances, op = mpi4py.MPI.MIN)
+        
+        owner_local = numpy.empty(len(X), dtype = numpy.int64)
+        owner_local[:] = rank
+        for i, (distance_local, distance) in enumerate(zip(distances_local, distances)):
+          if distance_local != distance:
+            y_cells[i] = -1
+            owner_local[i] = -1
         owner = numpy.empty(len(X), dtype = numpy.int64)
         comm.Allreduce(owner_local, owner, op = mpi4py.MPI.MAX)
 
