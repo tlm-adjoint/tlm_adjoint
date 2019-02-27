@@ -64,6 +64,58 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ, ddJ = ddJ, seed = 1.0e-3)
     self.assertGreater(min_order, 2.99)
     
+  def test_PointInterpolationSolver(self):
+    reset("memory")
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitCubeMesh(5, 5, 5)
+    z_space = FunctionSpace(mesh, "Lagrange", 3)
+    if default_comm().size > 1:
+      y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
+    space_0 = RealFunctionSpace()
+    X_coords = numpy.array([[0.1, 0.1, 0.1], [0.2, 0.3, 0.4], [0.9, 0.8, 0.7], [0.4, 0.2, 0.3]], dtype = numpy.float64)
+
+    def forward(z):
+      if default_comm().size > 1:
+        y = Function(y_space, name = "y")
+        LocalProjectionSolver(z, y).solve(replace = True)
+      else:
+        y = z
+      
+      X = [Function(space_0, name = "x_%i" % i) for i in range(X_coords.shape[0])]
+      PointInterpolationSolver(y, X, X_coords).solve(replace = True)
+      
+      J = Functional(name = "J")
+      for x in X:
+        J.addto(x * x * x * dx)
+      
+      return X, J
+      
+    z = Function(z_space, name = "z", static = True)
+    z.interpolate(Expression("pow(x[0], 3) - 1.5 * x[0] * x[1] + 1.5", element = z_space.ufl_element()))
+
+    start_manager()
+    X, J = forward(z)
+    stop_manager()
+
+    def x_ref(x):
+      return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
+
+    x_error_norm = 0.0
+    for x, x_coord in zip(X, X_coords):
+      x_error_norm = max(x_error_norm, abs(function_max_value(x) - x_ref(x_coord)))
+    info("Error norm = %.16e" % x_error_norm)
+    self.assertLess(x_error_norm, 1.0e-14)
+
+    dJ = compute_gradient(J, z)
+    min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, seed = 1.0e-4)
+    self.assertGreater(min_order, 1.99)
+
+    ddJ = Hessian(lambda z : forward(z)[1])
+    min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+    
   def test_InterpolationSolver(self):
     reset("memory")
     clear_caches()
@@ -71,7 +123,8 @@ class tests(unittest.TestCase):
     
     mesh = UnitCubeMesh(5, 5, 5)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
-    y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
+    if default_comm().size > 1:
+      y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
     x_space = FunctionSpace(mesh, "Lagrange", 2)
 
     def forward(z):
@@ -875,6 +928,7 @@ if __name__ == "__main__":
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
 #  tests().test_InterpolationSolver()
+#  tests().test_PointInterpolationSolver()
 #  tests().test_ExprEvaluationSolver()
 
 #  tests().test_HEP()

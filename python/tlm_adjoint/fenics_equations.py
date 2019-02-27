@@ -31,7 +31,8 @@ import ufl
 __all__ = \
   [
     "InterpolationSolver",
-    "LocalProjectionSolver"
+    "LocalProjectionSolver",
+    "PointInterpolationSolver"
   ]
 
 def greedy_coloring(space):
@@ -163,12 +164,60 @@ class LocalProjectionSolver(EquationSolver):
         form_compiler_parameters = self._form_compiler_parameters,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
+
+def interpolation_matrix(x_coords, y, y_cells, y_colors):    
+  y_space = y.function_space()
+  y_mesh = y_space.mesh()
+  y_dofmap = y_space.dofmap()
+
+  # Verify process locality assumption
+  # The process locality assumption can be avoided by additionally defining P
+  # for non-owned nodes, but this requires a parallel graph coloring.
+  y_ownership_range = y_dofmap.ownership_range()
+  for y_cell in range(y_mesh.num_cells()):
+    owned = numpy.array([j >= y_ownership_range[0] and j < y_ownership_range[1]
+      for j in [y_dofmap.local_to_global_index(i) for i in y_dofmap.cell_dofs(y_cell)]],
+      dtype = numpy.bool)
+    if owned.any() and not owned.all():
+      raise EquationException("Non-process-local node-node graph")
+
+  y_colors_N = numpy.empty((1,), dtype = y_colors.dtype)    
+  comm = function_comm(y)
+  import mpi4py.MPI
+  (comm.tompi4py() if hasattr(comm, "tompi4py") else comm).Allreduce(
+    numpy.array([y_colors.max() + 1], dtype = y_colors.dtype),
+    y_colors_N, op = mpi4py.MPI.MAX)
+  y_colors_N = y_colors_N[0]
+  y_nodes = [[] for i in range(y_colors_N)]
+  for y_node, color in enumerate(y_colors):
+    y_nodes[color].append(y_node)
   
+  import scipy.sparse
+  P = scipy.sparse.dok_matrix((x_coords.shape[0], function_local_size(y)), dtype = numpy.float64)
+  
+  y_v = function_new(y)
+  x_v = numpy.empty((1,), dtype = numpy.float64)
+  for color, y_color_nodes in enumerate(y_nodes):
+    y_v.vector()[y_color_nodes] = 1.0
+    for x_node, y_cell in enumerate(y_cells):
+      if y_cell < 0:
+        continue
+      y_cell_nodes = y_dofmap.cell_dofs(y_cell)
+      try:
+        i = y_colors[y_cell_nodes].tolist().index(color)
+      except ValueError:
+        continue
+      y_node = y_cell_nodes[i]
+      y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))  # Broken in parallel with FEniCS 2017.2.0
+      P[x_node, y_node] = x_v[0]
+    if color < len(y_nodes) - 1: y_v.vector()[y_color_nodes] = 0.0
+  
+  return P.tocsr()
+
 class InterpolationSolver(LinearEquation):
-  def __init__(self, y, x, y_colors = None, x_coords = None,
-    P = None, P_T = None):
+  def __init__(self, y, x, y_colors = None, P = None, P_T = None):
     """
-    Defines an equation which interpolates y.
+    Defines an equation which interpolates the scalar function y.
     
     Internally this builds (or uses a supplied) interpolation matrix for the
     *local process only*. This works correctly in parallel if y is in a
@@ -180,82 +229,25 @@ class InterpolationSolver(LinearEquation):
     
     Arguments:
     
-    y         A Function. The function to be interpolated.
-    x         A Function. The solution to the equation.
+    y         A scalar Function. The function to be interpolated.
+    x         A scalar Function. The solution to the equation.
     y_colors  (Optional) An integer NumPy vector. Node-node graph coloring for
               the space for y. Defaults to a basic greedy graph coloring.
               Ignored if P is supplied.
-    x_coords  (Optional) Coordinates of nodes in the space for x. Defaults to
-              the coordinates as defined using the mesh for x. Ignored if P is
-              supplied.
     P         (Optional) Interpolation matrix.
     P_T       (Optional) Interpolation matrix transpose.
     """
-    
-    # The process locality assumption can be avoided by additionally defining P
-    # for non-owned nodes, but this requires a parallel graph coloring.
   
     if P is None:
       y_space = y.function_space()
       if y_colors is None:
         y_colors = greedy_coloring(y_space)
-        
-      y_mesh = y_space.mesh()
-      y_dofmap = y_space.dofmap()
+      y_tree = y_space.mesh().bounding_box_tree()
       
-      # Verify process locality assumption
-      y_ownership_range = y_dofmap.ownership_range()
-      for y_cell in range(y_mesh.num_cells()):
-        owned = numpy.array([j >= y_ownership_range[0] and j < y_ownership_range[1]
-          for j in [y_dofmap.local_to_global_index(i) for i in y_dofmap.cell_dofs(y_cell)]],
-          dtype = numpy.bool)
-        if owned.any() and not owned.all():
-          raise EquationException("Non-process-local node-node graph")
-
-      y_colors_N = numpy.empty((1,), dtype = y_colors.dtype)    
-      comm = function_comm(y)
-      import mpi4py.MPI
-      (comm.tompi4py() if hasattr(comm, "tompi4py") else comm).Allreduce(
-        numpy.array([y_colors.max() + 1], dtype = y_colors.dtype),
-        y_colors_N, op = mpi4py.MPI.MAX)
-      y_colors_N = y_colors_N[0]
-      y_nodes = [[] for i in range(y_colors_N)]
-      for y_node, color in enumerate(y_colors):
-        y_nodes[color].append(y_node)
+      x_coords = function_coords(x)
+      y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0] for x_coord in x_coords]
       
-      import scipy.sparse
-      P = scipy.sparse.dok_matrix((function_local_size(x), function_local_size(y)), dtype = numpy.float64)
-      if x_coords is None and x.function_space().mesh() == y_mesh:
-        if x_coords is None:
-          x_coords = function_coords(x)
-        x_dofmap = x.function_space().dofmap()
-        y_cells = numpy.empty(function_local_size(x), dtype = numpy.int64)
-        for y_cell in range(y_mesh.num_cells()):
-          for y_node in x_dofmap.cell_dofs(y_cell):
-            if y_node < y_cells.shape[0]:
-              y_cells[y_node] = y_cell
-      else:
-        if x_coords is None:
-          x_coords = function_coords(x)
-        y_tree = y_mesh.bounding_box_tree()
-        y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0] for x_coord in x_coords]
-      
-      y_v = function_new(y)
-      x_v = numpy.empty((1,), dtype = numpy.float64)
-      for color, y_color_nodes in enumerate(y_nodes):
-        y_v.vector()[y_color_nodes] = 1.0
-        for x_node, y_cell in enumerate(y_cells):
-          y_cell_nodes = y_dofmap.cell_dofs(y_cell)
-          try:
-            i = y_colors[y_cell_nodes].tolist().index(color)
-          except ValueError:
-            continue
-          y_node = y_cell_nodes[i]
-          y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))  # Broken in parallel with FEniCS 2017.2.0
-          P[x_node, y_node] = x_v[0]
-        if color < len(y_nodes) - 1: y_v.vector()[y_color_nodes] = 0.0
-      del(y_v)
-      P = P.tocsr()
+      P = interpolation_matrix(x_coords, y, y_cells, y_colors)
     
     class InterpolationMatrix(Matrix):
       def __init__(self, P, P_T = None):
@@ -285,3 +277,135 @@ class InterpolationSolver(LinearEquation):
           raise EquationException("Invalid method: '%s'" % method)
       
     LinearEquation.__init__(self, MatrixActionRHS(InterpolationMatrix(P, P_T = P_T), y), x)
+
+class PointInterpolationSolver(Equation):
+  def __init__(self, y, X, X_coords = None, y_colors = None, y_cells = None,
+    P = None, P_T = None):
+    """
+    Defines an equation which interpolates the scalar function y at the points
+    X_coords.
+    
+    Internally this builds (or uses a supplied) interpolation matrix for the
+    *local process only*. This works correctly in parallel if y is in a
+    discontinuous function space (e.g. Discontinuous Lagrange) but may fail in
+    parallel otherwise.
+    
+    For parallel cases this equation can be combined with LocalProjectionSolver
+    to first project the input field onto an appropriate discontinuous space.
+    
+    Arguments:
+    
+    y         A scalar Function. The function to be interpolated.
+    X         A real Function, or a list or tuple of real Function objects.
+              The solution to the equation.
+    X_coords  A float NumPy matrix. Points at which to interpolate y. Ignored if
+              P is supplied, required otherwise.
+    y_colors  (Optional) An integer NumPy vector. Node-node graph coloring for
+              the space for y. Defaults to a basic greedy graph coloring.
+              Ignored if P is supplied.
+    y_cells   (Optional) An integer NumPy vector. The cells in the y mesh
+              containing each point. Ignored if P is supplied.
+    P         (Optional) Interpolation matrix.
+    P_T       (Optional) Interpolation matrix transpose.
+    """
+    
+    if is_function(X): X = (X,)
+    for x in X:
+      if not is_real_function(x):
+        raise EquationException("Solution must be a real Function, or a list or tuple of real Function objects")
+  
+    if P is None:
+      y_space = y.function_space()
+      if y_colors is None:
+        y_colors = greedy_coloring(y_space)
+
+      if y_cells is None:
+        y_tree = y_space.mesh().bounding_box_tree()
+        
+        import mpi4py.MPI
+        comm = function_comm(y)
+        if hasattr(comm, "tompi4py"): comm = comm.tompi4py()
+        rank = comm.rank
+    
+        y_cells = []
+        owner_local = numpy.empty(len(X), dtype = numpy.int64)
+        for i, x_coord in enumerate(X_coords):
+          y_cell, distance = y_tree.compute_closest_entity(Point(*x_coord))
+          owner_local[i] = rank if distance == 0.0 else -1
+          y_cells.append(y_cell)
+
+        owner = numpy.empty(len(X), dtype = numpy.int64)
+        comm.Allreduce(owner_local, owner, op = mpi4py.MPI.MAX)
+
+        for i in range(len(X)):
+          if owner[i] == -1:
+            raise EquationException("Unable to finding owning process for point")
+          if owner[i] != rank:
+            y_cells[i] = -1
+      
+      P = interpolation_matrix(X_coords, y, y_cells, y_colors)
+    
+    if P_T is None:
+      P_T = P.T
+    
+    Equation.__init__(self, X, list(X) + [y], nl_deps = [], ic_deps = [])
+    self._P = P
+    self._P_T = P_T
+  
+  def forward_solve(self, X, deps = None):
+    if is_function(X): X = (X,)
+    y = (self.dependencies() if deps is None else deps)[-1]
+
+    y_v = function_get_values(y)
+    x_v_local = numpy.empty(len(X), dtype = numpy.float64)
+    for i in range(len(X)):
+      x_v_local[i] = self._P.getrow(i).dot(y_v)
+      
+    import mpi4py.MPI
+    comm = function_comm(y)
+    if hasattr(comm, "tompi4py"): comm = comm.tompi4py()
+    x_v = numpy.empty(len(X), dtype = numpy.float64)
+    comm.Allreduce(x_v_local, x_v, op = mpi4py.MPI.MAX)
+
+    for i, x in enumerate(X):
+      x.vector()[:] = x_v[i]
+      
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
+    if is_function(adj_X): adj_X = (adj_X,)
+    
+    if dep_index < len(adj_X):
+      return adj_X[dep_index]
+    elif dep_index == len(adj_X):
+      adj_x_v = numpy.empty(len(adj_X), dtype = numpy.float64)
+      for i, adj_x in enumerate(adj_X):
+        adj_x_v[i] = function_max_value(adj_x)
+      F = function_new(self.dependencies()[-1])
+      function_set_values(F, self._P_T.dot(adj_x_v))
+      return (-1.0, F)
+    else:
+      return None
+  
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+  
+  def tangent_linear(self, M, dM, tlm_map):
+    X = self.X()
+    y = self.dependencies()[-1]
+
+    for x in X:
+      if x in M:
+        raise EquationException("Invalid tangent-linear parameter")
+
+    try:
+      tlm_y_index = M.index(y)
+    except ValueError:
+      tlm_y_index = None
+    if tlm_y_index is None:
+      tlm_y = tlm_map[y]
+    else:
+      tlm_y = dM[tlm_y_index]
+      
+    if tlm_y is None:
+      return NullSolver([tlm_map[x] for x in X])
+    else:
+      return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X], P = self._P, P_T = self._P_T)
