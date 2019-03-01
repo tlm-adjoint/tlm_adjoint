@@ -256,12 +256,6 @@ class EquationManager:
   def __init__(self, comm = None, cp_method = "memory", cp_parameters = {}):
     """
     Manager for tangent-linear and adjoint models.
-
-    Divides the equations into 'blocks', where each block must be of the form
-      F_i ( x_{i - 1}, x_i ) = 0
-    and where F_i defines the equation for the i th block, and x_i is the
-    solution variable associated with the i th block. There is no checking of
-    invalid cross-block dependencies.
     
     Arguments:
     comm  (Optional) PETSc communicator. Default default_comm().
@@ -1129,7 +1123,7 @@ class EquationManager:
     import png
     return png.from_array(pixels, "RGB")
   
-  def compute_gradient(self, Js, M, rhs_cache = True):
+  def compute_gradient(self, Js, M):
     """
     Compute the derivative of one or more functionals with respect to one or
     more control parameters by running adjoint models. Finalises the manager.
@@ -1140,17 +1134,15 @@ class EquationManager:
               the functionals.
     M         A Control or Function, or a list or tuple of these, defining the
               control parameters.
-    rhs_cache (Optional) Whether to cache the last RHS Function encountered for
-              each function space.
     """
   
     if not isinstance(M, (list, tuple)):
       if not isinstance(Js, (list, tuple)):
-        return self.compute_gradient([Js], [M], rhs_cache = rhs_cache)[0][0]
+        return self.compute_gradient([Js], [M])[0][0]
       else:
-        return tuple(dJ[0] for dJ in self.compute_gradient(Js, [M], rhs_cache = rhs_cache))
+        return tuple(dJ[0] for dJ in self.compute_gradient(Js, [M]))
     elif not isinstance(Js, (list, tuple)):
-      return self.compute_gradient([Js], M, rhs_cache = rhs_cache)[0]
+      return self.compute_gradient([Js], M)[0]
     
     self.finalise()
 
@@ -1162,75 +1154,27 @@ class EquationManager:
     M = [self.map(m if is_function(m) else m.m()) for m in M]
     dJ = [[function_new(m) for m in M] for J in Js]
 
-    def transpose_dependencies(m, n):      
-      if m == n:
-        block = self._blocks[m]
+    dep_map = defaultdict(lambda : [])
+    for p, block in enumerate(self._blocks):
+      for k, eq in enumerate(block):
+        for l, x in enumerate(eq.X()):
+          dep_map[x.id()].append((p, k, l))
+    
+    def pop_dependencies(eq):
+      for x in eq.X():
+        x_id = x.id()
+        dep_map[x_id].pop()
+        if len(dep_map[x_id]) == 0:
+          del(dep_map[x_id])
       
-        x_map = defaultdict(lambda : [])
-        for k, eq in enumerate(block):
-          for l, x in enumerate(eq.X()):
-            x_map[x.id()].append((k, l))
-        
-        tdeps = [[] for eq in block]
-        for i in range(len(block) - 1, -1, -1):
-          eq = block[i]
-          x_ids = set(x.id() for x in eq.X())
-          for x_id in x_ids:
-            x_map[x_id].pop()
-          for j, dep in enumerate(eq.dependencies()):
-            dep_id = dep.id()
-            if not dep_id in x_ids and dep_id in x_map and len(x_map[dep_id]) > 0:
-              k, l = x_map[dep_id][-1]
-              tdeps[i].append((j, k, l))
-        
-        return tdeps
-      else:
-        block = self._blocks[m]
-      
-        x_map = {}
-        for k, eq in enumerate(block):
-          for l, x in enumerate(eq.X()):
-            x_map[x.id()] = (k, l)
-          
-        block = self._blocks[n]
-        
-        tdeps = [[] for eq in block]
-        x_ids = set()
-        for i, eq in enumerate(block):
-          for x in eq.X():
-            x_ids.add(x.id())
-          for j, dep in enumerate(eq.dependencies()):
-            dep_id = dep.id()
-            if not dep_id in x_ids and dep_id in x_map:
-              k, l = x_map[dep_id]
-              tdeps[i].append((j, k, l))
-        
-        return tdeps
+    def transpose_dependency(dep):
+      return dep_map.get(dep.id(), [(-1, -1, -1)])[-1]
     
     self._restore_checkpoint(len(self._blocks) - 1)
-    tdeps = transpose_dependencies(-1, -1)        
-
-    if rhs_cache:    
-      rhs_cache = OrderedDict()
-      def rhs_cache_new(x, static = False):
-        space = x.function_space()
-        space_id = function_space_id(space)
-        if is_function(x):
-          b = rhs_cache[space_id] = function_new(x, static = static)
-        elif space_id in rhs_cache:
-          b = rhs_cache[space_id] = function_new(rhs_cache[space_id], static = static)
-        else:
-          b = rhs_cache[space_id] = Function(space, static = static)
-        return b
-    else:
-      rhs_cache_new = lambda x, static = False : function_new(x, static = static)
-
-    B = [[None for eq in self._blocks[-1]] for J in Js]
+    
+    Bs = [[[None for eq in block] for J in Js] for block in self._blocks]
+    B = Bs[-1]
     for n in range(len(self._blocks) - 1, -1, -1):
-      if n > 0:
-        B_transfer = [[None for eq in self._blocks[n - 1]] for J in Js]
-        tdeps_transfer = transpose_dependencies(n - 1, n)
-
       for i in range(len(self._blocks[n]) - 1, -1, -1):
         eq = self._blocks[n][i]
         X = self.map(eq.X())
@@ -1238,13 +1182,13 @@ class EquationManager:
 
         for J_i, J in enumerate(Js):
           if len(X) == 1 and X[0].id() == J.id():
-            adj_x = rhs_cache_new(X[0], static = True)
+            adj_x = function_new(X[0], static = True)
             function_assign(adj_x, -1.0)
             j = deps.index(X[0])
             sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_x)
             if not sb is None:
               if B[J_i][i] is None:
-                B[J_i][i] = (rhs_cache_new(X[0]),)
+                B[J_i][i] = (function_new(X[0]),)
               subtract_adjoint_derivative_action(B[J_i][i][0], sb)
             del(adj_x, sb)
           
@@ -1252,7 +1196,7 @@ class EquationManager:
             continue
           for l, x in enumerate(X):
             if B[J_i][i][l] is None:
-              B[J_i][i][l] = rhs_cache_new(x)
+              B[J_i][i][l] = function_new(x)
             else:
               finalise_adjoint_derivative_action(B[J_i][i][l])
           adj_X = eq.adjoint_jacobian_solve(self._cp[(n, i)], B[J_i][i][0] if len(B[J_i][i]) == 1 else B[J_i][i])
@@ -1260,26 +1204,18 @@ class EquationManager:
             adj_X = (adj_X,)
           B[J_i][i] = None
           
-          for j, k, l in tdeps[i]:
+          for j, dep in enumerate(eq.dependencies()):
+            p, k, l = transpose_dependency(dep)
+            if p < 0 or (p == n and k == i):
+              continue
             sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_X[0] if len(adj_X) == 1 else adj_X)
             if not sb is None:
-              if B[J_i][k] is None:
-                B[J_i][k] = [None for x in self._blocks[n][k].X()]
-              if B[J_i][k][l] is None:
-                B[J_i][k][l] = rhs_cache_new(self._blocks[n][k].X()[l])
-              subtract_adjoint_derivative_action(B[J_i][k][l], sb)
+              if Bs[p][J_i][k] is None:
+                Bs[p][J_i][k] = [None for x in self._blocks[p][k].X()]
+              if Bs[p][J_i][k][l] is None:
+                Bs[p][J_i][k][l] = function_new(self._blocks[p][k].X()[l])
+              subtract_adjoint_derivative_action(Bs[p][J_i][k][l], sb)
             del(sb)
-          
-          if n > 0:
-            for j, k, l in tdeps_transfer[i]:
-              sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_X[0] if len(adj_X) == 1 else adj_X)
-              if not sb is None:
-                if B_transfer[J_i][k] is None:
-                  B_transfer[J_i][k] = [None for x in self._blocks[n - 1][k].X()]
-                if B_transfer[J_i][k][l] is None:
-                  B_transfer[J_i][k][l] = rhs_cache_new(self._blocks[n - 1][k].X()[l])
-                subtract_adjoint_derivative_action(B_transfer[J_i][k][l], sb)
-              del(sb)
           
           for j, m in enumerate(M):
             if m in deps:
@@ -1288,22 +1224,22 @@ class EquationManager:
               del(sdJ)
           
           del(adj_X)
+        pop_dependencies(eq)
 
       for J_i, J in enumerate(Js):
         for i, m in enumerate(M):
           finalise_adjoint_derivative_action(dJ[J_i][i])          
 
       if n > 0:
-        self._restore_checkpoint(n - 1)        
-        B = B_transfer
+        Bs.pop()
+        B = Bs[-1]
+        self._restore_checkpoint(n - 1)
         for J_i, J in enumerate(Js):
           for i, eq in enumerate(self._blocks[n - 1]):
             if not B[J_i][i] is None:
               for l in range(len(B[J_i][i])):
                 if not B[J_i][i][l] is None:
                   finalise_adjoint_derivative_action(B[J_i][i][l])
-        tdeps = transpose_dependencies(n - 1, n - 1)
-        del(B_transfer, tdeps_transfer)
             
     if self._cp_method == "multistage":
       self._cp.clear(clear_ics = False, clear_data = True)
@@ -1363,8 +1299,8 @@ def tlm_enabled(manager = None):
 def tlm(M, dM, x, manager = None):
   return (_manager() if manager is None else manager).tlm(M, dM, x)
 
-def compute_gradient(Js, M, rhs_cache = True, manager = None):
-  return (_manager() if manager is None else manager).compute_gradient(Js, M, rhs_cache = rhs_cache)
+def compute_gradient(Js, M, manager = None):
+  return (_manager() if manager is None else manager).compute_gradient(Js, M)
 
 def new_block(manager = None):
   (_manager() if manager is None else manager).new_block()

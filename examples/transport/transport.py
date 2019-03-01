@@ -177,7 +177,7 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
   # equal to zero elsewhere
   T_inflow = Function(space, name = "T_inflow")
   # Boundary condition application equation
-  bc_eq = InflowBCSolver(T_inflow_bc, T_inflow)
+  InflowBCSolver(T_inflow_bc, T_inflow).solve(replace = True)
   
   # Solution on the previous time level
   T_n = Function(space, name = "T_n")
@@ -197,8 +197,8 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
                                solver_parameters = {"linear_solver":"umfpack"})
   # Equation which constructs the complete solution on the next time level
   update_eq = AxpySolver(T_np1_0, 1.0, T_inflow, T_n)
-  # All equations
-  eqs = [bc_eq, timestep_eq, update_eq]
+  # Timestepping equations
+  eqs = [timestep_eq, update_eq]
   
   if not output_filename is None:
     # Output the forward solution
