@@ -210,8 +210,11 @@ class TangentLinearMap:
       return None
     x_id = x.id()
     if not x_id in self._map:
+      self_ref = weakref.ref(self)
       def callback(x_ref):
-        del(self._map[x_id])
+        self = self_ref()
+        if not self is None:
+          del(self._map[x_id])
       x_ref, tlm_x = self._map[x_id] = (weakref.ref(x, callback),
                                         function_new(x, name = "%s%s" % (x.name(), self._name_suffix)))
       tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
