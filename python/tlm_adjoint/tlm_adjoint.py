@@ -28,6 +28,7 @@ import copy
 import numpy
 import pickle
 import os
+import weakref
 import zlib
 
 __all__ = \
@@ -199,30 +200,22 @@ class TangentLinearMap:
 
   def __init__(self, name_suffix):
     self._name_suffix = name_suffix
-    self.clear()
-  
-  def __contains__(self, x):
-    return not self._map.get(x.id(), None) is None
-  
-  def __getitem__(self, x):
-    if not x.id() in self._map:
-      if function_is_static(x):
-        self._map[x.id()] = None
-      else:
-        depth = tlm_depth(x) + 1
-        tlm_x = self._map[x.id()] = function_new(x, name = "%s%s" % (x.name(), self._name_suffix))
-        tlm_x._tlm_adjoint__tlm_depth = depth
-    return self._map[x.id()]
-  
-  def __setitem__(self, x, tau):
-    self._map[x.id()] = tau
-    return tau
-  
-  def clear(self):
     self._map = OrderedDict()
   
-  def name_suffix(self):
-    return self._name_suffix
+  def __contains__(self, x):
+    return x.id() in self._map
+  
+  def __getitem__(self, x):
+    if function_is_static(x):
+      return None
+    x_id = x.id()
+    if not x_id in self._map:
+      def callback(x_ref):
+        del(self._map[x_id])
+      x_ref, tlm_x = self._map[x_id] = (weakref.ref(x, callback),
+                                        function_new(x, name = "%s%s" % (x.name(), self._name_suffix)))
+      tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
+    return self._map[x_id][1]
     
 class Ids:
   def __init__(self):
@@ -516,7 +509,7 @@ class EquationManager:
       tlm_map_name_suffix = "_tlm(%s,%s)" % (M[0].name(), dM[0].name())
     else:
       tlm_map_name_suffix = "_tlm((%s),(%s))" % (",".join(m.name() for m in M), ",".join(dm.name() for dm in dM))
-    self._tlm[(M, dM)] = [TangentLinearMap(tlm_map_name_suffix), TangentLinearMap(tlm_map_name_suffix), max_depth]
+    self._tlm[(M, dM)] = [TangentLinearMap(tlm_map_name_suffix), max_depth]
   
   def tlm_enabled(self):
     """
@@ -528,8 +521,7 @@ class EquationManager:
   def tlm(self, M, dM, x):
     """
     Return a tangent-linear Function associated with the forward Function x,
-    for the tangent-linear model defined by M and dM, or None if x is not
-    associated with a tangent-linear Function (or is static).
+    for the tangent-linear model defined by M and dM.
     """
   
     if is_function(M):
@@ -542,9 +534,7 @@ class EquationManager:
       dM = tuple(dM)
   
     if (M, dM) in self._tlm:
-      if x in self._tlm[(M, dM)][1]:
-        return self._tlm[(M, dM)][1][x]
-      elif x in self._tlm[(M, dM)][0]:
+      if x in self._tlm[(M, dM)][0]:
         return self._tlm[(M, dM)][0][x]
       else:
         raise ManagerException("Tangent-linear not found")
@@ -687,7 +677,7 @@ class EquationManager:
       for i, (M, dM) in enumerate(reversed(self._tlm)):
         if not tlm_skip is None and i >= tlm_skip[0]:
           break
-        tlm_map, tlm_map_next, max_depth = self._tlm[(M, dM)]
+        tlm_map, max_depth = self._tlm[(M, dM)]
         eq_tlm_eqs = self._tlm_eqs.get(eq, None)
         if eq_tlm_eqs is None:
           eq_tlm_eqs = self._tlm_eqs[eq] = OrderedDict()
@@ -701,8 +691,6 @@ class EquationManager:
         if not tlm_eq is None:
           tlm_eq.solve(manager = self, annotate = annotate_tlm,
             _tlm_skip = [i + 1, depth + 1] if max_depth - depth > 1 else [i, 0])
-          for x in X:
-            tlm_map_next[x] = tlm_map[x]
     
     if replace:
       self.replace(eq)
@@ -1037,8 +1025,6 @@ class EquationManager:
     
     self._blocks.append(self._block)
     self._block = []
-    for (M, dM), (tlm_map, tlm_map_next, max_depth) in self._tlm.items():
-      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(tlm_map_next.name_suffix()), max_depth]
     self._checkpoint(final = False)
   
   def finalise(self):
@@ -1053,8 +1039,6 @@ class EquationManager:
     
     self._blocks.append(self._block)
     self._block = []
-    for (M, dM), (tlm_map, tlm_map_next, max_depth) in self._tlm.items():
-      self._tlm[(M, dM)] = [tlm_map_next, TangentLinearMap(tlm_map_next.name_suffix()), max_depth]
     self._checkpoint(final = True)
   
   def dependency_graph_png(self, divider = [255, 127, 127], p = 5):
