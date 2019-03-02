@@ -201,6 +201,11 @@ class TangentLinearMap:
   def __init__(self, name_suffix):
     self._name_suffix = name_suffix
     self._map = OrderedDict()
+    self._finalizes = []
+    
+  def __del__(self):
+    for finalize in self._finalizes:
+      finalize.detach()
   
   def __contains__(self, x):
     return x.id() in self._map
@@ -215,7 +220,7 @@ class TangentLinearMap:
         if not self is None:
           del(self._map[x_id])
       self_ref = weakref.ref(self)
-      weakref.finalize(x, callback, self_ref, x_id)
+      self._finalizes.append(weakref.finalize(x, callback, self_ref, x_id))
       tlm_x = self._map[x_id] = function_new(x, name = "%s%s" % (x.name(), self._name_suffix))
       tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
     return self._map[x_id]
