@@ -25,6 +25,60 @@ import numpy
 import unittest
   
 class tests(unittest.TestCase):
+  def test_LongRange(self):
+    n_steps = 200
+    reset("multistage", {"blocks":n_steps, "snaps_on_disk":0, "snaps_in_ram":2, "verbose":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    
+    def forward(F):
+      G = Function(space, name = "G")
+      AssignmentSolver(F, G).solve(replace = True)
+      
+      x_old = Function(space, name = "x_old")
+      x = Function(space, name = "x")
+      AssignmentSolver(G, x_old).solve(replace = True)
+      for n in range(n_steps):
+        terms = [(1.0, x_old)]
+        if n % 11 == 0:
+          terms.append((1.0, G))
+        LinearCombinationSolver(x, *terms).solve(replace = True)
+        AssignmentSolver(x, x_old).solve(replace = True)
+        if n < n_steps - 1:
+          new_block()
+      
+      J = Functional(name = "J")
+      J.assign(x * x * x * dx)
+      return J
+    
+    F = Function(space, name = "F", static = True)
+    F.interpolate(Expression("sin(pi * x[0])", element = space.ufl_element()))
+    zeta = Function(space, name = "zeta", static = True)
+    zeta.interpolate(Expression("exp(x[0])", element = space.ufl_element()))
+    add_tlm(F, zeta)
+    start_manager()
+    J = forward(F)
+    stop_manager()
+    
+    dJ = compute_gradient(J, F)
+    min_order = taylor_test(lambda F : forward(F), F, J_val = J.value(), dJ = dJ)
+    self.assertGreater(min_order, 2.00)
+    
+    dJ_tlm = J.tlm(F, zeta).value()
+    dJ_adj = function_inner(dJ, zeta)
+    error = abs(dJ_tlm - dJ_adj)
+    info("dJ/dF zeta, TLM     = %.16e" % dJ_tlm)
+    info("dJ/dF zeta, adjoint = %.16e" % dJ_adj)
+    info("Error               = %.16e" % error)
+    self.assertEqual(error, 0.0)
+    
+    ddJ = Hessian(lambda F : forward(F))
+    min_order = taylor_test(lambda F : forward(F), F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+
   def test_ExprEvaluationSolver(self):
     reset("memory")
     clear_caches()
@@ -930,6 +984,7 @@ if __name__ == "__main__":
 #  tests().test_InterpolationSolver()
 #  tests().test_PointInterpolationSolver()
 #  tests().test_ExprEvaluationSolver()
+#  tests().test_LongRange()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()

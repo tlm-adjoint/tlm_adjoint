@@ -23,7 +23,7 @@ from .backend_interface import *
 from .base_equations import *
 from .manager import manager as _manager, set_manager
 
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 import copy
 import numpy
 import pickle
@@ -216,6 +216,44 @@ class TangentLinearMap:
                                         function_new(x, name = "%s%s" % (x.name(), self._name_suffix)))
       tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
     return self._map[x_id][1]
+      
+class ReplayStorage:
+  def __init__(self, blocks, N0, N1):
+    last_eq = {}
+    for n in range(N0, N1):
+      for i, eq in enumerate(blocks[n]):
+        for dep in eq.dependencies():
+          last_eq[dep.id()] = (n, i)
+    
+    eq_last_d = {}
+    eq_last_q = deque()
+    for n in range(N0, N1):
+      for i in range(len(blocks[n])):
+        dep_ids = []
+        eq_last_d[(n, i)] = dep_ids
+        eq_last_q.append(dep_ids) 
+    for dep_id, (n, i) in last_eq.items():
+      eq_last_d[(n, i)].append(dep_id)
+            
+    self._eq_last = eq_last_q
+    self._map = OrderedDict()
+  
+  def __contains__(self, x):
+    return x.id() in self._map
+  
+  def __getitem__(self, x):
+    x_id = x.id()
+    if not x_id in self._map:
+      self._map[x_id] = function_new(x)
+    return self._map[x_id]
+  
+  def __setitem__(self, x, y):
+    self._map[x.id()] = y
+    return y
+  
+  def pop(self):
+    for dep_id in self._eq_last.popleft():
+      del(self._map[dep_id])
     
 class Ids:
   def __init__(self):
@@ -880,49 +918,34 @@ class EquationManager:
         N0 = (n // cp_period) * cp_period
         N1 = min(((n // cp_period) + 1) * cp_period, len(self._blocks))
         
-        del(self._cp)
-        self._cp = self._load_disk_checkpoint(N0, delete = False)
-        self._cp.configure(checkpoint_ics = False,
-                           checkpoint_data = True)
+        self._cp.clear()
         self._cp_manager.clear()
+        ic_cp = self._load_disk_checkpoint(N0, delete = False)
+        copy_ic_cp = False
         
-        replace_map = [OrderedDict(), OrderedDict()]
+        storage = ReplayStorage(self._blocks, N0, N1)
         for n1 in range(N0, N1):
+          self._cp.configure(checkpoint_ics = n1 == 0,
+                             checkpoint_data = True)
+          
           for i, eq in enumerate(self._blocks[n1]):
             eq_deps = eq.dependencies()
 
-            X = []
-            for eq_x in eq.X():
-              eq_x_id = eq_x.id()
-              if eq_x_id in replace_map[1]:
-                X.append(replace_map[1][eq_x_id])
-              elif eq_x_id in replace_map[0]:
-                X.append(replace_map[0][eq_x_id])
-                replace_map[1][eq_x_id] = X[-1]
-              elif self._cp.has_initial_condition(eq_x):
-                X.append(self._cp.initial_condition(eq_x, copy = False))
-                replace_map[1][eq_x_id] = X[-1]
-              else:
-                X.append(function_new(eq_x))
-                replace_map[1][eq_x_id] = X[-1]
             for eq_dep in eq_deps:
-              eq_dep_id = eq_dep.id()
-              if not eq_dep_id in replace_map[1]:
-                if eq_dep_id in replace_map[0]:
-                  replace_map[1][eq_dep_id] = replace_map[0][eq_dep_id]
-                elif self._cp.has_initial_condition(eq_dep):
-                  replace_map[1][eq_dep_id] = self._cp.initial_condition(eq_dep, copy = False)
-                else:
-                  replace_map[1][eq_dep_id] = function_new(eq_dep)
+              if ic_cp.has_initial_condition(eq_dep) and not eq_dep in storage:
+                storage[eq_dep] = ic_cp.initial_condition(eq_dep, copy = copy_ic_cp)
                   
-            deps = [replace_map[1][eq_dep.id()] for eq_dep in eq_deps]
-#            for eq_dep in eq.initial_condition_dependencies():
-#              self._cp.add_initial_condition(eq_dep, replace_map[1][eq_dep.id()])
+            X = [storage[eq_x] for eq_x in eq.X()]
+            deps = [storage[eq_dep] for eq_dep in eq_deps]
+            
+            for eq_dep in eq.initial_condition_dependencies():
+              self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
             self._cp.add_equation((n1, i), eq, deps = deps)
+            
+            storage.pop()
+            
           self._cp_manager.add(n1)
-          replace_map[0] = replace_map[1]
-          replace_map[1] = OrderedDict()
     elif self._cp_method == "multistage":
       cp_verbose = self._cp_parameters["verbose"]
       
@@ -932,44 +955,6 @@ class EquationManager:
         if cp_verbose: info("reverse: adjoint step back to %i" % n)
         self._cp_manager.reverse()
         return
-        
-      replace_map = [OrderedDict(), OrderedDict()]
-      def advance(N0, N1):
-        for n in range(N0, N1):
-          for i, eq in enumerate(self._blocks[n]):
-            eq_deps = eq.dependencies()
-
-            X = []
-            for eq_x in eq.X():
-              eq_x_id = eq_x.id()
-              if eq_x_id in replace_map[1]:
-                X.append(replace_map[1][eq_x_id])
-              elif eq_x_id in replace_map[0]:
-                X.append(replace_map[0][eq_x_id])
-                replace_map[1][eq_x_id] = X[-1]
-              elif ic_cp.has_initial_condition(eq_x):
-                X.append(ic_cp.initial_condition(eq_x, copy = copy_ic_cp))
-                replace_map[1][eq_x_id] = X[-1]
-              else:
-                X.append(function_new(eq_x))
-                replace_map[1][eq_x_id] = X[-1]
-            for eq_dep in eq_deps:
-              eq_dep_id = eq_dep.id()
-              if not eq_dep_id in replace_map[1]:
-                if eq_dep_id in replace_map[0]:
-                  replace_map[1][eq_dep_id] = replace_map[0][eq_dep_id]
-                elif ic_cp.has_initial_condition(eq_dep):
-                  replace_map[1][eq_dep_id] = ic_cp.initial_condition(eq_dep, copy = copy_ic_cp)
-                else:
-                  replace_map[1][eq_dep_id] = function_new(eq_dep)
-                  
-            deps = [replace_map[1][eq_dep.id()] for eq_dep in eq_deps]
-            for eq_dep in eq.initial_condition_dependencies():
-              self._cp.add_initial_condition(eq_dep, replace_map[1][eq_dep.id()])
-            eq.forward_solve(X[0] if len(X) == 1 else X, deps)
-            self._cp.add_equation((n, i), eq, deps = deps)
-          replace_map[0] = replace_map[1]
-          replace_map[1] = OrderedDict()
 
       snapshot_n, storage, delete = self._cp_manager.load_snapshot()
       del(self._cp)
@@ -987,6 +972,7 @@ class EquationManager:
         self._cp = Checkpoint(checkpoint_ics = False,
                               checkpoint_data = False)
       
+      storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
       snapshot_n_0 = snapshot_n
       while snapshot_n <= n:
         if snapshot_n == n:
@@ -1001,7 +987,23 @@ class EquationManager:
           self._cp_manager.snapshot()
         self._cp_manager.forward()
         if cp_verbose: info("reverse: forward advance to %i" % self._cp_manager.n())
-        advance(snapshot_n, self._cp_manager.n())
+        for n1 in range(snapshot_n, self._cp_manager.n()):
+          for i, eq in enumerate(self._blocks[n1]):
+            eq_deps = eq.dependencies()
+
+            for eq_dep in eq_deps:
+              if ic_cp.has_initial_condition(eq_dep) and not eq_dep in storage:
+                storage[eq_dep] = ic_cp.initial_condition(eq_dep, copy = copy_ic_cp)
+                  
+            X = [storage[eq_x] for eq_x in eq.X()]
+            deps = [storage[eq_dep] for eq_dep in eq_deps]
+            
+            for eq_dep in eq.initial_condition_dependencies():
+              self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
+            eq.forward_solve(X[0] if len(X) == 1 else X, deps)
+            self._cp.add_equation((n1, i), eq, deps = deps)
+            
+            storage.pop()
         self._save_multistage_checkpoint()
         snapshot_n = self._cp_manager.n()
       
