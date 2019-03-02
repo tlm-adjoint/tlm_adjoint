@@ -210,15 +210,15 @@ class TangentLinearMap:
       return None
     x_id = x.id()
     if not x_id in self._map:
-      self_ref = weakref.ref(self)
-      def callback(x_ref):
+      def callback(self_ref, x_id):
         self = self_ref()
         if not self is None:
           del(self._map[x_id])
-      x_ref, tlm_x = self._map[x_id] = (weakref.ref(x, callback),
-                                        function_new(x, name = "%s%s" % (x.name(), self._name_suffix)))
+      self_ref = weakref.ref(self)
+      weakref.finalize(x, callback, self_ref, x_id)
+      tlm_x = self._map[x_id] = function_new(x, name = "%s%s" % (x.name(), self._name_suffix))
       tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
-    return self._map[x_id][1]
+    return self._map[x_id]
       
 class ReplayStorage:
   def __init__(self, blocks, N0, N1):
