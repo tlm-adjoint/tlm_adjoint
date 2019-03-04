@@ -314,8 +314,8 @@ class EquationAlias(Equation):
       if isinstance(value, types.MethodType):
         Equation.__setattr__(self, key, types.MethodType(value.__func__, self))
   
-  def __getattr__(self, key):
-    return self._d[key]
+  def __getattr__(self, *args):
+    return self._d.get(*args)
   
   def __setattr__(self, key, value):
     self._d[key] = value
