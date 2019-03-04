@@ -28,6 +28,7 @@ import copy
 import numpy
 import pickle
 import os
+import types
 import weakref
 import zlib
 
@@ -220,8 +221,7 @@ class TangentLinearMap:
         if not self is None:
           del(self._map[x_id])
           del(self._finalizes[x_id])
-      self_ref = weakref.ref(self)
-      self._finalizes[x_id] = weakref.finalize(x, callback, self_ref, x_id)
+      self._finalizes[x_id] = weakref.finalize(x, callback, weakref.ref(self), x_id)
       tlm_x = self._map[x_id] = function_new(x, name = "%s%s" % (x.name(), self._name_suffix))
       tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
     return self._map[x_id]
@@ -263,6 +263,23 @@ class ReplayStorage:
   def pop(self):
     for dep_id in self._eq_last.popleft():
       del(self._map[dep_id])
+    
+class EquationAlias(Equation):  
+  def __init__(self, eq):
+    d = copy.copy(eq.__dict__)
+    Equation.__setattr__(self, "_d", d)
+    
+    for key in dir(eq):
+      value = getattr(eq, key)
+      if isinstance(value, types.MethodType):
+        Equation.__setattr__(self, key, types.MethodType(value.__func__, self))
+  
+  def __getattr__(self, key):
+    return self._d[key]
+  
+  def __setattr__(self, key, value):
+    self._d[key] = value
+    return value
     
 class Ids:
   def __init__(self):
@@ -364,6 +381,8 @@ class EquationManager:
   
   def __del__(self):
     self._ids.free(self._id)
+    for finalize in self._finalizes:
+      finalize.detach()
   
   def comm(self):
     """
@@ -444,6 +463,10 @@ class EquationManager:
     self._block = []
     self._replace_map = OrderedDict()
     self._blocks = []
+    if hasattr(self, "_finalizes"):
+      for finalize in self._finalizes:
+        finalize.detach()
+    self._finalizes = []
     
     self._tlm = OrderedDict()
     self._tlm_eqs = OrderedDict()
@@ -707,7 +730,14 @@ class EquationManager:
         self._annotation_state = "annotating"
       elif self._annotation_state == "stopped_initial":
         self._annotation_state = "stopped_annotating"
-      self._block.append(eq)
+      eq_alias = EquationAlias(eq)
+      def callback(self_ref, eq_ref):
+        self = self_ref()
+        eq = eq_ref()
+        if not self is None and not eq is None:
+          eq.replace(manager = self)
+      self._finalizes.append(weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias)))
+      self._block.append(eq_alias)
       self._cp.add_equation((len(self._blocks), len(self._block) - 1), eq)
       
     if tlm is None:
@@ -725,9 +755,9 @@ class EquationManager:
         if not tlm_skip is None and i >= tlm_skip[0]:
           break
         tlm_map, max_depth = self._tlm[(M, dM)]
-        eq_tlm_eqs = self._tlm_eqs.get(eq, None)
+        eq_tlm_eqs = self._tlm_eqs.get(eq.id(), None)
         if eq_tlm_eqs is None:
-          eq_tlm_eqs = self._tlm_eqs[eq] = OrderedDict()
+          eq_tlm_eqs = self._tlm_eqs[eq.id()] = OrderedDict()
         tlm_eq = eq_tlm_eqs.get((M, dM), None)
         if tlm_eq is None:
           for dep in eq.dependencies():
@@ -755,8 +785,8 @@ class EquationManager:
         if hasattr(dep, "_tlm_adjoint__tlm_depth"):
           replaced_dep._tlm_adjoint__tlm_depth = dep._tlm_adjoint__tlm_depth      
     eq._replace(OrderedDict([(dep, self._replace_map[dep.id()]) for dep in deps]))
-    if eq in self._tlm_eqs:
-      for tlm_eq in self._tlm_eqs[eq].values():
+    if eq.id() in self._tlm_eqs:
+      for tlm_eq in self._tlm_eqs[eq.id()].values():
         if not tlm_eq is None:
           self.replace(tlm_eq)
         

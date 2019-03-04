@@ -56,10 +56,6 @@ def forward(F, x0 = None):
   # Solve the equation
   eq.solve()
   
-  # Drop references to Function objects within the equation. eq.solve cannot be
-  # used again after this step.
-  eq.replace()
-  
   if x0 is None:
     # If x0 is not supplied, return a reference solution
     return x

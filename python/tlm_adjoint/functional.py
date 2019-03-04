@@ -89,10 +89,10 @@ class Functional:
     else:
       new_fn = function_new(self._fn, name = self._name)
     if is_function(term):
-      AssignmentSolver(term, new_fn).solve(manager = manager, annotate = annotate, replace = True, tlm = tlm)
+      AssignmentSolver(term, new_fn).solve(manager = manager, annotate = annotate, tlm = tlm)
     else:
       from .equations import AssembleSolver
-      AssembleSolver(term, new_fn).solve(manager = manager, annotate = annotate, replace = True, tlm = tlm)
+      AssembleSolver(term, new_fn).solve(manager = manager, annotate = annotate, tlm = tlm)
     self._fn = new_fn
    
   def addto(self, term = None, manager = None, annotate = None, tlm = None):    
@@ -121,15 +121,15 @@ class Functional:
       
     new_fn = function_new(self._fn, name = self._name)
     if term is None:
-      AssignmentSolver(self._fn, new_fn).solve(manager = manager, annotate = annotate, replace = True, tlm = tlm)
+      AssignmentSolver(self._fn, new_fn).solve(manager = manager, annotate = annotate, tlm = tlm)
     else:
       if is_function(term):
         term_fn = term
       else:
         term_fn = function_new(self._fn, name = "%s_term" % self._name)
         from .equations import AssembleSolver
-        AssembleSolver(term, term_fn).solve(manager = manager, annotate = annotate, replace = True, tlm = tlm)
-      AxpySolver(self._fn, 1.0, term_fn, new_fn).solve(manager = manager, annotate = annotate, replace = True, tlm = tlm)
+        AssembleSolver(term, term_fn).solve(manager = manager, annotate = annotate, tlm = tlm)
+      AxpySolver(self._fn, 1.0, term_fn, new_fn).solve(manager = manager, annotate = annotate, tlm = tlm)
     self._fn = new_fn
   
   def fn(self):

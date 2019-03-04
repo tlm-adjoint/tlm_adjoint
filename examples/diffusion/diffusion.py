@@ -79,8 +79,6 @@ def forward(kappa, manager = None, output_filename = None):
       del(Psi_np1)
     if not output_filename is None:
       f << (Psi_n, (n + 1) * float(dt))
-  eq.replace(manager = manager)
-  cycle.replace(manager = manager)
 
   J = Functional(name = "J")
   J.assign(inner(Psi_n, Psi_n) * dx, manager = manager)

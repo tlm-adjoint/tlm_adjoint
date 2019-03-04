@@ -232,7 +232,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
   def momentum(U, h, initial_guess = None):
     return MomentumEquation(U, h + H_0, initial_guess = initial_guess)
   def solve_momentum(U, h, initial_guess = None):
-    momentum(U, h, initial_guess = initial_guess).solve(replace = True)
+    momentum(U, h, initial_guess = initial_guess).solve()
     
   def elevation_rhs(U, h, F_h):  
     return EquationSolver(inner(test_h, trial_h) * dx ==
@@ -240,17 +240,17 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       F_h, solver_parameters = {"linear_solver":"cg", "preconditioner":"sor",
                                 "krylov_solver":{"relative_tolerance":1.0e-12, "absolute_tolerance":1.0e-16}})  # GHS09 eqn (11) right-hand-side (times timestep size)
   def solve_elevation_rhs(U, h, F_h):
-    elevation_rhs(U, h, F_h).solve(replace = True)
+    elevation_rhs(U, h, F_h).solve()
     
   def axpy(x, *args):
     return LinearCombinationSolver(x, *args)
   def solve_axpy(x, *args):
-    axpy(x, *args).solve(replace = True)
+    axpy(x, *args).solve()
     
   def cycle(x_np1, x_n):
     return AssignmentSolver(x_np1, x_n)
   def solve_cycle(x_np1, x_n):
-    cycle(x_np1, x_n).solve(replace = True)
+    cycle(x_np1, x_n).solve()
   
   if not h_filename is None:
     h_file = File(h_filename, "compressed")
@@ -320,10 +320,6 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     else:
       J.addto()
     output(t = (timestep + 1) * float(dt))
-  for eq in eqs:
-    eq.replace()
-  if not speed_filename is None:
-    speed_eq.replace()
   
   info("forward call %i, J = %.16e" % (forward_calls[0], J.value()))
   return ref, J

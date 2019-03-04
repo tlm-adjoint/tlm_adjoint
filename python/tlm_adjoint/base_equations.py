@@ -53,6 +53,7 @@ __all__ = \
 class EquationException(Exception):
   pass
 
+Equation_id_counter = [0]
 class Equation:
   def __init__(self, X, deps, nl_deps = None, ic_deps = None):
     """
@@ -105,6 +106,11 @@ class Equation:
     self._nl_deps = None if nl_deps is None else tuple(nl_deps)
     self._nl_deps_map = nl_deps_map
     self._ic_deps = tuple(ic_deps)
+    self._id = Equation_id_counter[0]
+    Equation_id_counter[0] += 1
+    
+  def id(self):
+    return self._id
     
   def replace(self, manager = None):
     """
@@ -125,6 +131,8 @@ class Equation:
     self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
     if not self._nl_deps is None:
       self._nl_deps = tuple(replace_map.get(dep, dep) for dep in self._nl_deps)
+    if not self._ic_deps is None:
+      self._ic_deps = tuple(replace_map.get(dep, dep) for dep in self._ic_deps)
     
   def x(self):
     """
@@ -705,11 +713,12 @@ class FixedPointSolver(Equation):
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     dep = self.dependencies()[dep_index]
+    dep_id = dep.id()
     F = function_new(dep)
     for i in range(len(self._eqs)):
-      eq_deps = self._eqs[i].dependencies()
-      if dep in eq_deps:
-        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_deps.index(dep), adj_X[i])
+      eq_dep_ids = [eq_dep.id() for eq_dep in self._eqs[i].dependencies()]
+      if dep_id in eq_dep_ids:
+        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_dep_ids.index(dep_id), adj_X[i])
         subtract_adjoint_derivative_action(F, sb)
         del(sb)
     finalise_adjoint_derivative_action(F)
@@ -862,10 +871,12 @@ class LinearEquation(Equation):
         return F
     else:
       dep = self.dependencies()[dep_index]
+      dep_id = dep.id()
       F = function_new(dep)
       for i, b in enumerate(self._B):
+        b_dep_ids = [b_dep.id() for b_dep in b.dependencies()]
         try:
-          b_dep_index = b.dependencies().index(dep)
+          b_dep_index = b_dep_ids.index(dep_id)
         except ValueError:
           b_dep_index = None
         if not b_dep_index is None:
@@ -874,8 +885,9 @@ class LinearEquation(Equation):
             adj_X[0] if len(adj_X) == 1 else adj_X,
             F)
       if not self._A is None:
+        A_nl_dep_ids = [A_nl_dep.id() for A_nl_dep in self._A.nonlinear_dependencies()]
         try:
-          A_nl_dep_index = self._A.nonlinear_dependencies().index(dep)
+          A_nl_dep_index = A_nl_dep_ids.index(dep_id)
         except ValueError:
           A_nl_dep_index = None
         if not A_nl_dep_index is None:

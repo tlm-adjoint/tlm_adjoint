@@ -35,13 +35,13 @@ class tests(unittest.TestCase):
     
     def forward(m):
       x = Function(space, name = "x")
-      ContractionSolver(A, (1,), (m,), x).solve(replace = True)
+      ContractionSolver(A, (1,), (m,), x).solve()
       
       norm_sq = Function(space_0, name = "norm_sq")
-      NormSqSolver(x, norm_sq).solve(replace = True)
+      NormSqSolver(x, norm_sq).solve()
       
       J = Functional(name = "J")
-      NormSqSolver(norm_sq, J.fn()).solve(replace = True)
+      NormSqSolver(norm_sq, J.fn()).solve()
       
       return x, J
     
@@ -71,10 +71,10 @@ class tests(unittest.TestCase):
     
     def forward(F):
       G = Function(space, name = "G")
-      AssignmentSolver(F, G).solve(replace = True)
+      AssignmentSolver(F, G).solve()
 
       J = Functional(name = "J")
-      InnerProductSolver(F, G, J.fn()).solve(replace = True)
+      InnerProductSolver(F, G, J.fn()).solve()
       
       return J
 
@@ -98,10 +98,10 @@ class tests(unittest.TestCase):
     
     def forward(F):
       G = Function(space, name = "G")
-      AssignmentSolver(F, G).solve(replace = True)
+      AssignmentSolver(F, G).solve()
 
       J = Functional(name = "J")
-      SumSolver(G, J.fn()).solve(replace = True)
+      SumSolver(G, J.fn()).solve()
       
       return J
 

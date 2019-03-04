@@ -118,14 +118,14 @@ def solve(*args, **kwargs):
       if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
         (x in lhs.coefficients() or x in rhs.coefficients()):
         x_old = function_new(x, name = "x_old")
-        AssignmentSolver(x, F).solve(annotate = annotate, replace = True, tlm = tlm)
+        AssignmentSolver(x, F).solve(annotate = annotate, tlm = tlm)
         lhs = ufl.replace(lhs, OrderedDict([(x, x_old)]))
         rhs = ufl.replace(rhs, OrderedDict([(x, x_old)]))
         eq = lhs == rhs
       EquationSolver(eq, x, bcs, J = J,
         form_compiler_parameters = form_compiler_parameters,
         solver_parameters = solver_parameters, cache_jacobian = False,
-        cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+        cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       def _extract_args(A, x, b, bcs = None, solver_parameters = {}):
         return A, x, b, bcs, solver_parameters
@@ -144,14 +144,14 @@ def solve(*args, **kwargs):
       b_x_dep = x in ufl.algorithms.extract_coefficients(b)
       if A_x_dep or b_x_dep:
         x_old = function_new(x, name = "x_old")
-        AssignmentSolver(x, x_old).solve(annotate = annotate, replace = True, tlm = tlm)
+        AssignmentSolver(x, x_old).solve(annotate = annotate, tlm = tlm)
         if A_x_dep: A = ufl.replace(A, OrderedDict([(x, x_old)]))
         if b_x_dep: b = ufl.replace(b, OrderedDict([(x, x_old)]))
         
       EquationSolver(A == b, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
-        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
   else:
     backend_solve(*args, **kwargs)
 
@@ -171,7 +171,7 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
     ProjectionSolver(v, x, [] if bcs is None else bcs,
       solver_parameters = {} if solver_parameters is None else solver_parameters,
       form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-      cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+      cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     return x
   else:
     return backend_project(v, V, bcs = bcs, mesh = mesh,
@@ -199,7 +199,7 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
   if tlm is None:
     tlm = tlm_enabled()
   if annotate or tlm:
-    AssignmentSolver(expr, self).solve(annotate = annotate, replace = True, tlm = tlm)
+    AssignmentSolver(expr, self).solve(annotate = annotate, tlm = tlm)
   return return_value
 backend_Function.assign = _Function_assign
 
@@ -263,7 +263,7 @@ class LinearSolver(backend_LinearSolver):
 
       eq._pre_process(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)
-      eq._post_process(annotate = annotate, replace = True, tlm = tlm)
+      eq._post_process(annotate = annotate, tlm = tlm)
     else:
       backend_LinearSolver.solve(self, x, b)
 
@@ -302,7 +302,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
       EquationSolver(self.__problem.J == L, x, self.__problem.bcs,
         solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
-        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       backend_LinearVariationalSolver.solve(self, bounds = bounds)
 
@@ -351,6 +351,6 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
         self.__problem.bcs, J = self.__problem.J,
         solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
-        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, replace = True, tlm = tlm)
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       backend_NonlinearVariationalSolver.solve(self, bounds = bounds)

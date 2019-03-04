@@ -176,7 +176,7 @@ class TimeFunction:
       self._cycle_eqs = [AssignmentSolver(self[source_level], self[target_level])
                            for target_level, source_level in self._levels._cycle_map.items()]
     for eq in self._cycle_eqs:
-      eq.solve(manager = manager, replace = False)
+      eq.solve(manager = manager)
 
 class TimeSystem:
   def __init__(self):
@@ -283,14 +283,14 @@ class TimeSystem:
     self._state = "initialised"
     
     for eq in self._sorted_eqs[0]:
-      eq.solve(manager = manager, replace = True)
+      eq.solve(manager = manager)
     
     self._initial_eqs = []
     self._sorted_eqs[0] = []
     
     for tfn in self._tfns:
       for level in tfn.levels():
-        AssignmentSolver(tfn[level._i], tfn[level])._post_process(manager = manager, replace = True)
+        AssignmentSolver(tfn[level._i], tfn[level])._post_process(manager = manager)
       
   def timestep(self, s = 1, manager = None):
     if self._state == "initial":
@@ -302,7 +302,7 @@ class TimeSystem:
     for n in range(s):
       # Timestep solve
       for eq in self._sorted_eqs[1]:
-        eq.solve(manager = manager, replace = False)
+        eq.solve(manager = manager)
       # Timestep cycle
       for tfn in self._tfns:
         tfn.cycle(manager = manager)
@@ -314,23 +314,19 @@ class TimeSystem:
       raise TimesteppingException("Invalid state")
     self._state = "final"
   
-    for eq in self._timestep_eqs:
-      eq.replace(manager = manager)
     self._timestep_eqs = []
     self._sorted_eqs[1] = []
     for tfn in self._tfns:
       if not tfn._cycle_eqs is None:
-        for eq in tfn._cycle_eqs:
-          eq.replace(manager = manager)
         tfn._cycle_eqs = None
         
     for tfn in self._tfns:
       for level in tfn.levels():
-        AssignmentSolver(tfn[level], tfn[FinalTimeLevel(level._i)])._post_process(manager = manager, replace = True)
+        AssignmentSolver(tfn[level], tfn[FinalTimeLevel(level._i)])._post_process(manager = manager)
     self._tfns = None
     
     for eq in self._sorted_eqs[2]:
-      eq.solve(manager = manager, replace = True)
+      eq.solve(manager = manager)
     
     self._final_eqs = []
     self._sorted_eqs = None

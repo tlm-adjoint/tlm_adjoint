@@ -177,7 +177,7 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
   # equal to zero elsewhere
   T_inflow = Function(space, name = "T_inflow")
   # Boundary condition application equation
-  InflowBCSolver(T_inflow_bc, T_inflow).solve(replace = True)
+  InflowBCSolver(T_inflow_bc, T_inflow).solve()
   
   # Solution on the previous time level
   T_n = Function(space, name = "T_n")
@@ -212,9 +212,6 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
     if not output_filename is None:
       # Output the forward solution
       T_output << (T_n, (n + 1) * float(dt))
-  # Drop references to Function objects within the equations
-  for eq in eqs:
-    eq.replace()
   
   if T_N_ref is None:
     # Store the solution of the equation in a "reference" function

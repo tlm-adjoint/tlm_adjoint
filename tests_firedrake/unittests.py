@@ -37,17 +37,17 @@ class tests(unittest.TestCase):
     
     def forward(F):
       G = Function(space, name = "G")
-      AssignmentSolver(F, G).solve(replace = True)
+      AssignmentSolver(F, G).solve()
       
       x_old = Function(space, name = "x_old")
       x = Function(space, name = "x")
-      AssignmentSolver(G, x_old).solve(replace = True)
+      AssignmentSolver(G, x_old).solve()
       for n in range(n_steps):
         terms = [(1.0, x_old)]
         if n % 11 == 0:
           terms.append((1.0, G))
-        LinearCombinationSolver(x, *terms).solve(replace = True)
-        AssignmentSolver(x, x_old).solve(replace = True)
+        LinearCombinationSolver(x, *terms).solve()
+        AssignmentSolver(x, x_old).solve()
         if n < n_steps - 1:
           new_block()
       
@@ -95,8 +95,8 @@ class tests(unittest.TestCase):
     def forward(y):
       x = Function(space, name = "x")
       y_int = Function(RealFunctionSpace(), name = "y_int")
-      AssembleSolver(y * dx, y_int).solve(replace = True)
-      ExprEvaluationSolver(test_expression(y, y_int), x).solve(replace = True)
+      AssembleSolver(y * dx, y_int).solve()
+      ExprEvaluationSolver(test_expression(y, y_int), x).solve()
       
       J = Functional(name = "J")
       J.assign(x * x * x * dx)
@@ -146,7 +146,7 @@ class tests(unittest.TestCase):
       eq = FixedPointSolver(eqs, solver_parameters = {"absolute_tolerance":0.0,
                                                       "relative_tolerance":1.0e-14})
                                                       
-      eq.solve(replace = True)
+      eq.solve()
       
       J = Functional(name = "J")
       J.assign(Constant(1.0 / function_global_size(x)) * x * dx)
@@ -209,8 +209,6 @@ class tests(unittest.TestCase):
           eq.solve()
         if n < n_steps - 1:
           new_block()
-      for eq in eqs:
-        eq.replace()
       
       J = Functional(name = "J")
       J.assign(inner(x_np1, x_np1) * dx)
@@ -303,11 +301,11 @@ class tests(unittest.TestCase):
       EquationSolver(inner(test, trial) * dx == inner(test, alpha) * dx,
         x, solver_parameters = {"ksp_type":"cg",
                                 "pc_type":"jacobi",
-                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve(replace = False)
+                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve()
       EquationSolver(inner(test, trial) * dx == inner(test, x) * dx + inner(test, alpha) * dx,
         y, solver_parameters = {"ksp_type":"cg",
                                 "pc_type":"jacobi",
-                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve(replace = True)
+                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve()
       
       J = Functional(name = "J")
       J.assign(inner(y, y) * dx)
@@ -318,6 +316,13 @@ class tests(unittest.TestCase):
     start_manager()
     J = forward(alpha)
     stop_manager()
+    
+    manager().finalise()
+    for block in manager()._blocks:
+      for eq in block:
+        for dep in eq.dependencies():
+          if not isinstance(dep, ReplacementFunction):
+            warning("%s not replaced" % dep.name())
     
     dJ = compute_gradient(J, alpha)
     min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
@@ -450,7 +455,7 @@ class tests(unittest.TestCase):
       x_1 = Function(space, name = "x_1")
       x = Function(space, name = "x")
       
-      DirichletBCSolver(bc, x_1, "on_boundary").solve(replace = True)
+      DirichletBCSolver(bc, x_1, "on_boundary").solve()
       
       solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
         x_0, DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True),
@@ -458,7 +463,7 @@ class tests(unittest.TestCase):
                              "pc_type":"jacobi",
                              "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
-      AxpySolver(x_0, 1.0, x_1, x).solve(replace = True)
+      AxpySolver(x_0, 1.0, x_1, x).solve()
       
       J = Functional(name = "J")
       J.assign(inner(x, x) * dx)
@@ -532,8 +537,6 @@ class tests(unittest.TestCase):
           J.addto(inv_V * T_n[0] * dx)
         if n < n_steps - 1:
           new_block()
-      eq.replace()
-      cycle.replace()
 
       if dalpha is None:
         J_tlm, K = None, None
@@ -666,7 +669,7 @@ class tests(unittest.TestCase):
       T_n = Function(space, name = "T_n")
       T_np1 = Function(space, name = "T_np1")
       
-      AssignmentSolver(T_0, T_n).solve(replace = True)
+      AssignmentSolver(T_0, T_n).solve()
       eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt - Constant(0.5, static = True) * T_n[1] - Constant(0.5, static = True) * T_np1[1]) * dx
                         + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(Constant(0.5, static = True) * T_n[0] + Constant(0.5, static = True) * T_np1[0])) * dx == 0,
              T_np1, solver_parameters = {"snes_type":"newtonls",
@@ -679,7 +682,6 @@ class tests(unittest.TestCase):
         T_n.assign(T_np1)
         if n < n_steps - 1:
           new_block()
-      eq.replace()
     
       J = Functional(name = "J")
       J.assign(T_n[0] * T_n[0] * dx)
@@ -718,9 +720,9 @@ class tests(unittest.TestCase):
       z = [Function(space, name = "z_%i" % i) for i in range(2)]
       function_assign(z[0], 7.0)
     
-      AssignmentSolver(x, y[0]).solve(replace = True)
+      AssignmentSolver(x, y[0]).solve()
       for i in range(len(y) - 1):
-        AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve(replace = True)
+        AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
       solve(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z[1],
         solver_parameters = {"ksp_type":"cg",
                              "pc_type":"jacobi",
@@ -758,13 +760,13 @@ class tests(unittest.TestCase):
       y = [Function(space, name = "y_%i" % i) for i in range(9)]
       z = Function(space, name = "z")
     
-      AssignmentSolver(x, y[0]).solve(replace = True)
+      AssignmentSolver(x, y[0]).solve()
       for i in range(len(y) - 1):
-        AssignmentSolver(y[i], y[i + 1]).solve(replace = True)
+        AssignmentSolver(y[i], y[i + 1]).solve()
       EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z,
         solver_parameters = {"ksp_type":"cg",
                              "pc_type":"jacobi",
-                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve(replace = True)
+                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve()
 
       J = Functional(name = "J")
       J.assign(inner(z, z) * dx)
