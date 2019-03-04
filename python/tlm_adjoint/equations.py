@@ -85,8 +85,6 @@ class AssembleSolver(Equation):
       raise EquationException("Invalid non-linear dependency")
     del(dep_ids, nl_dep_ids)
     deps.insert(0, x)
-    deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
-    nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
@@ -258,9 +256,6 @@ class EquationSolver(Equation):
     deps.insert(0, x)
         
     del(dep_ids, nl_dep_ids)
-      
-    deps[1:] = sorted(deps[1:], key = lambda dep : dep.id())
-    nl_deps = sorted(nl_deps, key = lambda dep : dep.id())
     
     hbcs = [homogenized_bc(bc) for bc in bcs]
     
