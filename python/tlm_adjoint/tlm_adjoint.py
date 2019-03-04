@@ -28,7 +28,6 @@ import copy
 import numpy
 import pickle
 import os
-import types
 import weakref
 import zlib
 
@@ -263,23 +262,6 @@ class ReplayStorage:
   def pop(self):
     for dep_id in self._eq_last.popleft():
       del(self._map[dep_id])
-    
-class EquationAlias(Equation):  
-  def __init__(self, eq):
-    d = copy.copy(eq.__dict__)
-    Equation.__setattr__(self, "_d", d)
-    
-    for key in dir(eq):
-      value = getattr(eq, key)
-      if isinstance(value, types.MethodType):
-        Equation.__setattr__(self, key, types.MethodType(value.__func__, self))
-  
-  def __getattr__(self, key):
-    return self._d[key]
-  
-  def __setattr__(self, key, value):
-    self._d[key] = value
-    return value
     
 class Ids:
   def __init__(self):

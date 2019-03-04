@@ -25,12 +25,14 @@ from .manager import manager as _manager
 from collections import OrderedDict
 import copy
 import numpy
+import types
 
 __all__ = \
   [
     "AssignmentSolver",
     "AxpySolver",
     "Equation",
+    "EquationAlias",
     "EquationException",
     "FixedPointSolver",
     "InitialGuessSolver",
@@ -301,6 +303,23 @@ class Equation:
     """
   
     raise EquationException("Method not overridden")
+    
+class EquationAlias(Equation):  
+  def __init__(self, eq):
+    d = copy.copy(eq.__dict__)
+    Equation.__setattr__(self, "_d", d)
+    
+    for key in dir(eq):
+      value = getattr(eq, key)
+      if isinstance(value, types.MethodType):
+        Equation.__setattr__(self, key, types.MethodType(value.__func__, self))
+  
+  def __getattr__(self, key):
+    return self._d[key]
+  
+  def __setattr__(self, key, value):
+    self._d[key] = value
+    return value
 
 class NullSolver(Equation):
   def __init__(self, X):
