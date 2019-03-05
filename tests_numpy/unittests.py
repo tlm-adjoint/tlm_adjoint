@@ -19,11 +19,52 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from tlm_adjoint import *
+from tlm_adjoint import manager as _manager
 
+import gc
 import numpy
 import unittest
+import weakref
+
+Function_ids = {}
+_orig_Function_init = Function.__init__
+def _Function__init__(self, *args, **kwargs):
+  _orig_Function_init(self, *args, **kwargs)
+  Function_ids[self.id()] = weakref.ref(self)
+Function.__init__ = _Function__init__
+
+def leak_check(test):
+  def wrapped_test(self, *args, **kwargs):    
+    Function_ids.clear()
+    
+    test(self, *args, **kwargs)
+    
+    # Clear some internal storage that is allowed to keep references
+    manager = _manager()
+    manager._cp.clear()
+    tlm_values = manager._tlm.values()
+    manager._tlm.clear()
+    tlm_eqs_values = manager._tlm_eqs.values()
+    manager._tlm_eqs.clear()
+    
+    gc.collect()
+  
+    refs = 0
+    for F in Function_ids.values():
+      F = F()
+      if not F is None:
+        info("%s referenced" % F.name())
+        refs += 1
+    if refs == 0:
+      info("No references")
+
+    self.assertEqual(refs, 0)
+   
+    Function_ids.clear()    
+  return wrapped_test    
   
 class tests(unittest.TestCase):
+  @leak_check
   def test_ContractionSolver(self):
     reset("memory")
     clear_caches()
@@ -62,6 +103,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda m : forward(m)[1], m, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 3.00)
 
+  @leak_check
   def test_InnerProductSolver(self):
     reset("memory")
     clear_caches()
@@ -89,6 +131,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
 
+  @leak_check
   def test_SumSolver(self):
     reset("memory")
     clear_caches()
