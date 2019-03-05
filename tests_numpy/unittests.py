@@ -65,7 +65,7 @@ def leak_check(test):
 class tests(unittest.TestCase):
   @leak_check
   def test_ContractionSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -104,7 +104,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_InnerProductSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -132,7 +132,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_SumSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     

@@ -301,7 +301,6 @@ class EquationManager:
 
     cp_method  (Optional) Checkpointing method. Default "memory".      
       Possible methods
-        none           Do not store anything.
         memory         Store everything in RAM.
         periodic_disk  Periodically store initial condition data on disk.
         multistage     Binomial checkpointing using the approach described in
@@ -315,12 +314,12 @@ class EquationManager:
                   offline checkpointing", SIAM Journal on Scientific Computing,
                   31(3), pp. 1946--1967, 2009
      
-    cp_parameters  (Optional) Checkpointing parameters dictionary.           
-      Parameters for "none" method
-        None
-                 
+    cp_parameters  (Optional) Checkpointing parameters dictionary.
       Parameters for "memory" method
-        None
+        replace                   Whether to automatically replace internal
+                                  Function objects in the provided equations
+                                  with ReplacementFunction objects. Logical,
+                                  optional, default False.
      
       Parameters for "periodic_disk" method
         path                      Directory in which disk checkpoint data should
@@ -414,7 +413,7 @@ class EquationManager:
     info("  Non-linear dependencies stored: %i" % len(data_keys))
     info("Checkpointing:")
     info("  Method: %s" % self._cp_method)
-    if self._cp_method in ["none", "memory"]:
+    if self._cp_method == "memory":
       pass
     elif self._cp_method == "periodic_disk":
       info("  Function spaces referenced: %i" % len(self._cp_disk_spaces))
@@ -498,8 +497,9 @@ class EquationManager:
       else:
         raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
     
-    if cp_method in ["none", "memory"]:
+    if cp_method == "memory":
       cp_manager = None
+      cp_parameters["replace"] = cp_parameters.get("replace", False)
     elif cp_method == "periodic_disk":
       cp_manager = set()
     elif cp_method == "multistage":
@@ -533,7 +533,7 @@ class EquationManager:
       self._cp_manager.forward()
       if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
     else:
-      self._cp = Checkpoint(checkpoint_ics = cp_method != "none",
+      self._cp = Checkpoint(checkpoint_ics = True,
                             checkpoint_data = cp_method == "memory")
   
   def add_tlm(self, M, dM, max_depth = 1):
@@ -716,14 +716,17 @@ class EquationManager:
         self._annotation_state = "annotating"
       elif self._annotation_state == "stopped_initial":
         self._annotation_state = "stopped_annotating"
-      eq_alias = eq if isinstance(eq, EquationAlias) else EquationAlias(eq)
-      def callback(self_ref, eq_ref):
-        self = self_ref()
-        eq = eq_ref()
-        if not self is None and not eq is None:
-          eq.replace(manager = self)
-      self._finalizes.append(weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias)))
-      self._block.append(eq_alias)
+      if self._cp_method == "memory" and not self._cp_parameters["replace"]:
+        self._block.append(eq)
+      else:
+        eq_alias = eq if isinstance(eq, EquationAlias) else EquationAlias(eq)
+        def callback(self_ref, eq_ref):
+          self = self_ref()
+          eq = eq_ref()
+          if not self is None and not eq is None:
+            eq.replace(manager = self)
+        self._finalizes.append(weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias)))
+        self._block.append(eq_alias)
       self._cp.add_equation((len(self._blocks), len(self._block) - 1), eq)
       
     if tlm is None:
@@ -875,7 +878,7 @@ class EquationManager:
     return cp
 
   def _checkpoint(self, final = False):
-    if self._cp_method in ["none", "memory"]:
+    if self._cp_method == "memory":
       pass
     elif self._cp_method == "periodic_disk":   
       self._periodic_disk_checkpoint(final = final)
@@ -932,9 +935,7 @@ class EquationManager:
     if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
 
   def _restore_checkpoint(self, n):
-    if self._cp_method == "none":
-      raise ManagerException("Cannot restore data when using 'none' checkpointing method")
-    elif self._cp_method == "memory":
+    if self._cp_method == "memory":
       pass
     elif self._cp_method == "periodic_disk":      
       if not n in self._cp_manager:

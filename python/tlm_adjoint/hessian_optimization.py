@@ -30,11 +30,6 @@ __all__ = \
     "HessianException",
     "SingleBlockHessian"
   ]
-  
-# Replacing functions makes it much more difficult to derive tangent-linear
-# equations, so disable it
-EquationManager.replace = lambda *args, **kwargs : None
-_manager().replace = lambda *args, **kwargs : None
 
 class SingleBlockHessian(Hessian):
   def __init__(self, J, manager = None):
@@ -72,6 +67,7 @@ class SingleBlockHessian(Hessian):
       return J_val, dJ_val, ddJ
       
     if self._manager._cp_method != "memory" \
+      or self._manager._cp_parameters["replace"] \
       or not (len(self._manager._blocks) == 0 or (len(self._manager._blocks) == 1 and len(self._manager._block) == 0)):
       raise HessianException("Invalid equation manager state")    
     block = self._manager._block if len(self._manager._blocks) == 0 else self._manager._blocks[0]

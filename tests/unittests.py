@@ -122,7 +122,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_ExprEvaluationSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -162,7 +162,7 @@ class tests(unittest.TestCase):
     
   @leak_check
   def test_PointInterpolationSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -215,7 +215,7 @@ class tests(unittest.TestCase):
     
   @leak_check
   def test_InterpolationSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -268,7 +268,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_FixedPointSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
   
@@ -437,7 +437,7 @@ class tests(unittest.TestCase):
     
   @leak_check
   def test_replace(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -475,7 +475,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_minimize_scipy(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -520,7 +520,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_overrides(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -597,7 +597,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_bc(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -875,7 +875,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_AxpySolver(self):    
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
 
@@ -918,7 +918,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_AssignmentSolver(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
   
@@ -972,7 +972,7 @@ class tests(unittest.TestCase):
   
   @leak_check
   def test_HEP(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
@@ -994,7 +994,7 @@ class tests(unittest.TestCase):
 
   @leak_check
   def test_NHEP(self):
-    reset("memory")
+    reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
     
