@@ -306,7 +306,10 @@ class Equation:
     
 class EquationAlias(Equation):  
   def __init__(self, eq):
-    d = copy.copy(eq.__dict__)
+    if isinstance(eq, EquationAlias):
+      d = eq._d
+    else:
+      d = eq.__dict__
     Equation.__setattr__(self, "_d", d)
     
     for key in dir(eq):
@@ -315,7 +318,10 @@ class EquationAlias(Equation):
         Equation.__setattr__(self, key, types.MethodType(value.__func__, self))
   
   def __getattr__(self, *args):
-    return self._d.get(*args)
+    if len(args) == 1:
+      return self._d[args[0]]
+    else:
+      return self._d.get(*args)
   
   def __setattr__(self, key, value):
     self._d[key] = value
