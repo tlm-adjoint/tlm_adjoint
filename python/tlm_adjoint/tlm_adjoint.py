@@ -724,7 +724,7 @@ class EquationManager:
           self = self_ref()
           eq = eq_ref()
           if not self is None and not eq is None:
-            eq.replace(manager = self)
+            self.replace(eq)
         self._finalizes.append(weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias)))
         self._block.append(eq_alias)
       self._cp.add_equation((len(self._blocks), len(self._block) - 1), eq)
