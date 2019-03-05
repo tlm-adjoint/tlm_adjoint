@@ -677,9 +677,9 @@ class EquationManager:
   
     self.finalise()
   
-    x = self.map(x)
+    x_id = x.id()
     for eq in self._blocks[0]:
-      if x in self.map(eq.dependencies()):
+      if x_id in set(dep.id() for dep in eq.dependencies()):
         self._restore_checkpoint(0)
         return self._cp.initial_condition(x)
     raise ManagerException("Initial condition not found")
@@ -1162,7 +1162,7 @@ class EquationManager:
       if not is_function(J):
         Js[J_i] = J.fn()
 
-    M = [self.map(m if is_function(m) else m.m()) for m in M]
+    M = [(m if is_function(m) else m.m()) for m in M]
     dJ = [[function_new(m) for m in M] for J in Js]
 
     dep_map = defaultdict(lambda : [])
@@ -1188,14 +1188,15 @@ class EquationManager:
     for n in range(len(self._blocks) - 1, -1, -1):
       for i in range(len(self._blocks[n]) - 1, -1, -1):
         eq = self._blocks[n][i]
-        X = self.map(eq.X())
-        deps = self.map(eq.dependencies())
+        X = eq.X()
+        deps = eq.dependencies()
+        dep_ids = {dep.id():index for index, dep in enumerate(deps)}
 
         for J_i, J in enumerate(Js):
           if len(X) == 1 and X[0].id() == J.id():
             adj_x = function_new(X[0], static = True)
             function_assign(adj_x, -1.0)
-            j = deps.index(X[0])
+            j = dep_ids[X[0].id()]
             sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_x)
             if not sb is None:
               if B[J_i][i] is None:
@@ -1229,8 +1230,8 @@ class EquationManager:
             del(sb)
           
           for j, m in enumerate(M):
-            if m in deps:
-              sdJ = eq.adjoint_derivative_action(self._cp[(n, i)], deps.index(m), adj_X[0] if len(adj_X) == 1 else adj_X)
+            if m.id() in dep_ids:
+              sdJ = eq.adjoint_derivative_action(self._cp[(n, i)], dep_ids[m.id()], adj_X[0] if len(adj_X) == 1 else adj_X)
               subtract_adjoint_derivative_action(dJ[J_i][j], sdJ)
               del(sdJ)
           

@@ -747,9 +747,9 @@ class FixedPointSolver(Equation):
     dep_id = dep.id()
     F = function_new(dep)
     for i in range(len(self._eqs)):
-      eq_dep_ids = [eq_dep.id() for eq_dep in self._eqs[i].dependencies()]
+      eq_dep_ids = {eq_dep.id():index for index, eq_dep in enumerate(self._eqs[i].dependencies())}
       if dep_id in eq_dep_ids:
-        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_dep_ids.index(dep_id), adj_X[i])
+        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_dep_ids[dep_id], adj_X[i])
         subtract_adjoint_derivative_action(F, sb)
         del(sb)
     finalise_adjoint_derivative_action(F)
@@ -905,10 +905,10 @@ class LinearEquation(Equation):
       dep_id = dep.id()
       F = function_new(dep)
       for i, b in enumerate(self._B):
-        b_dep_ids = [b_dep.id() for b_dep in b.dependencies()]
+        b_dep_ids = {b_dep.id():index for index, b_dep in enumerate(b.dependencies())}
         try:
-          b_dep_index = b_dep_ids.index(dep_id)
-        except ValueError:
+          b_dep_index = b_dep_ids[dep_id]
+        except KeyError:
           b_dep_index = None
         if not b_dep_index is None:
           b.subtract_adjoint_derivative_action([nl_deps[j] for j in self._b_nl_dep_indices[i]],
@@ -916,10 +916,10 @@ class LinearEquation(Equation):
             adj_X[0] if len(adj_X) == 1 else adj_X,
             F)
       if not self._A is None:
-        A_nl_dep_ids = [A_nl_dep.id() for A_nl_dep in self._A.nonlinear_dependencies()]
+        A_nl_dep_ids = {A_nl_dep.id():index for index, A_nl_dep in enumerate(self._A.nonlinear_dependencies())}
         try:
-          A_nl_dep_index = A_nl_dep_ids.index(dep_id)
-        except ValueError:
+          A_nl_dep_index = A_nl_dep_ids[dep_id]
+        except KeyError:
           A_nl_dep_index = None
         if not A_nl_dep_index is None:
           X = [nl_deps[j] for j in self._A_x_indices]
@@ -1123,13 +1123,13 @@ class MatrixActionRHS(RHS):
     else:
       nl_deps = list(A_nl_deps)
       nl_dep_ids = {dep.id():i for i, dep in enumerate(nl_deps)}
-      x_indices = []
-      for x in X:
+      x_indices = {}
+      for index, x in enumerate(X):
         x_id = x.id()
         if not x_id in nl_dep_ids:
           nl_deps.append(x)
           nl_dep_ids[x_id] = len(nl_deps) - 1
-        x_indices.append(nl_dep_ids[x_id])
+        x_indices[nl_dep_ids[x_id]] = index
       RHS.__init__(self, nl_deps, nl_deps = nl_deps)
       
     self._A = A
@@ -1163,7 +1163,7 @@ class MatrixActionRHS(RHS):
     elif dep_index < len(self.dependencies()):
       self._A.adjoint_action(nl_deps[:N_A_nl_deps],
         adj_X[0] if len(adj_X) == 1 else adj_X,
-        b, b_index = self._x_indices.index(dep_index), method = "sub")
+        b, b_index = self._x_indices[dep_index], method = "sub")
   
   def reset_subtract_adjoint_derivative_action(self):
     self._A.reset_adjoint_derivative_action()
