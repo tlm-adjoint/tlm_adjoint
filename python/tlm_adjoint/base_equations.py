@@ -308,14 +308,20 @@ class EquationAlias(Equation):
   def __init__(self, eq):
     if isinstance(eq, EquationAlias):
       d = eq._d
+      r = eq._r
     else:
       d = eq.__dict__
+      r = "%s (aliased)" % type(eq).__name__
     Equation.__setattr__(self, "_d", d)
+    Equation.__setattr__(self, "_r", r)
     
     for key in dir(eq):
       value = getattr(eq, key)
       if isinstance(value, types.MethodType):
         Equation.__setattr__(self, key, types.MethodType(value.__func__, self))
+  
+  def __str__(self):
+    return self._r
   
   def __getattr__(self, *args):
     if len(args) == 1:

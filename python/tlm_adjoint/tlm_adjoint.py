@@ -396,7 +396,11 @@ class EquationManager:
         else:
           X_name = "(%s)" % (",".join(eq_x.name() for eq_x in eq_X))
           X_ids = "ids (%s)" % (",".join(["%i" % eq_x.id() for eq_x in eq_X]))
-        info("    Equation %i, %s (Python id %i) solving for %s (%s)" % (i, type(eq).__name__, id(eq), X_name, X_ids))
+        if isinstance(eq, EquationAlias):
+          eq_type = "%s" % eq
+        else:
+          eq_type = type(eq).__name__
+        info("    Equation %i, %s solving for %s (%s)" % (i, eq_type, X_name, X_ids))
         nl_dep_ids = set([dep.id() for dep in eq.nonlinear_dependencies()])
         for j, dep in enumerate(eq.dependencies()):
           info("      Dependency %i, %s (id %i)%s, %s" % (j, dep.name(), dep.id(), ", replaced" if isinstance(dep, ReplacementFunction) else "", "non-linear" if dep.id() in nl_dep_ids else "linear"))
