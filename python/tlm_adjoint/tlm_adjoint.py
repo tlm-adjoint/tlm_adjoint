@@ -1246,12 +1246,6 @@ class EquationManager:
         Bs.pop()
         B = Bs[-1]
         self._restore_checkpoint(n - 1)
-        for J_i, J in enumerate(Js):
-          for i, eq in enumerate(self._blocks[n - 1]):
-            if not B[J_i][i] is None:
-              for l in range(len(B[J_i][i])):
-                if not B[J_i][i][l] is None:
-                  finalise_adjoint_derivative_action(B[J_i][i][l])
             
     if self._cp_method == "multistage":
       self._cp.clear(clear_ics = False, clear_data = True)
