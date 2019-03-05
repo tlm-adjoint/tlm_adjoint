@@ -60,9 +60,8 @@ def leak_check(test):
     if refs == 0:
       info("No references")
 
+    Function_ids.clear()
     self.assertEqual(refs, 0)
-   
-    Function_ids.clear()    
   return wrapped_test    
   
 class tests(unittest.TestCase):
