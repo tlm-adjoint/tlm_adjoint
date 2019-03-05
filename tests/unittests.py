@@ -20,11 +20,53 @@
 
 from fenics import *
 from tlm_adjoint import *
+from tlm_adjoint import manager as _manager
+from tlm_adjoint.backend import backend_Function
 
+import gc
 import numpy
 import unittest
+import weakref
+
+Function_ids = {}
+_orig_Function_init = backend_Function.__init__
+def _Function__init__(self, *args, **kwargs):
+  _orig_Function_init(self, *args, **kwargs)
+  Function_ids[self.id()] = weakref.ref(self)
+backend_Function.__init__ = _Function__init__
+
+def leak_check(test):
+  def wrapped_test(self, *args, **kwargs):    
+    Function_ids.clear()
+    
+    test(self, *args, **kwargs)
+    
+    # Clear some internal storage that is allowed to keep references
+    manager = _manager()
+    manager._cp.clear()
+    tlm_values = manager._tlm.values()
+    manager._tlm.clear()
+    tlm_eqs_values = manager._tlm_eqs.values()
+    manager._tlm_eqs.clear()
+    
+    gc.collect()
+  
+    refs = 0
+    for F in Function_ids.values():
+      F = F()
+      if not F is None:
+        info("%s referenced" % F.name())
+        refs += 1
+    if refs == 0:
+      info("No references")
+
+    self.assertEqual(refs, 0)
+   
+    Function_ids.clear()    
+  return wrapped_test    
   
 class tests(unittest.TestCase):
+  @leak_check
   def test_LongRange(self):
     n_steps = 200
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":0, "snaps_in_ram":2, "verbose":True})
@@ -79,6 +121,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda F : forward(F), F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 2.99)
 
+  @leak_check
   def test_ExprEvaluationSolver(self):
     reset("memory")
     clear_caches()
@@ -118,6 +161,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ, ddJ = ddJ, seed = 1.0e-3)
     self.assertGreater(min_order, 2.99)
     
+  @leak_check
   def test_PointInterpolationSolver(self):
     reset("memory")
     clear_caches()
@@ -170,6 +214,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 2.99)
     
+  @leak_check
   def test_InterpolationSolver(self):
     reset("memory")
     clear_caches()
@@ -222,6 +267,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda z : forward(z)[1], z, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 2.99)
 
+  @leak_check
   def test_FixedPointSolver(self):
     reset("memory")
     clear_caches()
@@ -281,6 +327,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), ddJ = ddJ, dm = dm)
     self.assertGreater(min_order, 2.99)
 
+  @leak_check
   def test_higher_order_adjoint(self):
     n_steps = 20
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":2, "snaps_in_ram":2, "verbose":True})
@@ -389,6 +436,7 @@ class tests(unittest.TestCase):
     self.assertGreater(orders_3_tlm.min(), 4.00)
     self.assertGreater(orders_4_adj.min(), 5.00)
     
+  @leak_check
   def test_replace(self):
     reset("memory")
     clear_caches()
@@ -422,17 +470,11 @@ class tests(unittest.TestCase):
     J = forward(alpha)
     stop_manager()
     
-    manager().finalise()
-    for block in manager()._blocks:
-      for eq in block:
-        for dep in eq.dependencies():
-          if not isinstance(dep, ReplacementFunction):
-            warning("%s not replaced" % dep.name())
-    
     dJ = compute_gradient(J, alpha)
     min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
 
+  @leak_check
   def test_minimize_scipy(self):
     reset("memory")
     clear_caches()
@@ -477,6 +519,7 @@ class tests(unittest.TestCase):
     function_axpy(error, -1.0, alpha)
     self.assertLess(function_linf_norm(error), 1.0e-7)
 
+  @leak_check
   def test_overrides(self):
     reset("memory")
     clear_caches()
@@ -553,6 +596,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda F : forward(F)[0], F, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 1.99)
 
+  @leak_check
   def test_bc(self):
     reset("memory")
     clear_caches()
@@ -609,6 +653,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda bc : forward(bc)[1], bc, J_val = J_val, dJ = dJ)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 1.99)
 
+  @leak_check
   def test_recursive_tlm(self):
     n_steps = 20
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":4, "snaps_in_ram":2, "verbose":True})
@@ -708,6 +753,7 @@ class tests(unittest.TestCase):
     self.assertGreater(orders_1.min(), 2.00)
     self.assertGreater(orders_2.min(), 2.94)
 
+  @leak_check
   def test_timestepping(self):    
     for n_steps in [1, 2, 5, 20]:
       reset("multistage", {"blocks":n_steps, "snaps_on_disk":4, "snaps_in_ram":2, "verbose":True})
@@ -771,6 +817,7 @@ class tests(unittest.TestCase):
       min_order = taylor_test(lambda kappa : forward(T_0, kappa), controls[1], J_val = J_val, dJ = dJ[1], dm = dm)  # Usage as in dolfin-adjoint tests
       self.assertGreater(min_order, 1.99)
 
+  @leak_check
   def test_second_order_adjoint(self):    
     n_steps = 20
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":4, "snaps_in_ram":2, "verbose":True})
@@ -827,6 +874,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.99)
 
+  @leak_check
   def test_AxpySolver(self):    
     reset("memory")
     clear_caches()
@@ -869,6 +917,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(forward, x, J_val = J_val, dJ = dJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
 
+  @leak_check
   def test_AssignmentSolver(self):
     reset("memory")
     clear_caches()
@@ -922,6 +971,7 @@ class tests(unittest.TestCase):
     min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 3.00)
   
+  @leak_check
   def test_HEP(self):
     reset("memory")
     clear_caches()
@@ -943,6 +993,7 @@ class tests(unittest.TestCase):
       function_axpy(diff, -lam_val, v_r)
       self.assertAlmostEqual(function_linf_norm(diff), 0.0, places = 16)
 
+  @leak_check
   def test_NHEP(self):
     reset("memory")
     clear_caches()
