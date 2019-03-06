@@ -57,7 +57,7 @@ class EquationException(Exception):
 
 Equation_id_counter = [0]
 class Equation:
-  def __init__(self, X, deps, nl_deps = None, ic_deps = None):
+  def __init__(self, X, deps, nl_deps = None, ic_deps = None, static_permitted = False):
     """
     An equation. The equation is expressed in the form:
       F ( X, y_0, y_1, ... ) = 0,
@@ -75,6 +75,7 @@ class Equation:
     ic_deps  (Optional) A list or tuple of Function dependencies whose initial
              value should be available prior to solving the forward equation.
              Defaults to the elements of X which are in nl_deps.
+    static_permitted  (Optional) Whether the solution is permitted to be static. 
     """
 
     if is_function(X):
@@ -82,7 +83,7 @@ class Equation:
     for x in X:
       if not is_function(x):
         raise EquationException("Solution must be a Function")
-      if function_is_static(x):
+      if not static_permitted and function_is_static(x):
         raise EquationException("Solution cannot be static")
       if not x in deps:
         raise EquationException("Solution must be a dependency")
@@ -479,15 +480,9 @@ class InitialGuessSolver(Equation):
   def forward_solve(self, x, deps = None):
     _, y = self.dependencies() if deps is None else deps
     function_assign(x, y)
-  
-  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    if dep_index == 0:
-      return adj_x
-    else:
-      return None
     
   def adjoint_jacobian_solve(self, nl_deps, b):
-    return function_new(b)
+    return None
     
   def tangent_linear(self, M, dM, tlm_map):
     x, y = self.dependencies()
@@ -704,6 +699,7 @@ class FixedPointSolver(Equation):
         finalise_adjoint_derivative_action(b)
         
         adj_X[i] = self._eqs[i].adjoint_jacobian_solve(eq_nl_deps[i], b)
+        if adj_X[i] is None: adj_X[i] = function_new(b)
       x = adj_X[-1]
 
       r = x_0;  del(x_0)

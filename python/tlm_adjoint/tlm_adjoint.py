@@ -1222,7 +1222,9 @@ class EquationManager:
             else:
               finalise_adjoint_derivative_action(B[J_i][i][l])
           adj_X = eq.adjoint_jacobian_solve(self._cp[(n, i)], B[J_i][i][0] if len(B[J_i][i]) == 1 else B[J_i][i])
-          if is_function(adj_X):
+          if adj_X is None:
+            continue
+          elif is_function(adj_X):
             adj_X = (adj_X,)
           B[J_i][i] = None
           
