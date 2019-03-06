@@ -362,7 +362,7 @@ class EquationManager:
   
   def __del__(self):
     self._ids.free(self._id)
-    for finalize in self._finalizes:
+    for finalize in self._finalizes.values():
       finalize.detach()
   
   def comm(self):
@@ -446,12 +446,13 @@ class EquationManager:
     self._annotation_state = "initial"
     self._tlm_state = "initial"
     self._block = []
+    self._replaced = set()
     self._replace_map = OrderedDict()
     self._blocks = []
     if hasattr(self, "_finalizes"):
-      for finalize in self._finalizes:
+      for finalize in self._finalizes.values():
         finalize.detach()
-    self._finalizes = []
+    self._finalizes = {}
     
     self._tlm = OrderedDict()
     self._tlm_eqs = OrderedDict()
@@ -720,12 +721,14 @@ class EquationManager:
         self._block.append(eq)
       else:
         eq_alias = eq if isinstance(eq, EquationAlias) else EquationAlias(eq)
-        def callback(self_ref, eq_ref):
-          self = self_ref()
-          eq = eq_ref()
-          if not self is None and not eq is None:
-            self.replace(eq)
-        self._finalizes.append(weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias)))
+        eq_id = eq.id()
+        if not eq_id in self._finalizes:
+          def callback(self_ref, eq_ref):
+            self = self_ref()
+            eq = eq_ref()
+            if not self is None and not eq is None:
+              self.replace(eq)
+          self._finalizes[eq_id] = weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias))
         self._block.append(eq_alias)
       self._cp.add_equation((len(self._blocks), len(self._block) - 1), eq)
       
@@ -766,16 +769,22 @@ class EquationManager:
     Replace internal Function objects in the provided equation with
     ReplacementFunction objects.
     """
+    
+    eq_id = eq.id()
+    if eq_id in self._replaced:
+      return
+    self._replaced.add(eq_id)
   
     deps = eq.dependencies()
     for dep in deps:
-      if not dep.id() in self._replace_map:
-        replaced_dep = self._replace_map[dep.id()] = replaced_function(dep)
+      dep_id = dep.id()
+      if not dep_id in self._replace_map:
+        replaced_dep = self._replace_map[dep_id] = replaced_function(dep)
         if hasattr(dep, "_tlm_adjoint__tlm_depth"):
           replaced_dep._tlm_adjoint__tlm_depth = dep._tlm_adjoint__tlm_depth      
     eq._replace(OrderedDict([(dep, self._replace_map[dep.id()]) for dep in deps]))
-    if eq.id() in self._tlm_eqs:
-      for tlm_eq in self._tlm_eqs[eq.id()].values():
+    if eq_id in self._tlm_eqs:
+      for tlm_eq in self._tlm_eqs[eq_id].values():
         if not tlm_eq is None:
           self.replace(tlm_eq)
         
