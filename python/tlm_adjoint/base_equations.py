@@ -324,8 +324,11 @@ class EquationAlias(Equation):
     return self._r
   
   def __getattr__(self, *args):
+    key = args[0]
+    if not key in self._d:
+      raise AttributeError("No attribute '%s'" % key)
     if len(args) == 1:
-      return self._d[args[0]]
+      return self._d[key]
     else:
       return self._d.get(*args)
   
