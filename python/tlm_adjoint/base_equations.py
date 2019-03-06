@@ -335,6 +335,12 @@ class EquationAlias(Equation):
   def __setattr__(self, key, value):
     self._d[key] = value
     return value
+  
+  def __delattr__(self, key):
+    del(self._d[key])
+    
+  def __dir__(self):
+    return self._d.keys()
 
 class NullSolver(Equation):
   def __init__(self, X):
