@@ -24,7 +24,6 @@ from .base_equations import *
 from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
-import codecs
 import copy
 import numpy
 import pickle
@@ -805,7 +804,7 @@ class EquationManager:
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "wb")
       
-      ics_values = [(fn.name(), self._checkpoint_space_index(fn), function_get_values(fn)) for fn in ics_values]
+      ics_values = [(self._checkpoint_space_index(fn), function_get_values(fn)) for fn in ics_values]
       data = (ics_keys, ics_values)
       pickle.dump(data, h, protocol = pickle.HIGHEST_PROTOCOL)
       del(data)
@@ -827,8 +826,6 @@ class EquationManager:
         d = g.create_dataset("value", shape = (function_global_size(ics_value),), dtype = values.dtype)
         d[function_local_indices(ics_value)] = values
         del(values)
-        
-        d.attrs["name"] = ics_value.name().encode("utf-8")
         
         d = g.create_dataset("space_index", shape = (self._comm.size,), dtype = numpy.int64)
         d[self._comm_rank] = self._checkpoint_space_index(ics_value)
@@ -857,11 +854,11 @@ class EquationManager:
       ics_values = []
       ics_fns.reverse()
       while len(ics_fns) > 0:
-        name, i, values = ics_fns.pop()
-        F = Function(self._cp_disk_spaces[i], name = name)
+        i, values = ics_fns.pop()
+        F = Function(self._cp_disk_spaces[i])
         function_set_values(F, values)
         ics_values.append(F)
-        del(name, i, values)
+        del(i, values)
         
       cp = Checkpoint(ics_keys, ics_values)
     elif cp_format == "hdf5":
@@ -876,8 +873,7 @@ class EquationManager:
       ics_values = []
       for name, g in h["/ics"].items():
         d = g["value"]
-        F = Function(self._cp_disk_spaces[g["space_index"][self._comm_rank]],
-          name = codecs.decode(d.attrs["name"], "utf-8"))
+        F = Function(self._cp_disk_spaces[g["space_index"][self._comm_rank]])
         function_set_values(F, d[function_local_indices(F)])
         ics_values.append(F)
         
