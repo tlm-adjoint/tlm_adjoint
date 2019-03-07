@@ -358,7 +358,8 @@ class EquationManager:
       comm = comm.tompi4py()
   
     self._comm = comm
-    if self._comm.rank == 0:
+    self._comm_rank = comm.rank
+    if self._comm_rank == 0:
       id = self._ids.next()
     else:
       id = -1
@@ -366,7 +367,7 @@ class EquationManager:
     self.reset(cp_method = cp_method, cp_parameters = cp_parameters)
   
   def __del__(self):
-    if self._comm.rank == 0:
+    if self._comm_rank == 0:
       self._ids.free(self._id)
     for finalize in self._finalizes.values():
       finalize.detach()
@@ -479,7 +480,7 @@ class EquationManager:
       cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")
       cp_parameters["format"] = cp_parameters.get("format", "hdf5")
       
-      if self._comm.rank == 0:
+      if self._comm_rank == 0:
         if not os.path.exists(cp_path):
           os.makedirs(cp_path)
       self._comm.barrier()
@@ -801,7 +802,7 @@ class EquationManager:
     ics_keys, ics_values = cp.initial_conditions(copy = False)
     
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm.rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "wb")
       
       ics_values = [(fn.name(), self._checkpoint_space_index(fn), function_get_values(fn)) for fn in ics_values]
@@ -830,10 +831,10 @@ class EquationManager:
         d.attrs["name"] = ics_value.name().encode("utf-8")
         
         d = g.create_dataset("space_index", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm.rank] = self._checkpoint_space_index(ics_value)
+        d[self._comm_rank] = self._checkpoint_space_index(ics_value)
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm.rank] = ics_key
+        d[self._comm_rank] = ics_key
         
       h.close()
     else:
@@ -844,12 +845,12 @@ class EquationManager:
     cp_format = self._cp_parameters["format"]
       
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm.rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "rb")
       ics_keys, ics_fns = pickle.load(h)
       h.close()
       if delete:
-        if self._comm.rank == 0:
+        if self._comm_rank == 0:
           os.remove(cp_filename)
         self._comm.barrier()
       
@@ -875,19 +876,19 @@ class EquationManager:
       ics_values = []
       for name, g in h["/ics"].items():
         d = g["value"]
-        F = Function(self._cp_disk_spaces[g["space_index"][self._comm.rank]],
+        F = Function(self._cp_disk_spaces[g["space_index"][self._comm_rank]],
           name = codecs.decode(d.attrs["name"], "utf-8"))
         function_set_values(F, d[function_local_indices(F)])
         ics_values.append(F)
         
         d = g["key"]
-        ics_keys.append(d[self._comm.rank])
+        ics_keys.append(d[self._comm_rank])
         
         del(g, d)
       h.close()
       
       if delete:
-        if self._comm.rank == 0:
+        if self._comm_rank == 0:
           os.remove(cp_filename)
         self._comm.barrier()
         
