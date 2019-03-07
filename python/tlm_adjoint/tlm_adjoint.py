@@ -24,6 +24,7 @@ from .base_equations import *
 from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
+import codecs
 import copy
 import numpy
 import pickle
@@ -357,11 +358,16 @@ class EquationManager:
       comm = comm.tompi4py()
   
     self._comm = comm
-    self._id = self._ids.next()
+    if self._comm.rank == 0:
+      id = self._ids.next()
+    else:
+      id = -1
+    self._id = self._comm.bcast(id, root = 0)
     self.reset(cp_method = cp_method, cp_parameters = cp_parameters)
   
   def __del__(self):
-    self._ids.free(self._id)
+    if self._comm.rank == 0:
+      self._ids.free(self._id)
     for finalize in self._finalizes.values():
       finalize.detach()
   
@@ -470,33 +476,13 @@ class EquationManager:
     cp_parameters = copy_parameters_dict(cp_parameters)
 
     if cp_method == "periodic_disk" or (cp_method == "multistage" and cp_parameters.get("snaps_on_disk", 0) > 0):
-      cp_path = cp_parameters["path"] = cp_parameters.get("path", "checkpoints~")
-      cp_format = cp_parameters["format"] = cp_parameters.get("format", "hdf5")
+      cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")
+      cp_parameters["format"] = cp_parameters.get("format", "hdf5")
       
-      def create_cp_path():
-        if self._comm.rank == 0:
-          if not os.path.exists(cp_path):
-            os.makedirs(cp_path)
-        self._comm.barrier()
-      
-      if cp_format == "pickle":
-        create_cp_path()
-      elif cp_format == "hdf5":
-        if hasattr(self, "_cp_hdf5_file"):
-          for name in self._cp_hdf5_file:
-            del(self._cp_hdf5_file[name])
-          self._cp_hdf5_file.attrs.clear()
-          self._cp_hdf5_file.flush()
-        else:
-          create_cp_path()
-          cp_filename = os.path.join(cp_path, "%i.hdf5" % self._id)
-          import h5py
-          if self._comm.size > 1:
-            self._cp_hdf5_file = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm)
-          else:
-            self._cp_hdf5_file = h5py.File(cp_filename, "w")
-      else:
-        raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
+      if self._comm.rank == 0:
+        if not os.path.exists(cp_path):
+          os.makedirs(cp_path)
+      self._comm.barrier()
     
     if cp_method == "memory":
       cp_manager = None
@@ -815,26 +801,41 @@ class EquationManager:
     ics_keys, ics_values = cp.initial_conditions(copy = False)
     
     if cp_format == "pickle":
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm.rank))
+      h = open(cp_filename, "wb")
+      
       ics_values = [(fn.name(), self._checkpoint_space_index(fn), function_get_values(fn)) for fn in ics_values]
       data = (ics_keys, ics_values)
-      cp_filename = os.path.join(cp_path, "%i_%i_%i" % (self._id, n, self._comm.rank))
-      h = open(cp_filename, "wb")
-      pickle.dump(data, h)
+      pickle.dump(data, h, protocol = pickle.HIGHEST_PROTOCOL)
+      del(data)
+      
       h.close()
     elif cp_format == "hdf5":
-      self._cp_hdf5_file.create_group("/%i/ics" % n)
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i.hdf5" % (self._id, n))
+      import h5py
+      if self._comm.size > 1:
+        h = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm)
+      else:
+        h = h5py.File(cp_filename, "w")
+        
+      h.create_group("/ics")
       for i, (ics_key, ics_value) in enumerate(zip(ics_keys, ics_values)):
-        g = self._cp_hdf5_file.create_group("/%i/ics/%i" % (n, i))
+        g = h.create_group("/ics/%i" % i)
       
         values = function_get_values(ics_value)
         d = g.create_dataset("value", shape = (function_global_size(ics_value),), dtype = values.dtype)
         d[function_local_indices(ics_value)] = values
-        d.attrs["name"] = ics_value.name()
-        d.attrs["space_index"] = self._checkpoint_space_index(ics_value)
+        del(values)
+        
+        d.attrs["name"] = ics_value.name().encode("utf-8")
+        
+        d = g.create_dataset("space_index", shape = (self._comm.size,), dtype = numpy.int64)
+        d[self._comm.rank] = self._checkpoint_space_index(ics_value)
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
         d[self._comm.rank] = ics_key
-      self._cp_hdf5_file.flush()
+        
+      h.close()
     else:
       raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
   
@@ -843,12 +844,14 @@ class EquationManager:
     cp_format = self._cp_parameters["format"]
       
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "%i_%i_%i" % (self._id, n, self._comm.rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm.rank))
       h = open(cp_filename, "rb")
       ics_keys, ics_fns = pickle.load(h)
       h.close()
       if delete:
-        os.remove(cp_filename)
+        if self._comm.rank == 0:
+          os.remove(cp_filename)
+        self._comm.barrier()
       
       ics_values = []
       ics_fns.reverse()
@@ -861,12 +864,19 @@ class EquationManager:
         
       cp = Checkpoint(ics_keys, ics_values)
     elif cp_format == "hdf5":
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i.hdf5" % (self._id, n))
+      import h5py
+      if self._comm.size > 1:
+        h = h5py.File(cp_filename, "r", driver = "mpio", comm = self._comm)
+      else:
+        h = h5py.File(cp_filename, "r")
+        
       ics_keys = []
       ics_values = []
-      hdf5_name = "/%i/ics" % n
-      for name, g in self._cp_hdf5_file[hdf5_name].items():
+      for name, g in h["/ics"].items():
         d = g["value"]
-        F = Function(self._cp_disk_spaces[d.attrs["space_index"]], name = d.attrs["name"])
+        F = Function(self._cp_disk_spaces[g["space_index"][self._comm.rank]],
+          name = codecs.decode(d.attrs["name"], "utf-8"))
         function_set_values(F, d[function_local_indices(F)])
         ics_values.append(F)
         
@@ -874,11 +884,12 @@ class EquationManager:
         ics_keys.append(d[self._comm.rank])
         
         del(g, d)
-        if delete:
-          del(self._cp_hdf5_file["/%s/%s" % (hdf5_name, name)])
+      h.close()
+      
       if delete:
-        del(self._cp_hdf5_file["/%i" % n])
-        self._cp_hdf5_file.flush()
+        if self._comm.rank == 0:
+          os.remove(cp_filename)
+        self._comm.barrier()
         
       cp = Checkpoint(ics_keys, ics_values)
     else:

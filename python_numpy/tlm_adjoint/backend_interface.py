@@ -162,6 +162,10 @@ class SerialComm:
     w = v.view()
     w.setflags(write = False)
     return (w,)
+  
+  # Interface as in mpi4py 3.0.1
+  def bcast(self, obj, root = 0):
+    return copy.deepcopy(obj)
 
   @property
   def rank(self):
