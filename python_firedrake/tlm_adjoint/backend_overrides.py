@@ -62,7 +62,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
   return True
 
 # Aim for compatibility with Firedrake API, git master revision
-# 556fec2d04d05f31de2b19c728358c1a4a39100b
+# 36df8c657fe32255466ba2b57abaf9d9e732aa5e
 
 def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inverse = False, *args, **kwargs):
   if inverse:
@@ -155,15 +155,16 @@ def solve(*args, **kwargs):
   else:
     backend_solve(*args, **kwargs)
 
-def project(v, V, bcs = None, mesh = None, solver_parameters = None,
-  form_compiler_parameters = None, name = None, annotate = None, tlm = None):
+def project(v, V, bcs = None, solver_parameters = None,
+  form_compiler_parameters = None, use_slate_for_inverse = True, name = None,
+  annotate = None, tlm = None):
   if annotate is None:
     annotate = annotation_enabled()
   if tlm is None:
     tlm = tlm_enabled()
   if annotate or tlm:
-    if not mesh is None:
-      raise OverrideException("mesh argument not supported")
+    if use_slate_for_inverse:
+      raise OverrideException("use_slate_for_inverse argument not supported")
     if is_function(V):
       x = V
     else:
@@ -174,9 +175,10 @@ def project(v, V, bcs = None, mesh = None, solver_parameters = None,
       cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     return x
   else:
-    return backend_project(v, V, bcs = bcs, mesh = mesh,
+    return backend_project(v, V, bcs = bcs,
       solver_parameters = solver_parameters,
-      form_compiler_parameters = form_compiler_parameters, name = name)
+      form_compiler_parameters = form_compiler_parameters,
+      use_slate_for_inverse = use_slate_for_inverse, name = name)
 
 _orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, r, u = None):
