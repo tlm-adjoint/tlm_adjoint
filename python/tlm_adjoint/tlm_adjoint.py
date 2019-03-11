@@ -33,7 +33,7 @@ import zlib
 
 __all__ = \
   [
-    "Checkpoint",
+    "CheckpointStorage",
     "Control",
     "EquationManager",
     "ManagerException",
@@ -73,49 +73,37 @@ class Control:
   def m(self):
     return self._m
   
-class Checkpoint:
-  def __init__(self,
-               ics_keys = [], ics_values = [], deps_keys = [], deps_values = [], data_keys = [], data_values = [],
-               checkpoint_ics = True, checkpoint_data = True):
-    assert(len(ics_keys) == len(ics_values))
-    assert(len(deps_keys) == len(deps_values))
-    assert(len(data_keys) == len(data_values))
-
+class CheckpointStorage:
+  def __init__(self, store_ics = True, store_data = True):
     self._seen_ics = set()
     self._ics = OrderedDict()
     self._deps = {}
     self._data = OrderedDict()
-    self._seen_ics.update(ics_keys)
-    self._ics.update(OrderedDict(zip(ics_keys, ics_values)))
-    self._deps.update(dict(zip(deps_keys, deps_values)))
-    self._data.update(OrderedDict(zip(data_keys, data_values)))
-  
     self._indices = defaultdict(lambda : 0)
-    self._indices.update(deps_keys)
     
-    self.configure(checkpoint_ics, checkpoint_data)
+    self.configure(store_ics, store_data)
   
-  def configure(self, checkpoint_ics = None, checkpoint_data = None):
+  def configure(self, store_ics = None, store_data = None):
     """
     Configure storage.
     
     Arguments:
     
-    checkpoint_ics   Store initial condition data, used by checkpointing
-    checkpoint_data  Store equation non-linear dependency data, used in reverse
-                     mode
+    store_ics   Store initial condition data, used by checkpointing
+    store_data  Store equation non-linear dependency data, used in reverse
+                mode
     """
   
-    if not checkpoint_ics is None:
-      self._checkpoint_ics = checkpoint_ics
-    if not checkpoint_data is None:
-      self._checkpoint_data = checkpoint_data
+    if not store_ics is None:
+      self._store_ics = store_ics
+    if not store_data is None:
+      self._store_data = store_data
   
-  def checkpoint_ics(self):
-    return self._checkpoint_ics
+  def store_ics(self):
+    return self._store_ics
   
-  def checkpoint_data(self):
-    return self._checkpoint_data
+  def store_data(self):
+    return self._store_data
   
   def clear(self, clear_ics = True, clear_data = True):
     if clear_ics:
@@ -145,22 +133,23 @@ class Checkpoint:
     return tuple(self._deps.keys()), tuple(self._deps.values()), \
            tuple(self._data.keys()), tuple((function_copy(F) for F in self._data.values()) if copy else self._data.values())
   
-  def _data_key(self, x):
-    x_id = x.id()
+  def _data_key(self, x_id):
     return (x_id, self._indices[x_id])
   
-  def add_initial_condition(self, x, value = None, copy = True):  
-    if value is None:
-      value = x
-      
-    x_id = x.id()
-    if self._checkpoint_ics and not x_id in self._seen_ics:
-      self._ics[x_id] = function_copy(x, value = value) if copy else value
+  def add_initial_condition(self, x, value = None, copy = True):
+    self._add_initial_condition(x.id(), x if value is None else value, copy = copy)
+  
+  def _add_initial_condition(self, x_id, value, copy = True):
+    if self._store_ics and not x_id in self._seen_ics:
+      if copy:
+        value = function_copy(value)
+      self._ics[x_id] = value
       self._seen_ics.add(x_id)
-      if self._checkpoint_data:
+      if self._store_data:
         # Optimization: Reference the ic in the data
-        x_key = self._data_key(x)
+        x_key = self._data_key(x_id)
         # It is not expected that x_key is in self._data here
+        assert(not x_key in self._data)
         self._data[x_key] = self._ics[x_id]
   
   def add_equation(self, key, eq, deps = None, nl_deps = None, copy = True):
@@ -172,7 +161,7 @@ class Checkpoint:
     for eq_x in eq_X:
       self._indices[eq_x.id()] += 1
     
-    if self._checkpoint_ics:
+    if self._store_ics:
       # Optimization: Since we have solved for x, unless an initial condition
       # for x has already been added, we need not add an initial condition for
       # x, and so we mark x as "seen"
@@ -181,12 +170,12 @@ class Checkpoint:
       for eq_dep, dep in zip(eq_deps, deps):
         self.add_initial_condition(eq_dep, value = dep, copy = copy)
   
-    if self._checkpoint_data:
+    if self._store_data:
       dep_keys = []
       for eq_dep, dep in zip(eq.nonlinear_dependencies(), [deps[i] for i in eq.nonlinear_dependencies_map()] if nl_deps is None else nl_deps):
-        dep_key = self._data_key(eq_dep)
+        dep_key = self._data_key(eq_dep.id())
         if not dep_key in self._data:
-          self._data[dep_key] = function_copy(eq_dep, value = dep) if copy else dep
+          self._data[dep_key] = function_copy(dep) if copy else dep
         dep_keys.append(dep_key)
       self._deps[key] = dep_keys
 
@@ -410,8 +399,8 @@ class EquationManager:
         for j, dep in enumerate(eq.dependencies()):
           info("      Dependency %i, %s (id %i)%s, %s" % (j, dep.name(), dep.id(), ", replaced" if isinstance(dep, ReplacementFunction) else "", "non-linear" if dep.id() in nl_dep_ids else "linear"))
     info("Storage:")
-    info("  Recording initial conditions: %s" % ("yes" if self._cp.checkpoint_ics() else "no"))
-    info("  Recording equation non-linear dependencies: %s" % ("yes" if self._cp.checkpoint_data() else "no"))
+    info("  Storing initial conditions: %s" % ("yes" if self._cp.store_ics() else "no"))
+    info("  Storing equation non-linear dependencies: %s" % ("yes" if self._cp.store_data() else "no"))
     ics_keys, ics_values = self._cp.initial_conditions(copy = False)
     deps_keys, deps_values, data_keys, data_values = self._cp.data(copy = False)
     info("  Initial conditions stored: %i" % len(ics_keys))
@@ -509,19 +498,19 @@ class EquationManager:
     if cp_method == "multistage":
       if self._cp_manager.max_n() == 1:
         if cp_verbose: info("forward: configuring storage for reverse")
-        self._cp = Checkpoint(checkpoint_ics = True,
-                              checkpoint_data = True)
+        self._cp = CheckpointStorage(store_ics = True,
+                                     store_data = True)
       else:
         if cp_verbose: info("forward: configuring storage for snapshot")
-        self._cp = Checkpoint(checkpoint_ics = True,
-                              checkpoint_data = False)
+        self._cp = CheckpointStorage(store_ics = True,
+                                     store_data = False)
         if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
         self._cp_manager.snapshot()
       self._cp_manager.forward()
       if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
     else:
-      self._cp = Checkpoint(checkpoint_ics = True,
-                            checkpoint_data = cp_method == "memory")
+      self._cp = CheckpointStorage(store_ics = True,
+                                   store_data = cp_method == "memory")
   
   def add_tlm(self, M, dM, max_depth = 1):
     """
@@ -789,7 +778,7 @@ class EquationManager:
     return index
   
   def _save_memory_checkpoint(self, cp, n):
-    self._cp_disk_memory[n] = cp
+    self._cp_disk_memory[n] = OrderedDict([(ic_key, ic_value) for ic_key, ic_value in zip(*cp.initial_conditions(copy = False))])
   
   def _load_memory_checkpoint(self, n, delete = False):
     return getattr(self._cp_disk_memory, "pop" if delete else "__getitem__")(n)
@@ -860,7 +849,7 @@ class EquationManager:
         ics_values.append(F)
         del(i, values)
         
-      cp = Checkpoint(ics_keys, ics_values)
+      return OrderedDict([(ic_key, ic_value) for ic_key, ic_value in zip(ics_keys, ics_values)])
     elif cp_format == "hdf5":
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i.hdf5" % (self._id, n))
       import h5py
@@ -869,16 +858,14 @@ class EquationManager:
       else:
         h = h5py.File(cp_filename, "r")
         
-      ics_keys = []
-      ics_values = []
+      cp = OrderedDict()
       for name, g in h["/ics"].items():
         d = g["value"]
         F = Function(self._cp_disk_spaces[g["space_index"][self._comm_rank]])
         function_set_values(F, d[function_local_indices(F)])
-        ics_values.append(F)
         
         d = g["key"]
-        ics_keys.append(d[self._comm_rank])
+        cp[d[self._comm_rank]] = F
         
         del(g, d)
       h.close()
@@ -888,7 +875,7 @@ class EquationManager:
           os.remove(cp_filename)
         self._comm.barrier()
         
-      cp = Checkpoint(ics_keys, ics_values)
+      return cp
     else:
       raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
     
@@ -910,8 +897,8 @@ class EquationManager:
     n = len(self._blocks) - 1
     if final or n % cp_period == cp_period - 1:
       self._save_disk_checkpoint(self._cp, n = (n // cp_period) * cp_period)
-      self._cp = Checkpoint(checkpoint_ics = True,
-                            checkpoint_data = False)
+      self._cp = CheckpointStorage(store_ics = True,
+                                   store_data = False)
 
   def _save_multistage_checkpoint(self):
     cp_verbose = self._cp_parameters["verbose"]
@@ -940,12 +927,12 @@ class EquationManager:
     self._save_multistage_checkpoint()
     if n == self._cp_manager.max_n() - 1:
       if cp_verbose: info("forward: configuring storage for reverse")
-      self._cp = Checkpoint(checkpoint_ics = False,
-                            checkpoint_data = True)
+      self._cp = CheckpointStorage(store_ics = False,
+                                   store_data = True)
     else:
       if cp_verbose: info("forward: configuring storage for snapshot")
-      self._cp = Checkpoint(checkpoint_ics = True,
-                            checkpoint_data = False)
+      self._cp = CheckpointStorage(store_ics = True,
+                                   store_data = False)
       if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
       self._cp_manager.snapshot()      
     self._cp_manager.forward()
@@ -968,15 +955,16 @@ class EquationManager:
         
         storage = ReplayStorage(self._blocks, N0, N1)
         for n1 in range(N0, N1):
-          self._cp.configure(checkpoint_ics = n1 == 0,
-                             checkpoint_data = True)
+          self._cp.configure(store_ics = n1 == 0,
+                             store_data = True)
           
           for i, eq in enumerate(self._blocks[n1]):
             eq_deps = eq.dependencies()
 
             for eq_dep in eq_deps:
-              if ic_cp.has_initial_condition(eq_dep) and not eq_dep in storage:
-                storage[eq_dep] = ic_cp.initial_condition(eq_dep, copy = copy_ic_cp)
+              eq_dep_id = eq_dep.id()
+              if eq_dep_id in ic_cp and not eq_dep in storage:
+                storage[eq_dep] = function_copy(ic_cp[eq_dep_id]) if copy_ic_cp else ic_cp[eq_dep_id]
                   
             X = [storage[eq_x] for eq_x in eq.X()]
             deps = [storage[eq_dep] for eq_dep in eq_deps]
@@ -1012,20 +1000,20 @@ class EquationManager:
 
       if snapshot_n < n:
         if cp_verbose: info("reverse: no storage")
-        self._cp = Checkpoint(checkpoint_ics = False,
-                              checkpoint_data = False)
+        self._cp = CheckpointStorage(store_ics = False,
+                                     store_data = False)
       
       storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
       snapshot_n_0 = snapshot_n
       while snapshot_n <= n:
         if snapshot_n == n:
           if cp_verbose: info("reverse: configuring storage for reverse")
-          self._cp = Checkpoint(checkpoint_ics = n == 0,
-                                checkpoint_data = True)
+          self._cp = CheckpointStorage(store_ics = n == 0,
+                                       store_data = True)
         elif snapshot_n > snapshot_n_0:
           if cp_verbose: info("reverse: configuring storage for snapshot")
-          self._cp = Checkpoint(checkpoint_ics = True,
-                                checkpoint_data = False)
+          self._cp = CheckpointStorage(store_ics = True,
+                                       store_data = False)
           if cp_verbose: info("reverse: deferred snapshot at %i" % self._cp_manager.n())
           self._cp_manager.snapshot()
         self._cp_manager.forward()
@@ -1035,8 +1023,9 @@ class EquationManager:
             eq_deps = eq.dependencies()
 
             for eq_dep in eq_deps:
-              if ic_cp.has_initial_condition(eq_dep) and not eq_dep in storage:
-                storage[eq_dep] = ic_cp.initial_condition(eq_dep, copy = copy_ic_cp)
+              eq_dep_id = eq_dep.id()
+              if eq_dep_id in ic_cp and not eq_dep in storage:
+                storage[eq_dep] = function_copy(ic_cp[eq_dep_id]) if copy_ic_cp else ic_cp[eq_dep_id]
                   
             X = [storage[eq_x] for eq_x in eq.X()]
             deps = [storage[eq_dep] for eq_dep in eq_deps]

@@ -21,7 +21,7 @@
 from .base_equations import *
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
-from .tlm_adjoint import Checkpoint, EquationManager
+from .tlm_adjoint import CheckpointStorage, EquationManager
 
 from collections import OrderedDict
 
@@ -80,13 +80,15 @@ class SingleBlockHessian(Hessian):
     manager.add_tlm(M, dM)
     manager._annotation_state = "annotating"
     manager._tlm_state = "deriving"
-    manager._cp = Checkpoint(*self._manager._cp.initial_conditions(copy = False))
+    manager._cp = CheckpointStorage(store_ics = True, store_data = True)
+    for ic_key, ic_value in zip(*self._manager._cp.initial_conditions(copy = False)):
+      manager._cp._add_initial_condition(ic_key, ic_value, copy = False)
     
     for i, eq in enumerate(block):
       eq_X = eq.X()
       # Copy annotation of the equation
       manager._block.append(eq)
-      manager._cp.configure(checkpoint_ics = False, checkpoint_data = True)
+      manager._cp.configure(store_ics = False, store_data = True)
       manager._cp.add_equation((0, len(manager._block) - 1), eq,
         nl_deps = self._manager._cp[(0, i)], copy = False)
 
@@ -113,7 +115,7 @@ class SingleBlockHessian(Hessian):
               tlm_deps[j] = eq_deps[tlm_dep.id()]
             
           tlm_X = tlm_eq.X()
-          manager._cp.configure(checkpoint_ics = True, checkpoint_data = True)
+          manager._cp.configure(store_ics = True, store_data = True)
           # Pre-process the tangent-linear equation
           for tlm_dep in tlm_eq.initial_condition_dependencies():
             manager._cp.add_initial_condition(tlm_dep)

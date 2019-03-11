@@ -144,9 +144,9 @@ def is_function(x):
 def function_is_static(x):
   return x.is_static()
 
-def function_copy(x, name = None, static = False, value = None):
+def function_copy(x, name = None, static = False):
   return Function(x.function_space(), name = name, static = static,
-    _data = (x if value is None else value).vector().copy())
+    _data = x.vector().copy())
 
 def function_assign(x, y):
   if isinstance(y, (int, float)):
