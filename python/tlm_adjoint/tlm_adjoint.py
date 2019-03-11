@@ -897,8 +897,9 @@ class EquationManager:
     n = len(self._blocks) - 1
     if final or n % cp_period == cp_period - 1:
       self._save_disk_checkpoint(self._cp, n = (n // cp_period) * cp_period)
-      self._cp = CheckpointStorage(store_ics = True,
-                                   store_data = False)
+      self._cp.clear()
+      self._cp.configure(store_ics = True,
+                         store_data = False)
 
   def _save_multistage_checkpoint(self):
     cp_verbose = self._cp_parameters["verbose"]
@@ -927,12 +928,14 @@ class EquationManager:
     self._save_multistage_checkpoint()
     if n == self._cp_manager.max_n() - 1:
       if cp_verbose: info("forward: configuring storage for reverse")
-      self._cp = CheckpointStorage(store_ics = False,
-                                   store_data = True)
+      self._cp.clear()
+      self._cp.configure(store_ics = False,
+                         store_data = True)
     else:
       if cp_verbose: info("forward: configuring storage for snapshot")
-      self._cp = CheckpointStorage(store_ics = True,
-                                   store_data = False)
+      self._cp.clear()
+      self._cp.configure(store_ics = True,
+                         store_data = False)
       if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
       self._cp_manager.snapshot()      
     self._cp_manager.forward()
@@ -988,7 +991,7 @@ class EquationManager:
         return
 
       snapshot_n, storage, delete = self._cp_manager.load_snapshot()
-      del(self._cp)
+      self._cp.clear()
       if storage == "disk":
         if cp_verbose: info("reverse: load snapshot at %i from disk and %s" % (snapshot_n, "delete" if delete else "keep"))
         ic_cp = self._load_disk_checkpoint(snapshot_n, delete = delete)
@@ -1000,20 +1003,23 @@ class EquationManager:
 
       if snapshot_n < n:
         if cp_verbose: info("reverse: no storage")
-        self._cp = CheckpointStorage(store_ics = False,
-                                     store_data = False)
+        self._cp.clear()
+        self._cp.configure(store_ics = False,
+                           store_data = False)
       
       storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
       snapshot_n_0 = snapshot_n
       while snapshot_n <= n:
         if snapshot_n == n:
           if cp_verbose: info("reverse: configuring storage for reverse")
-          self._cp = CheckpointStorage(store_ics = n == 0,
-                                       store_data = True)
+          self._cp.clear()
+          self._cp.configure(store_ics = n == 0,
+                             store_data = True)
         elif snapshot_n > snapshot_n_0:
           if cp_verbose: info("reverse: configuring storage for snapshot")
-          self._cp = CheckpointStorage(store_ics = True,
-                                       store_data = False)
+          self._cp.clear()
+          self._cp .configure(store_ics = True,
+                              store_data = False)
           if cp_verbose: info("reverse: deferred snapshot at %i" % self._cp_manager.n())
           self._cp_manager.snapshot()
         self._cp_manager.forward()
