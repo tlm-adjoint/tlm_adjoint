@@ -22,7 +22,8 @@ from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
-  function_is_static, linear_solver_cache, replaced_function
+  function_is_checkpointed, function_is_static, linear_solver_cache, \
+  replaced_function
 
 import numpy
 import ufl
@@ -46,6 +47,7 @@ __all__ = \
     "function_get_values",
     "function_global_size",
     "function_inner",
+    "function_is_checkpointed",
     "function_is_static",
     "function_linf_norm",
     "function_local_indices",
@@ -89,7 +91,7 @@ def RealFunctionSpace(comm = None):
   return space
 
 #class Function:
-#  def __init__(self, space, name = None, static = False):
+#  def __init__(self, space, name = None, static = False, checkpoint = None):
 #  def function_space(self):
 #  def id(self):
 #  def name(self):
@@ -108,10 +110,15 @@ def is_function(x):
 
 #def function_is_static(x):
 
-def function_copy(x, name = None, static = False):
+#def function_is_checkpointed(x):
+
+def function_copy(x, name = None, static = False, checkpoint = None):
   y = x.copy(deepcopy = True)
   if not name is None: y.rename(name, "a Function")
   y.is_static = lambda : static
+  if checkpoint is None:
+    checkpoint = not static
+  y.is_checkpointed = lambda : checkpoint
   return y
 
 def function_assign(x, y):
@@ -154,12 +161,14 @@ def function_linf_norm(x):
   import petsc4py.PETSc
   return x_v.norm(norm_type = petsc4py.PETSc.NormType.NORM_INFINITY)
   
-def function_new(x, name = None, static = False):
-  return Function(x.function_space(), name = name, static = static)
+def function_new(x, name = None, static = False, checkpoint = None):
+  return Function(x.function_space(), name = name, static = static,
+    checkpoint = checkpoint)
 
 def function_alias(x):
   return Function(x.function_space(), name = x.name(),
-    static = function_is_static(x), val = x.dat)
+    static = function_is_static(x), checkpoint = function_is_checkpointed(x),
+    val = x.dat)
 
 def function_zero(x):
   x.vector()[:] = 0.0

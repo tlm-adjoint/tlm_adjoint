@@ -41,7 +41,7 @@ def leak_check(test):
     
     # Clear some internal storage that is allowed to keep references
     manager = _manager()
-    manager._cp.clear()
+    manager._cp.clear(clear_refs = True)
     tlm_values = manager._tlm.values()
     manager._tlm.clear()
     tlm_eqs_values = manager._tlm_eqs.values()

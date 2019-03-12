@@ -22,7 +22,8 @@ from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
-  function_is_static, linear_solver_cache, replaced_function
+  function_is_checkpointed, function_is_static, linear_solver_cache, \
+  replaced_function
 
 import numpy
 import ufl
@@ -46,6 +47,7 @@ __all__ = \
     "function_get_values",
     "function_global_size",
     "function_inner",
+    "function_is_checkpointed",
     "function_is_static",
     "function_linf_norm",
     "function_local_indices",
@@ -85,7 +87,7 @@ def RealFunctionSpace(comm = None):
   return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 #class Function:
-#  def __init__(self, space, name = None, static = False):
+#  def __init__(self, space, name = None, static = False, checkpoint = None):
 #  def function_space(self):
 #  def id(self):
 #  def name(self):
@@ -103,10 +105,15 @@ def is_function(x):
 
 #def function_is_static(x):
 
-def function_copy(x, name = None, static = False):
+#def function_is_checkpointed(x):
+
+def function_copy(x, name = None, static = False, checkpoint = None):
   y = x.copy(deepcopy = True)
   if not name is None: y.rename(name, "a Function")
   y.is_static = lambda : static
+  if checkpoint is None:
+    checkpoint = not static
+  y.is_checkpointed = lambda : checkpoint
   return y
 
 def function_assign(x, y):
@@ -144,19 +151,22 @@ def function_max_value(x):
 def function_linf_norm(x):
   return x.vector().norm("linf")
   
-def function_new(x, name = None, static = False):
+def function_new(x, name = None, static = False, checkpoint = None):
   if isinstance(x, backend_Function):
-    y = function_copy(x, name = name, static = static)
+    y = function_copy(x, name = name, static = static, checkpoint = checkpoint)
     y.vector().zero()
     return y
   else:
-    return Function(x.function_space(), name = name, static = static)
+    return Function(x.function_space(), name = name, static = static,
+      checkpoint = checkpoint)
 
 def function_alias(x):
   y = x.copy(deepcopy = False)
   y.rename(x.name(), "a Function")
   static = function_is_static(x)
   y.is_static = lambda : static
+  checkpoint = function_is_checkpointed(x)
+  y.is_checkpointed = lambda : checkpoint
   return y
 
 def function_zero(x):

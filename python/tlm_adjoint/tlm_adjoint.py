@@ -76,12 +76,14 @@ class Control:
 class CheckpointStorage:
   def __init__(self, store_ics = True, store_data = True):
     self._seen_ics = set()
-    self._ics = OrderedDict()
+    self._cp = OrderedDict()
+    self._refs = OrderedDict()
     self._deps = {}
     self._data = OrderedDict()
     self._indices = defaultdict(lambda : 0)
     
-    self.configure(store_ics, store_data)
+    self.configure(store_ics = store_ics,
+                   store_data = store_data)
   
   def configure(self, store_ics = None, store_data = None):
     """
@@ -105,54 +107,71 @@ class CheckpointStorage:
   def store_data(self):
     return self._store_data
   
-  def clear(self, clear_ics = True, clear_data = True):
-    if clear_ics:
+  def clear(self, clear_cp = True, clear_data = True, clear_refs = False):
+    if clear_cp:
       self._seen_ics.clear()
-      self._ics.clear()
+      self._cp.clear()
     if clear_data:
       self._deps.clear()
       self._data.clear()
       self._indices.clear()
+    if clear_refs:
+      self._refs.clear()
+    else:
+      for x_id, x in self._refs.items():
+        self._seen_ics.add(x_id)  # May have been cleared above
+        if self._store_data:
+          x_key = self._data_key(x_id)
+          if not x_key in self._data:
+            self._data[x_key] = x
 
   def __getitem__(self, key):
     return [self._data[dep_key] for dep_key in self._deps[key]]
   
-  def has_initial_condition(self, x):
-    return x.id() in self._ics
-  
   def initial_condition(self, x, copy = True):
-    ic = self._ics[x.id()]
+    x_id = x.id()
+    if x_id in self._refs:
+      ic = self._refs[x_id]
+    else:
+      ic = self._cp[x_id]
     if copy:
       ic = function_copy(ic)
     return ic
   
-  def initial_conditions(self, copy = True):
-    return tuple(self._ics.keys()), tuple((function_copy(ic) for ic in self._ics.values()) if copy else self._ics.values())
-  
-  def data(self, copy = True):
-    return tuple(self._deps.keys()), tuple(self._deps.values()), \
-           tuple(self._data.keys()), tuple((function_copy(F) for F in self._data.values()) if copy else self._data.values())
+  def initial_conditions(self, cp = True, refs = False, copy = True):
+    cp_d = OrderedDict()
+    if cp:
+      for x_id, x in self._cp.items():
+        cp_d[x_id] = function_copy(x) if copy else x
+    if refs:
+      for x_id, x in self._refs.items():
+        cp_d[x_id] = function_copy(x) if copy else x
+    return cp_d
   
   def _data_key(self, x_id):
     return (x_id, self._indices[x_id])
   
-  def add_initial_condition(self, x, value = None, copy = True):
-    self._add_initial_condition(x.id(), x if value is None else value, copy = copy)
-  
-  def _add_initial_condition(self, x_id, value, copy = True):
+  def add_initial_condition(self, x, value = None, copy = None):
+    self._add_initial_condition(x_id = x.id(),
+      value = x if value is None else value,
+      copy = function_is_checkpointed(x) if copy is None else copy)
+
+  def _add_initial_condition(self, x_id, value, copy):
     if self._store_ics and not x_id in self._seen_ics:
       if copy:
         value = function_copy(value)
-      self._ics[x_id] = value
+        self._cp[x_id] = value
+      else:
+        self._refs[x_id] = value
       self._seen_ics.add(x_id)
       if self._store_data:
         # Optimization: Reference the ic in the data
         x_key = self._data_key(x_id)
         # It is not expected that x_key is in self._data here
         assert(not x_key in self._data)
-        self._data[x_key] = self._ics[x_id]
+        self._data[x_key] = value
   
-  def add_equation(self, key, eq, deps = None, nl_deps = None, copy = True):
+  def add_equation(self, key, eq, deps = None, nl_deps = None, copy = None):
     eq_X = eq.X()
     eq_deps = eq.dependencies()
     if deps is None:
@@ -175,7 +194,11 @@ class CheckpointStorage:
       for eq_dep, dep in zip(eq.nonlinear_dependencies(), [deps[i] for i in eq.nonlinear_dependencies_map()] if nl_deps is None else nl_deps):
         dep_key = self._data_key(eq_dep.id())
         if not dep_key in self._data:
-          self._data[dep_key] = function_copy(dep) if copy else dep
+          if copy is None:
+            copy_dep = function_is_checkpointed(eq_dep)
+          else:
+            copy_dep = copy
+          self._data[dep_key] = function_copy(dep) if copy_dep else dep
         dep_keys.append(dep_key)
       self._deps[key] = dep_keys
 
@@ -236,17 +259,31 @@ class ReplayStorage:
     self._map = OrderedDict()
   
   def __contains__(self, x):
-    return x.id() in self._map
+    if isinstance(x, int):
+      return x in self._map
+    else:
+      return x.id() in self._map
   
   def __getitem__(self, x):
-    x_id = x.id()
-    if not x_id in self._map:
-      self._map[x_id] = function_new(x)
-    return self._map[x_id]
+    if isinstance(x, int):
+      return self._map[x]
+    else:
+      x_id = x.id()
+      if not x_id in self._map:
+        self._map[x_id] = function_new(x)
+      return self._map[x_id]
   
   def __setitem__(self, x, y):
-    self._map[x.id()] = y
+    if isinstance(x, int):
+      x_id = x
+    else:
+      x_id = x.id()
+    self._map[x_id] = y
     return y
+  
+  def update(self, d):
+    for key, value in d.items():
+      self[key] = value
   
   def pop(self):
     for dep_id in self._eq_last.popleft():
@@ -401,11 +438,9 @@ class EquationManager:
     info("Storage:")
     info("  Storing initial conditions: %s" % ("yes" if self._cp.store_ics() else "no"))
     info("  Storing equation non-linear dependencies: %s" % ("yes" if self._cp.store_data() else "no"))
-    ics_keys, ics_values = self._cp.initial_conditions(copy = False)
-    deps_keys, deps_values, data_keys, data_values = self._cp.data(copy = False)
-    info("  Initial conditions stored: %i" % len(ics_keys))
-    info("  Equations with stored non-linear dependencies: %i" % len(deps_keys))
-    info("  Non-linear dependencies stored: %i" % len(data_keys))
+    info("  Initial conditions stored: %i" % len(self._cp._cp))
+    info("  Initial conditions referenced: %i" % len(self._cp._refs))
+    info("  Equations with non-linear dependencies: %i" % len(self._cp._deps))
     info("Checkpointing:")
     info("  Method: %s" % self._cp_method)
     if self._cp_method == "memory":
@@ -778,7 +813,7 @@ class EquationManager:
     return index
   
   def _save_memory_checkpoint(self, cp, n):
-    self._cp_disk_memory[n] = OrderedDict([(ic_key, ic_value) for ic_key, ic_value in zip(*cp.initial_conditions(copy = False))])
+    self._cp_disk_memory[n] = self._cp.initial_conditions(cp = True, refs = False, copy = False)
   
   def _load_memory_checkpoint(self, n, delete = False):
     return getattr(self._cp_disk_memory, "pop" if delete else "__getitem__")(n)
@@ -787,13 +822,14 @@ class EquationManager:
     cp_path = self._cp_parameters["path"]
     cp_format = self._cp_parameters["format"]
       
-    ics_keys, ics_values = cp.initial_conditions(copy = False)
+    cp = self._cp.initial_conditions(cp = True, refs = False, copy = False)
     
     if cp_format == "pickle":
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "wb")
       
-      ics_values = [(self._checkpoint_space_index(fn), function_get_values(fn)) for fn in ics_values]
+      ics_keys = list(cp.keys())
+      ics_values = [(self._checkpoint_space_index(fn), function_get_values(fn)) for fn in cp.values()]
       data = (ics_keys, ics_values)
       pickle.dump(data, h, protocol = pickle.HIGHEST_PROTOCOL)
       del(data)
@@ -808,7 +844,7 @@ class EquationManager:
         h = h5py.File(cp_filename, "w")
         
       h.create_group("/ics")
-      for i, (ics_key, ics_value) in enumerate(zip(ics_keys, ics_values)):
+      for i, (ics_key, ics_value) in enumerate(cp.items()):
         g = h.create_group("/ics/%i" % i)
       
         values = function_get_values(ics_value)
@@ -926,14 +962,15 @@ class EquationManager:
       raise ManagerException("Unexpected number of blocks")
     
     self._save_multistage_checkpoint()
+    self._cp.clear()
     if n == self._cp_manager.max_n() - 1:
       if cp_verbose: info("forward: configuring storage for reverse")
-      self._cp.clear()
+#      self._cp.clear()
       self._cp.configure(store_ics = False,
                          store_data = True)
     else:
       if cp_verbose: info("forward: configuring storage for snapshot")
-      self._cp.clear()
+#      self._cp.clear()
       self._cp.configure(store_ics = True,
                          store_data = False)
       if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
@@ -957,6 +994,7 @@ class EquationManager:
         copy_ic_cp = False
         
         storage = ReplayStorage(self._blocks, N0, N1)
+        storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False))
         for n1 in range(N0, N1):
           self._cp.configure(store_ics = n1 == 0,
                              store_data = True)
@@ -1003,21 +1041,22 @@ class EquationManager:
 
       if snapshot_n < n:
         if cp_verbose: info("reverse: no storage")
-        self._cp.clear()
+#        self._cp.clear()
         self._cp.configure(store_ics = False,
                            store_data = False)
       
       storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
+      storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False))
       snapshot_n_0 = snapshot_n
-      while snapshot_n <= n:
+      while True:
         if snapshot_n == n:
           if cp_verbose: info("reverse: configuring storage for reverse")
-          self._cp.clear()
+#          self._cp.clear()
           self._cp.configure(store_ics = n == 0,
                              store_data = True)
         elif snapshot_n > snapshot_n_0:
           if cp_verbose: info("reverse: configuring storage for snapshot")
-          self._cp.clear()
+#          self._cp.clear()
           self._cp .configure(store_ics = True,
                               store_data = False)
           if cp_verbose: info("reverse: deferred snapshot at %i" % self._cp_manager.n())
@@ -1042,8 +1081,11 @@ class EquationManager:
             self._cp.add_equation((n1, i), eq, deps = deps)
             
             storage.pop()
-        self._save_multistage_checkpoint()
         snapshot_n = self._cp_manager.n()
+        if snapshot_n > n:
+          break
+        self._save_multistage_checkpoint()
+        self._cp.clear()
       
       if cp_verbose: info("reverse: adjoint step back to %i" % n)
       self._cp_manager.reverse()
@@ -1207,7 +1249,7 @@ class EquationManager:
 
         for J_i, J in enumerate(Js):
           if len(X) == 1 and X[0].id() == J.id():
-            adj_x = function_new(X[0], static = True)
+            adj_x = function_new(X[0])
             function_assign(adj_x, -1.0)
             j = dep_ids[X[0].id()]
             sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_x)
@@ -1263,7 +1305,7 @@ class EquationManager:
         self._restore_checkpoint(n - 1)
             
     if self._cp_method == "multistage":
-      self._cp.clear(clear_ics = False, clear_data = True)
+      self._cp.clear(clear_cp = False, clear_data = True, clear_refs = False)
             
     return tuple(tuple(dJ[J_i][j] for j in range(len(M))) for J_i in range(len(Js)))
   

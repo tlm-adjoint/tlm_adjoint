@@ -40,6 +40,7 @@ __all__ = \
     "function_get_values",
     "function_global_size",
     "function_inner",
+    "function_is_checkpointed",
     "function_is_static",
     "function_linf_norm",
     "function_local_indices",
@@ -85,15 +86,19 @@ def RealFunctionSpace():
 
 Function_id_counter = [0]
 class Function:
-  def __init__(self, space, name = None, static = False, _data = None):
+  def __init__(self, space, name = None, static = False, checkpoint = None,
+    _data = None):
     id = Function_id_counter[0]
     Function_id_counter[0] += 1
     if name is None:
       name = "f_%i" % id  # Following FEniCS 2017.2.0 behaviour
+    if checkpoint is None:
+      checkpoint = not static
     
     self._space = space
     self._name = name
     self._static = static
+    self._checkpoint = checkpoint
     self._id = id
     self._data = numpy.zeros(space.dim(), dtype = numpy.float64) if _data is None else _data
     
@@ -108,6 +113,9 @@ class Function:
   
   def is_static(self):
     return self._static
+
+  def is_checkpointed(self):
+    return self._checkpoint
   
   def vector(self):
     return self._data
@@ -144,9 +152,12 @@ def is_function(x):
 def function_is_static(x):
   return x.is_static()
 
-def function_copy(x, name = None, static = False):
+def function_is_checkpointed(x):
+  return x.is_checkpointed()
+
+def function_copy(x, name = None, static = False, checkpoint = None):
   return Function(x.function_space(), name = name, static = static,
-    _data = x.vector().copy())
+    checkpoint = checkpoint, _data = x.vector().copy())
 
 def function_assign(x, y):
   if isinstance(y, (int, float)):
@@ -201,11 +212,13 @@ def function_max_value(x):
 def function_linf_norm(x):
   return abs(x.vector()).max()
   
-def function_new(x, name = None, static = False):
-  return Function(x.function_space(), name = name, static = static)
+def function_new(x, name = None, static = False, checkpoint = None):
+  return Function(x.function_space(), name = name, static = static,
+    checkpoint = checkpoint)
 
 def function_alias(x):
-  return Function(x.function_space(), name = x.name(), static = x.is_static(), _data = x.vector())
+  return Function(x.function_space(), name = x.name(), static = x.is_static(),
+    checkpoint = x.is_checkpointed(), _data = x.vector())
 
 def function_zero(x):
   x.vector()[:] = 0.0

@@ -353,7 +353,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       eq.solve()
     if timestep in timestep_obs:
       if gather_ref:
-        ref[timestep] = function_copy(U[0], static = True, name = "U_ref_%i" % (timestep + 1)), function_copy(h[0], static = True, name = "h_ref_%i" % (timestep + 1))
+        ref[timestep] = function_copy(U[0], name = "U_ref_%i" % (timestep + 1)), function_copy(h[0], name = "h_ref_%i" % (timestep + 1))
       J.addto((1.0 / (sigma_u ** 2)) * inner(U[0] - ref[timestep][0], U[0] - ref[timestep][0]) * dx
             + (1.0 / (sigma_h ** 2)) * inner(h[0] - ref[timestep][1], h[0] - ref[timestep][1]) * dx)  # Similar to GH13 equation (17)
     else:

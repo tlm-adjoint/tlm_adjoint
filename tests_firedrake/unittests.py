@@ -23,6 +23,7 @@ from tlm_adjoint import *
 from tlm_adjoint import manager as _manager
 from tlm_adjoint.backend import backend_Function
 
+from collections import OrderedDict
 import gc
 import numpy
 import unittest
@@ -44,7 +45,7 @@ def leak_check(test):
     # Clear some internal storage that is allowed to keep references
     clear_caches()
     manager = _manager()
-    manager._cp.clear()
+    manager._cp.clear(clear_refs = True)
     tlm_values = manager._tlm.values()
     manager._tlm.clear()
     tlm_eqs_values = manager._tlm_eqs.values()
@@ -77,25 +78,31 @@ class tests(unittest.TestCase):
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     
-    def forward(F):
+    def forward(F, x_ref = None):
       G = Function(space, name = "G")
       AssignmentSolver(F, G).solve()
       
       x_old = Function(space, name = "x_old")
       x = Function(space, name = "x")
       AssignmentSolver(G, x_old).solve()
+      J = Functional(name = "J")
+      gather_ref = x_ref is None
+      if gather_ref:
+        x_ref = OrderedDict()
       for n in range(n_steps):
         terms = [(1.0, x_old)]
         if n % 11 == 0:
           terms.append((1.0, G))
         LinearCombinationSolver(x, *terms).solve()
+        if n % 17 == 0:
+          if gather_ref:
+            x_ref[n] = function_copy(x, name = "x_ref_%i" % n)
+          J.addto(inner(x * x * x, x_ref[n]) * dx)
         AssignmentSolver(x, x_old).solve()
         if n < n_steps - 1:
           new_block()
-      
-      J = Functional(name = "J")
-      J.assign(x * x * x * dx)
-      return J
+          
+      return x_ref, J
     
     F = Function(space, name = "F", static = True)
     F.interpolate(sin(pi * X[0]))
@@ -103,11 +110,11 @@ class tests(unittest.TestCase):
     zeta.interpolate(exp(X[0]))
     add_tlm(F, zeta)
     start_manager()
-    J = forward(F)
+    x_ref, J = forward(F)
     stop_manager()
     
     dJ = compute_gradient(J, F)
-    min_order = taylor_test(lambda F : forward(F), F, J_val = J.value(), dJ = dJ)
+    min_order = taylor_test(lambda F : forward(F, x_ref = x_ref)[1], F, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 2.00)
     
     dJ_tlm = J.tlm(F, zeta).value()
@@ -118,8 +125,8 @@ class tests(unittest.TestCase):
     info("Error               = %.16e" % error)
     self.assertEqual(error, 0.0)
     
-    ddJ = Hessian(lambda F : forward(F))
-    min_order = taylor_test(lambda F : forward(F), F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    ddJ = Hessian(lambda F : forward(F, x_ref = x_ref)[1])
+    min_order = taylor_test(lambda F : forward(F, x_ref = x_ref)[1], F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
     self.assertGreater(min_order, 2.99)
 
   @leak_check

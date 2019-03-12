@@ -215,7 +215,7 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
   
   if T_N_ref is None:
     # Store the solution of the equation in a "reference" function
-    T_N_ref = Function(space, name = "T_N_ref", static = True)
+    T_N_ref = Function(space, name = "T_N_ref")
     function_assign(T_N_ref, T_n)
   
   # First functional

@@ -38,6 +38,7 @@ __all__ = \
     "ReplacementFunction",
     "assembly_cache",
     "bcs_is_static",
+    "function_is_checkpointed",
     "function_is_static",
     "is_homogeneous_bcs",
     "is_static",
@@ -70,12 +71,19 @@ class Function(backend_Function):
   def __init__(self, *args, **kwargs):
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
+    checkpoint = kwargs.pop("checkpoint", None)
+    if checkpoint is None:
+      checkpoint = not static
     
     self.__static = static
+    self.__checkpoint = checkpoint
     backend_Function.__init__(self, *args, **kwargs)
   
   def is_static(self):
     return self.__static
+  
+  def is_checkpointed(self):
+    return self.__checkpoint
 
 class DirichletBC(backend_DirichletBC):
   def __init__(self, *args, **kwargs):      
@@ -106,6 +114,9 @@ def is_static(e):
 
 def function_is_static(x):
   return x.is_static() if hasattr(x, "is_static") else False
+
+def function_is_checkpointed(x):
+  return x.is_checkpointed() if hasattr(x, "is_checkpointed") else True
 
 def bcs_is_static(bcs):
   for bc in bcs:
