@@ -252,6 +252,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__id = x.id()
     self.__name = x.name()
     self.__static = function_is_static(x)
+    self.__checkpoint = function_is_checkpointed(x)
   
   def function_space(self):
     return self.__space
@@ -264,6 +265,9 @@ class ReplacementFunction(ufl.classes.Coefficient):
   
   def is_static(self):
     return self.__static
+  
+  def is_checkpointed(self):
+    return self.__checkpoint
 
 def replaced_function(x):
   if isinstance(x, ReplacementFunction):

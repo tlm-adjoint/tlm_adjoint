@@ -125,6 +125,7 @@ class ReplacementFunction:
     self._space = x.function_space()
     self._name = x.name()
     self._static = x.is_static()
+    self._checkpoint = x.is_checkpointed()
     self._id = x.id()
     
   def function_space(self):
@@ -138,6 +139,9 @@ class ReplacementFunction:
   
   def is_static(self):
     return self._static
+  
+  def is_checkpointed(self):
+    return self._checkpoint
     
 def replaced_function(x):
   if isinstance(x, ReplacementFunction):
