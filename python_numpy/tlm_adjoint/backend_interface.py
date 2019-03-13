@@ -178,6 +178,9 @@ class SerialComm:
     w.setflags(write = False)
     return (w,)
   
+  def barrier(self):
+    pass
+  
   # Interface as in mpi4py 3.0.1
   def bcast(self, obj, root = 0):
     return copy.deepcopy(obj)
