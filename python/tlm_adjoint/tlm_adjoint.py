@@ -256,7 +256,10 @@ class ReplayStorage:
       eq_last_d[(n, i)].append(dep_id)
             
     self._eq_last = eq_last_q
-    self._map = OrderedDict()
+    self._map = OrderedDict([(dep_id, None) for dep_id in last_eq.keys()])
+  
+  def __len__(self):
+    return len(self._map)
   
   def __contains__(self, x):
     if isinstance(x, int):
@@ -266,24 +269,28 @@ class ReplayStorage:
   
   def __getitem__(self, x):
     if isinstance(x, int):
-      return self._map[x]
+      y = self._map[x]
+      if y is None:
+        raise KeyError("Unable to create new Function")
     else:
       x_id = x.id()
-      if not x_id in self._map:
-        self._map[x_id] = function_new(x)
-      return self._map[x_id]
+      y = self._map[x_id]
+      if y is None:
+        y = self._map[x_id] = function_new(x)
+    return y
   
   def __setitem__(self, x, y):
     if isinstance(x, int):
       x_id = x
     else:
       x_id = x.id()
-    self._map[x_id] = y
+    if x_id in self._map:
+      self._map[x_id] = y
     return y
   
-  def update(self, d):
+  def update(self, d, copy = False):
     for key, value in d.items():
-      self[key] = value
+      self[key] = function_copy(value) if copy else value
   
   def pop(self):
     for dep_id in self._eq_last.popleft():
@@ -815,8 +822,11 @@ class EquationManager:
   def _save_memory_checkpoint(self, cp, n):
     self._cp_disk_memory[n] = self._cp.initial_conditions(cp = True, refs = False, copy = False)
   
-  def _load_memory_checkpoint(self, n, delete = False):
-    return getattr(self._cp_disk_memory, "pop" if delete else "__getitem__")(n)
+  def _load_memory_checkpoint(self, storage, n, delete = False):
+    if delete:
+      storage.update(self._cp_disk_memory.pop(n), copy = False)
+    else:
+      storage.update(self._cp_disk_memory[n], copy = True)
   
   def _save_disk_checkpoint(self, cp, n):
     cp_path = self._cp_parameters["path"]
@@ -828,11 +838,8 @@ class EquationManager:
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "wb")
       
-      ics_keys = list(cp.keys())
-      ics_values = [(self._checkpoint_space_index(fn), function_get_values(fn)) for fn in cp.values()]
-      data = (ics_keys, ics_values)
-      pickle.dump(data, h, protocol = pickle.HIGHEST_PROTOCOL)
-      del(data)
+      pickle.dump(OrderedDict([(key, (self._checkpoint_space_index(F), function_get_values(F))) for key, F in cp.items()]),
+        h, protocol = pickle.HIGHEST_PROTOCOL)
       
       h.close()
     elif cp_format == "hdf5":
@@ -844,48 +851,45 @@ class EquationManager:
         h = h5py.File(cp_filename, "w")
         
       h.create_group("/ics")
-      for i, (ics_key, ics_value) in enumerate(cp.items()):
+      for i, (key, F) in enumerate(cp.items()):
         g = h.create_group("/ics/%i" % i)
       
-        values = function_get_values(ics_value)
-        d = g.create_dataset("value", shape = (function_global_size(ics_value),), dtype = values.dtype)
-        d[function_local_indices(ics_value)] = values
+        values = function_get_values(F)
+        d = g.create_dataset("value", shape = (function_global_size(F),), dtype = values.dtype)
+        d[function_local_indices(F)] = values
         del(values)
         
         d = g.create_dataset("space_index", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm_rank] = self._checkpoint_space_index(ics_value)
+        d[self._comm_rank] = self._checkpoint_space_index(F)
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm_rank] = ics_key
+        d[self._comm_rank] = key
         
       h.close()
     else:
       raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
   
-  def _load_disk_checkpoint(self, n, delete = False):
+  def _load_disk_checkpoint(self, storage, n, delete = False):
     cp_path = self._cp_parameters["path"]
     cp_format = self._cp_parameters["format"]
       
     if cp_format == "pickle":
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "rb")
-      ics_keys, ics_fns = pickle.load(h)
+      cp = pickle.load(h)
       h.close()
       if delete:
         if self._comm_rank == 0:
           os.remove(cp_filename)
         self._comm.barrier()
       
-      ics_values = []
-      ics_fns.reverse()
-      while len(ics_fns) > 0:
-        i, values = ics_fns.pop()
-        F = Function(self._cp_disk_spaces[i])
-        function_set_values(F, values)
-        ics_values.append(F)
+      for key in tuple(cp.keys()):
+        i, values = cp.pop(key)
+        if key in storage:
+          F = Function(self._cp_disk_spaces[i])
+          function_set_values(F, values)
+          storage[key] = F
         del(i, values)
-        
-      return OrderedDict([(ic_key, ic_value) for ic_key, ic_value in zip(ics_keys, ics_values)])
     elif cp_format == "hdf5":
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i.hdf5" % (self._id, n))
       import h5py
@@ -894,28 +898,24 @@ class EquationManager:
       else:
         h = h5py.File(cp_filename, "r")
         
-      cp = OrderedDict()
       for name, g in h["/ics"].items():
-        d = g["value"]
-        F = Function(self._cp_disk_spaces[g["space_index"][self._comm_rank]])
-        function_set_values(F, d[function_local_indices(F)])
-        
         d = g["key"]
-        cp[d[self._comm_rank]] = F
-        
+        key = int(d[self._comm_rank])
+        if key in storage:
+          d = g["space_index"]
+          F = Function(self._cp_disk_spaces[d[self._comm_rank]])
+          d = g["value"]
+          function_set_values(F, d[function_local_indices(F)])
+          storage[key] = F
         del(g, d)
-      h.close()
-      
+        
+      h.close()      
       if delete:
         if self._comm_rank == 0:
           os.remove(cp_filename)
         self._comm.barrier()
-        
-      return cp
     else:
       raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
-    
-    return cp
 
   def _checkpoint(self, final = False):
     if self._cp_method == "memory":
@@ -942,8 +942,8 @@ class EquationManager:
     
     deferred_snapshot = self._cp_manager.deferred_snapshot()
     if not deferred_snapshot is None:
-      snapshot_n, storage = deferred_snapshot
-      if storage == "disk":
+      snapshot_n, snapshot_storage = deferred_snapshot
+      if snapshot_storage == "disk":
         if cp_verbose: info("%s: save snapshot at %i on disk" % ("forward" if self._cp_manager.r() == 0 else "reverse", snapshot_n))
         self._save_disk_checkpoint(self._cp, snapshot_n)
       else:
@@ -990,22 +990,16 @@ class EquationManager:
         
         self._cp.clear()
         self._cp_manager.clear()
-        ic_cp = self._load_disk_checkpoint(N0, delete = False)
-        copy_ic_cp = False
-        
         storage = ReplayStorage(self._blocks, N0, N1)
-        storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False))
+        storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False), copy = False)
+        self._load_disk_checkpoint(storage, N0, delete = False)
+        
         for n1 in range(N0, N1):
           self._cp.configure(store_ics = n1 == 0,
                              store_data = True)
           
           for i, eq in enumerate(self._blocks[n1]):
             eq_deps = eq.dependencies()
-
-            for eq_dep in eq_deps:
-              eq_dep_id = eq_dep.id()
-              if eq_dep_id in ic_cp and not eq_dep in storage:
-                storage[eq_dep] = function_copy(ic_cp[eq_dep_id]) if copy_ic_cp else ic_cp[eq_dep_id]
                   
             X = [storage[eq_x] for eq_x in eq.X()]
             deps = [storage[eq_dep] for eq_dep in eq_deps]
@@ -1018,6 +1012,7 @@ class EquationManager:
             storage.pop()
             
           self._cp_manager.add(n1)
+        assert(len(storage) == 0)
     elif self._cp_method == "multistage":
       cp_verbose = self._cp_parameters["verbose"]
       
@@ -1028,16 +1023,16 @@ class EquationManager:
         self._cp_manager.reverse()
         return
 
-      snapshot_n, storage, delete = self._cp_manager.load_snapshot()
+      snapshot_n, snapshot_storage, delete = self._cp_manager.load_snapshot()
       self._cp.clear()
-      if storage == "disk":
+      storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
+      storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False), copy = False)
+      if snapshot_storage == "disk":
         if cp_verbose: info("reverse: load snapshot at %i from disk and %s" % (snapshot_n, "delete" if delete else "keep"))
-        ic_cp = self._load_disk_checkpoint(snapshot_n, delete = delete)
-        copy_ic_cp = False
+        self._load_disk_checkpoint(storage, snapshot_n, delete = delete)
       else:
         if cp_verbose: info("reverse: load snapshot at %i from RAM and %s" % (snapshot_n, "delete" if delete else "keep"))
-        ic_cp = self._load_memory_checkpoint(snapshot_n, delete = delete)
-        copy_ic_cp = not delete
+        self._load_memory_checkpoint(storage, snapshot_n, delete = delete)
 
       if snapshot_n < n:
         if cp_verbose: info("reverse: no storage")
@@ -1045,8 +1040,6 @@ class EquationManager:
         self._cp.configure(store_ics = False,
                            store_data = False)
       
-      storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
-      storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False))
       snapshot_n_0 = snapshot_n
       while True:
         if snapshot_n == n:
@@ -1063,14 +1056,9 @@ class EquationManager:
           self._cp_manager.snapshot()
         self._cp_manager.forward()
         if cp_verbose: info("reverse: forward advance to %i" % self._cp_manager.n())
-        for n1 in range(snapshot_n, self._cp_manager.n()):
+        for n1 in range(snapshot_n, self._cp_manager.n()):          
           for i, eq in enumerate(self._blocks[n1]):
             eq_deps = eq.dependencies()
-
-            for eq_dep in eq_deps:
-              eq_dep_id = eq_dep.id()
-              if eq_dep_id in ic_cp and not eq_dep in storage:
-                storage[eq_dep] = function_copy(ic_cp[eq_dep_id]) if copy_ic_cp else ic_cp[eq_dep_id]
                   
             X = [storage[eq_x] for eq_x in eq.X()]
             deps = [storage[eq_dep] for eq_dep in eq_deps]
@@ -1086,6 +1074,7 @@ class EquationManager:
           break
         self._save_multistage_checkpoint()
         self._cp.clear()
+      assert(len(storage) == 0)
       
       if cp_verbose: info("reverse: adjoint step back to %i" % n)
       self._cp_manager.reverse()
