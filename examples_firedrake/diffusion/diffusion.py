@@ -37,9 +37,6 @@ space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 bc = DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True)
 
-Psi_n = Function(space, name = "Psi_n")                             
-Psi_np1 = Function(space, name = "Psi_np1")
-
 dt = Constant(0.01, static = True)
 N = 10
 kappa = Function(space, name = "kappa", static = True)
@@ -57,10 +54,13 @@ File("zeta_1.pvd", "compressed").write(zeta_1)
 File("zeta_2.pvd", "compressed").write(zeta_2)
 
 def forward(kappa, manager = None, output_filename = None):
-  eqs = [EquationSolver(inner(test, trial / dt) * dx
-                        + inner(grad(test), kappa * grad(trial)) * dx
-                        == inner(test, Psi_n / dt) * dx, Psi_np1, bc, solver_parameters = {"ksp_type":"preonly", "pc_type":"lu"}),
-         AssignmentSolver(Psi_np1, Psi_n)]
+  Psi_n = Function(space, name = "Psi_n")                             
+  Psi_np1 = Function(space, name = "Psi_np1")
+
+  eq = EquationSolver(inner(test, trial / dt) * dx
+                    + inner(grad(test), kappa * grad(trial)) * dx
+                    == inner(test, Psi_n / dt) * dx, Psi_np1, bc, solver_parameters = {"ksp_type":"preonly", "pc_type":"lu"})
+  cycle = AssignmentSolver(Psi_np1, Psi_n)
 
   if not output_filename is None:
     f = File(output_filename, "compressed")
@@ -69,14 +69,18 @@ def forward(kappa, manager = None, output_filename = None):
   if not output_filename is None:
     f.write(Psi_n)
   for n in range(N):
-    for eq in eqs:
-      eq.solve(manager = manager)
+    eq.solve(manager = manager)
+    if n < N - 1:
+      cycle.solve(manager = manager)
+      (_manager() if manager is None else manager).new_block()
+    else:
+      Psi_n = Psi_np1
+      Psi_n.rename("Psi_n", "a Function")
+      del(Psi_np1)
     if not output_filename is None:
       f.write(Psi_n)
-    if n < N - 1:
-      (_manager() if manager is None else manager).new_block()
 
-  J = Functional()
+  J = Functional(name = "J")
   J.assign(inner(Psi_n, Psi_n) * dx, manager = manager)
   
   return J
