@@ -296,6 +296,37 @@ class ReplayStorage:
     for dep_id in self._eq_last.popleft():
       del(self._map[dep_id])
     
+class DependencyTransposer:
+  def __init__(self, blocks):
+    dep_map = {}
+    for p, block in enumerate(blocks):
+      for k, eq in enumerate(block):
+        for l, x in enumerate(eq.X()):
+          x_id = x.id()
+          if x_id in dep_map:
+            dep_map[x_id].append((p, k, l))
+          else:
+            dep_map[x_id] = [(p, k, l)]
+    
+    self._dep_map = dep_map
+
+  def __len__(self):
+    return len(self._dep_map)
+      
+  def __getitem__(self, dep):
+    if isinstance(dep, int):
+      dep_id = dep
+    else:
+      dep_id = dep.id()
+    return self._dep_map[dep_id][-1]
+  
+  def pop(self, eq):
+    for x in eq.X():
+      x_id = x.id()
+      self._dep_map[x_id].pop()
+      if len(self._dep_map[x_id]) == 0:
+        del(self._dep_map[x_id])
+    
 class Ids:
   def __init__(self):
     self._ids = []
@@ -1209,26 +1240,11 @@ class EquationManager:
     M = [(m if is_function(m) else m.m()) for m in M]
     dJ = [[function_new(m) for m in M] for J in Js]
 
-    dep_map = defaultdict(lambda : [])
-    for p, block in enumerate(self._blocks):
-      for k, eq in enumerate(block):
-        for l, x in enumerate(eq.X()):
-          dep_map[x.id()].append((p, k, l))
-    
-    def pop_dependencies(eq):
-      for x in eq.X():
-        x_id = x.id()
-        dep_map[x_id].pop()
-        if len(dep_map[x_id]) == 0:
-          del(dep_map[x_id])
-      
-    def transpose_dependency(dep):
-      return dep_map.get(dep.id(), [(-1, -1, -1)])[-1]
-    
-    self._restore_checkpoint(len(self._blocks) - 1)
-    
     Bs = [[[None for eq in block] for J in Js] for block in self._blocks]
     B = Bs[-1]
+    
+    self._restore_checkpoint(len(self._blocks) - 1)
+    tdeps = DependencyTransposer(self._blocks)
     for n in range(len(self._blocks) - 1, -1, -1):
       for i in range(len(self._blocks[n]) - 1, -1, -1):
         eq = self._blocks[n][i]
@@ -1263,8 +1279,11 @@ class EquationManager:
           B[J_i][i] = None
           
           for j, dep in enumerate(eq.dependencies()):
-            p, k, l = transpose_dependency(dep)
-            if p < 0 or (p == n and k == i):
+            try:
+              p, k, l = tdeps[dep]
+            except KeyError:
+              continue
+            if p == n and k == i:
               continue
             sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_X[0] if len(adj_X) == 1 else adj_X)
             if not sb is None:
@@ -1282,7 +1301,7 @@ class EquationManager:
               del(sdJ)
           
           del(adj_X)
-        pop_dependencies(eq)
+        tdeps.pop(eq)
 
       for J_i, J in enumerate(Js):
         for i, m in enumerate(M):
@@ -1292,6 +1311,7 @@ class EquationManager:
         Bs.pop()
         B = Bs[-1]
         self._restore_checkpoint(n - 1)
+    assert(len(tdeps) == 0)
             
     if self._cp_method == "multistage":
       self._cp.clear(clear_cp = False, clear_data = True, clear_refs = False)
