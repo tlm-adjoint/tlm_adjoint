@@ -312,6 +312,12 @@ class DependencyTransposer:
 
   def __len__(self):
     return len(self._dep_map)
+  
+  def __contains__(self, dep):
+    if isinstance(dep, int):
+      return dep in self._dep_map
+    else:
+      return dep.id() in self._dep_map
       
   def __getitem__(self, dep):
     if isinstance(dep, int):
@@ -1279,10 +1285,9 @@ class EquationManager:
           B[J_i][i] = None
           
           for j, dep in enumerate(eq.dependencies()):
-            try:
-              p, k, l = tdeps[dep]
-            except KeyError:
+            if not dep in tdeps:
               continue
+            p, k, l = tdeps[dep]
             if p == n and k == i:
               continue
             sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_X[0] if len(adj_X) == 1 else adj_X)
