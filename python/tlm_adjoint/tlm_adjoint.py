@@ -120,10 +120,10 @@ class CheckpointStorage:
     else:
       for x_id, x in self._refs.items():
         self._seen_ics.add(x_id)  # May have been cleared above
-        if self._store_data:
-          x_key = self._data_key(x_id)
-          if not x_key in self._data:
-            self._data[x_key] = x
+
+        x_key = self._data_key(x_id)
+        if not x_key in self._data:
+          self._data[x_key] = x
 
   def __getitem__(self, key):
     return [self._data[dep_key] for dep_key in self._deps[key]]
@@ -151,27 +151,29 @@ class CheckpointStorage:
   def _data_key(self, x_id):
     return (x_id, self._indices[x_id])
   
-  def add_initial_condition(self, x, value = None, copy = None):
+  def add_initial_condition(self, x, value = None, copy = lambda x : function_is_checkpointed(x)):
     self._add_initial_condition(x_id = x.id(),
       value = x if value is None else value,
-      copy = function_is_checkpointed(x) if copy is None else copy)
+      copy = copy(x))
 
   def _add_initial_condition(self, x_id, value, copy):
     if self._store_ics and not x_id in self._seen_ics:
-      if copy:
-        value = function_copy(value)
-        self._cp[x_id] = value
+      x_key = self._data_key(x_id)
+      if x_key in self._data:
+        if copy:
+          self._cp[x_id] = self._data[x_key]
+        else:
+          assert(x_id in self._refs)
       else:
-        self._refs[x_id] = value
-      self._seen_ics.add(x_id)
-      if self._store_data:
-        # Optimization: Reference the ic in the data
-        x_key = self._data_key(x_id)
-        # It is not expected that x_key is in self._data here
-        assert(not x_key in self._data)
+        if copy:
+          value = function_copy(value)
+          self._cp[x_id] = value
+        else:
+          self._refs[x_id] = value
         self._data[x_key] = value
+      self._seen_ics.add(x_id)
   
-  def add_equation(self, key, eq, deps = None, nl_deps = None, copy = None):
+  def add_equation(self, key, eq, deps = None, nl_deps = None, copy = lambda x : function_is_checkpointed(x)):
     eq_X = eq.X()
     eq_deps = eq.dependencies()
     if deps is None:
@@ -192,13 +194,15 @@ class CheckpointStorage:
     if self._store_data:
       dep_keys = []
       for eq_dep, dep in zip(eq.nonlinear_dependencies(), [deps[i] for i in eq.nonlinear_dependencies_map()] if nl_deps is None else nl_deps):
-        dep_key = self._data_key(eq_dep.id())
+        eq_dep_id = eq_dep.id()
+        dep_key = self._data_key(eq_dep_id)
         if not dep_key in self._data:
-          if copy is None:
-            copy_dep = function_is_checkpointed(eq_dep)
+          if copy(eq_dep):
+            self._data[dep_key] = function_copy(dep)
           else:
-            copy_dep = copy
-          self._data[dep_key] = function_copy(dep) if copy_dep else dep
+            self._data[dep_key] = dep
+            if not eq_dep_id in self._refs:
+              self._refs[eq_dep_id] = dep
         dep_keys.append(dep_key)
       self._deps[key] = dep_keys
 
@@ -255,6 +259,7 @@ class ReplayStorage:
     for dep_id, (n, i) in last_eq.items():
       eq_last_d[(n, i)].add(dep_id)
             
+    self._last_eq = last_eq
     self._eq_last = eq_last_q
     self._map = OrderedDict([(dep_id, None) for dep_id in last_eq.keys()])
   
@@ -295,7 +300,18 @@ class ReplayStorage:
   def pop(self):
     for dep_id in self._eq_last.popleft():
       del(self._map[dep_id])
-    
+  
+  def cp_add_equation_copy(self, n, i):
+    def copy(x):
+      if not function_is_checkpointed(x):
+        return False
+      x_id = x.id()
+      if not x_id in self._last_eq:
+        return False
+      else:
+        return self._last_eq[x_id] > (n, i)
+    return copy
+  
 class DependencyTransposer:
   def __init__(self, blocks):
     dep_map = {}
@@ -1044,7 +1060,7 @@ class EquationManager:
             for eq_dep in eq.initial_condition_dependencies():
               self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
-            self._cp.add_equation((n1, i), eq, deps = deps)
+            self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
             
             storage.pop()
             
@@ -1103,7 +1119,7 @@ class EquationManager:
             for eq_dep in eq.initial_condition_dependencies():
               self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
-            self._cp.add_equation((n1, i), eq, deps = deps)
+            self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
             
             storage.pop()
         snapshot_n = self._cp_manager.n()
