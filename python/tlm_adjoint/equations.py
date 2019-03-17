@@ -168,7 +168,7 @@ class FunctionAlias(backend_Function):
         self.__dict__[key] = value
   
   def _clear(self):
-    for key in list(self.__dict__):
+    for key in tuple(self.__dict__.keys()):
       if not key in self.__base_keys:
         del(self.__dict__[key])
 
@@ -280,7 +280,7 @@ class EquationSolver(Equation):
     Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = ic_deps)    
     self._F = F
     self._lhs, self._rhs = lhs, rhs
-    self._bcs = copy.copy(bcs)
+    self._bcs = list(bcs)
     self._hbcs = hbcs
     self._J = J
     self._nl_solve_J = nl_solve_J

@@ -249,11 +249,11 @@ class ReplayStorage:
     eq_last_q = deque()
     for n in range(N0, N1):
       for i in range(len(blocks[n])):
-        dep_ids = []
+        dep_ids = set()
         eq_last_d[(n, i)] = dep_ids
         eq_last_q.append(dep_ids) 
     for dep_id, (n, i) in last_eq.items():
-      eq_last_d[(n, i)].append(dep_id)
+      eq_last_d[(n, i)].add(dep_id)
             
     self._eq_last = eq_last_q
     self._map = OrderedDict([(dep_id, None) for dep_id in last_eq.keys()])

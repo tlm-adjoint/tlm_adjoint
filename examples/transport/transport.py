@@ -113,13 +113,13 @@ def forward(T_inflow_bc, kappa, T_N_ref = None, output_filename = None):
     def __init__(self, T_bc, T):
       bc = DirichletBC(T.function_space(), Expression("x[1]", degree = 1), "fabs(x[0]) < DOLFIN_EPS")
       bc = bc.get_boundary_values()
-      nodes = list(bc.keys())
-      y = list(bc.values())
+      nodes = tuple(bc.keys())
+      y = tuple(bc.values())
       
       bc_adj = DirichletBC(T_bc.function_space(), Expression("x[1]", degree = 1), "fabs(x[0]) < DOLFIN_EPS")
       bc_adj = bc_adj.get_boundary_values()
-      nodes_adj = list(bc_adj.keys())
-      y_adj = list(bc_adj.values())
+      nodes_adj = tuple(bc_adj.keys())
+      y_adj = tuple(bc_adj.values())
     
       Equation.__init__(self, T, [T, T_bc], nl_deps = [], ic_deps = [])
       self._nodes = nodes

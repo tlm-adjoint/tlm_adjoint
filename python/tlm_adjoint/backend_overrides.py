@@ -125,7 +125,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
     A_tensor._tlm_adjoint__form += A_form
   else:
     A_tensor._tlm_adjoint__form = A_form
-    A_tensor._tlm_adjoint__bcs = copy.copy(bcs)
+    A_tensor._tlm_adjoint__bcs = list(bcs)
     A_tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
   
   if add_values and hasattr(b_tensor, "_tlm_adjoint__form"):
@@ -136,7 +136,7 @@ def assemble_system(A_form, b_form, bcs = None, x0 = None,
     b_tensor._tlm_adjoint__form += b_form
   else:
     b_tensor._tlm_adjoint__form = b_form
-    b_tensor._tlm_adjoint__bcs = copy.copy(bcs)
+    b_tensor._tlm_adjoint__bcs = list(bcs)
     b_tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
   
   return A_tensor, b_tensor
@@ -409,7 +409,7 @@ class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
     elif isinstance(bcs, backend_DirichletBC):
       self._tlm_adjoint__bcs = [bcs]
     else:
-      self._tlm_adjoint__bcs = copy.copy(bcs)
+      self._tlm_adjoint__bcs = list(bcs)
       
   def set_bounds(self, *args, **kwargs):
     raise OverrideException("Bounds not supported")

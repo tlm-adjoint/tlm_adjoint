@@ -87,7 +87,7 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inve
       elif isinstance(bcs, backend_DirichletBC):
         tensor._tlm_adjoint__bcs = [bcs]
       else:
-        tensor._tlm_adjoint__bcs = copy.copy(bcs)
+        tensor._tlm_adjoint__bcs = list(bcs)
     tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
   
   return tensor

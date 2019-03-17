@@ -419,7 +419,7 @@ class LinearCombinationSolver(Equation):
     self._alpha = alpha
   
   def forward_solve(self, x, deps = None):
-    deps = self.dependencies() if deps is None else list(deps)
+    deps = self.dependencies() if deps is None else tuple(deps)
     function_zero(x)
     for alpha, y in zip(self._alpha, deps[1:]):
       function_axpy(x, alpha, y)
@@ -606,7 +606,7 @@ class FixedPointSolver(Equation):
     del(x_ids, dep_ids, nl_dep_ids, ic_dep_ids)
     
     Equation.__init__(self, [eq.x() for eq in eqs], deps, nl_deps = nl_deps, ic_deps = ic_deps)
-    self._eqs = copy.copy(eqs)
+    self._eqs = tuple(eqs)
     self._initial_guess_index = None if initial_guess is None else initial_guess_index
     self._eq_dep_indices = eq_dep_indices
     self._eq_nl_dep_indices = eq_nl_dep_indices
@@ -1123,7 +1123,7 @@ class MatrixActionRHS(RHS):
     
     A_nl_deps = A.nonlinear_dependencies()
     if len(A_nl_deps) == 0:
-      x_indices = list(range(len(X)))
+      x_indices = tuple(range(len(X)))
       RHS.__init__(self, X, nl_deps = [])
     else:
       nl_deps = list(A_nl_deps)

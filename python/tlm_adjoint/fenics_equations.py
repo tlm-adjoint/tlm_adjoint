@@ -51,7 +51,7 @@ def greedy_coloring(space):
       for k in cell_nodes:
         if j != k:
           node_node_graph[j].add(k)
-  node_node_graph = [sorted(list(nodes), reverse = True) for nodes in node_node_graph]
+  node_node_graph = [sorted(tuple(nodes), reverse = True) for nodes in node_node_graph]
     
   seen = numpy.empty(N, dtype = numpy.bool)
   seen[:] = False
