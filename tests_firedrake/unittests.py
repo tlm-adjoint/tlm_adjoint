@@ -373,6 +373,68 @@ class tests(unittest.TestCase):
     dJ = compute_gradient(J, alpha)
     min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
     self.assertGreater(min_order, 1.99)
+  
+  @leak_check
+  def test_minimize_scipy_multiple(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    
+    def forward(alpha, beta, x_ref = None, y_ref = None):
+      clear_caches()
+    
+      x = Function(space, name = "x")
+      solve(inner(test, trial) * dx == inner(test, alpha) * dx,
+        x, solver_parameters = {"linear_solver":"cg",
+                                "preconditioner":"sor",
+                                "krylov_solver":{"relative_tolerance":1.0e-14,
+                                                 "absolute_tolerance":1.0e-16}})
+      y = Function(space, name = "y")
+      solve(inner(test, trial) * dx == inner(test, beta) * dx,
+        y, solver_parameters = {"linear_solver":"cg",
+                                "preconditioner":"sor",
+                                "krylov_solver":{"relative_tolerance":1.0e-14,
+                                                 "absolute_tolerance":1.0e-16}})
+      if x_ref is None:
+        x_ref = Function(space, name = "x_ref", static = True)
+        function_assign(x_ref, x)
+      if y_ref is None:
+        y_ref = Function(space, name = "y_ref", static = True)
+        function_assign(y_ref, y)
+      
+      J = Functional(name = "J")
+      J.assign(inner(x - x_ref, x - x_ref) * dx)
+      J.addto(inner(y - y_ref, y - y_ref) * dx)
+      return x_ref, y_ref, J
+    
+    alpha_ref = Function(space, name = "alpha_ref", static = True)
+    alpha_ref.interpolate(exp(X[0] + X[1]))
+    beta_ref = Function(space, name = "beta_ref", static = True)
+    beta_ref.interpolate(sin(pi * X[0]) * sin(2.0 * pi * X[1]))
+    x_ref, y_ref, _ = forward(alpha_ref, beta_ref)
+    
+    alpha0 = Function(space, name = "alpha0", static = True)
+    beta0 = Function(space, name = "beta0", static = True)
+    start_manager()
+    _, _, J = forward(alpha0, beta0, x_ref = x_ref, y_ref = y_ref)
+    stop_manager()
+    
+    (alpha, beta), result = minimize_scipy(lambda alpha, beta : forward(alpha, beta, x_ref = x_ref, y_ref = y_ref)[2], (alpha0, beta0), J0 = J,
+      method = "L-BFGS-B", options = {"ftol":0.0, "gtol":1.0e-11})
+    self.assertTrue(result.success)
+    
+    error = Function(space, name = "error")
+    function_assign(error, alpha_ref)
+    function_axpy(error, -1.0, alpha)
+    self.assertLess(function_linf_norm(error), 1.0e-8)
+    function_assign(error, beta_ref)
+    function_axpy(error, -1.0, beta)
+    self.assertLess(function_linf_norm(error), 1.0e-9)
 
   @leak_check
   def test_minimize_scipy(self):
@@ -411,8 +473,9 @@ class tests(unittest.TestCase):
     _, J = forward(alpha0, x_ref = x_ref)
     stop_manager()
     
-    alpha, _ = minimize_scipy(lambda alpha : forward(alpha, x_ref = x_ref)[1], alpha0, J0 = J,
+    alpha, result = minimize_scipy(lambda alpha : forward(alpha, x_ref = x_ref)[1], alpha0, J0 = J,
       method = "L-BFGS-B", options = {"ftol":0.0, "gtol":1.0e-10})
+    self.assertTrue(result.success)
     
     error = Function(space, name = "error")
     function_assign(error, alpha_ref)
@@ -920,6 +983,7 @@ if __name__ == "__main__":
 #  tests().test_bc()
 #  tests().test_overrides()
 #  tests().test_minimize_scipy()
+#  tests().test_minimize_scipy_multiple()
 #  tests().test_replace()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
