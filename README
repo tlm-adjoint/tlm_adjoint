@@ -29,7 +29,7 @@ To use the Firedrake backend copy (or make symbolic links)
 
 and add the 'python_firedrake' subdirectory to the Python search path.
 
-tlm_adjoint is currently targetting FEniCS 2018.1.0, and the Firedrake Git
+tlm_adjoint is currently targetting FEniCS 2019.1.0, and the Firedrake Git
 master branch.
 
 Together with the backend libraries, tlm_adjoint requires
