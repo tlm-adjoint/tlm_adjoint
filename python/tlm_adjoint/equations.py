@@ -31,6 +31,7 @@ from collections import OrderedDict
 import copy
 import operator
 import numpy
+import types
 import ufl
 
 __all__ = \
@@ -156,16 +157,36 @@ class AssembleSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters)
   
 class FunctionAlias(backend_Function):
-  def __init__(self, space):
+  def __init__(self, space, x = None):
     ufl.classes.Coefficient.__init__(self, space, count = new_count())
     self.__base_keys = set(self.__dict__.keys())
     self.__base_keys.add("_FunctionAlias__base_keys")
+    if not x is None:
+      self._alias(x)
   
   def _alias(self, x):
     self._clear()
+    
     for key, value in x.__dict__.items():
       if not key in self.__base_keys:
         self.__dict__[key] = value
+        
+    for key in dir(x):
+      if key in self.__base_keys:
+        continue
+
+      ufl.log.push_level(ufl.log.CRITICAL)
+      try:
+        value = getattr(x, key)
+        has_key = True
+      except (AttributeError, ufl.UFLException):  # ?? Can occur with Firedrake ??
+        has_key = False
+      ufl.log.pop_level()
+      if not has_key:
+        continue
+
+      if isinstance(value, types.MethodType):
+        self.__dict__[key] = types.MethodType(value.__func__, self)
   
   def _clear(self):
     for key in tuple(self.__dict__.keys()):

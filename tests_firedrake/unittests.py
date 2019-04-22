@@ -123,7 +123,7 @@ class tests(unittest.TestCase):
     info("dJ/dF zeta, TLM     = %.16e" % dJ_tlm)
     info("dJ/dF zeta, adjoint = %.16e" % dJ_adj)
     info("Error               = %.16e" % error)
-    self.assertEqual(error, 0.0)
+    self.assertLess(error, 1.0e-9)
     
     ddJ = Hessian(lambda F : forward(F, x_ref = x_ref)[1])
     min_order = taylor_test(lambda F : forward(F, x_ref = x_ref)[1], F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
