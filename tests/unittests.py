@@ -441,44 +441,6 @@ class tests(unittest.TestCase):
     self.assertGreater(orders_3_adj.min(), 4.00)
     self.assertGreater(orders_3_tlm.min(), 4.00)
     self.assertGreater(orders_4_adj.min(), 5.00)
-    
-  @leak_check
-  def test_replace(self):
-    reset("memory", {"replace":True})
-    clear_caches()
-    stop_manager()
-    
-    mesh = UnitSquareMesh(20, 20)
-    space = FunctionSpace(mesh, "Lagrange", 1)
-    test, trial = TestFunction(space), TrialFunction(space)
-    
-    def forward(alpha):
-      x = Function(space, name = "x")
-      y = Function(space, name = "y")
-      EquationSolver(inner(test, trial) * dx == inner(test, alpha) * dx,
-        x, solver_parameters = {"linear_solver":"cg",
-                                "preconditioner":"sor",
-                                "krylov_solver":{"relative_tolerance":1.0e-14,
-                                                 "absolute_tolerance":1.0e-16}}).solve()
-      EquationSolver(inner(test, trial) * dx == inner(test, x) * dx + inner(test, alpha) * dx,
-        y, solver_parameters = {"linear_solver":"cg",
-                                "preconditioner":"sor",
-                                "krylov_solver":{"relative_tolerance":1.0e-14,
-                                                 "absolute_tolerance":1.0e-16}}).solve()
-      
-      J = Functional(name = "J")
-      J.assign(inner(y, y) * dx)
-      return J
-    
-    alpha = Function(space, name = "alpha", static = True)
-    function_assign(alpha, 1.0)
-    start_manager()
-    J = forward(alpha)
-    stop_manager()
-    
-    dJ = compute_gradient(J, alpha)
-    min_order = taylor_test(forward, alpha, J_val = J.value(), dJ = dJ)
-    self.assertGreater(min_order, 1.99)
   
   @leak_check
   def test_minimize_scipy_multiple(self):
@@ -1100,7 +1062,6 @@ if __name__ == "__main__":
 #  tests().test_overrides()
 #  tests().test_minimize_scipy()
 #  tests().test_minimize_scipy_multiple()
-#  tests().test_replace()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
 #  tests().test_InterpolationSolver()
