@@ -349,35 +349,8 @@ class DependencyTransposer:
       if len(self._dep_map[x_id]) == 0:
         del(self._dep_map[x_id])
     
-class Ids:
-  def __init__(self):
-    self._ids = []
-    self._next = 0
-  
-  def next(self):
-    try:
-      next = self._ids.pop()
-    except IndexError:
-      next = self._next
-      self._next += 1
-    return next
-  
-  def free(self, id):
-    assert(id >= 0 and id < self._next)
-    if id == self._next - 1:
-      self._next -= 1
-      while True:
-        try:
-          self._ids.remove(self._next - 1)
-        except ValueError:
-          break
-        self._next -= 1
-    elif not id in self._ids:
-      self._ids.append(id)
-    
+EquationManager_id_counter = [0]
 class EquationManager:
-  _ids = Ids()
-
   def __init__(self, comm = None, cp_method = "memory", cp_parameters = {}):
     """
     Manager for tangent-linear and adjoint models.
@@ -445,15 +418,14 @@ class EquationManager:
     self._comm = comm
     self._comm_rank = comm.rank
     if self._comm_rank == 0:
-      id = self._ids.next()
+      id = EquationManager_id_counter[0]
+      EquationManager_id_counter[0] += 1
     else:
       id = -1
     self._id = self._comm.bcast(id, root = 0)
     self.reset(cp_method = cp_method, cp_parameters = cp_parameters)
   
   def __del__(self):
-    if self._comm_rank == 0:
-      self._ids.free(self._id)
     for finalize in self._finalizes.values():
       finalize.detach()
   
