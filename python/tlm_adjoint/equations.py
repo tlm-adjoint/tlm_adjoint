@@ -170,22 +170,22 @@ class FunctionAlias(backend_Function):
       if not key in self.__base_keys:
         self.__dict__[key] = value
         
+    ufl.log.push_level(ufl.log.CRITICAL)
     for key in dir(x):
       if key in self.__base_keys:
         continue
 
-      ufl.log.push_level(ufl.log.CRITICAL)
       try:
         value = getattr(x, key)
         has_key = True
       except (AttributeError, ufl.UFLException):  # ?? Can occur with Firedrake ??
         has_key = False
-      ufl.log.pop_level()
       if not has_key:
         continue
 
       if isinstance(value, types.MethodType):
         self.__dict__[key] = types.MethodType(value.__func__, self)
+    ufl.log.pop_level()
   
   def _clear(self):
     for key in tuple(self.__dict__.keys()):
