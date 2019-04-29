@@ -23,8 +23,6 @@ from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import CheckpointStorage, EquationManager
 
-from collections import OrderedDict
-
 __all__ = \
   [
     "HessianException",
@@ -96,7 +94,7 @@ class SingleBlockHessian(Hessian):
         # the cache)
         eq_tlm_eqs = manager._tlm_eqs.get(eq, None)
         if eq_tlm_eqs is None:
-          eq_tlm_eqs = manager._tlm_eqs[eq] = OrderedDict()
+          eq_tlm_eqs = manager._tlm_eqs[eq] = {}
         tlm_eq = eq_tlm_eqs.get((M, dM), None)
         if tlm_eq is None:
           for dep in eq.dependencies():
@@ -107,7 +105,7 @@ class SingleBlockHessian(Hessian):
         if not tlm_eq is None:
           # Extract the dependency values from storage for use in the solution of
           # the tangent-linear equation
-          eq_deps = OrderedDict([(eq_dep.id(), cp_dep) for eq_dep, cp_dep in zip(eq.nonlinear_dependencies(), self._manager._cp[(0, i)])])
+          eq_deps = {eq_dep.id():cp_dep for eq_dep, cp_dep in zip(eq.nonlinear_dependencies(), self._manager._cp[(0, i)])}
           tlm_deps = list(tlm_eq.dependencies())
           for j, tlm_dep in enumerate(tlm_deps):
             if tlm_dep.id() in eq_deps:

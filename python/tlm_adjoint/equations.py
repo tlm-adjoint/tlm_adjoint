@@ -27,7 +27,6 @@ from .caches import CacheIndex, DirichletBC, assembly_cache, bcs_is_static, \
   function_is_static, is_static, linear_solver_cache, new_count, split_action, \
   split_form
 
-from collections import OrderedDict
 import copy
 import operator
 import numpy
@@ -105,7 +104,7 @@ class AssembleSolver(Equation):
     if deps is None:
       rhs = self._rhs
     else:
-      rhs = ufl.replace(self._rhs, OrderedDict(zip(self.dependencies(), deps)))
+      rhs = ufl.replace(self._rhs, dict(zip(self.dependencies(), deps)))
       
     function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
     
@@ -126,7 +125,7 @@ class AssembleSolver(Equation):
     if dF.empty():
       return None
     
-    dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+    dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
     return (-function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
@@ -195,7 +194,7 @@ class FunctionAlias(backend_Function):
 
 def alias_form(form, deps):
   adeps = [FunctionAlias(dep.function_space()) for dep in deps]
-  return_value = ufl.replace(form, OrderedDict(zip(deps, adeps)))
+  return_value = ufl.replace(form, dict(zip(deps, adeps)))
   assert(not "_tlm_adjoint__adeps" in return_value._cache)
   return_value._cache["_tlm_adjoint__adeps"] = adeps
   return return_value
@@ -345,7 +344,7 @@ class EquationSolver(Equation):
       # Split into static and non-static components
       static_form, non_static_form = split_form(self._rhs)
 
-      mat_forms = OrderedDict()
+      mat_forms = {}
       if not non_static_form.empty():
         for i, dep in enumerate(eq_deps):
           mat_form, non_static_form = split_action(non_static_form, dep)
@@ -392,7 +391,7 @@ class EquationSolver(Equation):
     for i, (mat_form, mat_index) in mat_forms.items():
       if mat_index.index() is None:
         if not deps is None:
-          mat_form = ufl.replace(mat_form, OrderedDict(zip(eq_deps, deps)))
+          mat_form = ufl.replace(mat_form, dict(zip(eq_deps, deps)))
         mat_index, (mat, _) = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
         mat_forms[i][1] = mat_index
       else:
@@ -405,7 +404,7 @@ class EquationSolver(Equation):
     if not static_form is None:
       if static_form[1].index() is None:
         static_form[1], static_b = assembly_cache().assemble(
-          static_form[0] if deps is None else ufl.replace(static_form[0], OrderedDict(zip(eq_deps, deps))),
+          static_form[0] if deps is None else ufl.replace(static_form[0], dict(zip(eq_deps, deps))),
           form_compiler_parameters = self._form_compiler_parameters)
       else:
         static_b = assembly_cache()[static_form[1]]
@@ -430,7 +429,7 @@ class EquationSolver(Equation):
         
         if self._forward_J_mat.index() is None or \
           self._forward_J_solver.index() is None:
-          J = self._J if deps is None else ufl.replace(self._J, OrderedDict(zip(eq_deps, deps)))
+          J = self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps)))
           
         if self._forward_J_mat.index() is None:
           # Assemble and cache the Jacobian
@@ -503,14 +502,14 @@ class EquationSolver(Equation):
         # Construct the linear solver
         J_solver = linear_solver(J_mat, self._linear_solver_parameters)
         
-#      J_mat_debug, b_debug = assemble_system(self._J if deps is None else ufl.replace(self._J, OrderedDict(zip(eq_deps, deps))),
-#                                             self._rhs if deps is None else ufl.replace(self._rhs, OrderedDict(zip(eq_deps, deps))),
+#      J_mat_debug, b_debug = assemble_system(self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps))),
+#                                             self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
 #                                             self._bcs,
 #                                             form_compiler_parameters = self._form_compiler_parameters)
 #      assert((J_mat - J_mat_debug).norm("linf") == 0.0)
 #      assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
         
-#      b_debug = assemble(self._rhs if deps is None else ufl.replace(self._rhs, OrderedDict(zip(eq_deps, deps))),
+#      b_debug = assemble(self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
 #                         form_compiler_parameters = self._form_compiler_parameters)
 #      b_error = function_new(x, name = "b_error")
 #      function_assign(b_error, b)
@@ -574,7 +573,7 @@ class EquationSolver(Equation):
         #  Cache entry cleared
       elif self._defer_adjoint_assembly:
         #assert(isinstance(mat_cache, ufl.classes.Form))
-        return ufl.action(ufl.replace(mat_cache, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps))), coefficient = adj_x)
+        return ufl.action(ufl.replace(mat_cache, dict(zip(self.nonlinear_dependencies(), nl_deps))), coefficient = adj_x)
       else:
         #assert(isinstance(mat_cache, ufl.classes.Form))
         return alias_assemble(mat_cache, list(nl_deps) + [adj_x],
@@ -588,12 +587,12 @@ class EquationSolver(Equation):
     dF = adjoint(dF)
     
     if self._cache_rhs_assembly and is_static(dF):
-      dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+      dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
       self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
       return matrix_multiply(mat, adj_x.vector(), space_fn = dep)
     elif self._defer_adjoint_assembly:
       self._derivative_mats[dep_index] = dF
-      dF = ufl.replace(dF, OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+      dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
       return ufl.action(dF, coefficient = adj_x)
     else:
       self._derivative_mats[dep_index] = dF = \
@@ -602,7 +601,7 @@ class EquationSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters)
   
   def reset_adjoint_derivative_action(self):
-    self._derivative_mats = OrderedDict()
+    self._derivative_mats = {}
 
   def adjoint_jacobian_solve(self, nl_deps, b):
     if self._adjoint_solver_parameters is None:
@@ -612,7 +611,7 @@ class EquationSolver(Equation):
 
     if self._cache_jacobian:
       if self._adjoint_J_solver.index() is None:
-        J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+        J = ufl.replace(adjoint(self._J), dict(zip(self.nonlinear_dependencies(), nl_deps)))
         _, (J_mat, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
         self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs,
           linear_solver_parameters = adjoint_solver_parameters,
@@ -858,7 +857,7 @@ class ExprEvaluationSolver(Equation):
       return (-1.0, F)
       
   def reset_adjoint_derivative_action(self):
-    self._adjoint_derivatives = OrderedDict()
+    self._adjoint_derivatives = {}
     
   def adjoint_jacobian_solve(self, nl_deps, b):
     return b

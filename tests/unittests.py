@@ -23,7 +23,6 @@ from tlm_adjoint import *
 from tlm_adjoint import manager as _manager
 from tlm_adjoint.backend import backend_Function
 
-from collections import OrderedDict
 import gc
 import numpy
 import unittest
@@ -86,7 +85,7 @@ class tests(unittest.TestCase):
       J = Functional(name = "J")
       gather_ref = x_ref is None
       if gather_ref:
-        x_ref = OrderedDict()
+        x_ref = {}
       for n in range(n_steps):
         terms = [(1.0, x_old)]
         if n % 11 == 0:

@@ -22,7 +22,6 @@ from .backend import *
 from .backend_code_generator_interface import *
 
 import copy
-from collections import OrderedDict
 import ufl
 
 __all__ = \
@@ -185,7 +184,7 @@ def split_action(form, x):
     return ufl.classes.Form([]), form
   
   try:
-    lhs, rhs = ufl.system(ufl.replace(form, OrderedDict([(x, trial)])))
+    lhs, rhs = ufl.system(ufl.replace(form, {x:trial}))
   except ufl.UFLException:
     # UFL error encountered
     return ufl.classes.Form([]), form
@@ -224,7 +223,7 @@ class CacheIndex:
 
 class Cache:
   def __init__(self):
-    self._keys = OrderedDict()
+    self._keys = {}
     self._cache = []
   
   def __getitem__(self, key):
@@ -277,7 +276,7 @@ def replaced_function(x):
   return x._tlm_adjoint__ReplacementFunction
 
 def replaced_form(form):
-  replace_map = OrderedDict()
+  replace_map = {}
   for c in form.coefficients():
     if isinstance(c, backend_Function):
       replace_map[c] = replaced_function(c)

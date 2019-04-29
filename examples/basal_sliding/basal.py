@@ -27,7 +27,6 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 
-from collections import OrderedDict
 import h5py
 import numpy;  numpy.random.seed(12143432)
 import petsc4py.PETSc
@@ -188,7 +187,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
         J_1 = self._J_1
         J_2 = self._J
       else:
-        replace_map = OrderedDict(zip(self.dependencies(), deps))
+        replace_map = dict(zip(self.dependencies(), deps))
         F = ufl.replace(self._F, replace_map)
         J_1 = ufl.replace(self._J_1, replace_map)
         J_2 = ufl.replace(self._J, replace_map)
@@ -306,7 +305,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
   
   gather_ref = ref is None
   if gather_ref:
-    ref = OrderedDict()  
+    ref = {}
   J = Functional()
   
   for timestep in range(2, timesteps):

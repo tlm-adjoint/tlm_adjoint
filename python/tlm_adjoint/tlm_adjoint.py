@@ -76,10 +76,10 @@ class Control:
 class CheckpointStorage:
   def __init__(self, store_ics = True, store_data = True):
     self._seen_ics = set()
-    self._cp = OrderedDict()
-    self._refs = OrderedDict()
+    self._cp = {}
+    self._refs = {}
     self._deps = {}
-    self._data = OrderedDict()
+    self._data = {}
     self._indices = defaultdict(lambda : 0)
     
     self.configure(store_ics = store_ics,
@@ -139,7 +139,7 @@ class CheckpointStorage:
     return ic
   
   def initial_conditions(self, cp = True, refs = False, copy = True):
-    cp_d = OrderedDict()
+    cp_d = {}
     if cp:
       for x_id, x in self._cp.items():
         cp_d[x_id] = function_copy(x) if copy else x
@@ -216,7 +216,7 @@ class TangentLinearMap:
 
   def __init__(self, name_suffix):
     self._name_suffix = name_suffix
-    self._map = OrderedDict()
+    self._map = {}
     self._finalizes = {}
     
   def __del__(self):
@@ -261,7 +261,7 @@ class ReplayStorage:
             
     self._last_eq = last_eq
     self._eq_last = eq_last_q
-    self._map = OrderedDict([(dep_id, None) for dep_id in last_eq.keys()])
+    self._map = {dep_id:None for dep_id in last_eq.keys()}
   
   def __len__(self):
     return len(self._map)
@@ -537,7 +537,7 @@ class EquationManager:
     self._tlm_state = "initial"
     self._block = []
     self._replaced = set()
-    self._replace_map = OrderedDict()
+    self._replace_map = {}
     self._blocks = []
     if hasattr(self, "_finalizes"):
       for finalize in self._finalizes.values():
@@ -545,7 +545,7 @@ class EquationManager:
     self._finalizes = {}
     
     self._tlm = OrderedDict()
-    self._tlm_eqs = OrderedDict()
+    self._tlm_eqs = {}
     
     self.configure_checkpointing(cp_method, cp_parameters)
     
@@ -588,7 +588,7 @@ class EquationManager:
     self._cp_parameters = cp_parameters
     self._cp_manager = cp_manager
     self._cp_disk_spaces = []  # FunctionSpace objects are currently stored in RAM
-    self._cp_disk_memory = OrderedDict()
+    self._cp_disk_memory = {}
     
     if cp_method == "multistage":
       if self._cp_manager.max_n() == 1:
@@ -819,7 +819,7 @@ class EquationManager:
         tlm_map, max_depth = self._tlm[(M, dM)]
         eq_tlm_eqs = self._tlm_eqs.get(eq.id(), None)
         if eq_tlm_eqs is None:
-          eq_tlm_eqs = self._tlm_eqs[eq.id()] = OrderedDict()
+          eq_tlm_eqs = self._tlm_eqs[eq.id()] = {}
         tlm_eq = eq_tlm_eqs.get((M, dM), None)
         if tlm_eq is None:
           for dep in eq.dependencies():
@@ -852,7 +852,7 @@ class EquationManager:
         replaced_dep = self._replace_map[dep_id] = replaced_function(dep)
         if hasattr(dep, "_tlm_adjoint__tlm_depth"):
           replaced_dep._tlm_adjoint__tlm_depth = dep._tlm_adjoint__tlm_depth      
-    eq._replace(OrderedDict([(dep, self._replace_map[dep.id()]) for dep in deps]))
+    eq._replace({dep:self._replace_map[dep.id()] for dep in deps})
     if eq_id in self._tlm_eqs:
       for tlm_eq in self._tlm_eqs[eq_id].values():
         if not tlm_eq is None:
@@ -891,7 +891,7 @@ class EquationManager:
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
       h = open(cp_filename, "wb")
       
-      pickle.dump(OrderedDict([(key, (self._checkpoint_space_index(F), function_get_values(F))) for key, F in cp.items()]),
+      pickle.dump({key:(self._checkpoint_space_index(F), function_get_values(F)) for key, F in cp.items()},
         h, protocol = pickle.HIGHEST_PROTOCOL)
       
       h.close()

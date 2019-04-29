@@ -24,7 +24,6 @@ from .backend_interface import *
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled
 
-from collections import OrderedDict
 import copy
 import ufl
 
@@ -160,8 +159,8 @@ def solve(*args, **kwargs):
         (x in lhs.coefficients() or x in rhs.coefficients()):
         x_old = function_new(x, name = "x_old")
         AssignmentSolver(x, F).solve(annotate = annotate, tlm = tlm)
-        lhs = ufl.replace(lhs, OrderedDict([(x, x_old)]))
-        rhs = ufl.replace(rhs, OrderedDict([(x, x_old)]))
+        lhs = ufl.replace(lhs, {x:x_old})
+        rhs = ufl.replace(rhs, {x:x_old})
         eq = lhs == rhs
       EquationSolver(eq, x, bcs, J = J,
         form_compiler_parameters = form_compiler_parameters,
@@ -188,8 +187,8 @@ def solve(*args, **kwargs):
       if A_x_dep or b_x_dep:
         x_old = function_new(x, name = "x_old")
         AssignmentSolver(x, x_old).solve(annotate = annotate, tlm = tlm)
-        if A_x_dep: A = ufl.replace(A, OrderedDict([(x, x_old)]))
-        if b_x_dep: b = ufl.replace(b, OrderedDict([(x, x_old)]))
+        if A_x_dep: A = ufl.replace(A, {x:x_old})
+        if b_x_dep: b = ufl.replace(b, {x:x_old})
         
       EquationSolver(A == b, x,
         bcs, solver_parameters = solver_parameters,

@@ -27,7 +27,6 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 
-from collections import OrderedDict
 import copy
 import h5py
 import numpy;  numpy.random.seed(12143432)
@@ -186,7 +185,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
 
       def adjoint_jacobian_solve(self, nl_deps, b):
         if self._adjoint_J_solver.index() is None:
-          J = ufl.replace(adjoint(self._J), OrderedDict(zip(self.nonlinear_dependencies(), nl_deps)))
+          J = ufl.replace(adjoint(self._J), dict(zip(self.nonlinear_dependencies(), nl_deps)))
           _, (J_mat, _) = jacobian_assembly_cache.assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
 #          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
 #            linear_solver_parameters = self._linear_solver_parameters,
@@ -345,7 +344,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
   
   gather_ref = ref is None
   if gather_ref:
-    ref = OrderedDict()  
+    ref = {}
   J = Functional()
   
   for timestep in range(2, timesteps):

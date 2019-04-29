@@ -22,7 +22,6 @@ from .backend_interface import *
 
 from .base_equations import *
 
-from collections import OrderedDict
 import copy
 import numpy
 
@@ -143,7 +142,7 @@ class ContractionRHS(RHS):
   def tangent_linear_rhs(self, M, dM, tlm_map):
     Y = list(self.dependencies())
     A, I, alpha = self._c.A(), self._c.I(), self._c.alpha()
-    m_map = OrderedDict([(m, dm) for m, dm in zip(M, dM)])
+    m_map = dict(zip(M, dM))
     
     J = []
     for j, y in enumerate(Y):

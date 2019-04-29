@@ -139,7 +139,7 @@ class TimeLevels:
 class TimeFunction:
   def __init__(self, levels, *args, **kwargs):
     # Note that this keeps references to the Function objects on each time level
-    self._fns = OrderedDict()
+    self._fns = {}
     for level in levels:
       fn = Function(*args, **kwargs)
       fn._tlm_adjoint__tfn = self
@@ -258,7 +258,7 @@ class TimeSystem:
 
       self._sorted_eqs = [[], [], []]
       for i, eqs in enumerate([self._initial_eqs, self._timestep_eqs, self._final_eqs]):
-        eq_xs = OrderedDict()
+        eq_xs = {}
         for eq in eqs:
           for x in eq.X():
             eq_xs[x] = eq

@@ -22,7 +22,6 @@ from .backend_interface import *
 
 from .manager import manager as _manager
 
-from collections import OrderedDict
 import copy
 import numpy
 import types
