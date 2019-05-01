@@ -184,7 +184,8 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
           set_linear_solver_cache(old_linear_solver_cache)
 
       def adjoint_jacobian_solve(self, nl_deps, b):
-        if self._adjoint_J_solver.index() is None:
+        J_solver = self._adjoint_J_solver()
+        if J_solver is None:
           J = ufl.replace(adjoint(self._J), dict(zip(self.nonlinear_dependencies(), nl_deps)))
           _, (J_mat, _) = jacobian_assembly_cache.assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
 #          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
@@ -193,8 +194,6 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
           self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
             linear_solver_parameters = {"linear_solver":"umfpack"},
             form_compiler_parameters = self._form_compiler_parameters)
-        else:
-          J_solver = jacobian_linear_solver_cache[self._adjoint_J_solver]
       
         for bc in self._hbcs:
           bc.apply(b.vector())
@@ -204,7 +203,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
         return adj_x
       
       def reset_adjoint_jacobian_solve(self):
-        self._adjoint_J_solver = CacheIndex()
+        self._adjoint_J_solver = CacheRef()
         jacobian_assembly_cache.clear()
         jacobian_linear_solver_cache.clear()
   

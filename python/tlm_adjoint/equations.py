@@ -23,7 +23,7 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheIndex, DirichletBC, assembly_cache, bcs_is_static, \
+from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_static, \
   function_is_static, is_static, linear_solver_cache, new_count, split_action, \
   split_form
 
@@ -330,7 +330,7 @@ class EquationSolver(Equation):
     if hasattr(self, "_forward_b_pa") and not self._forward_b_pa is None:
       if not self._forward_b_pa[0] is None:
         self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)
-      for i, (mat_form, mat_index) in self._forward_b_pa[1].items():
+      for i, (mat_form, mat_cache) in self._forward_b_pa[1].items():
         self._forward_b_pa[1][i][0] = ufl.replace(mat_form, replace_map)
     if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
       for dep_index, mat_cache in self._derivative_mats:
@@ -357,7 +357,7 @@ class EquationSolver(Equation):
               static_form += ufl.action(mat_form, coefficient = dep)
             else:
               # ... on a non-static dependency.
-              mat_forms[i] = [mat_form, CacheIndex()]
+              mat_forms[i] = [mat_form, CacheRef()]
           if non_static_form.empty():
             break
 
@@ -375,7 +375,7 @@ class EquationSolver(Equation):
       if static_form.empty():
         static_form = None
       else:
-        static_form = [static_form, CacheIndex()]
+        static_form = [static_form, CacheRef()]
 
       self._forward_b_pa = [static_form, mat_forms, non_static_form]
     else:
@@ -388,26 +388,25 @@ class EquationSolver(Equation):
         form_compiler_parameters = self._form_compiler_parameters,
         tensor = b)
      
-    for i, (mat_form, mat_index) in mat_forms.items():
-      if mat_index.index() is None:
+    for i, (mat_form, mat_cache) in mat_forms.items():
+      if mat_cache() is None:
         if not deps is None:
           mat_form = ufl.replace(mat_form, dict(zip(eq_deps, deps)))
-        mat_index, (mat, _) = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
-        mat_forms[i][1] = mat_index
+        mat_cache, (mat, _) = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
+        mat_forms[i][1] = mat_cache
       else:
-        mat, _ = assembly_cache()[mat_index]
+        mat, _ = mat_cache()
       if b is None:
         b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), space_fn = (eq_deps if deps is None else deps)[0])
       else:
         b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), addto = b)
         
     if not static_form is None:
-      if static_form[1].index() is None:
+      static_b = static_form[1]()
+      if static_b is None:
         static_form[1], static_b = assembly_cache().assemble(
           static_form[0] if deps is None else ufl.replace(static_form[0], dict(zip(eq_deps, deps))),
           form_compiler_parameters = self._form_compiler_parameters)
-      else:
-        static_b = assembly_cache()[static_form[1]]
       if b is None:
         b = rhs_copy(static_b)
       else:
@@ -427,16 +426,16 @@ class EquationSolver(Equation):
         # Cases 1 and 2: Linear, Jacobian cached, with or without RHS assembly
         # caching
         
-        if self._forward_J_mat.index() is None or \
-          self._forward_J_solver.index() is None:
+        if self._forward_J_mat() is None or \
+          self._forward_J_solver() is None:
           J = self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps)))
           
-        if self._forward_J_mat.index() is None:
+        if self._forward_J_mat() is None:
           # Assemble and cache the Jacobian
           self._forward_J_mat, (J_mat, b_bc) = assembly_cache().assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
         else:
           # Extract the Jacobian from the cache
-          J_mat, b_bc = assembly_cache()[self._forward_J_mat]
+          J_mat, b_bc = self._forward_J_mat()
           
         if self._cache_rhs_assembly:
           # Assemble the RHS with RHS assembly caching
@@ -456,14 +455,13 @@ class EquationSolver(Equation):
           # Add bc RHS terms
           apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
       
-        if self._forward_J_solver.index() is None:
+        # Attempt to use a cached linear solver
+        J_solver = self._forward_J_solver()
+        if J_solver is None:
           # Construct and cache the linear solver
           self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
             linear_solver_parameters = self._linear_solver_parameters,
             form_compiler_parameters = self._form_compiler_parameters)
-        else:
-          # Extract the linear solver from the cache
-          J_solver = linear_solver_cache()[self._forward_J_solver]
       else:
         if self._cache_rhs_assembly:
           # Case 3: Linear, Jacobian not cached, with RHS assembly caching
@@ -545,8 +543,8 @@ class EquationSolver(Equation):
     
   def reset_forward_solve(self):
     self._forward_eq = None
-    self._forward_J_mat = CacheIndex()
-    self._forward_J_solver = CacheIndex()
+    self._forward_J_mat = CacheRef()
+    self._forward_J_solver = CacheRef()
     self._forward_b_pa = None
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -565,9 +563,9 @@ class EquationSolver(Equation):
       mat_cache = self._derivative_mats[dep_index]
       if mat_cache is None:
         return None
-      elif isinstance(mat_cache, CacheIndex):
-        if not mat_cache.index() is None:
-          mat, _ = assembly_cache()[mat_cache]
+      elif isinstance(mat_cache, CacheRef):
+        if not mat_cache() is None:
+          mat, _ = mat_cache()
           return matrix_multiply(mat, adj_x.vector(), space_fn = eq_deps[dep_index])
         #else:
         #  Cache entry cleared
@@ -610,14 +608,13 @@ class EquationSolver(Equation):
       adjoint_solver_parameters = self._adjoint_solver_parameters
 
     if self._cache_jacobian:
-      if self._adjoint_J_solver.index() is None:
+      J_solver = self._adjoint_J_solver()
+      if J_solver is None:
         J = ufl.replace(adjoint(self._J), dict(zip(self.nonlinear_dependencies(), nl_deps)))
         _, (J_mat, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
         self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs,
           linear_solver_parameters = adjoint_solver_parameters,
           form_compiler_parameters = self._form_compiler_parameters)
-      else:
-        J_solver = linear_solver_cache()[self._adjoint_J_solver]
       
       apply_rhs_bcs(b.vector(), self._hbcs)
       adj_x = function_new(b)
@@ -643,7 +640,7 @@ class EquationSolver(Equation):
   
   def reset_adjoint_jacobian_solve(self):
     self._adjoint_J = None
-    self._adjoint_J_solver = CacheIndex()
+    self._adjoint_J_solver = CacheRef()
   
   def tangent_linear(self, M, dM, tlm_map):
     x = self.x()

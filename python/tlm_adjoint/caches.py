@@ -29,7 +29,7 @@ __all__ = \
     "AssemblyCache",
     "Cache",
     "CacheException",
-    "CacheIndex",
+    "CacheRef",
     "Constant",
     "DirichletBC",
     "Function",
@@ -208,38 +208,32 @@ def parameters_key(parameters):
       key.append((name, sub_parameters))
   return tuple(key)
   
-class CacheIndex:
-  def __init__(self, index = None):
-    self._index = index
+class CacheRef:
+  def __init__(self, value = None):
+    self._value = value
+    
+  def __call__(self):
+    return self._value
   
-  def clear(self):
-    self.set_index(None)
-  
-  def index(self):
-    return self._index
-  
-  def set_index(self, index):
-    self._index = index
+  def _clear(self):
+    self._value = None
 
 class Cache:
   def __init__(self):
-    self._keys = {}
-    self._cache = []
-  
-  def __getitem__(self, key):
-    return self._cache[key.index()]
+    self._cache = {}
   
   def clear(self):
-    for value in self._keys.values():
-      value.clear()
-    self._keys.clear()
+    for value in self._cache.values():
+      value._clear()
     self._cache.clear()
   
-  def append(self, key, value):
-    self._cache.append(value)
-    index = CacheIndex(len(self._cache) - 1)
-    self._keys[key] = index
-    return index
+  def add(self, key, value):
+    value = CacheRef(value)
+    self._cache[key] = value
+    return value
+  
+  def get(self, key, default = None):
+    return self._cache.get(key, default)
 
 def new_count():
   return Constant(0).count()
@@ -291,8 +285,8 @@ def assemble_key(form, bcs, form_compiler_parameters):
 class AssemblyCache(Cache):
   def assemble(self, form, bcs = [], form_compiler_parameters = {}):  
     key = assemble_key(form, bcs, form_compiler_parameters)
-    index = self._keys.get(key, None)
-    if index is None:
+    value = self.get(key, None)
+    if value is None:
       rank = len(form.arguments())
       if rank == 0:
         if len(bcs) > 0:
@@ -306,11 +300,11 @@ class AssemblyCache(Cache):
         b = assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
-      index = self.append(key, b)
+      value = self.add(key, b)
     else:
-      b = self[index]
+      b = value()
       
-    return index, b
+    return value, b
 
 def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
   return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
@@ -318,14 +312,14 @@ def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_paramet
 class LinearSolverCache(Cache):
   def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):
     key = linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters)
-    index = self._keys.get(key, None)
-    if index is None:
+    value = self.get(key, None)
+    if value is None:
       solver = linear_solver(A, linear_solver_parameters)
-      index = self.append(key, solver)
+      value = self.add(key, solver)
     else:
-      solver = self[index]
+      solver = value()
 
-    return index, solver
+    return value, solver
 
 _caches = [AssemblyCache(), LinearSolverCache()]
 def assembly_cache():
