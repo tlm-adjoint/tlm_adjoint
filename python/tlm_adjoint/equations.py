@@ -389,13 +389,13 @@ class EquationSolver(Equation):
         tensor = b)
      
     for i, (mat_form, mat_cache) in mat_forms.items():
-      if mat_cache() is None:
+      mat_bc = mat_cache()
+      if mat_bc is None:
         if not deps is None:
           mat_form = ufl.replace(mat_form, dict(zip(eq_deps, deps)))
-        mat_cache, (mat, _) = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
+        mat_cache, mat_bc = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
         mat_forms[i][1] = mat_cache
-      else:
-        mat, _ = mat_cache()
+      mat, _ = mat_bc
       if b is None:
         b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), space_fn = (eq_deps if deps is None else deps)[0])
       else:
@@ -426,16 +426,15 @@ class EquationSolver(Equation):
         # Cases 1 and 2: Linear, Jacobian cached, with or without RHS assembly
         # caching
         
-        if self._forward_J_mat() is None or \
-          self._forward_J_solver() is None:
+        J_mat_bc = self._forward_J_mat()
+        J_solver = self._forward_J_solver()
+        if J_mat_bc is None or J_solver is None:
           J = self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps)))
           
-        if self._forward_J_mat() is None:
+        if J_mat_bc is None:
           # Assemble and cache the Jacobian
-          self._forward_J_mat, (J_mat, b_bc) = assembly_cache().assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
-        else:
-          # Extract the Jacobian from the cache
-          J_mat, b_bc = self._forward_J_mat()
+          self._forward_J_mat, J_mat_bc = assembly_cache().assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+        J_mat, b_bc = J_mat_bc
           
         if self._cache_rhs_assembly:
           # Assemble the RHS with RHS assembly caching
@@ -455,8 +454,6 @@ class EquationSolver(Equation):
           # Add bc RHS terms
           apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
       
-        # Attempt to use a cached linear solver
-        J_solver = self._forward_J_solver()
         if J_solver is None:
           # Construct and cache the linear solver
           self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
@@ -564,8 +561,9 @@ class EquationSolver(Equation):
       if mat_cache is None:
         return None
       elif isinstance(mat_cache, CacheRef):
-        if not mat_cache() is None:
-          mat, _ = mat_cache()
+        mat_bc = mat_cache()
+        if not mat_bc is None:
+          mat, _ = mat_bc
           return matrix_multiply(mat, adj_x.vector(), space_fn = eq_deps[dep_index])
         #else:
         #  Cache entry cleared
