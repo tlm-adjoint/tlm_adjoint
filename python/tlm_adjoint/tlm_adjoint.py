@@ -419,9 +419,12 @@ class EquationManager:
     if self._comm.rank == 0:
       id = EquationManager_id_counter[0]
       EquationManager_id_counter[0] += 1
+      comm_py2f = self._comm.py2f()
     else:
       id = -1
+      comm_py2f = -1
     self._id = self._comm.bcast(id, root = 0)
+    self._comm_py2f = self._comm.bcast(comm_py2f, root = 0)
     self.reset(cp_method = cp_method, cp_parameters = cp_parameters)
   
   def __del__(self):
@@ -859,7 +862,7 @@ class EquationManager:
     cp = self._cp.initial_conditions(cp = True, refs = False, copy = False)
     
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm.py2f(), self._comm.rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm_py2f, self._comm.rank))
       h = open(cp_filename, "wb")
       
       pickle.dump({key:(self._checkpoint_space_index(F), function_get_values(F)) for key, F in cp.items()},
@@ -867,7 +870,7 @@ class EquationManager:
       
       h.close()
     elif cp_format == "hdf5":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm.py2f()))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm_py2f))
       import h5py
       if self._comm.size > 1:
         h = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm)
@@ -898,7 +901,7 @@ class EquationManager:
     cp_format = self._cp_parameters["format"]
       
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm.py2f(), self._comm.rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm_py2f, self._comm.rank))
       h = open(cp_filename, "rb")
       cp = pickle.load(h)
       h.close()
@@ -915,7 +918,7 @@ class EquationManager:
           storage[key] = F
         del(i, values)
     elif cp_format == "hdf5":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm.py2f()))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm_py2f))
       import h5py
       if self._comm.size > 1:
         h = h5py.File(cp_filename, "r", driver = "mpio", comm = self._comm)
