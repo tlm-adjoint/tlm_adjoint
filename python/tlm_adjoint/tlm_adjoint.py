@@ -416,8 +416,7 @@ class EquationManager:
       comm = comm.tompi4py()
   
     self._comm = comm
-    self._comm_rank = comm.rank
-    if self._comm_rank == 0:
+    if self._comm.rank == 0:
       id = EquationManager_id_counter[0]
       EquationManager_id_counter[0] += 1
     else:
@@ -535,7 +534,7 @@ class EquationManager:
       cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")
       cp_parameters["format"] = cp_parameters.get("format", "hdf5")
       
-      if self._comm_rank == 0:
+      if self._comm.rank == 0:
         if not os.path.exists(cp_path):
           os.makedirs(cp_path)
       self._comm.barrier()
@@ -860,7 +859,7 @@ class EquationManager:
     cp = self._cp.initial_conditions(cp = True, refs = False, copy = False)
     
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm.py2f(), self._comm.rank))
       h = open(cp_filename, "wb")
       
       pickle.dump({key:(self._checkpoint_space_index(F), function_get_values(F)) for key, F in cp.items()},
@@ -868,7 +867,7 @@ class EquationManager:
       
       h.close()
     elif cp_format == "hdf5":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i.hdf5" % (self._id, n))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm.py2f()))
       import h5py
       if self._comm.size > 1:
         h = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm)
@@ -885,10 +884,10 @@ class EquationManager:
         del(values)
         
         d = g.create_dataset("space_index", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm_rank] = self._checkpoint_space_index(F)
+        d[self._comm.rank] = self._checkpoint_space_index(F)
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm_rank] = key
+        d[self._comm.rank] = key
         
       h.close()
     else:
@@ -899,12 +898,12 @@ class EquationManager:
     cp_format = self._cp_parameters["format"]
       
     if cp_format == "pickle":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.pickle" % (self._id, n, self._comm_rank))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm.py2f(), self._comm.rank))
       h = open(cp_filename, "rb")
       cp = pickle.load(h)
       h.close()
       if delete:
-        if self._comm_rank == 0:
+        if self._comm.rank == 0:
           os.remove(cp_filename)
         self._comm.barrier()
       
@@ -916,7 +915,7 @@ class EquationManager:
           storage[key] = F
         del(i, values)
     elif cp_format == "hdf5":
-      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i.hdf5" % (self._id, n))
+      cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm.py2f()))
       import h5py
       if self._comm.size > 1:
         h = h5py.File(cp_filename, "r", driver = "mpio", comm = self._comm)
@@ -925,10 +924,10 @@ class EquationManager:
         
       for name, g in h["/ics"].items():
         d = g["key"]
-        key = int(d[self._comm_rank])
+        key = int(d[self._comm.rank])
         if key in storage:
           d = g["space_index"]
-          F = Function(self._cp_disk_spaces[d[self._comm_rank]])
+          F = Function(self._cp_disk_spaces[d[self._comm.rank]])
           d = g["value"]
           function_set_values(F, d[function_local_indices(F)])
           storage[key] = F
@@ -936,7 +935,7 @@ class EquationManager:
         
       h.close()      
       if delete:
-        if self._comm_rank == 0:
+        if self._comm.rank == 0:
           os.remove(cp_filename)
         self._comm.barrier()
     else:

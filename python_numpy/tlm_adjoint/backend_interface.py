@@ -184,6 +184,9 @@ class SerialComm:
   # Interface as in mpi4py 3.0.1
   def bcast(self, obj, root = 0):
     return copy.deepcopy(obj)
+  
+  def py2f(self):
+    return 0
 
   @property
   def rank(self):
