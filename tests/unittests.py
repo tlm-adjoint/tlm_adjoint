@@ -66,6 +66,53 @@ def leak_check(test):
   
 class tests(unittest.TestCase):
   @leak_check
+  def test_LocalProjectionSolver(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(10, 10)
+    space_1 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
+    space_2 = FunctionSpace(mesh, "Lagrange", 2)
+    test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
+    
+    def forward(G):
+      F = Function(space_1, name = "F")
+      LocalProjectionSolver(G, F).solve()
+      J = Functional(name = "J")
+      J.assign(F * F * F * dx)
+      return F, J
+    
+    G = Function(space_2, name = "G", static = True)
+    G.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1])", element = space_2.ufl_element()))
+    
+    start_manager()
+    F, J = forward(G)
+    stop_manager()
+    
+    F_ref = Function(space_1, name = "F_ref")
+    solve(inner(test_1, trial_1) * dx == inner(test_1, G) * dx, F_ref,
+      solver_parameters = {"linear_solver":"cg",
+                           "preconditioner":"sor",
+                           "krylov_solver":{"relative_tolerance":1.0e-14,
+                                            "absolute_tolerance":1.0e-16}})
+    F_error = Function(space_1, name = "F_error")
+    function_assign(F_error, F_ref)
+    function_axpy(F_error, -1.0, F)
+
+    F_error_norm = function_linf_norm(F_error)
+    info("Error norm = %.16e" % F_error_norm)
+    self.assertLess(F_error_norm, 1.0e-15)
+    
+    dJ = compute_gradient(J, G)
+    min_order = taylor_test(lambda G : forward(G)[1], G, J_val = J.value(), dJ = dJ, seed = 1.0e-4)
+    self.assertGreater(min_order, 1.99)
+    
+    ddJ = Hessian(lambda G : forward(G)[1])
+    min_order = taylor_test(lambda G : forward(G)[1], G, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+  
+  @leak_check
   def test_LongRange(self):
     n_steps = 200
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":0, "snaps_in_ram":2, "verbose":True})
@@ -1067,6 +1114,7 @@ if __name__ == "__main__":
 #  tests().test_PointInterpolationSolver()
 #  tests().test_ExprEvaluationSolver()
 #  tests().test_LongRange()
+#  tests().test_LocalProjectionSolver()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()

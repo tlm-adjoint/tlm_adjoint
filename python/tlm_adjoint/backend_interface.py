@@ -21,8 +21,8 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
-from .caches import Function, ReplacementFunction, assembly_cache, form_neg, \
-  function_is_checkpointed, function_is_static, linear_solver_cache, \
+from .caches import _caches, Function, ReplacementFunction, assembly_cache, \
+  form_neg, function_is_checkpointed, function_is_static, linear_solver_cache, \
   replaced_function
 
 import numpy
@@ -65,8 +65,8 @@ __all__ = \
   ]
   
 def clear_caches():
-  assembly_cache().clear()
-  linear_solver_cache().clear()
+  for cache in _caches:
+    cache.clear()
 
 #def info(message):
 

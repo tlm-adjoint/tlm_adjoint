@@ -23,6 +23,7 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
+from .caches import _caches, Cache, CacheRef, form_key
 from .equations import EquationSolver, alias_assemble, alias_form
 
 import numpy
@@ -32,7 +33,11 @@ __all__ = \
   [
     "InterpolationSolver",
     "LocalProjectionSolver",
-    "PointInterpolationSolver"
+    "PointInterpolationSolver",
+    
+    "LocalSolverCache",
+    "local_solver_cache",
+    "set_local_solver_cache"
   ]
 
 def greedy_coloring(space):
@@ -90,22 +95,40 @@ def function_coords(x):
   for i in range(coords.shape[1]):  
     coords[:, i] = function_get_values(interpolate(Expression("x[%i]" % i, element = space.ufl_element()), space))
   return coords
+
+def local_solver_key(form, solver_type):
+  return (form_key(form), solver_type)
+
+class LocalSolverCache(Cache):
+  def local_solver(self, form, solver_type, replace_map = None):
+    key = local_solver_key(form, solver_type)
+    value = self.get(key, None)
+    if value is None:
+      if not replace_map is None: form = ufl.replace(form, replace_map)
+      local_solver = LocalSolver(form, solver_type = solver_type)
+      local_solver.factorize()
+      value = self.add(key, local_solver)
+    else:
+      local_solver = value()
+
+    return value, local_solver
+
+_local_solver_cache_i = len(_caches)
+_caches.append(LocalSolverCache())
+def local_solver_cache():
+  return _caches[_local_solver_cache_i]
+def set_local_solver_cache(local_solver_cache):
+  _caches[_local_solver_cache_i] = local_solver_cache
   
 class LocalProjectionSolver(EquationSolver):
-  def __init__(self, rhs, x, solver = None, form_compiler_parameters = {},
+  def __init__(self, rhs, x, form_compiler_parameters = {},
     cache_rhs_assembly = None, match_quadrature = None,
     defer_adjoint_assembly = None):
     space = x.function_space()
     test, trial = TestFunction(space), TrialFunction(space)
-    
     lhs = ufl.inner(test, trial) * ufl.dx
     if not isinstance(rhs, ufl.classes.Form):
       rhs = ufl.inner(test, rhs) * ufl.dx
-    if solver is None:
-      solver = LocalSolver(lhs,
-        solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
-      solver.factorize()
-      solver.solve = lambda x, b : solver.solve_local(x, b, space.dofmap())
     
     EquationSolver.__init__(self, lhs == rhs, x,
       form_compiler_parameters = form_compiler_parameters,
@@ -113,7 +136,6 @@ class LocalProjectionSolver(EquationSolver):
       cache_rhs_assembly = cache_rhs_assembly,
       match_quadrature = match_quadrature,
       defer_adjoint_assembly = defer_adjoint_assembly)
-    self._local_solver = solver
   
   def forward_solve(self, x, deps = None):
     if self._cache_rhs_assembly:
@@ -127,12 +149,28 @@ class LocalProjectionSolver(EquationSolver):
       _, _, rhs = self._forward_eq
       b = alias_assemble(rhs, deps,
         form_compiler_parameters = self._form_compiler_parameters)
-    self._local_solver.solve(x.vector(), b)
+    
+    local_solver = self._forward_J_solver()
+    if local_solver is None:
+      self._forward_J_solver, local_solver = local_solver_cache().local_solver(
+        self._lhs,
+        LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+        
+    local_solver.solve_local(x.vector(), b, x.function_space().dofmap())
     
   def adjoint_jacobian_solve(self, nl_deps, b):
+    local_solver = self._forward_J_solver()
+    if local_solver is None:
+      self._forward_J_solver, local_solver = local_solver_cache().local_solver(
+        self._lhs,
+        LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+        
     adj_x = function_new(b)
-    self._local_solver.solve(adj_x.vector(), b.vector())
+    local_solver.solve_local(adj_x.vector(), b.vector(), adj_x.function_space().dofmap())
     return adj_x
+  
+  def reset_adjoint_jacobian_solve(self):
+    self._forward_J_solver = CacheRef()
   
   #def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
   # A consistent diagonal block adjoint derivative action requires an
@@ -160,7 +198,6 @@ class LocalProjectionSolver(EquationSolver):
       return NullSolver(tlm_map[x])
     else:    
       return LocalProjectionSolver(tlm_rhs, tlm_map[x],
-        solver = self._local_solver,
         form_compiler_parameters = self._form_compiler_parameters,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
