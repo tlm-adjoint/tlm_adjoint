@@ -122,7 +122,7 @@ def set_local_solver_cache(local_solver_cache):
   
 class LocalProjectionSolver(EquationSolver):
   def __init__(self, rhs, x, form_compiler_parameters = {},
-    cache_rhs_assembly = None, match_quadrature = None,
+    cache_jacobian = None, cache_rhs_assembly = None, match_quadrature = None,
     defer_adjoint_assembly = None):
     space = x.function_space()
     test, trial = TestFunction(space), TrialFunction(space)
@@ -133,6 +133,7 @@ class LocalProjectionSolver(EquationSolver):
     EquationSolver.__init__(self, lhs == rhs, x,
       form_compiler_parameters = form_compiler_parameters,
       solver_parameters = {"linear_solver":"direct"},
+      cache_jacobian = cache_jacobian,
       cache_rhs_assembly = cache_rhs_assembly,
       match_quadrature = match_quadrature,
       defer_adjoint_assembly = defer_adjoint_assembly)
@@ -150,20 +151,30 @@ class LocalProjectionSolver(EquationSolver):
       b = alias_assemble(rhs, deps,
         form_compiler_parameters = self._form_compiler_parameters)
     
-    local_solver = self._forward_J_solver()
-    if local_solver is None:
-      self._forward_J_solver, local_solver = local_solver_cache().local_solver(
+    if self._cache_jacobian:
+      local_solver = self._forward_J_solver()
+      if local_solver is None:
+        self._forward_J_solver, local_solver = local_solver_cache().local_solver(
+          self._lhs,
+          LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+    else:
+      local_solver = LocalSolver(
         self._lhs,
-        LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+        solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
         
     local_solver.solve_local(x.vector(), b, x.function_space().dofmap())
     
   def adjoint_jacobian_solve(self, nl_deps, b):
-    local_solver = self._forward_J_solver()
-    if local_solver is None:
-      self._forward_J_solver, local_solver = local_solver_cache().local_solver(
+    if self._cache_jacobian:
+      local_solver = self._forward_J_solver()
+      if local_solver is None:
+        self._forward_J_solver, local_solver = local_solver_cache().local_solver(
+          self._lhs,
+          LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+    else:
+      local_solver = LocalSolver(
         self._lhs,
-        LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
+        solver_type = LocalSolver.SolverType.Cholesky if hasattr(LocalSolver, "SolverType") else LocalSolver.SolverType_Cholesky)
         
     adj_x = function_new(b)
     local_solver.solve_local(adj_x.vector(), b.vector(), adj_x.function_space().dofmap())
