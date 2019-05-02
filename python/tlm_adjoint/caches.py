@@ -40,7 +40,6 @@ __all__ = \
     "form_neg",
     "function_is_checkpointed",
     "function_is_static",
-    "is_homogeneous_bcs",
     "is_static",
     "linear_solver",
     "linear_solver_cache",
@@ -121,12 +120,6 @@ def function_is_checkpointed(x):
 def bcs_is_static(bcs):
   for bc in bcs:
     if not hasattr(bc, "is_static") or not bc.is_static():
-      return False
-  return True
-
-def is_homogeneous_bcs(bcs):
-  for bc in bcs:
-    if not hasattr(bc, "is_homogeneous") or not bc.is_homogeneous():
       return False
   return True
 
