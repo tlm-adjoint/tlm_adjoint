@@ -164,32 +164,32 @@ def split_form(form):
   
   return static_form, non_static_form
 
-def form_simplify_sign(form):
+def form_simplify_sign(form, sign = None):
   integrals = []
   
   for integral in form.integrals():
     integrand = integral.integrand()
     
-    sign = None
+    integral_sign = sign
     while isinstance(integrand, ufl.classes.Product):
       a, b = integrand.ufl_operands
       if isinstance(a, ufl.classes.IntValue) and a == -1:
-        sign = -1 if sign is None else -sign
+        integral_sign = -1 if integral_sign is None else -integral_sign
         integrand = b
       elif isinstance(b, ufl.classes.IntValue) and b == -1:
-        sign = -1 if sign is None else -sign
+        integral_sign = -1 if integral_sign is None else -integral_sign
         integrand = a
       else:
         break
-    if not sign is None:
-      integral = integral.reconstruct(integrand = -integrand if sign < 0 else integrand)
+    if not integral_sign is None:
+      integral = integral.reconstruct(integrand = -integrand if integral_sign < 0 else integrand)
       
     integrals.append(integral)
 
   return ufl.classes.Form(integrals)
 
 def form_neg(form):
-  return form_simplify_sign(-form)
+  return form_simplify_sign(form, sign = -1)
   
 def split_action(form, x):
   if len(form.arguments()) != 1:
