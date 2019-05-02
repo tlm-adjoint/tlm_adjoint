@@ -305,10 +305,11 @@ def assemble_key(form, bcs, form_compiler_parameters):
   return (form_key(form), tuple(bcs), parameters_key(form_compiler_parameters))
 
 class AssemblyCache(Cache):
-  def assemble(self, form, bcs = [], form_compiler_parameters = {}):  
+  def assemble(self, form, bcs = [], form_compiler_parameters = {}, replace_map = None):  
     key = assemble_key(form, bcs, form_compiler_parameters)
     value = self.get(key, None)
     if value is None:
+      if not replace_map is None: form = ufl.replace(form, replace_map)
       rank = len(form.arguments())
       if rank == 0:
         if len(bcs) > 0:

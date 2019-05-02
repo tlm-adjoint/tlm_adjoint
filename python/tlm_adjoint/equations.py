@@ -391,10 +391,10 @@ class EquationSolver(Equation):
     for i, (mat_form, mat_cache) in mat_forms.items():
       mat_bc = mat_cache()
       if mat_bc is None:
-        if not deps is None:
-          mat_form = ufl.replace(mat_form, dict(zip(eq_deps, deps)))
-        mat_cache, mat_bc = assembly_cache().assemble(mat_form, form_compiler_parameters = self._form_compiler_parameters)
-        mat_forms[i][1] = mat_cache
+        mat_forms[i][1], mat_bc = assembly_cache().assemble(
+          mat_form,
+          form_compiler_parameters = self._form_compiler_parameters,
+          replace_map = None if deps is None else dict(zip(eq_deps, deps)))
       mat, _ = mat_bc
       if b is None:
         b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), space_fn = (eq_deps if deps is None else deps)[0])
@@ -405,8 +405,9 @@ class EquationSolver(Equation):
       static_b = static_form[1]()
       if static_b is None:
         static_form[1], static_b = assembly_cache().assemble(
-          static_form[0] if deps is None else ufl.replace(static_form[0], dict(zip(eq_deps, deps))),
-          form_compiler_parameters = self._form_compiler_parameters)
+          static_form[0],
+          form_compiler_parameters = self._form_compiler_parameters,
+          replace_map = None if deps is None else dict(zip(eq_deps, deps)))
       if b is None:
         b = rhs_copy(static_b)
       else:
@@ -425,15 +426,15 @@ class EquationSolver(Equation):
       if self._cache_jacobian:
         # Cases 1 and 2: Linear, Jacobian cached, with or without RHS assembly
         # caching
-        
-        J_mat_bc = self._forward_J_mat()
-        J_solver = self._forward_J_solver()
-        if J_mat_bc is None or J_solver is None:
-          J = self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps)))
           
+        J_mat_bc = self._forward_J_mat()
         if J_mat_bc is None:
           # Assemble and cache the Jacobian
-          self._forward_J_mat, J_mat_bc = assembly_cache().assemble(J, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+          self._forward_J_mat, J_mat_bc = assembly_cache().assemble(
+            self._J,
+            bcs = self._bcs,
+            form_compiler_parameters = self._form_compiler_parameters,
+            replace_map = None if deps is None else dict(zip(eq_deps, deps)))
         J_mat, b_bc = J_mat_bc
           
         if self._cache_rhs_assembly:
@@ -454,9 +455,13 @@ class EquationSolver(Equation):
           # Add bc RHS terms
           apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
       
+        J_solver = self._forward_J_solver()
         if J_solver is None:
           # Construct and cache the linear solver
-          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._bcs,
+          self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(
+            self._J,
+            J_mat,
+            bcs = self._bcs,
             linear_solver_parameters = self._linear_solver_parameters,
             form_compiler_parameters = self._form_compiler_parameters)
       else:
@@ -583,8 +588,10 @@ class EquationSolver(Equation):
     dF = adjoint(dF)
     
     if self._cache_rhs_assembly and is_static(dF):
-      dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
-      self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(dF, form_compiler_parameters = self._form_compiler_parameters)
+      self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(
+        dF,
+        form_compiler_parameters = self._form_compiler_parameters,
+        replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
       return matrix_multiply(mat, adj_x.vector(), space_fn = dep)
     elif self._defer_adjoint_assembly:
       self._derivative_mats[dep_index] = dF
@@ -608,9 +615,16 @@ class EquationSolver(Equation):
     if self._cache_jacobian:
       J_solver = self._adjoint_J_solver()
       if J_solver is None:
-        J = ufl.replace(adjoint(self._J), dict(zip(self.nonlinear_dependencies(), nl_deps)))
-        _, (J_mat, _) = assembly_cache().assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
-        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(J, J_mat, bcs = self._hbcs,
+        J = adjoint(self._J)
+        _, (J_mat, _) = assembly_cache().assemble(
+          J,
+          bcs = self._hbcs,
+          form_compiler_parameters = self._form_compiler_parameters,
+          replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
+        self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(
+          J,
+          J_mat,
+          bcs = self._hbcs,
           linear_solver_parameters = adjoint_solver_parameters,
           form_compiler_parameters = self._form_compiler_parameters)
       

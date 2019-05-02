@@ -186,12 +186,22 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       def adjoint_jacobian_solve(self, nl_deps, b):
         J_solver = self._adjoint_J_solver()
         if J_solver is None:
-          J = ufl.replace(adjoint(self._J), dict(zip(self.nonlinear_dependencies(), nl_deps)))
-          _, (J_mat, _) = jacobian_assembly_cache.assemble(J, bcs = self._hbcs, form_compiler_parameters = self._form_compiler_parameters)
-#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
+          J = adjoint(self._J)
+          _, (J_mat, _) = jacobian_assembly_cache.assemble(
+            J,
+            bcs = self._hbcs,
+            form_compiler_parameters = self._form_compiler_parameters,
+            replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
+#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(
+#            J, 
+#            J_mat, 
+#            bcs = self._hbcs,
 #            linear_solver_parameters = self._linear_solver_parameters,
 #            form_compiler_parameters = self._form_compiler_parameters)
-          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(J, J_mat, bcs = self._hbcs,
+          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(
+            J,
+            J_mat,
+            bcs = self._hbcs,
             linear_solver_parameters = {"linear_solver":"umfpack"},
             form_compiler_parameters = self._form_compiler_parameters)
       
