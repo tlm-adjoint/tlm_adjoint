@@ -37,6 +37,7 @@ __all__ = \
     "ReplacementFunction",
     "assembly_cache",
     "bcs_is_static",
+    "form_neg",
     "function_is_checkpointed",
     "function_is_static",
     "is_homogeneous_bcs",
@@ -147,12 +148,6 @@ def split_form(form):
   static_integrals, non_static_integrals = [], []
   
   for integral in form.integrals():
-    integral_args = [integral.integral_type(),
-                     integral.ufl_domain(),
-                     integral.subdomain_id(),
-                     {},#integral.metadata(),
-                     integral.subdomain_data()]
-  
     static_operands, non_static_operands = [], []
     for operand in expand([integral.integrand()]):
       if is_static(operand):
@@ -160,15 +155,42 @@ def split_form(form):
       else:
         non_static_operands.append(operand)
     if len(static_operands) > 0:
-      static_integrals.append(ufl.classes.Integral(sum_terms(*static_operands), *integral_args))
+      static_integrals.append(integral.reconstruct(integrand = sum_terms(*static_operands)))
     if len(non_static_operands) > 0:
-      non_static_integrals.append(ufl.classes.Integral(sum_terms(*non_static_operands), *integral_args))
+      non_static_integrals.append(integral.reconstruct(integrand = sum_terms(*non_static_operands)))
   
   static_form = ufl.classes.Form(static_integrals)
   non_static_form = ufl.classes.Form(non_static_integrals)
   
   return static_form, non_static_form
 
+def form_simplify_sign(form):
+  integrals = []
+  
+  for integral in form.integrals():
+    integrand = integral.integrand()
+    
+    sign = None
+    while isinstance(integrand, ufl.classes.Product):
+      a, b = integrand.ufl_operands
+      if isinstance(a, ufl.classes.IntValue) and a == -1:
+        sign = -1 if sign is None else -sign
+        integrand = b
+      elif isinstance(b, ufl.classes.IntValue) and b == -1:
+        sign = -1 if sign is None else -sign
+        integrand = a
+      else:
+        break
+    if not sign is None:
+      integral = integral.reconstruct(integrand = -integrand if sign < 0 else integrand)
+      
+    integrals.append(integral)
+
+  return ufl.classes.Form(integrals)
+
+def form_neg(form):
+  return form_simplify_sign(-form)
+  
 def split_action(form, x):
   if len(form.arguments()) != 1:
     # Not a linear form
@@ -194,7 +216,7 @@ def split_action(form, x):
     return ufl.classes.Form([]), form
   
   # Success
-  return lhs, -rhs
+  return form_simplify_sign(lhs), form_neg(rhs)
   
 def parameters_key(parameters):
   key = []

@@ -21,7 +21,7 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
-from .caches import Function, ReplacementFunction, assembly_cache, \
+from .caches import Function, ReplacementFunction, assembly_cache, form_neg, \
   function_is_checkpointed, function_is_static, linear_solver_cache, \
   replaced_function
 
@@ -188,9 +188,9 @@ def subtract_adjoint_derivative_action(x, y):
     x.vector().axpy(-alpha, y)
   elif isinstance(y, ufl.classes.Form):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-      x._tlm_adjoint__adj_b -= y
+      x._tlm_adjoint__adj_b += form_neg(y)
     else:
-      x._tlm_adjoint__adj_b = -y
+      x._tlm_adjoint__adj_b = form_neg(y)
   else:
     if isinstance(y, backend_Function):
       y = y.vector()

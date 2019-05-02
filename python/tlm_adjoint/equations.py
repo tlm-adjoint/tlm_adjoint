@@ -24,8 +24,8 @@ from .backend_interface import *
 
 from .base_equations import *
 from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_static, \
-  function_is_static, is_static, linear_solver_cache, new_count, split_action, \
-  split_form
+  form_neg, function_is_static, is_static, linear_solver_cache, new_count, \
+  split_action, split_form
 
 import copy
 import operator
@@ -250,7 +250,7 @@ class EquationSolver(Equation):
     if linear:
       if x in lhs.coefficients() or x in rhs.coefficients():
         raise EquationException("Invalid non-linear dependency")
-      F = ufl.action(lhs, coefficient = x) - rhs
+      F = ufl.action(lhs, coefficient = x) + form_neg(rhs)
       nl_solve_J = None
       J = lhs
     else:
@@ -647,13 +647,13 @@ class EquationSolver(Equation):
   
     tlm_rhs = ufl.classes.Zero()
     for m, dm in zip(M, dM):
-      tlm_rhs -= ufl.derivative(self._F, m, argument = dm)
+      tlm_rhs += form_neg(ufl.derivative(self._F, m, argument = dm))
       
     for dep in self.dependencies():
       if dep != x and not dep in M:
         tau_dep = tlm_map[dep]
         if not tau_dep is None:
-          tlm_rhs -= ufl.derivative(self._F, dep, argument = tau_dep)
+          tlm_rhs += form_neg(ufl.derivative(self._F, dep, argument = tau_dep))
     
     if isinstance(tlm_rhs, ufl.classes.Zero):
       return NullSolver(tlm_map[x])
