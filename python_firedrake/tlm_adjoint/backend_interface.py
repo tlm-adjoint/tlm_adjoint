@@ -22,8 +22,8 @@ from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import _caches, Function, ReplacementFunction, assembly_cache, \
-  form_neg, function_is_checkpointed, function_is_static, linear_solver_cache, \
-  replaced_function
+  form_neg, function_is_checkpointed, function_is_static, is_function, \
+  linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -64,9 +64,9 @@ __all__ = \
     "warning"
   ]
   
-def clear_caches():
+def clear_caches(*deps):
   for cache in _caches:
-    cache.clear()
+    cache.clear(*deps)
 
 def info(message):
   sys.stdout.write("%s\n" % message)
@@ -105,8 +105,7 @@ backend_Function.id = lambda self : self.count()
 
 #def replaced_function(x):
 
-def is_function(x):
-  return isinstance(x, backend_Function)
+#def is_function(x):
 
 #def function_is_static(x):
 

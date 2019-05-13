@@ -37,9 +37,11 @@ __all__ = \
     "ReplacementFunction",
     "assembly_cache",
     "bcs_is_static",
+    "form_dependency_ids",
     "form_neg",
     "function_is_checkpointed",
     "function_is_static",
+    "is_function",
     "is_static",
     "linear_solver",
     "linear_solver_cache",
@@ -236,15 +238,33 @@ class CacheRef:
 class Cache:
   def __init__(self):
     self._cache = {}
+    self._deps_map = {}
   
-  def clear(self):
-    for value in self._cache.values():
-      value._clear()
-    self._cache.clear()
+  def clear(self, *deps):
+    if len(deps) == 0:
+      for value in self._cache.values():
+        value._clear()
+      self._cache.clear()
+      self._deps_map.clear()
+    else:
+      for dep in deps:
+        dep_id = dep.id()
+        if dep_id in self._deps_map:
+          for key in self._deps_map[dep_id]:
+            self._cache[key]._clear()
+            del(self._cache[key])
+          del(self._deps_map[dep_id])
   
-  def add(self, key, value):
+  def add(self, key, value, dep_ids = []):
+    if key in self._cache:
+      raise CacheException("Duplicate key")
     value = CacheRef(value)
     self._cache[key] = value
+    for dep_id in dep_ids:
+      if dep_id in self._deps_map:
+        self._deps_map[dep_id].append(key)
+      else:
+        self._deps_map[dep_id] = [key]
     return value
   
   def get(self, key, default = None):
@@ -291,6 +311,16 @@ def replaced_form(form):
       replace_map[c] = replaced_function(c)
   return ufl.replace(form, replace_map)
 
+def is_function(x):
+  return isinstance(x, backend_Function)
+
+def form_dependency_ids(form):
+  dep_ids = set()
+  for dep in form.coefficients():
+    if is_function(dep):
+      dep_ids.add(dep.id())
+  return sorted(dep_ids)
+
 def form_key(form):
   return ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form))))
 
@@ -302,21 +332,21 @@ class AssemblyCache(Cache):
     key = assemble_key(form, bcs, form_compiler_parameters)
     value = self.get(key, None)
     if value is None:
-      if not replace_map is None: form = ufl.replace(form, replace_map)
+      assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
       rank = len(form.arguments())
       if rank == 0:
         if len(bcs) > 0:
           raise CacheException("Unexpected boundary conditions for rank 0 form")
-        b = assemble(form, form_compiler_parameters = form_compiler_parameters)
+        b = assemble(assemble_form, form_compiler_parameters = form_compiler_parameters)
       elif rank == 1:
-        b = assemble(form, form_compiler_parameters = form_compiler_parameters)
+        b = assemble(assemble_form, form_compiler_parameters = form_compiler_parameters)
         for bc in bcs:
           bc.apply(b)
       elif rank == 2:
-        b = assemble_matrix(form, bcs, form_compiler_parameters, force_evaluation = True)
+        b = assemble_matrix(assemble_form, bcs, form_compiler_parameters, force_evaluation = True)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
-      value = self.add(key, b)
+      value = self.add(key, b, dep_ids = form_dependency_ids(form))
     else:
       b = value()
       
@@ -331,7 +361,7 @@ class LinearSolverCache(Cache):
     value = self.get(key, None)
     if value is None:
       solver = linear_solver(A, linear_solver_parameters)
-      value = self.add(key, solver)
+      value = self.add(key, solver, dep_ids = form_dependency_ids(form))
     else:
       solver = value()
 

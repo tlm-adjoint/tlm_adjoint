@@ -57,7 +57,7 @@ __all__ = \
     "warning"
   ]
   
-def clear_caches():
+def clear_caches(*deps):
   pass
 
 def info(message):
