@@ -86,7 +86,7 @@ def function_space_id(space):
 def RealFunctionSpace(comm = None):
   if comm is None:
     comm = default_comm()
-  space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm), "Discontinuous Lagrange", 0)
+  space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm), "R", 0)
   space._tlm_adjoint__real_space = True
   return space
 

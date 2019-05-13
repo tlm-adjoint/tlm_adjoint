@@ -176,7 +176,6 @@ class tests(unittest.TestCase):
     stop_manager()
   
     space = RealFunctionSpace()
-    test, trial = TestFunction(space), TrialFunction(space)
     
     x = Function(space, name = "x")
     z = Function(space, name = "z")
@@ -188,10 +187,7 @@ class tests(unittest.TestCase):
 
     def forward(a, b):    
       eqs = [LinearCombinationSolver(z, (1.0, x), (1.0, b)),
-             EquationSolver(inner(test, trial) * dx == inner(test, a / sqrt(z)) * dx, x,
-               solver_parameters = {"ksp_type":"cg",
-                                    "pc_type":"jacobi",
-                                    "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})]
+             AssembleSolver((a / sqrt(z)) * dx, x)]
 
       eq = FixedPointSolver(eqs, solver_parameters = {"absolute_tolerance":0.0,
                                                       "relative_tolerance":1.0e-14})
@@ -199,7 +195,7 @@ class tests(unittest.TestCase):
       eq.solve()
       
       J = Functional(name = "J")
-      J.assign(Constant(1.0 / function_global_size(x)) * x * dx)
+      J.assign(x)
       
       return J
     
@@ -790,7 +786,6 @@ class tests(unittest.TestCase):
     stop_manager()
 
     space = RealFunctionSpace()
-    test, trial = TestFunction(space), TrialFunction(space)
     x = Function(space, name = "x", static = True)
     function_assign(x, 1.0)  
     
@@ -802,10 +797,7 @@ class tests(unittest.TestCase):
       AssignmentSolver(x, y[0]).solve()
       for i in range(len(y) - 1):
         AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
-      solve(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z[1],
-        solver_parameters = {"ksp_type":"cg",
-                             "pc_type":"jacobi",
-                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
+      AssembleSolver(y[-1] * y[-1] * dx, z[1]).solve()
       
       J = Functional(name = "J")
       J.assign(inner(z[1], z[1]) * dx)
@@ -832,7 +824,6 @@ class tests(unittest.TestCase):
     stop_manager()
   
     space = RealFunctionSpace()
-    test, trial = TestFunction(space), TrialFunction(space)
     x = Function(space, name = "x", static = True)
     function_assign(x, 16.0)  
     
@@ -843,10 +834,7 @@ class tests(unittest.TestCase):
       AssignmentSolver(x, y[0]).solve()
       for i in range(len(y) - 1):
         AssignmentSolver(y[i], y[i + 1]).solve()
-      EquationSolver(inner(test, trial) * dx == inner(test, y[-1] * y[-1]) * dx, z,
-        solver_parameters = {"ksp_type":"cg",
-                             "pc_type":"jacobi",
-                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}).solve()
+      AssembleSolver(y[-1] * y[-1] * dx, z).solve()
 
       J = Functional(name = "J")
       J.assign(inner(z, z) * dx)
