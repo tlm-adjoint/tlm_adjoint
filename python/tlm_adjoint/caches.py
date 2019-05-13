@@ -36,13 +36,15 @@ __all__ = \
     "LinearSolverCache",
     "ReplacementFunction",
     "assembly_cache",
+    "bcs_is_cached",
     "bcs_is_static",
     "form_dependency_ids",
     "form_neg",
+    "function_is_cached",
     "function_is_checkpointed",
     "function_is_static",
+    "is_cached",
     "is_function",
-    "is_static",
     "linear_solver",
     "linear_solver_cache",
     "new_count",
@@ -61,27 +63,35 @@ class Constant(backend_Constant):
   def __init__(self, *args, **kwargs):
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
+    cache = kwargs.pop("cache", static)
     
     backend_Constant.__init__(self, *args, **kwargs)
     self.__static = static
+    self.__cache = cache
   
   def is_static(self):
     return self.__static
+  
+  def is_cached(self):
+    return self.__cache
   
 class Function(backend_Function):
   def __init__(self, *args, **kwargs):
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
-    checkpoint = kwargs.pop("checkpoint", None)
-    if checkpoint is None:
-      checkpoint = not static
+    cache = kwargs.pop("cache", static)
+    checkpoint = kwargs.pop("checkpoint", not static)
     
     self.__static = static
+    self.__cache = cache
     self.__checkpoint = checkpoint
     backend_Function.__init__(self, *args, **kwargs)
   
   def is_static(self):
     return self.__static
+  
+  def is_cached(self):
+    return self.__cache
   
   def is_checkpointed(self):
     return self.__checkpoint
@@ -90,14 +100,19 @@ class DirichletBC(backend_DirichletBC):
   def __init__(self, *args, **kwargs):      
     kwargs = copy.copy(kwargs)
     static = kwargs.pop("static", False)
+    cache = kwargs.pop("cache", static)
     homogeneous = kwargs.pop("homogeneous", False)
     
     backend_DirichletBC.__init__(self, *args, **kwargs)    
     self.__static = static
+    self.__cache = cache
     self.__homogeneous = homogeneous
   
   def is_static(self):
     return self.__static
+  
+  def is_cached(self):
+    return self.__cache
   
   def is_homogeneous(self):
     return self.__homogeneous
@@ -107,14 +122,17 @@ class DirichletBC(backend_DirichletBC):
       backend_DirichletBC.homogenize(self)
       self.__homogeneous = True
 
-def is_static(e):
+def is_cached(e):
   for c in ufl.algorithms.extract_coefficients(e):
-    if not hasattr(c, "is_static") or not c.is_static():
+    if not hasattr(c, "is_cached") or not c.is_cached():
       return False
   return True
 
 def function_is_static(x):
   return x.is_static() if hasattr(x, "is_static") else False
+
+def function_is_cached(x):
+  return x.is_cached() if hasattr(x, "is_cached") else False
 
 def function_is_checkpointed(x):
   return x.is_checkpointed() if hasattr(x, "is_checkpointed") else True
@@ -122,6 +140,12 @@ def function_is_checkpointed(x):
 def bcs_is_static(bcs):
   for bc in bcs:
     if not hasattr(bc, "is_static") or not bc.is_static():
+      return False
+  return True
+
+def bcs_is_cached(bcs):
+  for bc in bcs:
+    if not hasattr(bc, "is_cached") or not bc.is_cached():
       return False
   return True
 
@@ -140,24 +164,24 @@ def split_form(form):
         new_terms.append(term)
     return new_terms
 
-  static_integrals, non_static_integrals = [], []
+  cached_integrals, non_cached_integrals = [], []
   
   for integral in form.integrals():
-    static_operands, non_static_operands = [], []
+    cached_operands, non_cached_operands = [], []
     for operand in expand([integral.integrand()]):
-      if is_static(operand):
-        static_operands.append(operand)
+      if is_cached(operand):
+        cached_operands.append(operand)
       else:
-        non_static_operands.append(operand)
-    if len(static_operands) > 0:
-      static_integrals.append(integral.reconstruct(integrand = sum_terms(*static_operands)))
-    if len(non_static_operands) > 0:
-      non_static_integrals.append(integral.reconstruct(integrand = sum_terms(*non_static_operands)))
+        non_cached_operands.append(operand)
+    if len(cached_operands) > 0:
+      cached_integrals.append(integral.reconstruct(integrand = sum_terms(*cached_operands)))
+    if len(non_cached_operands) > 0:
+      non_cached_integrals.append(integral.reconstruct(integrand = sum_terms(*non_cached_operands)))
   
-  static_form = ufl.classes.Form(static_integrals)
-  non_static_form = ufl.classes.Form(non_static_integrals)
+  cached_form = ufl.classes.Form(cached_integrals)
+  non_cached_form = ufl.classes.Form(non_cached_integrals)
   
-  return static_form, non_static_form
+  return cached_form, non_cached_form
 
 def form_simplify_sign(form, sign = None):
   integrals = []
@@ -206,8 +230,8 @@ def split_action(form, x):
     # UFL error encountered
     return ufl.classes.Form([]), form
   
-  if not is_static(lhs):
-    # Non-static bi-linear form
+  if not is_cached(lhs):
+    # Non-cached bi-linear form
     return ufl.classes.Form([]), form
   
   # Success
@@ -239,6 +263,9 @@ class Cache:
   def __init__(self):
     self._cache = {}
     self._deps_map = {}
+  
+  def __len__(self):
+    return len(self._cache)
   
   def clear(self, *deps):
     if len(deps) == 0:
@@ -280,6 +307,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__id = x.id()
     self.__name = x.name()
     self.__static = function_is_static(x)
+    self.__cache = function_is_cached(x)
     self.__checkpoint = function_is_checkpointed(x)
   
   def function_space(self):
@@ -293,6 +321,9 @@ class ReplacementFunction(ufl.classes.Coefficient):
   
   def is_static(self):
     return self.__static
+  
+  def is_cached(self):
+    return self.__cache
   
   def is_checkpointed(self):
     return self.__checkpoint

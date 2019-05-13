@@ -23,9 +23,9 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_static, \
-  form_neg, function_is_static, is_static, linear_solver_cache, new_count, \
-  split_action, split_form
+from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
+  bcs_is_static, form_neg, function_is_cached, is_cached, linear_solver_cache, \
+  new_count, split_action, split_form
 
 import copy
 import operator
@@ -219,7 +219,9 @@ def homogenized_bc(bc):
   else:
     hbc = homogenize(bc)
     static = bcs_is_static([bc])
-    hbc.is_static = static
+    hbc.is_static = lambda : static
+    cache = bcs_is_cached([bc])
+    hbc.is_cached = lambda : cache
     hbc.is_homogeneous = lambda : True
     return hbc
     
@@ -280,7 +282,7 @@ class EquationSolver(Equation):
     hbcs = [homogenized_bc(bc) for bc in bcs]
     
     if cache_jacobian is None:
-      cache_jacobian = is_static(J) and bcs_is_static(bcs)
+      cache_jacobian = is_cached(J) and bcs_is_cached(bcs)
     
     if nl_solve_J is None:
       solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
@@ -341,50 +343,50 @@ class EquationSolver(Equation):
     eq_deps = self.dependencies()
     
     if self._forward_b_pa is None:
-      # Split into static and non-static components
-      static_form, non_static_form = split_form(self._rhs)
+      # Split into cached and non-cached components
+      cached_form, non_cached_form = split_form(self._rhs)
 
       mat_forms = {}
-      if not non_static_form.empty():
+      if not non_cached_form.empty():
         for i, dep in enumerate(eq_deps):
-          mat_form, non_static_form = split_action(non_static_form, dep)
+          mat_form, non_cached_form = split_action(non_cached_form, dep)
           if not mat_form.empty():
-            # The non-static part contains a component with can be represented
-            # as the action of a static matrix ...
-            if function_is_static(dep):
-              # ... on a static dependency. This is part of the static
+            # The non-cached part contains a component with can be represented
+            # as the action of a cached matrix ...
+            if function_is_cached(dep):
+              # ... on a cached dependency. This is part of the cached
               # component.
-              static_form += ufl.action(mat_form, coefficient = dep)
+              cached_form += ufl.action(mat_form, coefficient = dep)
             else:
-              # ... on a non-static dependency.
+              # ... on a non-cached dependency.
               mat_forms[i] = [mat_form, CacheRef()]
-          if non_static_form.empty():
+          if non_cached_form.empty():
             break
 
-      if not non_static_form.empty():
-        # Attempt to split the remaining non-static component into static and
-        # non-static components
-        static_form_term, non_static_form = split_form(non_static_form)
-        static_form += static_form_term
+      if not non_cached_form.empty():
+        # Attempt to split the remaining non-cached component into cached and
+        # non-cached components
+        cached_form_term, non_cached_form = split_form(non_cached_form)
+        cached_form += cached_form_term
         
-      if non_static_form.empty():
-        non_static_form = None
+      if non_cached_form.empty():
+        non_cached_form = None
       else:
-        non_static_form = alias_form(non_static_form, eq_deps)
+        non_cached_form = alias_form(non_cached_form, eq_deps)
 
-      if static_form.empty():
-        static_form = None
+      if cached_form.empty():
+        cached_form = None
       else:
-        static_form = [static_form, CacheRef()]
+        cached_form = [cached_form, CacheRef()]
 
-      self._forward_b_pa = [static_form, mat_forms, non_static_form]
+      self._forward_b_pa = [cached_form, mat_forms, non_cached_form]
     else:
-      static_form, mat_forms, non_static_form = self._forward_b_pa
+      cached_form, mat_forms, non_cached_form = self._forward_b_pa
     
     b = None
 
-    if not non_static_form is None:
-      b = alias_assemble(non_static_form, eq_deps if deps is None else deps,
+    if not non_cached_form is None:
+      b = alias_assemble(non_cached_form, eq_deps if deps is None else deps,
         form_compiler_parameters = self._form_compiler_parameters,
         tensor = b)
      
@@ -401,17 +403,17 @@ class EquationSolver(Equation):
       else:
         b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), addto = b)
         
-    if not static_form is None:
-      static_b = static_form[1]()
-      if static_b is None:
-        static_form[1], static_b = assembly_cache().assemble(
-          static_form[0],
+    if not cached_form is None:
+      cached_b = cached_form[1]()
+      if cached_b is None:
+        cached_form[1], cached_b = assembly_cache().assemble(
+          cached_form[0],
           form_compiler_parameters = self._form_compiler_parameters,
           replace_map = None if deps is None else dict(zip(eq_deps, deps)))
       if b is None:
-        b = rhs_copy(static_b)
+        b = rhs_copy(cached_b)
       else:
-        rhs_addto(b, static_b)
+        rhs_addto(b, cached_b)
     
     apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
     return b
@@ -587,7 +589,7 @@ class EquationSolver(Equation):
       return None
     dF = adjoint(dF)
     
-    if self._cache_rhs_assembly and is_static(dF):
+    if self._cache_rhs_assembly and is_cached(dF):
       self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(
         dF,
         form_compiler_parameters = self._form_compiler_parameters,

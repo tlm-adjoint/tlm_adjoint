@@ -40,6 +40,7 @@ __all__ = \
     "function_get_values",
     "function_global_size",
     "function_inner",
+    "function_is_cached",
     "function_is_checkpointed",
     "function_is_static",
     "function_linf_norm",
@@ -86,18 +87,21 @@ def RealFunctionSpace():
 
 Function_id_counter = [0]
 class Function:
-  def __init__(self, space, name = None, static = False, checkpoint = None,
-    _data = None):
+  def __init__(self, space, name = None, static = False, cache = None,
+    checkpoint = None, _data = None):
     id = Function_id_counter[0]
     Function_id_counter[0] += 1
     if name is None:
       name = "f_%i" % id  # Following FEniCS 2017.2.0 behaviour
+    if cache is None:
+      cache = static
     if checkpoint is None:
       checkpoint = not static
     
     self._space = space
     self._name = name
     self._static = static
+    self._cache = cache
     self._checkpoint = checkpoint
     self._id = id
     self._data = numpy.zeros(space.dim(), dtype = numpy.float64) if _data is None else _data
@@ -113,6 +117,9 @@ class Function:
   
   def is_static(self):
     return self._static
+  
+  def is_cached(self):
+    return self._cache
 
   def is_checkpointed(self):
     return self._checkpoint
@@ -125,6 +132,7 @@ class ReplacementFunction:
     self._space = x.function_space()
     self._name = x.name()
     self._static = x.is_static()
+    self._cache = x.is_cached()
     self._checkpoint = x.is_checkpointed()
     self._id = x.id()
     
@@ -139,6 +147,9 @@ class ReplacementFunction:
   
   def is_static(self):
     return self._static
+  
+  def is_cached(self):
+    return self._cache
   
   def is_checkpointed(self):
     return self._checkpoint
@@ -156,12 +167,16 @@ def is_function(x):
 def function_is_static(x):
   return x.is_static()
 
+def function_is_cached(x):
+  return x.is_cached()
+
 def function_is_checkpointed(x):
   return x.is_checkpointed()
 
-def function_copy(x, name = None, static = False, checkpoint = None):
+def function_copy(x, name = None, static = False, cache = None,
+  checkpoint = None):
   return Function(x.function_space(), name = name, static = static,
-    checkpoint = checkpoint, _data = x.vector().copy())
+    cache = cache, checkpoint = checkpoint, _data = x.vector().copy())
 
 def function_assign(x, y):
   if isinstance(y, (int, float)):
@@ -222,13 +237,14 @@ def function_max_value(x):
 def function_linf_norm(x):
   return abs(x.vector()).max()
   
-def function_new(x, name = None, static = False, checkpoint = None):
+def function_new(x, name = None, static = False, cache = None,
+  checkpoint = None):
   return Function(x.function_space(), name = name, static = static,
-    checkpoint = checkpoint)
+    cache = cache, checkpoint = checkpoint)
 
 def function_alias(x):
   return Function(x.function_space(), name = x.name(), static = x.is_static(),
-    checkpoint = x.is_checkpointed(), _data = x.vector())
+    cache = x.is_cached(), checkpoint = x.is_checkpointed(), _data = x.vector())
 
 def function_zero(x):
   x.vector()[:] = 0.0

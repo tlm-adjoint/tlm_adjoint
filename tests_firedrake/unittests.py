@@ -67,6 +67,26 @@ def leak_check(test):
   
 class tests(unittest.TestCase):
   @leak_check
+  def test_Caches(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+    F = Function(space, name = "F", cache = True)
+    self.assertEqual(len(assembly_cache()), 0)
+    
+    cached_form, _ = assembly_cache().assemble(inner(test, F) * dx)
+    self.assertEqual(len(assembly_cache()), 1)
+    self.assertIsNotNone(cached_form())
+    
+    AssignmentSolver(Function(space), F).solve()
+    self.assertEqual(len(assembly_cache()), 0)
+    self.assertIsNone(cached_form())
+
+  @leak_check
   def test_LongRange(self):
     n_steps = 200
     reset("multistage", {"blocks":n_steps, "snaps_on_disk":0, "snaps_in_ram":2, "verbose":True})
@@ -939,6 +959,7 @@ if __name__ == "__main__":
 #  tests().test_FixedPointSolver()
 #  tests().test_ExprEvaluationSolver()
 #  tests().test_LongRange()
+#  tests().test_Caches()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()

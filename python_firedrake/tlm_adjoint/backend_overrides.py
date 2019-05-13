@@ -90,6 +90,9 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inve
     tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
   
   return tensor
+  
+def extract_args_linear_solve(A, x, b, bcs = None, solver_parameters = {}):
+  return A, x, b, bcs, solver_parameters
 
 def solve(*args, **kwargs):
   kwargs = copy.copy(kwargs)
@@ -126,9 +129,7 @@ def solve(*args, **kwargs):
         solver_parameters = solver_parameters, cache_jacobian = False,
         cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
-      def _extract_args(A, x, b, bcs = None, solver_parameters = {}):
-        return A, x, b, bcs, solver_parameters
-      A, x, b, bcs, solver_parameters = _extract_args(*args, **kwargs)
+      A, x, b, bcs, solver_parameters = extract_args_linear_solve(*args, **kwargs)
       
       if bcs is None:
         bcs = A._tlm_adjoint__bcs
@@ -153,6 +154,11 @@ def solve(*args, **kwargs):
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
   else:
     backend_solve(*args, **kwargs)
+    if isinstance(args[0], ufl.classes.Equation):
+      _, x, _, _, _, _, _, _, _, _, _, _ = extract_args(*args, **kwargs)
+    else:
+      _, x, _, _, _ = extract_args_linear_solve(*args, **kwargs)
+    clear_caches(x)
 
 def project(v, V, bcs = None, solver_parameters = None,
   form_compiler_parameters = None, use_slate_for_inverse = True, name = None,
@@ -174,10 +180,12 @@ def project(v, V, bcs = None, solver_parameters = None,
       cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     return x
   else:
-    return backend_project(v, V, bcs = bcs,
+    return_value = backend_project(v, V, bcs = bcs,
       solver_parameters = solver_parameters,
       form_compiler_parameters = form_compiler_parameters,
       use_slate_for_inverse = use_slate_for_inverse, name = name)
+    clear_caches(v)
+    return return_value
 
 _orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, r, u = None):
@@ -201,6 +209,8 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
     tlm = tlm_enabled()
   if annotate or tlm:
     AssignmentSolver(expr, self).solve(annotate = annotate, tlm = tlm)
+  else:
+    clear_caches(self)
   return return_value
 backend_Function.assign = _Function_assign
 
@@ -264,9 +274,11 @@ class LinearSolver(backend_LinearSolver):
 
       eq._pre_process(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)
+      clear_caches(x)
       eq._post_process(annotate = annotate, tlm = tlm)
     else:
       backend_LinearSolver.solve(self, x, b)
+      clear_caches(x)
 
 class LinearVariationalSolver(backend_LinearVariationalSolver):
   def __init__(self, *args, **kwargs):
@@ -306,6 +318,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       backend_LinearVariationalSolver.solve(self, bounds = bounds)
+      clear_caches(self.__problem.u)
 
 class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
   def __init__(self, F, u, bcs = None, J = None, Jp = None,
@@ -355,3 +368,4 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       backend_NonlinearVariationalSolver.solve(self, bounds = bounds)
+      clear_caches(self.__problem.u)

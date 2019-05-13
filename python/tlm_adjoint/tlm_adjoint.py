@@ -237,7 +237,9 @@ class TangentLinearMap:
           del(self._map[x_id])
           del(self._finalizes[x_id])
       self._finalizes[x_id] = weakref.finalize(x, callback, weakref.ref(self), x_id)
-      tlm_x = self._map[x_id] = function_new(x, name = "%s%s" % (x.name(), self._name_suffix))
+      tlm_x = self._map[x_id] = function_new(x,
+        name = "%s%s" % (x.name(), self._name_suffix), static = False,
+        cache = function_is_cached(x), checkpoint = function_is_checkpointed(x))
       tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
     return self._map[x_id]
       

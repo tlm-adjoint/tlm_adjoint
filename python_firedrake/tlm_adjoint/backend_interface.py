@@ -22,8 +22,8 @@ from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import _caches, Function, ReplacementFunction, assembly_cache, \
-  form_neg, function_is_checkpointed, function_is_static, is_function, \
-  linear_solver_cache, replaced_function
+  form_neg, function_is_cached, function_is_checkpointed, function_is_static, \
+  is_function, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -47,6 +47,7 @@ __all__ = \
     "function_get_values",
     "function_global_size",
     "function_inner",
+    "function_is_cached",
     "function_is_checkpointed",
     "function_is_static",
     "function_linf_norm",
@@ -91,7 +92,8 @@ def RealFunctionSpace(comm = None):
   return space
 
 #class Function:
-#  def __init__(self, space, name = None, static = False, checkpoint = None):
+#  def __init__(self, space, name = None, static = False, cache = None,
+#  checkpoint = None):
 #  def function_space(self):
 #  def id(self):
 #  def name(self):
@@ -109,12 +111,18 @@ backend_Function.id = lambda self : self.count()
 
 #def function_is_static(x):
 
+#def function_is_cached(x):
+
 #def function_is_checkpointed(x):
 
-def function_copy(x, name = None, static = False, checkpoint = None):
+def function_copy(x, name = None, static = False, cache = None,
+  checkpoint = None):
   y = x.copy(deepcopy = True)
   if not name is None: y.rename(name, "a Function")
   y.is_static = lambda : static
+  if cache is None:
+    cache = static
+  y.is_cached = lambda : cache
   if checkpoint is None:
     checkpoint = not static
   y.is_checkpointed = lambda : checkpoint
@@ -160,14 +168,15 @@ def function_linf_norm(x):
   import petsc4py.PETSc
   return x_v.norm(norm_type = petsc4py.PETSc.NormType.NORM_INFINITY)
   
-def function_new(x, name = None, static = False, checkpoint = None):
+def function_new(x, name = None, static = False, cache = None,
+  checkpoint = None):
   return Function(x.function_space(), name = name, static = static,
-    checkpoint = checkpoint)
+    cache = cache, checkpoint = checkpoint)
 
 def function_alias(x):
   return Function(x.function_space(), name = x.name(),
-    static = function_is_static(x), checkpoint = function_is_checkpointed(x),
-    val = x.dat)
+    static = function_is_static(x), cache = function_is_cached(x),
+    checkpoint = function_is_checkpointed(x), val = x.dat)
 
 def function_zero(x):
   x.vector()[:] = 0.0
