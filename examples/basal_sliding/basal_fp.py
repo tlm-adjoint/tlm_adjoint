@@ -398,7 +398,7 @@ def eigendecompose_configure(esolver):
   esolver.setTolerances(tol = 1.0e-8, max_it = slepc4py.SLEPc.DECIDE)
 lam, (V, _) = eigendecompose(space, A_action, configure = eigendecompose_configure)
 lam = lam.real
-pack = sorted([(lam_val, v) for lam_val, v in zip(lam, V)], key = lambda p : p[0], reverse = True)
+pack = sorted(zip(lam, V), key = lambda p : p[0], reverse = True)
 lam = [p[0] for p in pack]
 V = [p[1] for p in pack]
 

@@ -123,8 +123,8 @@ N = FinalTimeLevel()
 
 class TimeLevels:
   def __init__(self, levels, cycle_map):
-    levels = tuple(sorted(tuple(set(levels))))    
-    cycle_map = OrderedDict(sorted([(target_level, source_level) for target_level, source_level in cycle_map.items()], key = lambda i : i[0]))
+    levels = tuple(sorted(set(levels)))
+    cycle_map = OrderedDict(sorted(cycle_map.items(), key = lambda i : i[0]))
     
     self._levels = levels
     self._cycle_map = cycle_map
