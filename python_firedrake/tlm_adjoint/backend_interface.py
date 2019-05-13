@@ -88,7 +88,6 @@ def RealFunctionSpace(comm = None):
   if comm is None:
     comm = default_comm()
   space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm), "R", 0)
-  space._tlm_adjoint__real_space = True
   return space
 
 #class Function:

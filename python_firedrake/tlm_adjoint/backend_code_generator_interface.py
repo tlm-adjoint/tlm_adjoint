@@ -129,7 +129,8 @@ def matrix_multiply(A, x, addto = None, space_fn = None):
     return addto
 
 def is_real_function(x):
-  return getattr(x.function_space(), "_tlm_adjoint__real_space", False)
+  e = x.ufl_element()
+  return e.family() == "Real" and e.degree() == 0
 
 def rhs_copy(x):
   return x.copy(deepcopy = True)
