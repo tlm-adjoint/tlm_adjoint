@@ -210,6 +210,7 @@ class LocalProjectionSolver(EquationSolver):
     else:    
       return LocalProjectionSolver(tlm_rhs, tlm_map[x],
         form_compiler_parameters = self._form_compiler_parameters,
+        cache_jacobian = self._cache_jacobian,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
 
