@@ -48,8 +48,10 @@ __all__ = \
     "function_local_size",
     "function_max_value",
     "function_new",
+    "function_new_tlm",
     "function_set_values",
     "function_space_id",
+    "function_tlm_depth",
     "function_zero",
     "info",
     "is_function",
@@ -88,7 +90,7 @@ def RealFunctionSpace():
 Function_id_counter = [0]
 class Function:
   def __init__(self, space, name = None, static = False, cache = None,
-    checkpoint = None, _data = None):
+    checkpoint = None, tlm_depth = 0, _data = None):
     id = Function_id_counter[0]
     Function_id_counter[0] += 1
     if name is None:
@@ -103,6 +105,7 @@ class Function:
     self._static = static
     self._cache = cache
     self._checkpoint = checkpoint
+    self._tlm_depth = tlm_depth
     self._id = id
     self._data = numpy.zeros(space.dim(), dtype = numpy.float64) if _data is None else _data
     
@@ -124,6 +127,17 @@ class Function:
   def is_checkpointed(self):
     return self._checkpoint
   
+  def tlm_depth(self):
+    return self._tlm_depth
+  
+  def new_tlm(self, name = None):
+    if self.is_static():
+      return None
+    else:
+      return Function(self.function_space(), name = name, static = False,
+        cache = self.is_cached(), checkpoint = self.is_checkpointed(),
+        tlm_depth = self.tlm_depth() + 1)
+  
   def vector(self):
     return self._data
 
@@ -134,6 +148,7 @@ class ReplacementFunction:
     self._static = x.is_static()
     self._cache = x.is_cached()
     self._checkpoint = x.is_checkpointed()
+    self._tlm_depth = x.tlm_depth()
     self._id = x.id()
     
   def function_space(self):
@@ -153,6 +168,9 @@ class ReplacementFunction:
   
   def is_checkpointed(self):
     return self._checkpoint
+  
+  def tlm_depth(self):
+    return self._tlm_depth
     
 def replaced_function(x):
   if isinstance(x, ReplacementFunction):
@@ -173,10 +191,14 @@ def function_is_cached(x):
 def function_is_checkpointed(x):
   return x.is_checkpointed()
 
+def function_tlm_depth(x):
+  return x.tlm_depth()
+
 def function_copy(x, name = None, static = False, cache = None,
-  checkpoint = None):
+  checkpoint = None, tlm_depth = 0):
   return Function(x.function_space(), name = name, static = static,
-    cache = cache, checkpoint = checkpoint, _data = x.vector().copy())
+    cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth,
+    _data = x.vector().copy())
 
 def function_assign(x, y):
   if isinstance(y, (int, float)):
@@ -238,13 +260,17 @@ def function_linf_norm(x):
   return abs(x.vector()).max()
   
 def function_new(x, name = None, static = False, cache = None,
-  checkpoint = None):
+  checkpoint = None, tlm_depth = 0):
   return Function(x.function_space(), name = name, static = static,
-    cache = cache, checkpoint = checkpoint)
+    cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth)
+
+def function_new_tlm(x, name = None):
+  return x.new_tlm(name = name)
 
 def function_alias(x):
   return Function(x.function_space(), name = x.name(), static = x.is_static(),
-    cache = x.is_cached(), checkpoint = x.is_checkpointed(), _data = x.vector())
+    cache = x.is_cached(), checkpoint = x.is_checkpointed(),
+    tlm_depth = x.tlm_depth(), _data = x.vector())
 
 def function_zero(x):
   x.vector()[:] = 0.0

@@ -23,7 +23,7 @@ from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import _caches, Function, ReplacementFunction, assembly_cache, \
   form_neg, function_is_cached, function_is_checkpointed, function_is_static, \
-  is_function, linear_solver_cache, replaced_function
+  function_tlm_depth, is_function, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -55,8 +55,10 @@ __all__ = \
     "function_local_size",
     "function_max_value",
     "function_new",
+    "function_new_tlm",
     "function_set_values",
     "function_space_id",
+    "function_tlm_depth",
     "function_zero",
     "info",
     "is_function",
@@ -89,7 +91,7 @@ def RealFunctionSpace(comm = None):
 
 #class Function:
 #  def __init__(self, space, name = None, static = False, cache = None,
-#  checkpoint = None):
+#  checkpoint = None, tlm_depth = 0):
 #  def function_space(self):
 #  def id(self):
 #  def name(self):
@@ -110,8 +112,10 @@ def RealFunctionSpace(comm = None):
 
 #def function_is_checkpointed(x):
 
+#def function_tlm_depth(x):
+
 def function_copy(x, name = None, static = False, cache = None,
-  checkpoint = None):
+  checkpoint = None, tlm_depth = 0):
   y = x.copy(deepcopy = True)
   if not name is None: y.rename(name, "a Function")
   y.is_static = lambda : static
@@ -121,6 +125,7 @@ def function_copy(x, name = None, static = False, cache = None,
   if checkpoint is None:
     checkpoint = not static
   y.is_checkpointed = lambda : checkpoint
+  y.tlm_depth = lambda : tlm_depth
   return y
 
 def function_assign(x, y):
@@ -159,15 +164,25 @@ def function_linf_norm(x):
   return x.vector().norm("linf")
   
 def function_new(x, name = None, static = False, cache = None,
-  checkpoint = None):
+  checkpoint = None, tlm_depth = 0):
   if isinstance(x, backend_Function):
     y = function_copy(x, name = name, static = static, cache = cache,
-      checkpoint = checkpoint)
+      checkpoint = checkpoint, tlm_depth = tlm_depth)
     y.vector().zero()
     return y
   else:
     return Function(x.function_space(), name = name, static = static,
-      cache = cache, checkpoint = checkpoint)
+      cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth)
+
+def function_new_tlm(x, name = None):
+  if hasattr(x, "new_tlm"):
+    return x.new_tlm(name = name)
+  elif function_is_static(x):
+    return None
+  else:
+    return function_new(x, name = name, static = False,
+      cache = function_is_cached(x), checkpoint = function_is_checkpointed(x),
+      tlm_depth = function_tlm_depth(x) + 1)
 
 def function_alias(x):
   y = x.copy(deepcopy = False)
@@ -178,6 +193,8 @@ def function_alias(x):
   y.is_cached = lambda : cache
   checkpoint = function_is_checkpointed(x)
   y.is_checkpointed = lambda : checkpoint
+  tlm_depth = function_tlm_depth(x)
+  y.tlm_depth = lambda : tlm_depth
   return y
 
 def function_zero(x):

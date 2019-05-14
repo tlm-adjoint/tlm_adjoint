@@ -53,7 +53,6 @@ __all__ = \
     "stop_tlm",
     "taylor_test",
     "tlm",
-    "tlm_depth",
     "tlm_enabled"
   ]
 
@@ -205,9 +204,6 @@ class CheckpointStorage:
               self._refs[eq_dep_id] = dep
         dep_keys.append(dep_key)
       self._deps[key] = dep_keys
-
-def tlm_depth(x):
-  return getattr(x, "_tlm_adjoint__tlm_depth", 0)
       
 class TangentLinearMap:
   """
@@ -227,8 +223,8 @@ class TangentLinearMap:
     return x.id() in self._map
   
   def __getitem__(self, x):
-    if function_is_static(x):
-      return None
+    if not is_function(x):
+      raise ManagerException("x must be a Function")
     x_id = x.id()
     if not x_id in self._map:
       def callback(self_ref, x_id):
@@ -237,10 +233,8 @@ class TangentLinearMap:
           del(self._map[x_id])
           del(self._finalizes[x_id])
       self._finalizes[x_id] = weakref.finalize(x, callback, weakref.ref(self), x_id)
-      tlm_x = self._map[x_id] = function_new(x,
-        name = "%s%s" % (x.name(), self._name_suffix), static = False,
-        cache = function_is_cached(x), checkpoint = function_is_checkpointed(x))
-      tlm_x._tlm_adjoint__tlm_depth = tlm_depth(x) + 1
+      tlm_x = self._map[x_id] = function_new_tlm(x,
+        name = "%s%s" % (x.name(), self._name_suffix))
     return self._map[x_id]
       
 class ReplayStorage:
@@ -785,7 +779,6 @@ class EquationManager:
         raise ManagerException("Cannot add tangent-linear equations after finalisation")
 
       X = eq.X()
-      eq_tlm_depth = tlm_depth(X[0])
       depth = 0 if tlm_skip is None else tlm_skip[1]
       if annotate_tlm is None:
         annotate_tlm = annotate
@@ -826,8 +819,6 @@ class EquationManager:
       dep_id = dep.id()
       if not dep_id in self._replace_map:
         replaced_dep = self._replace_map[dep_id] = replaced_function(dep)
-        if hasattr(dep, "_tlm_adjoint__tlm_depth"):
-          replaced_dep._tlm_adjoint__tlm_depth = dep._tlm_adjoint__tlm_depth      
     eq._replace({dep:self._replace_map[dep.id()] for dep in deps})
     if eq_id in self._tlm_eqs:
       for tlm_eq in self._tlm_eqs[eq_id].values():

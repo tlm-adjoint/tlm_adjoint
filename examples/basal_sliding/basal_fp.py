@@ -172,7 +172,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
 #        info("%s J form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._J, parameters["form_compiler"])))
     
       def forward_solve(self, x, deps = None):
-        depth = tlm_depth(self.x())
+        depth = function_tlm_depth(self.x())
         if depth > 0:
           old_assembly_cache = assembly_cache()
           old_linear_solver_cache = linear_solver_cache()
@@ -269,7 +269,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       def tangent_linear(self, M, dM, tlm_map):
         tlm_eq = FixedPointSolver.tangent_linear(self, M, dM, tlm_map)
         def tlm_forward_solve(self, X, deps = None):
-          if tlm_depth(self.X()[2]) == 1:
+          if function_tlm_depth(self.X()[2]) == 1:
             self._eqs[2].reset_adjoint_jacobian_solve()
           FixedPointSolver.forward_solve(self, X, deps = deps)
         tlm_eq.forward_solve = types.MethodType(tlm_forward_solve, tlm_eq)

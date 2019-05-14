@@ -43,6 +43,7 @@ __all__ = \
     "function_is_cached",
     "function_is_checkpointed",
     "function_is_static",
+    "function_tlm_depth",
     "is_cached",
     "is_function",
     "linear_solver",
@@ -81,10 +82,12 @@ class Function(backend_Function):
     static = kwargs.pop("static", False)
     cache = kwargs.pop("cache", static)
     checkpoint = kwargs.pop("checkpoint", not static)
+    tlm_depth = kwargs.pop("tlm_depth", 0)
     
     self.__static = static
     self.__cache = cache
     self.__checkpoint = checkpoint
+    self.__tlm_depth = tlm_depth
     backend_Function.__init__(self, *args, **kwargs)
   
   def is_static(self):
@@ -95,6 +98,17 @@ class Function(backend_Function):
   
   def is_checkpointed(self):
     return self.__checkpoint
+  
+  def tlm_depth(self):
+    return self.__tlm_depth
+  
+  def new_tlm(self, name = None):
+    if self.is_static():
+      return None
+    else:
+      return Function(self.function_space(), name = name, static = False,
+        cache = self.is_cached(), checkpoint = self.is_checkpointed(),
+        tlm_depth = self.tlm_depth() + 1)
 
 class DirichletBC(backend_DirichletBC):
   def __init__(self, *args, **kwargs):      
@@ -136,6 +150,9 @@ def function_is_cached(x):
 
 def function_is_checkpointed(x):
   return x.is_checkpointed() if hasattr(x, "is_checkpointed") else True
+
+def function_tlm_depth(x):
+  return x.tlm_depth() if hasattr(x, "tlm_depth") else 0
 
 def bcs_is_static(bcs):
   for bc in bcs:
@@ -309,6 +326,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__static = function_is_static(x)
     self.__cache = function_is_cached(x)
     self.__checkpoint = function_is_checkpointed(x)
+    self.__tlm_depth = function_tlm_depth(x)
   
   def function_space(self):
     return self.__space
@@ -327,6 +345,9 @@ class ReplacementFunction(ufl.classes.Coefficient):
   
   def is_checkpointed(self):
     return self.__checkpoint
+  
+  def tlm_depth(self):
+    return self.__tlm_depth
 
 def replaced_function(x):
   if isinstance(x, ReplacementFunction):
