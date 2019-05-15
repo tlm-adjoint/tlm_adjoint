@@ -294,21 +294,28 @@ class Cache:
       for dep in deps:
         dep_id = dep.id()
         if dep_id in self._deps_map:
-          for key in self._deps_map[dep_id]:
+          for key, dep_ids in self._deps_map[dep_id].items():
             self._cache[key]._clear()
             del(self._cache[key])
+            for dep_id2 in dep_ids:
+              if dep_id2 != dep_id:
+                del(self._deps_map[dep_id2][key])
           del(self._deps_map[dep_id])
   
   def add(self, key, value, dep_ids = []):
     if key in self._cache:
       raise CacheException("Duplicate key")
     value = CacheRef(value)
+    dep_ids = tuple(dep_ids)
+    
     self._cache[key] = value
+    
     for dep_id in dep_ids:
       if dep_id in self._deps_map:
-        self._deps_map[dep_id].append(key)
+        self._deps_map[dep_id][key] = dep_ids
       else:
-        self._deps_map[dep_id] = [key]
+        self._deps_map[dep_id] = {key:dep_ids}
+    
     return value
   
   def get(self, key, default = None):
