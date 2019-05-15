@@ -81,6 +81,8 @@ class Equation:
     for x in X:
       if not is_function(x):
         raise EquationException("Solution must be a Function")
+      if function_is_static(x):
+        raise EquationException("Solution cannot be static")
       if not x in deps:
         raise EquationException("Solution must be a dependency")
     dep_ids = {dep.id():i for i, dep in enumerate(deps)}
