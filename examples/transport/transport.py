@@ -257,6 +257,7 @@ for i in range(H.shape[0]):
   dm = Function(inflow_space, static = True)
   dm.vector()[i] = 1.0
   H[i, :] = function_get_values(ddJ.action(T_inflow, dm)[2])
+  clear_caches(dm)
   del(dm)
 
 # Solve the optimization problem
@@ -327,6 +328,7 @@ if verify:
       dm = Function(inflow_space, static = True)
       dm.vector()[i] = 1.0
       H[i, :] = function_get_values(ddJ.action(T_inflow, dm)[2])
+      clear_caches(dm)
       del(dm)
     del(ddJ)
 

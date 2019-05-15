@@ -199,7 +199,6 @@ class Equation:
     annotation_enabled, tlm_enabled = manager.stop()
     X = self.X()
     self.forward_solve(X[0] if len(X) == 1 else X)
-    clear_caches(*X)
     manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
     self._post_process(manager = manager, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = _tlm_skip)

@@ -383,7 +383,6 @@ A_action_calls = [0]
 def A_action(x):
   A_action_calls[0] += 1
   info("A_action call %i" % A_action_calls[0])
-  clear_caches()
   _, _, H_action = ddJ.action(beta_sq_ref, x)
   A_action = Function(space)
   M_solver.solve(A_action.vector(), H_action.vector())

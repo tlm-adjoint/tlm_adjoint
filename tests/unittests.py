@@ -66,7 +66,7 @@ def leak_check(test):
   
 class tests(unittest.TestCase):
   @leak_check
-  def test_Caches(self):
+  def test_clear_caches(self):
     reset("memory", {"replace":True})
     clear_caches()
     stop_manager()
@@ -81,7 +81,7 @@ class tests(unittest.TestCase):
     self.assertEqual(len(assembly_cache()), 1)
     self.assertIsNotNone(cached_form())
     
-    AssignmentSolver(Function(space), F).solve()
+    clear_caches(F)
     self.assertEqual(len(assembly_cache()), 0)
     self.assertIsNone(cached_form())
 
@@ -1120,7 +1120,7 @@ if __name__ == "__main__":
 #  tests().test_ExprEvaluationSolver()
 #  tests().test_LongRange()
 #  tests().test_LocalProjectionSolver()
-#  tests().test_Caches()
+#  tests().test_clear_caches()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()

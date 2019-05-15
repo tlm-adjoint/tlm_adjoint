@@ -199,11 +199,6 @@ def solve(*args, **kwargs):
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
   else:
     backend_solve(*args, **kwargs)
-    if isinstance(args[0], ufl.classes.Equation):
-      _, x, _, _, _, _, _, _ = extract_args(*args, **kwargs)
-    else:
-      _, x, _ = extract_args_linear_solve(*args, **kwargs)
-    clear_caches(x)
 
 def project(v, V = None, bcs = None, mesh = None, function = None,
   solver_type = "lu", preconditioner_type = "default",
@@ -231,12 +226,10 @@ def project(v, V = None, bcs = None, mesh = None, function = None,
       # ?? Other solver parameters ?
     return x
   else:
-    return_value = backend_project(v, V = V, bcs = bcs, mesh = mesh,
+    return backend_project(v, V = V, bcs = bcs, mesh = mesh,
       function = function, solver_type = solver_type,
       preconditioner_type = preconditioner_type,
       form_compiler_parameters = form_compiler_parameters)
-    clear_caches(v)
-    return return_value
 
 _orig_DirichletBC_apply = backend_DirichletBC.apply
 def _DirichletBC_apply(self, *args):
@@ -272,8 +265,6 @@ def _Function_assign(self, rhs, annotate = None, tlm = None):
     tlm = tlm_enabled()
   if annotate or tlm:
     AssignmentSolver(rhs, self).solve(annotate = annotate, tlm = tlm)
-  else:
-    clear_caches(self)
   return return_value
 backend_Function.assign = _Function_assign
 
@@ -336,15 +327,7 @@ class LUSolver(backend_LUSolver):
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x._tlm_adjoint__function,
         bcs, solver_parameters = {"linear_solver":self.__linear_solver, "lu_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
-      clear_caches(x._tlm_adjoint__function)
       eq._post_process(annotate = annotate, tlm = tlm)
-    else:
-      if isinstance(args[0], backend_Matrix):
-        _, x, _ = args
-      else:
-        x, _ = args
-      if hasattr(x, "_tlm_adjoint__function"):
-        clear_caches(x._tlm_adjoint__function)       
 
 class KrylovSolver(backend_KrylovSolver):
   def __init__(self, *args):
@@ -396,16 +379,9 @@ class KrylovSolver(backend_KrylovSolver):
 
       eq._pre_process(annotate = annotate)
       backend_KrylovSolver.solve(self, *args)
-      clear_caches(x._tlm_adjoint__function)
       eq._post_process(annotate = annotate, tlm = tlm)
     else:
       backend_KrylovSolver.solve(self, *args)
-      if isinstance(args[0], backend_Matrix):
-        _, x, _ = args
-      else:
-        x, _ = args
-      if hasattr(x, "_tlm_adjoint__function"):
-        clear_caches(x._tlm_adjoint__function)
       
 class LinearVariationalSolver(backend_LinearVariationalSolver):
   def __init__(self, problem):
@@ -425,7 +401,6 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       backend_LinearVariationalSolver.solve(self)
-      clear_caches(self.__problem.u_ufl)
 
 class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
   def __init__(self, F, u, bcs = None, J = None,
@@ -462,10 +437,7 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
         
       eq._pre_process(annotate = annotate)
       return_value = backend_NonlinearVariationalSolver.solve(self)
-      clear_caches(self.__problem.u_ufl)
       eq._post_process(annotate = annotate, tlm = tlm)
       return return_value
     else:
-      return_value = backend_NonlinearVariationalSolver.solve(self)
-      clear_caches(self.__problem.u_ufl)
-      return return_value
+      return backend_NonlinearVariationalSolver.solve(self)
