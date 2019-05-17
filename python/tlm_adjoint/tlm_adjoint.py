@@ -1464,16 +1464,16 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
 # dolfin-adjoint taylor_test function in dolfin-adjoint 2017.1.0. Arguments
 # based on dolfin-adjoint taylor_test arguments
 #   forward (renamed from J)
-#   m
+#   M (renamed from m)
 #   J_val (renamed from Jm)
 #   dJ (renamed from dJdm)
 #   ddJ (renamed from HJm)
 #   seed
-#   dm (renamed from perturbation_direction)
-#   m0 (renamed from value)
+#   dM (renamed from perturbation_direction)
+#   M0 (renamed from value)
 #   size
-def taylor_test(forward, m, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
-  dm = None, m0 = None, size = 5, manager = None):
+def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
+  dM = None, M0 = None, size = 5, manager = None):
   """
   Perform a Taylor verification test.
   
@@ -1481,7 +1481,7 @@ def taylor_test(forward, m, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
   
   forward  A callable which takes as input a Function defining the value of the
            control, and returns the Functional.
-  m        A Control or Function. The control.
+  M        A Control or Function, or a list or tuple of these. The control.
   J_val    The reference functional value.
   dJ       (Optional if ddJ is not supplied) A Function storing the derivative
            of J with respect to m.
@@ -1490,36 +1490,54 @@ def taylor_test(forward, m, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
   seed     (Optional) The maximum scaling for the perturbation is seed
            multiplied by the inf norm of the reference value (coefficients
            vector) of the control (or 1 if this is less than 1).
-  dm       A perturbation direction. A Function with values generated using
-           numpy.random.random is used if not supplied.
-  m0       (Optional) The reference value of the control.
+  dM       A perturbation direction. Values generated using numpy.random.random
+           are used if not supplied.
+  M0       (Optional) The reference value of the control.
   size     (Optional) The number of perturbed forward runs used in the test.
   manager  (Optional) The equation manager.
   """
+  
+  if not isinstance(M, (list, tuple)):
+    return taylor_test(forward, [M,], J_val, dJ = None if dJ is None else [dJ],
+      ddJ = ddJ, seed = seed, dM = None if dM is None else [dM],
+      M0 = None if M0 is None else [M0], size = size, manager = manager)
 
   if manager is None:
     manager = _manager()
 
-  if not is_function(m):
-    m = m.m()
-  if m0 is None:
-    m0 = manager.initial_condition(m)
-  m1 = function_new(m, static = function_is_static(m))
+  M = [m.m() if not is_function(m) else m for m in M]
+  if M0 is None:
+    M0 = [manager.initial_condition(m) for m in M]
+  M1 = [function_new(m, static = function_is_static(m)) for m in M]
+
+  def functions_inner(X, Y):
+    inner = 0.0
+    for x, y in zip(X, Y):
+      inner += function_inner(x, y)
+    return inner
+  
+  def functions_linf_norm(X):
+    norm = 0.0
+    for x in X:
+      norm = max(norm, function_linf_norm(x))
+    return norm
   
   # This combination seems to reproduce dolfin-adjoint behaviour
   eps = numpy.array([2 ** -p for p in range(size)], dtype = numpy.float64)
-  eps = seed * eps * max(1.0, function_linf_norm(m0))
-  if dm is None:
-    dm = function_new(m1, static = True)
-    function_set_values(dm, numpy.random.random(function_local_size(dm)))
+  eps = seed * eps * max(1.0, functions_linf_norm(M0))
+  if dM is None:
+    dM = [function_new(m1, static = True) for m1 in M1]
+    for dm in dM:
+      function_set_values(dm, numpy.random.random(function_local_size(dm)))
   
   J_vals = numpy.empty(eps.shape, dtype = numpy.float64)
   for i in range(eps.shape[0]):
-    function_assign(m1, m0)
-    function_axpy(m1, eps[i], dm)
+    for m0, m1, dm in zip(M0, M1, dM):
+      function_assign(m1, m0)
+      function_axpy(m1, eps[i], dm)
     clear_caches()  # Could use new caches here
     annotation_enabled, tlm_enabled = manager.stop()
-    J_vals[i] = forward(m1).value()
+    J_vals[i] = forward(*M1).value()
     manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
   
   errors_0 = abs(J_vals - J_val)
@@ -1528,18 +1546,18 @@ def taylor_test(forward, m, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
   info("Orders, no adjoint   = %s" % orders_0)
 
   if ddJ is None:
-    errors_1 = abs(J_vals - J_val - eps * function_inner(dJ, dm))
+    errors_1 = abs(J_vals - J_val - eps * functions_inner(dJ, dM))
     orders_1 = numpy.log(errors_1[1:] / errors_1[:-1]) / numpy.log(0.5)  
     info("Errors, with adjoint = %s" % errors_1)
     info("Orders, with adjoint = %s" % orders_1)
     return orders_1.min()
   else:
     if dJ is None:
-      _, dJ, ddJ = ddJ.action(m, dm)
+      _, dJ, ddJ = ddJ.action(M, dM)
     else:
-      dJ = function_inner(dJ, dm)
-      _, _, ddJ = ddJ.action(m, dm)
-    errors_2 = abs(J_vals - J_val - eps * dJ - 0.5 * eps * eps * function_inner(ddJ, dm))
+      dJ = functions_inner(dJ, dM)
+      _, _, ddJ = ddJ.action(M, dM)
+    errors_2 = abs(J_vals - J_val - eps * dJ - 0.5 * eps * eps * functions_inner(ddJ, dM))
     orders_2 = numpy.log(errors_2[1:] / errors_2[:-1]) / numpy.log(0.5)  
     info("Errors, with adjoint = %s" % errors_2)
     info("Orders, with adjoint = %s" % orders_2)  

@@ -381,17 +381,17 @@ class tests(unittest.TestCase):
     dJda, dJdb = compute_gradient(J, [a, b])
     dm = Function(space, name = "dm", static = True)
     function_assign(dm, 1.0)
-    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), dJ = dJda, dm = dm)
+    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), dJ = dJda, dM = dm)
     self.assertGreater(min_order, 1.99)
-    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), dJ = dJdb, dm = dm)
+    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), dJ = dJdb, dM = dm)
     self.assertGreater(min_order, 1.99)
     
     ddJ = Hessian(lambda a : forward(a, b))
-    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), ddJ = ddJ, dm = dm)
+    min_order = taylor_test(lambda a : forward(a, b), a, J_val = J.value(), ddJ = ddJ, dM = dm)
     self.assertGreater(min_order, 2.99)
     
     ddJ = Hessian(lambda b : forward(a, b))
-    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), ddJ = ddJ, dm = dm)
+    min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), ddJ = ddJ, dM = dm)
     self.assertGreater(min_order, 2.99)
 
   @leak_check
@@ -905,7 +905,7 @@ class tests(unittest.TestCase):
       self.assertGreater(min_order, 1.99)
       dm = Function(space_r0, name = "dm", static = True)
       function_assign(dm, 1.0)
-      min_order = taylor_test(lambda kappa : forward(T_0, kappa), controls[1], J_val = J_val, dJ = dJ[1], dm = dm)  # Usage as in dolfin-adjoint tests
+      min_order = taylor_test(lambda kappa : forward(T_0, kappa), controls[1], J_val = J_val, dJ = dJ[1], dM = dm)  # Usage as in dolfin-adjoint tests
       self.assertGreater(min_order, 1.99)
 
   @leak_check
@@ -958,11 +958,11 @@ class tests(unittest.TestCase):
     dJ = compute_gradient(J, T_0)    
     dm = Function(space, name = "dm", static = True)
     function_assign(dm, 1.0)
-    min_order = taylor_test(forward, T_0, J_val = J_val, dJ = dJ, dm = dm)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(forward, T_0, J_val = J_val, dJ = dJ, dM = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
     
     ddJ = Hessian(forward)
-    min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(forward, T_0, J_val = J_val, ddJ = ddJ, dM = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.99)
 
   @leak_check
@@ -1000,7 +1000,7 @@ class tests(unittest.TestCase):
     dJ = compute_gradient(J, x)    
     dm = Function(space, name = "dm", static = True)
     function_assign(dm, 1.0)
-    min_order = taylor_test(forward, x, J_val = J_val, dJ = dJ, dm = dm)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(forward, x, J_val = J_val, dJ = dJ, dM = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
 
   @leak_check
@@ -1043,13 +1043,13 @@ class tests(unittest.TestCase):
     dJs = compute_gradient([J, K], x)    
     dm = Function(space, name = "dm", static = True)
     function_assign(dm, 1.0)
-    min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, dJ = dJs[0], dm = dm)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, dJ = dJs[0], dM = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
-    min_order = taylor_test(lambda x : forward(x)[1], x, J_val = K_val, dJ = dJs[1], dm = dm)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(lambda x : forward(x)[1], x, J_val = K_val, dJ = dJs[1], dM = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 2.00)
 
     ddJ = Hessian(lambda m : forward(m)[0])
-    min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, ddJ = ddJ, dm = dm)  # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(lambda x : forward(x)[0], x, J_val = J_val, ddJ = ddJ, dM = dm)  # Usage as in dolfin-adjoint tests
     self.assertGreater(min_order, 3.00)
   
   @leak_check

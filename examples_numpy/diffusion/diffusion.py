@@ -262,5 +262,5 @@ info("Error = %.16e" % abs(dJ_dkappa_tlm - dJ_dkappa_adj))
 assert(abs(dJ_dkappa_tlm - dJ_dkappa_adj) < 1.0e-14)
 
 ddJ = Hessian(lambda kappa : forward(psi_0, kappa))
-min_order = taylor_test(lambda kappa : forward_reference(psi_0, kappa), kappa, m0 = kappa, J_val = J_ref.value(), dJ = dJ_dkappa, ddJ = ddJ, seed = 1.0e-2)
+min_order = taylor_test(lambda kappa : forward_reference(psi_0, kappa), kappa, M0 = kappa, J_val = J_ref.value(), dJ = dJ_dkappa, ddJ = ddJ, seed = 1.0e-2)
 assert(min_order > 2.96)
