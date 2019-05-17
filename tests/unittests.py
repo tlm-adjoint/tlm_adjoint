@@ -393,6 +393,15 @@ class tests(unittest.TestCase):
     ddJ = Hessian(lambda b : forward(a, b))
     min_order = taylor_test(lambda b : forward(a, b), b, J_val = J.value(), ddJ = ddJ, dM = dm)
     self.assertGreater(min_order, 2.99)
+    
+    # Multi-control Taylor verification
+    min_order = taylor_test(forward, [a, b], J_val = J.value(), dJ = [dJda, dJdb], dM = [dm, dm])
+    self.assertGreater(min_order, 1.99)
+    
+    # Multi-control Hessian action with Taylor verification
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, [a, b], J_val = J.value(), ddJ = ddJ, dM = [dm, dm])
+    self.assertGreater(min_order, 2.99)
 
   @leak_check
   def test_higher_order_adjoint(self):
