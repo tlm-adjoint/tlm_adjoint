@@ -328,6 +328,10 @@ class LUSolver(backend_LUSolver):
         bcs, solver_parameters = {"linear_solver":self.__linear_solver, "lu_solver":self.parameters},
         form_compiler_parameters = form_compiler_parameters, cache_jacobian = False, cache_rhs_assembly = False)
       eq._post_process(annotate = annotate, tlm = tlm)
+    else:
+      if isinstance(args[0], backend_Matrix):
+        A, x, b = args
+        self.__A = A
 
 class KrylovSolver(backend_KrylovSolver):
   def __init__(self, *args):
@@ -382,6 +386,8 @@ class KrylovSolver(backend_KrylovSolver):
       eq._post_process(annotate = annotate, tlm = tlm)
     else:
       backend_KrylovSolver.solve(self, *args)
+      if isinstance(args[0], backend_Matrix):
+        self.__A = None
       
 class LinearVariationalSolver(backend_LinearVariationalSolver):
   def __init__(self, problem):
