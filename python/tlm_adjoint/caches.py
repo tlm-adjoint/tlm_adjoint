@@ -281,6 +281,10 @@ class Cache:
     self._cache = {}
     self._deps_map = {}
   
+  def __del__(self):
+    for value in self._cache.values():
+      value._clear()
+  
   def __len__(self):
     return len(self._cache)
   
@@ -300,6 +304,8 @@ class Cache:
             for dep_id2 in dep_ids:
               if dep_id2 != dep_id:
                 del(self._deps_map[dep_id2][key])
+                if len(self._deps_map[dep_id2]) == 0:
+                  del(self._deps_map[dep_id2])
           del(self._deps_map[dep_id])
   
   def add(self, key, value, dep_ids = []):
