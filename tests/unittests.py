@@ -73,17 +73,35 @@ class tests(unittest.TestCase):
     
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
-    test = TestFunction(space)
     F = Function(space, name = "F", cache = True)
+    
+    def cache_item(F):
+      cached_form, _ = assembly_cache().assemble(inner(TestFunction(F.function_space()), F) * dx)
+      return cached_form
+    
+    def test_not_cleared(F, cached_form):
+      self.assertEqual(len(assembly_cache()), 1)
+      self.assertIsNotNone(cached_form())
+      self.assertEqual(len(function_caches(F)), 1)
+    
+    def test_cleared(F, cached_form):
+      self.assertEqual(len(assembly_cache()), 0)
+      self.assertIsNone(cached_form())
+      self.assertEqual(len(function_caches(F)), 0)
+      
     self.assertEqual(len(assembly_cache()), 0)
-    
-    cached_form, _ = assembly_cache().assemble(inner(test, F) * dx)
-    self.assertEqual(len(assembly_cache()), 1)
-    self.assertIsNotNone(cached_form())
-    
+      
+    # Clear default
+    cached_form = cache_item(F)
+    test_not_cleared(F, cached_form)
+    clear_caches()
+    test_cleared(F, cached_form)
+      
+    # Clear Function caches
+    cached_form = cache_item(F)
+    test_not_cleared(F, cached_form)
     clear_caches(F)
-    self.assertEqual(len(assembly_cache()), 0)
-    self.assertIsNone(cached_form())
+    test_cleared(F, cached_form)
 
   @leak_check
   def test_LocalProjectionSolver(self):

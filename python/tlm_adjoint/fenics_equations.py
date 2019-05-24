@@ -23,7 +23,7 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import _caches, Cache, CacheRef, form_dependency_ids, form_key
+from .caches import _caches, Cache, CacheRef, form_dependencies, form_key
 from .equations import EquationSolver, alias_assemble, alias_form
 
 import numpy
@@ -107,7 +107,7 @@ class LocalSolverCache(Cache):
       assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
       local_solver = LocalSolver(assemble_form, solver_type = solver_type)
       local_solver.factorize()
-      value = self.add(key, local_solver, dep_ids = form_dependency_ids(form))
+      value = self.add(key, local_solver, deps = form_dependencies(form))
     else:
       local_solver = value()
 

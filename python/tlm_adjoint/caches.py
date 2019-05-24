@@ -23,6 +23,7 @@ from .backend_code_generator_interface import *
 
 import copy
 import ufl
+import weakref
 
 __all__ = \
   [
@@ -38,8 +39,9 @@ __all__ = \
     "assembly_cache",
     "bcs_is_cached",
     "bcs_is_static",
-    "form_dependency_ids",
+    "form_dependencies",
     "form_neg",
+    "function_caches",
     "function_is_cached",
     "function_is_checkpointed",
     "function_is_static",
@@ -89,6 +91,7 @@ class Function(backend_Function):
     self.__checkpoint = checkpoint
     self.__tlm_depth = tlm_depth
     backend_Function.__init__(self, *args, **kwargs)
+    self.__caches = FunctionCaches(self)
   
   def is_static(self):
     return self.__static
@@ -109,6 +112,9 @@ class Function(backend_Function):
       return Function(self.function_space(), name = name, static = False,
         cache = self.is_cached(), checkpoint = self.is_checkpointed(),
         tlm_depth = self.tlm_depth() + 1)
+  
+  def caches(self):
+    return self.__caches
 
 class DirichletBC(backend_DirichletBC):
   def __init__(self, *args, **kwargs):      
@@ -276,17 +282,59 @@ class CacheRef:
   def _clear(self):
     self._value = None
 
+class FunctionCaches:
+  def __init__(self, x):
+    self._caches = {}
+    self._id = x.id()
+    
+  def __len__(self):
+    return len(self._caches)
+
+  def clear(self):
+    for cache in tuple(self._caches.values()):
+      cache = cache()
+      cache.clear(self._id)
+      assert(not cache.id() in self._caches)
+  
+  def add(self, cache):
+    cache_id = cache.id()
+    if not cache_id in self._caches:
+      self._caches[cache_id] = weakref.ref(cache)
+    
+  def remove(self, cache):
+    del(self._caches[cache.id()])
+
+def function_caches(x):
+  if hasattr(x, "caches"):
+    return x.caches()
+  else:
+    if not hasattr(x, "_tlm_adjoint__caches"):
+      x._tlm_adjoint__caches = FunctionCaches(x)
+    return x._tlm_adjoint__caches
+
+Cache_id_counter = [0]
 class Cache:
   def __init__(self):
     self._cache = {}
     self._deps_map = {}
+    self._dep_caches = {}
+    
+    self._id = Cache_id_counter[0]
+    Cache_id_counter[0] += 1
   
   def __del__(self):
     for value in self._cache.values():
       value._clear()
+    for dep_caches in self._dep_caches.values():
+      dep_caches = dep_caches()
+      if not dep_caches is None:
+        dep_caches.remove(self)
   
   def __len__(self):
     return len(self._cache)
+  
+  def id(self):
+    return self._id
   
   def clear(self, *deps):
     if len(deps) == 0:
@@ -294,9 +342,15 @@ class Cache:
         value._clear()
       self._cache.clear()
       self._deps_map.clear()
+      for dep_caches in self._dep_caches.values():
+        dep_caches = dep_caches()
+        if not dep_caches is None:
+          dep_caches.remove(self)
+      self._dep_caches.clear()
     else:
       for dep in deps:
-        dep_id = dep.id()
+        dep_id = dep if isinstance(dep, int) else dep.id()
+        del(dep)
         if dep_id in self._deps_map:
           for key, dep_ids in self._deps_map[dep_id].items():
             self._cache[key]._clear()
@@ -306,21 +360,33 @@ class Cache:
                 del(self._deps_map[dep_id2][key])
                 if len(self._deps_map[dep_id2]) == 0:
                   del(self._deps_map[dep_id2])
+                  dep_caches = self._dep_caches[dep_id2]()
+                  if not dep_caches is None:
+                    dep_caches.remove(self)
+                  del(self._dep_caches[dep_id2])
           del(self._deps_map[dep_id])
+          dep_caches = self._dep_caches[dep_id]()
+          if not dep_caches is None:
+            dep_caches.remove(self)
+          del(self._dep_caches[dep_id])
   
-  def add(self, key, value, dep_ids = []):
+  def add(self, key, value, deps = []):
     if key in self._cache:
       raise CacheException("Duplicate key")
     value = CacheRef(value)
-    dep_ids = tuple(dep_ids)
+    dep_ids = tuple(dep.id() for dep in deps)
     
     self._cache[key] = value
     
-    for dep_id in dep_ids:
+    for dep, dep_id in zip(deps, dep_ids):      
       if dep_id in self._deps_map:
         self._deps_map[dep_id][key] = dep_ids
       else:
         self._deps_map[dep_id] = {key:dep_ids}
+        
+      dep_caches = function_caches(dep)
+      dep_caches.add(self)
+      self._dep_caches[dep_id] = weakref.ref(dep_caches)
     
     return value
   
@@ -340,6 +406,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__cache = function_is_cached(x)
     self.__checkpoint = function_is_checkpointed(x)
     self.__tlm_depth = function_tlm_depth(x)
+    self.__caches = function_caches(x)
   
   def function_space(self):
     return self.__space
@@ -361,6 +428,9 @@ class ReplacementFunction(ufl.classes.Coefficient):
   
   def tlm_depth(self):
     return self.__tlm_depth
+  
+  def caches(self):
+    return self.__caches
 
 def replaced_function(x):
   if isinstance(x, ReplacementFunction):
@@ -379,12 +449,16 @@ def replaced_form(form):
 def is_function(x):
   return isinstance(x, backend_Function)
 
-def form_dependency_ids(form):
+def form_dependencies(form):
+  deps = []
   dep_ids = set()
   for dep in form.coefficients():
     if is_function(dep):
-      dep_ids.add(dep.id())
-  return sorted(dep_ids)
+      dep_id = dep.id()
+      if not dep_id in dep_ids:
+        deps.append(dep)
+        dep_ids.add(dep_id)
+  return deps
 
 def form_key(form):
   return ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form))))
@@ -411,7 +485,7 @@ class AssemblyCache(Cache):
         b = assemble_matrix(assemble_form, bcs, form_compiler_parameters, force_evaluation = True)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
-      value = self.add(key, b, dep_ids = form_dependency_ids(form))
+      value = self.add(key, b, deps = form_dependencies(form))
     else:
       b = value()
       
@@ -426,7 +500,7 @@ class LinearSolverCache(Cache):
     value = self.get(key, None)
     if value is None:
       solver = linear_solver(A, linear_solver_parameters)
-      value = self.add(key, solver, dep_ids = form_dependency_ids(form))
+      value = self.add(key, solver, deps = form_dependencies(form))
     else:
       solver = value()
 
