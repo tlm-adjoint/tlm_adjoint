@@ -307,10 +307,9 @@ class FunctionCaches:
 def function_caches(x):
   if hasattr(x, "caches"):
     return x.caches()
-  else:
-    if not hasattr(x, "_tlm_adjoint__caches"):
-      x._tlm_adjoint__caches = FunctionCaches(x)
-    return x._tlm_adjoint__caches
+  if not hasattr(x, "_tlm_adjoint__caches"):
+    x._tlm_adjoint__caches = FunctionCaches(x)
+  return x._tlm_adjoint__caches
 
 Cache_id_counter = [0]
 class Cache:
