@@ -87,12 +87,13 @@ def function_space_id(space):
 def RealFunctionSpace():
   return FunctionSpace(1)
 
-Function_id_counter = [0]
 class Function:
+  _id_counter = [0]
+
   def __init__(self, space, name = None, static = False, cache = None,
     checkpoint = None, tlm_depth = 0, _data = None):
-    id = Function_id_counter[0]
-    Function_id_counter[0] += 1
+    id = self._id_counter[0]
+    self._id_counter[0] += 1
     if name is None:
       name = "f_%i" % id  # Following FEniCS 2017.2.0 behaviour
     if cache is None:

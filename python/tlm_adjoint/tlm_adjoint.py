@@ -345,8 +345,9 @@ class DependencyTransposer:
       if len(self._dep_map[x_id]) == 0:
         del(self._dep_map[x_id])
     
-EquationManager_id_counter = [0]
 class EquationManager:
+  _id_counter = [0]
+
   def __init__(self, comm = None, cp_method = "memory", cp_parameters = {}):
     """
     Manager for tangent-linear and adjoint models.
@@ -413,8 +414,8 @@ class EquationManager:
   
     self._comm = comm
     if self._comm.rank == 0:
-      id = EquationManager_id_counter[0]
-      EquationManager_id_counter[0] += 1
+      id = self._id_counter[0]
+      self._id_counter[0] += 1
       comm_py2f = self._comm.py2f()
     else:
       id = -1

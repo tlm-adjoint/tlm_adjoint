@@ -54,8 +54,9 @@ __all__ = \
 class EquationException(Exception):
   pass
 
-Equation_id_counter = [0]
 class Equation:
+  _id_counter = [0]
+
   def __init__(self, X, deps, nl_deps = None, ic_deps = None):
     """
     An equation. The equation is expressed in the form:
@@ -107,8 +108,8 @@ class Equation:
     self._nl_deps = None if nl_deps is None else tuple(nl_deps)
     self._nl_deps_map = nl_deps_map
     self._ic_deps = tuple(ic_deps)
-    self._id = Equation_id_counter[0]
-    Equation_id_counter[0] += 1
+    self._id = self._id_counter[0]
+    self._id_counter[0] += 1
     
   def id(self):
     return self._id
