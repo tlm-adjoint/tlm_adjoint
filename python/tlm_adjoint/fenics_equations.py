@@ -23,7 +23,7 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import *
-from .caches import _caches, Cache, CacheRef, form_dependencies, form_key
+from .caches import Cache, CacheRef, form_dependencies, form_key
 from .equations import EquationSolver, alias_assemble, alias_form
 
 import numpy
@@ -113,12 +113,11 @@ class LocalSolverCache(Cache):
 
     return value, local_solver
 
-_local_solver_cache_i = len(_caches)
-_caches.append(LocalSolverCache())
+_local_solver_cache = [LocalSolverCache()]
 def local_solver_cache():
-  return _caches[_local_solver_cache_i]
+  return _local_solver_cache[0]
 def set_local_solver_cache(local_solver_cache):
-  _caches[_local_solver_cache_i] = local_solver_cache
+  _local_solver_cache[0] = local_solver_cache
   
 class LocalProjectionSolver(EquationSolver):
   def __init__(self, rhs, x, form_compiler_parameters = {},

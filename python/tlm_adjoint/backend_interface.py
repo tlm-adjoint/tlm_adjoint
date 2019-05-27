@@ -21,10 +21,10 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
-from .caches import _caches, Function, ReplacementFunction, assembly_cache, \
-  form_neg, function_caches, function_is_cached, function_is_checkpointed, \
-  function_is_static, function_tlm_depth, is_function, linear_solver_cache, \
-  replaced_function
+from .caches import Function, ReplacementFunction, assembly_cache, \
+  clear_caches, form_neg, function_caches, function_is_cached, \
+  function_is_checkpointed, function_is_static, function_tlm_depth, \
+  is_function, linear_solver_cache, replaced_function
 
 import numpy
 import ufl
@@ -68,13 +68,7 @@ __all__ = \
     "warning"
   ]
   
-def clear_caches(*deps):
-  if len(deps) == 0:
-    for cache in _caches:
-      cache.clear()
-  else:
-    for dep in deps:
-      function_caches(dep).clear()
+#def clear_caches(*deps):
 
 #def info(message):
 

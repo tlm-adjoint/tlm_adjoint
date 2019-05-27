@@ -311,15 +311,26 @@ def function_caches(x):
     x._tlm_adjoint__caches = FunctionCaches(x)
   return x._tlm_adjoint__caches
 
-Cache_id_counter = [0]
+def clear_caches(*deps):
+  if len(deps) == 0:
+    for cache in Cache._caches.values():
+      cache().clear()
+  else:
+    for dep in deps:
+      function_caches(dep).clear()
+
 class Cache:
+  _id_counter = [0]
+  _caches = {}
+
   def __init__(self):
     self._cache = {}
     self._deps_map = {}
     self._dep_caches = {}
     
-    self._id = Cache_id_counter[0]
-    Cache_id_counter[0] += 1
+    self._id = self._id_counter[0]
+    self._id_counter[0] += 1
+    self._caches[self._id] = weakref.ref(self)
   
   def __del__(self):
     for value in self._cache.values():
@@ -328,6 +339,7 @@ class Cache:
       dep_caches = dep_caches()
       if not dep_caches is None:
         dep_caches.remove(self)
+    del(self._caches[self._id])
   
   def __len__(self):
     return len(self._cache)
@@ -505,12 +517,14 @@ class LinearSolverCache(Cache):
 
     return value, solver
 
-_caches = [AssemblyCache(), LinearSolverCache()]
+_assembly_cache = [AssemblyCache()]
 def assembly_cache():
-  return _caches[0]
+  return _assembly_cache[0]
 def set_assembly_cache(assembly_cache):
-  _caches[0] = assembly_cache
+  _assembly_cache[0] = assembly_cache
+
+_linear_solver_cache = [LinearSolverCache()]
 def linear_solver_cache():
-  return _caches[1]
+  return _linear_solver_cache[0]
 def set_linear_solver_cache(linear_solver_cache):
-  _caches[1] = linear_solver_cache
+  _linear_solver_cache[0] = linear_solver_cache
