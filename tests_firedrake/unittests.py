@@ -535,9 +535,8 @@ class tests(unittest.TestCase):
       
       G[0] = project(F, space, use_slate_for_inverse = False)
       
-      A = assemble(inner(test, trial) * dx)
+      A = assemble(inner(test, trial) * dx, bcs = bc)
       b = assemble(inner(test, G[0]) * dx)
-      bc.apply(A)
       solver = LinearSolver(A, solver_parameters = {"ksp_type":"cg",
                                                     "pc_type":"jacobi",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})

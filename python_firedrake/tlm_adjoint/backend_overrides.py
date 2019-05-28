@@ -61,7 +61,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
   return True
 
 # Aim for compatibility with Firedrake API, git master revision
-# 36df8c657fe32255466ba2b57abaf9d9e732aa5e
+# 1b6306099f81b89e7eda07209d1a1b99447e063b
 
 def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inverse = False, *args, **kwargs):
   if inverse:
@@ -179,16 +179,6 @@ def project(v, V, bcs = None, solver_parameters = None,
       solver_parameters = solver_parameters,
       form_compiler_parameters = form_compiler_parameters,
       use_slate_for_inverse = use_slate_for_inverse, name = name)
-
-_orig_DirichletBC_apply = backend_DirichletBC.apply
-def _DirichletBC_apply(self, r, u = None):
-  _orig_DirichletBC_apply(self, r, u = u)
-  if not isinstance(r, backend_Matrix):
-    return
-
-  if hasattr(r, "_tlm_adjoint__bcs") and not self in r._tlm_adjoint__bcs:
-    r._tlm_adjoint__bcs.append(self)
-backend_DirichletBC.apply = _DirichletBC_apply
 
 _orig_Function_assign = backend_Function.assign
 def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
@@ -310,12 +300,13 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
 
 class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
   def __init__(self, F, u, bcs = None, J = None, Jp = None,
-    form_compiler_parameters = None):
+    form_compiler_parameters = None, is_linear = False):
     if not Jp is None:
       raise OverrideException("Preconditioners not supported")
     
     backend_NonlinearVariationalProblem.__init__(self, F, u, bcs = bcs, J = J,
-      Jp = Jp, form_compiler_parameters = form_compiler_parameters)
+      Jp = Jp, form_compiler_parameters = form_compiler_parameters,
+      is_linear = is_linear)
 
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
   def __init__(self, *args, **kwargs):
