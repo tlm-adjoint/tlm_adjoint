@@ -24,6 +24,8 @@ import sys
 
 __all__ = \
   [
+    "InterfaceException",
+  
     "Function",
     "FunctionSpace",
     "RealFunctionSpace",
@@ -51,7 +53,9 @@ __all__ = \
     "function_new_tlm",
     "function_set_values",
     "function_space_id",
+    "function_state",
     "function_tlm_depth",
+    "function_update_state",
     "function_zero",
     "info",
     "is_function",
@@ -59,6 +63,9 @@ __all__ = \
     "subtract_adjoint_derivative_action",
     "warning"
   ]
+  
+class InterfaceException(Exception):
+  pass
   
 def clear_caches(*deps):
   pass
@@ -103,6 +110,7 @@ class Function:
     
     self._space = space
     self._name = name
+    self._state = 0
     self._static = static
     self._cache = cache
     self._checkpoint = checkpoint
@@ -118,6 +126,12 @@ class Function:
   
   def name(self):
     return self._name
+  
+  def state(self):
+    return self._state
+  
+  def update_state(self):
+    self._state += 1
   
   def is_static(self):
     return self._static
@@ -146,6 +160,7 @@ class ReplacementFunction:
   def __init__(self, x):
     self._space = x.function_space()
     self._name = x.name()
+    self._state = x.state()
     self._static = x.is_static()
     self._cache = x.is_cached()
     self._checkpoint = x.is_checkpointed()
@@ -160,6 +175,12 @@ class ReplacementFunction:
   
   def name(self):
     return self._name
+  
+  def state(self):
+    return self._state
+    
+  def update_state(self):
+    raise InterfaceException("Cannot change a ReplacementFunction")
   
   def is_static(self):
     return self._static
@@ -182,6 +203,13 @@ def replaced_function(x):
 
 def is_function(x):
   return isinstance(x, Function)
+
+def function_state(x):
+  return x.state()
+
+def function_update_state(*X):
+  for x in X:
+    x.update_state()
 
 def function_is_static(x):
   return x.is_static()

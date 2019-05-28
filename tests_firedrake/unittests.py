@@ -103,6 +103,32 @@ class tests(unittest.TestCase):
     test_not_cleared(F, cached_form)
     clear_caches(F)
     test_cleared(F, cached_form)
+    
+    # Clear on cache update
+    cached_form = cache_item(F)
+    test_not_cleared(F, cached_form)
+    function_update_state(F)
+    test_not_cleared(F, cached_form)
+    update_caches([F])
+    test_cleared(F, cached_form)
+    
+    # Clear on cache update, new Function
+    cached_form = cache_item(F)
+    test_not_cleared(F, cached_form)
+    update_caches([F], [Function(space)])
+    test_cleared(F, cached_form)
+    
+    # Clear on cache update, ReplacementFunction
+    cached_form = cache_item(F)
+    test_not_cleared(F, cached_form)
+    update_caches([replaced_function(F)])
+    test_cleared(F, cached_form)
+    
+    # Clear on cache update, ReplacementFunction with new Function
+    cached_form = cache_item(F)
+    test_not_cleared(F, cached_form)
+    update_caches([replaced_function(F)], [Function(space)])
+    test_cleared(F, cached_form)
 
   @leak_check
   def test_LongRange(self):

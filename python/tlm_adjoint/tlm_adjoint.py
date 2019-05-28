@@ -1028,6 +1028,7 @@ class EquationManager:
             for eq_dep in eq.initial_condition_dependencies():
               self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
+            function_update_state(*X)
             self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
             
             storage.pop()
@@ -1087,6 +1088,7 @@ class EquationManager:
             for eq_dep in eq.initial_condition_dependencies():
               self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
             eq.forward_solve(X[0] if len(X) == 1 else X, deps)
+            function_update_state(*X)
             self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
             
             storage.pop()

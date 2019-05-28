@@ -202,6 +202,7 @@ class Equation:
     annotation_enabled, tlm_enabled = manager.stop()
     X = self.X()
     self.forward_solve(X[0] if len(X) == 1 else X)
+    function_update_state(*X)
     manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
     self._post_process(manager = manager, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = _tlm_skip)
@@ -647,6 +648,7 @@ class FixedPointSolver(Equation):
     
       for i, eq in enumerate(self._eqs):
         eq.forward_solve(X[i], deps = eq_deps[i])
+        function_update_state(X[i])
       
       r = x_0;  del(x_0)
       function_axpy(r, -1.0, x)

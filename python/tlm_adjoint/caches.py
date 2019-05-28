@@ -45,6 +45,8 @@ __all__ = \
     "function_is_cached",
     "function_is_checkpointed",
     "function_is_static",
+    "function_state",
+    "function_update_state",
     "function_tlm_depth",
     "is_cached",
     "is_function",
@@ -56,7 +58,8 @@ __all__ = \
     "set_assembly_cache",
     "set_linear_solver_cache",
     "split_action",
-    "split_form"
+    "split_form",
+    "update_caches"
   ]
 
 class CacheException(Exception):
@@ -86,12 +89,19 @@ class Function(backend_Function):
     checkpoint = kwargs.pop("checkpoint", not static)
     tlm_depth = kwargs.pop("tlm_depth", 0)
     
+    self.__state = 0
     self.__static = static
     self.__cache = cache
     self.__checkpoint = checkpoint
     self.__tlm_depth = tlm_depth
     backend_Function.__init__(self, *args, **kwargs)
     self.__caches = FunctionCaches(self)
+  
+  def state(self):
+    return self.__state
+  
+  def update_state(self):
+    self.__state += 1
   
   def is_static(self):
     return self.__static
@@ -147,6 +157,22 @@ def is_cached(e):
     if not hasattr(c, "is_cached") or not c.is_cached():
       return False
   return True
+
+def function_state(x):
+  if hasattr(x, "state"):
+    return x.state()
+  if not hasattr(x, "_tlm_adjoint__state"):
+    x._tlm_adjoint__state = 0
+  return x._tlm_adjoint__state
+
+def function_update_state(*X):
+  for x in X:
+    if hasattr(x, "update_state"):
+      x.update_state()
+    elif hasattr(x, "_tlm_adjoint__state"):
+      x._tlm_adjoint__state += 1
+    else:
+      x._tlm_adjoint__state = 1
 
 def function_is_static(x):
   return x.is_static() if hasattr(x, "is_static") else False
@@ -286,6 +312,7 @@ class FunctionCaches:
   def __init__(self, x):
     self._caches = {}
     self._id = x.id()
+    self._state = (x.id(), function_state(x))
     
   def __len__(self):
     return len(self._caches)
@@ -303,6 +330,12 @@ class FunctionCaches:
     
   def remove(self, cache):
     del(self._caches[cache.id()])
+  
+  def update(self, x):
+    state = (x.id(), function_state(x))
+    if state != self._state:
+      self.clear()
+      self._state = state
 
 def function_caches(x):
   if hasattr(x, "caches"):
@@ -318,6 +351,14 @@ def clear_caches(*deps):
   else:
     for dep in deps:
       function_caches(dep).clear()
+  
+def update_caches(eq_deps, deps = None):
+  if deps is None:
+    for eq_dep in eq_deps:
+      function_caches(eq_dep).update(eq_dep)
+  else: 
+    for eq_dep, dep in zip(eq_deps, deps):
+      function_caches(eq_dep).update(dep)
 
 class Cache:
   _id_counter = [0]
@@ -413,6 +454,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
     self.__space = x.function_space()
     self.__id = x.id()
     self.__name = x.name()
+    self.__state = function_state(x)
     self.__static = function_is_static(x)
     self.__cache = function_is_cached(x)
     self.__checkpoint = function_is_checkpointed(x)
@@ -427,6 +469,12 @@ class ReplacementFunction(ufl.classes.Coefficient):
   
   def name(self):
     return self.__name
+  
+  def state(self):
+    return self.__state
+  
+  def update_state(self):
+    raise CacheException("Cannot change a ReplacementFunction")
   
   def is_static(self):
     return self.__static

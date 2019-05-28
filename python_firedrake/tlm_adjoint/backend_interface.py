@@ -23,8 +23,9 @@ from .backend_code_generator_interface import copy_parameters_dict
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
   clear_caches, form_neg, function_caches, function_is_cached, \
-  function_is_checkpointed, function_is_static, function_tlm_depth, \
-  is_function, linear_solver_cache, replaced_function
+  function_is_checkpointed, function_is_static, function_state, \
+  function_tlm_depth, function_update_state, is_function, linear_solver_cache, \
+  replaced_function
 
 import numpy
 import ufl
@@ -59,7 +60,9 @@ __all__ = \
     "function_new_tlm",
     "function_set_values",
     "function_space_id",
+    "function_state",
     "function_tlm_depth",
+    "function_update_state",
     "function_zero",
     "info",
     "is_function",
@@ -108,6 +111,10 @@ backend_Function.id = lambda self : self.count()
 #def replaced_function(x):
 
 #def is_function(x):
+
+#def function_state(x):
+
+#def function_update_state(*X):
 
 #def function_is_static(x):
 
