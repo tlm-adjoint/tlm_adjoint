@@ -96,8 +96,8 @@ class AssembleSolver(Equation):
     self._rhs = rhs
     self._form_compiler_parameters = form_compiler_parameters
 
-  def _replace(self, replace_map):
-    Equation._replace(self, replace_map)
+  def replace(self, replace_map):
+    Equation.replace(self, replace_map)
     self._rhs = ufl.replace(self._rhs, replace_map)
 
   def forward_solve(self, x, deps = None):
@@ -320,8 +320,8 @@ class EquationSolver(Equation):
     self.reset_adjoint_derivative_action()
     self.reset_adjoint_jacobian_solve()
 
-  def _replace(self, replace_map):
-    Equation._replace(self, replace_map)
+  def replace(self, replace_map):
+    Equation.replace(self, replace_map)
     self._F = ufl.replace(self._F, replace_map)
     self._lhs = ufl.replace(self._lhs, replace_map)
     if self._rhs != 0:
@@ -814,8 +814,8 @@ class ExprEvaluationSolver(Equation):
     self.reset_forward_solve()
     self.reset_adjoint_derivative_action()
     
-  def _replace(self, replace_map):
-    Equation._replace(self, replace_map)
+  def replace(self, replace_map):
+    Equation.replace(self, replace_map)
     self._rhs = ufl.replace(self._rhs, replace_map)
     
   def forward_solve(self, x, deps = None):

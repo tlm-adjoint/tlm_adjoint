@@ -176,8 +176,8 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
 #      info("%s J form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._J, parameters["form_compiler"])))
 #      info("%s J_1 form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._J_1, parameters["form_compiler"])))
       
-    def _replace(self, replace_map):
-      EquationSolver._replace(self, replace_map)
+    def replace(self, replace_map):
+      EquationSolver.replace(self, replace_map)
       self._J_1 = ufl.replace(self._J_1, replace_map)
     
     def forward_solve(self, x, deps = None):

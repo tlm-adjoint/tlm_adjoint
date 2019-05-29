@@ -113,20 +113,11 @@ class Equation:
     
   def id(self):
     return self._id
-    
-  def replace(self, manager = None):
-    """
-    Replace all internal Function objects.
-    """
   
-    if manager is None:
-      manager = _manager()
-    manager.replace(self)
-  
-  def _replace(self, replace_map):
+  def replace(self, replace_map):
     """
     Replace all internal Function objects using the supplied replace map. Must
-    call the base class _replace method.
+    call the base class replace method.
     """
     
     self._X = tuple(replace_map.get(x, x) for x in self._X)
@@ -174,12 +165,12 @@ class Equation:
     for dep in self.initial_condition_dependencies():
       manager.add_initial_condition(dep, annotate = annotate)
       
-  def _post_process(self, manager = None, annotate = None, replace = False, tlm = None, tlm_skip = None):    
+  def _post_process(self, manager = None, annotate = None, tlm = None, tlm_skip = None):    
     if manager is None:
       manager = _manager()
-    manager.add_equation(self, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = tlm_skip)
+    manager.add_equation(self, annotate = annotate, tlm = tlm, tlm_skip = tlm_skip)
     
-  def solve(self, manager = None, annotate = None, replace = False, tlm = None, _tlm_skip = None):
+  def solve(self, manager = None, annotate = None, tlm = None, _tlm_skip = None):
     """
     Solve the equation.
     
@@ -187,9 +178,6 @@ class Equation:
     
     manager   (Optional) The equation manager.
     annotate  (Optional) Whether the equation should be annotated.
-    replace   (Optional) Whether, after the equation has been solved, its
-              internal Function objects should be replaced with Coefficients.
-              Can be used to save memory.
     tlm       (Optional) Whether to derive (and solve) an associated
               tangent-linear equation.
     """
@@ -205,7 +193,7 @@ class Equation:
     function_update_state(*X)
     manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
-    self._post_process(manager = manager, annotate = annotate, replace = replace, tlm = tlm, tlm_skip = _tlm_skip)
+    self._post_process(manager = manager, annotate = annotate, tlm = tlm, tlm_skip = _tlm_skip)
 
   def forward_solve(self, X, deps = None):
     """
@@ -290,8 +278,7 @@ class Equation:
   
   def tangent_linear(self, M, dM, tlm_map):
     """
-    Return an Equation corresponding to a tangent linear equation. It is
-    guaranteed that self.replace has not been called when this method is called.
+    Return an Equation corresponding to a tangent linear equation.
     
     Arguments:
     
@@ -615,10 +602,10 @@ class FixedPointSolver(Equation):
     self._tdeps = None
     self._adj_X = None
     
-  def _replace(self, replace_map):
-    Equation._replace(self, replace_map)
+  def replace(self, replace_map):
+    Equation.replace(self, replace_map)
     for eq in self._eqs:
-      eq._replace(replace_map)
+      eq.replace(replace_map)
     
   def forward_solve(self, X, deps = None):
     # Based on KrylovSolver parameters in FEniCS 2017.2.0
@@ -852,8 +839,8 @@ class LinearEquation(Equation):
       if len(A.nonlinear_dependencies()) > 0:
         self._A_x_indices = A_x_indices
     
-  def _replace(self, replace_map):
-    Equation._replace(self, replace_map)
+  def replace(self, replace_map):
+    Equation.replace(self, replace_map)
     for b in self._B:
       b.replace(replace_map)
     if not self._A is None:

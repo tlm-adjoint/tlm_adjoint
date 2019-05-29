@@ -726,7 +726,7 @@ class EquationManager:
         return self._cp.initial_condition(x)
     raise ManagerException("Initial condition not found")
   
-  def add_equation(self, eq, annotate = None, replace = False, tlm = None, annotate_tlm = None, tlm_skip = None):  
+  def add_equation(self, eq, annotate = None, tlm = None, annotate_tlm = None, tlm_skip = None):  
     """
     Process the provided equation, annotating and / or deriving (and solving)
     tangent-linear models as required. Assumes that the equation has already
@@ -736,9 +736,6 @@ class EquationManager:
     annotate (default self.annotation_enabled()):
       Whether to annotate the equation on the adjoint tape, storing data for
       checkpointing as required.
-    replace (default False):
-      Whether to replace internal Function objects in eq with
-      ReplacementFunction objects.
     tlm (default self.tlm_enabled()):
       Whether to derive (and solve) an associated tangent-linear equation.
     annotate_tlm (default annotate):
@@ -800,9 +797,6 @@ class EquationManager:
         if not tlm_eq is None:
           tlm_eq.solve(manager = self, annotate = annotate_tlm,
             _tlm_skip = [i + 1, depth + 1] if max_depth - depth > 1 else [i, 0])
-    
-    if replace:
-      self.replace(eq)
   
   def replace(self, eq):
     """
@@ -820,7 +814,7 @@ class EquationManager:
       dep_id = dep.id()
       if not dep_id in self._replace_map:
         replaced_dep = self._replace_map[dep_id] = replaced_function(dep)
-    eq._replace({dep:self._replace_map[dep.id()] for dep in deps})
+    eq.replace({dep:self._replace_map[dep.id()] for dep in deps})
     if eq_id in self._tlm_eqs:
       for tlm_eq in self._tlm_eqs[eq_id].values():
         if not tlm_eq is None:
