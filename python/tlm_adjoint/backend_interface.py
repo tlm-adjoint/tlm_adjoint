@@ -30,6 +30,7 @@ from .caches import Function, ReplacementFunction, assembly_cache, \
 import numpy
 import ufl
 import sys
+import weakref
 
 __all__ = \
   [
@@ -86,10 +87,18 @@ def warning(message):
 def function_space_id(space):
   return space.id()
 
+_real_spaces = weakref.WeakValueDictionary()
 def RealFunctionSpace(comm = None):
   if comm is None:
     comm = default_comm()
-  return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
+  comm_f = comm.tompi4py().py2f() if hasattr(comm, "tompi4py") else comm.py2f()
+  
+  try:
+    space = _real_spaces[comm_f]
+  except KeyError:
+    space = FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
+    _real_spaces[comm_f] = space
+  return space
 
 #class Function:
 #  def __init__(self, space, name = None, static = False, cache = None,
