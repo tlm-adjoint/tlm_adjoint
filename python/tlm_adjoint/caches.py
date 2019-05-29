@@ -310,7 +310,7 @@ class CacheRef:
 
 class FunctionCaches:
   def __init__(self, x):
-    self._caches = {}
+    self._caches = weakref.WeakValueDictionary()
     self._id = x.id()
     self._state = (x.id(), function_state(x))
     
@@ -318,15 +318,16 @@ class FunctionCaches:
     return len(self._caches)
 
   def clear(self):
-    for cache in tuple(self._caches.values()):
+    for cache in tuple(self._caches.valuerefs()):
       cache = cache()
-      cache.clear(self._id)
-      assert(not cache.id() in self._caches)
+      if not cache is None:
+        cache.clear(self._id)
+        assert(not cache.id() in self._caches)
   
   def add(self, cache):
     cache_id = cache.id()
     if not cache_id in self._caches:
-      self._caches[cache_id] = weakref.ref(cache)
+      self._caches[cache_id] = cache
     
   def remove(self, cache):
     del(self._caches[cache.id()])
@@ -346,8 +347,10 @@ def function_caches(x):
 
 def clear_caches(*deps):
   if len(deps) == 0:
-    for cache in Cache._caches.values():
-      cache().clear()
+    for cache in tuple(Cache._caches.valuerefs()):
+      cache = cache()
+      if not cache is None:
+        cache.clear()
   else:
     for dep in deps:
       function_caches(dep).clear()
@@ -362,7 +365,7 @@ def update_caches(eq_deps, deps = None):
 
 class Cache:
   _id_counter = [0]
-  _caches = {}
+  _caches = weakref.WeakValueDictionary()
 
   def __init__(self):
     self._cache = {}
@@ -371,16 +374,11 @@ class Cache:
     
     self._id = self._id_counter[0]
     self._id_counter[0] += 1
-    self._caches[self._id] = weakref.ref(self)
+    self._caches[self._id] = self
   
   def __del__(self):
     for value in self._cache.values():
       value._clear()
-    for dep_caches in self._dep_caches.values():
-      dep_caches = dep_caches()
-      if not dep_caches is None:
-        dep_caches.remove(self)
-    del(self._caches[self._id])
   
   def __len__(self):
     return len(self._cache)
