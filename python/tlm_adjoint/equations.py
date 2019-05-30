@@ -226,7 +226,8 @@ class EquationSolver(Equation):
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], J = None, form_compiler_parameters = {},
     solver_parameters = {}, adjoint_solver_parameters = None,
-    initial_guess = None, cache_jacobian = None, cache_adjoint_jacobian = None,
+    tlm_solver_parameters = {}, initial_guess = None, cache_jacobian = None,
+    cache_adjoint_jacobian = None, cache_tlm_jacobian = None,
     cache_rhs_assembly = None, match_quadrature = None,
     defer_adjoint_assembly = None):
     if isinstance(bcs, backend_DirichletBC):
@@ -282,6 +283,8 @@ class EquationSolver(Equation):
       cache_jacobian = is_cached(J) and bcs_is_cached(bcs)
     if cache_adjoint_jacobian is None:
       cache_adjoint_jacobian = cache_jacobian
+    if cache_tlm_jacobian is None:
+      cache_tlm_jacobian = cache_jacobian
     
     if nl_solve_J is None:
       solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
@@ -290,6 +293,8 @@ class EquationSolver(Equation):
       solver_parameters, _, checkpoint_ic = process_solver_parameters(solver_parameters, nl_solve_J, linear)
     if not adjoint_solver_parameters is None:
       _, adjoint_solver_parameters, _ = process_solver_parameters(adjoint_solver_parameters, J, linear = True)
+    if not tlm_solver_parameters is None:
+      _, tlm_solver_parameters, _ = process_solver_parameters(tlm_solver_parameters, J, linear = True)
     ic_deps = [x] if (initial_guess is None and checkpoint_ic) else []
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
@@ -309,11 +314,13 @@ class EquationSolver(Equation):
     self._solver_parameters = solver_parameters
     self._linear_solver_parameters = linear_solver_parameters
     self._adjoint_solver_parameters = adjoint_solver_parameters
+    self._tlm_solver_parameters = tlm_solver_parameters
     self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
     self._linear = linear
     
     self._cache_jacobian = cache_jacobian
     self._cache_adjoint_jacobian = cache_adjoint_jacobian
+    self._cache_tlm_jacobian = cache_tlm_jacobian
     self._cache_rhs_assembly = cache_rhs_assembly
     self._defer_adjoint_assembly = defer_adjoint_assembly
     self.reset_forward_solve()
@@ -679,11 +686,12 @@ class EquationSolver(Equation):
     else:    
       return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters,
-        solver_parameters = self._linear_solver_parameters,
+        solver_parameters = self._linear_solver_parameters if self._tlm_solver_parameters is None else self._tlm_solver_parameters,
         adjoint_solver_parameters = self._adjoint_solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
-        cache_jacobian = self._cache_jacobian,
+        cache_jacobian = self._cache_tlm_jacobian,
         cache_adjoint_jacobian = self._cache_adjoint_jacobian,
+        cache_tlm_jacobian = self._cache_tlm_jacobian,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
 

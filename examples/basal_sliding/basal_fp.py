@@ -164,13 +164,6 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     jacobian_assembly_cache = AssemblyCache()
     jacobian_linear_solver_cache = LinearSolverCache()
     class CachedJacobianEquationSolver(EquationSolver):
-      def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        EquationSolver.__init__(self, *args, **kwargs)
-#        from tlm_adjoint.backend_code_generator_interface import form_form_compiler_parameters
-#        info("%s F form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._F, parameters["form_compiler"])))
-#        info("%s J form compiler parameters: %s" % (self.x().name(), form_form_compiler_parameters(self._J, parameters["form_compiler"])))
-    
       def forward_solve(self, x, deps = None):
         depth = function_tlm_depth(self.x())
         if depth > 0:
@@ -202,37 +195,14 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
         jacobian_linear_solver_cache.clear()
   
       def tangent_linear(self, M, dM, tlm_map):
-        x = self.x()
-        if x in M:
-          raise EquationException("Invalid tangent-linear parameter")
-      
-        tlm_rhs = ufl.classes.Zero()
-        for m, dm in zip(M, dM):
-          tlm_rhs -= derivative(self._F, m, du = dm)
-          
-        for dep in self.dependencies():
-          if dep != x and not dep in M:
-            tau_dep = tlm_map[dep]
-            if not tau_dep is None:
-              tlm_rhs -= derivative(self._F, dep, du = tau_dep)
+        tlm_eq = EquationSolver.tangent_linear(self, M, dM, tlm_map)
         
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-          return NullSolver(tlm_map[x])
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if tlm_rhs.empty():
-          return NullSolver(tlm_map[x])
-        else:    
-          return CachedJacobianEquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
-            form_compiler_parameters = self._form_compiler_parameters,
-#            solver_parameters = self._linear_solver_parameters,
-            solver_parameters = {"linear_solver":"umfpack"},
-            adjoint_solver_parameters = self._adjoint_solver_parameters,
-            initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
-#            cache_jacobian = self._cache_jacobian,
-            cache_jacobian = True,
-            cache_adjoint_jacobian = self._cache_adjoint_jacobian,
-            cache_rhs_assembly = self._cache_rhs_assembly,
-            defer_adjoint_assembly = self._defer_adjoint_assembly)
+        tlm_eq.forward_solve = types.MethodType(self.forward_solve.__func__, tlm_eq)
+        tlm_eq.adjoint_jacobian_solve = types.MethodType(self.adjoint_jacobian_solve.__func__, tlm_eq)
+        tlm_eq.reset_adjoint_jacobian_solve = types.MethodType(self.reset_adjoint_jacobian_solve.__func__, tlm_eq)
+        tlm_eq.tangent_linear = types.MethodType(self.tangent_linear.__func__, tlm_eq)
+        
+        return tlm_eq
       
     # GHS09 eqns (1)--(2)
     F = (- inner(tests, -beta_sq * U) * dx
@@ -247,7 +217,9 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       U, solver_parameters = {"linear_solver":"cg", "preconditioner":"amg",
                               "krylov_solver":{"relative_tolerance":1.0e-12, "absolute_tolerance":1.0e-16}},
          adjoint_solver_parameters = {"linear_solver":"umfpack"},
-      cache_adjoint_jacobian = True)
+         tlm_solver_parameters = {"linear_solver":"umfpack"},
+      cache_adjoint_jacobian = True,
+      cache_tlm_jacobian = True)
 
     class CustomFixedPointSolver(FixedPointSolver):
       def adjoint_jacobian_solve(self, nl_deps, B):
