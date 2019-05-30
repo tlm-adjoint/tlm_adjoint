@@ -184,36 +184,20 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
           set_linear_solver_cache(old_linear_solver_cache)
 
       def adjoint_jacobian_solve(self, nl_deps, b):
-        J_solver = self._adjoint_J_solver()
-        if J_solver is None:
-          J = adjoint(self._J)
-          _, (J_mat, _) = jacobian_assembly_cache.assemble(
-            J,
-            bcs = self._hbcs,
-            form_compiler_parameters = self._form_compiler_parameters,
-            replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
-#          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(
-#            J, 
-#            J_mat, 
-#            bcs = self._hbcs,
-#            linear_solver_parameters = self._linear_solver_parameters,
-#            form_compiler_parameters = self._form_compiler_parameters)
-          self._adjoint_J_solver, J_solver = jacobian_linear_solver_cache.linear_solver(
-            J,
-            J_mat,
-            bcs = self._hbcs,
-            linear_solver_parameters = {"linear_solver":"umfpack"},
-            form_compiler_parameters = self._form_compiler_parameters)
-      
-        for bc in self._hbcs:
-          bc.apply(b.vector())
-        adj_x = function_new(b)
-        J_solver.solve(adj_x.vector(), b.vector())
+        old_assembly_cache = assembly_cache()
+        old_linear_solver_cache = linear_solver_cache()
+        set_assembly_cache(jacobian_assembly_cache)
+        set_linear_solver_cache(jacobian_linear_solver_cache)
+        
+        adj_x = EquationSolver.adjoint_jacobian_solve(self, nl_deps, b)
+        
+        set_assembly_cache(old_assembly_cache)
+        set_linear_solver_cache(old_linear_solver_cache)
         
         return adj_x
       
       def reset_adjoint_jacobian_solve(self):
-        self._adjoint_J_solver = CacheRef()
+        EquationSolver.reset_adjoint_jacobian_solve(self)
         jacobian_assembly_cache.clear()
         jacobian_linear_solver_cache.clear()
   
@@ -242,9 +226,11 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
             form_compiler_parameters = self._form_compiler_parameters,
 #            solver_parameters = self._linear_solver_parameters,
             solver_parameters = {"linear_solver":"umfpack"},
+            adjoint_solver_parameters = self._adjoint_solver_parameters,
             initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
 #            cache_jacobian = self._cache_jacobian,
             cache_jacobian = True,
+            cache_adjoint_jacobian = self._cache_adjoint_jacobian,
             cache_rhs_assembly = self._cache_rhs_assembly,
             defer_adjoint_assembly = self._defer_adjoint_assembly)
       
@@ -259,7 +245,9 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     F = ufl.replace(F, {U:trials})  
     U_eq = CachedJacobianEquationSolver(lhs(F) == rhs(F),
       U, solver_parameters = {"linear_solver":"cg", "preconditioner":"amg",
-                              "krylov_solver":{"relative_tolerance":1.0e-12, "absolute_tolerance":1.0e-16}})
+                              "krylov_solver":{"relative_tolerance":1.0e-12, "absolute_tolerance":1.0e-16}},
+         adjoint_solver_parameters = {"linear_solver":"umfpack"},
+      cache_adjoint_jacobian = True)
 
     class CustomFixedPointSolver(FixedPointSolver):
       def adjoint_jacobian_solve(self, nl_deps, B):

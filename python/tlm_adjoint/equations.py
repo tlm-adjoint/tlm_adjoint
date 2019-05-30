@@ -231,8 +231,9 @@ class EquationSolver(Equation):
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], J = None, form_compiler_parameters = {},
     solver_parameters = {}, adjoint_solver_parameters = None,
-    initial_guess = None, cache_jacobian = None, cache_rhs_assembly = None,
-    match_quadrature = None, defer_adjoint_assembly = None):
+    initial_guess = None, cache_jacobian = None, cache_adjoint_jacobian = None,
+    cache_rhs_assembly = None, match_quadrature = None,
+    defer_adjoint_assembly = None):
     if isinstance(bcs, backend_DirichletBC):
       bcs = [bcs]
     if cache_jacobian is None:
@@ -283,6 +284,8 @@ class EquationSolver(Equation):
     
     if cache_jacobian is None:
       cache_jacobian = is_cached(J) and bcs_is_cached(bcs)
+    if cache_adjoint_jacobian is None:
+      cache_adjoint_jacobian = cache_jacobian
     
     if nl_solve_J is None:
       solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
@@ -314,6 +317,7 @@ class EquationSolver(Equation):
     self._linear = linear
     
     self._cache_jacobian = cache_jacobian
+    self._cache_adjoint_jacobian = cache_adjoint_jacobian
     self._cache_rhs_assembly = cache_rhs_assembly
     self._defer_adjoint_assembly = defer_adjoint_assembly
     self.reset_forward_solve()
@@ -614,7 +618,7 @@ class EquationSolver(Equation):
     else:
       adjoint_solver_parameters = self._adjoint_solver_parameters
 
-    if self._cache_jacobian:
+    if self._cache_adjoint_jacobian:
       J_solver = self._adjoint_J_solver()
       if J_solver is None:
         J = adjoint(self._J)
@@ -683,6 +687,7 @@ class EquationSolver(Equation):
         adjoint_solver_parameters = self._adjoint_solver_parameters,
         initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
         cache_jacobian = self._cache_jacobian,
+        cache_adjoint_jacobian = self._cache_adjoint_jacobian,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
 
