@@ -507,14 +507,12 @@ def is_function(x):
   return isinstance(x, backend_Function)
 
 def form_dependencies(form):
-  deps = []
-  dep_ids = set()
+  deps = {}
   for dep in form.coefficients():
     if is_function(dep):
       dep_id = dep.id()
-      if not dep_id in dep_ids:
-        deps.append(dep)
-        dep_ids.add(dep_id)
+      if not dep_id in deps:
+        deps[dep_id] = dep
   return deps
 
 def form_key(form):
@@ -542,7 +540,7 @@ class AssemblyCache(Cache):
         b = assemble_matrix(assemble_form, bcs, form_compiler_parameters, force_evaluation = True)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
-      value = self.add(key, b, deps = form_dependencies(form))
+      value = self.add(key, b, deps = tuple(form_dependencies(form).values()))
     else:
       b = value()
       
@@ -557,7 +555,7 @@ class LinearSolverCache(Cache):
     value = self.get(key, None)
     if value is None:
       solver = linear_solver(A, linear_solver_parameters)
-      value = self.add(key, solver, deps = form_dependencies(form))
+      value = self.add(key, solver, deps = tuple(form_dependencies(form).values()))
     else:
       solver = value()
 

@@ -43,30 +43,25 @@ __all__ = \
   ]
 
 def extract_dependencies(expr):
-  deps = []
-  dep_ids = set()
-  nl_deps = []
-  nl_dep_ids = set()
+  deps = {}
+  nl_deps = {}
   for dep in ufl.algorithms.extract_coefficients(expr):
     if is_function(dep):
       dep_id = dep.id()
-      if not dep_id in dep_ids:
-        deps.append(dep)
-        dep_ids.add(dep_id)
-      if not dep_id in nl_dep_ids:
+      if not dep_id in deps:
+        deps[dep_id] = dep
+      if not dep_id in nl_deps:
         n_nl_deps = 0
         for nl_dep in ufl.algorithms.extract_coefficients(ufl.algorithms.expand_derivatives(ufl.derivative(expr, dep, argument = TrialFunction(dep.function_space())))):
           if is_function(nl_dep):
             nl_dep_id = nl_dep.id()
-            if not nl_dep_id in nl_dep_ids:
-              nl_deps.append(nl_dep)
-              nl_dep_ids.add(nl_dep_id)
+            if not nl_dep_id in nl_deps:
+              nl_deps[nl_dep_id] = nl_dep
             n_nl_deps += 1
-        if not dep_id in nl_dep_ids and n_nl_deps > 0:
-          nl_deps.append(dep)
-          nl_dep_ids.add(dep_id)
+        if not dep_id in nl_deps and n_nl_deps > 0:
+          nl_deps[dep_id] = dep
   
-  return deps, dep_ids, nl_deps, nl_dep_ids
+  return deps, nl_deps
 
 class AssembleSolver(Equation):
   def __init__(self, rhs, x, form_compiler_parameters = {},
@@ -80,10 +75,10 @@ class AssembleSolver(Equation):
     if not is_real_function(x):
       raise EquationException("Rank 0 forms can only be assigned to real functions")
   
-    deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(rhs)
-    if x.id() in dep_ids:
+    deps, nl_deps = extract_dependencies(rhs)
+    if x.id() in deps:
       raise EquationException("Invalid non-linear dependency")
-    del(dep_ids, nl_dep_ids)
+    deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
     deps.insert(0, x)
     
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
@@ -263,22 +258,23 @@ class EquationSolver(Equation):
       nl_solve_J = J
       J = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
     
-    deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(F)          
+    deps, nl_deps = extract_dependencies(F)          
     
     if initial_guess == x:
       initial_guess = None
     if not initial_guess is None:
       initial_guess_id = initial_guess.id()
-      if not initial_guess_id in dep_ids:
-        deps.append(initial_guess)
-        dep_ids.add(initial_guess_id)
+      if not initial_guess_id in deps:
+        deps[initial_guess_id] = initial_guess
     
     x_id = x.id()
-    if x_id in dep_ids:
+    if x_id in deps:
+      deps = list(deps.values())
       deps.remove(x)
+    else:
+      deps = list(deps.values())
     deps.insert(0, x)
-        
-    del(dep_ids, nl_dep_ids)
+    nl_deps = tuple(nl_deps.values())
     
     hbcs = [homogenized_bc(bc) for bc in bcs]
     
@@ -803,8 +799,8 @@ class ExprEvaluationSolver(Equation):
     if isinstance(rhs, ufl.classes.Form):
       raise EquationException("rhs should not be a Form")
       
-    deps, dep_ids, nl_deps, nl_dep_ids = extract_dependencies(rhs)
-    del(dep_ids, nl_dep_ids)
+    deps, nl_deps = extract_dependencies(rhs)
+    deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
     x_space_id = function_space_id(x.function_space())
     for dep in deps:
       if dep == x:

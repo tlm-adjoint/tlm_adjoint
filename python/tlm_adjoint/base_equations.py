@@ -547,8 +547,7 @@ class FixedPointSolver(Equation):
     dep_ids = {}
     nl_deps = []
     nl_dep_ids = {}
-    ic_deps = []
-    ic_dep_ids = set()
+    ic_deps = {}
     
     if solver_parameters["nonzero_initial_guess"]:
       if initial_guess is None:
@@ -574,9 +573,8 @@ class FixedPointSolver(Equation):
           deps.append(dep)
           dep_ids[dep_id] = len(deps) - 1
         eq_dep_indices[i].append(dep_ids[dep_id])
-        if dep_id in x_ids and not dep_id in ic_dep_ids:
-          ic_deps.append(dep)
-          ic_dep_ids.add(dep_id)
+        if dep_id in x_ids and not dep_id in ic_deps:
+          ic_deps[dep_id] = dep
       for dep in eq.nonlinear_dependencies():
         dep_id = dep.id()
         if not dep_id in nl_dep_ids:
@@ -586,11 +584,11 @@ class FixedPointSolver(Equation):
       if i < len(eqs) - 1 or (solver_parameters["nonzero_initial_guess"] and initial_guess is None):
         for dep in eq.initial_condition_dependencies():
           dep_id = dep.id()
-          if not dep_id in ic_dep_ids:
-            ic_deps.append(dep)
-            ic_dep_ids.add(dep_id)
+          if not dep_id in ic_deps:
+            ic_deps[dep_id] = dep
     
-    del(x_ids, dep_ids, nl_dep_ids, ic_dep_ids)
+    del(x_ids, dep_ids, nl_dep_ids)
+    ic_deps = tuple(ic_deps.values())
     
     Equation.__init__(self, [eq.x() for eq in eqs], deps, nl_deps = nl_deps, ic_deps = ic_deps)
     self._eqs = tuple(eqs)

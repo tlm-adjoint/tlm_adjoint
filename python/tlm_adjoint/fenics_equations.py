@@ -107,7 +107,7 @@ class LocalSolverCache(Cache):
       assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
       local_solver = LocalSolver(assemble_form, solver_type = solver_type)
       local_solver.factorize()
-      value = self.add(key, local_solver, deps = form_dependencies(form))
+      value = self.add(key, local_solver, deps = tuple(form_dependencies(form).values()))
     else:
       local_solver = value()
 
