@@ -309,21 +309,36 @@ class ReplayStorage:
     return copy
   
 class DependencyTransposer:
-  def __init__(self, blocks):
+  def __init__(self, blocks, M):
     dep_map = {}
+    eq_X_ids = []
+    active_ids = set(m.id() for m in M)
     for p, block in enumerate(blocks):
       for k, eq in enumerate(block):
-        for l, x in enumerate(eq.X()):
-          x_id = x.id()
-          if x_id in dep_map:
-            dep_map[x_id].append((p, k, l))
-          else:
-            dep_map[x_id] = [(p, k, l)]
+        eq_active = False
+        X_ids = set(x.id() for x in eq.X())
+        for dep in eq.dependencies():
+          dep_id = dep.id()
+          if not dep_id in X_ids and dep_id in active_ids:
+            eq_active = True
+            break
+        X_ids = tuple(x.id() for x in eq.X())
+        if eq_active:
+          for l, x_id in enumerate(X_ids):
+            active_ids.add(x_id)
+            if x_id in dep_map:
+              dep_map[x_id].append((p, k, l))
+            else:
+              dep_map[x_id] = [(p, k, l)]
+          eq_X_ids.append(X_ids)
+        else:
+          for x_id in X_ids:
+            if x_id in active_ids:
+              active_ids.remove(x_id)
+          eq_X_ids.append(tuple())
     
     self._dep_map = dep_map
-
-  def __len__(self):
-    return len(self._dep_map)
+    self._eq_X_ids = eq_X_ids
   
   def __contains__(self, dep):
     if isinstance(dep, int):
@@ -338,12 +353,14 @@ class DependencyTransposer:
       dep_id = dep.id()
     return self._dep_map[dep_id][-1]
   
-  def pop(self, eq):
-    for x in eq.X():
-      x_id = x.id()
+  def pop(self):
+    for x_id in self._eq_X_ids.pop():
       self._dep_map[x_id].pop()
       if len(self._dep_map[x_id]) == 0:
         del(self._dep_map[x_id])
+  
+  def is_empty(self):
+    return len(self._dep_map) == 0 and len(self._eq_X_ids) == 0
     
 class EquationManager:
   _id_counter = [0]
@@ -1230,7 +1247,7 @@ class EquationManager:
     B = Bs[-1]
     
     self._restore_checkpoint(len(self._blocks) - 1)
-    tdeps = DependencyTransposer(self._blocks)
+    tdeps = DependencyTransposer(self._blocks, M)
     for n in range(len(self._blocks) - 1, -1, -1):
       for i in range(len(self._blocks[n]) - 1, -1, -1):
         eq = self._blocks[n][i]
@@ -1286,7 +1303,7 @@ class EquationManager:
               del(sdJ)
           
           del(adj_X)
-        tdeps.pop(eq)
+        tdeps.pop()
 
       for J_i, J in enumerate(Js):
         for i, m in enumerate(M):
@@ -1296,7 +1313,7 @@ class EquationManager:
         Bs.pop()
         B = Bs[-1]
         self._restore_checkpoint(n - 1)
-    assert(len(tdeps) == 0)
+    assert(tdeps.is_empty())
             
     if self._cp_method == "multistage":
       self._cp.clear(clear_cp = False, clear_data = True, clear_refs = False)
