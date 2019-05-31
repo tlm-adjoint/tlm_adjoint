@@ -1242,6 +1242,7 @@ class EquationManager:
 
     M = [(m if is_function(m) else m.m()) for m in M]
     dJ = [[function_new(m) for m in M] for J in Js]
+    J_initialised = [False for J in Js]
 
     Bs = [[[None for eq in block] for J in Js] for block in self._blocks]
     B = Bs[-1]
@@ -1256,16 +1257,22 @@ class EquationManager:
         dep_ids = {dep.id():index for index, dep in enumerate(deps)}
 
         for J_i, J in enumerate(Js):
-          if len(X) == 1 and X[0].id() == J.id():
-            adj_x = function_new(X[0])
-            function_assign(adj_x, -1.0)
-            j = dep_ids[X[0].id()]
-            sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_x)
-            if not sb is None:
-              if B[J_i][i] is None:
-                B[J_i][i] = (function_new(X[0]),)
-              subtract_adjoint_derivative_action(B[J_i][i][0], sb)
-            del(adj_x, sb)
+          if not J_initialised[J_i]:
+            J_id = J.id()
+            X_ids = tuple(x.id() for x in X)
+            if J_id in X_ids:
+              J_initialised[J_i] = True
+              adj_x = function_new(J)
+              function_assign(adj_x, -1.0)
+              sb = eq.adjoint_derivative_action(self._cp[(n, i)], dep_ids[J_id], adj_x)
+              if not sb is None:
+                if B[J_i][i] is None:
+                  B[J_i][i] = [None for x in X]
+                l = X_ids.index(J_id)
+                if B[J_i][i][l] is None:
+                  B[J_i][i][l] = function_new(J)
+                subtract_adjoint_derivative_action(B[J_i][i][l], sb)
+              del(adj_x, sb)
           
           if B[J_i][i] is None:
             continue
