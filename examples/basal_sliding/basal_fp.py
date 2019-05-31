@@ -161,45 +161,21 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       S, solver_parameters = {"linear_solver":"umfpack"})
     nu_eq = ExprEvaluationSolver(0.5 * B * (S ** ((1.0 - n) / (2.0 * n))), nu)
       
-    jacobian_assembly_cache = AssemblyCache()
-    jacobian_linear_solver_cache = LinearSolverCache()
     class CachedJacobianEquationSolver(EquationSolver):
       def forward_solve(self, x, deps = None):
-        depth = function_tlm_depth(self.x())
-        if depth > 0:
-          old_assembly_cache = assembly_cache()
-          old_linear_solver_cache = linear_solver_cache()
-          set_assembly_cache(jacobian_assembly_cache)
-          set_linear_solver_cache(jacobian_linear_solver_cache)
+        update_caches(self.dependencies(), deps)
         EquationSolver.forward_solve(self, x, deps = deps)
-        if depth > 0:
-          set_assembly_cache(old_assembly_cache)
-          set_linear_solver_cache(old_linear_solver_cache)
+        update_caches([x])
 
       def adjoint_jacobian_solve(self, nl_deps, b):
-        old_assembly_cache = assembly_cache()
-        old_linear_solver_cache = linear_solver_cache()
-        set_assembly_cache(jacobian_assembly_cache)
-        set_linear_solver_cache(jacobian_linear_solver_cache)
-        
-        adj_x = EquationSolver.adjoint_jacobian_solve(self, nl_deps, b)
-        
-        set_assembly_cache(old_assembly_cache)
-        set_linear_solver_cache(old_linear_solver_cache)
-        
-        return adj_x
-      
-      def reset_adjoint_jacobian_solve(self):
-        EquationSolver.reset_adjoint_jacobian_solve(self)
-        jacobian_assembly_cache.clear()
-        jacobian_linear_solver_cache.clear()
+        update_caches(self.nonlinear_dependencies(), nl_deps)
+        return EquationSolver.adjoint_jacobian_solve(self, nl_deps, b)
   
       def tangent_linear(self, M, dM, tlm_map):
         tlm_eq = EquationSolver.tangent_linear(self, M, dM, tlm_map)
         
         tlm_eq.forward_solve = types.MethodType(self.forward_solve.__func__, tlm_eq)
         tlm_eq.adjoint_jacobian_solve = types.MethodType(self.adjoint_jacobian_solve.__func__, tlm_eq)
-        tlm_eq.reset_adjoint_jacobian_solve = types.MethodType(self.reset_adjoint_jacobian_solve.__func__, tlm_eq)
         tlm_eq.tangent_linear = types.MethodType(self.tangent_linear.__func__, tlm_eq)
         
         return tlm_eq
@@ -221,20 +197,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       cache_adjoint_jacobian = True,
       cache_tlm_jacobian = True)
 
-    class CustomFixedPointSolver(FixedPointSolver):
-      def adjoint_jacobian_solve(self, nl_deps, B):
-        return_value = FixedPointSolver.adjoint_jacobian_solve(self, nl_deps, B)
-        self._eqs[2].reset_adjoint_jacobian_solve()  # Guaranteed to be at TLM depth 0
-        return return_value
-      def tangent_linear(self, M, dM, tlm_map):
-        tlm_eq = FixedPointSolver.tangent_linear(self, M, dM, tlm_map)
-        def tlm_forward_solve(self, X, deps = None):
-          if function_tlm_depth(self.X()[2]) == 1:
-            self._eqs[2].reset_adjoint_jacobian_solve()
-          FixedPointSolver.forward_solve(self, X, deps = deps)
-        tlm_eq.forward_solve = types.MethodType(tlm_forward_solve, tlm_eq)
-        return tlm_eq
-    return CustomFixedPointSolver([S_eq, nu_eq, U_eq],
+    return FixedPointSolver([S_eq, nu_eq, U_eq],
       solver_parameters = {"absolute_tolerance":1.0e-16,
                            "relative_tolerance":1.0e-10},
       initial_guess = initial_guess)
