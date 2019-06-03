@@ -28,6 +28,11 @@ import types
 
 __all__ = \
   [
+    "AdjointBlockRHS",
+    "AdjointEquationRHS",
+    "AdjointModelRHS",
+    "AdjointRHS",
+  
     "AssignmentSolver",
     "AxpySolver",
     "Equation",
@@ -38,6 +43,9 @@ __all__ = \
     "LinearCombinationSolver",
     "NullSolver",
     "ScaleSolver",
+    
+    "ControlsMarker",
+    "FunctionalMarker",
     
     "InnerProductRHS",
     "InnerProductSolver",
@@ -53,6 +61,100 @@ __all__ = \
 
 class EquationException(Exception):
   pass
+    
+class AdjointRHS:
+  def __init__(self, space):
+    self._space = space
+    self._b = None
+  
+  def b(self):
+    self.finalise()
+    return self._b
+  
+  def initialise(self):
+    if self._b is None:
+      self._b = Function(self._space)
+  
+  def finalise(self):
+    self.initialise()
+    finalise_adjoint_derivative_action(self._b)
+    
+  def sub(self, b):
+    if not b is None:
+      self.initialise()
+      subtract_adjoint_derivative_action(self._b, b)
+  
+  def is_empty(self):
+    return self._b is None
+
+class AdjointEquationRHS:
+  def __init__(self, eq):
+    self._B = tuple(AdjointRHS(x.function_space()) for x in eq.X())
+  
+  def __getitem__(self, key):
+    return self._B[key]
+    
+  def b(self):
+    if len(self._B) != 1:
+      raise EquationException("Right-hand-side does not consist of exactly one function")
+    return self._B[0].b()
+  
+  def B(self):
+    return tuple(B.b() for B in self._B)
+  
+  def finalise(self):
+    for b in self._B:
+      b.finalise()
+  
+  def is_empty(self):
+    for b in self._B:
+      if not b.is_empty():
+        return False
+    return True
+
+class AdjointBlockRHS:
+  def __init__(self, block):
+    self._B = [AdjointEquationRHS(eq) for eq in block]
+  
+  def __getitem__(self, key):
+    if isinstance(key, int):
+      return self._B[key]
+    else:
+      k, l = key
+      return self._B[k][l]
+  
+  def pop(self):
+    return self._B.pop()
+  
+  def finalise(self):
+    for B in self._B:
+      B.finalise()
+  
+  def is_empty(self):
+    return len(self._B) == 0
+
+class AdjointModelRHS:
+  def __init__(self, blocks):
+    self._B = [AdjointBlockRHS(block) for block in blocks]
+  
+  def __getitem__(self, key):
+    if isinstance(key, int):
+      return self._B[key]
+    elif len(key) == 2:
+      p, k = key
+      return self._B[p][k]
+    else:
+      p, k, l = key
+      return self._B[p][k][l]
+  
+  def pop(self):
+    B = self._B[-1].pop()
+    if self._B[-1].is_empty():
+      self._B.pop()
+    return B
+  
+  def is_empty(self):
+    return len(self._B) == 0
 
 class Equation:
   _id_counter = [0]
@@ -219,6 +321,31 @@ class Equation:
     """
     
     pass
+  
+  def adjoint(self, nl_deps, B, B_indices, Bs):
+    """
+    Solve the adjoint equation with the given right-hand-size, and subtract
+    corresponding adjoint terms from other adjoint equations.
+    
+    Arguments:
+    
+    nl_deps    A list or tuple of Function objects defining the values of
+               non-linear dependencies.
+    B          A Function, or a list or tuple of Function objects. The adjoint
+               equation right-hand-side.
+    b_indices  A dictionary of j:(p, k, l) pairs. Bs[p][k][l] has an adjoint
+               term arising from a derivative action, differentiating with
+               respect to the dependency for this equation with index j.
+    Bs         An AdjointEquationRHS, storing adjoint RHS data.
+    
+    Returns the solution of the adjoint equation.
+    """
+  
+    adj_X = self.adjoint_jacobian_solve(nl_deps, B)
+    if not adj_X is None:
+      for j, (p, k, l) in B_indices.items():
+        Bs[p][k][l].sub(self.adjoint_derivative_action(nl_deps, j, adj_X))
+    return adj_X
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     """
@@ -329,7 +456,53 @@ class EquationAlias(Equation):
     
   def __dir__(self):
     return self._d.keys()
+    
+class ControlsMarker(Equation):
+  def __init__(self, M):
+    """
+    Represents the equation "controls = inputs".
+    
+    Arguments:
+    
+    M  A Function or ReplacementFunction, or a list or tuple of these.
+    """
+    
+    if is_function(M) or isinstance(M, ReplacementFunction):
+      M = (M,)
+  
+    self._X = tuple(M)
+    self._deps = tuple(M)
+    self._nl_deps = tuple()
+    self._nl_deps_map = tuple()
+    self._ic_deps = tuple()
+    self._id = self._id_counter[0]
+    self._id_counter[0] += 1
+  
+  def adjoint_jacobian_solve(self, nl_deps, B):
+    return B
 
+class FunctionalMarker(Equation):
+  def __init__(self, J):
+    """
+    Represents the equation "output = functional".
+    
+    Arguments:
+    
+    J  A Function. The functional.
+    """
+  
+    J_alias = function_alias(J)  # Any function in the correct space suffices
+                                 # here
+    Equation.__init__(self, J_alias, [J_alias, J], nl_deps = [], ic_deps = [])
+    
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    if dep_index != 1:
+      raise EquationException("Unexpected dep_index")
+    return (-1.0, adj_x)
+  
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+  
 class NullSolver(Equation):
   def __init__(self, X):
     if is_function(X):

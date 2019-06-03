@@ -312,7 +312,8 @@ class DependencyTransposer:
   def __init__(self, blocks, M):
     dep_map = {}
     eq_X_ids = []
-    active_ids = set(m.id() for m in M)
+    M_ids = set(m.id() for m in M)
+    active_ids = set()
     for p, block in enumerate(blocks):
       for k, eq in enumerate(block):
         eq_active = False
@@ -332,10 +333,17 @@ class DependencyTransposer:
               dep_map[x_id] = [(p, k, l)]
           eq_X_ids.append(X_ids)
         else:
-          for x_id in X_ids:
-            if x_id in active_ids:
+          eq_X_active_ids = []
+          for l, x_id in enumerate(X_ids):
+            if x_id in M_ids:
+              M_ids.remove(x_id)
+              active_ids.add(x_id)
+              assert(not x_id in dep_map)
+              dep_map[x_id] = [(p, k, l)]
+              eq_X_active_ids.append(x_id)
+            elif x_id in active_ids:
               active_ids.remove(x_id)
-          eq_X_ids.append(tuple())
+          eq_X_ids.append(tuple(eq_X_active_ids))
     
     self._dep_map = dep_map
     self._eq_X_ids = eq_X_ids
@@ -1235,97 +1243,93 @@ class EquationManager:
     
     self.finalise()
 
+    # Functionals
     Js = list(Js)
     for J_i, J in enumerate(Js):
       if not is_function(J):
         Js[J_i] = J.fn()
 
-    M = [(m if is_function(m) else m.m()) for m in M]
-    dJ = [[function_new(m) for m in M] for J in Js]
-    J_initialised = [False for J in Js]
+    # Controls
+    M = tuple((m if is_function(m) else m.m()) for m in M)
 
-    Bs = [[[None for eq in block] for J in Js] for block in self._blocks]
-    B = Bs[-1]
+    # Derivatives
+    dJ = [None for J in Js]
     
-    self._restore_checkpoint(len(self._blocks) - 1)
-    tdeps = DependencyTransposer(self._blocks, M)
-    for n in range(len(self._blocks) - 1, -1, -1):
-      for i in range(len(self._blocks[n]) - 1, -1, -1):
-        eq = self._blocks[n][i]
-        X = eq.X()
-        deps = eq.dependencies()
-        dep_ids = {dep.id():index for index, dep in enumerate(deps)}
+    # Add two additional blocks, one at the start and one at the end of the
+    # forward:
+    #   Control block   :  Represents the equation "controls = inputs"
+    #   Functional block:  Represents the equations "outputs = functionals"
+    blocks = [[ControlsMarker(M)]] \
+           + self._blocks \
+           + [[FunctionalMarker(J) for J in Js]]
 
-        for J_i, J in enumerate(Js):
-          if not J_initialised[J_i]:
-            J_id = J.id()
-            X_ids = tuple(x.id() for x in X)
-            if J_id in X_ids:
-              J_initialised[J_i] = True
-              adj_x = function_new(J)
-              function_assign(adj_x, -1.0)
-              sb = eq.adjoint_derivative_action(self._cp[(n, i)], dep_ids[J_id], adj_x)
-              if not sb is None:
-                if B[J_i][i] is None:
-                  B[J_i][i] = [None for x in X]
-                l = X_ids.index(J_id)
-                if B[J_i][i][l] is None:
-                  B[J_i][i][l] = function_new(J)
-                subtract_adjoint_derivative_action(B[J_i][i][l], sb)
-              del(adj_x, sb)
-          
-          if B[J_i][i] is None:
-            continue
-          for l, x in enumerate(X):
-            if B[J_i][i][l] is None:
-              B[J_i][i][l] = function_new(x)
-            else:
-              finalise_adjoint_derivative_action(B[J_i][i][l])
-          adj_X = eq.adjoint_jacobian_solve(self._cp[(n, i)], B[J_i][i][0] if len(B[J_i][i]) == 1 else B[J_i][i])
-          if adj_X is None:
-            continue
-          elif is_function(adj_X):
-            adj_X = (adj_X,)
-          B[J_i][i] = None
-          
-          for j, dep in enumerate(eq.dependencies()):
-            if not dep in tdeps:
-              continue
+    # Adjoint equation right-hand-sides
+    Bs = tuple(AdjointModelRHS(blocks) for J in Js)
+    # Adjoint initial condition
+    for J_i in range(len(Js)):
+      function_assign(Bs[J_i][-1][J_i].b(), 1.0)
+
+    # Transposed dependency graph information
+    tdeps = DependencyTransposer(blocks, M)
+    
+    # Reverse (blocks)
+    for n in range(len(blocks) - 1, -1, -1):
+      cp_n = n - 1  # Forward model block, ignoring the control block
+      cp_block = cp_n >= 0 and cp_n < len(self._blocks)
+      if cp_block:
+        # Load/restore forward model data
+        self._restore_checkpoint(cp_n)
+        
+      # Reverse (equations in block n)
+      for i in range(len(blocks[n]) - 1, -1, -1):
+        eq = blocks[n][i]
+        # Non-linear dependency data
+        nl_deps = self._cp[(cp_n, i)] if cp_block else tuple()
+        
+        # Transposed dependency graph information for this equation
+        B_indices = {}
+        for j, dep in enumerate(eq.dependencies()):
+          if dep in tdeps:
             p, k, l = tdeps[dep]
-            if p == n and k == i:
-              continue
-            sb = eq.adjoint_derivative_action(self._cp[(n, i)], j, adj_X[0] if len(adj_X) == 1 else adj_X)
-            if not sb is None:
-              if Bs[p][J_i][k] is None:
-                Bs[p][J_i][k] = [None for x in self._blocks[p][k].X()]
-              if Bs[p][J_i][k][l] is None:
-                Bs[p][J_i][k][l] = function_new(self._blocks[p][k].X()[l])
-              subtract_adjoint_derivative_action(Bs[p][J_i][k][l], sb)
-            del(sb)
-          
-          for j, m in enumerate(M):
-            if m.id() in dep_ids:
-              sdJ = eq.adjoint_derivative_action(self._cp[(n, i)], dep_ids[m.id()], adj_X[0] if len(adj_X) == 1 else adj_X)
-              subtract_adjoint_derivative_action(dJ[J_i][j], sdJ)
-              del(sdJ)
-          
-          del(adj_X)
+            if p != n or k != i:
+              B_indices[j] = (p, k, l)
+        # Clear dependency information for this equation
         tdeps.pop()
 
-      for J_i, J in enumerate(Js):
-        for i, m in enumerate(M):
-          finalise_adjoint_derivative_action(dJ[J_i][i])          
-
+        for J_i, J in enumerate(Js):
+          # Adjoint model right-hand-sides
+          B = Bs[J_i]
+          # Adjoint right-hand-side associated with this equation
+          eq_B = B.pop()
+          
+          # Zero right-hand-side, adjoint solution is zero
+          if eq_B.is_empty():
+            adj_X = None
+          else:
+            # Solve adjoint equation, add terms to adjoint equations
+            eq_B = eq_B.B()
+            adj_X = eq.adjoint(nl_deps, eq_B[0] if len(eq_B) == 1 else eq_B, B_indices, B)
+        
+          if n == 0 and i == 0:
+            # A requested derivative
+            if adj_X is None:
+              dJ[J_i] = tuple(function_new(m) for m in M)
+            else:
+              dJ[J_i] = (adj_X,) if is_function(adj_X) else tuple(adj_X)
+        
       if n > 0:
-        Bs.pop()
-        B = Bs[-1]
-        self._restore_checkpoint(n - 1)
+        # Force finalisation of right-hand-sides in the control block
+        for J_i in range(len(Js)):
+          Bs[J_i][0].finalise()
+          
+    for B in Bs:
+      assert(B.is_empty())
     assert(tdeps.is_empty())
             
     if self._cp_method == "multistage":
       self._cp.clear(clear_cp = False, clear_data = True, clear_refs = False)
             
-    return tuple(tuple(dJ[J_i][j] for j in range(len(M))) for J_i in range(len(Js)))
+    return tuple(dJ)
   
   def find_initial_condition(self, x):    
     """
