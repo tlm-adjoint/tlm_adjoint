@@ -61,6 +61,7 @@ __all__ = \
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
+    "update_caches",
     "warning"
   ]
   
@@ -68,6 +69,9 @@ class InterfaceException(Exception):
   pass
   
 def clear_caches(*deps):
+  pass
+  
+def update_caches(eq_deps, deps = None):
   pass
 
 def info(message):

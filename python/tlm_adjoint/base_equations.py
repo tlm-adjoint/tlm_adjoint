@@ -290,12 +290,28 @@ class Equation:
     self._pre_process(manager = manager, annotate = annotate)
 
     annotation_enabled, tlm_enabled = manager.stop()
-    X = self.X()
-    self.forward_solve(X[0] if len(X) == 1 else X)
-    function_update_state(*X)
+    self.forward(self.X())
     manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
     self._post_process(manager = manager, annotate = annotate, tlm = tlm, tlm_skip = _tlm_skip)
+
+  def forward(self, X, deps = None):
+    """
+    Solve the equation. The manager is stopped when this method is called.
+    Lower-level version than forward_solve, and need not generally be overridden
+    by custom Equation classes.
+    
+    Arguments:
+    
+    X     A list or tuple of Function objects. The solution, which should be set
+          by this method.
+    deps  (Optional) A list or tuple of Function objects defining the values of
+          dependencies.
+    """
+    
+    self.forward_solve(X[0] if len(X) == 1 else X, deps = deps)
+    function_update_state(*X)
+    update_caches(self.X(), deps = X)
 
   def forward_solve(self, X, deps = None):
     """
@@ -331,8 +347,9 @@ class Equation:
     
     nl_deps    A list or tuple of Function objects defining the values of
                non-linear dependencies.
-    b/B        The right-hand-side. May be modified by this method. May not
-               have previously have had boundary conditions applied.
+    B          A list or tuple of Function objects defining the right-hand-side.
+               May be modified by this method. May not have previously have had
+               boundary conditions applied.
     b_indices  A dictionary of j:(p, k, l) pairs. Bs[p][k][l] has an adjoint
                term arising from a derivative action, differentiating with
                respect to the dependency for this equation with index j.
@@ -342,11 +359,13 @@ class Equation:
     boundary conditions applied, and should never be modified by calling code.
     """
   
-    adj_X = self.adjoint_jacobian_solve(nl_deps, B)
-    if not adj_X is None:
+    adj_X = self.adjoint_jacobian_solve(nl_deps, B[0] if len(B) == 1 else B)
+    if adj_X is None:
+      return None
+    else:
       for j, (p, k, l) in B_indices.items():
         Bs[p][k][l].sub(self.adjoint_derivative_action(nl_deps, j, adj_X))
-    return adj_X
+      return (adj_X,) if is_function(adj_X) else adj_X
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     """
@@ -806,8 +825,7 @@ class FixedPointSolver(Equation):
       it += 1
     
       for i, eq in enumerate(self._eqs):
-        eq.forward_solve(X[i], deps = eq_deps[i])
-        function_update_state(X[i])
+        eq.forward((X[i],), deps = eq_deps[i])
       
       r = x_0;  del(x_0)
       function_axpy(r, -1.0, x)

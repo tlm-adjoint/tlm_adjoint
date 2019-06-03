@@ -25,7 +25,7 @@ from .caches import Function, ReplacementFunction, assembly_cache, \
   clear_caches, form_neg, function_caches, function_is_cached, \
   function_is_checkpointed, function_is_static, function_state, \
   function_tlm_depth, function_update_state, is_function, linear_solver_cache, \
-  replaced_function
+  replaced_function, update_caches
 
 import numpy
 import ufl
@@ -69,10 +69,13 @@ __all__ = \
     "is_function",
     "replaced_function",
     "subtract_adjoint_derivative_action",
+    "update_caches",
     "warning"
   ]
   
 #def clear_caches(*deps):
+
+#def update_caches(eq_deps, deps = None):
 
 def info(message):
   sys.stdout.write("%s\n" % message)

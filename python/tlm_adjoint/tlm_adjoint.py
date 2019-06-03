@@ -1046,8 +1046,7 @@ class EquationManager:
             
             for eq_dep in eq.initial_condition_dependencies():
               self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
-            eq.forward_solve(X[0] if len(X) == 1 else X, deps)
-            function_update_state(*X)
+            eq.forward(X, deps = deps)
             self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
             
             storage.pop()
@@ -1106,8 +1105,7 @@ class EquationManager:
             
             for eq_dep in eq.initial_condition_dependencies():
               self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
-            eq.forward_solve(X[0] if len(X) == 1 else X, deps)
-            function_update_state(*X)
+            eq.forward(X, deps = deps)
             self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
             
             storage.pop()
@@ -1308,14 +1306,12 @@ class EquationManager:
           else:
             # Solve adjoint equation, add terms to adjoint equations
             eq_B = eq_B.B()
-            adj_X = eq.adjoint(nl_deps, eq_B[0] if len(eq_B) == 1 else eq_B, B_indices, B)
+            adj_X = eq.adjoint(nl_deps, eq_B, B_indices, B)
         
           if n == 0 and i == 0:
             # A requested derivative
             if adj_X is None:
               dJ[J_i] = tuple(function_new(m) for m in M)
-            elif is_function(adj_X):
-              dJ[J_i] = (function_copy(adj_X),)
             else:
               dJ[J_i] = tuple(function_copy(adj_x) for adj_x in adj_X)
         

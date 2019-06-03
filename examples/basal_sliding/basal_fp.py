@@ -161,25 +161,6 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       S, solver_parameters = {"linear_solver":"umfpack"})
     nu_eq = ExprEvaluationSolver(0.5 * B * (S ** ((1.0 - n) / (2.0 * n))), nu)
       
-    class CachedJacobianEquationSolver(EquationSolver):
-      def forward_solve(self, x, deps = None):
-        update_caches(self.dependencies(), deps)
-        EquationSolver.forward_solve(self, x, deps = deps)
-        update_caches([x])
-
-      def adjoint_jacobian_solve(self, nl_deps, b):
-        update_caches(self.nonlinear_dependencies(), nl_deps)
-        return EquationSolver.adjoint_jacobian_solve(self, nl_deps, b)
-  
-      def tangent_linear(self, M, dM, tlm_map):
-        tlm_eq = EquationSolver.tangent_linear(self, M, dM, tlm_map)
-        
-        tlm_eq.forward_solve = types.MethodType(self.forward_solve.__func__, tlm_eq)
-        tlm_eq.adjoint_jacobian_solve = types.MethodType(self.adjoint_jacobian_solve.__func__, tlm_eq)
-        tlm_eq.tangent_linear = types.MethodType(self.tangent_linear.__func__, tlm_eq)
-        
-        return tlm_eq
-      
     # GHS09 eqns (1)--(2)
     F = (- inner(tests, -beta_sq * U) * dx
          + inner(test_u_x, nu * h * (4.0 * u_x + 2.0 * v_y)) * dx
@@ -189,7 +170,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
          + inner(test_u, rho * g * h * (Constant(numpy.tan(theta), static = True))) * dx
          + inner(tests, rho * g * h * grad(h)) * dx)
     F = ufl.replace(F, {U:trials})  
-    U_eq = CachedJacobianEquationSolver(lhs(F) == rhs(F),
+    U_eq = EquationSolver(lhs(F) == rhs(F),
       U, solver_parameters = {"linear_solver":"cg", "preconditioner":"amg",
                               "krylov_solver":{"relative_tolerance":1.0e-12, "absolute_tolerance":1.0e-16}},
          adjoint_solver_parameters = {"linear_solver":"umfpack"},

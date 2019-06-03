@@ -25,7 +25,7 @@ from .backend_interface import *
 from .base_equations import *
 from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
   bcs_is_static, form_neg, function_is_cached, is_cached, linear_solver_cache, \
-  new_count, split_action, split_form
+  new_count, split_action, split_form, update_caches
 
 import copy
 import operator
@@ -424,6 +424,10 @@ class EquationSolver(Equation):
     
     apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
     return b
+    
+  def forward(self, X, deps = None):
+    update_caches(self.dependencies(), deps = deps)
+    Equation.forward(self, X, deps = deps)
 
   def forward_solve(self, x, deps = None):
     eq_deps = self.dependencies()
@@ -557,6 +561,10 @@ class EquationSolver(Equation):
     self._forward_J_mat = CacheRef()
     self._forward_J_solver = CacheRef()
     self._forward_b_pa = None
+  
+  def adjoint(self, nl_deps, B, B_indices, Bs):
+    update_caches(self.nonlinear_dependencies(), deps = nl_deps)
+    return Equation.adjoint(self, nl_deps, B, B_indices, Bs)
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action' in

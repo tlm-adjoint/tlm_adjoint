@@ -118,8 +118,7 @@ class SingleBlockHessian(Hessian):
           for tlm_dep in tlm_eq.initial_condition_dependencies():
             manager._cp.add_initial_condition(tlm_dep)
           # Solve the tangent-linear equation
-          tlm_eq.forward_solve(tlm_X[0] if len(tlm_X) == 1 else tlm_X, tlm_deps)
-          function_update_state(*tlm_X)
+          tlm_eq.forward(tlm_X, deps = tlm_deps)
           # Post-process the tangent-linear equation
           manager._block.append(tlm_eq)
           manager._cp.add_equation((0, len(manager._block) - 1), tlm_eq, deps = tlm_deps)
