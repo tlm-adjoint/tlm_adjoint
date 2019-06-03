@@ -340,7 +340,7 @@ class Equation:
   
   def adjoint(self, nl_deps, B, B_indices, Bs):
     """
-    Solve the adjoint equation with the given right-hand-size, and subtract
+    Solve the adjoint equation with the given right-hand-side, and subtract
     corresponding adjoint terms from other adjoint equations.
     
     Arguments:
