@@ -331,14 +331,15 @@ class Equation:
     
     nl_deps    A list or tuple of Function objects defining the values of
                non-linear dependencies.
-    B          A Function, or a list or tuple of Function objects. The adjoint
-               equation right-hand-side.
+    b/B        The right-hand-side. May be modified by this method. May not
+               have previously have had boundary conditions applied.
     b_indices  A dictionary of j:(p, k, l) pairs. Bs[p][k][l] has an adjoint
                term arising from a derivative action, differentiating with
                respect to the dependency for this equation with index j.
     Bs         An AdjointEquationRHS, storing adjoint RHS data.
     
-    Returns the solution of the adjoint equation.
+    Returns the solution of the adjoint equation. The result must have relevant
+    boundary conditions applied, and should never be modified by calling code.
     """
   
     adj_X = self.adjoint_jacobian_solve(nl_deps, B)

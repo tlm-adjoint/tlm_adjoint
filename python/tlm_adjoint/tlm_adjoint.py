@@ -1314,8 +1314,10 @@ class EquationManager:
             # A requested derivative
             if adj_X is None:
               dJ[J_i] = tuple(function_new(m) for m in M)
+            elif is_function(adj_X):
+              dJ[J_i] = (function_copy(adj_X),)
             else:
-              dJ[J_i] = (adj_X,) if is_function(adj_X) else tuple(adj_X)
+              dJ[J_i] = tuple(function_copy(adj_x) for adj_x in adj_X)
         
       if n > 0:
         # Force finalisation of right-hand-sides in the control block
