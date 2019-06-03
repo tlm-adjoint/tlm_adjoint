@@ -1305,8 +1305,7 @@ class EquationManager:
             adj_X = None
           else:
             # Solve adjoint equation, add terms to adjoint equations
-            eq_B = eq_B.B()
-            adj_X = eq.adjoint(nl_deps, eq_B, B_indices, B)
+            adj_X = eq.adjoint(nl_deps, eq_B.B(), B_indices, B)
         
           if n == 0 and i == 0:
             # A requested derivative
