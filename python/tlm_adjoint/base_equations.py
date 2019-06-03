@@ -311,7 +311,6 @@ class Equation:
     
     self.forward_solve(X[0] if len(X) == 1 else X, deps = deps)
     function_update_state(*X)
-    update_caches(self.X(), deps = X)
 
   def forward_solve(self, X, deps = None):
     """
