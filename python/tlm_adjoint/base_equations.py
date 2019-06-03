@@ -357,14 +357,40 @@ class Equation:
     Returns the solution of the adjoint equation. The result must have relevant
     boundary conditions applied, and should never be modified by calling code.
     """
+    
+    self.initialise_adjoint(nl_deps)
   
     adj_X = self.adjoint_jacobian_solve(nl_deps, B[0] if len(B) == 1 else B)
-    if adj_X is None:
-      return None
-    else:
+    if not adj_X is None:
       for j, (p, k, l) in B_indices.items():
         Bs[p][k][l].sub(self.adjoint_derivative_action(nl_deps, j, adj_X))
-      return (adj_X,) if is_function(adj_X) else adj_X
+      if is_function(adj_X):
+        adj_X = (adj_X,)
+    
+    self.finalise_adjoint()
+
+    return adj_X
+  
+  def initialise_adjoint(self, nl_deps):
+    """
+    Adjoint initialisation. Called prior to calling adjoint_jacobian_solve or
+    adjoint_derivative_action methods.
+    
+    Arguments:
+    
+    nl_deps  A list or tuple of Function objects defining the values of
+             non-linear dependencies.
+    """
+    
+    pass
+  
+  def finalise_adjoint(self):
+    """
+    Adjoint finalisation. Called after calling adjoint_jacobian_solve and
+    adjoint_derivative_action methods.
+    """
+    
+    pass
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     """
@@ -847,6 +873,14 @@ class FixedPointSolver(Equation):
     for eq in self._eqs:
       eq.reset_forward_solve()
   
+  def initialise_adjoint(self, nl_deps):
+    self._eq_nl_deps = [[nl_deps[j] for j in self._eq_nl_dep_indices[i]] for i in range(len(self._eqs))]
+    for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
+      eq.initialise_adjoint(eq_nl_deps)
+  
+  def finalise_adjoint(self):
+    del(self._eq_nl_deps)
+  
   def adjoint_jacobian_solve(self, nl_deps, B):
     # Based on KrylovSolver parameters in FEniCS 2017.2.0
     absolute_tolerance = self._solver_parameters["absolute_tolerance"]
@@ -856,8 +890,6 @@ class FixedPointSolver(Equation):
     
     adj_X = self._init_adjoint_jacobian_solve(B)
     x = adj_X[-1]
-    
-    eq_nl_deps = [[nl_deps[j] for j in self._eq_nl_dep_indices[i]] for i in range(len(self._eqs))]
               
     it = 0
     x_0 = function_new(x)
@@ -870,12 +902,12 @@ class FixedPointSolver(Equation):
         b = function_copy(B[i])
           
         for j, k in self._tdeps[i]:
-          sb = self._eqs[k].adjoint_derivative_action(eq_nl_deps[k], j, adj_X[k])
+          sb = self._eqs[k].adjoint_derivative_action(self._eq_nl_deps[k], j, adj_X[k])
           subtract_adjoint_derivative_action(b, sb)
           del(sb)
         finalise_adjoint_derivative_action(b)
         
-        adj_X[i] = self._eqs[i].adjoint_jacobian_solve(eq_nl_deps[i], b)
+        adj_X[i] = self._eqs[i].adjoint_jacobian_solve(self._eq_nl_deps[i], b)
         if adj_X[i] is None: adj_X[i] = function_new(b)
       x = adj_X[-1]
 
@@ -931,7 +963,7 @@ class FixedPointSolver(Equation):
     for i in range(len(self._eqs)):
       eq_dep_ids = {eq_dep.id():index for index, eq_dep in enumerate(self._eqs[i].dependencies())}
       if dep_id in eq_dep_ids:
-        sb = self._eqs[i].adjoint_derivative_action([nl_deps[j] for j in self._eq_nl_dep_indices[i]], eq_dep_ids[dep_id], adj_X[i])
+        sb = self._eqs[i].adjoint_derivative_action(self._eq_nl_deps[i], eq_dep_ids[dep_id], adj_X[i])
         subtract_adjoint_derivative_action(F, sb)
         del(sb)
     finalise_adjoint_derivative_action(F)

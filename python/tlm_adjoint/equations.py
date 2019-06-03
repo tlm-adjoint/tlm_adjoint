@@ -562,9 +562,8 @@ class EquationSolver(Equation):
     self._forward_J_solver = CacheRef()
     self._forward_b_pa = None
   
-  def adjoint(self, nl_deps, B, B_indices, Bs):
+  def initialise_adjoint(self, nl_deps):
     update_caches(self.nonlinear_dependencies(), deps = nl_deps)
-    return Equation.adjoint(self, nl_deps, B, B_indices, Bs)
   
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action' in
