@@ -424,12 +424,10 @@ class EquationSolver(Equation):
     
     apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
     return b
-    
-  def forward(self, X, deps = None):
-    update_caches(self.dependencies(), deps = deps)
-    Equation.forward(self, X, deps = deps)
 
   def forward_solve(self, x, deps = None):
+    update_caches(self.dependencies(), deps = deps)
+    
     eq_deps = self.dependencies()
     if not self._initial_guess_index is None:
       function_assign(x, (eq_deps if deps is None else deps)[self._initial_guess_index])
