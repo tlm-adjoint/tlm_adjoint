@@ -1174,46 +1174,19 @@ class EquationManager:
       pixels[:, i0 + len(block) * P, :] = divider
       i0 += len(block) * P + 1
     
-    i0 = 1
-    last_block = None
-    last_i0 = None
+    index = 1
+    dep_map = {}
     for block in blocks:
-      if not last_block is None:
-        x_map = {}
-        for i, eq in enumerate(last_block):
-          for x in eq.X():
-            x_map[x.id()] = i
-        for i, eq in enumerate(block):
-          for x in eq.X():
-            x_id = x.id()
-            if x_id in x_map:
-              del(x_map[x_id])
-            for dep in eq.dependencies():
-              dep_id = dep.id()
-              if dep_id in x_map:
-                i1 = i * P + i0
-                j1 = x_map[dep_id] * P + last_i0
-                pixels[i1:i1 + P, j1:j1 + P, :] = 0
-
-      x_map = defaultdict(lambda : [])
-      for i, eq in enumerate(block):
+      for eq in block:
+        eq_indices = slice(index, index + P)
         for x in eq.X():
-          x_map[x.id()].append(i)
-        
-      for i in range(len(block) - 1, -1, -1):
-        eq = block[i]
+          dep_map[x.id()] = eq_indices
+        index += P
         for dep in eq.dependencies():
           dep_id = dep.id()
-          if dep_id in x_map and len(x_map[dep_id]) > 0:
-            i1 = i * P + i0
-            j1 = x_map[dep_id][-1] * P + i0
-            pixels[i1:i1 + P, j1:j1 + P, :] = 0
-        for x in eq.X():
-          x_map[x.id()].pop()
-        
-      last_block = block
-      last_i0 = i0
-      i0 += len(block) * P + 1
+          if dep_id in dep_map:
+            pixels[eq_indices, dep_map[dep_id]] = 0
+      index += 1
     
     import png
     return png.from_array(pixels, "RGB")
