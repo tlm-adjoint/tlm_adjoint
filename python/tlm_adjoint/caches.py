@@ -115,7 +115,7 @@ class Function(backend_Function):
   def tlm_depth(self):
     return self.__tlm_depth
   
-  def new_tlm(self, name = None):
+  def tangent_linear(self, name = None):
     if self.is_static():
       return None
     else:

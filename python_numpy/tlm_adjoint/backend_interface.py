@@ -50,7 +50,7 @@ __all__ = \
     "function_local_size",
     "function_max_value",
     "function_new",
-    "function_new_tlm",
+    "function_tangent_linear",
     "function_set_values",
     "function_space_id",
     "function_state",
@@ -145,7 +145,7 @@ class Function:
   def tlm_depth(self):
     return self._tlm_depth
   
-  def new_tlm(self, name = None):
+  def tangent_linear(self, name = None):
     if self.is_static():
       return None
     else:
@@ -293,8 +293,8 @@ def function_new(x, name = None, static = False, cache = None,
   return Function(x.function_space(), name = name, static = static,
     cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth)
 
-def function_new_tlm(x, name = None):
-  return x.new_tlm(name = name)
+def function_tangent_linear(x, name = None):
+  return x.tangent_linear(name = name)
 
 def function_alias(x):
   return Function(x.function_space(), name = x.name(), static = x.is_static(),

@@ -233,7 +233,7 @@ class TangentLinearMap:
           del(self._map[x_id])
           del(self._finalizes[x_id])
       self._finalizes[x_id] = weakref.finalize(x, callback, weakref.ref(self), x_id)
-      tlm_x = self._map[x_id] = function_new_tlm(x,
+      tlm_x = self._map[x_id] = function_tangent_linear(x,
         name = "%s%s" % (x.name(), self._name_suffix))
     return self._map[x_id]
       
