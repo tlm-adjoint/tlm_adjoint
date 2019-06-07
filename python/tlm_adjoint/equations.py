@@ -70,10 +70,11 @@ class AssembleSolver(Equation):
       match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]
       
     rank = len(rhs.arguments())
-    if rank != 0:
-      raise EquationException("Must be a rank 0 form")
-    if not is_real_function(x):
-      raise EquationException("Rank 0 forms can only be assigned to real functions")
+    if rank == 0:
+      if not is_real_function(x):
+        raise EquationException("Rank 0 forms can only be assigned to real functions")
+    elif rank != 1:
+      raise EquationException("Must be a rank 0 or 1 form")
   
     deps, nl_deps = extract_dependencies(rhs)
     if x.id() in deps:
@@ -88,6 +89,7 @@ class AssembleSolver(Equation):
       update_parameters_dict(form_compiler_parameters, form_form_compiler_parameters(rhs, form_compiler_parameters))
     
     Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = [])
+    self._rank = rank
     self._rhs = rhs
     self._form_compiler_parameters = form_compiler_parameters
 
@@ -100,8 +102,13 @@ class AssembleSolver(Equation):
       rhs = self._rhs
     else:
       rhs = ufl.replace(self._rhs, dict(zip(self.dependencies(), deps)))
-      
-    function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
+    
+    if self._rank == 0:
+      function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
+    else:
+      assert(self._rank == 1)
+      assemble(rhs, form_compiler_parameters = self._form_compiler_parameters,
+        tensor = x.vector())
     
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -116,12 +123,22 @@ class AssembleSolver(Equation):
       return adj_x
     
     dep = eq_deps[dep_index]
-    dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = TestFunction(dep.function_space())))
+    if self._rank == 0:
+      argument = TestFunction(dep.function_space())
+    else:
+      assert(self._rank == 1)
+      argument = TrialFunction(dep.function_space())
+    dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep,
+      argument = argument))
     if dF.empty():
       return None
     
     dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
-    return (-function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+    if self._rank == 0:
+      return (-function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+    else:
+      assert(self._rank == 1)
+      return (-1.0, assemble(ufl.action(adjoint(dF), adj_x), form_compiler_parameters = self._form_compiler_parameters))
   
   def adjoint_jacobian_solve(self, nl_deps, b):
     return b

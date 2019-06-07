@@ -66,6 +66,43 @@ def leak_check(test):
   
 class tests(unittest.TestCase):
   @leak_check
+  def test_AssembleSolver(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    
+    def forward(F):
+      x = Function(space, name = "x")
+      y = Function(RealFunctionSpace(), name = "y")
+      
+      AssembleSolver(inner(test, F * F) * dx + inner(test, F) * dx, x).solve()
+      AssembleSolver(inner(F, x) * dx, y).solve()
+      
+      J = Functional(name = "J")
+      J.assign(y)
+      
+      return J
+    
+    F = Function(space, name = "F", static = True)
+    F.interpolate(Expression("x[0] * sin(pi * x[1])", element = space.ufl_element()))
+    
+    start_manager()
+    J = forward(F)
+    stop_manager()
+    
+    dJ = compute_gradient(J, F)
+    min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ)
+    self.assertGreater(min_order, 2.00)
+    
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+    
+  @leak_check
   def test_clear_caches(self):
     reset("memory", {"replace":True})
     clear_caches()
@@ -275,7 +312,7 @@ class tests(unittest.TestCase):
     
     ddJ = Hessian(lambda y : forward(y)[1])
     min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ, ddJ = ddJ, seed = 1.0e-3)
-    self.assertGreater(min_order, 2.99)
+    self.assertGreater(min_order, 2.98)
     
   @leak_check
   def test_PointInterpolationSolver(self):
@@ -1174,6 +1211,7 @@ if __name__ == "__main__":
 #  tests().test_LongRange()
 #  tests().test_LocalProjectionSolver()
 #  tests().test_clear_caches()
+#  tests().test_AssembleSolver()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()

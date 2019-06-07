@@ -67,6 +67,44 @@ def leak_check(test):
   
 class tests(unittest.TestCase):
   @leak_check
+  def test_AssembleSolver(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    
+    def forward(F):
+      x = Function(space, name = "x")
+      y = Function(RealFunctionSpace(), name = "y")
+      
+      AssembleSolver(inner(test, F * F) * dx + inner(test, F) * dx, x).solve()
+      AssembleSolver(inner(F, x) * dx, y).solve()
+      
+      J = Functional(name = "J")
+      J.assign(y)
+      
+      return J
+    
+    F = Function(space, name = "F", static = True)
+    F.interpolate(X[0] * sin(pi * X[1]))
+    
+    start_manager()
+    J = forward(F)
+    stop_manager()
+    
+    dJ = compute_gradient(J, F)
+    min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ)
+    self.assertGreater(min_order, 2.00)
+    
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, F, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+    
+  @leak_check
   def test_clear_caches(self):
     reset("memory", {"replace":True})
     clear_caches()
@@ -1012,6 +1050,7 @@ if __name__ == "__main__":
 #  tests().test_ExprEvaluationSolver()
 #  tests().test_LongRange()
 #  tests().test_clear_caches()
+#  tests().test_AssembleSolver()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()
