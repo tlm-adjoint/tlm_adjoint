@@ -1523,14 +1523,14 @@ class InnerProductRHS(RHS):
       except ValueError:
         tlm_x = tlm_map[x]
       if not tlm_x is None:
-        tlm_B.append(InnerProductRHS(tlm_x, y), alpha = self._alpha, M = self._M)
+        tlm_B.append(InnerProductRHS(tlm_x, y, alpha = self._alpha, M = self._M))
       
       try:
         tlm_y = dM[M.index(y)]
       except ValueError:
         tlm_y = tlm_map[y]
       if not tlm_y is None:
-        tlm_B.append(InnerProductRHS(x, tlm_y), alpha = self._alpha, M = self._M)
+        tlm_B.append(InnerProductRHS(x, tlm_y, alpha = self._alpha, M = self._M))
     
     return tlm_B
 
