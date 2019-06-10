@@ -56,7 +56,11 @@ __all__ = \
     "NormSqSolver",
     "RHS",
     "SumRHS",
-    "SumSolver"
+    "SumSolver",
+    
+    "HDF5Storage",
+    "MemoryStorage",
+    "Storage"
   ]
 
 class EquationException(Exception):
@@ -1564,3 +1568,73 @@ class SumRHS(RHS):
       return None
     else:
       return SumRHS(tau_y)
+      
+class Storage(Equation):
+  def __init__(self, x, key):
+    Equation.__init__(self, x, [x], nl_deps = [], ic_deps = [])
+    self._key = key
+  
+  def key(self):
+    return self._key
+  
+  def _saved(self):
+    raise EquationException("Method not overridden")
+  
+  def _load(self, x):
+    raise EquationException("Method not overridden")
+  
+  def _save(self, x):
+    raise EquationException("Method not overridden")
+  
+  def forward_solve(self, x, deps = None):
+    if self._saved():
+      self._load(x)
+    else:
+      self._save(x)
+    
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+    
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    if dep_index == 0:
+      return adj_x
+    else:
+      return None
+  
+  def tangent_linear(self, M, dM, tlm_map):
+    if self.x() in M:
+      raise EquationException("Invalid tangent-linear parameter")
+    return NullSolver(tlm_map[self.x()])
+  
+class MemoryStorage(Storage):
+  def __init__(self, x, d, key):
+    Storage.__init__(self, x, key)
+    self._d = d
+  
+  def _saved(self):
+    return self.key() in self._d
+  
+  def _load(self, x):
+    function_set_values(x, self._d[self.key()])
+  
+  def _save(self, x):
+    self._d[self.key()] = function_get_values(x)
+  
+class HDF5Storage(Storage):
+  def __init__(self, x, h, key):
+    Storage.__init__(self, x, key)
+    self._h = h
+
+  def _saved(self):
+    return self.key() in self._h
+  
+  def _load(self, x):
+    d = self._h[self.key()]["value"]
+    function_set_values(x, d[function_local_indices(x)])
+  
+  def _save(self, x):
+    key = self.key()
+    self._h.create_group(key)
+    values = function_get_values(x)
+    d = self._h[key].create_dataset("value", shape = (function_global_size(x),), dtype = values.dtype)
+    d[function_local_indices(x)] = values

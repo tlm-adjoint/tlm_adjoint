@@ -25,6 +25,7 @@ from tlm_adjoint.backend import backend_Function
 
 import gc
 import numpy
+import os
 import unittest
 import weakref
 
@@ -65,6 +66,62 @@ def leak_check(test):
   return wrapped_test    
   
 class tests(unittest.TestCase):
+  @leak_check
+  def test_Storage(self):
+    reset("periodic_disk")  # Ensure creation of checkpoints~ directory
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    
+    def forward(x, d = None, h = None):
+      y = Function(space, name = "y")
+      x_s = Function(space, name = "x_s")
+      y_s = Function(space, name = "y_s")
+    
+      if d is None:
+        function_assign(x_s, x)
+        d = {}
+      MemoryStorage(x_s, d, x_s.name()).solve()
+      
+      ExprEvaluationSolver(x * x * x * x_s, y).solve()
+    
+      if h is None:
+        function_assign(y_s, y)
+        comm = manager().comm()
+        import h5py
+        if comm.size > 1:
+          h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"), "w", driver = "mpio", comm = comm)
+        else:
+          h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"), "w")
+      HDF5Storage(y_s, h, y_s.name()).solve()
+      
+      J = Functional(name = "J")
+      InnerProductSolver(y, y_s, J.fn()).solve()
+      
+      return d, h, J
+    
+    x = Function(space, name = "x", static = True)
+    function_set_values(x, numpy.random.random(function_local_size(x)))
+    
+    start_manager()
+    d, h, J = forward(x)
+    stop_manager()
+    
+    self.assertEqual(len(manager()._cp._refs), 1)
+    self.assertEqual(tuple(manager()._cp._refs.keys()), (x.id(),))
+    self.assertEqual(len(manager()._cp._cp), 0)
+    
+    dJ = compute_gradient(J, x)    
+    min_order = taylor_test(lambda x : forward(x, d = d, h = h)[2], x, J_val = J.value(), dJ = dJ)
+    self.assertGreater(min_order, 2.00)
+    
+    ddJ = Hessian(lambda x : forward(x, d = d, h = h)[2])
+    min_order = taylor_test(lambda x : forward(x, d = d, h = h)[2], x, J_val = J.value(), ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+
   @leak_check
   def test_AssembleSolver(self):
     reset("memory", {"replace":True})
@@ -1212,6 +1269,7 @@ if __name__ == "__main__":
 #  tests().test_LocalProjectionSolver()
 #  tests().test_clear_caches()
 #  tests().test_AssembleSolver()
+#  tests().test_Storage()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()
