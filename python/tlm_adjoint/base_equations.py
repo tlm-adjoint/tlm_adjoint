@@ -1475,7 +1475,7 @@ class InnerProductRHS(RHS):
           X = function_new(x)
           self._M.forward_action(M_deps, x, X, method = "assign")
           
-        function_axpy(b, -2.0 * self._alpha * function_get_values(adj_x).sum(), X)
+        function_axpy(b, -2.0 * self._alpha * function_sum(adj_x), X)
     elif dep_index == 0:
       x, y = nl_deps[:2]
       M_deps = nl_deps[2:]
@@ -1486,7 +1486,7 @@ class InnerProductRHS(RHS):
         Y = function_new(x)
         self._M.forward_action(M_deps, y, Y, method = "assign")
     
-      function_axpy(b, -self._alpha * function_get_values(adj_x).sum(), Y)
+      function_axpy(b, -self._alpha * function_sum(adj_x), Y)
     elif dep_index == 1:
       x, y = nl_deps[:2]
       M_deps = nl_deps[2:]
@@ -1497,7 +1497,7 @@ class InnerProductRHS(RHS):
         X = function_new(y)
         self._M.forward_action(M_deps, x, X, method = "assign")
     
-      function_axpy(b, -self._alpha * function_get_values(adj_x).sum(), X)
+      function_axpy(b, -self._alpha * function_sum(adj_x), X)
       
   def reset_subtract_adjoint_derivative_action(self):
     if not self._M is None:
@@ -1544,11 +1544,11 @@ class SumRHS(RHS):
     
   def add_forward(self, b, deps):
     y, = deps
-    function_set_values(b, function_get_values(b) + function_get_values(y).sum())
+    function_set_values(b, function_get_values(b) + function_sum(y))
     
   def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
     if dep_index == 0:
-      function_set_values(b, function_get_values(b) - function_get_values(adj_x).sum())
+      function_set_values(b, function_get_values(b) - function_sum(adj_x))
       
   def tangent_linear_rhs(self, M, dM, tlm_map):
     y, = self.dependencies()

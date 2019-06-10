@@ -62,6 +62,7 @@ __all__ = \
     "function_set_values",
     "function_space_id",
     "function_state",
+    "function_sum",
     "function_tlm_depth",
     "function_update_state",
     "function_zero",
@@ -180,6 +181,9 @@ def function_set_values(x, values):
 def function_max_value(x):
   x_v = as_backend_type(x.vector()).vec()
   return x_v.max()[1]
+  
+def function_sum(x):
+  return x.vector().sum()
 
 def function_linf_norm(x):
   x_v = as_backend_type(x.vector()).vec()

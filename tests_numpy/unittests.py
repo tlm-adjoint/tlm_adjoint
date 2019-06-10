@@ -154,7 +154,7 @@ class tests(unittest.TestCase):
     J = forward(F)
     stop_manager()
     
-    self.assertEqual(J.value(), F.vector().sum())
+    self.assertEqual(J.value(), function_sum(F))
 
     dJ = compute_gradient(J, F)
     self.assertEqual(abs(function_get_values(dJ) - 1.0).max(), 0.0)
