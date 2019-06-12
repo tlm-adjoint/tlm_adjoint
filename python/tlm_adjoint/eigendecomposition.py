@@ -139,9 +139,9 @@ def eigendecompose(space, A_action, B_matrix = None, N_eigenvalues = None,
   esolver.solve()
   
   lam = numpy.empty(esolver.getConverged(), dtype = numpy.float64 if esolver.isHermitian() else numpy.complex64)
-  V_r = [function_new(X) for n in range(N)]
+  V_r = tuple(function_new(X) for n in range(N))
   if not esolver.isHermitian():
-    V_i = [function_new(X) for n in range(N)]
+    V_i = tuple(function_new(X) for n in range(N))
   v_r, v_i = A_matrix.getVecRight(), A_matrix.getVecRight()
   for i in range(lam.shape[0]):
     lam_i = esolver.getEigenpair(i, v_r, v_i)
