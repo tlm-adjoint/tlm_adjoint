@@ -502,9 +502,9 @@ class EquationManager:
     if self._cp_method == "memory":
       pass
     elif self._cp_method == "periodic_disk":
-      info("  Function spaces referenced: %i" % len(self._cp_disk_spaces))
+      info("  Function spaces referenced: %i" % len(self._cp_spaces))
     elif self._cp_method == "multistage":
-      info("  Function spaces referenced: %i" % len(self._cp_disk_spaces))
+      info("  Function spaces referenced: %i" % len(self._cp_spaces))
       info("  Snapshots in RAM: %i" % self._cp_manager.snapshots_in_ram())
       info("  Snapshots on disk: %i" % self._cp_manager.snapshots_on_disk())
     else:
@@ -583,8 +583,8 @@ class EquationManager:
     self._cp_method = cp_method
     self._cp_parameters = cp_parameters
     self._cp_manager = cp_manager
-    self._cp_disk_spaces = {}  # FunctionSpace objects are currently stored in RAM
-    self._cp_disk_memory = {}
+    self._cp_spaces = {}  # FunctionSpace objects are currently stored in RAM
+    self._cp_memory = {}
     
     if cp_method == "multistage":
       if self._cp_manager.max_n() == 1:
@@ -851,22 +851,21 @@ class EquationManager:
     else:
       return [self.map(y) for y in x]
   
-  def _checkpoint_space_index(self, fn):
+  def _checkpoint_space_id(self, fn):
     space = fn.function_space()
-    if space in self._cp_disk_spaces:
-      index = self._cp_disk_spaces[space]
-    else:
-      index = self._cp_disk_spaces[space] = len(self._cp_disk_spaces)
-    return index
+    space_id = function_space_id(space)
+    if not space_id in self._cp_spaces:
+      self._cp_spaces[space_id] = space
+    return space_id
   
   def _save_memory_checkpoint(self, cp, n):
-    self._cp_disk_memory[n] = self._cp.initial_conditions(cp = True, refs = False, copy = False)
+    self._cp_memory[n] = self._cp.initial_conditions(cp = True, refs = False, copy = False)
   
   def _load_memory_checkpoint(self, storage, n, delete = False):
     if delete:
-      storage.update(self._cp_disk_memory.pop(n), copy = False)
+      storage.update(self._cp_memory.pop(n), copy = False)
     else:
-      storage.update(self._cp_disk_memory[n], copy = True)
+      storage.update(self._cp_memory[n], copy = True)
   
   def _save_disk_checkpoint(self, cp, n):
     cp_path = self._cp_parameters["path"]
@@ -878,7 +877,7 @@ class EquationManager:
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm_py2f, self._comm.rank))
       h = open(cp_filename, "wb")
       
-      pickle.dump({key:(self._checkpoint_space_index(F), function_get_values(F)) for key, F in cp.items()},
+      pickle.dump({key:(self._checkpoint_space_id(F), function_get_values(F)) for key, F in cp.items()},
         h, protocol = pickle.HIGHEST_PROTOCOL)
       
       h.close()
@@ -899,8 +898,8 @@ class EquationManager:
         d[function_local_indices(F)] = values
         del(values)
         
-        d = g.create_dataset("space_index", shape = (self._comm.size,), dtype = numpy.int64)
-        d[self._comm.rank] = self._checkpoint_space_index(F)
+        d = g.create_dataset("space_id", shape = (self._comm.size,), dtype = numpy.int64)
+        d[self._comm.rank] = self._checkpoint_space_id(F)
         
         d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
         d[self._comm.rank] = key
@@ -924,12 +923,12 @@ class EquationManager:
         self._comm.barrier()
       
       for key in tuple(cp.keys()):
-        i, values = cp.pop(key)
+        space_id, values = cp.pop(key)
         if key in storage:
-          F = Function(self._cp_disk_spaces[i])
+          F = Function(self._cp_spaces[space_id])
           function_set_values(F, values)
           storage[key] = F
-        del(i, values)
+        del(space_id, values)
     elif cp_format == "hdf5":
       cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm_py2f))
       import h5py
@@ -942,8 +941,8 @@ class EquationManager:
         d = g["key"]
         key = int(d[self._comm.rank])
         if key in storage:
-          d = g["space_index"]
-          F = Function(self._cp_disk_spaces[d[self._comm.rank]])
+          d = g["space_id"]
+          F = Function(self._cp_spaces[d[self._comm.rank]])
           d = g["value"]
           function_set_values(F, d[function_local_indices(F)])
           storage[key] = F
