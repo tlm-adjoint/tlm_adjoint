@@ -583,7 +583,7 @@ class EquationManager:
     self._cp_method = cp_method
     self._cp_parameters = cp_parameters
     self._cp_manager = cp_manager
-    self._cp_disk_spaces = []  # FunctionSpace objects are currently stored in RAM
+    self._cp_disk_spaces = {}  # FunctionSpace objects are currently stored in RAM
     self._cp_disk_memory = {}
     
     if cp_method == "multistage":
@@ -852,11 +852,11 @@ class EquationManager:
       return [self.map(y) for y in x]
   
   def _checkpoint_space_index(self, fn):
-    try:
-      index = self._cp_disk_spaces.index(fn.function_space())
-    except ValueError:
-      self._cp_disk_spaces.append(fn.function_space())
-      index = len(self._cp_disk_spaces) - 1
+    space = fn.function_space()
+    if space in self._cp_disk_spaces:
+      index = self._cp_disk_spaces[space]
+    else:
+      index = self._cp_disk_spaces[space] = len(self._cp_disk_spaces)
     return index
   
   def _save_memory_checkpoint(self, cp, n):
