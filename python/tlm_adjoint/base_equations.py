@@ -1577,20 +1577,20 @@ class Storage(Equation):
   def key(self):
     return self._key
   
-  def _saved(self):
+  def is_saved(self):
     raise EquationException("Method not overridden")
   
-  def _load(self, x):
+  def load(self, x):
     raise EquationException("Method not overridden")
   
-  def _save(self, x):
+  def save(self, x):
     raise EquationException("Method not overridden")
   
   def forward_solve(self, x, deps = None):
-    if self._saved():
-      self._load(x)
+    if self.is_saved():
+      self.load(x)
     else:
-      self._save(x)
+      self.save(x)
     
   def adjoint_jacobian_solve(self, nl_deps, b):
     return b
@@ -1611,13 +1611,13 @@ class MemoryStorage(Storage):
     Storage.__init__(self, x, key)
     self._d = d
   
-  def _saved(self):
+  def is_saved(self):
     return self.key() in self._d
   
-  def _load(self, x):
+  def load(self, x):
     function_set_values(x, self._d[self.key()])
   
-  def _save(self, x):
+  def save(self, x):
     self._d[self.key()] = function_get_values(x)
   
 class HDF5Storage(Storage):
@@ -1625,14 +1625,14 @@ class HDF5Storage(Storage):
     Storage.__init__(self, x, key)
     self._h = h
 
-  def _saved(self):
+  def is_saved(self):
     return self.key() in self._h
   
-  def _load(self, x):
+  def load(self, x):
     d = self._h[self.key()]["value"]
     function_set_values(x, d[function_local_indices(x)])
   
-  def _save(self, x):
+  def save(self, x):
     key = self.key()
     self._h.create_group(key)
     values = function_get_values(x)
