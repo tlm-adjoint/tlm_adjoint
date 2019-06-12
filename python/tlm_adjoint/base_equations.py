@@ -1319,9 +1319,9 @@ class InnerProductSolver(LinearEquation):
   def __init__(self, y, z, x, alpha = 1.0, M = None):
     LinearEquation.__init__(self, InnerProductRHS(y, z, alpha = alpha, M = M), x)
 
-class NormSqSolver(LinearEquation):
+class NormSqSolver(InnerProductSolver):
   def __init__(self, y, x, alpha = 1.0, M = None):
-    LinearEquation.__init__(self, NormSqRHS(y, alpha = alpha, M = M), x)
+    InnerProductSolver.__init__(self, y, y, x, alpha = alpha, M = M)
 
 class SumSolver(LinearEquation):
   def __init__(self, y, x):
