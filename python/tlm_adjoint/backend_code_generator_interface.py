@@ -170,7 +170,7 @@ def apply_rhs_bcs(b, hbcs, b_bc = None):
   if not b_bc is None:
     b.axpy(1.0, b_bc)
 
-def matrix_multiply(A, x, addto = None, space_fn = None):
+def matrix_multiply(A, x, addto = None, space = None):
   b = A * x
   if addto is None:
     return b

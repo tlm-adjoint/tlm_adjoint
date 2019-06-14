@@ -117,14 +117,14 @@ def apply_rhs_bcs(b, hbcs, b_bc = None):
   if not b_bc is None:
     raise InterfaceException("Unexpected RHS terms")
 
-def matrix_multiply(A, x, addto = None, space_fn = None):
-  if space_fn is None:
+def matrix_multiply(A, x, addto = None, space = None):
+  if space is None:
     if addto is None:
       raise InterfaceException("Unable to create Function")
     else:
       b = backend_Function(addto.function_space()).vector()  # function_new
   else:
-    b = backend_Function(space_fn.function_space()).vector()  # function_new
+    b = backend_Function(space).vector()
   as_backend_type(A).mat().mult(as_backend_type(x).vec(), as_backend_type(b).vec())
   if addto is None:
     return b
