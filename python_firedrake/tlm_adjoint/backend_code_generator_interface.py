@@ -100,9 +100,13 @@ def assemble_system(A_form, b_form, bcs = [], form_compiler_parameters = {}):
 
 def linear_solver(A, linear_solver_parameters):
   linear_solver_parameters = copy.copy(linear_solver_parameters)
+  nullspace = linear_solver_parameters.pop("_tlm_adjoint__nullspace", None)
+  transpose_nullspace = linear_solver_parameters.pop("_tlm_adjoint__transpose_nullspace", None)
+  near_nullspace = linear_solver_parameters.pop("_tlm_adjoint__near_nullspace", None)
   options_prefix = linear_solver_parameters.pop("_tlm_adjoint__options_prefix", None)
   return LinearSolver(A, solver_parameters = linear_solver_parameters,
-    options_prefix = options_prefix)
+    options_prefix = options_prefix, nullspace = nullspace,
+    transpose_nullspace = transpose_nullspace, near_nullspace = near_nullspace)
 
 def form_form_compiler_parameters(form, form_compiler_parameters):
   return {"quadrature_degree":ufl.algorithms.estimate_total_polynomial_degree(form)}
