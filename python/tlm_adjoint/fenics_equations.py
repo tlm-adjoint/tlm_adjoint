@@ -422,7 +422,7 @@ class PointInterpolationSolver(Equation):
     comm.Allreduce(x_v_local, x_v, op = mpi4py.MPI.MAX)
 
     for i, x in enumerate(X):
-      x.vector()[:] = x_v[i]
+      function_assign(x, x_v[i])
       
   def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
     if is_function(adj_X): adj_X = (adj_X,)
