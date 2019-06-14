@@ -517,16 +517,14 @@ class tests(unittest.TestCase):
     
       x = Function(space, name = "x")
       solve(inner(test, trial) * dx == inner(test, alpha) * dx,
-        x, solver_parameters = {"linear_solver":"cg",
-                                "preconditioner":"sor",
-                                "krylov_solver":{"relative_tolerance":1.0e-14,
-                                                 "absolute_tolerance":1.0e-16}})
+        x, solver_parameters = {"ksp_type":"cg",
+                                "pc_type":"jacobi",
+                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       y = Function(space, name = "y")
       solve(inner(test, trial) * dx == inner(test, beta) * dx,
-        y, solver_parameters = {"linear_solver":"cg",
-                                "preconditioner":"sor",
-                                "krylov_solver":{"relative_tolerance":1.0e-14,
-                                                 "absolute_tolerance":1.0e-16}})
+        y, solver_parameters = {"ksp_type":"cg",
+                                "pc_type":"jacobi",
+                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       if x_ref is None:
         x_ref = Function(space, name = "x_ref", static = True)
         function_assign(x_ref, x)
