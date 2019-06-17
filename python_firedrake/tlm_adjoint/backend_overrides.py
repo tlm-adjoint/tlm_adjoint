@@ -33,7 +33,6 @@ __all__ = \
     
     "LinearSolver",
     "LinearVariationalSolver",
-    "NonlinearVariationalProblem",
     "NonlinearVariationalSolver",
     "assemble",
     "project",
@@ -93,19 +92,17 @@ def packed_solver_parameters(solver_parameters, options_prefix = None,
   return solver_parameters
 
 # Aim for compatibility with Firedrake API, git master revision
-# 1b6306099f81b89e7eda07209d1a1b99447e063b
+# 9e25c85dbb5400e0ebd7065932ee5b8bab2876f1
 
-def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None, inverse = False, *args, **kwargs):
-  if inverse:
-    raise OverrideException("Local inverses not supported")
-
+def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None,
+  inverse = False, *args, **kwargs):
   b = backend_assemble(f, tensor = tensor, bcs = bcs,
     form_compiler_parameters = form_compiler_parameters, inverse = inverse,
     *args, **kwargs)
   if tensor is None:
     tensor = b
       
-  if not isinstance(b, float):
+  if not isinstance(b, float) and not inverse:
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     if not form_compiler_parameters is None:
       update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
@@ -254,9 +251,6 @@ class LinearSolver(backend_LinearSolver):
       solver_parameters = {}
     else:
       solver_parameters = copy_parameters_dict(solver_parameters)
-      
-    self.__A = A
-    self.__solver_parameters = solver_parameters
 
   def solve(self, x, b, annotate = None, tlm = None):
     if annotate is None:
@@ -264,7 +258,7 @@ class LinearSolver(backend_LinearSolver):
     if tlm is None:
       tlm = tlm_enabled()
     if annotate or tlm:
-      A = self.__A
+      A = self.A
       if not is_function(x):
         x = x._tlm_adjoint__function
       if not is_function(b):
@@ -273,7 +267,7 @@ class LinearSolver(backend_LinearSolver):
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
-      solver_parameters = packed_solver_parameters(self.__solver_parameters, 
+      solver_parameters = packed_solver_parameters(self.parameters, 
         options_prefix = self.options_prefix, nullspace = self.nullspace,
         transpose_nullspace = self.transpose_nullspace,
         near_nullspace = self.near_nullspace)
@@ -296,9 +290,6 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
       raise OverrideException("Preconditioners not supported")
   
     backend_LinearVariationalSolver.__init__(self, *args, **kwargs)
-    self.__problem = problem
-    self.__nullspace = kwargs.get("nullspace", None)
-    self.__transpose_nullspace = kwargs.get("transpose_nullspace", None)
   
   def set_transfer_operators(self, *args, **kwargs):
     raise OverrideException("Transfer operators not supported")
@@ -311,33 +302,25 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
     if annotate or tlm:
       if not bounds is None:
         raise OverrideException("Bounds not supported")        
-      if not self.__problem.Jp is None:
+      if not self._problem.Jp is None:
         raise OverrideException("Preconditioners not supported")
       
-      x = self.__problem.u
-      L = ufl.rhs(ufl.replace(self.__problem.F, {x:TrialFunction(x.function_space())}))
-      form_compiler_parameters = self.__problem.form_compiler_parameters
+      x = self._problem.u
+      L = ufl.rhs(ufl.replace(self._problem.F, {x:TrialFunction(x.function_space())}))
+      form_compiler_parameters = self._problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
       solver_parameters = packed_solver_parameters(self.parameters, 
-        options_prefix = self.options_prefix, nullspace = self.__nullspace,
-        transpose_nullspace = self.__transpose_nullspace)
+        options_prefix = self.options_prefix, nullspace = self._ctx._nullspace,
+        transpose_nullspace = self._ctx._nullspace_T,
+        near_nullspace = self._ctx._near_nullspace)
       
-      EquationSolver(self.__problem.J == L, x, self.__problem.bcs,
+      EquationSolver(self._problem.J == L, x, self._problem.bcs,
         solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
-        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+        cache_jacobian = self._problem._constant_jacobian,
+        cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     else:
       backend_LinearVariationalSolver.solve(self, bounds = bounds)
-
-class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
-  def __init__(self, F, u, bcs = None, J = None, Jp = None,
-    form_compiler_parameters = None, is_linear = False):
-    if not Jp is None:
-      raise OverrideException("Preconditioners not supported")
-    
-    backend_NonlinearVariationalProblem.__init__(self, F, u, bcs = bcs, J = J,
-      Jp = Jp, form_compiler_parameters = form_compiler_parameters,
-      is_linear = is_linear)
 
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
   def __init__(self, *args, **kwargs):
@@ -348,10 +331,6 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
       raise OverrideException("Callbacks not supported")
   
     backend_NonlinearVariationalSolver.__init__(self, *args, **kwargs)
-    self.__problem = problem
-    self.__nullspace = kwargs.get("nullspace", None)
-    self.__transpose_nullspace = kwargs.get("transpose_nullspace", None)
-    self.__near_nullspace = kwargs.get("near_nullspace", None)
   
   def set_transfer_operators(self, *args, **kwargs):
     raise OverrideException("Transfer operators not supported")
@@ -364,18 +343,18 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
     if annotate or tlm:
       if not bounds is None:
         raise OverrideException("Bounds not supported")        
-      if not self.__problem.Jp is None:
+      if not self._problem.Jp is None:
         raise OverrideException("Preconditioners not supported")
       
-      form_compiler_parameters = self.__problem.form_compiler_parameters
+      form_compiler_parameters = self._problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
       solver_parameters = packed_solver_parameters(self.parameters, 
-        options_prefix = self.options_prefix, nullspace = self.__nullspace,
-        transpose_nullspace = self.__transpose_nullspace,
-        near_nullspace = self.__near_nullspace)
+        options_prefix = self.options_prefix, nullspace = self._ctx._nullspace,
+        transpose_nullspace = self._ctx._nullspace_T,
+        near_nullspace = self._ctx._near_nullspace)
       
-      EquationSolver(self.__problem.F == 0, self.__problem.u,
-        self.__problem.bcs, J = self.__problem.J,
+      EquationSolver(self._problem.F == 0, self._problem.u,
+        self._problem.bcs, J = self._problem.J,
         solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
