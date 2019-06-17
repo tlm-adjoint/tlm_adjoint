@@ -36,6 +36,7 @@ __all__ = \
     "is_real_function",
     "linear_solver",
     "matrix_multiply",
+    "process_adjoint_solver_parameters",
     "process_solver_parameters",
     "rhs_addto",
     "rhs_copy",
@@ -84,7 +85,54 @@ def update_parameters_dict(parameters, new_parameters):
       
 def process_solver_parameters(solver_parameters, J, linear):
   solver_parameters = copy_parameters_dict(solver_parameters)
+  if "tlm_adjoint" in solver_parameters:
+    tlm_adjoint_parameters = solver_parameters["tlm_adjoint"]
+  else:
+    tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = {}
+  
+  if not "options_prefix" in tlm_adjoint_parameters:
+    tlm_adjoint_parameters["options_prefix"] = None
+
+  if "nullspace" in tlm_adjoint_parameters:
+    nullspace = tlm_adjoint_parameters["nullspace"]
+    if not nullspace is None:
+      for fn in nullspace._vecs:
+        if not function_is_static(fn) or not function_is_cached(fn) or function_is_checkpointed(fn):
+          raise InterfaceExecption("Invalid basis function")
+  else:
+    tlm_adjoint_parameters["nullspace"] = None
+
+  if "transpose_nullspace" in tlm_adjoint_parameters:
+    transpose_nullspace = tlm_adjoint_parameters["transpose_nullspace"]
+    if not transpose_nullspace is None:
+      for fn in transpose_nullspace._vecs:
+        if not function_is_static(fn) or not function_is_cached(fn) or function_is_checkpointed(fn):
+          raise InterfaceExecption("Invalid basis function")
+  else:
+    tlm_adjoint_parameters["transpose_nullspace"] = None
+
+  if "near_nullspace" in tlm_adjoint_parameters:
+    near_nullspace = tlm_adjoint_parameters["near_nullspace"]
+    if not near_nullspace is None:
+      for fn in near_nullspace._vecs:
+        if not function_is_static(fn) or not function_is_cached(fn) or function_is_checkpointed(fn):
+          raise InterfaceExecption("Invalid basis function")
+  else:
+    tlm_adjoint_parameters["near_nullspace"] = None
+
   return solver_parameters, solver_parameters, True
+
+def process_adjoint_solver_parameters(linear_solver_parameters):
+  if "tlm_adjoint" in linear_solver_parameters:
+    adjoint_solver_parameters = copy.copy(linear_solver_parameters)
+    tlm_adjoint_parameters = adjoint_solver_parameters["tlm_adjoint"] = copy.copy(linear_solver_parameters["tlm_adjoint"])
+    
+    tlm_adjoint_parameters["nullspace"] = linear_solver_parameters["tlm_adjoint"]["transpose_nullspace"]
+    tlm_adjoint_parameters["transpose_nullspace"] = linear_solver_parameters["tlm_adjoint"]["nullspace"]
+
+    return adjoint_solver_parameters
+  else:
+    return linear_solver_parameters  # Copy not required
 
 def assemble_matrix(form, bcs, form_compiler_parameters, solver_parameters = {}, force_evaluation = True):
   mat_type = solver_parameters.get("mat_type", None)
@@ -99,11 +147,18 @@ def assemble_system(A_form, b_form, bcs = [], form_compiler_parameters = {}):
           assemble(b_form, form_compiler_parameters = form_compiler_parameters))
 
 def linear_solver(A, linear_solver_parameters):
-  linear_solver_parameters = copy.copy(linear_solver_parameters)
-  nullspace = linear_solver_parameters.pop("_tlm_adjoint__nullspace", None)
-  transpose_nullspace = linear_solver_parameters.pop("_tlm_adjoint__transpose_nullspace", None)
-  near_nullspace = linear_solver_parameters.pop("_tlm_adjoint__near_nullspace", None)
-  options_prefix = linear_solver_parameters.pop("_tlm_adjoint__options_prefix", None)
+  if "tlm_adjoint" in linear_solver_parameters:
+    linear_solver_parameters = copy.copy(linear_solver_parameters)
+    tlm_adjoint_parameters = linear_solver_parameters.pop("tlm_adjoint")
+    options_prefix = tlm_adjoint_parameters.get("options_prefix", None)
+    nullspace = tlm_adjoint_parameters.get("nullspace", None)
+    transpose_nullspace = tlm_adjoint_parameters.get("transpose_nullspace", None)
+    near_nullspace = tlm_adjoint_parameters.get("near_nullspace", None)
+  else:
+    options_prefix = None
+    nullspace = None
+    transpose_nullspace = None
+    near_nullspace = None
   return LinearSolver(A, solver_parameters = linear_solver_parameters,
     options_prefix = options_prefix, nullspace = nullspace,
     transpose_nullspace = transpose_nullspace, near_nullspace = near_nullspace)
@@ -150,8 +205,29 @@ def solve(*args, **kwargs):
     nullspace, transpose_nullspace, near_nullspace, options_prefix = \
     extract_args(*args, **kwargs)
 
-  solver_parameters = copy.copy(solver_parameters)
-  options_prefix = solver_parameters.pop("_tlm_adjoint__options_prefix", options_prefix)
+  if "tlm_adjoint" in solver_parameters:
+    solver_parameters = copy.copy(solver_parameters)
+    tlm_adjoint_parameters = solver_parameters.pop("tlm_adjoint")
+
+    if "options_prefix" in tlm_adjoint_parameters:
+      if not options_prefix is None:
+        raise InterfaceException("Cannot pass both options_prefix argument and solver parameter")
+      options_prefix = tlm_adjoint_parameters["options_prefix"]
+
+    if "nullspace" in tlm_adjoint_parameters:
+      if not nullspace is None:
+        raise InterfaceException("Cannot pass both nullspace argument and solver parameter")
+      nullspace = tlm_adjoint_parameters["nullspace"]
+
+    if "transpose_nullspace" in tlm_adjoint_parameters:
+      if not transpose_nullspace is None:
+        raise InterfaceException("Cannot pass both transpose_nullspace argument and solver parameter")
+      transpose_nullspace = tlm_adjoint_parameters["transpose_nullspace"]
+
+    if "near_nullspace" in tlm_adjoint_parameters:
+      if not near_nullspace is None:
+        raise InterfaceException("Cannot pass both near_nullspace argument and solver parameter")
+      near_nullspace = tlm_adjoint_parameters["near_nullspace"]
 
   return backend_solve(eq, x, bcs, J = J, Jp = Jp, M = M,
     form_compiler_parameters = form_compiler_parameters, 

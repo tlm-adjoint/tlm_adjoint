@@ -37,6 +37,7 @@ __all__ = \
     "is_real_function",
     "linear_solver",
     "matrix_multiply",
+    "process_adjoint_solver_parameters",
     "process_solver_parameters",
     "rhs_addto",
     "rhs_copy",
@@ -121,6 +122,9 @@ def process_solver_parameters(solver_parameters, J, linear):
     checkpoint_ic = not linear or nonzero_initial_guess
   
   return solver_parameters, linear_solver_parameters, checkpoint_ic
+
+def process_adjoint_solver_parameters(linear_solver_parameters):
+  return linear_solver_parameters  # Copy not required
 
 def assemble_matrix(form, bcs, form_compiler_parameters, solver_parameters = {}, force_evaluation = True):
   if len(bcs) > 0:

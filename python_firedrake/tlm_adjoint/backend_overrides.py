@@ -60,6 +60,38 @@ def parameters_dict_equal(parameters_a, parameters_b):
       return False
   return True
 
+def packed_solver_parameters(solver_parameters, options_prefix = None,
+  nullspace = None, transpose_nullspace = None, near_nullspace = None):
+  if not options_prefix is None or not nullspace is None \
+    or not transpose_nullspace is None or not near_nullspace is None:
+    solver_parameters = copy.copy(solver_parameters)
+    if "tlm_adjoint" in solver_parameters:
+      tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = copy.copy(solver_parameters["tlm_adjoint"])
+    else:
+      tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = {}
+    
+    if not options_prefix is None:
+      if "options_prefix" in tlm_adjoint_parameters:
+        raise InterfaceException("Cannot pass both options_prefix argument and solver parameter")
+      tlm_adjoint_parameters["options_prefix"] = options_prefix
+    
+    if not nullspace is None:
+      if "nullspace" in tlm_adjoint_parameters:
+        raise InterfaceException("Cannot pass both nullspace argument and solver parameter")
+      tlm_adjoint_parameters["nullspace"] = nullspace
+    
+    if not transpose_nullspace is None:
+      if "transpose_nullspace" in tlm_adjoint_parameters:
+        raise InterfaceException("Cannot pass both transpose_nullspace argument and solver parameter")
+      tlm_adjoint_parameters["transpose_nullspace"] = transpose_nullspace
+    
+    if not near_nullspace is None:
+      if "near_nullspace" in tlm_adjoint_parameters:
+        raise InterfaceException("Cannot pass both near_nullspace argument and solver parameter")
+      tlm_adjoint_parameters["near_nullspace"] = near_nullspace
+  
+  return solver_parameters
+
 # Aim for compatibility with Firedrake API, git master revision
 # 1b6306099f81b89e7eda07209d1a1b99447e063b
 
@@ -112,10 +144,10 @@ def solve(*args, **kwargs):
         raise OverrideException("Preconditioners not supported")
       if not M is None:
         raise OverrideException("Adaptive solves not supported")
-      if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
-        raise OverrideException("Null spaces not supported")
-      solver_parameters = copy.copy(solver_parameters)
-      solver_parameters["_tlm_adjoint__options_prefix"] = options_prefix
+      solver_parameters = packed_solver_parameters(solver_parameters, 
+        options_prefix = options_prefix, nullspace = nullspace,
+        transpose_nullspace = transpose_nullspace,
+        near_nullspace = near_nullspace)
       lhs, rhs = eq.lhs, eq.rhs
       if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
         (x in lhs.coefficients() or x in rhs.coefficients()):
@@ -212,8 +244,6 @@ class LinearSolver(backend_LinearSolver):
     transpose_nullspace = None, near_nullspace = None, options_prefix = None):
     if not P is None:
       raise OverrideException("Preconditioners not supported")
-    if not nullspace is None or not transpose_nullspace is None or not near_nullspace is None:
-      raise OverrideException("Null spaces not supported")
 
     backend_LinearSolver.__init__(self, A, P = P,
       solver_parameters = solver_parameters, nullspace = nullspace,
@@ -243,15 +273,15 @@ class LinearSolver(backend_LinearSolver):
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
-      solver_parameters = self.__solver_parameters
-      solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix  # Copy not required here
+      solver_parameters = packed_solver_parameters(self.__solver_parameters, 
+        options_prefix = self.options_prefix, nullspace = self.nullspace,
+        transpose_nullspace = self.transpose_nullspace,
+        near_nullspace = self.near_nullspace)
       
       eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False)
-      
-      del(solver_parameters["_tlm_adjoint__options_prefix"])
 
       eq._pre_process(annotate = annotate)
       backend_LinearSolver.solve(self, x, b)
@@ -262,13 +292,13 @@ class LinearSolver(backend_LinearSolver):
 class LinearVariationalSolver(backend_LinearVariationalSolver):
   def __init__(self, *args, **kwargs):
     problem, = args
-    if "nullspace" in kwargs or "transpose_nullspace" in kwargs:
-      raise OverrideException("Null spaces not supported")
     if "appctx" in kwargs:
       raise OverrideException("Preconditioners not supported")
   
     backend_LinearVariationalSolver.__init__(self, *args, **kwargs)
     self.__problem = problem
+    self.__nullspace = kwargs.get("nullspace", None)
+    self.__transpose_nullspace = kwargs.get("transpose_nullspace", None)
   
   def set_transfer_operators(self, *args, **kwargs):
     raise OverrideException("Transfer operators not supported")
@@ -288,8 +318,9 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
       L = ufl.rhs(ufl.replace(self.__problem.F, {x:TrialFunction(x.function_space())}))
       form_compiler_parameters = self.__problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
-      solver_parameters = copy.copy(self.parameters)
-      solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix
+      solver_parameters = packed_solver_parameters(self.parameters, 
+        options_prefix = self.options_prefix, nullspace = self.__nullspace,
+        transpose_nullspace = self.__transpose_nullspace)
       
       EquationSolver(self.__problem.J == L, x, self.__problem.bcs,
         solver_parameters = solver_parameters,
@@ -311,8 +342,6 @@ class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
   def __init__(self, *args, **kwargs):
     problem, = args
-    if "nullspace" in kwargs or "transpose_nullspace" in kwargs or "near_nullspace" in kwargs:
-      raise OverrideException("Null spaces not supported")
     if "appctx" in kwargs:
       raise OverrideException("Preconditioners not supported")
     if "pre_jacobian_callback" in kwargs or "pre_function_callback" in kwargs:
@@ -320,6 +349,9 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
   
     backend_NonlinearVariationalSolver.__init__(self, *args, **kwargs)
     self.__problem = problem
+    self.__nullspace = kwargs.get("nullspace", None)
+    self.__transpose_nullspace = kwargs.get("transpose_nullspace", None)
+    self.__near_nullspace = kwargs.get("near_nullspace", None)
   
   def set_transfer_operators(self, *args, **kwargs):
     raise OverrideException("Transfer operators not supported")
@@ -337,8 +369,10 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
       
       form_compiler_parameters = self.__problem.form_compiler_parameters
       if form_compiler_parameters is None: form_compiler_parameters = {}
-      solver_parameters = copy.copy(self.parameters)
-      solver_parameters["_tlm_adjoint__options_prefix"] = self.options_prefix
+      solver_parameters = packed_solver_parameters(self.parameters, 
+        options_prefix = self.options_prefix, nullspace = self.__nullspace,
+        transpose_nullspace = self.__transpose_nullspace,
+        near_nullspace = self.__near_nullspace)
       
       EquationSolver(self.__problem.F == 0, self.__problem.u,
         self.__problem.bcs, J = self.__problem.J,

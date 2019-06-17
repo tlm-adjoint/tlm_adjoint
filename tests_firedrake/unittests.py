@@ -68,6 +68,49 @@ def leak_check(test):
   
 class tests(unittest.TestCase):
   @leak_check
+  def test_Nullspace(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    
+    def forward(F):
+      psi = Function(space, name = "psi")
+      
+      solve(inner(grad(test), grad(trial)) * dx == -inner(test, F * F) * dx, psi,
+        solver_parameters = {"ksp_type":"cg",
+                             "pc_type":"jacobi",
+                             "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16},
+        nullspace = VectorSpaceBasis(constant = True),
+        transpose_nullspace = VectorSpaceBasis(constant = True))
+      
+      J = Functional(name = "J")
+      J.assign(inner(grad(psi), grad(psi)) * dx)
+      
+      return psi, J
+    
+    F = Function(space, name = "F", static = True)
+    F.interpolate(sqrt(sin(pi * X[1])))
+    
+    start_manager()
+    psi, J = forward(F)
+    stop_manager()
+    
+    self.assertLess(abs(function_sum(psi)), 1.0e-15)
+    
+    dJ = compute_gradient(J, F)
+    min_order = taylor_test(lambda F : forward(F)[1], F, J_val = J.value(), dJ = dJ)
+    self.assertGreater(min_order, 2.00)
+    
+    ddJ = Hessian(lambda F : forward(F)[1])
+    min_order = taylor_test(lambda F : forward(F)[1], F, J_val = J.value(), ddJ = ddJ)
+    self.assertGreater(min_order, 3.00)
+
+  @leak_check
   def test_Storage(self):
     reset("periodic_disk")  # Ensure creation of checkpoints~ directory
     reset("memory", {"replace":True})
@@ -1107,6 +1150,7 @@ if __name__ == "__main__":
 #  tests().test_clear_caches()
 #  tests().test_AssembleSolver()
 #  tests().test_Storage()
+#  tests().test_Nullspace()
 
 #  tests().test_HEP()
 #  tests().test_NHEP()
