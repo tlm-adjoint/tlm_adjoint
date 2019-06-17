@@ -243,7 +243,7 @@ class EquationSolver(Equation):
   # 2017.1.0)
   def __init__(self, eq, x, bcs = [], J = None, form_compiler_parameters = {},
     solver_parameters = {}, adjoint_solver_parameters = None,
-    tlm_solver_parameters = {}, initial_guess = None, cache_jacobian = None,
+    tlm_solver_parameters = None, initial_guess = None, cache_jacobian = None,
     cache_adjoint_jacobian = None, cache_tlm_jacobian = None,
     cache_rhs_assembly = None, match_quadrature = None,
     defer_adjoint_assembly = None):
