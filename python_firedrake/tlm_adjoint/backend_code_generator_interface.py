@@ -28,6 +28,7 @@ __all__ = \
     "InterfaceException",
   
     "apply_rhs_bcs",
+    "assemble_arguments",
     "assemble_matrix",
     "assemble_system",
     "copy_parameters_dict",
@@ -134,9 +135,14 @@ def process_adjoint_solver_parameters(linear_solver_parameters):
   else:
     return linear_solver_parameters  # Copy not required
 
-def assemble_matrix(form, bcs, form_compiler_parameters, solver_parameters = {}, force_evaluation = True):
-  mat_type = solver_parameters.get("mat_type", None)
-  A = assemble(form, bcs = bcs, form_compiler_parameters = form_compiler_parameters, mat_type = mat_type)
+def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
+  kwargs = {"form_compiler_parameters":form_compiler_parameters}
+  if rank == 2 and "mat_type" in solver_parameters:
+    kwargs["mat_type"] = solver_parameters["mat_type"]
+  return kwargs
+
+def assemble_matrix(form, bcs, force_evaluation = True, **assemble_kwargs):
+  A = assemble(form, bcs = bcs, **assemble_kwargs)
   if force_evaluation:
     A.force_evaluation()
   return A, None

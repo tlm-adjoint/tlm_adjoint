@@ -518,26 +518,27 @@ def form_dependencies(form):
 def form_key(form):
   return ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form))))
 
-def assemble_key(form, bcs, form_compiler_parameters):  
-  return (form_key(form), tuple(bcs), parameters_key(form_compiler_parameters))
+def assemble_key(form, bcs, assemble_kwargs):  
+  return (form_key(form), tuple(bcs), parameters_key(assemble_kwargs))
 
 class AssemblyCache(Cache):
-  def assemble(self, form, bcs = [], form_compiler_parameters = {}, replace_map = None):  
-    key = assemble_key(form, bcs, form_compiler_parameters)
+  def assemble(self, form, bcs = [], form_compiler_parameters = {}, solver_parameters = {}, replace_map = None):  
+    rank = len(form.arguments())
+    assemble_kwargs = assemble_arguments(rank, form_compiler_parameters, solver_parameters)
+    key = assemble_key(form, bcs, assemble_kwargs)
     value = self.get(key, None)
     if value is None:
       assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
-      rank = len(form.arguments())
       if rank == 0:
         if len(bcs) > 0:
           raise CacheException("Unexpected boundary conditions for rank 0 form")
-        b = assemble(assemble_form, form_compiler_parameters = form_compiler_parameters)
+        b = assemble(assemble_form, **assemble_kwargs)
       elif rank == 1:
-        b = assemble(assemble_form, form_compiler_parameters = form_compiler_parameters)
+        b = assemble(assemble_form, **assemble_kwargs)
         for bc in bcs:
           bc.apply(b)
       elif rank == 2:
-        b = assemble_matrix(assemble_form, bcs, form_compiler_parameters, force_evaluation = True)
+        b = assemble_matrix(assemble_form, bcs, force_evaluation = True, **assemble_kwargs)
       else:
         raise CacheException("Unexpected form rank %i" % rank)
       value = self.add(key, b, deps = tuple(form_dependencies(form).values()))
@@ -550,7 +551,7 @@ def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_paramet
   return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
 
 class LinearSolverCache(Cache):
-  def linear_solver(self, form, A, bcs = [], linear_solver_parameters = {}, form_compiler_parameters = {}):
+  def linear_solver(self, form, A, bcs = [], form_compiler_parameters = {}, linear_solver_parameters = {}):
     key = linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters)
     value = self.get(key, None)
     if value is None:

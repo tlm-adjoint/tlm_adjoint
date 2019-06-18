@@ -29,6 +29,7 @@ __all__ = \
     "InterfaceException",
   
     "apply_rhs_bcs",
+    "assemble_arguments",
     "assemble_matrix",
     "assemble_system",
     "copy_parameters_dict",
@@ -126,16 +127,19 @@ def process_solver_parameters(solver_parameters, J, linear):
 def process_adjoint_solver_parameters(linear_solver_parameters):
   return linear_solver_parameters  # Copy not required
 
-def assemble_matrix(form, bcs, form_compiler_parameters, solver_parameters = {}, force_evaluation = True):
+def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
+  return {"form_compiler_parameters":form_compiler_parameters}
+
+def assemble_matrix(form, bcs, force_evaluation = True, **assemble_kwargs):
   if len(bcs) > 0:
     test = TestFunction(form.arguments()[0].function_space())
     test_shape = test.ufl_element().value_shape()
     dummy_rhs = ufl.inner(test, backend_Constant(0.0 if len(test_shape) == 0 else numpy.zeros(test_shape, dtype = numpy.float64))) * ufl.dx
-    A, b_bc = assemble_system(form, dummy_rhs, bcs, form_compiler_parameters = form_compiler_parameters)
+    A, b_bc = assemble_system(form, dummy_rhs, bcs, **assemble_kwargs)
     if b_bc.norm("linf") == 0.0:
       b_bc = None
   else:
-    A = assemble(form, form_compiler_parameters = form_compiler_parameters)
+    A = assemble(form, **assemble_kwargs)
     b_bc = None
   return A, b_bc
 

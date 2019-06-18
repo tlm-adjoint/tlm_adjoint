@@ -464,6 +464,7 @@ class EquationSolver(Equation):
             self._J,
             bcs = self._bcs,
             form_compiler_parameters = self._form_compiler_parameters,
+            solver_parameters = self._linear_solver_parameters,
             replace_map = None if deps is None else dict(zip(eq_deps, deps)))
         J_mat, b_bc = J_mat_bc
           
@@ -492,8 +493,8 @@ class EquationSolver(Equation):
             self._J,
             J_mat,
             bcs = self._bcs,
-            linear_solver_parameters = self._linear_solver_parameters,
-            form_compiler_parameters = self._form_compiler_parameters)
+            form_compiler_parameters = self._form_compiler_parameters,
+            linear_solver_parameters = self._linear_solver_parameters)
       else:
         if self._cache_rhs_assembly:
           # Case 3: Linear, Jacobian not cached, with RHS assembly caching
@@ -508,8 +509,8 @@ class EquationSolver(Equation):
             alias_replace(J, deps)
             alias_clear_J = True
           J_mat, b_bc = assemble_matrix(J, self._bcs,
-            self._form_compiler_parameters, self._solver_parameters,
-            force_evaluation = False)
+            force_evaluation = False,
+            **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
 
           # Assemble the RHS with RHS assembly caching
           b = self._cached_rhs(deps, b_bc = b_bc)
@@ -527,7 +528,8 @@ class EquationSolver(Equation):
             alias_clear_J = True
             alias_replace(rhs, deps)
             alias_clear_rhs = True
-          J_mat, b = assemble_system(J, rhs, bcs = self._bcs, form_compiler_parameters = self._form_compiler_parameters)
+          J_mat, b = assemble_system(J, rhs, bcs = self._bcs,
+            **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
         
         # Construct the linear solver
         J_solver = linear_solver(J_mat, self._linear_solver_parameters)
@@ -535,7 +537,7 @@ class EquationSolver(Equation):
 #      J_mat_debug, b_debug = assemble_system(self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps))),
 #                                             self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
 #                                             self._bcs,
-#                                             form_compiler_parameters = self._form_compiler_parameters)
+#                                             **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
 #      assert((J_mat - J_mat_debug).norm("linf") == 0.0)
 #      assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
         
@@ -648,13 +650,14 @@ class EquationSolver(Equation):
           J,
           bcs = self._hbcs,
           form_compiler_parameters = self._form_compiler_parameters,
+          solver_parameters = self._adjoint_solver_parameters,
           replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
         self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(
           J,
           J_mat,
           bcs = self._hbcs,
-          linear_solver_parameters = self._adjoint_solver_parameters,
-          form_compiler_parameters = self._form_compiler_parameters)
+          form_compiler_parameters = self._form_compiler_parameters,
+          linear_solver_parameters = self._adjoint_solver_parameters)
       
       apply_rhs_bcs(b.vector(), self._hbcs)
       adj_x = function_new(b)
@@ -666,8 +669,8 @@ class EquationSolver(Equation):
         self._adjoint_J = alias_form(adjoint(self._J), self.nonlinear_dependencies())
       alias_replace(self._adjoint_J, nl_deps)
       J_mat, _ = assemble_matrix(self._adjoint_J, self._hbcs,
-        self._form_compiler_parameters, self._adjoint_solver_parameters,
-        force_evaluation = False)
+        force_evaluation = False,
+        **assemble_arguments(2, self._form_compiler_parameters, self._adjoint_solver_parameters))
       
       J_solver = linear_solver(J_mat, self._adjoint_solver_parameters)
       
