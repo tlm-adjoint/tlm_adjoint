@@ -23,12 +23,10 @@ from tlm_adjoint import *
 from tlm_adjoint.hessian_optimization import *
 stop_manager()
 
-import copy
 import h5py
 import numpy;  numpy.random.seed(12143432)
 import petsc4py.PETSc
 import slepc4py.SLEPc
-import types
 import ufl
 
 petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
