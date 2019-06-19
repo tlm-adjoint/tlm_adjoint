@@ -111,13 +111,6 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None,
     
     if rank != 2:
       tensor._tlm_adjoint__form = f
-    if isinstance(b, backend_Matrix):
-      if bcs is None:
-        tensor._tlm_adjoint__bcs = []
-      elif isinstance(bcs, backend_DirichletBC):
-        tensor._tlm_adjoint__bcs = [bcs]
-      else:
-        tensor._tlm_adjoint__bcs = list(bcs)
     tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
   
   return tensor
@@ -163,13 +156,13 @@ def solve(*args, **kwargs):
       A, x, b, bcs, solver_parameters = extract_args_linear_solve(*args, **kwargs)
       
       if bcs is None:
-        bcs = A._tlm_adjoint__bcs
+        bcs = A.bcs
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       
-      A = A._a
-      x = x._tlm_adjoint__function
+      A = A.a
+      x = x.function
       b = b._tlm_adjoint__form
       A_x_dep = x in ufl.algorithms.extract_coefficients(A)
       b_x_dep = x in ufl.algorithms.extract_coefficients(b)
@@ -231,13 +224,6 @@ def _Function_project(self, b, *args, **kwargs):
   return project(b, self, *args, **kwargs)
 backend_Function.project = _Function_project
 
-_orig_Function_vector = backend_Function.vector
-def _Function_vector(self):
-  return_value = _orig_Function_vector(self)
-  return_value._tlm_adjoint__function = self
-  return return_value
-backend_Function.vector = _Function_vector
-
 class LinearSolver(backend_LinearSolver):
   def __init__(self, A, P = None, solver_parameters = None, nullspace = None,
     transpose_nullspace = None, near_nullspace = None, options_prefix = None):
@@ -262,10 +248,10 @@ class LinearSolver(backend_LinearSolver):
     if annotate or tlm:
       A = self.A
       if not is_function(x):
-        x = x._tlm_adjoint__function
+        x = x.function
       if not is_function(b):
-        b = b._tlm_adjoint__function
-      bcs = A._tlm_adjoint__bcs
+        b = b.function
+      bcs = A.bcs
       form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
@@ -274,7 +260,7 @@ class LinearSolver(backend_LinearSolver):
         transpose_nullspace = self.transpose_nullspace,
         near_nullspace = self.near_nullspace)
       
-      eq = EquationSolver(A._a == b._tlm_adjoint__form, x,
+      eq = EquationSolver(A.a == b._tlm_adjoint__form, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False)
