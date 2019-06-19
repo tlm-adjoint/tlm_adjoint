@@ -19,7 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend_code_generator_interface import copy_parameters_dict
+from .backend_code_generator_interface import copy_parameters_dict, \
+  is_real_function
 
 from .caches import Function, ReplacementFunction, assembly_cache, \
   clear_caches, form_neg, function_caches, function_is_cached, \
@@ -149,12 +150,29 @@ def function_copy(x, name = None, static = False, cache = None,
 
 def function_assign(x, y):
   if isinstance(y, (int, float)):
-    x.vector()[:] = float(y)
+    if is_real_function(x):
+      # Workaround Firedrake issue #1459
+      x.vector()[:] = float(y)
+    else:
+      x_v = as_backend_type(x.vector()).vec()
+      x_v.set(float(y))
   else:
-    function_set_values(x, function_get_values(y))
+    if is_real_function(x):
+      # Workaround Firedrake bug (related to issue #1459?)
+      function_set_values(x, function_get_values(y))
+    else:
+      x_v = as_backend_type(x.vector()).vec()
+      y_v = as_backend_type(y.vector()).vec()
+      y_v.copy(result = x_v)
 
 def function_axpy(x, alpha, y):
-  function_set_values(x, function_get_values(x) + alpha * function_get_values(y))
+  if is_real_function(x):
+      # Workaround Firedrake bug (related to issue #1459?)
+    function_set_values(x, function_get_values(x) + alpha * function_get_values(y))
+  else:
+    x_v = as_backend_type(x.vector()).vec()
+    y_v = as_backend_type(y.vector()).vec()
+    x_v.axpy(alpha, y_v)
 
 def default_comm():
   import mpi4py.MPI
