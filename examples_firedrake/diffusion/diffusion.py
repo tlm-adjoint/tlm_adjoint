@@ -59,7 +59,7 @@ def forward(kappa, manager = None, output_filename = None):
 
   eq = EquationSolver(inner(test, trial / dt) * dx
                     + inner(grad(test), kappa * grad(trial)) * dx
-                    == inner(test, Psi_n / dt) * dx, Psi_np1, bc, solver_parameters = {"ksp_type":"preonly", "pc_type":"lu"})
+                    == inner(test, Psi_n / dt) * dx, Psi_np1, bc, solver_parameters = {"ksp_type":"preonly", "pc_type":"cholesky"})
   cycle = AssignmentSolver(Psi_np1, Psi_n)
 
   if not output_filename is None:

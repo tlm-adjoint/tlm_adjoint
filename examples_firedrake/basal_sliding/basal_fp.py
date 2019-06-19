@@ -133,7 +133,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     eps = Constant(5.0e-9, static = True)
     S_eq = EquationSolver(inner(test_S, trial_S) * dx == inner(test_S,
       (u_x ** 2) + (v_y ** 2) + u_x * v_y + 0.25 * ((u_y + v_x) ** 2) + eps) * dx,
-      S, solver_parameters = {"ksp_type":"preonly", "pc_type":"lu"})
+      S, solver_parameters = {"ksp_type":"preonly", "pc_type":"cholesky"})
     nu_eq = ExprEvaluationSolver(0.5 * B * (S ** ((1.0 - n) / (2.0 * n))), nu)
       
     # GHS09 eqns (1)--(2)
@@ -148,10 +148,11 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     U_eq = EquationSolver(lhs(F) == rhs(F),
       U, solver_parameters = {"ksp_type":"cg",
                               "pc_type":"hypre",
+                              "pc_hypre_type":"boomeramg",
                               "ksp_rtol":1.0e-12, "ksp_atol":1.0e-16,
                               "mat_type":"aij"},
-         adjoint_solver_parameters = {"ksp_type":"preonly", "pc_type":"lu", "mat_type":"aij"},
-         tlm_solver_parameters = {"ksp_type":"preonly", "pc_type":"lu", "mat_type":"aij"},
+         adjoint_solver_parameters = {"ksp_type":"preonly", "pc_type":"cholesky", "mat_type":"aij"},
+         tlm_solver_parameters = {"ksp_type":"preonly", "pc_type":"cholesky", "mat_type":"aij"},
       cache_adjoint_jacobian = True,
       cache_tlm_jacobian = True)
 
@@ -166,7 +167,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     return EquationSolver(inner(test_h, trial_h) * dx ==
       - dt * inner(test_h, div(U * (h + H_0))) * dx,
       F_h, solver_parameters = {"ksp_type":"cg",
-                                "pc_type":"jacobi",
+                                "pc_type":"sor",
                                 "ksp_rtol":1.0e-12, "ksp_atol":1.0e-16})  # GHS09 eqn (11) right-hand-side (times timestep size)
   def solve_elevation_rhs(U, h, F_h):
     elevation_rhs(U, h, F_h).solve()
@@ -260,7 +261,7 @@ stop_manager()
 ddJ = SingleBlockHessian(J)
 M_solver = LinearSolver(assemble(inner(test, trial) * dx),
   solver_parameters = {"ksp_type":"cg",
-                       "pc_type":"jacobi",
+                       "pc_type":"sor",
                        "ksp_rtol":1.0e-12, "ksp_atol":1.0e-16,
                        "mat_type":"aij"})
 A_action_calls = [0]

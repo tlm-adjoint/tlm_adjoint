@@ -83,7 +83,7 @@ class tests(unittest.TestCase):
       
       solve(inner(grad(test), grad(trial)) * dx == -inner(test, F * F) * dx, psi,
         solver_parameters = {"ksp_type":"cg",
-                             "pc_type":"jacobi",
+                             "pc_type":"sor",
                              "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16},
         nullspace = VectorSpaceBasis(constant = True),
         transpose_nullspace = VectorSpaceBasis(constant = True))
@@ -458,7 +458,7 @@ class tests(unittest.TestCase):
       
       eqs = [EquationSolver(inner(test, trial / dt) * dx + inner(grad(test), kappa * grad(trial)) * dx == inner(test, x_n / dt) * dx,
                x_np1, bc, solver_parameters = {"ksp_type":"cg",
-                                               "pc_type":"jacobi",
+                                               "pc_type":"sor",
                                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16}),
              AssignmentSolver(x_np1, x_n)]
       
@@ -561,12 +561,12 @@ class tests(unittest.TestCase):
       x = Function(space, name = "x")
       solve(inner(test, trial) * dx == inner(test, alpha) * dx,
         x, solver_parameters = {"ksp_type":"cg",
-                                "pc_type":"jacobi",
+                                "pc_type":"sor",
                                 "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       y = Function(space, name = "y")
       solve(inner(test, trial) * dx == inner(test, beta) * dx,
         y, solver_parameters = {"ksp_type":"cg",
-                                "pc_type":"jacobi",
+                                "pc_type":"sor",
                                 "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       if x_ref is None:
         x_ref = Function(space, name = "x_ref", static = True)
@@ -621,7 +621,7 @@ class tests(unittest.TestCase):
       x = Function(space, name = "x")
       solve(inner(test, trial) * dx == inner(test, alpha) * dx,
         x, solver_parameters = {"ksp_type":"cg",
-                                "pc_type":"jacobi",
+                                "pc_type":"sor",
                                 "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
 
       if x_ref is None:
@@ -674,19 +674,19 @@ class tests(unittest.TestCase):
       A = assemble(inner(test, trial) * dx, bcs = bc)
       b = assemble(inner(test, G[0]) * dx)
       solver = LinearSolver(A, solver_parameters = {"ksp_type":"cg",
-                                                    "pc_type":"jacobi",
+                                                    "pc_type":"sor",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       solver.solve(G[1].vector(), b)
       
       b = assemble(inner(test, G[1]) * dx)
       solve(A, G[2].vector(), b, bcs = [bc], solver_parameters = {"ksp_type":"cg",
-                                                                  "pc_type":"jacobi",
+                                                                  "pc_type":"sor",
                                                                   "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
       solver = LinearVariationalSolver(LinearVariationalProblem(
         inner(test, trial) * dx, inner(test, G[2]) * dx, G[3]))
       solver.parameters.update(solver_parameters = {"ksp_type":"cg",
-                                                    "pc_type":"jacobi",
+                                                    "pc_type":"sor",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       solver.solve()
       
@@ -694,7 +694,7 @@ class tests(unittest.TestCase):
         inner(test, G[4]) * dx - inner(test, G[3]) * dx, G[4]))
       solver.parameters.update(solver_parameters = {"snes_type":"newtonls",
                                                     "ksp_type":"cg",
-                                                    "pc_type":"jacobi",
+                                                    "pc_type":"sor",
                                                     "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16,
                                                     "snes_rtol":1.0e-13, "snes_atol":1.0e-15})
       solver.solve()
@@ -739,7 +739,7 @@ class tests(unittest.TestCase):
       solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
         x_0, DirichletBC(space, 0.0, "on_boundary", static = True, homogeneous = True),
         solver_parameters = {"ksp_type":"cg",
-                             "pc_type":"jacobi",
+                             "pc_type":"sor",
                              "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
       
       AxpySolver(x_0, 1.0, x_1, x).solve()
@@ -759,7 +759,7 @@ class tests(unittest.TestCase):
     solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
       x_ref, DirichletBC(space, 1.0, "on_boundary", static = True, homogeneous = False),
       solver_parameters = {"ksp_type":"cg",
-                           "pc_type":"jacobi",
+                           "pc_type":"sor",
                            "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
     error = Function(space, name = "error")
     function_assign(error, x_ref)
@@ -804,7 +804,7 @@ class tests(unittest.TestCase):
                         + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(alpha * (Constant(0.5, static = True) * T_n[0] + Constant(0.5, static = True) * T_np1[0]))) * dx == 0,
              T_np1, solver_parameters = {"snes_type":"newtonls",
                                          "ksp_type":"gmres",
-                                         "pc_type":"jacobi",
+                                         "pc_type":"sor",
                                          "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16,
                                          "snes_rtol":1.0e-13, "snes_atol":1.0e-15})
       cycle = AssignmentSolver(T_np1, T_n)
@@ -902,7 +902,7 @@ class tests(unittest.TestCase):
         system.add_solve(inner(test, trial) * dx + dt * inner(grad(test), kappa * grad(trial)) * dx == inner(test, T[n]) * dx,
           T[n + 1], DirichletBC(space, 1.0, "on_boundary", static = True, homogeneous = False),
           solver_parameters = {"ksp_type":"cg",
-                               "pc_type":"jacobi",
+                               "pc_type":"sor",
                                "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16})
                                                      
         for n_step in range(n_steps):
@@ -956,7 +956,7 @@ class tests(unittest.TestCase):
                         + inner(test[1], (T_np1[1] - T_n[1]) / dt + sin(Constant(0.5, static = True) * T_n[0] + Constant(0.5, static = True) * T_np1[0])) * dx == 0,
              T_np1, solver_parameters = {"snes_type":"newtonls",
                                          "ksp_type":"gmres",
-                                         "pc_type":"jacobi",
+                                         "pc_type":"sor",
                                          "ksp_rtol":1.0e-14, "ksp_atol":1.0e-16,
                                          "snes_rtol":1.0e-13, "snes_atol":1.0e-15})
       for n in range(n_steps):
