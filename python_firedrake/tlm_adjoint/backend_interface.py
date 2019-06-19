@@ -212,7 +212,7 @@ def function_alias(x):
     val = x.dat)
 
 def function_zero(x):
-  x.vector()[:] = 0.0
+  as_backend_type(x.vector()).vec().zeroEntries()
 
 def function_global_size(x):
   return x.function_space().dim()
