@@ -102,13 +102,15 @@ def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None,
   if tensor is None:
     tensor = b
       
-  if not isinstance(b, float) and not inverse:
+  rank = len(f.arguments())
+  if rank != 0 and not inverse:
     form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
     if not form_compiler_parameters is None:
       update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
     
-    tensor._tlm_adjoint__form = f
+    if rank != 2:
+      tensor._tlm_adjoint__form = f
     if isinstance(b, backend_Matrix):
       if bcs is None:
         tensor._tlm_adjoint__bcs = []
@@ -166,7 +168,7 @@ def solve(*args, **kwargs):
       if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
         raise OverrideException("Non-matching form compiler parameters")
       
-      A = A._tlm_adjoint__form
+      A = A._a
       x = x._tlm_adjoint__function
       b = b._tlm_adjoint__form
       A_x_dep = x in ufl.algorithms.extract_coefficients(A)
@@ -272,7 +274,7 @@ class LinearSolver(backend_LinearSolver):
         transpose_nullspace = self.transpose_nullspace,
         near_nullspace = self.near_nullspace)
       
-      eq = EquationSolver(A._tlm_adjoint__form == b._tlm_adjoint__form, x,
+      eq = EquationSolver(A._a == b._tlm_adjoint__form, x,
         bcs, solver_parameters = solver_parameters,
         form_compiler_parameters = form_compiler_parameters,
         cache_jacobian = False, cache_rhs_assembly = False)
