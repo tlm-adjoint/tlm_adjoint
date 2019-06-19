@@ -27,12 +27,10 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 
-import copy
 import h5py
 import numpy;  numpy.random.seed(12143432)
 import petsc4py.PETSc
 import slepc4py.SLEPc
-import types
 import ufl
 
 petsc4py.PETSc.Options().setValue("citations", "petsc.bib")
