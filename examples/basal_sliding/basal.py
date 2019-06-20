@@ -195,7 +195,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
       from tlm_adjoint.backend_code_generator_interface import assemble, solve
       function_zero(U)
       r = assemble(F, form_compiler_parameters = self._form_compiler_parameters)
-      r_norm = numpy.sqrt(function_inner(r, r))
+      r_norm = numpy.sqrt(r.inner(r))
       if not self._initial_guess_index is None:
         function_assign(U, (self.dependencies() if deps is None else deps)[self._initial_guess_index])
       solve(F == 0, U, J = J_1, solver_parameters = {"nonlinear_solver":"newton",
