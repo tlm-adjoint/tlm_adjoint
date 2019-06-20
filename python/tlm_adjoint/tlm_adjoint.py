@@ -1190,7 +1190,7 @@ class EquationManager:
     import png
     return png.from_array(pixels, "RGB")
   
-  def compute_gradient(self, Js, M):
+  def compute_gradient(self, Js, M, callback = None):
     """
     Compute the derivative of one or more functionals with respect to one or
     more control parameters by running adjoint models. Finalises the manager.
@@ -1201,15 +1201,20 @@ class EquationManager:
               the functionals.
     M         A Control or Function, or a list or tuple of these, defining the
               control parameters.
+    callback  (Optional) Callable of the form
+                def callback(n, i, eq, adj_X):
+              where adj_X is None, a Function, or a list or tuple of Function
+              objects, corresponding to the adjoint solution for the equation
+              eq, which is equation i in block n.
     """
   
     if not isinstance(M, (list, tuple)):
       if not isinstance(Js, (list, tuple)):
-        return self.compute_gradient([Js], [M])[0][0]
+        return self.compute_gradient([Js], [M], callback = callback)[0][0]
       else:
-        return tuple(dJ[0] for dJ in self.compute_gradient(Js, [M]))
+        return tuple(dJ[0] for dJ in self.compute_gradient(Js, [M], callback = callback))
     elif not isinstance(Js, (list, tuple)):
-      return self.compute_gradient([Js], M)[0]
+      return self.compute_gradient([Js], M, callback = callback)[0]
     
     self.finalise()
 
@@ -1278,6 +1283,8 @@ class EquationManager:
           else:
             # Solve adjoint equation, add terms to adjoint equations
             adj_X = eq.adjoint(nl_deps, eq_B.B(), B_indices, B)
+          if not callback is None and cp_n >= 0 and cp_n < len(self._blocks):
+            callback(cp_n, i, eq, adj_X if adj_X is None or len(adj_X) > 1 else adj_X[0])
         
           if n == 0 and i == 0:
             # A requested derivative
@@ -1353,8 +1360,8 @@ def tlm_enabled(manager = None):
 def tlm(M, dM, x, manager = None):
   return (_manager() if manager is None else manager).tlm(M, dM, x)
 
-def compute_gradient(Js, M, manager = None):
-  return (_manager() if manager is None else manager).compute_gradient(Js, M)
+def compute_gradient(Js, M, callback = None, manager = None):
+  return (_manager() if manager is None else manager).compute_gradient(Js, M, callback = callback)
 
 def new_block(manager = None):
   (_manager() if manager is None else manager).new_block()
