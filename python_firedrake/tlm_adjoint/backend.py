@@ -59,6 +59,7 @@ __all__ = \
     "FunctionSpace",
     "LinearSolver",
     "Parameters",
+    "Projector",
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",

@@ -22,6 +22,7 @@ from .backend import *
 from .backend_interface import *
 
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver
+from .firedrake_equations import LocalProjectionSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled
 
 import copy
@@ -188,15 +189,25 @@ def project(v, V, bcs = None, solver_parameters = None,
     tlm = tlm_enabled()
   if annotate or tlm:
     if use_slate_for_inverse:
-      raise OverrideException("use_slate_for_inverse argument not supported")
+      # Is a local solver actually used?
+      projector = Projector(v, V, bcs = bcs,
+        solver_parameters = solver_parameters,
+        form_compiler_parameters = form_compiler_parameters,
+        use_slate_for_inverse = True)
+      use_slate_for_inverse = getattr(projector, "use_slate_for_inverse", False)
     if is_function(V):
       x = V
     else:
       x = Function(V, name = name)
-    ProjectionSolver(v, x, [] if bcs is None else bcs,
-      solver_parameters = {} if solver_parameters is None else solver_parameters,
-      form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-      cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+    if use_slate_for_inverse:
+      LocalProjectionSolver(v, x, [] if bcs is None else bcs,
+        form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+    else:
+      ProjectionSolver(v, x, [] if bcs is None else bcs,
+        solver_parameters = {} if solver_parameters is None else solver_parameters,
+        form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
+        cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
     return x
   else:
     return backend_project(v, V, bcs = bcs,
