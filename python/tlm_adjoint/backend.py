@@ -110,6 +110,7 @@ __all__ = \
     "TrialFunction",
     "UnitIntervalMesh",
     "adjoint",
+    "as_backend_type",
     "assemble",
     "assemble_system",
     "has_lu_solver_method",

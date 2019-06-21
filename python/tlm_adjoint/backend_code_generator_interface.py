@@ -178,13 +178,17 @@ def apply_rhs_bcs(b, hbcs, b_bc = None):
   if not b_bc is None:
     b.axpy(1.0, b_bc)
 
-def matrix_multiply(A, x, addto = None, space = None):
-  b = A * x
-  if addto is None:
-    return b
+def matrix_multiply(A, x, tensor = None, addto = False):
+  if tensor is None:
+    return A *x
   else:
-    addto.axpy(1.0, b)
-    return addto
+    x_v = as_backend_type(x).vec()
+    tensor_v = as_backend_type(tensor).vec()
+    if addto:
+      as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
+    else:
+      as_backend_type(A).mat().mult(x_v, tensor_v)
+    return tensor
 
 def is_real_function(x):
   e = x.ufl_element()

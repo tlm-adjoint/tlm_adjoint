@@ -425,9 +425,9 @@ class EquationSolver(Equation):
           replace_map = None if deps is None else dict(zip(eq_deps, deps)))
       mat, _ = mat_bc
       if b is None:
-        b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), space = (eq_deps if deps is None else deps)[0].function_space())
+        b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector())
       else:
-        b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), addto = b)
+        matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), tensor = b, addto = True)
         
     if not cached_form is None:
       cached_b = cached_form[1]()
@@ -604,7 +604,7 @@ class EquationSolver(Equation):
         mat_bc = mat_cache()
         if not mat_bc is None:
           mat, _ = mat_bc
-          return matrix_multiply(mat, adj_x.vector(), space = eq_deps[dep_index].function_space())
+          return matrix_multiply(mat, adj_x.vector())
         #else:
         #  Cache entry cleared
       elif self._defer_adjoint_assembly:
@@ -627,7 +627,7 @@ class EquationSolver(Equation):
         dF,
         form_compiler_parameters = self._form_compiler_parameters,
         replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
-      return matrix_multiply(mat, adj_x.vector(), space = dep.function_space())
+      return matrix_multiply(mat, adj_x.vector())
     elif self._defer_adjoint_assembly:
       self._derivative_mats[dep_index] = dF
       dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
