@@ -42,8 +42,8 @@ def local_solver_key(form, bcs, form_compiler_parameters):
   return (form_key(form), tuple(bcs), parameters_key(form_compiler_parameters))
 
 def LocalSolver(form, bcs = [], form_compiler_parameters = {}):
-  local_solver = assemble(form, bcs = bcs,
-    form_compiler_parameters = form_compiler_parameters, inverse = True)
+  local_solver = assemble(Tensor(form).inv, bcs = bcs,
+    form_compiler_parameters = form_compiler_parameters)
   local_solver.force_evaluation()
   def solve_local(self, x, b):
     matrix_multiply(self, b, tensor = x)

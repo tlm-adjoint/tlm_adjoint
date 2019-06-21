@@ -60,6 +60,7 @@ __all__ = \
     "LinearSolver",
     "Parameters",
     "Projector",
+    "Tensor",
     "TestFunction",
     "TrialFunction",
     "UnitIntervalMesh",
