@@ -179,19 +179,16 @@ def apply_rhs_bcs(b, hbcs, b_bc = None):
     raise InterfaceException("Unexpected RHS terms")
 
 def matrix_multiply(A, x, addto = None, space = None):
-  if space is None:
-    if addto is None:
-      raise InterfaceException("Unable to create Function")
-    else:
-      b = backend_Function(addto.function_space()).vector()  # function_new
-  else:
-    b = backend_Function(space).vector()
-  with x.dat.vec_ro as x_v, b.dat.vec_wo as b_v:
-    A.petscmat.mult(x_v, b_v)
   if addto is None:
+    if space is None:
+      raise InterfaceException("Unable to create Function")
+    b = backend_Function(space).vector()
+    with x.dat.vec_ro as x_v, b.dat.vec_wo as b_v:
+      A.petscmat.mult(x_v, b_v)
     return b
   else:
-    addto.set_local(addto.get_local() + b.get_local())  # function_axpy
+    with x.dat.vec_ro as x_v, addto.dat.vec as addto_v:
+      A.petscmat.multAdd(x_v, addto_v, addto_v)
     return addto
 
 def is_real_function(x):
