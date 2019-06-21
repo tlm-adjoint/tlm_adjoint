@@ -25,6 +25,7 @@ from .base_equations import *
 from .caches import *
 from .eigendecomposition import *
 from .equations import *
+from .firedrake_equations import *
 from .functional import *
 from .hessian import *
 from .manager import *
