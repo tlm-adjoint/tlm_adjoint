@@ -154,25 +154,23 @@ def function_assign(x, y):
       # Workaround Firedrake issue #1459
       x.vector()[:] = float(y)
     else:
-      x_v = as_backend_type(x.vector()).vec()
-      x_v.set(float(y))
+      with x.vector().dat.vec_wo as x_v:
+        x_v.set(float(y))
   else:
     if is_real_function(x):
       # Workaround Firedrake bug (related to issue #1459?)
       function_set_values(x, function_get_values(y))
     else:
-      x_v = as_backend_type(x.vector()).vec()
-      y_v = as_backend_type(y.vector()).vec()
-      y_v.copy(result = x_v)
+      with x.vector().dat.vec_wo as x_v, y.vector().dat.vec_ro as y_v:
+        y_v.copy(result = x_v)
 
 def function_axpy(x, alpha, y):
   if is_real_function(x):
       # Workaround Firedrake bug (related to issue #1459?)
     function_set_values(x, function_get_values(x) + alpha * function_get_values(y))
   else:
-    x_v = as_backend_type(x.vector()).vec()
-    y_v = as_backend_type(y.vector()).vec()
-    x_v.axpy(alpha, y_v)
+    with x.vector().dat.vec as x_v, y.vector().dat.vec_ro as y_v:
+      x_v.axpy(alpha, y_v)
 
 def default_comm():
   import mpi4py.MPI
@@ -182,9 +180,9 @@ def function_comm(x):
   return x.comm
 
 def function_inner(x, y):
-  x_v = as_backend_type(x.vector()).vec()
-  y_v = as_backend_type(y.vector()).vec()
-  return x_v.dot(y_v)
+  with x.vector().dat.vec_ro as x_v, y.vector().dat.vec_ro as y_v:
+    inner = x_v.dot(y_v)
+  return inner
 
 def function_local_size(x):
   local_range = x.vector().local_range()
@@ -197,16 +195,18 @@ def function_set_values(x, values):
   x.vector().set_local(values)
 
 def function_max_value(x):
-  x_v = as_backend_type(x.vector()).vec()
-  return x_v.max()[1]
+  with x.vector().dat.vec_ro as x_v:
+    max_value = x_v.max()[1]
+  return max_value
   
 def function_sum(x):
   return x.vector().sum()
 
 def function_linf_norm(x):
-  x_v = as_backend_type(x.vector()).vec()
   import petsc4py.PETSc
-  return x_v.norm(norm_type = petsc4py.PETSc.NormType.NORM_INFINITY)
+  with x.vector().dat.vec_ro as x_v:
+    linf_norm = x_v.norm(norm_type = petsc4py.PETSc.NormType.NORM_INFINITY)
+  return linf_norm
   
 def function_new(x, name = None, static = False, cache = None,
   checkpoint = None, tlm_depth = 0):
@@ -230,7 +230,8 @@ def function_alias(x):
     val = x.dat)
 
 def function_zero(x):
-  as_backend_type(x.vector()).vec().zeroEntries()
+  with x.vector().dat.vec_wo as x_v:
+    x_v.zeroEntries()
 
 def function_global_size(x):
   return x.function_space().dim()

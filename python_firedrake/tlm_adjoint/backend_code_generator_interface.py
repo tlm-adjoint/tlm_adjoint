@@ -186,7 +186,8 @@ def matrix_multiply(A, x, addto = None, space = None):
       b = backend_Function(addto.function_space()).vector()  # function_new
   else:
     b = backend_Function(space).vector()
-  as_backend_type(A).mat().mult(as_backend_type(x).vec(), as_backend_type(b).vec())
+  with x.dat.vec_ro as x_v, b.dat.vec_wo as b_v:
+    A.petscmat.mult(x_v, b_v)
   if addto is None:
     return b
   else:

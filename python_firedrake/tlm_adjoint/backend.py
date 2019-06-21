@@ -63,7 +63,6 @@ __all__ = \
     "TrialFunction",
     "UnitIntervalMesh",
     "adjoint",
-    "as_backend_type",
     "assemble",
     "homogenize",
     "parameters",

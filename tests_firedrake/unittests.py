@@ -1087,9 +1087,9 @@ class tests(unittest.TestCase):
     M = assemble(inner(test, trial) * dx)
     M.force_evaluation()
     def M_action(F):
-      M_m = as_backend_type(M).mat()
       G = function_new(F)
-      M_m.mult(as_backend_type(F.vector()).vec(), as_backend_type(G.vector()).vec())
+      with F.vector().dat.vec_ro as F_v, G.vector().dat.vec_wo as G_v:
+        M.petscmat.mult(F_v, G_v)
       return function_get_values(G)
     
     import slepc4py.SLEPc
@@ -1113,9 +1113,9 @@ class tests(unittest.TestCase):
     N = assemble(inner(test, trial.dx(0)) * dx)
     N.force_evaluation()
     def N_action(F):
-      N_m = as_backend_type(N).mat()
       G = function_new(F)
-      N_m.mult(as_backend_type(F.vector()).vec(), as_backend_type(G.vector()).vec())
+      with F.vector().dat.vec_ro as F_v, G.vector().dat.vec_wo as G_v:
+        N.petscmat.mult(F_v, G_v)
       return function_get_values(G)
     
     lam, (V_r, V_i) = eigendecompose(space, N_action)
