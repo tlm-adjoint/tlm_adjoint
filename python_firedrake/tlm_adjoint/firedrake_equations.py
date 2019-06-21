@@ -38,22 +38,27 @@ __all__ = \
     "set_local_solver_cache"
   ]
 
-def local_solver_key(form, form_compiler_parameters):
-  return (form_key(form), parameters_key(form_compiler_parameters))
+def local_solver_key(form, bcs, form_compiler_parameters):
+  return (form_key(form), tuple(bcs), parameters_key(form_compiler_parameters))
+
+def LocalSolver(form, bcs = [], form_compiler_parameters = {}):
+  local_solver = assemble(form, bcs = bcs,
+    form_compiler_parameters = form_compiler_parameters, inverse = True)
+  local_solver.force_evaluation()
+  def solve_local(self, x, b):
+    matrix_multiply(self, b, tensor = x)
+  local_solver.solve_local = types.MethodType(solve_local, local_solver)
+  return local_solver
 
 class LocalSolverCache(Cache):
-  def local_solver(self, form, form_compiler_parameters = {},
+  def local_solver(self, form, bcs = [], form_compiler_parameters = {},
     replace_map = None):
-    key = local_solver_key(form, form_compiler_parameters)
+    key = local_solver_key(form, bcs, form_compiler_parameters)
     value = self.get(key, None)
     if value is None:
       assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
-      local_solver = assemble(assemble_form,
-        form_compiler_parameters = form_compiler_parameters, inverse = True)
-      local_solver.force_evaluation()
-      def solve_local(self, x, b):
-        matrix_multiply(self, b, tensor = x)
-      local_solver.solve_local = types.MethodType(solve_local, local_solver)
+      local_solver = LocalSolver(form, bcs = bcs,
+        form_compiler_parameters = form_compiler_parameters)
       value = self.add(key, local_solver, deps = tuple(form_dependencies(form).values()))
     else:
       local_solver = value()
@@ -67,7 +72,7 @@ def set_local_solver_cache(local_solver_cache):
   _local_solver_cache[0] = local_solver_cache
   
 class LocalProjectionSolver(EquationSolver):
-  def __init__(self, rhs, x, form_compiler_parameters = {},
+  def __init__(self, rhs, x, bcs = [], form_compiler_parameters = {},
     cache_jacobian = None, cache_rhs_assembly = None, match_quadrature = None,
     defer_adjoint_assembly = None):
     space = x.function_space()
@@ -76,7 +81,7 @@ class LocalProjectionSolver(EquationSolver):
     if not isinstance(rhs, ufl.classes.Form):
       rhs = ufl.inner(test, rhs) * ufl.dx
     
-    EquationSolver.__init__(self, lhs == rhs, x,
+    EquationSolver.__init__(self, lhs == rhs, x, bcs = bcs,
       form_compiler_parameters = form_compiler_parameters,
       solver_parameters = {"linear_solver":"direct"},
       cache_jacobian = cache_jacobian,
@@ -101,11 +106,11 @@ class LocalProjectionSolver(EquationSolver):
       local_solver = self._forward_J_solver()
       if local_solver is None:
         self._forward_J_solver, local_solver = local_solver_cache().local_solver(
-          self._lhs,
+          self._lhs, bcs = self._bcs,
           form_compiler_parameters = self._form_compiler_parameters)
     else:
       local_solver = LocalSolver(
-        self._lhs,
+        self._lhs, bcs = self._bcs,
         form_compiler_parameters = self._form_compiler_parameters)
         
     local_solver.solve_local(x.vector(), b)
@@ -115,11 +120,11 @@ class LocalProjectionSolver(EquationSolver):
       local_solver = self._forward_J_solver()
       if local_solver is None:
         self._forward_J_solver, local_solver = local_solver_cache().local_solver(
-          self._lhs,
+          self._lhs, bcs = self._hbcs,
           form_compiler_parameters = self._form_compiler_parameters)
     else:
       local_solver = LocalSolver(
-        self._lhs,
+        self._lhs, bcs = self._hbcs,
         form_compiler_parameters = self._form_compiler_parameters)
         
     adj_x = function_new(b)
