@@ -154,9 +154,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
     
     # G11 eqn (3)
     eps = Constant(5.0e-9, static = True)
-    S_eq = EquationSolver(inner(test_S, trial_S) * dx == inner(test_S,
-      (u_x ** 2) + (v_y ** 2) + u_x * v_y + 0.25 * ((u_y + v_x) ** 2) + eps) * dx,
-      S, solver_parameters = {"linear_solver":"umfpack"})
+    S_eq = LocalProjectionSolver((u_x ** 2) + (v_y ** 2) + u_x * v_y + 0.25 * ((u_y + v_x) ** 2) + eps, S)
     nu_eq = ExprEvaluationSolver(0.5 * B * (S ** ((1.0 - n) / (2.0 * n))), nu)
       
     # GHS09 eqns (1)--(2)
