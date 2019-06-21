@@ -83,7 +83,7 @@ class LocalProjectionSolver(EquationSolver):
     
     EquationSolver.__init__(self, lhs == rhs, x, bcs = bcs,
       form_compiler_parameters = form_compiler_parameters,
-      solver_parameters = {"linear_solver":"direct"},
+      solver_parameters = {},
       cache_jacobian = cache_jacobian,
       cache_rhs_assembly = cache_rhs_assembly,
       match_quadrature = match_quadrature,
