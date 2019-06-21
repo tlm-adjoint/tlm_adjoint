@@ -52,6 +52,7 @@ __all__ = \
     "stop_manager",
     "stop_tlm",
     "taylor_test",
+    "taylor_test_tlm_adjoint",
     "tlm",
     "tlm_enabled"
   ]
@@ -1429,7 +1430,9 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
     for i, f in enumerate(F):
       function_set_values(f, x[N[i]:N[i + 1]])
 
-  M = [function_new(m0, static = function_is_static(m0)) for m0 in M0]
+  M = [function_new(m0, static = function_is_static(m0),
+                        cache = function_is_cached(m0),
+                        checkpoint = function_is_checkpointed(m0)) for m0 in M0]
   J = [J0]
   J_M = [M0]
   
@@ -1509,7 +1512,9 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
   M = [m.m() if not is_function(m) else m for m in M]
   if M0 is None:
     M0 = [manager.initial_condition(m) for m in M]
-  M1 = [function_new(m, static = function_is_static(m)) for m in M]
+  M1 = [function_new(m, static = function_is_static(m),
+                        cache = function_is_cached(m),
+                        checkpoint = function_is_checkpointed(m)) for m in M]
 
   def functions_inner(X, Y):
     inner = 0.0
@@ -1563,3 +1568,44 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
     info("Errors, with adjoint = %s" % errors_2)
     info("Orders, with adjoint = %s" % orders_2)  
     return orders_2.min()
+    
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed = 1.0e-2,
+  M0 = None, size = 5, manager = None):
+  if not isinstance(M, (list, tuple)):
+    return taylor_test_tlm_adjoint(forward, [M], adjoint_order, seed = seed,
+      M0 = None if M0 is None else [M0], size = size, manager = manager)
+
+  if manager is None:
+    manager = _manager()
+  tlm_manager = manager.new()
+  tlm_manager.stop()
+    
+  tlm = tuple(tuple(function_new(m, static = True) for m in M) for i in range(adjoint_order - 1))
+  for dM in tlm:
+    for dm in dM:
+      function_set_values(dm, numpy.random.random(function_local_size(dm)))
+  
+  def forward_tlm(*M, annotation = False):
+    old_manager = _manager()
+    set_manager(tlm_manager)
+    tlm_manager.reset()
+    tlm_manager.stop()
+    clear_caches()  # Could use new caches here
+    
+    for dM in tlm:
+      tlm_manager.add_tlm(M, dM)
+    tlm_manager.start(annotation = annotation, tlm = True)
+    J = forward(*M)
+    for dM in tlm:
+      J = J.tlm(M, dM, manager = tlm_manager)
+    
+    set_manager(old_manager)
+    
+    return J
+  
+  J = forward_tlm(*M, annotation = True)
+  J_val = J.value()
+  dJ = tlm_manager.compute_gradient(J, M)
+  
+  return taylor_test(forward_tlm, M, J_val, dJ = dJ, seed = seed, M0 = M0,
+    size = size, manager = tlm_manager)
