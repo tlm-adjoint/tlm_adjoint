@@ -649,6 +649,9 @@ class tests(unittest.TestCase):
     self.assertGreater(orders_3_adj.min(), 4.00)
     self.assertGreater(orders_3_tlm.min(), 4.00)
     self.assertGreater(orders_4_adj.min(), 5.00)
+    
+    min_order = taylor_test_tlm_adjoint(forward, kappa, adjoint_order = 4, seed = 1.0e-3)
+    self.assertGreater(min_order, 1.99)
   
   @leak_check
   def test_minimize_scipy_multiple(self):
