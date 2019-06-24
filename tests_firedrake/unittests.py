@@ -719,7 +719,7 @@ class tests(unittest.TestCase):
     def forward(F):
       G = [Function(space, name = "G_%i" % i) for i in range(5)]
       
-      G[0] = project(F, space, use_slate_for_inverse = False)
+      G[0] = project(F, space)
       
       A = assemble(inner(test, trial) * dx, bcs = bc)
       b = assemble(inner(test, G[0]) * dx)
