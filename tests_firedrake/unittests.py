@@ -419,6 +419,52 @@ class tests(unittest.TestCase):
     self.assertGreater(min_order, 2.99)
     
   @leak_check
+  def test_PointInterpolationSolver(self):
+    reset("memory", {"replace":True})
+    clear_caches()
+    stop_manager()
+    
+    mesh = UnitCubeMesh(5, 5, 5)
+    X = SpatialCoordinate(mesh)
+    y_space = FunctionSpace(mesh, "Lagrange", 3)
+    space_0 = RealFunctionSpace()
+    X_coords = numpy.array([[0.1, 0.1, 0.1], [0.2, 0.3, 0.4], [0.9, 0.8, 0.7], [0.4, 0.2, 0.3]], dtype = numpy.float64)
+
+    def forward(y):      
+      X = [Function(space_0, name = "x_%i" % i) for i in range(X_coords.shape[0])]
+      PointInterpolationSolver(y, X, X_coords).solve()
+      
+      J = Functional(name = "J")
+      for x in X:
+        J.addto(x * x * x * dx)
+      
+      return X, J
+      
+    y = Function(y_space, name = "y", static = True)
+    y.interpolate(pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
+
+    start_manager()
+    X, J = forward(y)
+    stop_manager()
+
+    def x_ref(x):
+      return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
+
+    x_error_norm = 0.0
+    for x, x_coord in zip(X, X_coords):
+      x_error_norm = max(x_error_norm, abs(function_max_value(x) - x_ref(x_coord)))
+    info("Error norm = %.16e" % x_error_norm)
+    self.assertLess(x_error_norm, 1.0e-13)
+
+    dJ = compute_gradient(J, y)
+    min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ, seed = 1.0e-4)
+    self.assertGreater(min_order, 2.00)
+
+    ddJ = Hessian(lambda y : forward(y)[1])
+    min_order = taylor_test(lambda y : forward(y)[1], y, J_val = J.value(), dJ = dJ, ddJ = ddJ)
+    self.assertGreater(min_order, 2.99)
+    
+  @leak_check
   def test_FixedPointSolver(self):
     reset("memory", {"replace":True})
     clear_caches()
@@ -1195,6 +1241,7 @@ if __name__ == "__main__":
 #  tests().test_minimize_scipy_multiple()
 #  tests().test_higher_order_adjoint()
 #  tests().test_FixedPointSolver()
+#  tests().test_PointInterpolationSolver()
 #  tests().test_ExprEvaluationSolver()
 #  tests().test_LongRange()
 #  tests().test_LocalProjectionSolver()

@@ -26,12 +26,14 @@ from .base_equations import *
 from .caches import Cache, CacheRef, form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, alias_assemble, alias_form
 
+import numpy
 import types
 import ufl
 
 __all__ = \
   [
     "LocalProjectionSolver",
+    "PointInterpolationSolver",
     
     "LocalSolverCache",
     "local_solver_cache",
@@ -164,3 +166,138 @@ class LocalProjectionSolver(EquationSolver):
         cache_jacobian = self._cache_jacobian,
         cache_rhs_assembly = self._cache_rhs_assembly,
         defer_adjoint_assembly = self._defer_adjoint_assembly)
+
+def interpolation_matrix(x_coords, y, y_nodes):
+  N = function_local_size(y)
+  lg_map = y.function_space().local_to_global_map([]).indices
+  gl_map = {g:l for l, g in enumerate(lg_map)}
+  
+  import scipy.sparse
+  P = scipy.sparse.dok_matrix((x_coords.shape[0], N), dtype = numpy.float64)
+  
+  y_v = function_new(y)
+  for x_node, x_coord in enumerate(x_coords):
+    for j, y_node in enumerate(y_nodes[x_node, :]):
+      with y_v.dat.vec as y_v_v:
+        y_v_v.setValue(y_node, 1.0)
+        y_v_v.assemblyBegin()
+        y_v_v.assemblyEnd()
+      x_v = y_v(x_coord)
+      if y_node in gl_map:
+        y_node_local = gl_map[y_node]
+        if y_node_local < N:
+          P[x_node, y_node_local] = x_v
+      with y_v.dat.vec as y_v_v:
+        y_v_v.setValue(y_node, 0.0)
+        y_v_v.assemblyBegin()
+        y_v_v.assemblyEnd()
+  
+  return P.tocsr()
+
+class PointInterpolationSolver(Equation):
+  def __init__(self, y, X, X_coords = None, P = None, P_T = None):
+    """
+    Defines an equation which interpolates the continuous scalar function y at
+    the points X_coords.
+    
+    Arguments:
+    
+    y         A continuous scalar Function. The function to be interpolated.
+    X         A real Function, or a list or tuple of real Function objects.
+              The solution to the equation.
+    X_coords  A float NumPy matrix. Points at which to interpolate y. Ignored if
+              P is supplied, required otherwise.
+    P         (Optional) Interpolation matrix.
+    P_T       (Optional) Interpolation matrix transpose.
+    """
+    
+    if is_function(X): X = (X,)
+    for x in X:
+      if not is_real_function(x):
+        raise EquationException("Solution must be a real Function, or a list or tuple of real Function objects")
+  
+    if P is None:
+      y_space = y.function_space()
+      y_cell_node_graph = y_space.cell_node_map().values
+      y_mesh = y_space.mesh()
+      lg_map = y_space.local_to_global_map([]).indices
+      
+      y_nodes_local = numpy.empty((len(X), y_cell_node_graph.shape[1]), dtype = numpy.int64)
+      for i, x_coord in enumerate(X_coords):
+        y_cell = y_mesh.locate_cell(x_coord)
+        if y_cell is None or y_cell >= y_cell_node_graph.shape[0]:
+          y_nodes_local[i, :] = -1
+        else:
+          for j, y_node in enumerate(y_cell_node_graph[y_cell, :]):
+            y_nodes_local[i, j] = lg_map[y_node]
+            
+      y_nodes = numpy.empty(y_nodes_local.shape, dtype = numpy.int64)
+      import mpi4py.MPI
+      comm = function_comm(y)
+      comm.Allreduce(y_nodes_local, y_nodes, op = mpi4py.MPI.MAX)
+      
+      P = interpolation_matrix(X_coords, y, y_nodes)
+    
+    if P_T is None:
+      P_T = P.T
+    
+    Equation.__init__(self, X, list(X) + [y], nl_deps = [], ic_deps = [])
+    self._P = P
+    self._P_T = P_T
+  
+  def forward_solve(self, X, deps = None):
+    if is_function(X): X = (X,)
+    y = (self.dependencies() if deps is None else deps)[-1]
+
+    y_v = function_get_values(y)
+    x_v_local = numpy.empty(len(X), dtype = numpy.float64)
+    for i in range(len(X)):
+      x_v_local[i] = self._P.getrow(i).dot(y_v)
+      
+    import mpi4py.MPI
+    comm = function_comm(y)
+    x_v = numpy.empty(len(X), dtype = numpy.float64)
+    comm.Allreduce(x_v_local, x_v, op = mpi4py.MPI.SUM)
+
+    for i, x in enumerate(X):
+      function_assign(x, x_v[i])
+      
+  def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
+    if is_function(adj_X): adj_X = (adj_X,)
+    
+    if dep_index < len(adj_X):
+      return adj_X[dep_index]
+    elif dep_index == len(adj_X):
+      adj_x_v = numpy.empty(len(adj_X), dtype = numpy.float64)
+      for i, adj_x in enumerate(adj_X):
+        adj_x_v[i] = function_max_value(adj_x)
+      F = function_new(self.dependencies()[-1])
+      function_set_values(F, self._P_T.dot(adj_x_v))
+      return (-1.0, F)
+    else:
+      return None
+  
+  def adjoint_jacobian_solve(self, nl_deps, b):
+    return b
+  
+  def tangent_linear(self, M, dM, tlm_map):
+    X = self.X()
+    y = self.dependencies()[-1]
+
+    for x in X:
+      if x in M:
+        raise EquationException("Invalid tangent-linear parameter")
+
+    try:
+      tlm_y_index = M.index(y)
+    except ValueError:
+      tlm_y_index = None
+    if tlm_y_index is None:
+      tlm_y = tlm_map[y]
+    else:
+      tlm_y = dM[tlm_y_index]
+      
+    if tlm_y is None:
+      return NullSolver([tlm_map[x] for x in X])
+    else:
+      return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X], P = self._P, P_T = self._P_T)
