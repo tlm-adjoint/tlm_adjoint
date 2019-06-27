@@ -18,7 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from fenics import *
+from fenics import Constant, Function, FunctionSpace, TestFunction, \
+  TrialFunction, UnitIntervalMesh, dx, info, inner, sin, solve
 
 nsteps = 20
 dt = Constant(0.01)
@@ -30,17 +31,19 @@ space = FunctionSpace(mesh, "R", 0)
 space = FunctionSpace(mesh, space.ufl_element() * space.ufl_element())
 test, trial = TestFunction(space), TrialFunction(space)
 
-T_n = Function(space, name = "T_n")
-T_np1 = Function(space, name = "T_np1")
+T_n = Function(space, name="T_n")
+T_np1 = Function(space, name="T_np1")
 T_s = 0.5 * (T_n + T_np1)
 
 T_n.assign(T_0)
 for n in range(nsteps):
-    solve(inner(test, (T_np1 - T_n) / dt) * dx - inner(test[0], T_s[1]) * dx + inner(test[1], sin(alpha * T_s[0])) * dx == 0,
-        T_np1, solver_parameters = {"nonlinear_solver":"newton",
-                                                                "newton_solver":{"linear_solver":"umfpack",
-                                                                                                 "relative_tolerance":1.0e-13,
-                                                                                                 "absolute_tolerance":1.0e-15}})
+    solve(inner(test, (T_np1 - T_n) / dt) * dx - inner(test[0], T_s[1]) * dx
+          + inner(test[1], sin(alpha * T_s[0])) * dx == 0,
+          T_np1,
+          solver_parameters={"nonlinear_solver": "newton",
+                             "newton_solver": {"linear_solver": "umfpack",
+                                               "relative_tolerance": 1.0e-13,
+                                               "absolute_tolerance": 1.0e-15}})
     T_n, T_np1 = T_np1, T_n
 
 J = T_n.vector().max()
