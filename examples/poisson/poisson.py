@@ -5,16 +5,16 @@
 # root directory
 
 # This file is part of tlm_adjoint.
-# 
+#
 # tlm_adjoint is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, version 3 of the License.
-# 
+#
 # tlm_adjoint is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
@@ -40,30 +40,30 @@ space = FunctionSpace(mesh, "Lagrange", 1)
 # arguments are flags used for optimization.
 bc = DirichletBC(space, 1.0, "on_boundary", static = True, homogeneous = False)
 
-def forward(F, x0 = None):  
-  # Clear assembly and linear solver caches
-  clear_caches()
+def forward(F, x0 = None):
+    # Clear assembly and linear solver caches
+    clear_caches()
 
-  # Construct a simple equation (the Poisson equation with inhomogeneous
-  # Dirichlet boundary conditions)
-  x = Function(space, name = "x0" if x0 is None else "x")
-  test, trial = TestFunction(space), TrialFunction(space)
-  eq = EquationSolver(inner(grad(test), grad(trial)) * dx == inner(test, F * F) * dx,
-    x, bc, solver_parameters = {"linear_solver":"cg", "preconditioner":"sor",
-                                "krylov_solver":{"absolute_tolerance":1.0e-16,
-                                                 "relative_tolerance":1.0e-14}})
-  
-  # Solve the equation
-  eq.solve()
-  
-  if x0 is None:
-    # If x0 is not supplied, return a reference solution
-    return x
-  else:
-    # Otherwise, return a mis-match functional
-    J = Functional()
-    J.assign(inner(x - x0, x - x0) * dx)
-    return J
+    # Construct a simple equation (the Poisson equation with inhomogeneous
+    # Dirichlet boundary conditions)
+    x = Function(space, name = "x0" if x0 is None else "x")
+    test, trial = TestFunction(space), TrialFunction(space)
+    eq = EquationSolver(inner(grad(test), grad(trial)) * dx == inner(test, F * F) * dx,
+        x, bc, solver_parameters = {"linear_solver":"cg", "preconditioner":"sor",
+                                                                "krylov_solver":{"absolute_tolerance":1.0e-16,
+                                                                                                 "relative_tolerance":1.0e-14}})
+
+    # Solve the equation
+    eq.solve()
+
+    if x0 is None:
+        # If x0 is not supplied, return a reference solution
+        return x
+    else:
+        # Otherwise, return a mis-match functional
+        J = Functional()
+        J.assign(inner(x - x0, x - x0) * dx)
+        return J
 
 # Generate a reference solution x0 using F0. The optional "static" flag is used
 # for optimization.
