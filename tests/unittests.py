@@ -74,7 +74,8 @@ def leak_check(test):
 class tests(unittest.TestCase):
     @leak_check
     def test_Storage(self):
-        reset("periodic_disk")  # Ensure creation of checkpoints~ directory
+        # Ensure creation of checkpoints~ directory
+        reset("periodic_disk")
         reset("memory", {"replace": True})
         clear_caches()
         stop_manager()
@@ -348,11 +349,11 @@ class tests(unittest.TestCase):
 
         dJ_tlm = J.tlm(F, zeta).value()
         dJ_adj = function_inner(dJ, zeta)
-        error = abs(dJ_tlm - dJ_adj)
+        error_norm = abs(dJ_tlm - dJ_adj)
         info("dJ/dF zeta, TLM     = %.16e" % dJ_tlm)
         info("dJ/dF zeta, adjoint = %.16e" % dJ_adj)
-        info("Error               = %.16e" % error)
-        self.assertEqual(error, 0.0)
+        info("Error norm          = %.16e" % error_norm)
+        self.assertEqual(error_norm, 0.0)
 
         ddJ = Hessian(lambda F: forward(F, x_ref=x_ref)[1])
         min_order = taylor_test(lambda F: forward(F, x_ref=x_ref)[1], F,
@@ -544,9 +545,7 @@ class tests(unittest.TestCase):
 
             fp_parameters = {"absolute_tolerance": 0.0,
                              "relative_tolerance": 1.0e-14}
-            eq = FixedPointSolver(eqs, solver_parameters=fp_parameters)
-
-            eq.solve()
+            FixedPointSolver(eqs, solver_parameters=fp_parameters).solve()
 
             J = Functional(name="J")
             J.assign(x)
@@ -628,8 +627,8 @@ class tests(unittest.TestCase):
             ls_parameters = {"linear_solver": "cg",
                              "preconditioner": "sor",
                              "krylov_solver": ks_parameters}
-            eqs = [EquationSolver(eq,
-                                  x_np1, bc, solver_parameters=ls_parameters),
+            eqs = [EquationSolver(eq, x_np1, bc,
+                                  solver_parameters=ls_parameters),
                    AssignmentSolver(x_np1, x_n)]
 
             for n in range(n_steps):
@@ -679,64 +678,64 @@ class tests(unittest.TestCase):
             function_axpy(kappa_perturb, eps, perturb)
             J_vals.append(forward(kappa_perturb).value())
         J_vals = np.array(J_vals, dtype=np.float64)
-        errors_0 = abs(J_vals - J_val)
-        orders_0 = np.log(errors_0[1:] / errors_0[:-1]) / np.log(0.5)
-        info("Errors, maximal degree 0 derivative information = %s" % errors_0)
-        info("Orders, maximal degree 0 derivative information = %s" % orders_0)
-        errors_1_adj = abs(J_vals - J_val
-                           - eps_vals * function_inner(dJ_adj, perturb))
-        orders_1_adj = (np.log(errors_1_adj[1:] / errors_1_adj[:-1])
+        error_norms_0 = abs(J_vals - J_val)
+        orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
+        info("Error norms, maximal degree 0 derivative information = %s" % error_norms_0)  # noqa: E501
+        info("Orders,      maximal degree 0 derivative information = %s" % orders_0)  # noqa: E501
+        error_norms_1_adj = abs(J_vals - J_val
+                                - eps_vals * function_inner(dJ_adj, perturb))
+        orders_1_adj = (np.log(error_norms_1_adj[1:] / error_norms_1_adj[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 1 derivative information, adjoint = %s" % errors_1_adj)  # noqa: E501
-        info("Orders, maximal degree 1 derivative information, adjoint = %s" % orders_1_adj)  # noqa: E501
-        errors_1_tlm = abs(J_vals - J_val - eps_vals * dJ_tlm_val)
-        orders_1_tlm = (np.log(errors_1_tlm[1:] / errors_1_tlm[:-1])
+        info("Error norms, maximal degree 1 derivative information, adjoint = %s" % error_norms_1_adj)  # noqa: E501
+        info("Orders,      maximal degree 1 derivative information, adjoint = %s" % orders_1_adj)  # noqa: E501
+        error_norms_1_tlm = abs(J_vals - J_val - eps_vals * dJ_tlm_val)
+        orders_1_tlm = (np.log(error_norms_1_tlm[1:] / error_norms_1_tlm[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 1 derivative information, TLM = %s" % errors_1_tlm)  # noqa: E501
-        info("Orders, maximal degree 1 derivative information, TLM = %s" % orders_1_tlm)  # noqa: E501
-        errors_2_adj = abs(J_vals - J_val
-                           - eps_vals * dJ_tlm_val
-                           - 0.5 * eps_vals * eps_vals
-                                            * function_inner(ddJ_adj, perturb))
-        orders_2_adj = (np.log(errors_2_adj[1:] / errors_2_adj[:-1])
+        info("Error norms, maximal degree 1 derivative information, TLM = %s" % error_norms_1_tlm)  # noqa: E501
+        info("Orders,      maximal degree 1 derivative information, TLM = %s" % orders_1_tlm)  # noqa: E501
+        error_norms_2_adj = abs(J_vals - J_val
+                                - eps_vals * dJ_tlm_val
+                                - 0.5 * eps_vals * eps_vals
+                                      * function_inner(ddJ_adj, perturb))
+        orders_2_adj = (np.log(error_norms_2_adj[1:] / error_norms_2_adj[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 2 derivative information, adjoint(TLM) = %s" % errors_2_adj)  # noqa: E501
-        info("Orders, maximal degree 2 derivative information, adjoint(TLM) = %s" % orders_2_adj)  # noqa: E501
-        errors_2_tlm = abs(J_vals - J_val
-                           - eps_vals * dJ_tlm_val
-                           - 0.5 * eps_vals * eps_vals * ddJ_tlm_val)
-        orders_2_tlm = (np.log(errors_2_tlm[1:] / errors_2_tlm[:-1])
+        info("Error norms, maximal degree 2 derivative information, adjoint(TLM) = %s" % error_norms_2_adj)  # noqa: E501
+        info("Orders,      maximal degree 2 derivative information, adjoint(TLM) = %s" % orders_2_adj)  # noqa: E501
+        error_norms_2_tlm = abs(J_vals - J_val
+                                - eps_vals * dJ_tlm_val
+                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val)
+        orders_2_tlm = (np.log(error_norms_2_tlm[1:] / error_norms_2_tlm[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 2 derivative information, TLM(TLM) = %s" % errors_2_tlm)  # noqa: E501
-        info("Orders, maximal degree 2 derivative information, TLM(TLM) = %s" % orders_2_tlm)  # noqa: E501
-        errors_3_adj = abs(J_vals - J_val
-                           - eps_vals * dJ_tlm_val
-                           - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
-                           - (1.0 / 6.0) * np.power(eps_vals, 3.0)
-                                         * function_inner(dddJ_adj, perturb))
-        orders_3_adj = (np.log(errors_3_adj[1:] / errors_3_adj[:-1])
+        info("Error norms, maximal degree 2 derivative information, TLM(TLM) = %s" % error_norms_2_tlm)  # noqa: E501
+        info("Orders,      maximal degree 2 derivative information, TLM(TLM) = %s" % orders_2_tlm)  # noqa: E501
+        error_norms_3_adj = abs(J_vals - J_val
+                                - eps_vals * dJ_tlm_val
+                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
+                                - (1.0 / 6.0) * np.power(eps_vals, 3.0)
+                                              * function_inner(dddJ_adj, perturb))  # noqa: E501
+        orders_3_adj = (np.log(error_norms_3_adj[1:] / error_norms_3_adj[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 3 derivative information, adjoint(TLM(TLM)) = %s" % errors_3_adj)  # noqa: E501
-        info("Orders, maximal degree 3 derivative information, adjoint(TLM(TLM)) = %s" % orders_3_adj)  # noqa: E501
-        errors_3_tlm = abs(J_vals - J_val
-                           - eps_vals * dJ_tlm_val
-                           - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
-                           - (1.0 / 6.0) * np.power(eps_vals, 3.0)
-                                         * dddJ_tlm_val)
-        orders_3_tlm = (np.log(errors_3_tlm[1:] / errors_3_tlm[:-1])
+        info("Error norms, maximal degree 3 derivative information, adjoint(TLM(TLM)) = %s" % error_norms_3_adj)  # noqa: E501
+        info("Orders,      maximal degree 3 derivative information, adjoint(TLM(TLM)) = %s" % orders_3_adj)  # noqa: E501
+        error_norms_3_tlm = abs(J_vals - J_val
+                                - eps_vals * dJ_tlm_val
+                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
+                                - (1.0 / 6.0) * np.power(eps_vals, 3.0)
+                                              * dddJ_tlm_val)
+        orders_3_tlm = (np.log(error_norms_3_tlm[1:] / error_norms_3_tlm[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 3 derivative information, TLM(TLM(TLM)) = %s" % errors_3_tlm)  # noqa: E501
-        info("Orders, maximal degree 3 derivative information, TLM(TLM(TLM)) = %s" % orders_3_tlm)  # noqa: E501
-        errors_4_adj = abs(J_vals - J_val - eps_vals * dJ_tlm_val
-                           - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
-                           - (1.0 / 6.0) * np.power(eps_vals, 3.0)
-                                         * dddJ_tlm_val
-                           - (1.0 / 24.0) * np.power(eps_vals, 4.0)
-                                          * function_inner(ddddJ_adj, perturb))
-        orders_4_adj = (np.log(errors_4_adj[1:] / errors_4_adj[:-1])
+        info("Error norms, maximal degree 3 derivative information, TLM(TLM(TLM)) = %s" % error_norms_3_tlm)  # noqa: E501
+        info("Orders,      maximal degree 3 derivative information, TLM(TLM(TLM)) = %s" % orders_3_tlm)  # noqa: E501
+        error_norms_4_adj = abs(J_vals - J_val - eps_vals * dJ_tlm_val
+                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
+                                - (1.0 / 6.0) * np.power(eps_vals, 3.0)
+                                              * dddJ_tlm_val
+                                - (1.0 / 24.0) * np.power(eps_vals, 4.0)
+                                               * function_inner(ddddJ_adj, perturb))  # noqa: E501
+        orders_4_adj = (np.log(error_norms_4_adj[1:] / error_norms_4_adj[:-1])
                         / np.log(0.5))
-        info("Errors, maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % errors_4_adj)  # noqa: E501
-        info("Orders, maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % orders_4_adj)  # noqa: E501
+        info("Error norms, maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % error_norms_4_adj)  # noqa: E501
+        info("Orders,      maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % orders_4_adj)  # noqa: E501
 
         self.assertGreater(orders_0[-1], 1.00)
         self.assertGreater(orders_1_adj.min(), 2.00)
@@ -867,8 +866,7 @@ class tests(unittest.TestCase):
 
         def forward_J(alpha):
             return forward(alpha, x_ref=x_ref)[1]
-        alpha, result = minimize_scipy(forward_J,
-                                       alpha0, J0=J,
+        alpha, result = minimize_scipy(forward_J, alpha0, J0=J,
                                        method="L-BFGS-B",
                                        options={"ftol": 0.0, "gtol": 1.0e-10})
         self.assertTrue(result.success)
@@ -906,7 +904,7 @@ class tests(unittest.TestCase):
                                    0.7 * inner(test, G[0]) * dx,
                                    A_tensor=A, b_tensor=b, add_values=True)
             bc.apply(A, b)
-            solver = KrylovSolver("cg")
+            solver = KrylovSolver("gmres", "sor")
             ks_parameters = {"relative_tolerance": 1.0e-14,
                              "absolute_tolerance": 1.0e-16}
             solver.parameters.update(ks_parameters)
@@ -920,7 +918,7 @@ class tests(unittest.TestCase):
             A = assemble(inner(test, trial) * dx)
             b = A * G[2].vector()
             bc.apply(A, b)
-            solver = KrylovSolver("cg")
+            solver = KrylovSolver("gmres", "sor")
             ks_parameters = {"relative_tolerance": 1.0e-14,
                              "absolute_tolerance": 1.0e-16}
             solver.parameters.update(ks_parameters)
@@ -929,10 +927,14 @@ class tests(unittest.TestCase):
             A, b = assemble_system(inner(test, trial) * dx,
                                    inner(test, G[3]) * dx,
                                    bcs=bc)
+            solver = KrylovSolver("cg", "sor")
+            ks_parameters = {"relative_tolerance": 1.0e-14,
+                             "absolute_tolerance": 1.0e-16}
             solver.solve(A, G[4].vector(), b)
 
-            solver = LinearVariationalSolver(LinearVariationalProblem(
-                inner(test, trial) * dx, inner(test, G[4]) * dx, G[5]))
+            eq = inner(test, trial) * dx == inner(test, G[4]) * dx
+            problem = LinearVariationalProblem(eq.lhs, eq.rhs, G[5])
+            solver = LinearVariationalSolver(problem)
             ks_parameters = {"relative_tolerance": 1.0e-14,
                              "absolute_tolerance": 1.0e-16}
             ls_parameters = {"linear_solver": "cg",
@@ -959,19 +961,19 @@ class tests(unittest.TestCase):
             J = Functional(name="J")
             J.assign(inner(G[-1], G[-1]) * dx)
 
-            return J, G[-1]
+            return G[-1], J
 
         start_manager()
-        J, G = forward(F)
+        G, J = forward(F)
         stop_manager()
 
         self.assertAlmostEqual(assemble(inner(F - G, F - G) * dx), 0.0,
-                               places=27)
+                               places=9)
 
         J_val = J.value()
         dJ = compute_gradient(J, F)
         # Usage as in dolfin-adjoint tests
-        min_order = taylor_test(lambda F: forward(F)[0], F, J_val=J_val, dJ=dJ)
+        min_order = taylor_test(lambda F: forward(F)[1], F, J_val=J_val, dJ=dJ)
         self.assertGreater(min_order, 1.99)
 
     @leak_check
@@ -1138,22 +1140,22 @@ class tests(unittest.TestCase):
             return alpha
         J_vals = np.array([forward(control_value(1.0 + eps))[0].value()
                            for eps in eps_vals], dtype=np.float64)
-        errors_0 = abs(J_vals - J_val)
-        errors_1 = abs(J_vals - J_val - dJ * eps_vals)
-        errors_2 = abs(J_vals - J_val - dJ * eps_vals
-                       - 0.5 * ddJ_val * np.power(eps_vals, 2))
-        orders_0 = (np.log(errors_0[1:] / errors_0[:-1])
+        error_norms_0 = abs(J_vals - J_val)
+        error_norms_1 = abs(J_vals - J_val - dJ * eps_vals)
+        error_norms_2 = abs(J_vals - J_val - dJ * eps_vals
+                            - 0.5 * ddJ_val * np.power(eps_vals, 2))
+        orders_0 = (np.log(error_norms_0[1:] / error_norms_0[:-1])
                     / np.log(eps_vals[1:] / eps_vals[:-1]))
-        orders_1 = (np.log(errors_1[1:] / errors_1[:-1])
+        orders_1 = (np.log(error_norms_1[1:] / error_norms_1[:-1])
                     / np.log(eps_vals[1:] / eps_vals[:-1]))
-        orders_2 = (np.log(errors_2[1:] / errors_2[:-1])
+        orders_2 = (np.log(error_norms_2[1:] / error_norms_2[:-1])
                     / np.log(eps_vals[1:] / eps_vals[:-1]))
-        info("dJ errors, first order  = %s" % errors_0)
-        info("dJ orders, first order  = %s" % orders_0)
-        info("dJ errors, second order = %s" % errors_1)
-        info("dJ orders, second order = %s" % orders_1)
-        info("dJ errors, third order  = %s" % errors_2)
-        info("dJ orders, third order  = %s" % orders_2)
+        info("dJ error norms, first order  = %s" % error_norms_0)
+        info("dJ orders,      first order  = %s" % orders_0)
+        info("dJ error norms, second order = %s" % error_norms_1)
+        info("dJ orders,      second order = %s" % orders_1)
+        info("dJ error norms, third order  = %s" % error_norms_2)
+        info("dJ orders,      third order  = %s" % orders_2)
         self.assertGreater(orders_0[-1], 0.99)
         self.assertGreater(orders_1[-1], 2.00)
         self.assertGreater(orders_2[-1], 2.99)
@@ -1204,8 +1206,7 @@ class tests(unittest.TestCase):
                 eq = (inner(test, trial) * dx
                       + dt * inner(grad(test), kappa * grad(trial)) * dx
                       == inner(test, T[n]) * dx)
-                system.add_solve(eq,
-                                 T[n + 1],
+                system.add_solve(eq, T[n + 1],
                                  DirichletBC(space, 1.0, "on_boundary",
                                              static=True, homogeneous=False),
                                  solver_parameters=ls_parameters)
@@ -1267,6 +1268,7 @@ class tests(unittest.TestCase):
             T_s = Constant(0.5, static=True) * (T_n + T_np1)
 
             AssignmentSolver(T_0, T_n).solve()
+
             ns_parameters = {"linear_solver": "gmres",
                              "preconditioner": "sor",
                              "krylov_solver": {"relative_tolerance": 1.0e-14,
@@ -1281,6 +1283,7 @@ class tests(unittest.TestCase):
                                 + inner(test[1], sin(T_s[0])) * dx == 0,
                                 T_np1,
                                 solver_parameters=solver_parameters)
+
             for n in range(n_steps):
                 eq.solve()
                 T_n.assign(T_np1)
@@ -1461,25 +1464,25 @@ if __name__ == "__main__":
     np.random.seed(1201)
     unittest.main()
 
-#  tests().test_AssignmentSolver()
-#  tests().test_AxpySolver()
-#  tests().test_second_order_adjoint()
-#  tests().test_timestepping()
-#  tests().test_recursive_tlm()
-#  tests().test_bc()
-#  tests().test_overrides()
-#  tests().test_minimize_scipy()
-#  tests().test_minimize_scipy_multiple()
-#  tests().test_higher_order_adjoint()
-#  tests().test_FixedPointSolver()
-#  tests().test_InterpolationSolver()
-#  tests().test_PointInterpolationSolver()
-#  tests().test_ExprEvaluationSolver()
-#  tests().test_LongRange()
-#  tests().test_LocalProjectionSolver()
-#  tests().test_clear_caches()
-#  tests().test_AssembleSolver()
-#  tests().test_Storage()
+#    tests().test_AssignmentSolver()
+#    tests().test_AxpySolver()
+#    tests().test_second_order_adjoint()
+#    tests().test_timestepping()
+#    tests().test_recursive_tlm()
+#    tests().test_bc()
+#    tests().test_overrides()
+#    tests().test_minimize_scipy()
+#    tests().test_minimize_scipy_multiple()
+#    tests().test_higher_order_adjoint()
+#    tests().test_FixedPointSolver()
+#    tests().test_InterpolationSolver()
+#    tests().test_PointInterpolationSolver()
+#    tests().test_ExprEvaluationSolver()
+#    tests().test_LongRange()
+#    tests().test_LocalProjectionSolver()
+#    tests().test_clear_caches()
+#    tests().test_AssembleSolver()
+#    tests().test_Storage()
 
-#  tests().test_HEP()
-#  tests().test_NHEP()
+#    tests().test_HEP()
+#    tests().test_NHEP()
