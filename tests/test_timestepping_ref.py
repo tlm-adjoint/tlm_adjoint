@@ -18,9 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from fenics import Constant, DirichletBC, Expression, Function, \
-  FunctionSpace, TestFunction, TrialFunction, UnitIntervalMesh, assemble, dx, \
-  grad, info, inner, solve
+from fenics import *
 
 n_steps = 20
 dt = Constant(0.01)
