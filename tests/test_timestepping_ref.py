@@ -18,7 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from fenics import *
+from fenics import Constant, DirichletBC, Expression, Function, \
+  FunctionSpace, TestFunction, TrialFunction, UnitIntervalMesh, assemble, dx, \
+  grad, info, inner, solve
 
 n_steps = 20
 dt = Constant(0.01)
@@ -28,13 +30,18 @@ mesh = UnitIntervalMesh(100)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
-T_n = Function(space, name = "T_n")
-T_np1 = Function(space, name = "T_np1")
+T_n = Function(space, name="T_n")
+T_np1 = Function(space, name="T_np1")
 
-T_n.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])", element = space.ufl_element()))
+T_n.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])",
+                element=space.ufl_element()))
 for n in range(n_steps):
-    solve(inner(test, trial / dt) * dx + inner(grad(test), kappa * grad(trial)) * dx == inner(test, T_n / dt) * dx,
-        T_np1, DirichletBC(space, 1.0, "on_boundary"), solver_parameters = {"linear_solver":"umfpack"})
+    solve(inner(test, trial / dt) * dx
+          + inner(grad(test), kappa * grad(trial)) * dx
+          == inner(test, T_n / dt) * dx,
+          T_np1,
+          DirichletBC(space, 1.0, "on_boundary"),
+          solver_parameters={"linear_solver": "umfpack"})
     T_n, T_np1 = T_np1, T_n
 
 J = assemble(inner(T_n, T_n) * dx)
