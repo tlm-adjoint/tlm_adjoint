@@ -1546,16 +1546,16 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
         J_vals[i] = forward(*M1).value()
         manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
-    errors_0 = abs(J_vals - J_val)
-    orders_0 = numpy.log(errors_0[1:] / errors_0[:-1]) / numpy.log(0.5)
-    info("Errors, no adjoint   = %s" % errors_0)
-    info("Orders, no adjoint   = %s" % orders_0)
+    error_norms_0 = abs(J_vals - J_val)
+    orders_0 = numpy.log(error_norms_0[1:] / error_norms_0[:-1]) / numpy.log(0.5)
+    info("Error norms, no adjoint   = %s" % error_norms_0)
+    info("Orders,      no adjoint   = %s" % orders_0)
 
     if ddJ is None:
-        errors_1 = abs(J_vals - J_val - eps * functions_inner(dJ, dM))
-        orders_1 = numpy.log(errors_1[1:] / errors_1[:-1]) / numpy.log(0.5)
-        info("Errors, with adjoint = %s" % errors_1)
-        info("Orders, with adjoint = %s" % orders_1)
+        error_norms_1 = abs(J_vals - J_val - eps * functions_inner(dJ, dM))
+        orders_1 = numpy.log(error_norms_1[1:] / error_norms_1[:-1]) / numpy.log(0.5)
+        info("Error norms, with adjoint = %s" % error_norms_1)
+        info("Orders,      with adjoint = %s" % orders_1)
         return orders_1.min()
     else:
         if dJ is None:
@@ -1563,10 +1563,10 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
         else:
             dJ = functions_inner(dJ, dM)
             _, _, ddJ = ddJ.action(M, dM)
-        errors_2 = abs(J_vals - J_val - eps * dJ - 0.5 * eps * eps * functions_inner(ddJ, dM))
-        orders_2 = numpy.log(errors_2[1:] / errors_2[:-1]) / numpy.log(0.5)
-        info("Errors, with adjoint = %s" % errors_2)
-        info("Orders, with adjoint = %s" % orders_2)
+        error_norms_2 = abs(J_vals - J_val - eps * dJ - 0.5 * eps * eps * functions_inner(ddJ, dM))
+        orders_2 = numpy.log(error_norms_2[1:] / error_norms_2[:-1]) / numpy.log(0.5)
+        info("Error norms, with adjoint = %s" % error_norms_2)
+        info("Orders,      with adjoint = %s" % orders_2)
         return orders_2.min()
 
 def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed = 1.0e-2,
