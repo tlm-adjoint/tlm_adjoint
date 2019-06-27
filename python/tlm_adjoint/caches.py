@@ -452,7 +452,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__space = x.function_space()
         self.__id = x.id()
         self.__name = x.name()
-        self.__state = function_state(x)
+        self.__state = -1
         self.__static = function_is_static(x)
         self.__cache = function_is_cached(x)
         self.__checkpoint = function_is_checkpointed(x)
