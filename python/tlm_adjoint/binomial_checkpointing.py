@@ -30,8 +30,7 @@
 #           checkpointing", SIAM Journal on Scientific Computing, 31(3),
 #           pp. 1946--1967, 2009
 
-from collections import defaultdict
-import numpy
+import numpy as np
 
 __all__ = \
     [
@@ -39,17 +38,19 @@ __all__ = \
         "MultistageManager"
     ]
 
+
 class CheckpointingException(Exception):
     pass
+
 
 def n_advance(n, snapshots):
     """
     Determine an optimal offline snapshot interval, taking n steps and with the
     given number of snapshots, using the approach of
         GW2000  A. Griewank and A. Walther, "Algorithm 799: Revolve: An
-                        implementation of checkpointing for the reverse or adjoint mode of
-                        computational differentiation", ACM Transactions on Mathematical
-                        Software, 26(1), pp. 19--45, 2000
+                implementation of checkpointing for the reverse or adjoint mode
+                of computational differentiation", ACM Transactions on
+                Mathematical Software, 26(1), pp. 19--45, 2000
     and choosing the maximal possible step size.
     """
 
@@ -66,18 +67,20 @@ def n_advance(n, snapshots):
     elif snapshots == n - 1:
         return 1  # Maximal storage
 
-    # Find t as in GW2000 Proposition 1 (note 'm' in GW2000 is 'n' here, and 's'
-    # in GW2000 is 'snapshots' here). Compute values of beta as in equation (1) of
-    # GW2000 as a side effect. We must have a minimal rerun of at least 2 (the
-    # minimal rerun of 1 case is maximal storage, handled above) so we start from
-    # t = 2.
+    # Find t as in GW2000 Proposition 1 (note 'm' in GW2000 is 'n' here, and
+    # 's' in GW2000 is 'snapshots' here). Compute values of beta as in equation
+    # (1) of GW2000 as a side effect. We must have a minimal rerun of at least
+    # 2 (the minimal rerun of 1 case is maximal storage, handled above) so we
+    # start from t = 2.
     t = 2
     b_s_tm2 = 1
     b_s_tm1 = snapshots + 1
     b_s_t = ((snapshots + 1) * (snapshots + 2)) // 2
     while b_s_tm1 >= n or n > b_s_t:
         t += 1
-        b_s_tm2, b_s_tm1, b_s_t = b_s_tm1, b_s_t, (b_s_t * (snapshots + t)) // t
+        b_s_tm2 = b_s_tm1
+        b_s_tm1 = b_s_t
+        b_s_t = (b_s_t * (snapshots + t)) // t
 
     # Return the maximal step size compatible with Fig. 4 of GW2000
     b_sm1_tm2 = (b_s_tm2 * snapshots) // (snapshots + t - 2)
@@ -90,21 +93,23 @@ def n_advance(n, snapshots):
     elif n <= b_s_tm1 + b_sm1_tm1 + b_sm2_tm1:
         return n - b_sm1_tm1 - b_sm2_tm1
     else:
-        return  b_s_tm1
+        return b_s_tm1
 
-def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, write_weight = 1.0, read_weight = 1.0, delete_weight = 0.0):
+
+def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk,
+                       write_weight=1.0, read_weight=1.0, delete_weight=0.0):
     """
     Allocate a stack of snapshots based upon the number of read/writes,
     preferentially allocating to RAM. Yields the approach described in
-        SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
-                        checkpointing", SIAM Journal on Scientific Computing, 31(3),
-                        pp. 1946--1967, 2009
+        SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal
+                offline checkpointing", SIAM Journal on Scientific Computing,
+                31(3), pp. 1946--1967, 2009
     but applies a brute force approach to determine the allocation.
     """
 
     snapshots = snapshots_in_ram + snapshots_on_disk
     snapshots_n = []
-    weights = numpy.zeros(snapshots, dtype = numpy.float64)
+    weights = np.zeros(snapshots, dtype=np.float64)
     n = 0
     i = 0
     snapshots_n.append(n)
@@ -127,24 +132,27 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, write_weight 
             snapshots_n.append(snapshot_n)
             weights[i] += write_weight
         if snapshot_n_0 == n - 1:
-            i -= 1
             snapshots_n.pop()
             weights[i] += delete_weight
+            i -= 1
         n -= 1
     allocation = ["disk" for i in range(snapshots)]
-    for i in [p[0] for p in sorted(enumerate(weights), key = lambda p : p[1], reverse = True)][:snapshots_in_ram]:
+    for i in [p[0] for p in sorted(enumerate(weights), key=lambda p: p[1],
+                                   reverse=True)][:snapshots_in_ram]:
         allocation[i] = "RAM"
 
     return weights, allocation
 
+
 class MultistageManager:
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk):
         if snapshots_in_ram == 0:
-            storage = defaultdict(lambda : "disk")
+            storage = ["disk" for i in range(snapshots_on_disk)]
         elif snapshots_on_disk == 0:
-            storage = defaultdict(lambda : "RAM")
+            storage = ["RAM" for i in range(snapshots_in_ram)]
         else:
-            storage = allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk)[1]
+            storage = allocate_snapshots(max_n, snapshots_in_ram,
+                                         snapshots_on_disk)[1]
 
         self._n = 0
         self._r = 0
@@ -186,14 +194,17 @@ class MultistageManager:
         return self._snapshots[-1], self._storage[len(self._snapshots) - 1]
 
     def deferred_snapshot(self):
-        deferred_snapshot, self._deferred_snapshot = self._deferred_snapshot, None
+        deferred_snapshot = self._deferred_snapshot
+        self._deferred_snapshot = None
         return deferred_snapshot
 
     def forward(self):
         if self._n == self._max_n - self._r - 1:
             self._n += 1
         else:
-            self._n += n_advance(self._max_n - self._n - self._r, self._snapshots_in_ram + self._snapshots_on_disk - len(self._snapshots) + 1)
+            snapshots = self._snapshots_in_ram + self._snapshots_on_disk \
+                - len(self._snapshots) + 1
+            self._n += n_advance(self._max_n - self._n - self._r, snapshots)
 
     def reverse(self):
         self._r += 1
