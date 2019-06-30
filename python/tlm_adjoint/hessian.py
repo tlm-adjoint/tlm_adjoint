@@ -20,10 +20,7 @@
 
 from .backend_interface import *
 
-from .functional import Functional
 from .manager import manager as _manager, set_manager
-
-import numpy
 
 __all__ = \
     [
@@ -31,21 +28,23 @@ __all__ = \
         "HessianException"
     ]
 
+
 class HessianException(Exception):
     pass
 
+
 class Hessian:
-    def __init__(self, forward, manager = None):
+    def __init__(self, forward, manager=None):
         """
         Manager for evaluation of Hessian actions.
 
         Arguments:
 
-        forward  A callable which takes as input the control parameters and returns
-                         the Functional whose Hessian action is to be computed.
+        forward  A callable which takes as input the control parameters and
+                 returns the Functional whose Hessian action is to be computed.
         manager  (Optional) The equation manager used when computing Hessian
-                         actions. If not specified a new manager is created on instantiation
-                         using manager().new().
+                 actions. If not specified a new manager is created on
+                 instantiation using manager().new().
         """
 
         if manager is None:
@@ -64,19 +63,19 @@ class Hessian:
 
         Arguments:
 
-        M   A Function or Control, or lists or tuples of these, defining the
-                derivative.
+        M   A Function or Control, or a list or tuple of these, defining the
+            derivative.
         """
 
         if not isinstance(M, (list, tuple)):
-            J, (dJ,) = self.compute_gradient([M])
+            J, (dJ,) = self.compute_gradient((M,))
             return J, dJ
 
         old_manager = _manager()
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
-        clear_caches()  # Could use new caches here
+        clear_caches()
 
         self._manager.start()
         J = self._forward(*M)
@@ -94,36 +93,41 @@ class Hessian:
             (J, dJ, ddJ)
         where
         - J is the functional value
-        - dJ is the derivative of J with respect to the parameters defined by M in
-            in the direction dM
-        - ddJ is the action, in the direction dM, of the second derivative of the
-            functional with respect to M
+        - dJ is the derivative of J with respect to the parameters defined by M
+          in in the direction dM
+        - ddJ is the action, in the direction dM, of the second derivative of
+          the functional with respect to M
 
         Arguments:
 
-        M   A Function or Control, or lists or tuples of these, defining the
-                Hessian.
-        dM  A Function, or list or tuple or Function objects, defining the Hessian
-                action direction.
+        M   A Function or Control, or a list or tuple of these, defining the
+            Hessian.
+        dM  A Function, or list or tuple or Function objects, defining the
+            Hessian action direction.
         """
 
         if not isinstance(M, (list, tuple)):
-            J_val, dJ_val, (ddJ,) = self.action([M], [dM])
+            J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
-        # Could avoid a copy here
-        dM = [dm if function_is_static(dm) else function_copy(dm, static = True) for dm in dM]
+        def control_direction_alias(x):
+            y = function_alias(x)
+            y.is_static = lambda: True
+            y.is_cached = lambda: True
+            y.is_checkpointed = lambda: False
+            return y
+        dM = tuple(control_direction_alias(dm) for dm in dM)
 
         old_manager = _manager()
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
-        clear_caches()  # Could use new caches here
+        clear_caches()
 
         self._manager.add_tlm(M, dM)
         self._manager.start()
         J = self._forward(*M)
-        dJ = J.tlm(M, dM, manager = self._manager)
+        dJ = J.tlm(M, dM, manager=self._manager)
         self._manager.stop()
 
         J_val = J.value()
@@ -135,8 +139,8 @@ class Hessian:
 
     def action_fn(self, m):
         """
-        Return a function which accepts an array containing values for dm, and
-        returns the Hessian action as an array.
+        Return a callable which accepts a Function defining dm, and returns the
+        Hessian action as a NumPy array.
 
         Arguments:
 
