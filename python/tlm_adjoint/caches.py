@@ -286,18 +286,6 @@ def split_action(form, x):
     # Success
     return form_simplify_sign(lhs), form_neg(rhs)
 
-def parameters_key(parameters):
-    key = []
-    for name in sorted(parameters.keys()):
-        sub_parameters = parameters[name]
-        if isinstance(sub_parameters, (Parameters, dict)):
-            key.append((name, parameters_key(sub_parameters)))
-        elif isinstance(sub_parameters, list):
-            key.append((name, tuple(sub_parameters)))
-        else:
-            key.append((name, sub_parameters))
-    return tuple(key)
-
 class CacheRef:
     def __init__(self, value = None):
         self._value = value

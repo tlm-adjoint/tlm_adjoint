@@ -45,13 +45,10 @@
 # Modified by Martin Sandve Alnes 2008-2014
 # Modified by Andre Massing 2009
 
-backend = "FEniCS"
-
 from fenics import *
 import fenics
 
-backend_Matrix = fenics.cpp.la.GenericMatrix
-backend_Vector = GenericVector
+backend = "FEniCS"
 
 extract_args = fenics.fem.solving._extract_args
 
@@ -61,6 +58,7 @@ backend_Function = Function
 backend_KrylovSolver = KrylovSolver
 backend_LUSolver = LUSolver
 backend_LinearVariationalSolver = LinearVariationalSolver
+backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_NonlinearVariationalProblem = NonlinearVariationalProblem
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
 backend_assemble = assemble
@@ -75,6 +73,8 @@ __all__ = \
     [
         "backend",
 
+        "extract_args",
+
         "backend_Constant",
         "backend_DirichletBC",
         "backend_Function",
@@ -84,13 +84,10 @@ __all__ = \
         "backend_NonlinearVariationalProblem",
         "backend_NonlinearVariationalSolver",
         "backend_Matrix",
-        "backend_Vector",
         "backend_assemble",
         "backend_assemble_system",
         "backend_project",
         "backend_solve",
-
-        "extract_args",
 
         "cpp_LinearVariationalProblem",
         "cpp_NonlinearVariationalProblem",
@@ -99,11 +96,7 @@ __all__ = \
         "Expression",
         "Form",
         "FunctionSpace",
-        "KrylovSolver",
-        "LUSolver",
         "LocalSolver",
-        "LinearVariationalSolver",
-        "NonlinearVariationalSolver",
         "Parameters",
         "Point",
         "TestFunction",
@@ -111,16 +104,15 @@ __all__ = \
         "UnitIntervalMesh",
         "adjoint",
         "as_backend_type",
-        "assemble",
-        "assemble_system",
         "has_lu_solver_method",
         "info",
         "interpolate",
-        "mpi_comm_world",
         "parameters",
-        "solve"
+
+        "mpi_comm_world"
     ]
 
+# FEniCS backwards compatibility
 if not hasattr(fenics, "mpi_comm_world"):
     def mpi_comm_world():
         return fenics.MPI.comm_world

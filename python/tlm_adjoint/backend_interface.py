@@ -245,5 +245,5 @@ def subtract_adjoint_derivative_action(x, y):
 
 def finalise_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-        assemble(x._tlm_adjoint__adj_b, tensor = x.vector(), add_values = True)
+        backend_assemble(x._tlm_adjoint__adj_b, tensor = x.vector(), add_values = True)
         delattr(x, "_tlm_adjoint__adj_b")

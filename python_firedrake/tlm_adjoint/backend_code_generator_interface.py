@@ -37,6 +37,7 @@ __all__ = \
         "is_real_function",
         "linear_solver",
         "matrix_multiply",
+        "parameters_key",
         "process_adjoint_solver_parameters",
         "process_solver_parameters",
         "rhs_addto",
@@ -134,6 +135,18 @@ def process_adjoint_solver_parameters(linear_solver_parameters):
         return adjoint_solver_parameters
     else:
         return linear_solver_parameters  # Copy not required
+
+def parameters_key(parameters):
+    key = []
+    for name in sorted(parameters.keys()):
+        sub_parameters = parameters[name]
+        if isinstance(sub_parameters, (Parameters, dict)):
+            key.append((name, parameters_key(sub_parameters)))
+        elif isinstance(sub_parameters, list):
+            key.append((name, tuple(sub_parameters)))
+        else:
+            key.append((name, sub_parameters))
+    return tuple(key)
 
 def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     kwargs = {"form_compiler_parameters":form_compiler_parameters}

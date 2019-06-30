@@ -38,6 +38,7 @@ __all__ = \
         "is_real_function",
         "linear_solver",
         "matrix_multiply",
+        "parameters_key",
         "process_adjoint_solver_parameters",
         "process_solver_parameters",
         "rhs_addto",
@@ -154,10 +155,10 @@ def linear_solver(A, linear_solver_parameters):
         linear_solver = "gmres"
     is_lu_linear_solver = linear_solver == "default" or has_lu_solver_method(linear_solver)
     if is_lu_linear_solver:
-        solver = LUSolver(A, linear_solver)
+        solver = backend_LUSolver(A, linear_solver)
         update_parameters_dict(solver.parameters, linear_solver_parameters.get("lu_solver", {}))
     else:
-        solver = KrylovSolver(A, linear_solver, linear_solver_parameters.get("preconditioner", "default"))
+        solver = backend_KrylovSolver(A, linear_solver, linear_solver_parameters.get("preconditioner", "default"))
         update_parameters_dict(solver.parameters, linear_solver_parameters.get("krylov_solver", {}))
     return solver
 
@@ -201,21 +202,49 @@ def rhs_addto(x, y):
     x.axpy(1.0, y)
 
 # The following override assemble, assemble_system, and solve so that DOLFIN
-# Form objects are cached on UFL form objects. The first call to assemble,
-# assemble_system, or (for supported cases) solve defines the
-# form_compiler_parameters used to build the DOLFIN form -- subsequent
-# form_compiler_parameters arguments are *ignored*.
+# Form objects are cached on UFL form objects
+
+def parameters_key(parameters):
+    key = []
+    for name in sorted(parameters.keys()):
+        sub_parameters = parameters[name]
+        if isinstance(sub_parameters, (Parameters, dict)):
+            key.append((name, parameters_key(sub_parameters)))
+        elif isinstance(sub_parameters, list):
+            key.append((name, tuple(sub_parameters)))
+        else:
+            key.append((name, sub_parameters))
+    return tuple(key)
 
 def dolfin_form(form, form_compiler_parameters):
+    if "_tlm_adjoint__form" in form._cache and \
+       parameters_key(form_compiler_parameters) != \
+       form._cache["_tlm_adjoint__form_compiler_parameters_key"]:
+        del(form._cache["_tlm_adjoint__form"])
+        del(form._cache["_tlm_adjoint__deps_map"])
+        del(form._cache["_tlm_adjoint__form_compiler_parameters_key"])
+
     if "_tlm_adjoint__form" in form._cache:
         dolfin_form = form._cache["_tlm_adjoint__form"]
         deps = form.coefficients()
         for i, j in enumerate(form._cache["_tlm_adjoint__deps_map"]):
-            dolfin_form.set_coefficient(i, deps[j].this if hasattr(deps[j], "this") else deps[j]._cpp_object)
+            # FEniCS backwards compatibility
+            if hasattr(deps[j], "this"):
+                cpp_object = deps[j].this
+            else:
+                cpp_object = deps[j]._cpp_object
+            dolfin_form.set_coefficient(i, cpp_object)
     else:
-        dolfin_form = form._cache["_tlm_adjoint__form"] = Form(form, form_compiler_parameters = form_compiler_parameters)
-        if not hasattr(dolfin_form, "_compiled_form"): dolfin_form._compiled_form = None  # Work around DOLFIN 2018.1.0 bug
-        form._cache["_tlm_adjoint__deps_map"] = tuple(map(dolfin_form.original_coefficient_position, range(dolfin_form.num_coefficients())))
+        dolfin_form = form._cache["_tlm_adjoint__form"] = \
+            Form(form, form_compiler_parameters=form_compiler_parameters)
+        # Work around DOLFIN 2018.1.0 bug
+        if not hasattr(dolfin_form, "_compiled_form"):
+            dolfin_form._compiled_form = None
+        form._cache["_tlm_adjoint__deps_map"] = \
+            tuple(map(dolfin_form.original_coefficient_position,
+                      range(dolfin_form.num_coefficients())))
+        form._cache["_tlm_adjoint__form_compiler_parameters_key"] = \
+            parameters_key(form_compiler_parameters)
     return dolfin_form
 
 def clear_dolfin_form(form):
@@ -256,7 +285,7 @@ def solve(*args, **kwargs):
         lhs = dolfin_form(lhs, form_compiler_parameters)
         rhs = dolfin_form(rhs, form_compiler_parameters)
         problem = cpp_LinearVariationalProblem(lhs, rhs, x.this if hasattr(x, "this") else x._cpp_object, bcs)
-        solver = LinearVariationalSolver(problem)
+        solver = backend_LinearVariationalSolver(problem)
         solver.parameters.update(solver_parameters)
         return_value = solver.solve()
         clear_dolfin_form(lhs)
@@ -273,7 +302,7 @@ def solve(*args, **kwargs):
         F = dolfin_form(F, form_compiler_parameters)
         J = dolfin_form(J, form_compiler_parameters)
         problem = cpp_NonlinearVariationalProblem(F, x.this if hasattr(x, "this") else x._cpp_object, bcs, J)
-        solver = NonlinearVariationalSolver(problem)
+        solver = backend_NonlinearVariationalSolver(problem)
         solver.parameters.update(solver_parameters)
         return_value = solver.solve()
         clear_dolfin_form(F)

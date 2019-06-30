@@ -534,15 +534,15 @@ class EquationSolver(Equation):
                 # Construct the linear solver
                 J_solver = linear_solver(J_mat, self._linear_solver_parameters)
 
-#      J_mat_debug, b_debug = assemble_system(self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps))),
-#                                             self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
-#                                             self._bcs,
-#                                             **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
+#      J_mat_debug, b_debug = backend_assemble_system(self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps))),
+#                                                     self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
+#                                                     self._bcs,
+#                                                     **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
 #      assert((J_mat - J_mat_debug).norm("linf") == 0.0)
 #      assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
 
-#      b_debug = assemble(self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
-#                         form_compiler_parameters = self._form_compiler_parameters)
+#      b_debug = backend_assemble(self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
+#                                 form_compiler_parameters = self._form_compiler_parameters)
 #      b_error = function_new(x, name = "b_error")
 #      function_assign(b_error, b)
 #      function_axpy(b_error, -1.0, b_debug)
