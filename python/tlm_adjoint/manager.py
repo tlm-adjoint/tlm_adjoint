@@ -25,7 +25,11 @@ __all__ = \
     ]
 
 _manager = [None]
+
+
 def manager():
     return _manager[0]
+
+
 def set_manager(manager):
     _manager[0] = manager
