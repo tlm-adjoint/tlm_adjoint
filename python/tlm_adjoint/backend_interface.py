@@ -21,13 +21,11 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
 
-from .caches import Function, ReplacementFunction, assembly_cache, \
-    clear_caches, form_neg, function_caches, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_state, \
-    function_tlm_depth, function_update_state, is_function, linear_solver_cache, \
+from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_state, function_tlm_depth, function_update_state, is_function, \
     replaced_function
 
-import numpy
 import ufl
 import sys
 import weakref
@@ -58,11 +56,11 @@ __all__ = \
         "function_local_size",
         "function_max_value",
         "function_new",
-        "function_tangent_linear",
         "function_set_values",
         "function_space_id",
         "function_state",
         "function_sum",
+        "function_tangent_linear",
         "function_tlm_depth",
         "function_update_state",
         "function_zero",
@@ -73,76 +71,99 @@ __all__ = \
         "warning"
     ]
 
-#def clear_caches(*deps):
 
-#def info(message):
+# def clear_caches(*deps):
+
+
+# def info(message):
+
 
 def warning(message):
-    sys.stderr.write("%s\n" % message)
+    sys.stderr.write(f"{message:s}")
     sys.stderr.flush()
 
-#def copy_parameters_dict(parameters):
 
-#class FunctionSpace:
+# def copy_parameters_dict(parameters):
+
+
+# class FunctionSpace:
+
 
 def function_space_id(space):
     return space.id()
 
+
 _real_spaces = weakref.WeakValueDictionary()
-def RealFunctionSpace(comm = None):
+
+
+def RealFunctionSpace(comm=None):
     if comm is None:
         comm = default_comm()
-    comm_f = comm.tompi4py().py2f() if hasattr(comm, "tompi4py") else comm.py2f()
+    # FEniCS backwards compatibility
+    if hasattr(comm, "tompi4py"):
+        comm = comm.tompi4py()
+    comm_f = comm.py2f()
 
-    try:
-        space = _real_spaces[comm_f]
-    except KeyError:
+    if comm_f not in _real_spaces:
         space = FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
         _real_spaces[comm_f] = space
-    return space
+    return _real_spaces[comm_f]
 
-#class Function:
-#  def __init__(self, space, name = None, static = False, cache = None,
-#  checkpoint = None, tlm_depth = 0):
-#  def function_space(self):
-#  def id(self):
-#  def name(self):
 
-#class ReplacementFunction:
-#  def __init__(self, x):
-#  def function_space(self):
-#  def id(self):
-#  def name(self):
+# class Function:
+#     def __init__(self, space, name=None, static=False, cache=None,
+#                  checkpoint=None, tlm_depth=0):
+#     def function_space(self):
+#     def id(self):
+#     def name(self):
 
-#def replaced_function(x):
 
-#def is_function(x):
+# class ReplacementFunction:
+#     def __init__(self, x):
+#     def function_space(self):
+#     def id(self):
+#     def name(self):
 
-#def function_state(x):
 
-#def function_update_state(*X):
+# def replaced_function(x):
 
-#def function_is_static(x):
 
-#def function_is_cached(x):
+# def is_function(x):
 
-#def function_is_checkpointed(x):
 
-#def function_tlm_depth(x):
+# def function_state(x):
 
-def function_copy(x, name = None, static = False, cache = None,
-    checkpoint = None, tlm_depth = 0):
-    y = x.copy(deepcopy = True)
-    if not name is None: y.rename(name, "a Function")
-    y.is_static = lambda : static
+
+# def function_update_state(*X):
+
+
+# def function_is_static(x):
+
+
+# def function_is_cached(x):
+
+
+# def function_is_checkpointed(x):
+
+
+# def function_tlm_depth(x):
+
+
+def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
+                  tlm_depth=0):
+    y = x.copy(deepcopy=True)
+    if name is not None:
+        y.rename(name, "a Function")
+    y.is_static = lambda: static
     if cache is None:
         cache = static
-    y.is_cached = lambda : cache
+    y.is_cached = lambda: cache
     if checkpoint is None:
         checkpoint = not static
-    y.is_checkpointed = lambda : checkpoint
-    y.tlm_depth = lambda : tlm_depth
+    y.is_checkpointed = lambda: checkpoint
+    y.tlm_depth = lambda: tlm_depth
     return y
+
 
 def function_assign(x, y):
     if isinstance(y, (int, float)):
@@ -151,84 +172,103 @@ def function_assign(x, y):
         x.vector().zero()
         x.vector().axpy(1.0, y.vector())
 
+
 def function_axpy(x, alpha, y):
     x.vector().axpy(alpha, y.vector())
+
 
 def default_comm():
     return mpi_comm_world()
 
+
 def function_comm(x):
     return x.function_space().mesh().mpi_comm()
+
 
 def function_inner(x, y):
     return x.vector().inner(y.vector())
 
+
 def function_local_size(x):
     return x.vector().local_size()
 
+
 def function_get_values(x):
     return x.vector().get_local()
+
 
 def function_set_values(x, values):
     x.vector().set_local(values)
     x.vector().apply("insert")
 
+
 def function_max_value(x):
     return x.vector().max()
+
 
 def function_sum(x):
     return x.vector().sum()
 
+
 def function_linf_norm(x):
     return x.vector().norm("linf")
 
-def function_new(x, name = None, static = False, cache = None,
-    checkpoint = None, tlm_depth = 0):
+
+def function_new(x, name=None, static=False, cache=None, checkpoint=None,
+                 tlm_depth=0):
     if isinstance(x, backend_Function):
-        y = function_copy(x, name = name, static = static, cache = cache,
-            checkpoint = checkpoint, tlm_depth = tlm_depth)
+        y = function_copy(x, name=name, static=static, cache=cache,
+                          checkpoint=checkpoint, tlm_depth=tlm_depth)
         y.vector().zero()
         return y
     else:
-        return Function(x.function_space(), name = name, static = static,
-            cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth)
+        return Function(x.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
 
-def function_tangent_linear(x, name = None):
+
+def function_tangent_linear(x, name=None):
     if hasattr(x, "tangent_linear"):
-        return x.tangent_linear(name = name)
+        return x.tangent_linear(name=name)
     elif function_is_static(x):
         return None
     else:
-        return function_new(x, name = name, static = False,
-            cache = function_is_cached(x), checkpoint = function_is_checkpointed(x),
-            tlm_depth = function_tlm_depth(x) + 1)
+        return function_new(x, name=name, static=False,
+                            cache=function_is_cached(x),
+                            checkpoint=function_is_checkpointed(x),
+                            tlm_depth=function_tlm_depth(x) + 1)
+
 
 def function_alias(x):
-    y = x.copy(deepcopy = False)
+    y = x.copy(deepcopy=False)
     y.rename(x.name(), "a Function")
     static = function_is_static(x)
-    y.is_static = lambda : static
+    y.is_static = lambda: static
     cache = function_is_cached(x)
-    y.is_cached = lambda : cache
+    y.is_cached = lambda: cache
     checkpoint = function_is_checkpointed(x)
-    y.is_checkpointed = lambda : checkpoint
+    y.is_checkpointed = lambda: checkpoint
     tlm_depth = function_tlm_depth(x)
-    y.tlm_depth = lambda : tlm_depth
+    y.tlm_depth = lambda: tlm_depth
     return y
+
 
 def function_zero(x):
     x.vector().zero()
 
+
 def function_global_size(x):
     return x.function_space().dofmap().global_dimension()
+
 
 def function_local_indices(x):
     return slice(*x.function_space().dofmap().ownership_range())
 
+
 def subtract_adjoint_derivative_action(x, y):
     if y is None:
-        return
-    if isinstance(y, tuple):
+        pass
+    elif isinstance(y, tuple):
         alpha, y = y
         if isinstance(y, backend_Function):
             y = y.vector()
@@ -243,7 +283,9 @@ def subtract_adjoint_derivative_action(x, y):
             y = y.vector()
         x.vector().axpy(-1.0, y)
 
+
 def finalise_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-        backend_assemble(x._tlm_adjoint__adj_b, tensor = x.vector(), add_values = True)
+        backend_assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
+                         add_values=True)
         delattr(x, "_tlm_adjoint__adj_b")
