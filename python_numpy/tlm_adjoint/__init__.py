@@ -18,11 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import backend
-from .backend_interface import *
-from .base_equations import *
-from .equations import *
-from .functional import *
-from .hessian import *
-from .manager import *
-from .tlm_adjoint import *
+from .backend import backend      # noqa: F401
+from .backend_interface import *  # noqa: F401
+from .base_equations import *     # noqa: F401
+from .equations import *          # noqa: F401
+from .functional import *         # noqa: F401
+from .hessian import *            # noqa: F401
+from .manager import *            # noqa: F401
+from .tlm_adjoint import *        # noqa: F401
