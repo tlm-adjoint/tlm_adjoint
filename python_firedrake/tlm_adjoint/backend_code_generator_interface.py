@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
+from .backend import backend_assemble as assemble
 
 import copy
 import ufl
@@ -30,7 +31,6 @@ __all__ = \
         "apply_rhs_bcs",
         "assemble_arguments",
         "assemble_matrix",
-        "assemble_system",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
         "homogenize",
@@ -44,6 +44,8 @@ __all__ = \
         "rhs_copy",
         "update_parameters_dict",
 
+        "assemble",
+        "assemble_system",
         "solve"
     ]
 
@@ -162,18 +164,23 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
 
 
 def assemble_matrix(form, bcs, force_evaluation=True, **kwargs):
-    A = assemble(form, bcs=bcs, **kwargs)
+    A = backend_assemble(form, bcs=bcs, **kwargs)
     if force_evaluation:
         A.force_evaluation()
     return A, None
 
 
+# def assemble(form, tensor=None, form_compiler_parameters={}):
+#     # Similar interface to assemble in FEniCS 2019.1.0
+
+
 def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={}):
     # Similar interface to assemble_system in FEniCS 2019.1.0
-    return (assemble(A_form, bcs=bcs,
-                     form_compiler_parameters=form_compiler_parameters),
-            assemble(b_form,
-                     form_compiler_parameters=form_compiler_parameters))
+    A = backend_assemble(A_form, bcs=bcs,
+                         form_compiler_parameters=form_compiler_parameters)
+    b = backend_assemble(b_form,
+                         form_compiler_parameters=form_compiler_parameters)
+    return A, b
 
 
 def linear_solver(A, linear_solver_parameters):
@@ -190,10 +197,11 @@ def linear_solver(A, linear_solver_parameters):
         nullspace = None
         transpose_nullspace = None
         near_nullspace = None
-    return LinearSolver(A, solver_parameters=linear_solver_parameters,
-                        options_prefix=options_prefix, nullspace=nullspace,
-                        transpose_nullspace=transpose_nullspace,
-                        near_nullspace=near_nullspace)
+    return backend_LinearSolver(A, solver_parameters=linear_solver_parameters,
+                                options_prefix=options_prefix,
+                                nullspace=nullspace,
+                                transpose_nullspace=transpose_nullspace,
+                                near_nullspace=near_nullspace)
 
 
 def form_form_compiler_parameters(form, form_compiler_parameters):

@@ -259,5 +259,5 @@ def subtract_adjoint_derivative_action(x, y):
 
 def finalise_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-        function_axpy(x, 1.0, assemble(x._tlm_adjoint__adj_b))
+        function_axpy(x, 1.0, backend_assemble(x._tlm_adjoint__adj_b))
         delattr(x, "_tlm_adjoint__adj_b")

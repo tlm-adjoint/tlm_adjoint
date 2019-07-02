@@ -31,7 +31,6 @@ __all__ = \
         "apply_rhs_bcs",
         "assemble_arguments",
         "assemble_matrix",
-        "assemble_system",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
         "homogenize",
@@ -172,6 +171,11 @@ def assemble_matrix(form, bcs, force_evaluation=True, **kwargs):
         A = assemble(form, **kwargs)
         b_bc = None
     return A, b_bc
+
+
+# def assemble(form, tensor=None, form_compiler_parameters={}):
+#     # Similar interface to assemble in FEniCS 2019.1.0
+
 
 # def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={}):
 #     # Similar interface to assemble_system in FEniCS 2019.1.0
