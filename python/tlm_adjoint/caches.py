@@ -46,8 +46,8 @@ __all__ = \
         "function_is_checkpointed",
         "function_is_static",
         "function_state",
-        "function_update_state",
         "function_tlm_depth",
+        "function_update_state",
         "is_cached",
         "is_function",
         "linear_solver",
@@ -62,8 +62,10 @@ __all__ = \
         "update_caches"
     ]
 
+
 class CacheException(Exception):
     pass
+
 
 class Constant(backend_Constant):
     def __init__(self, *args, **kwargs):
@@ -80,6 +82,7 @@ class Constant(backend_Constant):
 
     def is_cached(self):
         return self.__cache
+
 
 class Function(backend_Function):
     def __init__(self, *args, **kwargs):
@@ -115,16 +118,18 @@ class Function(backend_Function):
     def tlm_depth(self):
         return self.__tlm_depth
 
-    def tangent_linear(self, name = None):
+    def tangent_linear(self, name=None):
         if self.is_static():
             return None
         else:
-            return Function(self.function_space(), name = name, static = False,
-                cache = self.is_cached(), checkpoint = self.is_checkpointed(),
-                tlm_depth = self.tlm_depth() + 1)
+            return Function(self.function_space(), name=name, static=False,
+                            cache=self.is_cached(),
+                            checkpoint=self.is_checkpointed(),
+                            tlm_depth=self.tlm_depth() + 1)
 
     def caches(self):
         return self.__caches
+
 
 class DirichletBC(backend_DirichletBC):
     def __init__(self, *args, **kwargs):
@@ -152,11 +157,13 @@ class DirichletBC(backend_DirichletBC):
             backend_DirichletBC.homogenize(self)
             self.__homogeneous = True
 
+
 def is_cached(e):
     for c in ufl.algorithms.extract_coefficients(e):
         if not hasattr(c, "is_cached") or not c.is_cached():
             return False
     return True
+
 
 def function_state(x):
     if hasattr(x, "state"):
@@ -164,6 +171,7 @@ def function_state(x):
     if not hasattr(x, "_tlm_adjoint__state"):
         x._tlm_adjoint__state = 0
     return x._tlm_adjoint__state
+
 
 def function_update_state(*X):
     for x in X:
@@ -174,17 +182,22 @@ def function_update_state(*X):
         else:
             x._tlm_adjoint__state = 1
 
+
 def function_is_static(x):
     return x.is_static() if hasattr(x, "is_static") else False
+
 
 def function_is_cached(x):
     return x.is_cached() if hasattr(x, "is_cached") else False
 
+
 def function_is_checkpointed(x):
     return x.is_checkpointed() if hasattr(x, "is_checkpointed") else True
 
+
 def function_tlm_depth(x):
     return x.tlm_depth() if hasattr(x, "tlm_depth") else 0
+
 
 def bcs_is_static(bcs):
     for bc in bcs:
@@ -192,26 +205,31 @@ def bcs_is_static(bcs):
             return False
     return True
 
+
 def bcs_is_cached(bcs):
     for bc in bcs:
         if not hasattr(bc, "is_cached") or not bc.is_cached():
             return False
     return True
 
+
 def split_form(form):
-    def sum_terms(*terms):
-        sum = ufl.classes.Zero()
-        for term in terms:
-            sum += term
-        return sum
     def expand(terms):
         new_terms = []
         for term in terms:
             if isinstance(term, ufl.classes.Sum):
-                new_terms += expand(term.ufl_operands)
+                new_terms.extend(expand(term.ufl_operands))
             else:
                 new_terms.append(term)
         return new_terms
+
+    def add_integral(integrals, base_integral, terms):
+        if len(terms) > 0:
+            integrand = ufl.classes.Zero()
+            for term in terms:
+                integrand += term
+            integral = base_integral.reconstruct(integrand=integrand)
+            integrals.append(integral)
 
     cached_integrals, non_cached_integrals = [], []
 
@@ -222,17 +240,16 @@ def split_form(form):
                 cached_operands.append(operand)
             else:
                 non_cached_operands.append(operand)
-        if len(cached_operands) > 0:
-            cached_integrals.append(integral.reconstruct(integrand = sum_terms(*cached_operands)))
-        if len(non_cached_operands) > 0:
-            non_cached_integrals.append(integral.reconstruct(integrand = sum_terms(*non_cached_operands)))
+        add_integral(cached_integrals, integral, cached_operands)
+        add_integral(non_cached_integrals, integral, non_cached_operands)
 
     cached_form = ufl.classes.Form(cached_integrals)
     non_cached_form = ufl.classes.Form(non_cached_integrals)
 
     return cached_form, non_cached_form
 
-def form_simplify_sign(form, sign = None):
+
+def form_simplify_sign(form, sign=None):
     integrals = []
 
     for integral in form.integrals():
@@ -242,39 +259,52 @@ def form_simplify_sign(form, sign = None):
         while isinstance(integrand, ufl.classes.Product):
             a, b = integrand.ufl_operands
             if isinstance(a, ufl.classes.IntValue) and a == -1:
-                integral_sign = -1 if integral_sign is None else -integral_sign
+                if integral_sign is None:
+                    integral_sign = -1
+                else:
+                    integral_sign = -integral_sign
                 integrand = b
             elif isinstance(b, ufl.classes.IntValue) and b == -1:
-                integral_sign = -1 if integral_sign is None else -integral_sign
+                if integral_sign is None:
+                    integral_sign = -1
+                else:
+                    integral_sign = -integral_sign
                 integrand = a
             else:
                 break
-        if not integral_sign is None:
-            integral = integral.reconstruct(integrand = -integrand if integral_sign < 0 else integrand)
+        if integral_sign is not None:
+            if integral_sign < 0:
+                integral = integral.reconstruct(integrand=-integrand)
+            else:
+                integral = integral.reconstruct(integrand=integrand)
 
         integrals.append(integral)
 
     return ufl.classes.Form(integrals)
 
+
 def form_neg(form):
-    return form_simplify_sign(form, sign = -1)
+    return form_simplify_sign(form, sign=-1)
+
 
 def split_action(form, x):
     if len(form.arguments()) != 1:
         # Not a linear form
         return ufl.classes.Form([]), form
 
-    if not x in form.coefficients():
+    if x not in form.coefficients():
         # No dependence on x
         return ufl.classes.Form([]), form
 
     trial = TrialFunction(x.function_space())
-    if x in ufl.algorithms.expand_derivatives(ufl.derivative(form, x, argument = trial)).coefficients():
+    form_derivative = ufl.derivative(form, x, argument=trial)
+    form_derivative = ufl.algorithms.expand_derivatives(form_derivative)
+    if x in form_derivative.coefficients():
         # Non-linear
         return ufl.classes.Form([]), form
 
     try:
-        lhs, rhs = ufl.system(ufl.replace(form, {x:trial}))
+        lhs, rhs = ufl.system(ufl.replace(form, {x: trial}))
     except ufl.UFLException:
         # UFL error encountered
         return ufl.classes.Form([]), form
@@ -286,8 +316,9 @@ def split_action(form, x):
     # Success
     return form_simplify_sign(lhs), form_neg(rhs)
 
+
 class CacheRef:
-    def __init__(self, value = None):
+    def __init__(self, value=None):
         self._value = value
 
     def __call__(self):
@@ -295,6 +326,7 @@ class CacheRef:
 
     def _clear(self):
         self._value = None
+
 
 class FunctionCaches:
     def __init__(self, x):
@@ -308,13 +340,13 @@ class FunctionCaches:
     def clear(self):
         for cache in tuple(self._caches.valuerefs()):
             cache = cache()
-            if not cache is None:
+            if cache is not None:
                 cache.clear(self._id)
                 assert(not cache.id() in self._caches)
 
     def add(self, cache):
         cache_id = cache.id()
-        if not cache_id in self._caches:
+        if cache_id not in self._caches:
             self._caches[cache_id] = cache
 
     def remove(self, cache):
@@ -326,6 +358,7 @@ class FunctionCaches:
             self.clear()
             self._state = state
 
+
 def function_caches(x):
     if hasattr(x, "caches"):
         return x.caches()
@@ -333,23 +366,26 @@ def function_caches(x):
         x._tlm_adjoint__caches = FunctionCaches(x)
     return x._tlm_adjoint__caches
 
+
 def clear_caches(*deps):
     if len(deps) == 0:
         for cache in tuple(Cache._caches.valuerefs()):
             cache = cache()
-            if not cache is None:
+            if cache is not None:
                 cache.clear()
     else:
         for dep in deps:
             function_caches(dep).clear()
 
-def update_caches(eq_deps, deps = None):
+
+def update_caches(eq_deps, deps=None):
     if deps is None:
         for eq_dep in eq_deps:
             function_caches(eq_dep).update(eq_dep)
     else:
         for eq_dep, dep in zip(eq_deps, deps):
             function_caches(eq_dep).update(dep)
+
 
 class Cache:
     _id_counter = [0]
@@ -382,7 +418,7 @@ class Cache:
             self._deps_map.clear()
             for dep_caches in self._dep_caches.values():
                 dep_caches = dep_caches()
-                if not dep_caches is None:
+                if dep_caches is not None:
                     dep_caches.remove(self)
             self._dep_caches.clear()
         else:
@@ -390,25 +426,41 @@ class Cache:
                 dep_id = dep if isinstance(dep, int) else dep.id()
                 del(dep)
                 if dep_id in self._deps_map:
+                    # Steps in removing cached data associated with dep:
+                    #   1. Delete cached items associated with dep -- these are
+                    #      given by
+                    #        self._cache[key] for key in self._deps_map[dep_id]
+                    #   2. Remove the key, and a reference to its associated
+                    #      dependency ids, from the keys associated with each
+                    #      dependency id associated with each of the keys in 1.
+                    #      -- the latter dependency ids are given by
+                    #        self._deps_map[dep_id][key]
+                    #   3. Remove the (weak) reference to this cache from each
+                    #      dependency with no further associated keys
                     for key, dep_ids in self._deps_map[dep_id].items():
+                        # Step 1.
                         self._cache[key]._clear()
                         del(self._cache[key])
                         for dep_id2 in dep_ids:
                             if dep_id2 != dep_id:
+                                # Step 2.
                                 del(self._deps_map[dep_id2][key])
                                 if len(self._deps_map[dep_id2]) == 0:
                                     del(self._deps_map[dep_id2])
                                     dep_caches = self._dep_caches[dep_id2]()
-                                    if not dep_caches is None:
+                                    if dep_caches is not None:
+                                        # Step 3.
                                         dep_caches.remove(self)
                                     del(self._dep_caches[dep_id2])
+                    # Step 2.
                     del(self._deps_map[dep_id])
                     dep_caches = self._dep_caches[dep_id]()
-                    if not dep_caches is None:
+                    if dep_caches is not None:
+                        # Step 3.
                         dep_caches.remove(self)
                     del(self._dep_caches[dep_id])
 
-    def add(self, key, value, deps = []):
+    def add(self, key, value, deps=[]):
         if key in self._cache:
             raise CacheException("Duplicate key")
         value = CacheRef(value)
@@ -417,26 +469,30 @@ class Cache:
         self._cache[key] = value
 
         for dep, dep_id in zip(deps, dep_ids):
-            if dep_id in self._deps_map:
-                self._deps_map[dep_id][key] = dep_ids
-            else:
-                self._deps_map[dep_id] = {key:dep_ids}
-
             dep_caches = function_caches(dep)
             dep_caches.add(self)
-            self._dep_caches[dep_id] = weakref.ref(dep_caches)
+
+            if dep_id in self._deps_map:
+                self._deps_map[dep_id][key] = dep_ids
+                assert(dep_id in self._dep_caches)
+            else:
+                self._deps_map[dep_id] = {key: dep_ids}
+                self._dep_caches[dep_id] = weakref.ref(dep_caches)
 
         return value
 
-    def get(self, key, default = None):
+    def get(self, key, default=None):
         return self._cache.get(key, default)
+
 
 def new_count():
     return Constant(0).count()
 
+
 class ReplacementFunction(ufl.classes.Coefficient):
     def __init__(self, x):
-        ufl.classes.Coefficient.__init__(self, x.function_space(), count = new_count())
+        ufl.classes.Coefficient.__init__(self, x.function_space(),
+                                         count=new_count())
         self.__space = x.function_space()
         self.__id = x.id()
         self.__name = x.name()
@@ -477,12 +533,14 @@ class ReplacementFunction(ufl.classes.Coefficient):
     def caches(self):
         return self.__caches
 
+
 def replaced_function(x):
     if isinstance(x, ReplacementFunction):
         return x
     if not hasattr(x, "_tlm_adjoint__ReplacementFunction"):
         x._tlm_adjoint__ReplacementFunction = ReplacementFunction(x)
     return x._tlm_adjoint__ReplacementFunction
+
 
 def replaced_form(form):
     replace_map = {}
@@ -491,73 +549,107 @@ def replaced_form(form):
             replace_map[c] = replaced_function(c)
     return ufl.replace(form, replace_map)
 
+
 def is_function(x):
     return isinstance(x, backend_Function)
+
 
 def form_dependencies(form):
     deps = {}
     for dep in form.coefficients():
         if is_function(dep):
             dep_id = dep.id()
-            if not dep_id in deps:
+            if dep_id not in deps:
                 deps[dep_id] = dep
     return deps
 
+
 def form_key(form):
-    return ufl.algorithms.expand_indices(ufl.algorithms.expand_compounds(ufl.algorithms.expand_derivatives(replaced_form(form))))
+    form = replaced_form(form)
+    form = ufl.algorithms.expand_derivatives(form)
+    form = ufl.algorithms.expand_compounds(form)
+    form = ufl.algorithms.expand_indices(form)
+    return form
+
 
 def assemble_key(form, bcs, assemble_kwargs):
     return (form_key(form), tuple(bcs), parameters_key(assemble_kwargs))
 
+
 class AssemblyCache(Cache):
-    def assemble(self, form, bcs = [], form_compiler_parameters = {}, solver_parameters = {}, replace_map = None):
+    def assemble(self, form, bcs=[], form_compiler_parameters={},
+                 solver_parameters={}, replace_map=None):
         rank = len(form.arguments())
-        assemble_kwargs = assemble_arguments(rank, form_compiler_parameters, solver_parameters)
+        assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
+                                             solver_parameters)
         key = assemble_key(form, bcs, assemble_kwargs)
         value = self.get(key, None)
-        if value is None:
-            assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
+        if value is None or value() is None:
+            if replace_map is None:
+                assemble_form = form
+            else:
+                assemble_form = ufl.replace(form, replace_map)
             if rank == 0:
                 if len(bcs) > 0:
-                    raise CacheException("Unexpected boundary conditions for rank 0 form")
+                    raise CacheException("Unexpected boundary conditions for rank 0 form")  # noqa: E501
                 b = assemble(assemble_form, **assemble_kwargs)
             elif rank == 1:
                 b = assemble(assemble_form, **assemble_kwargs)
                 for bc in bcs:
                     bc.apply(b)
             elif rank == 2:
-                b = assemble_matrix(assemble_form, bcs, force_evaluation = True, **assemble_kwargs)
+                b = assemble_matrix(assemble_form, bcs, force_evaluation=True,
+                                    **assemble_kwargs)
             else:
-                raise CacheException("Unexpected form rank %i" % rank)
-            value = self.add(key, b, deps = tuple(form_dependencies(form).values()))
+                raise CacheException(f"Unexpected form rank {rank:d}")
+            value = self.add(key, b,
+                             deps=tuple(form_dependencies(form).values()))
         else:
             b = value()
 
         return value, b
 
-def linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters):
-    return (form_key(form), tuple(bcs), parameters_key(linear_solver_parameters), parameters_key(form_compiler_parameters))
+
+def linear_solver_key(form, bcs, linear_solver_parameters,
+                      form_compiler_parameters):
+    return (form_key(form), tuple(bcs),
+            parameters_key(linear_solver_parameters),
+            parameters_key(form_compiler_parameters))
+
 
 class LinearSolverCache(Cache):
-    def linear_solver(self, form, A, bcs = [], form_compiler_parameters = {}, linear_solver_parameters = {}):
-        key = linear_solver_key(form, bcs, linear_solver_parameters, form_compiler_parameters)
+    def linear_solver(self, form, A, bcs=[], form_compiler_parameters={},
+                      linear_solver_parameters={}):
+        key = linear_solver_key(form, bcs, linear_solver_parameters,
+                                form_compiler_parameters)
         value = self.get(key, None)
-        if value is None:
+        if value is None or value() is None:
             solver = linear_solver(A, linear_solver_parameters)
-            value = self.add(key, solver, deps = tuple(form_dependencies(form).values()))
+            value = self.add(key, solver,
+                             deps=tuple(form_dependencies(form).values()))
         else:
             solver = value()
 
         return value, solver
 
+
 _assembly_cache = [AssemblyCache()]
+
+
 def assembly_cache():
     return _assembly_cache[0]
+
+
 def set_assembly_cache(assembly_cache):
     _assembly_cache[0] = assembly_cache
 
+
 _linear_solver_cache = [LinearSolverCache()]
+
+
 def linear_solver_cache():
     return _linear_solver_cache[0]
+
+
 def set_linear_solver_cache(linear_solver_cache):
     _linear_solver_cache[0] = linear_solver_cache
