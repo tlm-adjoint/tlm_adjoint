@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
+from fenics import Expression as backend_Expression
 from tlm_adjoint import *
 from tlm_adjoint import manager as _manager
 from tlm_adjoint.backend import backend_Function
@@ -26,8 +27,14 @@ from tlm_adjoint.backend import backend_Function
 import gc
 import numpy as np
 import os
+import ufl
 import unittest
 import weakref
+
+
+class TestException(Exception):
+    pass
+
 
 Function_ids = {}
 _orig_Function_init = backend_Function.__init__
@@ -60,6 +67,44 @@ ns_parameters_newton_gmres = {"linear_solver": "gmres",
                                                 "absolute_tolerance": 1.0e-16},
                               "relative_tolerance": 1.0e-13,
                               "absolute_tolerance": 1.0e-15}
+
+
+class Expression(backend_Expression):
+    def __init__(self, ex, element=None):
+        def cpp(ex):
+            if isinstance(ex, ufl.classes.Cos):
+                x, = ex.ufl_operands
+                return "cos(%s)" % cpp(x)
+            elif isinstance(ex, ufl.classes.Exp):
+                x, = ex.ufl_operands
+                return "exp(%s)" % cpp(x)
+            elif isinstance(ex, (ufl.classes.FixedIndex,
+                                 ufl.classes.IntValue)):
+                return int(ex)
+            elif isinstance(ex, ufl.classes.FloatValue):
+                return float(ex)
+            elif isinstance(ex, ufl.classes.Indexed):
+                x, i = ex.ufl_operands
+                return "(%s)%s" % (cpp(x), cpp(i))
+            elif isinstance(ex, ufl.classes.MultiIndex):
+                return "".join(map(lambda i: "[%s]" % cpp(i), ex.indices()))
+            elif isinstance(ex, ufl.classes.Power):
+                x, y = ex.ufl_operands
+                return "pow(%s, %s)" % (cpp(x), cpp(y))
+            elif isinstance(ex, ufl.classes.Product):
+                return " * ".join(map(lambda op: "(%s)" % cpp(op),
+                                      ex.ufl_operands))
+            elif isinstance(ex, ufl.classes.Sin):
+                x, = ex.ufl_operands
+                return "sin(%s)" % cpp(x)
+            elif isinstance(ex, ufl.classes.SpatialCoordinate):
+                return "x"
+            elif isinstance(ex, ufl.classes.Sum):
+                return " + ".join(map(lambda op: "(%s)" % cpp(op),
+                                      ex.ufl_operands))
+            else:
+                raise TestException("Unsupported type: %s" % type(ex))
+        backend_Expression.__init__(self, cpp(ex), element=element)
 
 
 def leak_check(test):
@@ -163,6 +208,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(20, 20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
         test = TestFunction(space)
 
@@ -180,7 +226,7 @@ class tests(unittest.TestCase):
             return J
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression("x[0] * sin(pi * x[1])",
+        F.interpolate(Expression(X[0] * sin(pi * X[1]),
                                  element=space.ufl_element()))
 
         start_manager()
@@ -267,6 +313,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(10, 10)
+        X = SpatialCoordinate(mesh)
         space_1 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
         space_2 = FunctionSpace(mesh, "Lagrange", 2)
         test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
@@ -279,7 +326,7 @@ class tests(unittest.TestCase):
             return F, J
 
         G = Function(space_2, name="G", static=True)
-        G.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1])",
+        G.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1]),
                                  element=space_2.ufl_element()))
 
         start_manager()
@@ -319,6 +366,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitIntervalMesh(20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
 
         def forward(F, x_ref=None):
@@ -348,10 +396,10 @@ class tests(unittest.TestCase):
             return x_ref, J
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression("sin(pi * x[0])",
+        F.interpolate(Expression(sin(pi * X[0]),
                                  element=space.ufl_element()))
         zeta = Function(space, name="zeta", static=True)
-        zeta.interpolate(Expression("exp(x[0])",
+        zeta.interpolate(Expression(exp(X[0]),
                                     element=space.ufl_element()))
         add_tlm(F, zeta)
         start_manager()
@@ -383,6 +431,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitIntervalMesh(20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
 
         def test_expression(y, y_int):
@@ -400,7 +449,7 @@ class tests(unittest.TestCase):
             return x, J
 
         y = Function(space, name="y", static=True)
-        y.interpolate(Expression("cos(3.0 * pi * x[0])",
+        y.interpolate(Expression(cos(3.0 * pi * X[0]),
                                  element=space.ufl_element()))
         start_manager()
         x, J = forward(y)
@@ -429,6 +478,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitCubeMesh(5, 5, 5)
+        X = SpatialCoordinate(mesh)
         z_space = FunctionSpace(mesh, "Lagrange", 3)
         if default_comm().size > 1:
             y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
@@ -445,29 +495,29 @@ class tests(unittest.TestCase):
             else:
                 y = z
 
-            X = [Function(space_0, name="x_%i" % i)
-                 for i in range(X_coords.shape[0])]
-            PointInterpolationSolver(y, X, X_coords).solve()
+            X_vals = [Function(space_0, name="x_%i" % i)
+                      for i in range(X_coords.shape[0])]
+            PointInterpolationSolver(y, X_vals, X_coords).solve()
 
             J = Functional(name="J")
-            for x in X:
+            for x in X_vals:
                 J.addto(x * x * x * dx)
 
-            return X, J
+            return X_vals, J
 
         z = Function(z_space, name="z", static=True)
-        z.interpolate(Expression("pow(x[0], 3) - 1.5 * x[0] * x[1] + 1.5",
+        z.interpolate(Expression(pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5,
                       element=z_space.ufl_element()))
 
         start_manager()
-        X, J = forward(z)
+        X_vals, J = forward(z)
         stop_manager()
 
         def x_ref(x):
             return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
 
         x_error_norm = 0.0
-        for x, x_coord in zip(X, X_coords):
+        for x, x_coord in zip(X_vals, X_coords):
             x_error_norm = max(x_error_norm, abs(function_max_value(x)
                                                  - x_ref(x_coord)))
         info("Error norm = %.16e" % x_error_norm)
@@ -490,6 +540,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitCubeMesh(5, 5, 5)
+        X = SpatialCoordinate(mesh)
         z_space = FunctionSpace(mesh, "Lagrange", 3)
         if default_comm().size > 1:
             y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
@@ -511,7 +562,8 @@ class tests(unittest.TestCase):
             return x, J
 
         z = Function(z_space, name="z", static=True)
-        z.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1]) * exp(x[2])",  # noqa: E501
+        z.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1])
+                                 * exp(X[2]),
                                  element=z_space.ufl_element()))
 
         start_manager()
@@ -621,6 +673,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(20, 20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
         test, trial = TestFunction(space), TrialFunction(space)
 
@@ -628,7 +681,7 @@ class tests(unittest.TestCase):
             clear_caches()
 
             x_n = Function(space, name="x_n")
-            x_n.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1])",
+            x_n.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1]),
                                        element=space.ufl_element()))
             x_np1 = Function(space, name="x_np1")
             dt = Constant(0.01, static=True)
@@ -768,6 +821,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(20, 20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
         test, trial = TestFunction(space), TrialFunction(space)
 
@@ -795,10 +849,10 @@ class tests(unittest.TestCase):
             return x_ref, y_ref, J
 
         alpha_ref = Function(space, name="alpha_ref", static=True)
-        alpha_ref.interpolate(Expression("exp(x[0] + x[1])",
+        alpha_ref.interpolate(Expression(exp(X[0] + X[1]),
                                          element=space.ufl_element()))
         beta_ref = Function(space, name="beta_ref", static=True)
-        beta_ref.interpolate(Expression("sin(pi * x[0]) * sin(2.0 * pi * x[1])",  # noqa: E501
+        beta_ref.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1]),
                                         element=space.ufl_element()))
         x_ref, y_ref, _ = forward(alpha_ref, beta_ref)
 
@@ -832,6 +886,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(20, 20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
         test, trial = TestFunction(space), TrialFunction(space)
 
@@ -851,7 +906,7 @@ class tests(unittest.TestCase):
             return x_ref, J
 
         alpha_ref = Function(space, name="alpha_ref", static=True)
-        alpha_ref.interpolate(Expression("exp(x[0] + x[1])",
+        alpha_ref.interpolate(Expression(exp(X[0] + X[1]),
                               element=space.ufl_element()))
         x_ref, _ = forward(alpha_ref)
 
@@ -879,11 +934,12 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(20, 20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
         test, trial = TestFunction(space), TrialFunction(space)
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression("1.0 + sin(pi * x[0]) * sin(3.0 * pi * x[1])",
+        F.interpolate(Expression(1.0 + sin(pi * X[0]) * sin(3.0 * pi * X[1]),
                                  element=space.ufl_element()))
 
         bc = DirichletBC(space, 1.0, "on_boundary",
@@ -967,11 +1023,12 @@ class tests(unittest.TestCase):
         stop_manager()
 
         mesh = UnitSquareMesh(20, 20)
+        X = SpatialCoordinate(mesh)
         space = FunctionSpace(mesh, "Lagrange", 1)
         test, trial = TestFunction(space), TrialFunction(space)
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression("sin(pi * x[0]) * sin(3.0 * pi * x[1])",
+        F.interpolate(Expression(sin(pi * X[0]) * sin(3.0 * pi * X[1]),
                       element=space.ufl_element()))
 
         def forward(bc):
@@ -1142,10 +1199,11 @@ class tests(unittest.TestCase):
             stop_manager()
 
             mesh = UnitIntervalMesh(100)
+            X = SpatialCoordinate(mesh)
             space = FunctionSpace(mesh, "Lagrange", 1)
             test, trial = TestFunction(space), TrialFunction(space)
             T_0 = Function(space, name="T_0", static=True)
-            T_0.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])",  # noqa: E501
+            T_0.interpolate(Expression(sin(pi * X[0]) + sin(10.0 * pi * X[0]),
                                        element=space.ufl_element()))
             dt = Constant(0.01, static=True)
             space_r0 = FunctionSpace(mesh, "R", 0)
