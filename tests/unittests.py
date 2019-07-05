@@ -390,9 +390,9 @@ class tests(unittest.TestCase):
         x, J = forward(y)
         stop_manager()
 
-        error_norm = abs(function_get_values(x) -
-                         test_expression(function_get_values(y),
-                                         assemble(y * dx))).max()
+        error_norm = abs(function_get_values(x)
+                         - test_expression(function_get_values(y),
+                                           assemble(y * dx))).max()
         info("Error norm = %.16e" % error_norm)
         self.assertEqual(error_norm, 0.0)
 
@@ -647,7 +647,7 @@ class tests(unittest.TestCase):
 
         def init_random(x):
             N = function_local_size(x)
-            function_set_values(x, 2.0 * (np.random.random(N) - 1.0))
+            function_set_values(x, 2.0 * np.random.random(N) - 1.0)
         perturb = Function(space, name="perturb", static=True)
         init_random(perturb)
 
@@ -669,7 +669,7 @@ class tests(unittest.TestCase):
                                                                  dddJ_tlm],
                                                                 kappa)
 
-        eps_vals = 2.0e-2 * np.array([2 ** -p for p in range(5)],
+        eps_vals = 4.0e-2 * np.array([2 ** -p for p in range(5)],
                                      dtype=np.float64)
         J_vals = []
         for eps in eps_vals:
@@ -738,13 +738,13 @@ class tests(unittest.TestCase):
         info("Orders,      maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % orders_4_adj)  # noqa: E501
 
         self.assertGreater(orders_0[-1], 1.00)
-        self.assertGreater(orders_1_adj.min(), 2.00)
-        self.assertGreater(orders_1_tlm.min(), 2.00)
-        self.assertGreater(orders_2_adj.min(), 3.00)
-        self.assertGreater(orders_2_tlm.min(), 3.00)
-        self.assertGreater(orders_3_adj.min(), 4.00)
-        self.assertGreater(orders_3_tlm.min(), 4.00)
-        self.assertGreater(orders_4_adj.min(), 5.00)
+        self.assertGreater(orders_1_adj.min(), 1.99)
+        self.assertGreater(orders_1_tlm.min(), 1.99)
+        self.assertGreater(orders_2_adj[1:].min(), 2.91)
+        self.assertGreater(orders_2_tlm[1:].min(), 2.91)
+        self.assertGreater(orders_3_adj.min(), 3.99)
+        self.assertGreater(orders_3_tlm.min(), 3.99)
+        self.assertGreater(orders_4_adj[:-1].min(), 4.91)
 
         min_order = taylor_test_tlm_adjoint(forward, kappa, adjoint_order=4,
                                             seed=1.0e-3)
