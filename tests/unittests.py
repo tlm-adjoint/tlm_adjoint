@@ -83,9 +83,8 @@ def interpolate_expression(F, ex):
             return float(ex)
         elif isinstance(ex, ufl.classes.Indexed):
             x, i = ex.ufl_operands
-            return "(%s)%s" % (cpp(x), cpp(i))
-        elif isinstance(ex, ufl.classes.MultiIndex):
-            return "".join(map(lambda i: "[%s]" % cpp(i), ex.indices()))
+            i, = map(int, i)
+            return "(%s)[%i]" % (cpp(x), i)
         elif isinstance(ex, ufl.classes.Power):
             x, y = ex.ufl_operands
             return "pow(%s, %s)" % (cpp(x), cpp(y))
