@@ -40,6 +40,27 @@ def _Function__init__(self, *args, **kwargs):
 
 backend_Function.__init__ = _Function__init__
 
+ls_parameters_cg = {"linear_solver": "cg",
+                    "preconditioner": "sor",
+                    "krylov_solver": {"relative_tolerance": 1.0e-14,
+                                      "absolute_tolerance": 1.0e-16}}
+ls_parameters_gmres = {"linear_solver": "gmres",
+                       "preconditioner": "sor",
+                       "krylov_solver": {"relative_tolerance": 1.0e-14,
+                                         "absolute_tolerance": 1.0e-16}}
+ns_parameters_newton_cg = {"linear_solver": "cg",
+                           "preconditioner": "sor",
+                           "krylov_solver": {"relative_tolerance": 1.0e-14,
+                                             "absolute_tolerance": 1.0e-16},
+                           "relative_tolerance": 1.0e-13,
+                           "absolute_tolerance": 1.0e-15}
+ns_parameters_newton_gmres = {"linear_solver": "gmres",
+                              "preconditioner": "sor",
+                              "krylov_solver": {"relative_tolerance": 1.0e-14,
+                                                "absolute_tolerance": 1.0e-16},
+                              "relative_tolerance": 1.0e-13,
+                              "absolute_tolerance": 1.0e-15}
+
 
 def leak_check(test):
     def wrapped_test(self, *args, **kwargs):
@@ -266,13 +287,8 @@ class tests(unittest.TestCase):
         stop_manager()
 
         F_ref = Function(space_1, name="F_ref")
-        ks_parameters = {"relative_tolerance": 1.0e-14,
-                         "absolute_tolerance": 1.0e-16}
-        ls_parameters = {"linear_solver": "cg",
-                         "preconditioner": "sor",
-                         "krylov_solver": ks_parameters}
         solve(inner(test_1, trial_1) * dx == inner(test_1, G) * dx, F_ref,
-              solver_parameters=ls_parameters)
+              solver_parameters=ls_parameters_cg)
         F_error = Function(space_1, name="F_error")
         function_assign(F_error, F_ref)
         function_axpy(F_error, -1.0, F)
@@ -622,13 +638,8 @@ class tests(unittest.TestCase):
             eq = (inner(test, trial / dt) * dx
                   + inner(grad(test), kappa * grad(trial)) * dx
                   == inner(test, x_n / dt) * dx)
-            ks_parameters = {"relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-16}
-            ls_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": ks_parameters}
             eqs = [EquationSolver(eq, x_np1, bc,
-                                  solver_parameters=ls_parameters),
+                                  solver_parameters=ls_parameters_cg),
                    AssignmentSolver(x_np1, x_n)]
 
             for n in range(n_steps):
@@ -764,22 +775,12 @@ class tests(unittest.TestCase):
             clear_caches()
 
             x = Function(space, name="x")
-            ks_parameters = {"relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-16}
-            ls_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": ks_parameters}
             solve(inner(test, trial) * dx == inner(test, alpha) * dx,
-                  x, solver_parameters=ls_parameters)
+                  x, solver_parameters=ls_parameters_cg)
 
             y = Function(space, name="y")
-            ks_parameters = {"relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-16}
-            ls_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": ks_parameters}
             solve(inner(test, trial) * dx == inner(test, beta) * dx,
-                  y, solver_parameters=ls_parameters)
+                  y, solver_parameters=ls_parameters_cg)
 
             if x_ref is None:
                 x_ref = Function(space, name="x_ref", static=True)
@@ -838,13 +839,8 @@ class tests(unittest.TestCase):
             clear_caches()
 
             x = Function(space, name="x")
-            ks_parameters = {"relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-16}
-            ls_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": ks_parameters}
             solve(inner(test, trial) * dx == inner(test, alpha) * dx,
-                  x, solver_parameters=ls_parameters)
+                  x, solver_parameters=ls_parameters_cg)
 
             if x_ref is None:
                 x_ref = Function(space, name="x_ref", static=True)
@@ -935,27 +931,15 @@ class tests(unittest.TestCase):
             eq = inner(test, trial) * dx == inner(test, G[4]) * dx
             problem = LinearVariationalProblem(eq.lhs, eq.rhs, G[5])
             solver = LinearVariationalSolver(problem)
-            ks_parameters = {"relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-16}
-            ls_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": ks_parameters}
-            solver.parameters.update(ls_parameters)
+            solver.parameters.update(ls_parameters_cg)
             solver.solve()
 
             eq = inner(test, G[6]) * dx - inner(test, G[5]) * dx
             problem = NonlinearVariationalProblem(eq, G[6],
                                                   J=inner(test, trial) * dx)
             solver = NonlinearVariationalSolver(problem)
-            ns_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": {"relative_tolerance": 1.0e-14,
-                                               "absolute_tolerance": 1.0e-16},
-                             "relative_tolerance": 1.0e-13,
-                             "absolute_tolerance": 1.0e-15,
-                             "report": False}
             solver.parameters["nonlinear_solver"] = "newton"
-            solver.parameters["newton_solver"].update(ns_parameters)
+            solver.parameters["newton_solver"].update(ns_parameters_newton_cg)
             solver.solve()
 
             J = Functional(name="J")
@@ -997,16 +981,11 @@ class tests(unittest.TestCase):
 
             DirichletBCSolver(bc, x_1, "on_boundary").solve()
 
-            ks_parameters = {"relative_tolerance": 1.0e-14,
-                             "absolute_tolerance": 1.0e-16}
-            ls_parameters = {"linear_solver": "cg",
-                             "preconditioner": "sor",
-                             "krylov_solver": ks_parameters}
             solve(inner(grad(test), grad(trial)) * dx
                   == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
                   x_0, DirichletBC(space, 0.0, "on_boundary",
                                    static=True, homogeneous=True),
-                  solver_parameters=ls_parameters)
+                  solver_parameters=ls_parameters_cg)
 
             AxpySolver(x_0, 1.0, x_1, x).solve()
 
@@ -1022,16 +1001,11 @@ class tests(unittest.TestCase):
         stop_manager()
 
         x_ref = Function(space, name="x_ref")
-        ks_parameters = {"relative_tolerance": 1.0e-14,
-                         "absolute_tolerance": 1.0e-16}
-        ls_parameters = {"linear_solver": "cg",
-                         "preconditioner": "sor",
-                         "krylov_solver": ks_parameters}
         solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
               x_ref,
               DirichletBC(space, 1.0, "on_boundary",
                           static=True, homogeneous=False),
-              solver_parameters=ls_parameters)
+              solver_parameters=ls_parameters_cg)
         error = Function(space, name="error")
         function_assign(error, x_ref)
         function_axpy(error, -1.0, x)
@@ -1078,15 +1052,8 @@ class tests(unittest.TestCase):
 
             # Forward model initialisation and definition
             T_n.assign(Constant((1.0, 0.0)))
-            ns_parameters = {"linear_solver": "gmres",
-                             "preconditioner": "sor",
-                             "krylov_solver": {"relative_tolerance": 1.0e-14,
-                                               "absolute_tolerance": 1.0e-16},
-                             "relative_tolerance": 1.0e-13,
-                             "absolute_tolerance": 1.0e-15,
-                             "report": False}
             solver_parameters = {"nonlinear_solver": "newton",
-                                 "newton_solver": ns_parameters}
+                                 "newton_solver": ns_parameters_newton_gmres}
             eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt) * dx
                                 - inner(test[0], T_s[1]) * dx
                                 + inner(test[1], (T_np1[1] - T_n[1]) / dt) * dx
@@ -1198,18 +1165,13 @@ class tests(unittest.TestCase):
 
                 system.add_solve(T_0, T[0])
 
-                ks_parameters = {"relative_tolerance": 1.0e-14,
-                                 "absolute_tolerance": 1.0e-16}
-                ls_parameters = {"linear_solver": "cg",
-                                 "preconditioner": "sor",
-                                 "krylov_solver": ks_parameters}
                 eq = (inner(test, trial) * dx
                       + dt * inner(grad(test), kappa * grad(trial)) * dx
                       == inner(test, T[n]) * dx)
                 system.add_solve(eq, T[n + 1],
                                  DirichletBC(space, 1.0, "on_boundary",
                                              static=True, homogeneous=False),
-                                 solver_parameters=ls_parameters)
+                                 solver_parameters=ls_parameters_cg)
 
                 for n_step in range(n_steps):
                     system.timestep()
@@ -1269,14 +1231,8 @@ class tests(unittest.TestCase):
 
             AssignmentSolver(T_0, T_n).solve()
 
-            ns_parameters = {"linear_solver": "gmres",
-                             "preconditioner": "sor",
-                             "krylov_solver": {"relative_tolerance": 1.0e-14,
-                                               "absolute_tolerance": 1.0e-16},
-                             "relative_tolerance": 1.0e-13,
-                             "absolute_tolerance": 1.0e-15}
             solver_parameters = {"nonlinear_solver": "newton",
-                                 "newton_solver": ns_parameters}
+                                 "newton_solver": ns_parameters_newton_gmres}
             eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt) * dx
                                 - inner(test[0], T_s[1]) * dx
                                 + inner(test[1], (T_np1[1] - T_n[1]) / dt) * dx
