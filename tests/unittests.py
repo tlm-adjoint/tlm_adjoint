@@ -19,7 +19,6 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from fenics import Expression as backend_Expression
 from tlm_adjoint import *
 from tlm_adjoint import manager as _manager
 from tlm_adjoint.backend import backend_Function
@@ -69,42 +68,43 @@ ns_parameters_newton_gmres = {"linear_solver": "gmres",
                               "absolute_tolerance": 1.0e-15}
 
 
-class Expression(backend_Expression):
-    def __init__(self, ex, element=None):
-        def cpp(ex):
-            if isinstance(ex, ufl.classes.Cos):
-                x, = ex.ufl_operands
-                return "cos(%s)" % cpp(x)
-            elif isinstance(ex, ufl.classes.Exp):
-                x, = ex.ufl_operands
-                return "exp(%s)" % cpp(x)
-            elif isinstance(ex, (ufl.classes.FixedIndex,
-                                 ufl.classes.IntValue)):
-                return int(ex)
-            elif isinstance(ex, ufl.classes.FloatValue):
-                return float(ex)
-            elif isinstance(ex, ufl.classes.Indexed):
-                x, i = ex.ufl_operands
-                return "(%s)%s" % (cpp(x), cpp(i))
-            elif isinstance(ex, ufl.classes.MultiIndex):
-                return "".join(map(lambda i: "[%s]" % cpp(i), ex.indices()))
-            elif isinstance(ex, ufl.classes.Power):
-                x, y = ex.ufl_operands
-                return "pow(%s, %s)" % (cpp(x), cpp(y))
-            elif isinstance(ex, ufl.classes.Product):
-                return " * ".join(map(lambda op: "(%s)" % cpp(op),
-                                      ex.ufl_operands))
-            elif isinstance(ex, ufl.classes.Sin):
-                x, = ex.ufl_operands
-                return "sin(%s)" % cpp(x)
-            elif isinstance(ex, ufl.classes.SpatialCoordinate):
-                return "x"
-            elif isinstance(ex, ufl.classes.Sum):
-                return " + ".join(map(lambda op: "(%s)" % cpp(op),
-                                      ex.ufl_operands))
-            else:
-                raise TestException("Unsupported type: %s" % type(ex))
-        backend_Expression.__init__(self, cpp(ex), element=element)
+def interpolate_expression(F, ex):
+    def cpp(ex):
+        if isinstance(ex, ufl.classes.Cos):
+            x, = ex.ufl_operands
+            return "cos(%s)" % cpp(x)
+        elif isinstance(ex, ufl.classes.Exp):
+            x, = ex.ufl_operands
+            return "exp(%s)" % cpp(x)
+        elif isinstance(ex, (ufl.classes.FixedIndex,
+                             ufl.classes.IntValue)):
+            return int(ex)
+        elif isinstance(ex, ufl.classes.FloatValue):
+            return float(ex)
+        elif isinstance(ex, ufl.classes.Indexed):
+            x, i = ex.ufl_operands
+            return "(%s)%s" % (cpp(x), cpp(i))
+        elif isinstance(ex, ufl.classes.MultiIndex):
+            return "".join(map(lambda i: "[%s]" % cpp(i), ex.indices()))
+        elif isinstance(ex, ufl.classes.Power):
+            x, y = ex.ufl_operands
+            return "pow(%s, %s)" % (cpp(x), cpp(y))
+        elif isinstance(ex, ufl.classes.Product):
+            return " * ".join(map(lambda op: "(%s)" % cpp(op),
+                                  ex.ufl_operands))
+        elif isinstance(ex, ufl.classes.Sin):
+            x, = ex.ufl_operands
+            return "sin(%s)" % cpp(x)
+        elif isinstance(ex, ufl.classes.SpatialCoordinate):
+            return "x"
+        elif isinstance(ex, ufl.classes.Sum):
+            return " + ".join(map(lambda op: "(%s)" % cpp(op),
+                                  ex.ufl_operands))
+        else:
+            raise TestException("Unsupported type: %s" % type(ex))
+
+    F.interpolate(Expression(cpp(ex),
+                             element=F.function_space().ufl_element()))
 
 
 def leak_check(test):
@@ -226,8 +226,7 @@ class tests(unittest.TestCase):
             return J
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression(X[0] * sin(pi * X[1]),
-                                 element=space.ufl_element()))
+        interpolate_expression(F, X[0] * sin(pi * X[1]))
 
         start_manager()
         J = forward(F)
@@ -326,8 +325,7 @@ class tests(unittest.TestCase):
             return F, J
 
         G = Function(space_2, name="G", static=True)
-        G.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1]),
-                                 element=space_2.ufl_element()))
+        interpolate_expression(G, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
         start_manager()
         F, J = forward(G)
@@ -396,11 +394,9 @@ class tests(unittest.TestCase):
             return x_ref, J
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression(sin(pi * X[0]),
-                                 element=space.ufl_element()))
+        interpolate_expression(F, sin(pi * X[0]))
         zeta = Function(space, name="zeta", static=True)
-        zeta.interpolate(Expression(exp(X[0]),
-                                    element=space.ufl_element()))
+        interpolate_expression(zeta, exp(X[0]))
         add_tlm(F, zeta)
         start_manager()
         x_ref, J = forward(F)
@@ -449,8 +445,7 @@ class tests(unittest.TestCase):
             return x, J
 
         y = Function(space, name="y", static=True)
-        y.interpolate(Expression(cos(3.0 * pi * X[0]),
-                                 element=space.ufl_element()))
+        interpolate_expression(y, cos(3.0 * pi * X[0]))
         start_manager()
         x, J = forward(y)
         stop_manager()
@@ -506,8 +501,7 @@ class tests(unittest.TestCase):
             return X_vals, J
 
         z = Function(z_space, name="z", static=True)
-        z.interpolate(Expression(pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5,
-                      element=z_space.ufl_element()))
+        interpolate_expression(z, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
 
         start_manager()
         X_vals, J = forward(z)
@@ -562,10 +556,9 @@ class tests(unittest.TestCase):
             return x, J
 
         z = Function(z_space, name="z", static=True)
-        z.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1])
-                                 * exp(X[2]),
-                                 element=z_space.ufl_element()))
-
+        interpolate_expression(z,
+                               sin(pi * X[0]) * sin(2.0 * pi * X[1])
+                               * exp(X[2]))
         start_manager()
         x, J = forward(z)
         stop_manager()
@@ -681,8 +674,7 @@ class tests(unittest.TestCase):
             clear_caches()
 
             x_n = Function(space, name="x_n")
-            x_n.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1]),
-                                       element=space.ufl_element()))
+            interpolate_expression(x_n, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
             x_np1 = Function(space, name="x_np1")
             dt = Constant(0.01, static=True)
             bc = DirichletBC(space, 0.0, "on_boundary",
@@ -849,11 +841,9 @@ class tests(unittest.TestCase):
             return x_ref, y_ref, J
 
         alpha_ref = Function(space, name="alpha_ref", static=True)
-        alpha_ref.interpolate(Expression(exp(X[0] + X[1]),
-                                         element=space.ufl_element()))
+        interpolate_expression(alpha_ref, exp(X[0] + X[1]))
         beta_ref = Function(space, name="beta_ref", static=True)
-        beta_ref.interpolate(Expression(sin(pi * X[0]) * sin(2.0 * pi * X[1]),
-                                        element=space.ufl_element()))
+        interpolate_expression(beta_ref, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
         x_ref, y_ref, _ = forward(alpha_ref, beta_ref)
 
         alpha0 = Function(space, name="alpha0", static=True)
@@ -906,8 +896,7 @@ class tests(unittest.TestCase):
             return x_ref, J
 
         alpha_ref = Function(space, name="alpha_ref", static=True)
-        alpha_ref.interpolate(Expression(exp(X[0] + X[1]),
-                              element=space.ufl_element()))
+        interpolate_expression(alpha_ref, exp(X[0] + X[1]))
         x_ref, _ = forward(alpha_ref)
 
         alpha0 = Function(space, name="alpha0", static=True)
@@ -939,8 +928,7 @@ class tests(unittest.TestCase):
         test, trial = TestFunction(space), TrialFunction(space)
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression(1.0 + sin(pi * X[0]) * sin(3.0 * pi * X[1]),
-                                 element=space.ufl_element()))
+        interpolate_expression(F, 1.0 + sin(pi * X[0]) * sin(3.0 * pi * X[1]))
 
         bc = DirichletBC(space, 1.0, "on_boundary",
                          static=True, homogeneous=False)
@@ -1028,8 +1016,7 @@ class tests(unittest.TestCase):
         test, trial = TestFunction(space), TrialFunction(space)
 
         F = Function(space, name="F", static=True)
-        F.interpolate(Expression(sin(pi * X[0]) * sin(3.0 * pi * X[1]),
-                      element=space.ufl_element()))
+        interpolate_expression(F, sin(pi * X[0]) * sin(3.0 * pi * X[1]))
 
         def forward(bc):
             x_0 = Function(space, name="x_0")
@@ -1203,8 +1190,7 @@ class tests(unittest.TestCase):
             space = FunctionSpace(mesh, "Lagrange", 1)
             test, trial = TestFunction(space), TrialFunction(space)
             T_0 = Function(space, name="T_0", static=True)
-            T_0.interpolate(Expression(sin(pi * X[0]) + sin(10.0 * pi * X[0]),
-                                       element=space.ufl_element()))
+            interpolate_expression(T_0, sin(pi * X[0]) + sin(10.0 * pi * X[0]))
             dt = Constant(0.01, static=True)
             space_r0 = FunctionSpace(mesh, "R", 0)
             kappa = Function(space_r0, name="kappa", static=True)
