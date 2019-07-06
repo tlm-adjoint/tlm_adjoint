@@ -31,7 +31,6 @@ from .caches import Function, ReplacementFunction, assembly_cache, \
 import numpy
 import ufl
 import sys
-import weakref
 
 __all__ = \
     [
@@ -91,18 +90,10 @@ def warning(message):
 def function_space_id(space):
     return id(space)
 
-_real_spaces = weakref.WeakValueDictionary()
 def RealFunctionSpace(comm = None):
     if comm is None:
         comm = default_comm()
-    comm_f = comm.py2f()
-
-    try:
-        space = _real_spaces[comm_f]
-    except KeyError:
-        space = FunctionSpace(UnitIntervalMesh(comm.size, comm = comm), "R", 0)
-        _real_spaces[comm_f] = space
-    return space
+    return FunctionSpace(UnitIntervalMesh(comm.size, comm = comm), "R", 0)
 
 #class Function:
 #  def __init__(self, space, name = None, static = False, cache = None,

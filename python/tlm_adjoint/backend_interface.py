@@ -28,7 +28,6 @@ from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
 
 import ufl
 import sys
-import weakref
 
 __all__ = \
     [
@@ -93,21 +92,10 @@ def function_space_id(space):
     return space.id()
 
 
-_real_spaces = weakref.WeakValueDictionary()
-
-
 def RealFunctionSpace(comm=None):
     if comm is None:
         comm = default_comm()
-    # FEniCS backwards compatibility
-    if hasattr(comm, "tompi4py"):
-        comm = comm.tompi4py()
-    comm_f = comm.py2f()
-
-    if comm_f not in _real_spaces:
-        space = FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
-        _real_spaces[comm_f] = space
-    return _real_spaces[comm_f]
+    return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
 # class Function:
