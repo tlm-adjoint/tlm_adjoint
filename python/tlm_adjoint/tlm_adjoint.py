@@ -817,6 +817,8 @@ class EquationManager:
                 if tlm_eq is None:
                     for dep in eq.dependencies():
                         if dep in M or dep in tlm_map:
+                            if len(set(eq.X()).intersection(set(M))) > 0:
+                                raise ManagerException("Invalid tangent-linear parameter")
                             tlm_eq = eq_tlm_eqs[(M, dM)] = eq.tangent_linear(M, dM, tlm_map)
                             if tlm_eq is None: tlm_eq = eq_tlm_eqs[(M, dM)] = NullSolver([tlm_map[x] for x in X])
                             break
