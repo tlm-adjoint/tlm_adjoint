@@ -21,8 +21,8 @@
 from fenics import *
 from tlm_adjoint import *
 
-import petsc4py.PETSc as PETSc
 import numpy as np
+import petsc4py.PETSc as PETSc
 
 # Disable the manager until it is needed
 stop_manager()
