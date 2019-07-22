@@ -78,7 +78,7 @@ __all__ = \
 
 
 def warning(message):
-    sys.stderr.write(f"{message:s}")
+    sys.stderr.write(f"{message:s}\n")
     sys.stderr.flush()
 
 
