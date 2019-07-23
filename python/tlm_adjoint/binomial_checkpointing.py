@@ -127,9 +127,9 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, write_weight 
       snapshots_n.append(snapshot_n)
       weights[i] += write_weight
     if snapshot_n_0 == n - 1:
-      i -= 1
       snapshots_n.pop()
       weights[i] += delete_weight
+      i -= 1
     n -= 1
   allocation = ["disk" for i in range(snapshots)]
   for i in [p[0] for p in sorted(enumerate(weights), key = lambda p : p[1], reverse = True)][:snapshots_in_ram]:
