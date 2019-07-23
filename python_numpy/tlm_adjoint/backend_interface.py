@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 import copy
-import numpy
+import numpy as np
 import sys
 
 __all__ = \
@@ -50,11 +50,11 @@ __all__ = \
         "function_local_size",
         "function_max_value",
         "function_new",
-        "function_tangent_linear",
         "function_set_values",
         "function_space_id",
         "function_state",
         "function_sum",
+        "function_tangent_linear",
         "function_tlm_depth",
         "function_update_state",
         "function_zero",
@@ -65,22 +65,28 @@ __all__ = \
         "warning"
     ]
 
+
 class InterfaceException(Exception):
     pass
+
 
 def clear_caches(*deps):
     pass
 
+
 def info(message):
-    sys.stdout.write("%s\n" % message)
+    sys.stdout.write(f"{message:s}\n")
     sys.stdout.flush()
 
+
 def warning(message):
-    sys.stderr.write("%s\n" % message)
+    sys.stderr.write(f"{message:s}\n")
     sys.stderr.flush()
+
 
 def copy_parameters_dict(parameters):
     return copy.deepcopy(parameters)
+
 
 class FunctionSpace:
     def __init__(self, dim):
@@ -89,21 +95,25 @@ class FunctionSpace:
     def dim(self):
         return self._dim
 
+
 def function_space_id(space):
     return space.dim()
 
-def RealFunctionSpace():
+
+def RealFunctionSpace(comm=None):
     return FunctionSpace(1)
+
 
 class Function:
     _id_counter = [0]
 
-    def __init__(self, space, name = None, static = False, cache = None,
-        checkpoint = None, tlm_depth = 0, _data = None):
+    def __init__(self, space, name=None, static=False, cache=None,
+                 checkpoint=None, tlm_depth=0, _data=None):
         id = self._id_counter[0]
         self._id_counter[0] += 1
         if name is None:
-            name = "f_%i" % id  # Following FEniCS 2017.2.0 behaviour
+            # Following FEniCS 2019.1.0 behaviour
+            name = f"f_{id:d}"
         if cache is None:
             cache = static
         if checkpoint is None:
@@ -117,7 +127,10 @@ class Function:
         self._checkpoint = checkpoint
         self._tlm_depth = tlm_depth
         self._id = id
-        self._data = numpy.zeros(space.dim(), dtype = numpy.float64) if _data is None else _data
+        if _data is None:
+            self._data = np.zeros(space.dim(), dtype=np.float64)
+        else:
+            self._data = _data
 
     def function_space(self):
         return self._space
@@ -146,22 +159,24 @@ class Function:
     def tlm_depth(self):
         return self._tlm_depth
 
-    def tangent_linear(self, name = None):
+    def tangent_linear(self, name=None):
         if self.is_static():
             return None
         else:
-            return Function(self.function_space(), name = name, static = False,
-                cache = self.is_cached(), checkpoint = self.is_checkpointed(),
-                tlm_depth = self.tlm_depth() + 1)
+            return Function(self.function_space(), name=name, static=False,
+                            cache=self.is_cached(),
+                            checkpoint=self.is_checkpointed(),
+                            tlm_depth=self.tlm_depth() + 1)
 
     def vector(self):
         return self._data
+
 
 class ReplacementFunction:
     def __init__(self, x):
         self._space = x.function_space()
         self._name = x.name()
-        self._state = x.state()
+        self._state = -1
         self._static = x.is_static()
         self._cache = x.is_cached()
         self._checkpoint = x.is_checkpointed()
@@ -195,6 +210,7 @@ class ReplacementFunction:
     def tlm_depth(self):
         return self._tlm_depth
 
+
 def replaced_function(x):
     if isinstance(x, ReplacementFunction):
         return x
@@ -202,33 +218,42 @@ def replaced_function(x):
         x._tlm_adjoint__ReplacementFunction = ReplacementFunction(x)
     return x._tlm_adjoint__ReplacementFunction
 
+
 def is_function(x):
     return isinstance(x, Function)
 
+
 def function_state(x):
     return x.state()
+
 
 def function_update_state(*X):
     for x in X:
         x.update_state()
 
+
 def function_is_static(x):
     return x.is_static()
+
 
 def function_is_cached(x):
     return x.is_cached()
 
+
 def function_is_checkpointed(x):
     return x.is_checkpointed()
+
 
 def function_tlm_depth(x):
     return x.tlm_depth()
 
-def function_copy(x, name = None, static = False, cache = None,
-    checkpoint = None, tlm_depth = 0):
-    return Function(x.function_space(), name = name, static = static,
-        cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth,
-        _data = x.vector().copy())
+
+def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
+                  tlm_depth=0):
+    return Function(x.function_space(), name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth,
+                    _data=x.vector().copy())
+
 
 def function_assign(x, y):
     if isinstance(y, (int, float)):
@@ -236,20 +261,23 @@ def function_assign(x, y):
     else:
         x.vector()[:] = y.vector()
 
+
 def function_axpy(x, alpha, y):
     x.vector()[:] += alpha * y.vector()
 
+
 class SerialComm:
-    def allgather(self, v):
-        w = v.view()
-        w.setflags(write = False)
-        return (w,)
+    # Interface as in mpi4py 3.0.1
+    def allgather(self, sendobj):
+        v = sendobj.view()
+        v.setflags(write=False)
+        return (v,)
 
     def barrier(self):
         pass
 
     # Interface as in mpi4py 3.0.1
-    def bcast(self, obj, root = 0):
+    def bcast(self, obj, root=0):
         return copy.deepcopy(obj)
 
     def py2f(self):
@@ -263,61 +291,80 @@ class SerialComm:
     def size(self):
         return 1
 
+
+_comm = SerialComm()
+
+
 def default_comm():
-    return SerialComm()
+    return _comm
+
 
 def function_comm(x):
-    return SerialComm()
+    return _comm
+
 
 def function_inner(x, y):
     return x.vector().dot(y.vector())
 
+
 def function_local_size(x):
     return x.vector().shape[0]
 
+
 def function_get_values(x):
     values = x.vector().view()
-    values.setflags(write = False)
+    values.setflags(write=False)
     return values
+
 
 def function_set_values(x, values):
     x.vector()[:] = values
 
+
 def function_max_value(x):
     return x.vector().max()
+
 
 def function_sum(x):
     return x.vector().sum()
 
+
 def function_linf_norm(x):
     return abs(x.vector()).max()
 
-def function_new(x, name = None, static = False, cache = None,
-    checkpoint = None, tlm_depth = 0):
-    return Function(x.function_space(), name = name, static = static,
-        cache = cache, checkpoint = checkpoint, tlm_depth = tlm_depth)
 
-def function_tangent_linear(x, name = None):
-    return x.tangent_linear(name = name)
+def function_new(x, name=None, static=False, cache=None, checkpoint=None,
+                 tlm_depth=0):
+    return Function(x.function_space(), name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+def function_tangent_linear(x, name=None):
+    return x.tangent_linear(name=name)
+
 
 def function_alias(x):
-    return Function(x.function_space(), name = x.name(), static = x.is_static(),
-        cache = x.is_cached(), checkpoint = x.is_checkpointed(),
-        tlm_depth = x.tlm_depth(), _data = x.vector())
+    return Function(x.function_space(), name=x.name(), static=x.is_static(),
+                    cache=x.is_cached(), checkpoint=x.is_checkpointed(),
+                    tlm_depth=x.tlm_depth(), _data=x.vector())
+
 
 def function_zero(x):
     x.vector()[:] = 0.0
 
+
 def function_global_size(x):
     return x.vector().shape[0]
+
 
 def function_local_indices(x):
     return slice(0, x.vector().shape[0])
 
+
 def subtract_adjoint_derivative_action(x, y):
     if y is None:
-        return
-    if isinstance(y, tuple):
+        pass
+    elif isinstance(y, tuple):
         alpha, y = y
         if isinstance(y, Function):
             y = y.vector()
@@ -329,6 +376,7 @@ def subtract_adjoint_derivative_action(x, y):
         if isinstance(y, Function):
             y = y.vector()
         x.vector()[:] -= y
+
 
 def finalise_adjoint_derivative_action(x):
     pass
