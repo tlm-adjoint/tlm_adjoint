@@ -43,6 +43,7 @@ __all__ = \
         "LinearCombinationSolver",
         "NullSolver",
         "ScaleSolver",
+        "get_tangent_linear",
 
         "ControlsMarker",
         "FunctionalMarker",
@@ -551,6 +552,14 @@ class FunctionalMarker(Equation):
 
     def adjoint_jacobian_solve(self, nl_deps, b):
         return b
+
+
+def get_tangent_linear(x, M, dM, tlm_map):
+    try:
+        return dM[M.index(x)]
+    except ValueError:
+        return tlm_map[x]
+
 
 class NullSolver(Equation):
     def __init__(self, X):
@@ -1071,23 +1080,25 @@ class LinearEquation(Equation):
         if not self._A is None:
             self._A.replace(replace_map)
 
-    def forward_solve(self, X, deps = None):
+    def forward_solve(self, X, deps=None):
         if is_function(X):
             X = (X,)
         if deps is None:
             deps = self.dependencies()
 
-        for x in X:
-            function_zero(x)
+        if self._A is None:
+            B = X
+        else:
+            B = tuple(function_new(x) for x in X)
+
         for i, b in enumerate(self._B):
-            b.add_forward(X[0] if len(X) == 1 else X, [deps[j] for j in self._b_dep_indices[i]])
-        if not self._A is None:
-            if len(X) == 1:
-                X_new = (self._A.forward_solve([deps[j] for j in self._A_dep_indices], X[0]),)
-            else:
-                X_new = self._A.forward_solve([deps[j] for j in self._A_dep_indices], X)
-            for x, x_new in zip(X, X_new):
-                function_assign(x, x_new)
+            b.add_forward(B[0] if len(B) == 1 else B,
+                          [deps[j] for j in self._b_dep_indices[i]])
+
+        if self._A is not None:
+            self._A.forward_solve(X[0] if len(X) == 1 else X,
+                                  [deps[j] for j in self._A_dep_indices],
+                                  B[0] if len(B) == 1 else B)
 
     def reset_forward_solve(self):
         for b in self._B:
@@ -1239,7 +1250,7 @@ class Matrix:
     def reset_adjoint_action(self):
         pass
 
-    def forward_solve(self, nl_deps, B):
+    def forward_solve(self, X, nl_deps, B):
         raise EquationException("Method not overridden")
 
     def reset_forward_solve(self):

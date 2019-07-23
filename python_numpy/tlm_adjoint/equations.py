@@ -68,9 +68,8 @@ class ConstantMatrix(Matrix):
         else:
             raise EquationException(f"Invalid method: '{method:s}'")
 
-    def forward_solve(self, nl_deps, b):
-        return Function(b.function_space(),
-                        _data=np.linalg.solve(self._A, b.vector()))
+    def forward_solve(self, x, nl_deps, b):
+        x.vector()[:] = np.linalg.solve(self._A, b.vector())
 
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
                                   method="assign"):
