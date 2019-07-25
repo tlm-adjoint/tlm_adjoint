@@ -117,7 +117,7 @@ def forward(beta_sq, ref = None, h_filename = None, speed_filename = None):
   nu = Function(space_S, name = "nu")
   
   def momentum(U, h, initial_guess = None):  
-    h += H_0
+    h = h + H_0
     spaces = U.function_space()
     tests, trials = TestFunction(spaces), TrialFunction(spaces)
     test_u, test_v = split(tests)
