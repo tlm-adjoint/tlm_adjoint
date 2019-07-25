@@ -200,7 +200,10 @@ def project(v, V, bcs = None, solver_parameters = None,
         else:
             x = Function(V, name = name)
         if use_slate_for_inverse:
-            LocalProjectionSolver(v, x, [] if bcs is None else bcs,
+            if bcs is not None and (isinstance(bcs, backend_DirichletBC)
+                                    or len(bcs) > 0):
+                raise OverrideException("Boundary conditions not supported")
+            LocalProjectionSolver(v, x,
                 form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
                 cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
         else:

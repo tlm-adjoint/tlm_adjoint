@@ -103,7 +103,7 @@ class LocalSolverCache(Cache):
     def local_solver(self, form, solver_type, replace_map = None):
         key = local_solver_key(form, solver_type)
         value = self.get(key, None)
-        if value is None:
+        if value is None or value() is None:
             assemble_form = form if replace_map is None else ufl.replace(form, replace_map)
             local_solver = LocalSolver(assemble_form, solver_type = solver_type)
             local_solver.factorize()
