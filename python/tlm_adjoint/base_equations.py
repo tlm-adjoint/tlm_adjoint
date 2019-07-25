@@ -1457,7 +1457,7 @@ class MatrixActionRHS(RHS):
 
         A_nl_deps = A.nonlinear_dependencies()
         if len(A_nl_deps) == 0:
-            x_indices = {i:i for i in range(len(X))}
+            x_indices = {i: i for i in range(len(X))}
             RHS.__init__(self, X, nl_deps=[])
         else:
             nl_deps = list(A_nl_deps)
