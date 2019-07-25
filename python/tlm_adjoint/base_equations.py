@@ -833,7 +833,7 @@ class FixedPointSolver(Equation):
             if initial_guess is not None and i == len(eqs) - 1:
                 dep_id = initial_guess.id()
                 if dep_id not in previous_x_ids and dep_id not in ic_deps:
-                    ic_deps[dep_id] = dep
+                    ic_deps[dep_id] = initial_guess
             previous_x_ids.add(x_id)
 
         del(previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids)
