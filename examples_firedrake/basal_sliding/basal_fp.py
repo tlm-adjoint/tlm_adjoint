@@ -170,7 +170,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
 
         return FixedPointSolver([S_eq, nu_eq, U_eq],
                                 solver_parameters={"absolute_tolerance": 1.0e-16,  # noqa: E501
-                                                   "relative_tolerance": 1.0e-10},  # noqa: E501
+                                                   "relative_tolerance": 1.0e-11},  # noqa: E501
                                 initial_guess=initial_guess)
 
     def solve_momentum(U, h, initial_guess=None):
