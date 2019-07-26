@@ -106,8 +106,7 @@ space_U = FunctionSpace(mesh,
                         space_u_f.ufl_element() * space_u_f.ufl_element(),
                         constrained_domain=periodic_bc)
 # Thickness perturbation space
-space_h = FunctionSpace(mesh, "Lagrange", 1,
-                        constrained_domain=periodic_bc)
+space_h = FunctionSpace(mesh, "Lagrange", 1, constrained_domain=periodic_bc)
 test_h, trial_h = TestFunction(space_h), TrialFunction(space_h)
 
 space_S = FunctionSpace(mesh, "Discontinuous Lagrange", 2,
