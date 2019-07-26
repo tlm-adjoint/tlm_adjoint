@@ -20,28 +20,37 @@
 
 from .backend_interface import *
 
-from .equations import AssignmentSolver, Equation, EquationSolver
+from .base_equations import AssignmentSolver, Equation
 
 from collections import OrderedDict
 
 __all__ = \
     [
-        "FinalTimeLevel",
-        "N",
-        "TimeFunction",
-        "TimeLevel",
-        "TimeLevels",
-        "TimeSystem",
         "TimesteppingException",
-        "n"
+
+        "BaseTimeLevel",
+        "InitialTimeLevel",
+        "TimeLevel",
+        "FinalTimeLevel",
+
+        "n",
+        "N",
+
+        "TimeLevels",
+        "TimeFunction",
+        "TimeSystem"
     ]
 
-# Aim for a degree of consistency with timestepping API, as per git revision
-# cddfbc0a6769df17bfd78a4488bca581d7793286 (dolfin-adjoint branch
-# timestepping_2017.1.0)
+# Aim for a degree of consistency with the API of the 'timestepping' library,
+# as in dolfin-adjoint timestepping_2017.1.0 branch, and as described in
+#   J. R. Maddison and P. E. Farrell, "Rapid Development and adjoining of
+#   transient finite element models", Computer Methods in Applied Mechanics and
+#   Engineering, 276(1), pp. 95--121, 2014
+
 
 class TimesteppingException(Exception):
     pass
+
 
 class BaseTimeLevel:
     def __init__(self, order, i):
@@ -88,9 +97,13 @@ class BaseTimeLevel:
     def __ge__(self, other):
         return not self < other
 
+    def i(self):
+        return self._i
+
+
 class InitialTimeLevel(BaseTimeLevel):
-    def __init__(self, arg = 0):
-        BaseTimeLevel.__init__(self, order = -1, i = arg)
+    def __init__(self, i=0):
+        BaseTimeLevel.__init__(self, order=-1, i=i)
 
     def __add__(self, other):
         return InitialTimeLevel(self._i + other)
@@ -98,9 +111,10 @@ class InitialTimeLevel(BaseTimeLevel):
     def __sub__(self, other):
         return InitialTimeLevel(self._i - other)
 
+
 class TimeLevel(BaseTimeLevel):
-    def __init__(self, arg = 0):
-        BaseTimeLevel.__init__(self, order = 0, i = arg)
+    def __init__(self, i=0):
+        BaseTimeLevel.__init__(self, order=0, i=i)
 
     def __add__(self, other):
         return TimeLevel(self._i + other)
@@ -108,9 +122,10 @@ class TimeLevel(BaseTimeLevel):
     def __sub__(self, other):
         return TimeLevel(self._i - other)
 
+
 class FinalTimeLevel(BaseTimeLevel):
-    def __init__(self, arg = 0):
-        BaseTimeLevel.__init__(self, order = 1, i = arg)
+    def __init__(self, i=0):
+        BaseTimeLevel.__init__(self, order=1, i=i)
 
     def __add__(self, other):
         return FinalTimeLevel(self._i + other)
@@ -118,13 +133,16 @@ class FinalTimeLevel(BaseTimeLevel):
     def __sub__(self, other):
         return FinalTimeLevel(self._i - other)
 
+
 n = TimeLevel()
 N = FinalTimeLevel()
+
 
 class TimeLevels:
     def __init__(self, levels, cycle_map):
         levels = tuple(sorted(set(levels)))
-        cycle_map = OrderedDict(sorted(cycle_map.items(), key = lambda i : i[0]))
+        # Always assign to earlier time levels first in the cycle
+        cycle_map = OrderedDict(sorted(cycle_map.items(), key=lambda i: i[0]))
 
         self._levels = levels
         self._cycle_map = cycle_map
@@ -136,9 +154,11 @@ class TimeLevels:
     def __len__(self):
         return len(self._levels)
 
+
 class TimeFunction:
     def __init__(self, levels, *args, **kwargs):
-        # Note that this keeps references to the Function objects on each time level
+        # Note that this keeps references to the Function objects on each time
+        # level
         self._fns = {}
         for level in levels:
             fn = Function(*args, **kwargs)
@@ -146,12 +166,12 @@ class TimeFunction:
             fn._tlm_adjoint__level = level
             self._fns[level] = fn
 
-            initial_level = InitialTimeLevel(level._i)
+            initial_level = InitialTimeLevel(level.i())
             initial_fn = self._fns[initial_level] = function_alias(fn)
             initial_fn._tlm_adjoint__tfn = self
             initial_fn._tlm_adjoint__level = initial_level
 
-            final_level = FinalTimeLevel(level._i)
+            final_level = FinalTimeLevel(level.i())
             final_fn = self._fns[final_level] = function_alias(fn)
             final_fn._tlm_adjoint__tfn = self
             final_fn._tlm_adjoint__level = final_level
@@ -171,12 +191,15 @@ class TimeFunction:
     def levels(self):
         return self._levels
 
-    def cycle(self, manager = None):
+    def cycle(self, manager=None):
         if self._cycle_eqs is None:
-            self._cycle_eqs = [AssignmentSolver(self[source_level], self[target_level])
-                                                     for target_level, source_level in self._levels._cycle_map.items()]
+            self._cycle_eqs = tuple(AssignmentSolver(self[source_level],
+                                                     self[target_level])
+                                    for target_level, source_level
+                                    in self._levels._cycle_map.items())
         for eq in self._cycle_eqs:
-            eq.solve(manager = manager)
+            eq.solve(manager=manager)
+
 
 class TimeSystem:
     def __init__(self):
@@ -196,137 +219,148 @@ class TimeSystem:
 
         if len(args) == 1 and isinstance(args[0], Equation):
             eq = args[0]
-        elif len(args) == 2 and is_function(args[0]) and is_function(args[1]) and hasattr(args[1], "_tlm_adjoint__tfn"):
+        elif (len(args) == 2
+              and is_function(args[0])
+              and is_function(args[1])
+              and hasattr(args[1], "_tlm_adjoint__tfn")):
             eq = AssignmentSolver(args[0], args[1])
         else:
+            from .equations import EquationSolver
             eq = EquationSolver(*args, **kwargs)
 
         X = eq.X()
         level = X[0]._tlm_adjoint__level
         for x in X[1:]:
-            if not isinstance(x._tlm_adjoint__level, level):
+            if x._tlm_adjoint__level != level:
                 raise TimesteppingException("Inconsistent time levels")
-        if isinstance(level, TimeLevel):
-            self._timestep_eqs.append(eq)
-        elif isinstance(level, InitialTimeLevel):
+        if isinstance(level, InitialTimeLevel):
             self._initial_eqs.append(eq)
+        elif isinstance(level, TimeLevel):
+            self._timestep_eqs.append(eq)
         elif isinstance(level, FinalTimeLevel):
             self._final_eqs.append(eq)
         else:
-            raise TimesteppingException("Invalid time level: %s" % level)
+            raise TimesteppingException(f"Invalid time level: {level}")
 
-    def assemble(self, initialise = True):
+    def assemble(self, initialise=True):
         if self._state != "initial":
             raise TimesteppingException("Invalid state")
         self._state = "assembled"
+        assert(self._sorted_eqs is None)
 
-        if self._sorted_eqs is None:
-            for eqs in [self._initial_eqs, self._timestep_eqs, self._final_eqs]:
-                x_ids = set()
-                for eq in eqs:
-                    for x in eq.X():
-                        x_id = x.id()
-                        if x_id in x_ids:
-                            raise TimesteppingException("Duplicate solve")
-                        x_ids.add(x_id)
-                del(x_ids)
-
-            # Dependency resolution
-            def add_eq_deps(eq, eq_xs, eqs, parent_ids = None):
-                X = eq.X()
-                process = False
-                for x in X:
-                    if x in eq_xs:
-                        process = True
-                        break
-                if not process:
-                    return
-                if parent_ids is None:
-                    parent_ids = set()
-                for x in X:
-                    parent_ids.add(x.id())
-                for dep in eq.dependencies():
-                    if not dep in X and hasattr(dep, "_tlm_adjoint__tfn"):
-                        if dep.id() in parent_ids:
-                            raise TimesteppingException("Circular dependency")
-                        elif dep in eq_xs:
-                            add_eq_deps(eq_xs[dep], eq_xs, eqs, parent_ids)
-                eqs.append(eq)
-                del(eq_xs[x])
-                for x in X:
-                    parent_ids.remove(x.id())
-
-            self._sorted_eqs = [[], [], []]
-            for i, eqs in enumerate([self._initial_eqs, self._timestep_eqs, self._final_eqs]):
-                eq_xs = {}
-                for eq in eqs:
-                    for x in eq.X():
-                        eq_xs[x] = eq
-                for eq in eqs:
-                    add_eq_deps(eq, eq_xs, self._sorted_eqs[i])
-
-            self._tfns = []
-            for eq in self._sorted_eqs[1]:
+        for eqs in [self._initial_eqs, self._timestep_eqs, self._final_eqs]:
+            x_ids = set()
+            for eq in eqs:
                 for x in eq.X():
-                    x_tfn = x._tlm_adjoint__tfn
-                    if not x_tfn in self._tfns:
-                        self._tfns.append(x_tfn)
+                    x_id = x.id()
+                    if x_id in x_ids:
+                        raise TimesteppingException("Duplicate solve")
+                    x_ids.add(x_id)
+            del(x_ids)
+
+        # Dependency resolution
+        def add_eq_deps(eq, eq_xs, eqs, parent_ids=None):
+            X = eq.X()
+            process = X[0] in eq_xs
+            for x in X[1:]:
+                assert((x in eq_xs) == process)
+            if not process:
+                return
+            if parent_ids is None:
+                parent_ids = set()
+            for x in X:
+                parent_ids.add(x.id())
+            for dep in eq.dependencies():
+                if dep not in X and hasattr(dep, "_tlm_adjoint__tfn"):
+                    if dep.id() in parent_ids:
+                        raise TimesteppingException("Circular dependency")
+                    elif dep in eq_xs:
+                        add_eq_deps(eq_xs[dep], eq_xs, eqs, parent_ids)
+            eqs.append(eq)
+            for x in X:
+                del(eq_xs[x])
+                parent_ids.remove(x.id())
+
+        self._sorted_eqs = [[], [], []]
+        for i, eqs in enumerate([self._initial_eqs,
+                                 self._timestep_eqs,
+                                 self._final_eqs]):
+            eq_xs = {}
+            for eq in eqs:
+                for x in eq.X():
+                    eq_xs[x] = eq
+            for eq in eqs:
+                add_eq_deps(eq, eq_xs, self._sorted_eqs[i])
+
+        # Work around lack of OrderedSet class here
+        tfns = {}
+        for eq in (self._sorted_eqs[0]
+                   + self._sorted_eqs[1]
+                   + self._sorted_eqs[2]):
+            for x in eq.X():
+                x_tfn = x._tlm_adjoint__tfn
+                if x_tfn not in tfns:
+                    tfns[x_tfn] = x_tfn
+        self._tfns = tuple(tfns.keys())
 
         if initialise:
             self.initialise()
 
         return self
 
-    def initialise(self, manager = None):
+    def initialise(self, manager=None):
         if self._state != "assembled":
             raise TimesteppingException("Invalid state")
         self._state = "initialised"
 
         for eq in self._sorted_eqs[0]:
-            eq.solve(manager = manager)
+            eq.solve(manager=manager)
 
         self._initial_eqs = []
         self._sorted_eqs[0] = []
 
         for tfn in self._tfns:
             for level in tfn.levels():
-                AssignmentSolver(tfn[level._i], tfn[level])._post_process(manager = manager)
+                transfer_eq = AssignmentSolver(tfn[level.i()], tfn[level])
+                transfer_eq._post_process(manager=manager)
 
-    def timestep(self, s = 1, manager = None):
+    def timestep(self, s=1, manager=None):
         if self._state == "initial":
-            self.assemble(initialise = True)
-        elif not self._state in ["initialised", "timestepping"]:
+            self.assemble(initialise=True)
+        if self._state not in ["initialised", "timestepping"]:
             raise TimesteppingException("Invalid state")
         self._state = "timestepping"
 
         for n in range(s):
             # Timestep solve
             for eq in self._sorted_eqs[1]:
-                eq.solve(manager = manager)
+                eq.solve(manager=manager)
             # Timestep cycle
             for tfn in self._tfns:
-                tfn.cycle(manager = manager)
+                tfn.cycle(manager=manager)
 
-    def finalise(self, manager = None):
+    def finalise(self, manager=None):
         if self._state == "initial":
-            self.assemble(initialise = True)
-        elif not self._state in ["initialised", "timestepping"]:
+            self.assemble(initialise=True)
+        if self._state not in ["initialised", "timestepping"]:
             raise TimesteppingException("Invalid state")
         self._state = "final"
 
         self._timestep_eqs = []
         self._sorted_eqs[1] = []
         for tfn in self._tfns:
-            if not tfn._cycle_eqs is None:
+            if tfn._cycle_eqs is not None:
                 tfn._cycle_eqs = None
 
         for tfn in self._tfns:
             for level in tfn.levels():
-                AssignmentSolver(tfn[level], tfn[FinalTimeLevel(level._i)])._post_process(manager = manager)
+                transfer_eq = AssignmentSolver(tfn[level],
+                                               tfn[FinalTimeLevel(level.i())])
+                transfer_eq._post_process(manager=manager)
         self._tfns = None
 
         for eq in self._sorted_eqs[2]:
-            eq.solve(manager = manager)
+            eq.solve(manager=manager)
 
         self._final_eqs = []
         self._sorted_eqs = None
