@@ -76,15 +76,14 @@ def interpolate_expression(F, ex):
         elif isinstance(ex, ufl.classes.Exp):
             x, = ex.ufl_operands
             return "exp(%s)" % cpp(x)
-        elif isinstance(ex, (ufl.classes.FixedIndex,
-                             ufl.classes.IntValue)):
-            return int(ex)
         elif isinstance(ex, ufl.classes.FloatValue):
-            return float(ex)
+            return f"{float(ex):.16e}"
         elif isinstance(ex, ufl.classes.Indexed):
             x, i = ex.ufl_operands
             i, = map(int, i)
             return "(%s)[%i]" % (cpp(x), i)
+        elif isinstance(ex, ufl.classes.IntValue):
+            return f"{int(ex):d}"
         elif isinstance(ex, ufl.classes.Power):
             x, y = ex.ufl_operands
             return "pow(%s, %s)" % (cpp(x), cpp(y))
