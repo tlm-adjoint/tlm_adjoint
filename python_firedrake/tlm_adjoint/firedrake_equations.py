@@ -22,7 +22,7 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .backend_interface import *
 
-from .base_equations import Equation, get_tangent_linear
+from .base_equations import Equation, NullSolver, get_tangent_linear
 from .caches import Cache, CacheRef, form_dependencies, form_key, \
     parameters_key
 from .equations import EquationSolver, alias_assemble, alias_form
@@ -126,9 +126,9 @@ class LocalProjectionSolver(EquationSolver):
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
             if local_solver is None:
-                self._forward_J_solver, local_solver = local_solver_cache().local_solver(  # noqa: E501
-                    self._lhs,
-                    form_compiler_parameters=self._form_compiler_parameters)
+                self._forward_J_solver, local_solver = \
+                    local_solver_cache().local_solver(self._lhs,
+                                                      form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
         else:
             local_solver = LocalSolver(self._lhs,
                                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
@@ -139,9 +139,9 @@ class LocalProjectionSolver(EquationSolver):
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
             if local_solver is None:
-                self._forward_J_solver, local_solver = local_solver_cache().local_solver(  # noqa: E501
-                    self._lhs,
-                    form_compiler_parameters=self._form_compiler_parameters)
+                self._forward_J_solver, local_solver = \
+                    local_solver_cache().local_solver(self._lhs,
+                                                      form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
         else:
             local_solver = LocalSolver(self._lhs,
                                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
@@ -231,6 +231,12 @@ class PointInterpolationSolver(Equation):
         for x in X:
             if not is_real_function(x):
                 raise EquationException("Solution must be a real Function, or a list or tuple of real Function objects")  # noqa: E501
+        if X_coords is None:
+            if P is None:
+                raise EquationException("X_coords required when P is not supplied")  # noqa: E501
+        else:
+            if len(X) != X_coords.shape[0]:
+                raise EquationException("Invalid number of Function objects")
 
         if P is None:
             y_space = y.function_space()
