@@ -21,7 +21,8 @@
 from .backend import *
 from .backend_interface import *
 
-from .equations import AssignmentSolver, EquationSolver, ProjectionSolver
+from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
+    linear_equation_new_x
 from .tlm_adjoint import annotation_enabled, tlm_enabled
 
 import copy
@@ -182,13 +183,9 @@ def solve(*args, **kwargs):
                 raise OverrideException("Adaptive solves not supported")
             lhs, rhs = eq_arg.lhs, eq_arg.rhs
             if isinstance(lhs, ufl.classes.Form) \
-               and isinstance(rhs, ufl.classes.Form) and \
-               (x in lhs.coefficients() or x in rhs.coefficients()):
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
-                lhs = ufl.replace(lhs, {x: x_old})
-                rhs = ufl.replace(rhs, {x: x_old})
-                eq_arg = lhs == rhs
+               and isinstance(rhs, ufl.classes.Form):
+                eq_arg = linear_equation_new_x(eq_arg, x,
+                                               annotate=annotate, tlm=tlm)
             eq = EquationSolver(
                 eq_arg, x, bcs, J=J,
                 form_compiler_parameters=form_compiler_parameters,
@@ -215,18 +212,11 @@ def solve(*args, **kwargs):
             A = A._tlm_adjoint__form
             x = x._tlm_adjoint__function
             b = b._tlm_adjoint__form
-            A_x_dep = x in A.coefficients()
-            b_x_dep = x in b.coefficients()
-            if A_x_dep or b_x_dep:
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
-                if A_x_dep:
-                    A = ufl.replace(A, {x: x_old})
-                if b_x_dep:
-                    b = ufl.replace(b, {x: x_old})
 
             eq = EquationSolver(
-                A == b, x, bcs, solver_parameters=solver_parameters,
+                linear_equation_new_x(A == b, x,
+                                      annotate=annotate, tlm=tlm),
+                x, bcs, solver_parameters=solver_parameters,
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
 
@@ -392,7 +382,6 @@ class LUSolver(backend_LUSolver):
                 A = self.__A
                 x, b = args
 
-            x = x._tlm_adjoint__function
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
                 raise OverrideException("Non-matching boundary conditions")
@@ -401,15 +390,15 @@ class LUSolver(backend_LUSolver):
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+
             A = A._tlm_adjoint__form
+            x = x._tlm_adjoint__function
             b = b._tlm_adjoint__form
-            if x in A.coefficients() or x in b.coefficients():
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
-                A = ufl.replace(A, {x: x_old})
-                b = ufl.replace(b, {x: x_old})
+
             eq = EquationSolver(
-                A == b, x, bcs,
+                linear_equation_new_x(A == b, x,
+                                      annotate=annotate, tlm=tlm),
+                x, bcs,
                 solver_parameters={"linear_solver": self.__linear_solver,
                                    "lu_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
@@ -462,7 +451,6 @@ class KrylovSolver(backend_KrylovSolver):
                 A = self.__A
                 x, b = args
 
-            x = x._tlm_adjoint__function
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
                 raise OverrideException("Non-matching boundary conditions")
@@ -471,15 +459,15 @@ class KrylovSolver(backend_KrylovSolver):
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+
             A = A._tlm_adjoint__form
+            x = x._tlm_adjoint__function
             b = b._tlm_adjoint__form
-            if x in A.coefficients() or x in b.coefficients():
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
-                A = ufl.replace(A, {x: x_old})
-                b = ufl.replace(b, {x: x_old})
+
             eq = EquationSolver(
-                A == b, x, bcs,
+                linear_equation_new_x(A == b, x,
+                                      annotate=annotate, tlm=tlm),
+                x, bcs,
                 solver_parameters={"linear_solver": self.__linear_solver,
                                    "preconditioner": self.__preconditioner,
                                    "krylov_solver": self.parameters},
@@ -510,13 +498,10 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
         if annotate or tlm:
             lhs, rhs = self.__problem.a_ufl, self.__problem.L_ufl
             x = self.__problem.u_ufl
-            if x in lhs.coefficients() or x in rhs.coefficients():
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
-                lhs = ufl.replace(lhs, {x: x_old})
-                rhs = ufl.replace(rhs, {x: x_old})
             eq = EquationSolver(
-                lhs == rhs, x, self.__problem.bcs(),
+                linear_equation_new_x(lhs == rhs, x,
+                                      annotate=annotate, tlm=tlm),
+                x, self.__problem.bcs(),
                 solver_parameters=self.parameters,
                 form_compiler_parameters=self.__problem.form_compiler_parameters,  # noqa: E501
                 cache_jacobian=False, cache_rhs_assembly=False)

@@ -39,7 +39,8 @@ __all__ = \
         "DirichletBCSolver",
         "EquationSolver",
         "ExprEvaluationSolver",
-        "ProjectionSolver"
+        "ProjectionSolver",
+        "linear_equation_new_x"
     ]
 
 def extract_dependencies(expr):
@@ -716,6 +717,24 @@ class EquationSolver(Equation):
                 cache_tlm_jacobian = self._cache_tlm_jacobian,
                 cache_rhs_assembly = self._cache_rhs_assembly,
                 defer_adjoint_assembly = self._defer_adjoint_assembly)
+
+
+def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
+    lhs, rhs = eq.lhs, eq.rhs
+    lhs_x_dep = x in lhs.coefficients()
+    rhs_x_dep = x in rhs.coefficients()
+    if lhs_x_dep or rhs_x_dep:
+        x_old = function_new(x)
+        AssignmentSolver(x, x_old).solve(manager=manager, annotate=annotate,
+                                         tlm=tlm)
+        if lhs_x_dep:
+            lhs = ufl.replace(lhs, {x: x_old})
+        if rhs_x_dep:
+            rhs = ufl.replace(rhs, {x: x_old})
+        return lhs == rhs
+    else:
+        return eq
+
 
 class ProjectionSolver(EquationSolver):
     def __init__(self, rhs, x, *args, **kwargs):
