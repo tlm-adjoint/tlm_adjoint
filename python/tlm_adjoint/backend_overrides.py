@@ -392,6 +392,7 @@ class LUSolver(backend_LUSolver):
                 A = self.__A
                 x, b = args
 
+            x = x._tlm_adjoint__function
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
                 raise OverrideException("Non-matching boundary conditions")
@@ -400,9 +401,15 @@ class LUSolver(backend_LUSolver):
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+            A = A._tlm_adjoint__form
+            b = b._tlm_adjoint__form
+            if x in A.coefficients() or x in b.coefficients():
+                x_old = function_new(x)
+                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
+                A = ufl.replace(A, {x: x_old})
+                b = ufl.replace(b, {x: x_old})
             eq = EquationSolver(
-                A._tlm_adjoint__form == b._tlm_adjoint__form,
-                x._tlm_adjoint__function, bcs,
+                A == b, x, bcs,
                 solver_parameters={"linear_solver": self.__linear_solver,
                                    "lu_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
@@ -455,6 +462,7 @@ class KrylovSolver(backend_KrylovSolver):
                 A = self.__A
                 x, b = args
 
+            x = x._tlm_adjoint__function
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
                 raise OverrideException("Non-matching boundary conditions")
@@ -463,9 +471,15 @@ class KrylovSolver(backend_KrylovSolver):
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+            A = A._tlm_adjoint__form
+            b = b._tlm_adjoint__form
+            if x in A.coefficients() or x in b.coefficients():
+                x_old = function_new(x)
+                AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
+                A = ufl.replace(A, {x: x_old})
+                b = ufl.replace(b, {x: x_old})
             eq = EquationSolver(
-                A._tlm_adjoint__form == b._tlm_adjoint__form,
-                x._tlm_adjoint__function, bcs,
+                A == b, x, bcs,
                 solver_parameters={"linear_solver": self.__linear_solver,
                                    "preconditioner": self.__preconditioner,
                                    "krylov_solver": self.parameters},
