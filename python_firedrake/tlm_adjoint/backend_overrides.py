@@ -144,8 +144,8 @@ def solve(*args, **kwargs):
             lhs, rhs = eq.lhs, eq.rhs
             if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
                 (x in lhs.coefficients() or x in rhs.coefficients()):
-                x_old = function_new(x, name = "x_old")
-                AssignmentSolver(x, F).solve(annotate = annotate, tlm = tlm)
+                x_old = function_new(x)
+                AssignmentSolver(x, x_old).solve(annotate = annotate, tlm = tlm)
                 lhs = ufl.replace(lhs, {x:x_old})
                 rhs = ufl.replace(rhs, {x:x_old})
                 eq = lhs == rhs
@@ -168,7 +168,7 @@ def solve(*args, **kwargs):
             A_x_dep = x in ufl.algorithms.extract_coefficients(A)
             b_x_dep = x in ufl.algorithms.extract_coefficients(b)
             if A_x_dep or b_x_dep:
-                x_old = function_new(x, name = "x_old")
+                x_old = function_new(x)
                 AssignmentSolver(x, x_old).solve(annotate = annotate, tlm = tlm)
                 if A_x_dep: A = ufl.replace(A, {x:x_old})
                 if b_x_dep: b = ufl.replace(b, {x:x_old})
