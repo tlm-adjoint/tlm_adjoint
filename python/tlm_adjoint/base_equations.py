@@ -1232,7 +1232,7 @@ class LinearEquation(Equation):
                 A_nl_deps = [nl_deps[j] for j in self._A_nl_dep_indices]
                 X = [nl_deps[j] for j in self._A_x_indices]
                 self._A.adjoint_derivative_action(A_nl_deps, A_nl_dep_index,
-                                                  X[0] if len(X) == 1 else X,  # noqa: E501
+                                                  X[0] if len(X) == 1 else X,
                                                   adj_X[0] if len(adj_X) == 1 else adj_X,  # noqa: E501
                                                   F, method="add")
             return F
