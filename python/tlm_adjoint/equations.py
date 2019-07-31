@@ -29,7 +29,7 @@ from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
 
 import copy
 import operator
-import numpy
+import numpy as np
 import types
 import ufl
 
@@ -814,11 +814,13 @@ class DirichletBCSolver(Equation):
         else:
             return DirichletBCSolver(tau_y, tlm_map[x], *self._bc_args, **self._bc_kwargs)
 
+
 def evaluate_expr_binary_operator(fn):
     def evaluate_expr_binary_operator(x):
         x_0, x_1 = map(evaluate_expr, x.ufl_operands)
         return fn(x_0, x_1)
     return evaluate_expr_binary_operator
+
 
 def evaluate_expr_function(fn):
     def evaluate_expr_function(x):
@@ -826,36 +828,42 @@ def evaluate_expr_function(fn):
         return fn(x_0)
     return evaluate_expr_function
 
+
 evaluate_expr_types = \
     {
-        ufl.classes.FloatValue:(lambda x : float(x)),
-        ufl.classes.IntValue:(lambda x : float(x)),
-        ufl.classes.Zero:(lambda x : 0.0),
+        ufl.classes.FloatValue: (lambda x: float(x)),
+        ufl.classes.IntValue: (lambda x: float(x)),
+        ufl.classes.Zero: (lambda x: 0.0),
     }
+
 for ufl_name, op_name in [("Division", "truediv"),
-                                                    ("Power", "pow"),
-                                                    ("Product", "mul"),
-                                                    ("Sum", "add")]:
-    evaluate_expr_types[getattr(ufl.classes, ufl_name)] = evaluate_expr_binary_operator(getattr(operator, op_name))
+                          ("Power", "pow"),
+                          ("Product", "mul"),
+                          ("Sum", "add")]:
+    evaluate_expr_types[getattr(ufl.classes, ufl_name)] \
+        = evaluate_expr_binary_operator(getattr(operator, op_name))
 del(ufl_name, op_name)
+
 for ufl_name, numpy_name in [("Abs", "abs"),
-                                                         ("Acos", "arccos"),
-                                                         ("Asin", "arcsin"),
-                                                         ("Atan", "arctan"),
-                                                         ("Atan2", "arctan2"),
-                                                         ("Cos", "cos"),
-                                                         ("Cosh", "cosh"),
-                                                         ("Exp", "exp"),
-                                                         ("Ln", "log"),
-                                                         ("MaxValue", "max"),
-                                                         ("MinValue", "min"),
-                                                         ("Sin", "sin"),
-                                                         ("Sinh", "sinh"),
-                                                         ("Sqrt", "sqrt"),
-                                                         ("Tan", "tan"),
-                                                         ("Tanh", "tanh")]:
-    evaluate_expr_types[getattr(ufl.classes, ufl_name)] = evaluate_expr_function(getattr(numpy, numpy_name))
+                             ("Acos", "arccos"),
+                             ("Asin", "arcsin"),
+                             ("Atan", "arctan"),
+                             ("Atan2", "arctan2"),
+                             ("Cos", "cos"),
+                             ("Cosh", "cosh"),
+                             ("Exp", "exp"),
+                             ("Ln", "log"),
+                             ("MaxValue", "max"),
+                             ("MinValue", "min"),
+                             ("Sin", "sin"),
+                             ("Sinh", "sinh"),
+                             ("Sqrt", "sqrt"),
+                             ("Tan", "tan"),
+                             ("Tanh", "tanh")]:
+    evaluate_expr_types[getattr(ufl.classes, ufl_name)] \
+        = evaluate_expr_function(getattr(np, numpy_name))
 del(ufl_name, numpy_name)
+
 
 def evaluate_expr(x):
     if is_function(x):
@@ -865,29 +873,32 @@ def evaluate_expr(x):
             return function_get_values(x)
     elif isinstance(x, backend_Constant):
         return float(x)
-    elif type(x) in evaluate_expr_types:
-        return evaluate_expr_types[type(x)](x)
     else:
-        raise EquationException("'%s' type not supported" % type(x))
+        return evaluate_expr_types[type(x)](x)
+
 
 class ExprEvaluationSolver(Equation):
     def __init__(self, rhs, x):
         if isinstance(rhs, ufl.classes.Form):
             raise EquationException("rhs should not be a Form")
+        x_space = x.function_space()
+        if len(x_space.ufl_element().value_shape()) > 0:
+            raise EquationEception("Solution must be a scalar Function")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        x_space_id = function_space_id(x.function_space())
+        x_space_id = function_space_id(x_space)
         for dep in deps:
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
-            elif function_space_id(dep.function_space()) != x_space_id \
-                and not is_real_function(dep):
+            elif function_space_id(dep.function_space()) != x_space_id and \
+                    not is_real_function(dep):
                 raise EquationException("Invalid function space")
         deps.insert(0, x)
 
-        Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = [])
-        self._rhs = rhs * ufl.dx(x.function_space().mesh())  # Store the Expr in a Form to aid caching
+        Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=[])
+        # Store the Expr in a Form to aid caching
+        self._rhs = rhs * ufl.dx(x_space.mesh())
         self.reset_forward_solve()
         self.reset_adjoint_derivative_action()
 
@@ -895,7 +906,7 @@ class ExprEvaluationSolver(Equation):
         Equation.replace(self, replace_map)
         self._rhs = ufl.replace(self._rhs, replace_map)
 
-    def forward_solve(self, x, deps = None):
+    def forward_solve(self, x, deps=None):
         if deps is None:
             rhs = self._rhs
         else:
@@ -904,11 +915,12 @@ class ExprEvaluationSolver(Equation):
             rhs = self._forward_rhs
             alias_replace(rhs, deps)
         rhs_val = evaluate_expr(rhs.integrals()[0].integrand())
-        if not deps is None:
+        if deps is not None:
             alias_clear(rhs)
         if isinstance(rhs_val, float):
             function_assign(x, rhs_val)
         else:
+            assert(function_local_size(x) == len(rhs_val))
             function_set_values(x, rhs_val)
 
     def reset_forward_solve(self):
@@ -923,8 +935,10 @@ class ExprEvaluationSolver(Equation):
                 dF = self._adjoint_derivatives[dep_index]
             else:
                 dF = self._adjoint_derivatives[dep_index] \
-                    = alias_form(ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep, argument = adj_x)),
-                                             list(self.nonlinear_dependencies()) + [adj_x])
+                    = alias_form(
+                        ufl.algorithms.expand_derivatives(
+                            ufl.derivative(self._rhs, dep, argument=adj_x)),
+                        list(self.nonlinear_dependencies()) + [adj_x])
             alias_replace(dF, list(nl_deps) + [adj_x])
             dF_val = evaluate_expr(dF.integrals()[0].integrand())
             alias_clear(dF)
@@ -932,15 +946,18 @@ class ExprEvaluationSolver(Equation):
             if isinstance(dF_val, float):
                 function_assign(F, dF_val)
             elif is_real_function(F):
-                dF_val = numpy.array([dF_val.sum()], dtype = numpy.float64)
-                dF_val_ = numpy.empty((1,), dtype = numpy.float64)
+                dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
+                dF_val = np.empty((1,), dtype=np.float64)
+                import mpi4py.MPI as MPI
                 comm = function_comm(F)
-                import mpi4py
-                (comm.tompi4py() if hasattr(comm, "tompi4py") else comm).Allreduce(
-                    dF_val, dF_val_, op = mpi4py.MPI.SUM)
-                dF_val = dF_val_[0]
+                # FEniCS backwards compatibility
+                if hasattr(comm, "tompi4py"):
+                    comm = comm.tompi4py()
+                comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
+                dF_val = dF_val[0]
                 function_assign(F, dF_val)
             else:
+                assert(function_local_size(F) == len(dF_val))
                 function_set_values(F, dF_val)
             return (-1.0, F)
 
@@ -952,19 +969,14 @@ class ExprEvaluationSolver(Equation):
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
-        if x in M:
-            raise EquationException("Invalid tangent-linear parameter")
 
         rhs = self._rhs.integrals()[0].integrand()
         tlm_rhs = ufl.classes.Zero()
-        for m, dm in zip(M, dM):
-            tlm_rhs += ufl.derivative(rhs, m, argument = dm)
-
         for dep in self.dependencies():
-            if dep != x and not dep in M:
-                tau_dep = tlm_map[dep]
-                if not tau_dep is None:
-                    tlm_rhs += ufl.derivative(rhs, dep, argument = tau_dep)
+            if dep != x:
+                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                if tau_dep is not None:
+                    tlm_rhs += ufl.derivative(rhs, dep, argument=tau_dep)
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return NullSolver(tlm_map[x])

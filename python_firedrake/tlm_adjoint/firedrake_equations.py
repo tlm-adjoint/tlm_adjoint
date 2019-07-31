@@ -237,6 +237,8 @@ class PointInterpolationSolver(Equation):
         else:
             if len(X) != X_coords.shape[0]:
                 raise EquationException("Invalid number of Function objects")
+        if len(y.function_space().ufl_element().value_shape()) > 0:
+            raise EquationException("y must be a scalar Function")
 
         if P is None:
             y_space = y.function_space()
