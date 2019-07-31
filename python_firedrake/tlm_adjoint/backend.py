@@ -29,6 +29,7 @@ backend_Constant = Constant
 backend_DirichletBC = DirichletBC
 backend_Function = Function
 backend_LinearSolver = LinearSolver
+backend_LinearVariationalProblem = LinearVariationalProblem
 backend_LinearVariationalSolver = LinearVariationalSolver
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
 backend_assemble = assemble
@@ -45,6 +46,7 @@ __all__ = \
         "backend_DirichletBC",
         "backend_Function",
         "backend_LinearSolver",
+        "backend_LinearVariationalProblem",
         "backend_LinearVariationalSolver",
         "backend_NonlinearVariationalSolver",
         "backend_assemble",

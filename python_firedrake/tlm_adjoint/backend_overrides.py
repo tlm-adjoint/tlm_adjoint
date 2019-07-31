@@ -21,7 +21,8 @@
 from .backend import *
 from .backend_interface import *
 
-from .equations import AssignmentSolver, EquationSolver, ProjectionSolver
+from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
+    linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
 from .tlm_adjoint import annotation_enabled, tlm_enabled
 
@@ -33,6 +34,7 @@ __all__ = \
         "OverrideException",
 
         "LinearSolver",
+        "LinearVariationalProblem",
         "LinearVariationalSolver",
         "NonlinearVariationalSolver",
         "assemble",
@@ -40,12 +42,14 @@ __all__ = \
         "solve"
     ]
 
+
 class OverrideException(Exception):
     pass
 
+
 def parameters_dict_equal(parameters_a, parameters_b):
     for key_a, value_a in parameters_a.items():
-        if not key_a in parameters_b:
+        if key_a not in parameters_b:
             return False
         value_b = parameters_b[key_a]
         if isinstance(value_a, (Parameters, dict)):
@@ -56,68 +60,77 @@ def parameters_dict_equal(parameters_a, parameters_b):
         elif value_a != value_b:
             return False
     for key_b in parameters_b:
-        if not key_b in parameters_a:
+        if key_b not in parameters_a:
             return False
     return True
 
-def packed_solver_parameters(solver_parameters, options_prefix = None,
-    nullspace = None, transpose_nullspace = None, near_nullspace = None):
-    if not options_prefix is None or not nullspace is None \
-        or not transpose_nullspace is None or not near_nullspace is None:
+
+def packed_solver_parameters(solver_parameters, options_prefix=None,
+                             nullspace=None, transpose_nullspace=None,
+                             near_nullspace=None):
+    if options_prefix is not None or nullspace is not None \
+       or transpose_nullspace is not None or near_nullspace is not None:
         solver_parameters = copy.copy(solver_parameters)
         if "tlm_adjoint" in solver_parameters:
-            tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = copy.copy(solver_parameters["tlm_adjoint"])
+            tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = \
+                copy.copy(solver_parameters["tlm_adjoint"])
         else:
             tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = {}
 
-        if not options_prefix is None:
+        if options_prefix is not None:
             if "options_prefix" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both options_prefix argument and solver parameter")
+                raise InterfaceException("Cannot pass both options_prefix argument and solver parameter")  # noqa: E501
             tlm_adjoint_parameters["options_prefix"] = options_prefix
 
-        if not nullspace is None:
+        if nullspace is not None:
             if "nullspace" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both nullspace argument and solver parameter")
+                raise InterfaceException("Cannot pass both nullspace argument and solver parameter")  # noqa: E501
             tlm_adjoint_parameters["nullspace"] = nullspace
 
-        if not transpose_nullspace is None:
+        if transpose_nullspace is not None:
             if "transpose_nullspace" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both transpose_nullspace argument and solver parameter")
+                raise InterfaceException("Cannot pass both transpose_nullspace argument and solver parameter")  # noqa: E501
             tlm_adjoint_parameters["transpose_nullspace"] = transpose_nullspace
 
-        if not near_nullspace is None:
+        if near_nullspace is not None:
             if "near_nullspace" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both near_nullspace argument and solver parameter")
+                raise InterfaceException("Cannot pass both near_nullspace argument and solver parameter")  # noqa: E501
             tlm_adjoint_parameters["near_nullspace"] = near_nullspace
 
     return solver_parameters
 
-# Aim for compatibility with Firedrake API, git master revision
-# 9e25c85dbb5400e0ebd7065932ee5b8bab2876f1
 
-def assemble(f, tensor = None, bcs = None, form_compiler_parameters = None,
-    inverse = False, *args, **kwargs):
-    b = backend_assemble(f, tensor = tensor, bcs = bcs,
-        form_compiler_parameters = form_compiler_parameters, inverse = inverse,
+# Aim for compatibility with Firedrake API, git master revision
+# cf7b18cddacae582fd1e92e6d2148d9a538d131a
+
+
+def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
+             inverse=False, *args, **kwargs):
+    b = backend_assemble(
+        f, tensor=tensor, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters, inverse=inverse,
         *args, **kwargs)
     if tensor is None:
         tensor = b
 
     rank = len(f.arguments())
     if rank != 0 and not inverse:
-        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
-        if not form_compiler_parameters is None:
-            update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
+        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
+        if form_compiler_parameters is not None:
+            update_parameters_dict(form_compiler_parameters_,
+                                   form_compiler_parameters)
         form_compiler_parameters = form_compiler_parameters_
 
         if rank != 2:
             tensor._tlm_adjoint__form = f
-        tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
+        tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return tensor
 
-def extract_args_linear_solve(A, x, b, bcs = None, solver_parameters = {}):
+
+def extract_args_linear_solve(A, x, b, bcs=None, solver_parameters={}):
     return A, x, b, bcs, solver_parameters
+
 
 def solve(*args, **kwargs):
     kwargs = copy.copy(kwargs)
@@ -130,59 +143,61 @@ def solve(*args, **kwargs):
         tlm = tlm_enabled()
     if annotate or tlm:
         if isinstance(args[0], ufl.classes.Equation):
-            eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
-                nullspace, transpose_nullspace, near_nullspace, options_prefix = \
-                extract_args(*args, **kwargs)
-            if not Jp is None:
+            (eq_arg, x, bcs,
+             J, Jp,
+             M,
+             form_compiler_parameters, solver_parameters,
+             nullspace, transpose_nullspace, near_nullspace,
+             options_prefix) = extract_args(*args, **kwargs)
+            if Jp is not None:
                 raise OverrideException("Preconditioners not supported")
-            if not M is None:
+            if M is not None:
                 raise OverrideException("Adaptive solves not supported")
-            solver_parameters = packed_solver_parameters(solver_parameters,
-                options_prefix = options_prefix, nullspace = nullspace,
-                transpose_nullspace = transpose_nullspace,
-                near_nullspace = near_nullspace)
-            lhs, rhs = eq.lhs, eq.rhs
-            if isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form) and \
-                (x in lhs.coefficients() or x in rhs.coefficients()):
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate = annotate, tlm = tlm)
-                lhs = ufl.replace(lhs, {x:x_old})
-                rhs = ufl.replace(rhs, {x:x_old})
-                eq = lhs == rhs
-            EquationSolver(eq, x, bcs, J = J,
-                form_compiler_parameters = form_compiler_parameters,
-                solver_parameters = solver_parameters, cache_jacobian = False,
-                cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+            solver_parameters = packed_solver_parameters(
+                solver_parameters, options_prefix=options_prefix,
+                nullspace=nullspace, transpose_nullspace=transpose_nullspace,
+                near_nullspace=near_nullspace)
+            if isinstance(eq_arg.lhs, ufl.classes.Form) \
+               and isinstance(eq_arg.rhs, ufl.classes.Form):
+                eq_arg = linear_equation_new_x(eq_arg, x,
+                                               annotate=annotate, tlm=tlm)
+            eq = EquationSolver(
+                eq_arg, x, bcs, J=J,
+                form_compiler_parameters=form_compiler_parameters,
+                solver_parameters=solver_parameters, cache_jacobian=False,
+                cache_rhs_assembly=False)
+            eq.solve(annotate=annotate, tlm=tlm)
         else:
-            A, x, b, bcs, solver_parameters = extract_args_linear_solve(*args, **kwargs)
+            (A, x, b,
+             bcs,
+             solver_parameters) = extract_args_linear_solve(*args, **kwargs)
 
             if bcs is None:
                 bcs = A.bcs
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-            if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")
+            if not parameters_dict_equal(
+                    b._tlm_adjoint__form_compiler_parameters,
+                    form_compiler_parameters):
+                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
 
             A = A.a
             x = x.function
             b = b._tlm_adjoint__form
-            A_x_dep = x in ufl.algorithms.extract_coefficients(A)
-            b_x_dep = x in ufl.algorithms.extract_coefficients(b)
-            if A_x_dep or b_x_dep:
-                x_old = function_new(x)
-                AssignmentSolver(x, x_old).solve(annotate = annotate, tlm = tlm)
-                if A_x_dep: A = ufl.replace(A, {x:x_old})
-                if b_x_dep: b = ufl.replace(b, {x:x_old})
 
-            EquationSolver(A == b, x,
-                bcs, solver_parameters = solver_parameters,
-                form_compiler_parameters = form_compiler_parameters,
-                cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+            eq = EquationSolver(
+                linear_equation_new_x(A == b, x,
+                                      annotate=annotate, tlm=tlm),
+                x, bcs, solver_parameters=solver_parameters,
+                form_compiler_parameters=form_compiler_parameters,
+                cache_jacobian=False, cache_rhs_assembly=False)
+            eq.solve(annotate=annotate, tlm=tlm)
     else:
         backend_solve(*args, **kwargs)
 
-def project(v, V, bcs = None, solver_parameters = None,
-    form_compiler_parameters = None, use_slate_for_inverse = True, name = None,
-    annotate = None, tlm = None):
+
+def project(v, V, bcs=None, solver_parameters=None,
+            form_compiler_parameters=None, use_slate_for_inverse=True,
+            name=None, annotate=None, tlm=None):
     if annotate is None:
         annotate = annotation_enabled()
     if tlm is None:
@@ -190,38 +205,55 @@ def project(v, V, bcs = None, solver_parameters = None,
     if annotate or tlm:
         if use_slate_for_inverse:
             # Is a local solver actually used?
-            projector = Projector(v, V, bcs = bcs,
-                solver_parameters = solver_parameters,
-                form_compiler_parameters = form_compiler_parameters,
-                use_slate_for_inverse = True)
-            use_slate_for_inverse = getattr(projector, "use_slate_for_inverse", False)
+            projector = Projector(
+                v, V, bcs=bcs, solver_parameters=solver_parameters,
+                form_compiler_parameters=form_compiler_parameters,
+                use_slate_for_inverse=True)
+            use_slate_for_inverse = getattr(projector,
+                                            "use_slate_for_inverse", False)
         if is_function(V):
             x = V
         else:
-            x = Function(V, name = name)
+            x = Function(V, name=name)
+        if bcs is None:
+            bcs = []
+        elif isinstance(bcs, backend_DirichletBC):
+            bcs = [bcs]
+        if solver_parameters is None:
+            solver_parameters = {}
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+        if x in ufl.algorithms.extract_coefficients(v):
+            x_old = function_new(x)
+            AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
+            v = ufl.replace(v, {x: x_old})
         if use_slate_for_inverse:
-            if bcs is not None and (isinstance(bcs, backend_DirichletBC)
-                                    or len(bcs) > 0):
+            if len(bcs) > 0:
                 raise OverrideException("Boundary conditions not supported")
-            LocalProjectionSolver(v, x,
-                form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-                cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+            eq = LocalProjectionSolver(
+                v, x, form_compiler_parameters=form_compiler_parameters,
+                cache_jacobian=False, cache_rhs_assembly=False)
+            eq.solve(annotate=annotate, tlm=tlm)
         else:
-            ProjectionSolver(v, x, [] if bcs is None else bcs,
-                solver_parameters = {} if solver_parameters is None else solver_parameters,
-                form_compiler_parameters = {} if form_compiler_parameters is None else form_compiler_parameters,
-                cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+            eq = ProjectionSolver(
+                v, x, bcs, solver_parameters=solver_parameters,
+                form_compiler_parameters=form_compiler_parameters,
+                cache_jacobian=False, cache_rhs_assembly=False)
+            eq.solve(annotate=annotate, tlm=tlm)
         return x
     else:
-        return backend_project(v, V, bcs = bcs,
-            solver_parameters = solver_parameters,
-            form_compiler_parameters = form_compiler_parameters,
-            use_slate_for_inverse = use_slate_for_inverse, name = name)
+        return backend_project(
+            v, V, bcs=bcs, solver_parameters=solver_parameters,
+            form_compiler_parameters=form_compiler_parameters,
+            use_slate_for_inverse=use_slate_for_inverse, name=name)
+
 
 _orig_Function_assign = backend_Function.assign
-def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
-    return_value = _orig_Function_assign(self, expr, subset = subset)
-    if not is_function(expr) or not subset is None:
+
+
+def _Function_assign(self, expr, subset=None, annotate=None, tlm=None):
+    return_value = _orig_Function_assign(self, expr, subset=subset)
+    if not is_function(expr) or subset is not None:
         return return_value
 
     if annotate is None:
@@ -229,32 +261,35 @@ def _Function_assign(self, expr, subset = None, annotate = None, tlm = None):
     if tlm is None:
         tlm = tlm_enabled()
     if annotate or tlm:
-        AssignmentSolver(expr, self).solve(annotate = annotate, tlm = tlm)
+        AssignmentSolver(expr, self).solve(annotate=annotate, tlm=tlm)
     return return_value
+
+
 backend_Function.assign = _Function_assign
 
 _orig_Function_project = backend_Function.project
+
+
 def _Function_project(self, b, *args, **kwargs):
     return project(b, self, *args, **kwargs)
+
+
 backend_Function.project = _Function_project
 
+
 class LinearSolver(backend_LinearSolver):
-    def __init__(self, A, P = None, solver_parameters = None, nullspace = None,
-        transpose_nullspace = None, near_nullspace = None, options_prefix = None):
-        if not P is None:
+    def __init__(self, A, P=None, solver_parameters=None, nullspace=None,
+                 transpose_nullspace=None, near_nullspace=None,
+                 options_prefix=None):
+        if P is not None:
             raise OverrideException("Preconditioners not supported")
 
-        backend_LinearSolver.__init__(self, A, P = P,
-            solver_parameters = solver_parameters, nullspace = nullspace,
-            transpose_nullspace = transpose_nullspace,
-            near_nullspace = near_nullspace, options_prefix = options_prefix)
+        backend_LinearSolver.__init__(
+            self, A, P=P, solver_parameters=solver_parameters,
+            nullspace=nullspace, transpose_nullspace=transpose_nullspace,
+            near_nullspace=near_nullspace, options_prefix=options_prefix)
 
-        if solver_parameters is None:
-            solver_parameters = {}
-        else:
-            solver_parameters = copy_parameters_dict(solver_parameters)
-
-    def solve(self, x, b, annotate = None, tlm = None):
+    def solve(self, x, b, annotate=None, tlm=None):
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
@@ -266,24 +301,36 @@ class LinearSolver(backend_LinearSolver):
             if not is_function(b):
                 b = b.function
             bcs = A.bcs
+            solver_parameters = packed_solver_parameters(
+                self.parameters, options_prefix=self.options_prefix,
+                nullspace=self.nullspace,
+                transpose_nullspace=self.transpose_nullspace,
+                near_nullspace=self.near_nullspace)
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-            if not parameters_dict_equal(b._tlm_adjoint__form_compiler_parameters, form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")
-            solver_parameters = packed_solver_parameters(self.parameters,
-                options_prefix = self.options_prefix, nullspace = self.nullspace,
-                transpose_nullspace = self.transpose_nullspace,
-                near_nullspace = self.near_nullspace)
+            if not parameters_dict_equal(
+                    b._tlm_adjoint__form_compiler_parameters,
+                    form_compiler_parameters):
+                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
 
-            eq = EquationSolver(A.a == b._tlm_adjoint__form, x,
-                bcs, solver_parameters = solver_parameters,
-                form_compiler_parameters = form_compiler_parameters,
-                cache_jacobian = False, cache_rhs_assembly = False)
+            eq = EquationSolver(
+                linear_equation_new_x(A.a == b._tlm_adjoint__form, x,
+                                      annotate=annotate, tlm=tlm),
+                x, bcs, solver_parameters=solver_parameters,
+                form_compiler_parameters=form_compiler_parameters,
+                cache_jacobian=False, cache_rhs_assembly=False)
 
-            eq._pre_process(annotate = annotate)
+            eq._pre_process(annotate=annotate)
             backend_LinearSolver.solve(self, x, b)
-            eq._post_process(annotate = annotate, tlm = tlm)
+            eq._post_process(annotate=annotate, tlm=tlm)
         else:
             backend_LinearSolver.solve(self, x, b)
+
+
+class LinearVariationalProblem(backend_LinearVariationalProblem):
+    def __init__(self, a, L, *args, **kwargs):
+        backend_LinearVariationalProblem.__init__(self, a, L, *args, **kwargs)
+        self._tlm_adjoint__b = L
+
 
 class LinearVariationalSolver(backend_LinearVariationalSolver):
     def __init__(self, *args, **kwargs):
@@ -296,40 +343,49 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
     def set_transfer_operators(self, *args, **kwargs):
         raise OverrideException("Transfer operators not supported")
 
-    def solve(self, bounds = None, annotate = None, tlm = None):
+    def solve(self, bounds=None, annotate=None, tlm=None):
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if not bounds is None:
+            if bounds is not None:
                 raise OverrideException("Bounds not supported")
-            if not self._problem.Jp is None:
+            if self._problem.Jp is not None:
                 raise OverrideException("Preconditioners not supported")
 
-            x = self._problem.u
-            L = ufl.rhs(ufl.replace(self._problem.F, {x:TrialFunction(x.function_space())}))
+            solver_parameters = packed_solver_parameters(
+                self.parameters, options_prefix=self.options_prefix,
+                nullspace=self._ctx._nullspace,
+                transpose_nullspace=self._ctx._nullspace_T,
+                near_nullspace=self._ctx._near_nullspace)
             form_compiler_parameters = self._problem.form_compiler_parameters
-            if form_compiler_parameters is None: form_compiler_parameters = {}
-            solver_parameters = packed_solver_parameters(self.parameters,
-                options_prefix = self.options_prefix, nullspace = self._ctx._nullspace,
-                transpose_nullspace = self._ctx._nullspace_T,
-                near_nullspace = self._ctx._near_nullspace)
+            if form_compiler_parameters is None:
+                form_compiler_parameters = {}
 
-            EquationSolver(self._problem.J == L, x, self._problem.bcs,
-                solver_parameters = solver_parameters,
-                form_compiler_parameters = form_compiler_parameters,
-                cache_jacobian = self._problem._constant_jacobian,
-                cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+            A = self._problem.J
+            x = self._problem.u
+            b = self._problem._tlm_adjoint__b
+
+            eq = EquationSolver(
+                linear_equation_new_x(A == b, x,
+                                      annotate=annotate, tlm=tlm),
+                x, self._problem.bcs, solver_parameters=solver_parameters,
+                form_compiler_parameters=form_compiler_parameters,
+                cache_jacobian=self._problem._constant_jacobian,
+                cache_rhs_assembly=False)
+            eq.solve(annotate=annotate, tlm=tlm)
         else:
-            backend_LinearVariationalSolver.solve(self, bounds = bounds)
+            backend_LinearVariationalSolver.solve(self, bounds=bounds)
+
 
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
     def __init__(self, *args, **kwargs):
         problem, = args
         if "appctx" in kwargs:
             raise OverrideException("Preconditioners not supported")
-        if "pre_jacobian_callback" in kwargs or "pre_function_callback" in kwargs:
+        if "pre_jacobian_callback" in kwargs \
+           or "pre_function_callback" in kwargs:
             raise OverrideException("Callbacks not supported")
 
         backend_NonlinearVariationalSolver.__init__(self, *args, **kwargs)
@@ -337,28 +393,31 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
     def set_transfer_operators(self, *args, **kwargs):
         raise OverrideException("Transfer operators not supported")
 
-    def solve(self, bounds = None, annotate = None, tlm = None):
+    def solve(self, bounds=None, annotate=None, tlm=None):
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if not bounds is None:
+            if bounds is not None:
                 raise OverrideException("Bounds not supported")
-            if not self._problem.Jp is None:
+            if self._problem.Jp is not None:
                 raise OverrideException("Preconditioners not supported")
 
+            solver_parameters = packed_solver_parameters(
+                self.parameters, options_prefix=self.options_prefix,
+                nullspace=self._ctx._nullspace,
+                transpose_nullspace=self._ctx._nullspace_T,
+                near_nullspace=self._ctx._near_nullspace)
             form_compiler_parameters = self._problem.form_compiler_parameters
-            if form_compiler_parameters is None: form_compiler_parameters = {}
-            solver_parameters = packed_solver_parameters(self.parameters,
-                options_prefix = self.options_prefix, nullspace = self._ctx._nullspace,
-                transpose_nullspace = self._ctx._nullspace_T,
-                near_nullspace = self._ctx._near_nullspace)
+            if form_compiler_parameters is None:
+                form_compiler_parameters = {}
 
-            EquationSolver(self._problem.F == 0, self._problem.u,
-                self._problem.bcs, J = self._problem.J,
-                solver_parameters = solver_parameters,
-                form_compiler_parameters = form_compiler_parameters,
-                cache_jacobian = False, cache_rhs_assembly = False).solve(annotate = annotate, tlm = tlm)
+            eq = EquationSolver(
+                self._problem.F == 0, self._problem.u, self._problem.bcs,
+                J=self._problem.J, solver_parameters=solver_parameters,
+                form_compiler_parameters=form_compiler_parameters,
+                cache_jacobian=False, cache_rhs_assembly=False)
+            eq.solve(annotate=annotate, tlm=tlm)
         else:
-            backend_NonlinearVariationalSolver.solve(self, bounds = bounds)
+            backend_NonlinearVariationalSolver.solve(self, bounds=bounds)
