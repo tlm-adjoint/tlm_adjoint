@@ -22,7 +22,8 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .backend_interface import *
 
-from .base_equations import Equation, NullSolver, get_tangent_linear
+from .base_equations import Equation, EquationException, NullSolver, \
+    get_tangent_linear
 from .caches import Cache, CacheRef, form_dependencies, form_key, \
     parameters_key
 from .equations import EquationSolver, alias_assemble, alias_form

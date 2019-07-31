@@ -22,10 +22,11 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .backend_interface import *
 
-from .base_equations import *
+from .base_equations import AssignmentSolver, Equation, EquationException, \
+    NullSolver, get_tangent_linear
 from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
-    bcs_is_static, form_neg, function_is_cached, is_cached, linear_solver_cache, \
-    new_count, split_action, split_form, update_caches
+    bcs_is_static, form_neg, function_is_cached, is_cached, \
+    linear_solver_cache, new_count, split_action, split_form, update_caches
 
 import copy
 import operator
@@ -43,37 +44,45 @@ __all__ = \
         "linear_equation_new_x"
     ]
 
+
+def derivative_dependencies(expr, dep):
+    dexpr = ufl.derivative(expr, dep)
+    dexpr = ufl.algorithms.expand_derivatives(dexpr)
+    return ufl.algorithms.extract_coefficients(dexpr)
+
+
 def extract_dependencies(expr):
     deps = {}
     nl_deps = {}
     for dep in ufl.algorithms.extract_coefficients(expr):
         if is_function(dep):
             dep_id = dep.id()
-            if not dep_id in deps:
+            if dep_id not in deps:
                 deps[dep_id] = dep
-            if not dep_id in nl_deps:
+            if dep_id not in nl_deps:
                 n_nl_deps = 0
-                for nl_dep in ufl.algorithms.extract_coefficients(ufl.algorithms.expand_derivatives(ufl.derivative(expr, dep, argument = TrialFunction(dep.function_space())))):
+                for nl_dep in derivative_dependencies(expr, dep):
                     if is_function(nl_dep):
                         nl_dep_id = nl_dep.id()
-                        if not nl_dep_id in nl_deps:
+                        if nl_dep_id not in nl_deps:
                             nl_deps[nl_dep_id] = nl_dep
                         n_nl_deps += 1
-                if not dep_id in nl_deps and n_nl_deps > 0:
+                if n_nl_deps > 0 and dep_id not in nl_deps:
                     nl_deps[dep_id] = dep
 
     return deps, nl_deps
 
+
 class AssembleSolver(Equation):
-    def __init__(self, rhs, x, form_compiler_parameters = {},
-        match_quadrature = None):
+    def __init__(self, rhs, x, form_compiler_parameters={},
+                 match_quadrature=None):
         if match_quadrature is None:
-            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]
+            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
 
         rank = len(rhs.arguments())
         if rank == 0:
             if not is_real_function(x):
-                raise EquationException("Rank 0 forms can only be assigned to real functions")
+                raise EquationException("Rank 0 forms can only be assigned to real functions")  # noqa: E501
         elif rank != 1:
             raise EquationException("Must be a rank 0 or 1 form")
 
@@ -83,13 +92,17 @@ class AssembleSolver(Equation):
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
 
-        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
-        update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
+        form_compiler_parameters_ = \
+            copy_parameters_dict(parameters["form_compiler"])
+        update_parameters_dict(form_compiler_parameters_,
+                               form_compiler_parameters)
         form_compiler_parameters = form_compiler_parameters_
         if match_quadrature:
-            update_parameters_dict(form_compiler_parameters, form_form_compiler_parameters(rhs, form_compiler_parameters))
+            update_parameters_dict(
+                form_compiler_parameters,
+                form_form_compiler_parameters(rhs, form_compiler_parameters))
 
-        Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = [])
+        Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=[])
         self._rank = rank
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
@@ -98,18 +111,22 @@ class AssembleSolver(Equation):
         Equation.replace(self, replace_map)
         self._rhs = ufl.replace(self._rhs, replace_map)
 
-    def forward_solve(self, x, deps = None):
+    def forward_solve(self, x, deps=None):
         if deps is None:
             rhs = self._rhs
         else:
             rhs = ufl.replace(self._rhs, dict(zip(self.dependencies(), deps)))
 
         if self._rank == 0:
-            function_assign(x, assemble(rhs, form_compiler_parameters = self._form_compiler_parameters))
+            function_assign(
+                x,
+                assemble(rhs,
+                         form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
         else:
             assert(self._rank == 1)
-            assemble(rhs, form_compiler_parameters = self._form_compiler_parameters,
-                tensor = x.vector())
+            assemble(rhs,
+                     form_compiler_parameters=self._form_compiler_parameters,
+                     tensor=x.vector())
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -129,35 +146,35 @@ class AssembleSolver(Equation):
         else:
             assert(self._rank == 1)
             argument = TrialFunction(dep.function_space())
-        dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._rhs, dep,
-            argument = argument))
+        dF = ufl.algorithms.expand_derivatives(
+            ufl.derivative(self._rhs, dep, argument=argument))
         if dF.empty():
             return None
 
         dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         if self._rank == 0:
-            return (-function_max_value(adj_x), assemble(dF, form_compiler_parameters = self._form_compiler_parameters))
+            dF = assemble(
+                dF, form_compiler_parameters=self._form_compiler_parameters)
+            return (-function_max_value(adj_x), dF)
         else:
             assert(self._rank == 1)
-            return (-1.0, assemble(ufl.action(adjoint(dF), adj_x), form_compiler_parameters = self._form_compiler_parameters))
+            dF = assemble(
+                ufl.action(adjoint(dF), adj_x),
+                form_compiler_parameters=self._form_compiler_parameters)
+            return (-1.0, dF)
 
     def adjoint_jacobian_solve(self, nl_deps, b):
         return b
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
-        if x in M:
-            raise EquationException("Invalid tangent-linear parameter")
 
         tlm_rhs = ufl.classes.Zero()
-        for m, dm in zip(M, dM):
-            tlm_rhs += ufl.derivative(self._rhs, m, argument = dm)
-
         for dep in self.dependencies():
-            if dep != x and not dep in M:
-                tau_dep = tlm_map[dep]
-                if not tau_dep is None:
-                    tlm_rhs += ufl.derivative(self._rhs, dep, argument = tau_dep)
+            if dep != x:
+                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                if tau_dep is not None:
+                    tlm_rhs += ufl.derivative(self._rhs, dep, argument=tau_dep)
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return NullSolver(tlm_map[x])
@@ -165,22 +182,24 @@ class AssembleSolver(Equation):
         if tlm_rhs.empty():
             return NullSolver(tlm_map[x])
         else:
-            return AssembleSolver(tlm_rhs, tlm_map[x],
-                form_compiler_parameters = self._form_compiler_parameters)
+            return AssembleSolver(
+                tlm_rhs, tlm_map[x],
+                form_compiler_parameters=self._form_compiler_parameters)
+
 
 class FunctionAlias(backend_Function):
-    def __init__(self, space, x = None):
-        ufl.classes.Coefficient.__init__(self, space, count = new_count())
+    def __init__(self, space, x=None):
+        ufl.classes.Coefficient.__init__(self, space, count=new_count())
         self.__base_keys = set(self.__dict__.keys())
         self.__base_keys.add("_FunctionAlias__base_keys")
-        if not x is None:
+        if x is not None:
             self._alias(x)
 
     def _alias(self, x):
         self._clear()
 
         for key, value in x.__dict__.items():
-            if not key in self.__base_keys:
+            if key not in self.__base_keys:
                 self.__dict__[key] = value
 
         ufl.log.push_level(ufl.log.CRITICAL)
@@ -191,7 +210,8 @@ class FunctionAlias(backend_Function):
             try:
                 value = getattr(x, key)
                 has_key = True
-            except (AttributeError, ufl.UFLException):  # ?? Can occur with Firedrake ??
+            # Can occur with Firedrake
+            except (AttributeError, ufl.UFLException):
                 has_key = False
             if not has_key:
                 continue
@@ -202,23 +222,27 @@ class FunctionAlias(backend_Function):
 
     def _clear(self):
         for key in tuple(self.__dict__.keys()):
-            if not key in self.__base_keys:
+            if key not in self.__base_keys:
                 del(self.__dict__[key])
 
+
 def alias_form(form, deps):
-    adeps = [FunctionAlias(dep.function_space()) for dep in deps]
+    adeps = tuple(FunctionAlias(dep.function_space()) for dep in deps)
     return_value = ufl.replace(form, dict(zip(deps, adeps)))
-    assert(not "_tlm_adjoint__adeps" in return_value._cache)
+    assert("_tlm_adjoint__adeps" not in return_value._cache)
     return_value._cache["_tlm_adjoint__adeps"] = adeps
     return return_value
+
 
 def alias_replace(form, deps):
     for adep, dep in zip(form._cache["_tlm_adjoint__adeps"], deps):
         adep._alias(dep)
 
+
 def alias_clear(form):
     for adep in form._cache["_tlm_adjoint__adeps"]:
         adep._clear()
+
 
 def alias_assemble(form, deps, *args, **kwargs):
     alias_replace(form, deps)
@@ -226,48 +250,52 @@ def alias_assemble(form, deps, *args, **kwargs):
     alias_clear(form)
     return return_value
 
+
 def homogenized_bc(bc):
     if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
         return bc
     else:
         hbc = homogenize(bc)
         static = bcs_is_static([bc])
-        hbc.is_static = lambda : static
+        hbc.is_static = lambda: static
         cache = bcs_is_cached([bc])
-        hbc.is_cached = lambda : cache
-        hbc.is_homogeneous = lambda : True
+        hbc.is_cached = lambda: cache
+        hbc.is_homogeneous = lambda: True
+        hbc.homogenize = lambda: hbc
         return hbc
 
+
 class EquationSolver(Equation):
-    # eq, x, bcs, J, form_compiler_parameters and solver_parameters argument usage
-    # based on the interface for the solve function in FEniCS (see e.g. FEniCS
-    # 2017.1.0)
-    def __init__(self, eq, x, bcs = [], J = None, form_compiler_parameters = {},
-        solver_parameters = {}, adjoint_solver_parameters = None,
-        tlm_solver_parameters = None, initial_guess = None, cache_jacobian = None,
-        cache_adjoint_jacobian = None, cache_tlm_jacobian = None,
-        cache_rhs_assembly = None, match_quadrature = None,
-        defer_adjoint_assembly = None):
+    # eq, x, bcs, J, form_compiler_parameters and solver_parameters argument
+    # usage based on the interface for the solve function in FEniCS (see e.g.
+    # FEniCS 2017.1.0)
+    def __init__(self, eq, x, bcs=[], J=None, form_compiler_parameters={},
+                 solver_parameters={}, adjoint_solver_parameters=None,
+                 tlm_solver_parameters=None, initial_guess=None,
+                 cache_jacobian=None, cache_adjoint_jacobian=None,
+                 cache_tlm_jacobian=None, cache_rhs_assembly=None,
+                 match_quadrature=None, defer_adjoint_assembly=None):
         if isinstance(bcs, backend_DirichletBC):
             bcs = [bcs]
         if cache_jacobian is None:
-            if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:
+            if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:  # noqa: E501
                 cache_jacobian = False
         if cache_rhs_assembly is None:
-            cache_rhs_assembly = parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"]
+            cache_rhs_assembly = parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"]  # noqa: E501
         if match_quadrature is None:
-            match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]
+            match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]  # noqa: E501
         if defer_adjoint_assembly is None:
-            defer_adjoint_assembly = parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"]
+            defer_adjoint_assembly = parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"]  # noqa: E501
         if match_quadrature and defer_adjoint_assembly:
-            raise EquationException("Cannot both match quadrature and defer adjoint assembly")
+            raise EquationException("Cannot both match quadrature and defer adjoint assembly")  # noqa: E501
 
         lhs, rhs = eq.lhs, eq.rhs
-        linear = isinstance(lhs, ufl.classes.Form) and isinstance(rhs, ufl.classes.Form)
+        linear = (isinstance(lhs, ufl.classes.Form)
+                  and isinstance(rhs, ufl.classes.Form))
         if linear:
             if x in lhs.coefficients() or x in rhs.coefficients():
                 raise EquationException("Invalid non-linear dependency")
-            F = ufl.action(lhs, coefficient = x) + form_neg(rhs)
+            F = ufl.action(lhs, coefficient=x) + form_neg(rhs)
             nl_solve_J = None
             J = lhs
         else:
@@ -275,23 +303,28 @@ class EquationSolver(Equation):
             if rhs != 0:
                 raise EquationException("Invalid right-hand-side")
             nl_solve_J = J
-            J = ufl.algorithms.expand_derivatives(ufl.derivative(F, x, argument = TrialFunction(x.function_space())))
+            J = ufl.algorithms.expand_derivatives(ufl.derivative(
+                F, x, argument=TrialFunction(x.function_space())))
 
         deps, nl_deps = extract_dependencies(F)
 
+        if nl_solve_J is not None:
+            for dep in nl_solve_J.coefficients():
+                if is_function(dep):
+                    dep_id = dep.id()
+                    if dep_id not in deps:
+                        deps[dep_id] = dep
+
         if initial_guess == x:
             initial_guess = None
-        if not initial_guess is None:
+        if initial_guess is not None:
             initial_guess_id = initial_guess.id()
-            if not initial_guess_id in deps:
+            if initial_guess_id not in deps:
                 deps[initial_guess_id] = initial_guess
 
-        x_id = x.id()
-        if x_id in deps:
-            deps = list(deps.values())
+        deps = list(deps.values())
+        if x in deps:
             deps.remove(x)
-        else:
-            deps = list(deps.values())
         deps.insert(0, x)
         nl_deps = tuple(nl_deps.values())
 
@@ -305,25 +338,42 @@ class EquationSolver(Equation):
             cache_tlm_jacobian = cache_jacobian
 
         if nl_solve_J is None:
-            solver_parameters, linear_solver_parameters, checkpoint_ic = process_solver_parameters(solver_parameters, J, linear)
+            (solver_parameters,
+             linear_solver_parameters,
+             checkpoint_ic) = process_solver_parameters(
+                solver_parameters, J, linear)
         else:
-            _, linear_solver_parameters, _ = process_solver_parameters(solver_parameters, J, linear)
-            solver_parameters, _, checkpoint_ic = process_solver_parameters(solver_parameters, nl_solve_J, linear)
-        if adjoint_solver_parameters is None:
-            adjoint_solver_parameters = process_adjoint_solver_parameters(linear_solver_parameters)
-        else:
-            _, adjoint_solver_parameters, _ = process_solver_parameters(adjoint_solver_parameters, J, linear = True)
-        if not tlm_solver_parameters is None:
-            _, tlm_solver_parameters, _ = process_solver_parameters(tlm_solver_parameters, J, linear = True)
-        ic_deps = [x] if (initial_guess is None and checkpoint_ic) else []
+            _, linear_solver_parameters, _ = process_solver_parameters(
+                solver_parameters, J, linear)
+            solver_parameters, _, checkpoint_ic = process_solver_parameters(
+                solver_parameters, nl_solve_J, linear)
 
-        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])
-        update_parameters_dict(form_compiler_parameters_, form_compiler_parameters)
+        if adjoint_solver_parameters is None:
+            adjoint_solver_parameters = process_adjoint_solver_parameters(
+                linear_solver_parameters)
+        else:
+            _, adjoint_solver_parameters, _ = process_solver_parameters(
+                adjoint_solver_parameters, J, linear=True)
+
+        if tlm_solver_parameters is not None:
+            _, tlm_solver_parameters, _ = process_solver_parameters(
+                tlm_solver_parameters, J, linear=True)
+
+        if initial_guess is None and checkpoint_ic:
+            ic_deps = [x]
+        else:
+            ic_deps = []
+
+        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
+        update_parameters_dict(form_compiler_parameters_,
+                               form_compiler_parameters)
         form_compiler_parameters = form_compiler_parameters_
         if match_quadrature:
-            update_parameters_dict(form_compiler_parameters, form_form_compiler_parameters(F, form_compiler_parameters))
+            update_parameters_dict(
+                form_compiler_parameters,
+                form_form_compiler_parameters(F, form_compiler_parameters))
 
-        Equation.__init__(self, x, deps, nl_deps = nl_deps, ic_deps = ic_deps)
+        Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = list(bcs)
@@ -335,7 +385,10 @@ class EquationSolver(Equation):
         self._linear_solver_parameters = linear_solver_parameters
         self._adjoint_solver_parameters = adjoint_solver_parameters
         self._tlm_solver_parameters = tlm_solver_parameters
-        self._initial_guess_index = None if initial_guess is None else deps.index(initial_guess)
+        if initial_guess is None:
+            self._initial_guess_index = None
+        else:
+            self._initial_guess_index = deps.index(initial_guess)
         self._linear = linear
 
         self._cache_jacobian = cache_jacobian
@@ -349,24 +402,31 @@ class EquationSolver(Equation):
 
     def replace(self, replace_map):
         Equation.replace(self, replace_map)
+
         self._F = ufl.replace(self._F, replace_map)
         self._lhs = ufl.replace(self._lhs, replace_map)
         if self._rhs != 0:
             self._rhs = ufl.replace(self._rhs, replace_map)
         self._J = ufl.replace(self._J, replace_map)
-        if not self._nl_solve_J is None:
+        if self._nl_solve_J is not None:
             self._nl_solve_J = ufl.replace(self._nl_solve_J, replace_map)
-        if hasattr(self, "_forward_b_pa") and not self._forward_b_pa is None:
-            if not self._forward_b_pa[0] is None:
-                self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)
-            for i, (mat_form, mat_cache) in self._forward_b_pa[1].items():
-                self._forward_b_pa[1][i][0] = ufl.replace(mat_form, replace_map)
-        if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
-            for dep_index, mat_cache in self._derivative_mats:
-                if isinstance(mat_cache, ufl.classes.Form):
-                    self._derivative_mats[dep_index] = ufl.replace(mat_cache, replace_map)
 
-    def _cached_rhs(self, deps, b_bc = None):
+        if hasattr(self, "_forward_b_pa") and self._forward_b_pa is not None:
+            if self._forward_b_pa[0] is not None:
+                self._forward_b_pa[0][0] = \
+                    ufl.replace(self._forward_b_pa[0][0], replace_map)
+            for dep_index, (mat_form,
+                            mat_cache) in self._forward_b_pa[1].items():
+                self._forward_b_pa[1][dep_index][0] = \
+                    ufl.replace(mat_form, replace_map)
+
+        if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
+            for dep_index, mat_cache in self._derivative_mats.items():
+                if isinstance(mat_cache, ufl.classes.Form):
+                    self._derivative_mats[dep_index] = \
+                        ufl.replace(mat_cache, replace_map)
+
+    def _cached_rhs(self, deps, b_bc=None):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
@@ -375,24 +435,26 @@ class EquationSolver(Equation):
 
             mat_forms = {}
             if not non_cached_form.empty():
-                for i, dep in enumerate(eq_deps):
-                    mat_form, non_cached_form = split_action(non_cached_form, dep)
+                for dep_index, dep in enumerate(eq_deps):
+                    mat_form, non_cached_form = split_action(non_cached_form,
+                                                             dep)
                     if not mat_form.empty():
-                        # The non-cached part contains a component with can be represented
-                        # as the action of a cached matrix ...
+                        # The non-cached part contains a component which can be
+                        # represented as the action of a cached matrix ...
                         if function_is_cached(dep):
-                            # ... on a cached dependency. This is part of the cached
-                            # component.
-                            cached_form += ufl.action(mat_form, coefficient = dep)
+                            # ... on a cached dependency. This is part of the
+                            # cached component.
+                            cached_form += ufl.action(mat_form,
+                                                      coefficient=dep)
                         else:
                             # ... on a non-cached dependency.
-                            mat_forms[i] = [mat_form, CacheRef()]
+                            mat_forms[dep_index] = [mat_form, CacheRef()]
                     if non_cached_form.empty():
                         break
 
             if not non_cached_form.empty():
-                # Attempt to split the remaining non-cached component into cached and
-                # non-cached components
+                # Attempt to split the remaining non-cached component into
+                # cached and non-cached components
                 cached_form_term, non_cached_form = split_form(non_cached_form)
                 cached_form += cached_form_term
 
@@ -412,125 +474,152 @@ class EquationSolver(Equation):
 
         b = None
 
-        if not non_cached_form is None:
-            b = alias_assemble(non_cached_form, eq_deps if deps is None else deps,
-                form_compiler_parameters = self._form_compiler_parameters,
-                tensor = b)
+        if non_cached_form is not None:
+            b = alias_assemble(
+                non_cached_form, eq_deps if deps is None else deps,
+                form_compiler_parameters=self._form_compiler_parameters)
 
-        for i, (mat_form, mat_cache) in mat_forms.items():
+        for dep_index, (mat_form, mat_cache) in mat_forms.items():
             mat_bc = mat_cache()
             if mat_bc is None:
-                mat_forms[i][1], mat_bc = assembly_cache().assemble(
+                mat_forms[dep_index][1], mat_bc = assembly_cache().assemble(
                     mat_form,
-                    form_compiler_parameters = self._form_compiler_parameters,
-                    replace_map = None if deps is None else dict(zip(eq_deps, deps)))
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    solver_parameters=self._linear_solver_parameters,
+                    replace_map=None if deps is None else dict(zip(eq_deps,
+                                                                   deps)))
             mat, _ = mat_bc
             if b is None:
-                b = matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector())
+                b = matrix_multiply(
+                    mat,
+                    (eq_deps if deps is None else deps)[dep_index].vector())
             else:
-                matrix_multiply(mat, (eq_deps if deps is None else deps)[i].vector(), tensor = b, addto = True)
+                matrix_multiply(
+                    mat,
+                    (eq_deps if deps is None else deps)[dep_index].vector(),
+                    tensor=b, addto=True)
 
-        if not cached_form is None:
+        if cached_form is not None:
             cached_b = cached_form[1]()
             if cached_b is None:
                 cached_form[1], cached_b = assembly_cache().assemble(
                     cached_form[0],
-                    form_compiler_parameters = self._form_compiler_parameters,
-                    replace_map = None if deps is None else dict(zip(eq_deps, deps)))
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    replace_map=None if deps is None else dict(zip(eq_deps,
+                                                                   deps)))
             if b is None:
                 b = rhs_copy(cached_b)
             else:
                 rhs_addto(b, cached_b)
 
-        apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
+        if b is None:
+            raise EquationException("Empty right-hand-side")
+
+        apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
         return b
 
-    def forward_solve(self, x, deps = None):
-        update_caches(self.dependencies(), deps = deps)
-
+    def forward_solve(self, x, deps=None):
         eq_deps = self.dependencies()
-        if not self._initial_guess_index is None:
-            function_assign(x, (eq_deps if deps is None else deps)[self._initial_guess_index])
+        update_caches(eq_deps, deps=deps)
+
+        if self._initial_guess_index is not None:
+            if deps is None:
+                initial_guess = eq_deps[self._initial_guess_index]
+            else:
+                initial_guess = deps[self._initial_guess_index]
+            function_assign(x, initial_guess)
 
         if self._linear:
             alias_clear_J, alias_clear_rhs = False, False
             if self._cache_jacobian:
-                # Cases 1 and 2: Linear, Jacobian cached, with or without RHS assembly
-                # caching
+                # Cases 1 and 2: Linear, Jacobian cached, with or without RHS
+                # assembly caching
 
                 J_mat_bc = self._forward_J_mat()
                 if J_mat_bc is None:
                     # Assemble and cache the Jacobian
                     self._forward_J_mat, J_mat_bc = assembly_cache().assemble(
-                        self._J,
-                        bcs = self._bcs,
-                        form_compiler_parameters = self._form_compiler_parameters,
-                        solver_parameters = self._linear_solver_parameters,
-                        replace_map = None if deps is None else dict(zip(eq_deps, deps)))
+                        self._J, bcs=self._bcs,
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        solver_parameters=self._linear_solver_parameters,
+                        replace_map=None if deps is None
+                                         else dict(zip(eq_deps, deps)))
                 J_mat, b_bc = J_mat_bc
 
                 if self._cache_rhs_assembly:
                     # Assemble the RHS with RHS assembly caching
-                    b = self._cached_rhs(deps, b_bc = b_bc)
+                    b = self._cached_rhs(deps, b_bc=b_bc)
                 else:
                     # Assemble the RHS without RHS assembly caching
                     if deps is None:
                         rhs = self._rhs
                     else:
                         if self._forward_eq is None:
-                            self._forward_eq = None, None, alias_form(self._rhs, eq_deps)
+                            self._forward_eq = (None,
+                                                None,
+                                                alias_form(self._rhs, eq_deps))
                         _, _, rhs = self._forward_eq
                         alias_replace(rhs, deps)
                         alias_clear_rhs = True
-                    b = assemble(rhs, form_compiler_parameters = self._form_compiler_parameters)
+                    b = assemble(
+                        rhs,
+                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
 
                     # Add bc RHS terms
-                    apply_rhs_bcs(b, self._hbcs, b_bc = b_bc)
+                    apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
 
                 J_solver = self._forward_J_solver()
                 if J_solver is None:
                     # Construct and cache the linear solver
-                    self._forward_J_solver, J_solver = linear_solver_cache().linear_solver(
-                        self._J,
-                        J_mat,
-                        bcs = self._bcs,
-                        form_compiler_parameters = self._form_compiler_parameters,
-                        linear_solver_parameters = self._linear_solver_parameters)
+                    self._forward_J_solver, J_solver = \
+                        linear_solver_cache().linear_solver(
+                            self._J, J_mat, bcs=self._bcs,
+                            form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                            linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
             else:
                 if self._cache_rhs_assembly:
-                    # Case 3: Linear, Jacobian not cached, with RHS assembly caching
+                    # Case 3: Linear, Jacobian not cached, with RHS assembly
+                    # caching
 
                     # Assemble the Jacobian
                     if deps is None:
                         J = self._J
                     else:
                         if self._forward_eq is None:
-                            self._forward_eq = None, alias_form(self._J, eq_deps), None
+                            self._forward_eq = (None,
+                                                alias_form(self._J, eq_deps),
+                                                None)
                         _, J, _ = self._forward_eq
                         alias_replace(J, deps)
                         alias_clear_J = True
-                    J_mat, b_bc = assemble_matrix(J, self._bcs,
-                        force_evaluation = False,
-                        **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
+                    J_mat, b_bc = assemble_matrix(
+                        J, self._bcs, force_evaluation=False,
+                        **assemble_arguments(2, self._form_compiler_parameters,
+                                             self._linear_solver_parameters))
 
                     # Assemble the RHS with RHS assembly caching
-                    b = self._cached_rhs(deps, b_bc = b_bc)
+                    b = self._cached_rhs(deps, b_bc=b_bc)
                 else:
-                    # Case 4: Linear, Jacobian not cached, without RHS assembly caching
+                    # Case 4: Linear, Jacobian not cached, without RHS assembly
+                    # caching
 
                     # Assemble the Jacobian and RHS
                     if deps is None:
                         J, rhs = self._J, self._rhs
                     else:
                         if self._forward_eq is None:
-                            self._forward_eq = None, alias_form(self._J, eq_deps), alias_form(self._rhs, eq_deps)
+                            self._forward_eq = (None,
+                                                alias_form(self._J, eq_deps),
+                                                alias_form(self._rhs, eq_deps))
                         _, J, rhs = self._forward_eq
                         alias_replace(J, deps)
                         alias_clear_J = True
                         alias_replace(rhs, deps)
                         alias_clear_rhs = True
-                    J_mat, b = assemble_system(J, rhs, bcs = self._bcs,
-                        **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
+                    J_mat, b = assemble_system(
+                        J, rhs, bcs=self._bcs,
+                        **assemble_arguments(2, self._form_compiler_parameters,
+                                             self._linear_solver_parameters))
 
                 # Construct the linear solver
                 J_solver = linear_solver(J_mat, self._linear_solver_parameters)
@@ -561,9 +650,7 @@ class EquationSolver(Equation):
 #                                      self._linear_solver_parameters))
 #             b_debug = backend_assemble(
 #                 assemble_rhs,
-#                 **assemble_arguments(1,
-#                                      self._form_compiler_parameters,
-#                                      self._linear_solver_parameters))
+#                 form_compiler_parameters=self._form_compiler_parameters)
 #             J_mat.force_evaluation()
 #             J_mat_debug.force_evaluation()
 #             J_error = J_mat.petscmat.copy()
@@ -583,25 +670,30 @@ class EquationSolver(Equation):
                 alias_clear(rhs)
         else:
             # Case 5: Non-linear
+            assert(self._rhs == 0)
             if deps is None:
-                lhs, J, rhs = self._lhs, (self._J if self._nl_solve_J is None else self._nl_solve_J), self._rhs
+                lhs = self._lhs
+                if self._nl_solve_J is None:
+                    J = self._J
+                else:
+                    J = self._nl_solve_J
             else:
                 if self._forward_eq is None:
-                    self._forward_eq = (alias_form(self._lhs, eq_deps),
-                                                            alias_form(self._J if self._nl_solve_J is None else self._nl_solve_J, eq_deps),
-                                                            (0 if self._rhs == 0 else alias_form(self._rhs, eq_deps)))
-                lhs, J, rhs = self._forward_eq
+                    self._forward_eq = \
+                        (alias_form(self._lhs, eq_deps),
+                         alias_form(self._J if self._nl_solve_J is None
+                                    else self._nl_solve_J,
+                                    eq_deps),
+                         0)
+                lhs, J, _ = self._forward_eq
                 alias_replace(lhs, deps)
                 alias_replace(J, deps)
-                if rhs != 0:
-                    alias_replace(rhs, deps)
-            solve(lhs == rhs, x, self._bcs, J = J,
-                form_compiler_parameters = self._form_compiler_parameters, solver_parameters = self._solver_parameters)
-            if not deps is None:
+            solve(lhs == 0, x, self._bcs, J=J,
+                  form_compiler_parameters=self._form_compiler_parameters,
+                  solver_parameters=self._solver_parameters)
+            if deps is not None:
                 alias_clear(lhs)
                 alias_clear(J)
-                if rhs != 0:
-                    alias_clear(rhs)
 
     def reset_forward_solve(self):
         self._forward_eq = None
@@ -610,12 +702,12 @@ class EquationSolver(Equation):
         self._forward_b_pa = None
 
     def initialise_adjoint(self, nl_deps):
-        update_caches(self.nonlinear_dependencies(), deps = nl_deps)
+        update_caches(self.nonlinear_dependencies(), deps=nl_deps)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action' in
-        # dolfin-adjoint file dolfin_adjoint/adjrhs.py (see e.g. dolfin-adjoint
-        # version 2017.1.0)
+        # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action'
+        # in dolfin-adjoint file dolfin_adjoint/adjrhs.py (see e.g.
+        # dolfin-adjoint version 2017.1.0)
         # Code first added to JRM personal repository 2016-05-22
         # Code first added to dolfin_adjoint_custom repository 2016-06-02
         # Re-written 2018-01-28
@@ -630,41 +722,54 @@ class EquationSolver(Equation):
                 return None
             elif isinstance(mat_cache, CacheRef):
                 mat_bc = mat_cache()
-                if not mat_bc is None:
+                if mat_bc is not None:
                     mat, _ = mat_bc
                     return matrix_multiply(mat, adj_x.vector())
-                #else:
-                #  Cache entry cleared
+                # else:
+                #   # Cache entry cleared
+                #   pass
             elif self._defer_adjoint_assembly:
-                #assert(isinstance(mat_cache, ufl.classes.Form))
-                return ufl.action(ufl.replace(mat_cache, dict(zip(self.nonlinear_dependencies(), nl_deps))), coefficient = adj_x)
+                assert(isinstance(mat_cache, ufl.classes.Form))
+                return ufl.action(
+                    ufl.replace(
+                        mat_cache,
+                        dict(zip(self.nonlinear_dependencies(), nl_deps))),
+                    coefficient=adj_x)
             else:
-                #assert(isinstance(mat_cache, ufl.classes.Form))
-                return alias_assemble(mat_cache, list(nl_deps) + [adj_x],
-                    form_compiler_parameters = self._form_compiler_parameters)
+                assert(isinstance(mat_cache, ufl.classes.Form))
+                return alias_assemble(
+                    mat_cache, list(nl_deps) + [adj_x],
+                    form_compiler_parameters=self._form_compiler_parameters)
 
         dep = eq_deps[dep_index]
-        dF = ufl.algorithms.expand_derivatives(ufl.derivative(self._F, dep, argument = TrialFunction(dep.function_space())))
+        dF = ufl.algorithms.expand_derivatives(ufl.derivative(
+            self._F, dep, argument=TrialFunction(dep.function_space())))
         if dF.empty():
             self._derivative_mats[dep_index] = None
             return None
         dF = adjoint(dF)
 
         if self._cache_rhs_assembly and is_cached(dF):
-            self._derivative_mats[dep_index], (mat, _) = assembly_cache().assemble(
-                dF,
-                form_compiler_parameters = self._form_compiler_parameters,
-                replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
+            self._derivative_mats[dep_index], (mat, _) = \
+                assembly_cache().assemble(
+                    dF,
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    replace_map=dict(zip(self.nonlinear_dependencies(),
+                                         nl_deps)))
             return matrix_multiply(mat, adj_x.vector())
         elif self._defer_adjoint_assembly:
             self._derivative_mats[dep_index] = dF
-            dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
-            return ufl.action(dF, coefficient = adj_x)
+            dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(),
+                                          nl_deps)))
+            return ufl.action(dF, coefficient=adj_x)
         else:
-            self._derivative_mats[dep_index] = dF = \
-                alias_form(ufl.action(dF, coefficient = adj_x), list(self.nonlinear_dependencies()) + [adj_x])
-            return alias_assemble(dF, list(nl_deps) + [adj_x],
-                form_compiler_parameters = self._form_compiler_parameters)
+            dF = alias_form(
+                ufl.action(dF, coefficient=adj_x),
+                list(self.nonlinear_dependencies()) + [adj_x])
+            self._derivative_mats[dep_index] = dF
+            return alias_assemble(
+                dF, list(nl_deps) + [adj_x],
+                form_compiler_parameters=self._form_compiler_parameters)
 
     def reset_adjoint_derivative_action(self):
         self._derivative_mats = {}
@@ -675,17 +780,16 @@ class EquationSolver(Equation):
             if J_solver is None:
                 J = adjoint(self._J)
                 _, (J_mat, _) = assembly_cache().assemble(
-                    J,
-                    bcs = self._hbcs,
-                    form_compiler_parameters = self._form_compiler_parameters,
-                    solver_parameters = self._adjoint_solver_parameters,
-                    replace_map = dict(zip(self.nonlinear_dependencies(), nl_deps)))
-                self._adjoint_J_solver, J_solver = linear_solver_cache().linear_solver(
-                    J,
-                    J_mat,
-                    bcs = self._hbcs,
-                    form_compiler_parameters = self._form_compiler_parameters,
-                    linear_solver_parameters = self._adjoint_solver_parameters)
+                    J, bcs=self._hbcs,
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    solver_parameters=self._adjoint_solver_parameters,
+                    replace_map=dict(zip(self.nonlinear_dependencies(),
+                                         nl_deps)))
+                self._adjoint_J_solver, J_solver = \
+                    linear_solver_cache().linear_solver(
+                        J, J_mat, bcs=self._hbcs,
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        linear_solver_parameters=self._adjoint_solver_parameters)  # noqa: E501
 
             apply_rhs_bcs(b.vector(), self._hbcs)
             adj_x = function_new(b)
@@ -694,11 +798,14 @@ class EquationSolver(Equation):
             return adj_x
         else:
             if self._adjoint_J is None:
-                self._adjoint_J = alias_form(adjoint(self._J), self.nonlinear_dependencies())
+                self._adjoint_J = alias_form(
+                    adjoint(self._J), self.nonlinear_dependencies())
             alias_replace(self._adjoint_J, nl_deps)
-            J_mat, _ = assemble_matrix(self._adjoint_J, self._hbcs,
-                force_evaluation = False,
-                **assemble_arguments(2, self._form_compiler_parameters, self._adjoint_solver_parameters))
+            J_mat, _ = assemble_matrix(
+                self._adjoint_J, self._hbcs,
+                force_evaluation=False,
+                **assemble_arguments(2, self._form_compiler_parameters,
+                                     self._adjoint_solver_parameters))
 
             J_solver = linear_solver(J_mat, self._adjoint_solver_parameters)
 
@@ -710,23 +817,19 @@ class EquationSolver(Equation):
             return adj_x
 
     def reset_adjoint_jacobian_solve(self):
-        self._adjoint_J = None
         self._adjoint_J_solver = CacheRef()
+        self._adjoint_J = None
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
-        if x in M:
-            raise EquationException("Invalid tangent-linear parameter")
 
         tlm_rhs = ufl.classes.Zero()
-        for m, dm in zip(M, dM):
-            tlm_rhs += form_neg(ufl.derivative(self._F, m, argument = dm))
-
         for dep in self.dependencies():
-            if dep != x and not dep in M:
-                tau_dep = tlm_map[dep]
-                if not tau_dep is None:
-                    tlm_rhs += form_neg(ufl.derivative(self._F, dep, argument = tau_dep))
+            if dep != x:
+                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                if tau_dep is not None:
+                    tlm_rhs += form_neg(ufl.derivative(self._F, dep,
+                                                       argument=tau_dep))
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return NullSolver(tlm_map[x])
@@ -734,16 +837,27 @@ class EquationSolver(Equation):
         if tlm_rhs.empty():
             return NullSolver(tlm_map[x])
         else:
-            return EquationSolver(self._J == tlm_rhs, tlm_map[x], self._hbcs,
-                form_compiler_parameters = self._form_compiler_parameters,
-                solver_parameters = self._linear_solver_parameters if self._tlm_solver_parameters is None else self._tlm_solver_parameters,
-                adjoint_solver_parameters = self._adjoint_solver_parameters,
-                initial_guess = tlm_map[self.dependencies()[self._initial_guess_index]] if not self._initial_guess_index is None else None,
-                cache_jacobian = self._cache_tlm_jacobian,
-                cache_adjoint_jacobian = self._cache_adjoint_jacobian,
-                cache_tlm_jacobian = self._cache_tlm_jacobian,
-                cache_rhs_assembly = self._cache_rhs_assembly,
-                defer_adjoint_assembly = self._defer_adjoint_assembly)
+            if self._tlm_solver_parameters is None:
+                tlm_solver_parameters = self._linear_solver_parameters
+            else:
+                tlm_solver_parameters = self._tlm_solver_parameters
+            if self._initial_guess_index is None:
+                tlm_initial_guess = None
+            else:
+                initial_guess = self.dependencies()[self._initial_guess_index]
+                tlm_initial_guess = tlm_map[initial_guess]
+            return EquationSolver(
+                self._J == tlm_rhs, tlm_map[x], self._hbcs,
+                form_compiler_parameters=self._form_compiler_parameters,
+                solver_parameters=tlm_solver_parameters,
+                adjoint_solver_parameters=self._adjoint_solver_parameters,
+                tlm_solver_parameters=tlm_solver_parameters,
+                initial_guess=tlm_initial_guess,
+                cache_jacobian=self._cache_tlm_jacobian,
+                cache_adjoint_jacobian=self._cache_adjoint_jacobian,
+                cache_tlm_jacobian=self._cache_tlm_jacobian,
+                cache_rhs_assembly=self._cache_rhs_assembly,
+                defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
 def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
@@ -769,19 +883,21 @@ class ProjectionSolver(EquationSolver):
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(test, rhs) * ufl.dx
-        EquationSolver.__init__(self, ufl.inner(test, trial) * ufl.dx == rhs, x,
-            *args, **kwargs)
+        EquationSolver.__init__(self, ufl.inner(test, trial) * ufl.dx == rhs,
+                                x, *args, **kwargs)
+
 
 class DirichletBCSolver(Equation):
     def __init__(self, y, x, *args, **kwargs):
-        Equation.__init__(self, x, [x, y], nl_deps = [], ic_deps = [])
+        Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
         self._bc_args = copy.copy(args)
         self._bc_kwargs = copy.copy(kwargs)
 
-    def forward_solve(self, x, deps = None):
+    def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
         function_zero(x)
-        DirichletBC(x.function_space(), y, *self._bc_args, **self._bc_kwargs).apply(x.vector())
+        DirichletBC(x.function_space(), y,
+                    *self._bc_args, **self._bc_kwargs).apply(x.vector())
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index == 0:
@@ -789,7 +905,8 @@ class DirichletBCSolver(Equation):
         elif dep_index == 1:
             _, y = self.dependencies()
             F = function_new(y)
-            DirichletBC(y.function_space(), adj_x, *self._bc_args, **self._bc_kwargs).apply(F.vector())
+            DirichletBC(y.function_space(), adj_x,
+                        *self._bc_args, **self._bc_kwargs).apply(F.vector())
             return (-1.0, F)
         else:
             return None
@@ -800,19 +917,12 @@ class DirichletBCSolver(Equation):
     def tangent_linear(self, M, dM, tlm_map):
         x, y = self.dependencies()
 
-        tau_y = None
-        for i, m in enumerate(M):
-            if m == x:
-                raise EquationException("Invalid tangent-linear parameter")
-            elif m == y:
-                tau_y = dM[i]
-        if tau_y is None:
-            tau_y = tlm_map[y]
-
+        tau_y = get_tangent_linear(y, M, dM, tlm_map)
         if tau_y is None:
             return NullSolver(tlm_map[x])
         else:
-            return DirichletBCSolver(tau_y, tlm_map[x], *self._bc_args, **self._bc_kwargs)
+            return DirichletBCSolver(tau_y, tlm_map[x],
+                                     *self._bc_args, **self._bc_kwargs)
 
 
 def evaluate_expr_binary_operator(fn):
@@ -883,7 +993,7 @@ class ExprEvaluationSolver(Equation):
             raise EquationException("rhs should not be a Form")
         x_space = x.function_space()
         if len(x_space.ufl_element().value_shape()) > 0:
-            raise EquationEception("Solution must be a scalar Function")
+            raise EquationException("Solution must be a scalar Function")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
