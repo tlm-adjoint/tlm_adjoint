@@ -535,19 +535,46 @@ class EquationSolver(Equation):
                 # Construct the linear solver
                 J_solver = linear_solver(J_mat, self._linear_solver_parameters)
 
-#      J_mat_debug, b_debug = backend_assemble_system(self._J if deps is None else ufl.replace(self._J, dict(zip(eq_deps, deps))),
-#                                                     self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
-#                                                     self._bcs,
-#                                                     **assemble_arguments(2, self._form_compiler_parameters, self._linear_solver_parameters))
-#      assert((J_mat - J_mat_debug).norm("linf") == 0.0)
-#      assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
-
-#      b_debug = backend_assemble(self._rhs if deps is None else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
-#                                 form_compiler_parameters = self._form_compiler_parameters)
-#      b_error = function_new(x, name = "b_error")
-#      function_assign(b_error, b)
-#      function_axpy(b_error, -1.0, b_debug)
-#      assert(function_linf_norm(b_error) <= 1.0e-14 * function_linf_norm(b))
+#             if deps is None:
+#                 assemble_J = self._J
+#                 assemble_rhs = self._rhs
+#             else:
+#                 assemble_J = ufl.replace(self._J, dict(zip(eq_deps, deps)))
+#                 assemble_rhs = ufl.replace(self._rhs,
+#                                            dict(zip(eq_deps, deps)))
+#
+#             # FEniCS
+#             J_mat_debug, b_debug = backend_assemble_system(
+#                 assemble_J, assemble_rhs, self._bcs,
+#                 **assemble_arguments(2,
+#                                      self._form_compiler_parameters,
+#                                      self._linear_solver_parameters))
+#             assert((J_mat - J_mat_debug).norm("linf")
+#                    <= 1.0e-15 * J_mat.norm("linf"))
+#             assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
+#
+#             # Firedrake
+#             J_mat_debug = backend_assemble(
+#                 assemble_J, bcs=self._bcs,
+#                 **assemble_arguments(2,
+#                                      self._form_compiler_parameters,
+#                                      self._linear_solver_parameters))
+#             b_debug = backend_assemble(
+#                 assemble_rhs,
+#                 **assemble_arguments(1,
+#                                      self._form_compiler_parameters,
+#                                      self._linear_solver_parameters))
+#             J_mat.force_evaluation()
+#             J_mat_debug.force_evaluation()
+#             J_error = J_mat.petscmat.copy()
+#             J_error.axpy(-1.0, J_mat_debug.petscmat)
+#             import petsc4py.PETSc as PETSc
+#             assert(J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY)
+#                    <= 1.0e-15 * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
+#             b_error = function_copy(b)
+#             function_axpy(b_error, -1.0, b_debug)
+#             assert(function_linf_norm(b_error)
+#                    <= 1.0e-14 * function_linf_norm(b))
 
             J_solver.solve(x.vector(), b)
             if alias_clear_J:
