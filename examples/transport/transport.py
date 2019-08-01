@@ -74,9 +74,10 @@ alpha = Constant(1.0e-15, static=True)
 
 # Stream function
 psi = Function(space, name="psi", static=True)
-psi.interpolate(Expression("(1.0 - exp(x[1])) * sin(k * pi * x[0]) * sin(m * pi * x[1]) - x[1]",  # noqa: E501
-                           element=psi.function_space().ufl_element(),
-                           k=1.0, m=1.0))
+psi.interpolate(Expression(
+    "(1.0 - exp(x[1])) * sin(k * pi * x[0]) * sin(m * pi * x[1]) - x[1]",
+    element=psi.function_space().ufl_element(),
+    k=1.0, m=1.0))
 
 
 class InflowBoundary(SubDomain):
@@ -106,8 +107,9 @@ inflow_mesh = SubMesh(boundary_mesh, boundary_mesh_markers, 1)
 inflow_space = FunctionSpace(inflow_mesh, "Lagrange", 1)
 # Inflow boundary condition
 T_inflow = Function(inflow_space, name="T_inflow", static=True)
-T_inflow.interpolate(Expression("sin(pi * x[1]) + 0.4 * sin(3.0 * pi * x[1])",
-                                element=T_inflow.function_space().ufl_element()))  # noqa: E501
+T_inflow.interpolate(Expression(
+    "sin(pi * x[1]) + 0.4 * sin(3.0 * pi * x[1])",
+    element=T_inflow.function_space().ufl_element()))
 
 forward_calls = [0]
 
@@ -197,12 +199,13 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
     F = (inner(test, (T_np1 - T_n) / dt) * dx
          + inner(test, dot(perp(grad(psi)), grad(T_nph))) * dx
          + inner(grad(test), kappa * grad(T_nph)) * dx)
-    timestep_eq = EquationSolver(lhs(F) == rhs(F),
-                                 T_np1_0,
-                                 DirichletBC(space, 0.0,
-                                             "fabs(x[0]) < DOLFIN_EPS",
-                                             static=True, homogeneous=True),
-                                 solver_parameters={"linear_solver": "umfpack"})  # noqa: E501
+    timestep_eq = EquationSolver(
+        lhs(F) == rhs(F),
+        T_np1_0,
+        DirichletBC(space, 0.0,
+                    "fabs(x[0]) < DOLFIN_EPS",
+                    static=True, homogeneous=True),
+        solver_parameters={"linear_solver": "umfpack"})
 
     # Equation which constructs the complete solution on the next time level
     update_eq = AxpySolver(T_np1_0, 1.0, T_inflow, T_n)

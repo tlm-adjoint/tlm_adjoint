@@ -168,10 +168,11 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                               cache_adjoint_jacobian=True,
                               cache_tlm_jacobian=True)
 
-        return FixedPointSolver([S_eq, nu_eq, U_eq],
-                                solver_parameters={"absolute_tolerance": 1.0e-16,  # noqa: E501
-                                                   "relative_tolerance": 1.0e-11},  # noqa: E501
-                                initial_guess=initial_guess)
+        return FixedPointSolver(
+            [S_eq, nu_eq, U_eq],
+            solver_parameters={"absolute_tolerance": 1.0e-16,
+                               "relative_tolerance": 1.0e-11},
+            initial_guess=initial_guess)
 
     def solve_momentum(U, h, initial_guess=None):
         momentum(U, h, initial_guess=initial_guess).solve()
@@ -267,8 +268,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             eq.solve()
         if timestep in timestep_obs:
             if gather_ref:
-                ref[timestep] = (function_copy(U[0], name=f"U_ref_{timestep + 1:d}"),  # noqa: E501
-                                 function_copy(h[0], name=f"h_ref_{timestep + 1:d}"))  # noqa: E501
+                ref[timestep] = \
+                    (function_copy(U[0], name=f"U_ref_{timestep + 1:d}"),
+                     function_copy(h[0], name=f"h_ref_{timestep + 1:d}"))
             # Similar to GH13 equation (17)
             J.addto((1.0 / (sigma_u ** 2)) * inner(U[0] - ref[timestep][0],
                                                    U[0] - ref[timestep][0]) * dx  # noqa: E501

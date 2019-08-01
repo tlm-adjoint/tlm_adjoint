@@ -1224,17 +1224,19 @@ class LinearEquation(Equation):
                 except KeyError:
                     continue
                 b_nl_deps = [nl_deps[j] for j in self._b_nl_dep_indices[i]]
-                b.subtract_adjoint_derivative_action(b_nl_deps, b_dep_index,
-                                                     adj_X[0] if len(adj_X) == 1 else adj_X,  # noqa: E501
-                                                     F)
+                b.subtract_adjoint_derivative_action(
+                    b_nl_deps, b_dep_index,
+                    adj_X[0] if len(adj_X) == 1 else adj_X,
+                    F)
             if self._A is not None and dep_id in self._A_nl_dep_ids:
                 A_nl_dep_index = self._A_nl_dep_ids[dep_id]
                 A_nl_deps = [nl_deps[j] for j in self._A_nl_dep_indices]
                 X = [nl_deps[j] for j in self._A_x_indices]
-                self._A.adjoint_derivative_action(A_nl_deps, A_nl_dep_index,
-                                                  X[0] if len(X) == 1 else X,
-                                                  adj_X[0] if len(adj_X) == 1 else adj_X,  # noqa: E501
-                                                  F, method="add")
+                self._A.adjoint_derivative_action(
+                    A_nl_deps, A_nl_dep_index,
+                    X[0] if len(X) == 1 else X,
+                    adj_X[0] if len(adj_X) == 1 else adj_X,
+                    F, method="add")
             return F
 
     def reset_adjoint_derivative_action(self):
@@ -1496,10 +1498,11 @@ class MatrixActionRHS(RHS):
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
         if dep_index < N_A_nl_deps:
             X = [nl_deps[j] for j in self._x_indices]
-            self._A.adjoint_derivative_action(nl_deps[:N_A_nl_deps], dep_index,
-                                              X[0] if len(X) == 1 else X,
-                                              adj_X[0] if len(adj_X) == 1 else adj_X,  # noqa: E501
-                                              b, method="sub")
+            self._A.adjoint_derivative_action(
+                nl_deps[:N_A_nl_deps], dep_index,
+                X[0] if len(X) == 1 else X,
+                adj_X[0] if len(adj_X) == 1 else adj_X,
+                b, method="sub")
         if dep_index in self._x_indices:
             self._A.adjoint_action(nl_deps[:N_A_nl_deps],
                                    adj_X[0] if len(adj_X) == 1 else adj_X,

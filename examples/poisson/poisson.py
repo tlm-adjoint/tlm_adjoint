@@ -73,8 +73,9 @@ def forward(F, x0=None):
 # Generate a reference solution x0 using F0. The optional "static" flag is used
 # for optimization.
 F0 = Function(space, name="F0", static=True)
-F0.interpolate(Expression("sin(pi * x[0]) * sin(3.0 * pi * x[1]) * exp(x[0] * x[1])",  # noqa: E501
-                          element=space.ufl_element()))
+F0.interpolate(Expression(
+    "sin(pi * x[0]) * sin(3.0 * pi * x[1]) * exp(x[0] * x[1])",
+    element=space.ufl_element()))
 x0, _ = forward(F0)
 
 # Set F to one everywhere ...

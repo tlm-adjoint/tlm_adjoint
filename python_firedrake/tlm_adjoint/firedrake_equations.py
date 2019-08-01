@@ -49,8 +49,9 @@ def local_solver_key(form, form_compiler_parameters):
 
 
 def LocalSolver(form, form_compiler_parameters={}):
-    local_solver = backend_assemble(Tensor(form).inv,
-                                    form_compiler_parameters=form_compiler_parameters)  # noqa: E501
+    local_solver = backend_assemble(
+        Tensor(form).inv,
+        form_compiler_parameters=form_compiler_parameters)
     local_solver.force_evaluation()
 
     def solve_local(self, x, b):
@@ -70,8 +71,9 @@ class LocalSolverCache(Cache):
                 assemble_form = form
             else:
                 assemble_form = ufl.replace(form, replace_map)
-            local_solver = LocalSolver(assemble_form,
-                                       form_compiler_parameters=form_compiler_parameters)  # noqa: E501
+            local_solver = LocalSolver(
+                assemble_form,
+                form_compiler_parameters=form_compiler_parameters)
             value = self.add(key, local_solver,
                              deps=tuple(form_dependencies(form).values()))
         else:
@@ -101,38 +103,43 @@ class LocalProjectionSolver(EquationSolver):
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(test, rhs) * ufl.dx
 
-        EquationSolver.__init__(self, lhs == rhs, x,
-                                form_compiler_parameters=form_compiler_parameters,  # noqa: E501
-                                solver_parameters={},
-                                cache_jacobian=cache_jacobian,
-                                cache_rhs_assembly=cache_rhs_assembly,
-                                match_quadrature=match_quadrature,
-                                defer_adjoint_assembly=defer_adjoint_assembly)
+        EquationSolver.__init__(
+            self, lhs == rhs, x,
+            form_compiler_parameters=form_compiler_parameters,
+            solver_parameters={},
+            cache_jacobian=cache_jacobian,
+            cache_rhs_assembly=cache_rhs_assembly,
+            match_quadrature=match_quadrature,
+            defer_adjoint_assembly=defer_adjoint_assembly)
 
     def forward_solve(self, x, deps=None):
         if self._cache_rhs_assembly:
             b = self._cached_rhs(deps)
         elif deps is None:
-            b = assemble(self._rhs,
-                         form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            b = assemble(
+                self._rhs,
+                form_compiler_parameters=self._form_compiler_parameters)
         else:
             if self._forward_eq is None:
                 self._forward_eq = (None,
                                     None,
                                     alias_form(self._rhs, self.dependencies()))
             _, _, rhs = self._forward_eq
-            b = alias_assemble(rhs, deps,
-                               form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            b = alias_assemble(
+                rhs, deps,
+                form_compiler_parameters=self._form_compiler_parameters)
 
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(self._lhs,
-                                                      form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                    local_solver_cache().local_solver(
+                        self._lhs,
+                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
         else:
-            local_solver = LocalSolver(self._lhs,
-                                       form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            local_solver = LocalSolver(
+                self._lhs,
+                form_compiler_parameters=self._form_compiler_parameters)
 
         local_solver.solve_local(x.vector(), b)
 
@@ -141,11 +148,13 @@ class LocalProjectionSolver(EquationSolver):
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(self._lhs,
-                                                      form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                    local_solver_cache().local_solver(
+                        self._lhs,
+                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
         else:
-            local_solver = LocalSolver(self._lhs,
-                                       form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            local_solver = LocalSolver(
+                self._lhs,
+                form_compiler_parameters=self._form_compiler_parameters)
 
         adj_x = function_new(b)
         local_solver.solve_local(adj_x.vector(), b.vector())
@@ -174,11 +183,12 @@ class LocalProjectionSolver(EquationSolver):
         if tlm_rhs.empty():
             return NullSolver(tlm_map[x])
         else:
-            return LocalProjectionSolver(tlm_rhs, tlm_map[x],
-                                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                                         cache_jacobian=self._cache_jacobian,
-                                         cache_rhs_assembly=self._cache_rhs_assembly,  # noqa: E501
-                                         defer_adjoint_assembly=self._defer_adjoint_assembly)  # noqa: E501
+            return LocalProjectionSolver(
+                tlm_rhs, tlm_map[x],
+                form_compiler_parameters=self._form_compiler_parameters,
+                cache_jacobian=self._cache_jacobian,
+                cache_rhs_assembly=self._cache_rhs_assembly,
+                defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
 def interpolation_matrix(x_coords, y, y_nodes):

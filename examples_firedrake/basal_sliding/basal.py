@@ -146,16 +146,17 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             J_1 = ufl.replace(derivative(F, U, du=trials), {marker: U})
             F = ufl.replace(F, {marker: U})
 
-            EquationSolver.__init__(self, F == 0, U,
-                                    initial_guess=initial_guess,
-                                    solver_parameters={"ksp_type": "cg",
-                                                       "pc_type": "hypre",
-                                                       "pc_hypre_type": "boomeramg",  # noqa: E501
-                                                       "ksp_rtol": 1.0e-12,
-                                                       "ksp_atol": 1.0e-16,
-                                                       "mat_type": "aij"},
-                                    match_quadrature=True,
-                                    defer_adjoint_assembly=False)
+            EquationSolver.__init__(
+                self, F == 0, U,
+                initial_guess=initial_guess,
+                solver_parameters={"ksp_type": "cg",
+                                   "pc_type": "hypre",
+                                   "pc_hypre_type": "boomeramg",
+                                   "ksp_rtol": 1.0e-12,
+                                   "ksp_atol": 1.0e-16,
+                                   "mat_type": "aij"},
+                match_quadrature=True,
+                defer_adjoint_assembly=False)
             self._J_1 = J_1
 
         def replace(self, replace_map):
@@ -177,7 +178,8 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             from tlm_adjoint.backend_code_generator_interface import \
                 assemble, solve
             function_zero(U)
-            r = assemble(F, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            r = assemble(
+                F, form_compiler_parameters=self._form_compiler_parameters)
             r_norm = np.sqrt(function_inner(r, r))
             if self._initial_guess_index is not None:
                 if deps is None:
@@ -325,8 +327,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             eq.solve()
         if timestep in timestep_obs:
             if gather_ref:
-                ref[timestep] = (function_copy(U[0], name=f"U_ref_{timestep + 1:d}"),  # noqa: E501
-                                 function_copy(h[0], name=f"h_ref_{timestep + 1:d}"))  # noqa: E501
+                ref[timestep] \
+                    = (function_copy(U[0], name=f"U_ref_{timestep + 1:d}"),
+                       function_copy(h[0], name=f"h_ref_{timestep + 1:d}"))
             # Similar to GH13 equation (17)
             J.addto((1.0 / (sigma_u ** 2)) * inner(U[0] - ref[timestep][0],
                                                    U[0] - ref[timestep][0]) * dx  # noqa: E501

@@ -114,9 +114,10 @@ space_S = FunctionSpace(mesh, "Discontinuous Lagrange", 2,
 
 beta_sq_ref = Function(space, name="beta_sq_ref", static=True)
 # GH13 eqn (16)
-beta_sq_ref.interpolate(Expression("1000.0 - 750.0 * exp(-(pow(x[0] - (L_x / 2.0), 2.0) + pow(x[1] - (L_y / 2.0), 2.0)) / pow(5.0e3, 2.0))",  # noqa: E501
-                                   L_x=L_x, L_y=L_y,
-                                   element=space.ufl_element()))
+beta_sq_ref.interpolate(Expression(
+    "1000.0 - 750.0 * exp(-(pow(x[0] - (L_x / 2.0), 2.0) + pow(x[1] - (L_y / 2.0), 2.0)) / pow(5.0e3, 2.0))",  # noqa: E501
+    L_x=L_x, L_y=L_y,
+    element=space.ufl_element()))
 File("beta_sq_ref.pvd", "compressed") << beta_sq_ref
 
 forward_calls = [0]
@@ -181,32 +182,35 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
              + inner(test_u, rho * g * h * grad_b_x) * dx
              + inner(tests, rho * g * h * grad(h)) * dx)
         F = ufl.replace(F, {U: trials})
-        U_eq = EquationSolver(lhs(F) == rhs(F), U,
-                              solver_parameters={"linear_solver": "cg",
-                                                 "preconditioner": "amg",
-                                                  "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
-                                                                    "absolute_tolerance": 1.0e-16}},  # noqa: E501
-                              adjoint_solver_parameters={"linear_solver": "umfpack"},  # noqa: E501
-                              tlm_solver_parameters={"linear_solver": "umfpack"},  # noqa: E501
-                              cache_adjoint_jacobian=True,
-                              cache_tlm_jacobian=True)
+        U_eq = EquationSolver(
+            lhs(F) == rhs(F), U,
+            solver_parameters={"linear_solver": "cg",
+                               "preconditioner": "amg",
+                                "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
+                                                  "absolute_tolerance": 1.0e-16}},  # noqa: E501
+            adjoint_solver_parameters={"linear_solver": "umfpack"},
+            tlm_solver_parameters={"linear_solver": "umfpack"},
+            cache_adjoint_jacobian=True,
+            cache_tlm_jacobian=True)
 
-        return FixedPointSolver([S_eq, nu_eq, U_eq],
-                                solver_parameters={"absolute_tolerance": 1.0e-16,  # noqa: E501
-                                                   "relative_tolerance": 1.0e-11},  # noqa: E501
-                                initial_guess=initial_guess)
+        return FixedPointSolver(
+            [S_eq, nu_eq, U_eq],
+            solver_parameters={"absolute_tolerance": 1.0e-16,
+                               "relative_tolerance": 1.0e-11},
+            initial_guess=initial_guess)
 
     def solve_momentum(U, h, initial_guess=None):
         momentum(U, h, initial_guess=initial_guess).solve()
 
     def elevation_rhs(U, h, F_h):
         # GHS09 eqn (11) right-hand-side (times timestep size)
-        return EquationSolver(inner(test_h, trial_h) * dx ==
-                              - dt * inner(test_h, div(U * (h + H_0))) * dx,
-                              F_h, solver_parameters={"linear_solver": "cg",
-                                                      "preconditioner": "sor",
-                                                      "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
-                                                                        "absolute_tolerance": 1.0e-16}})  # noqa: E501
+        return EquationSolver(
+            inner(test_h, trial_h) * dx ==
+            - dt * inner(test_h, div(U * (h + H_0))) * dx,
+            F_h, solver_parameters={"linear_solver": "cg",
+                                    "preconditioner": "sor",
+                                    "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
+                                                      "absolute_tolerance": 1.0e-16}})  # noqa: E501
 
     def solve_elevation_rhs(U, h, F_h):
         elevation_rhs(U, h, F_h).solve()
@@ -290,8 +294,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             eq.solve()
         if timestep in timestep_obs:
             if gather_ref:
-                ref[timestep] = (function_copy(U[0], name=f"U_ref_{timestep + 1:d}"),  # noqa: E501
-                                 function_copy(h[0], name=f"h_ref_{timestep + 1:d}"))  # noqa: E501
+                ref[timestep] = \
+                    (function_copy(U[0], name=f"U_ref_{timestep + 1:d}"),
+                     function_copy(h[0], name=f"h_ref_{timestep + 1:d}"))
             # Similar to GH13 equation (17)
             J.addto((1.0 / (sigma_u ** 2)) * inner(U[0] - ref[timestep][0],
                                                    U[0] - ref[timestep][0]) * dx  # noqa: E501

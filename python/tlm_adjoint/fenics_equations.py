@@ -155,29 +155,32 @@ class LocalProjectionSolver(EquationSolver):
             # FEniCS backwards compatibility
             local_solver_type = LocalSolver.SolverType_Cholesky
 
-        EquationSolver.__init__(self, lhs == rhs, x,
-                                form_compiler_parameters=form_compiler_parameters,  # noqa: E501
-                                solver_parameters={"linear_solver": "direct"},
-                                cache_jacobian=cache_jacobian,
-                                cache_rhs_assembly=cache_rhs_assembly,
-                                match_quadrature=match_quadrature,
-                                defer_adjoint_assembly=defer_adjoint_assembly)
+        EquationSolver.__init__(
+            self, lhs == rhs, x,
+            form_compiler_parameters=form_compiler_parameters,
+            solver_parameters={"linear_solver": "direct"},
+            cache_jacobian=cache_jacobian,
+            cache_rhs_assembly=cache_rhs_assembly,
+            match_quadrature=match_quadrature,
+            defer_adjoint_assembly=defer_adjoint_assembly)
         self._local_solver_type = local_solver_type
 
     def forward_solve(self, x, deps=None):
         if self._cache_rhs_assembly:
             b = self._cached_rhs(deps)
         elif deps is None:
-            b = assemble(self._rhs,
-                         form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            b = assemble(
+                self._rhs,
+                form_compiler_parameters=self._form_compiler_parameters)
         else:
             if self._forward_eq is None:
                 self._forward_eq = (None,
                                     None,
                                     alias_form(self._rhs, self.dependencies()))
             _, _, rhs = self._forward_eq
-            b = alias_assemble(rhs, deps,
-                               form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+            b = alias_assemble(
+                rhs, deps,
+                form_compiler_parameters=self._form_compiler_parameters)
 
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
@@ -230,11 +233,12 @@ class LocalProjectionSolver(EquationSolver):
         if tlm_rhs.empty():
             return NullSolver(tlm_map[x])
         else:
-            return LocalProjectionSolver(tlm_rhs, tlm_map[x],
-                                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                                         cache_jacobian=self._cache_jacobian,
-                                         cache_rhs_assembly=self._cache_rhs_assembly,  # noqa: E501
-                                         defer_adjoint_assembly=self._defer_adjoint_assembly)  # noqa: E501
+            return LocalProjectionSolver(
+                tlm_rhs, tlm_map[x],
+                form_compiler_parameters=self._form_compiler_parameters,
+                cache_jacobian=self._cache_jacobian,
+                cache_rhs_assembly=self._cache_rhs_assembly,
+                defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
 def interpolation_matrix(x_coords, y, y_cells, y_colors):
@@ -356,8 +360,9 @@ class InterpolationSolver(LinearEquation):
                 if b_index != 0:
                     raise EquationException("Invalid index")
                 if method == "assign":
-                    function_set_values(b,
-                                        self._P_T.dot(function_get_values(adj_x)))  # noqa: E501
+                    function_set_values(
+                        b,
+                        self._P_T.dot(function_get_values(adj_x)))
                 elif method == "add":
                     b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
                 elif method == "sub":
