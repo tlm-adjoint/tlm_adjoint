@@ -45,6 +45,7 @@ __all__ = \
         "minimize_scipy",
         "new_block",
         "reset",
+        "reset_manager",
         "start_annotating",
         "start_manager",
         "start_tlm",
@@ -716,26 +717,26 @@ class EquationManager:
 
         return state
 
-    def add_initial_condition(self, x, annotate = None):
+    def add_initial_condition(self, x, annotate=None):
         """
         Add an initial condition associated with the Function x on the adjoint
         tape.
 
         annotate (default self.annotation_enabled()):
-            Whether to annotate the initial condition on the adjoint tape, storing
-            data for checkpointing as required.
+            Whether to annotate the initial condition on the adjoint tape,
+            storing data for checkpointing as required.
         """
 
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
-            if self._annotation_state == "final":
-                raise ManagerException("Cannot add initial conditions after finalisation")
-
             if self._annotation_state == "initial":
                 self._annotation_state = "annotating"
             elif self._annotation_state == "stopped_initial":
                 self._annotation_state = "stopped_annotating"
+            elif self._annotation_state == "final":
+                raise ManagerException("Cannot add initial conditions after finalisation")  # noqa: E501
+
             self._cp.add_initial_condition(x)
 
     def initial_condition(self, x):
@@ -753,21 +754,18 @@ class EquationManager:
                 return self._cp.initial_condition(x)
         raise ManagerException("Initial condition not found")
 
-    def add_equation(self, eq, annotate = None, tlm = None, annotate_tlm = None, tlm_skip = None):
+    def add_equation(self, eq, annotate=None, tlm=None, tlm_skip=None):
         """
-        Process the provided equation, annotating and / or deriving (and solving)
-        tangent-linear models as required. Assumes that the equation has already
-        been solved, and that the initial condition for eq.X() has been recorded on
-        the adjoint tape if necessary.
+        Process the provided equation, annotating and / or deriving (and
+        solving) tangent-linear equations as required. Assumes that the
+        equation has already been solved, and that the initial condition for
+        eq.X() has been recorded on the adjoint tape if necessary.
 
         annotate (default self.annotation_enabled()):
-            Whether to annotate the equation on the adjoint tape, storing data for
-            checkpointing as required.
+            Whether to annotate the equation on the adjoint tape, storing data
+            for checkpointing as required.
         tlm (default self.tlm_enabled()):
-            Whether to derive (and solve) an associated tangent-linear equation.
-        annotate_tlm (default annotate):
-            Whether the tangent-linear equation itself should be annotated on the
-            adjoint tape, with data stored for checkpointing as required.
+            Whether to derive (and solve) associated tangent-linear equations.
         tlm_skip (default None):
             Used for the derivation of higher order tangent-linear equations.
         """
@@ -775,40 +773,43 @@ class EquationManager:
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
-            if self._annotation_state == "final":
-                raise ManagerException("Cannot add equations after finalisation")
-
             if self._annotation_state == "initial":
                 self._annotation_state = "annotating"
             elif self._annotation_state == "stopped_initial":
                 self._annotation_state = "stopped_annotating"
-            if self._cp_method == "memory" and not self._cp_parameters["replace"]:
+            elif self._annotation_state == "final":
+                raise ManagerException("Cannot add equations after finalisation")  # noqa: E501
+
+            if self._cp_method == "memory" and not self._cp_parameters["replace"]:  # noqa: E501
                 self._block.append(eq)
             else:
-                eq_alias = eq if isinstance(eq, EquationAlias) else EquationAlias(eq)
+                if isinstance(eq, EquationAlias):
+                    eq_alias = eq
+                else:
+                    eq_alias = EquationAlias(eq)
                 eq_id = eq.id()
-                if not eq_id in self._finalizes:
+                if eq_id not in self._finalizes:
                     def callback(self_ref, eq_ref):
                         self = self_ref()
                         eq = eq_ref()
-                        if not self is None and not eq is None:
+                        if self is not None and eq is not None:
                             self.replace(eq)
-                    self._finalizes[eq_id] = weakref.finalize(eq, callback, weakref.ref(self), weakref.ref(eq_alias))
+                    self._finalizes[eq_id] = weakref.finalize(
+                        eq, callback, weakref.ref(self), weakref.ref(eq_alias))
                 self._block.append(eq_alias)
-            self._cp.add_equation((len(self._blocks), len(self._block) - 1), eq)
+            self._cp.add_equation(
+                (len(self._blocks), len(self._block) - 1), eq)
 
         if tlm is None:
             tlm = self.tlm_enabled()
         if tlm:
             if self._tlm_state == "final":
-                raise ManagerException("Cannot add tangent-linear equations after finalisation")
+                raise ManagerException("Cannot add tangent-linear equations after finalisation")  # noqa: E501
 
             X = eq.X()
             depth = 0 if tlm_skip is None else tlm_skip[1]
-            if annotate_tlm is None:
-                annotate_tlm = annotate
             for i, (M, dM) in enumerate(reversed(self._tlm)):
-                if not tlm_skip is None and i >= tlm_skip[0]:
+                if tlm_skip is not None and i >= tlm_skip[0]:
                     break
                 tlm_map, max_depth = self._tlm[(M, dM)]
                 eq_tlm_eqs = self._tlm_eqs.get(eq.id(), None)
@@ -819,13 +820,17 @@ class EquationManager:
                     for dep in eq.dependencies():
                         if dep in M or dep in tlm_map:
                             if len(set(X).intersection(set(M))) > 0:
-                                raise ManagerException("Invalid tangent-linear parameter")
-                            tlm_eq = eq_tlm_eqs[(M, dM)] = eq.tangent_linear(M, dM, tlm_map)
-                            if tlm_eq is None: tlm_eq = eq_tlm_eqs[(M, dM)] = NullSolver([tlm_map[x] for x in X])
+                                raise ManagerException("Invalid tangent-linear parameter")  # noqa: E501
+                            tlm_eq = eq.tangent_linear(M, dM, tlm_map)
+                            if tlm_eq is None:
+                                tlm_eq = NullSolver([tlm_map[x] for x in X])
+                            eq_tlm_eqs[(M, dM)] = tlm_eq
                             break
-                if not tlm_eq is None:
-                    tlm_eq.solve(manager = self, annotate = annotate_tlm,
-                        _tlm_skip = [i + 1, depth + 1] if max_depth - depth > 1 else [i, 0])
+                if tlm_eq is not None:
+                    tlm_eq.solve(
+                        manager=self, annotate=annotate, tlm=True,
+                        _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
+                                   else [i, 0]))
 
     def replace(self, eq):
         """
@@ -841,55 +846,65 @@ class EquationManager:
         deps = eq.dependencies()
         for dep in deps:
             dep_id = dep.id()
-            if not dep_id in self._replace_map:
-                replaced_dep = self._replace_map[dep_id] = replaced_function(dep)
-        eq.replace({dep:self._replace_map[dep.id()] for dep in deps})
+            if dep_id not in self._replace_map:
+                replaced_dep = replaced_function(dep)
+                self._replace_map[dep_id] = replaced_dep
+        eq.replace({dep: self._replace_map[dep.id()] for dep in deps})
         if eq_id in self._tlm_eqs:
             for tlm_eq in self._tlm_eqs[eq_id].values():
-                if not tlm_eq is None:
+                if tlm_eq is not None:
                     self.replace(tlm_eq)
 
     def map(self, x):
-        if is_function(x) or isinstance(x, ReplacementFunction):
-            return self._replace_map.get(x.id(), x)
-        else:
-            return [self.map(y) for y in x]
+        return self._replace_map.get(x.id(), x)
 
     def _checkpoint_space_id(self, fn):
         space = fn.function_space()
         space_id = function_space_id(space)
-        if not space_id in self._cp_spaces:
+        if space_id not in self._cp_spaces:
             self._cp_spaces[space_id] = space
         return space_id
 
     def _save_memory_checkpoint(self, cp, n):
-        self._cp_memory[n] = self._cp.initial_conditions(cp = True, refs = False, copy = False)
+        self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
+                                                         copy=False)
 
-    def _load_memory_checkpoint(self, storage, n, delete = False):
+    def _load_memory_checkpoint(self, storage, n, delete=False):
         if delete:
-            storage.update(self._cp_memory.pop(n), copy = False)
+            storage.update(self._cp_memory.pop(n), copy=False)
         else:
-            storage.update(self._cp_memory[n], copy = True)
+            storage.update(self._cp_memory[n], copy=True)
 
     def _save_disk_checkpoint(self, cp, n):
         cp_path = self._cp_parameters["path"]
         cp_format = self._cp_parameters["format"]
 
-        cp = self._cp.initial_conditions(cp = True, refs = False, copy = False)
+        cp = self._cp.initial_conditions(cp=True, refs=False, copy=False)
 
         if cp_format == "pickle":
-            cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm_py2f, self._comm.rank))
+            cp_filename = os.path.join(
+                cp_path,
+                "checkpoint_%i_%i_%i_%i.pickle" % (self._id,
+                                                   n,
+                                                   self._comm_py2f,
+                                                   self._comm.rank))
             h = open(cp_filename, "wb")
 
-            pickle.dump({key:(self._checkpoint_space_id(F), function_get_values(F)) for key, F in cp.items()},
-                h, protocol = pickle.HIGHEST_PROTOCOL)
+            pickle.dump({key: (self._checkpoint_space_id(F),
+                               function_get_values(F))
+                         for key, F in cp.items()},
+                        h, protocol=pickle.HIGHEST_PROTOCOL)
 
             h.close()
         elif cp_format == "hdf5":
-            cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm_py2f))
+            cp_filename = os.path.join(
+                cp_path,
+                "checkpoint_%i_%i_%i.hdf5" % (self._id,
+                                              n,
+                                              self._comm_py2f))
             import h5py
             if self._comm.size > 1:
-                h = h5py.File(cp_filename, "w", driver = "mpio", comm = self._comm)
+                h = h5py.File(cp_filename, "w", driver="mpio", comm=self._comm)
             else:
                 h = h5py.File(cp_filename, "w")
 
@@ -898,26 +913,34 @@ class EquationManager:
                 g = h.create_group("/ics/%i" % i)
 
                 values = function_get_values(F)
-                d = g.create_dataset("value", shape = (function_global_size(F),), dtype = values.dtype)
+                d = g.create_dataset("value", shape=(function_global_size(F),),
+                                     dtype=values.dtype)
                 d[function_local_indices(F)] = values
                 del(values)
 
-                d = g.create_dataset("space_id", shape = (self._comm.size,), dtype = np.int64)
+                d = g.create_dataset("space_id", shape=(self._comm.size,),
+                                     dtype=np.int64)
                 d[self._comm.rank] = self._checkpoint_space_id(F)
 
-                d = g.create_dataset("key", shape = (self._comm.size,), dtype = np.int64)
+                d = g.create_dataset("key", shape=(self._comm.size,),
+                                     dtype=np.int64)
                 d[self._comm.rank] = key
 
             h.close()
         else:
-            raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
+            raise ManagerException(f"Unrecognised checkpointing format: {cp_format:s}")  # noqa: E501
 
-    def _load_disk_checkpoint(self, storage, n, delete = False):
+    def _load_disk_checkpoint(self, storage, n, delete=False):
         cp_path = self._cp_parameters["path"]
         cp_format = self._cp_parameters["format"]
 
         if cp_format == "pickle":
-            cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i_%i.pickle" % (self._id, n, self._comm_py2f, self._comm.rank))
+            cp_filename = os.path.join(
+                cp_path,
+                "checkpoint_%i_%i_%i_%i.pickle" % (self._id,
+                                                   n,
+                                                   self._comm_py2f,
+                                                   self._comm.rank))
             h = open(cp_filename, "rb")
             cp = pickle.load(h)
             h.close()
@@ -934,10 +957,14 @@ class EquationManager:
                     storage[key] = F
                 del(space_id, values)
         elif cp_format == "hdf5":
-            cp_filename = os.path.join(cp_path, "checkpoint_%i_%i_%i.hdf5" % (self._id, n, self._comm_py2f))
+            cp_filename = os.path.join(
+                cp_path,
+                "checkpoint_%i_%i_%i.hdf5" % (self._id,
+                                              n,
+                                              self._comm_py2f))
             import h5py
             if self._comm.size > 1:
-                h = h5py.File(cp_filename, "r", driver = "mpio", comm = self._comm)
+                h = h5py.File(cp_filename, "r", driver="mpio", comm=self._comm)
             else:
                 h = h5py.File(cp_filename, "r")
 
@@ -958,43 +985,54 @@ class EquationManager:
                     os.remove(cp_filename)
                 self._comm.barrier()
         else:
-            raise ManagerException("Unrecognised checkpointing format: %s" % cp_format)
+            raise ManagerException(f"Unrecognised checkpointing format: {cp_format:s}")  # noqa: E501
 
-    def _checkpoint(self, final = False):
+    def _checkpoint(self, final=False):
         if self._cp_method == "memory":
             pass
         elif self._cp_method == "periodic_disk":
-            self._periodic_disk_checkpoint(final = final)
+            self._periodic_disk_checkpoint(final=final)
         elif self._cp_method == "multistage":
             self._multistage_checkpoint()
         else:
-            raise ManagerException("Unrecognised checkpointing method: %s" % self._cp_method)
+            raise ManagerException(f"Unrecognised checkpointing method: {self._cp_method:s}")  # noqa: E501
 
-    def _periodic_disk_checkpoint(self, final = False):
+    def _periodic_disk_checkpoint(self, final=False):
         cp_period = self._cp_parameters["period"]
 
         n = len(self._blocks) - 1
         if final or n % cp_period == cp_period - 1:
-            self._save_disk_checkpoint(self._cp, n = (n // cp_period) * cp_period)
+            self._save_disk_checkpoint(self._cp,
+                                       n=(n // cp_period) * cp_period)
             self._cp.clear()
-            self._cp.configure(store_ics = True,
-                                                 store_data = False)
+            self._cp.configure(store_ics=True,
+                               store_data=False)
 
     def _save_multistage_checkpoint(self):
-        cp_verbose = self._cp_parameters["verbose"]
+        def debug_info(message):
+            if self._cp_parameters["verbose"]:
+                info(message)
 
         deferred_snapshot = self._cp_manager.deferred_snapshot()
-        if not deferred_snapshot is None:
+        if deferred_snapshot is not None:
             snapshot_n, snapshot_storage = deferred_snapshot
             if snapshot_storage == "disk":
-                if cp_verbose: info("%s: save snapshot at %i on disk" % ("forward" if self._cp_manager.r() == 0 else "reverse", snapshot_n))
+                if self._cp_manager.r() == 0:
+                    debug_info(f"forward: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
+                else:
+                    debug_info(f"reverse: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
                 self._save_disk_checkpoint(self._cp, snapshot_n)
             else:
-                if cp_verbose: info("%s: save snapshot at %i in RAM" % ("forward" if self._cp_manager.r() == 0 else "reverse", snapshot_n))
+                if self._cp_manager.r() == 0:
+                    debug_info(f"forward: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
+                else:
+                    debug_info(f"reverse: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
                 self._save_memory_checkpoint(self._cp, snapshot_n)
 
     def _multistage_checkpoint(self):
-        cp_verbose = self._cp_parameters["verbose"]
+        def debug_info(message):
+            if self._cp_parameters["verbose"]:
+                info(message)
 
         n = len(self._blocks)
         if n < self._cp_manager.n():
@@ -1007,25 +1045,23 @@ class EquationManager:
         self._save_multistage_checkpoint()
         self._cp.clear()
         if n == self._cp_manager.max_n() - 1:
-            if cp_verbose: info("forward: configuring storage for reverse")
-#      self._cp.clear()
-            self._cp.configure(store_ics = False,
-                                                 store_data = True)
+            debug_info("forward: configuring storage for reverse")
+            self._cp.configure(store_ics=False,
+                               store_data=True)
         else:
-            if cp_verbose: info("forward: configuring storage for snapshot")
-#      self._cp.clear()
-            self._cp.configure(store_ics = True,
-                                                 store_data = False)
-            if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
+            debug_info("forward: configuring storage for snapshot")
+            self._cp.configure(store_ics=True,
+                               store_data=False)
+            debug_info(f"forward: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
             self._cp_manager.snapshot()
         self._cp_manager.forward()
-        if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
+        debug_info(f"forward: forward advance to {self._cp_manager.n():d}")
 
     def _restore_checkpoint(self, n):
         if self._cp_method == "memory":
             pass
         elif self._cp_method == "periodic_disk":
-            if not n in self._cp_manager:
+            if n not in self._cp_manager:
                 cp_period = self._cp_parameters["period"]
 
                 N0 = (n // cp_period) * cp_period
@@ -1034,82 +1070,95 @@ class EquationManager:
                 self._cp.clear()
                 self._cp_manager.clear()
                 storage = ReplayStorage(self._blocks, N0, N1)
-                storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False), copy = False)
-                self._load_disk_checkpoint(storage, N0, delete = False)
+                storage.update(self._cp.initial_conditions(cp=False, refs=True,
+                                                           copy=False),
+                               copy=False)
+                self._load_disk_checkpoint(storage, N0, delete=False)
 
                 for n1 in range(N0, N1):
-                    self._cp.configure(store_ics = n1 == 0,
-                                                         store_data = True)
+                    self._cp.configure(store_ics=n1 == 0,
+                                       store_data=True)
 
                     for i, eq in enumerate(self._blocks[n1]):
                         eq_deps = eq.dependencies()
 
-                        X = [storage[eq_x] for eq_x in eq.X()]
-                        deps = [storage[eq_dep] for eq_dep in eq_deps]
+                        X = tuple(storage[eq_x] for eq_x in eq.X())
+                        deps = tuple(storage[eq_dep] for eq_dep in eq_deps)
 
                         for eq_dep in eq.initial_condition_dependencies():
-                            self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
-                        eq.forward(X, deps = deps)
-                        self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
+                            self._cp.add_initial_condition(
+                                eq_dep, value=storage[eq_dep])
+                        eq.forward(X, deps=deps)
+                        self._cp.add_equation(
+                            (n1, i), eq, deps=deps,
+                            copy=storage.cp_add_equation_copy(n1, i))
 
                         storage.pop()
 
                     self._cp_manager.add(n1)
                 assert(len(storage) == 0)
         elif self._cp_method == "multistage":
-            cp_verbose = self._cp_parameters["verbose"]
+            def debug_info(message):
+                if self._cp_parameters["verbose"]:
+                    info(message)
 
             if n == 0 and self._cp_manager.max_n() - self._cp_manager.r() == 0:
                 return
             elif n == self._cp_manager.max_n() - 1:
-                if cp_verbose: info("reverse: adjoint step back to %i" % n)
+                debug_info(f"reverse: adjoint step back to {n:d}")
                 self._cp_manager.reverse()
                 return
 
-            snapshot_n, snapshot_storage, delete = self._cp_manager.load_snapshot()
+            (snapshot_n,
+             snapshot_storage,
+             snapshot_delete) = self._cp_manager.load_snapshot()
             self._cp.clear()
             storage = ReplayStorage(self._blocks, snapshot_n, n + 1)
-            storage.update(self._cp.initial_conditions(cp = False, refs = True, copy = False), copy = False)
+            storage.update(self._cp.initial_conditions(cp=False, refs=True,
+                                                       copy=False),
+                           copy=False)
             if snapshot_storage == "disk":
-                if cp_verbose: info("reverse: load snapshot at %i from disk and %s" % (snapshot_n, "delete" if delete else "keep"))
-                self._load_disk_checkpoint(storage, snapshot_n, delete = delete)
+                debug_info(f'reverse: load snapshot at {snapshot_n:d} from disk and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
+                self._load_disk_checkpoint(storage, snapshot_n,
+                                           delete=snapshot_delete)
             else:
-                if cp_verbose: info("reverse: load snapshot at %i from RAM and %s" % (snapshot_n, "delete" if delete else "keep"))
-                self._load_memory_checkpoint(storage, snapshot_n, delete = delete)
+                debug_info(f'reverse: load snapshot at {snapshot_n:d} from RAM and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
+                self._load_memory_checkpoint(storage, snapshot_n,
+                                             delete=snapshot_delete)
 
             if snapshot_n < n:
-                if cp_verbose: info("reverse: no storage")
-#        self._cp.clear()
-                self._cp.configure(store_ics = False,
-                                                     store_data = False)
+                debug_info("reverse: no storage")
+                self._cp.configure(store_ics=False,
+                                   store_data=False)
 
             snapshot_n_0 = snapshot_n
             while True:
                 if snapshot_n == n:
-                    if cp_verbose: info("reverse: configuring storage for reverse")
-#          self._cp.clear()
-                    self._cp.configure(store_ics = n == 0,
-                                                         store_data = True)
+                    debug_info("reverse: configuring storage for reverse")
+                    self._cp.configure(store_ics=n == 0,
+                                       store_data=True)
                 elif snapshot_n > snapshot_n_0:
-                    if cp_verbose: info("reverse: configuring storage for snapshot")
-#          self._cp.clear()
-                    self._cp .configure(store_ics = True,
-                                                            store_data = False)
-                    if cp_verbose: info("reverse: deferred snapshot at %i" % self._cp_manager.n())
+                    debug_info("reverse: configuring storage for snapshot")
+                    self._cp .configure(store_ics=True,
+                                        store_data=False)
+                    debug_info(f"reverse: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
                     self._cp_manager.snapshot()
                 self._cp_manager.forward()
-                if cp_verbose: info("reverse: forward advance to %i" % self._cp_manager.n())
+                debug_info(f"reverse: forward advance to {self._cp_manager.n():d}")  # noqa: E501
                 for n1 in range(snapshot_n, self._cp_manager.n()):
                     for i, eq in enumerate(self._blocks[n1]):
                         eq_deps = eq.dependencies()
 
-                        X = [storage[eq_x] for eq_x in eq.X()]
-                        deps = [storage[eq_dep] for eq_dep in eq_deps]
+                        X = tuple(storage[eq_x] for eq_x in eq.X())
+                        deps = tuple(storage[eq_dep] for eq_dep in eq_deps)
 
                         for eq_dep in eq.initial_condition_dependencies():
-                            self._cp.add_initial_condition(eq_dep, value = storage[eq_dep])
-                        eq.forward(X, deps = deps)
-                        self._cp.add_equation((n1, i), eq, deps = deps, copy = storage.cp_add_equation_copy(n1, i))
+                            self._cp.add_initial_condition(
+                                eq_dep, value=storage[eq_dep])
+                        eq.forward(X, deps=deps)
+                        self._cp.add_equation(
+                            (n1, i), eq, deps=deps,
+                            copy=storage.cp_add_equation_copy(n1, i))
 
                         storage.pop()
                 snapshot_n = self._cp_manager.n()
@@ -1119,27 +1168,31 @@ class EquationManager:
                 self._cp.clear()
             assert(len(storage) == 0)
 
-            if cp_verbose: info("reverse: adjoint step back to %i" % n)
+            debug_info(f"reverse: adjoint step back to {n:d}")
             self._cp_manager.reverse()
         else:
-            raise ManagerException("Unrecognised checkpointing method: %s" % self._cp_method)
+            raise ManagerException(f"Unrecognised checkpointing method: {self._cp_method:s}")  # noqa: E501
 
     def new_block(self):
         """
         End the current block equation and begin a new block. Ignored if
-        "multistage" checkpointing is used and the final block has been reached.
+        "multistage" checkpointing is used and the final block has been
+        reached.
         """
 
-        if self._annotation_state in ["stopped_initial", "stopped_annotating", "final"]:
+        if self._annotation_state in ["stopped_initial",
+                                      "stopped_annotating",
+                                      "final"]:
             return
-        elif self._cp_method == "multistage" and len(self._blocks) == self._cp_parameters["blocks"] - 1:
+        elif self._cp_method == "multistage" \
+                and len(self._blocks) == self._cp_parameters["blocks"] - 1:
             # Wait for the finalise
-            warning("Attempting to end the final block without finalising -- ignored")
+            warning("Attempting to end the final block without finalising -- ignored")  # noqa: E501
             return
 
         self._blocks.append(self._block)
         self._block = []
-        self._checkpoint(final = False)
+        self._checkpoint(final=False)
 
     def finalise(self):
         """
@@ -1153,29 +1206,29 @@ class EquationManager:
 
         self._blocks.append(self._block)
         self._block = []
-        self._checkpoint(final = True)
+        self._checkpoint(final=True)
 
-    def dependency_graph_png(self, divider = [255, 127, 127], p = 5):
+    def dependency_graph_png(self, divider=[255, 127, 127], p=5):
         P = 2 ** p
 
         blocks = copy.copy(self._blocks)
         if len(self._block) > 0:
-            blocks += [self._block]
+            blocks.append(self._block)
 
         M = 0
         for block in blocks:
             M += len(block) * P
         M += len(blocks) + 1
-        pixels = np.empty((M, M, 3), dtype = np.uint8)
+        pixels = np.empty((M, M, 3), dtype=np.uint8)
         pixels[:] = 255
 
         pixels[0, :, :] = divider
         pixels[:, 0, :] = divider
-        i0 = 1
+        index = 1
         for block in blocks:
-            pixels[i0 + len(block) * P, :, :] = divider
-            pixels[:, i0 + len(block) * P, :] = divider
-            i0 += len(block) * P + 1
+            pixels[index + len(block) * P, :, :] = divider
+            pixels[:, index + len(block) * P, :] = divider
+            index += len(block) * P + 1
 
         index = 1
         dep_map = {}
@@ -1194,42 +1247,43 @@ class EquationManager:
         import png
         return png.from_array(pixels, "RGB")
 
-    def compute_gradient(self, Js, M, callback = None):
+    def compute_gradient(self, Js, M, callback=None):
         """
-        Compute the derivative of one or more functionals with respect to one or
-        more control parameters by running adjoint models. Finalises the manager.
+        Compute the derivative of one or more functionals with respect to one
+        or more control parameters by running adjoint models. Finalises the
+        manager.
 
         Arguments:
 
-        Js        A Functional or Function, or a list or tuple of these, defining
-                            the functionals.
-        M         A Control or Function, or a list or tuple of these, defining the
-                            control parameters.
+        Js        A Functional or Function, or a list or tuple of these,
+                  defining the functionals.
+        M         A Control or Function, or a list or tuple of these, defining
+                  the control parameters.
         callback  (Optional) Callable of the form
-                                def callback(n, i, eq, adj_X):
-                            where adj_X is None, a Function, or a list or tuple of Function
-                            objects, corresponding to the adjoint solution for the equation
-                            eq, which is equation i in block n.
+                      def callback(n, i, eq, adj_X):
+                  where adj_X is None, a Function, or a list or tuple of
+                  Function objects, corresponding to the adjoint solution for
+                  the equation eq, which is equation i in block n.
         """
 
         if not isinstance(M, (list, tuple)):
             if not isinstance(Js, (list, tuple)):
-                return self.compute_gradient([Js], [M], callback = callback)[0][0]
+                ((dJ,),) = self.compute_gradient([Js], [M], callback=callback)
+                return dJ
             else:
-                return tuple(dJ[0] for dJ in self.compute_gradient(Js, [M], callback = callback))
+                dJs = self.compute_gradient(Js, [M], callback=callback)
+                return tuple(dJ for (dJ,) in dJs)
         elif not isinstance(Js, (list, tuple)):
-            return self.compute_gradient([Js], M, callback = callback)[0]
+            dJ, = self.compute_gradient([Js], M, callback=callback)
+            return dJ
 
         self.finalise()
 
         # Functionals
-        Js = list(Js)
-        for J_i, J in enumerate(Js):
-            if not is_function(J):
-                Js[J_i] = J.fn()
+        Js = tuple(J.fn() if not is_function(J) else J for J in Js)
 
         # Controls
-        M = tuple((m if is_function(m) else m.m()) for m in M)
+        M = tuple(m if is_function(m) else m.m() for m in M)
 
         # Derivatives
         dJ = [None for J in Js]
@@ -1238,9 +1292,9 @@ class EquationManager:
         # forward:
         #   Control block   :  Represents the equation "controls = inputs"
         #   Functional block:  Represents the equations "outputs = functionals"
-        blocks = [[ControlsMarker(M)]] \
-                     + self._blocks \
-                     + [[FunctionalMarker(J) for J in Js]]
+        blocks = ([[ControlsMarker(M)]]
+                  + self._blocks
+                  + [[FunctionalMarker(J) for J in Js]])
 
         # Adjoint equation right-hand-sides
         Bs = tuple(AdjointModelRHS(blocks) for J in Js)
@@ -1269,9 +1323,9 @@ class EquationManager:
                 B_indices = {}
                 for j, dep in enumerate(eq.dependencies()):
                     if dep in tdeps:
-                        p, k, l = tdeps[dep]
+                        p, k, m = tdeps[dep]
                         if p != n or k != i:
-                            B_indices[j] = (p, k, l)
+                            B_indices[j] = (p, k, m)
                 # Clear dependency information for this equation
                 tdeps.pop()
 
@@ -1285,103 +1339,166 @@ class EquationManager:
                     if eq_B.is_empty():
                         adj_X = None
                     else:
-                        # Solve adjoint equation, add terms to adjoint equations
+                        # Solve adjoint equation, add terms to adjoint
+                        # equations
                         adj_X = eq.adjoint(nl_deps, eq_B.B(), B_indices, B)
-                    if not callback is None and cp_n >= 0 and cp_n < len(self._blocks):
-                        callback(cp_n, i, eq, adj_X if adj_X is None or len(adj_X) > 1 else adj_X[0])
+                    if callback is not None and cp_block:
+                        if adj_X is None or len(adj_X) > 1:
+                            callback(cp_n, i, eq, adj_X)
+                        else:
+                            callback(cp_n, i, eq, adj_X[0])
 
                     if n == 0 and i == 0:
                         # A requested derivative
                         if adj_X is None:
                             dJ[J_i] = tuple(function_new(m) for m in M)
                         else:
-                            dJ[J_i] = tuple(function_copy(adj_x) for adj_x in adj_X)
+                            dJ[J_i] = tuple(function_copy(adj_x)
+                                            for adj_x in adj_X)
 
             if n > 0:
                 # Force finalisation of right-hand-sides in the control block
-                for J_i in range(len(Js)):
-                    Bs[J_i][0].finalise()
+                for B in Bs:
+                    B[0].finalise()
 
         for B in Bs:
             assert(B.is_empty())
         assert(tdeps.is_empty())
 
         if self._cp_method == "multistage":
-            self._cp.clear(clear_cp = False, clear_data = True, clear_refs = False)
+            self._cp.clear(clear_cp=False, clear_data=True, clear_refs=False)
 
         return tuple(dJ)
 
     def find_initial_condition(self, x):
         """
-        Find the initial condition Function or ReplacementFunction associated with
-        the given Function or name.
+        Find the initial condition Function or ReplacementFunction associated
+        with the given Function or name.
         """
 
         if is_function(x):
             return self.map(x)
         else:
-            for sblock in self._blocks + [self._block]:
-                for eq in sblock:
+            for block in self._blocks + [self._block]:
+                for eq in block:
                     for dep in eq.dependencies():
                         if dep.name() == x:
                             return dep
             raise ManagerException("Initial condition not found")
 
+
 set_manager(EquationManager())
 
-def configure_checkpointing(cp_method, cp_parameters = {}, manager = None):
-    (_manager() if manager is None else manager).configure_checkpointing(cp_method, cp_parameters)
 
-def manager_info(info = info, manager = None):
-    (_manager() if manager is None else manager).info(info = info)
+def configure_checkpointing(cp_method, cp_parameters={}, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
-def reset(cp_method = None, cp_parameters = None, manager = None):
-    (_manager() if manager is None else manager).reset(cp_method = cp_method, cp_parameters = cp_parameters)
 
-def annotation_enabled(manager = None):
-    return (_manager() if manager is None else manager).annotation_enabled()
+def manager_info(info=info, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.info(info=info)
 
-def start_manager(manager = None, annotation = True, tlm = True):
-    (_manager() if manager is None else manager).start(annotation = annotation, tlm = tlm)
-def start_annotating(manager = None):
-    (_manager() if manager is None else manager).start(annotation = True, tlm = False)
-def start_tlm(manager = None):
-    (_manager() if manager is None else manager).start(annotation = False, tlm = True)
 
-def stop_manager(manager = None, annotation = True, tlm = True):
-    (_manager() if manager is None else manager).stop(annotation = annotation, tlm = tlm)
-def stop_annotating(manager = None):
-    (_manager() if manager is None else manager).stop(annotation = True, tlm = False)
-def stop_tlm(manager = None):
-    (_manager() if manager is None else manager).stop(annotation = False, tlm = True)
+def reset_manager(cp_method=None, cp_parameters=None, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
-def add_tlm(M, dM, max_depth = 1, manager = None):
-    (_manager() if manager is None else manager).add_tlm(M, dM, max_depth = max_depth)
 
-def tlm_enabled(manager = None):
-    return (_manager() if manager is None else manager).tlm_enabled()
+def reset(cp_method=None, cp_parameters=None, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
-def tlm(M, dM, x, manager = None):
-    return (_manager() if manager is None else manager).tlm(M, dM, x)
 
-def compute_gradient(Js, M, callback = None, manager = None):
-    return (_manager() if manager is None else manager).compute_gradient(Js, M, callback = callback)
+def annotation_enabled(manager=None):
+    if manager is None:
+        manager = _manager()
+    return manager.annotation_enabled()
 
-def new_block(manager = None):
-    (_manager() if manager is None else manager).new_block()
 
-def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
+def start_manager(annotation=True, tlm=True, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.start(annotation=annotation, tlm=tlm)
+
+
+def start_annotating(manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.start(annotation=True, tlm=False)
+
+
+def start_tlm(manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.start(annotation=False, tlm=True)
+
+
+def stop_manager(annotation=True, tlm=True, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.stop(annotation=annotation, tlm=tlm)
+
+
+def stop_annotating(manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.stop(annotation=True, tlm=False)
+
+
+def stop_tlm(manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.stop(annotation=False, tlm=True)
+
+
+def add_tlm(M, dM, max_depth=1, manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.add_tlm(M, dM, max_depth=max_depth)
+
+
+def tlm_enabled(manager=None):
+    if manager is None:
+        manager = _manager()
+    return manager.tlm_enabled()
+
+
+def tlm(M, dM, x, manager=None):
+    if manager is None:
+        manager = _manager()
+    return manager.tlm(M, dM, x)
+
+
+def compute_gradient(Js, M, callback=None, manager=None):
+    if manager is None:
+        manager = _manager()
+    return manager.compute_gradient(Js, M, callback=callback)
+
+
+def new_block(manager=None):
+    if manager is None:
+        manager = _manager()
+    manager.new_block()
+
+
+def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     """
     Gradient-based minimization using scipy.optimize.minimize.
 
     Arguments:
 
-    forward  A callable which takes as input the control parameters and returns
-                     the Functional to be minimized.
-    M0       Control parameters initial guess.
-    J0       (Optional) Initial functional. If supplied assumes that the forward
-                     has already been run, and processed by the equation manager, using
-                     the control parameters given by M0.
+    forward  A callable which takes as input the control and returns the
+             Functional to be minimized.
+    M0       A Function, or a list or tuple of Function objects. Control
+             parameters initial guess.
+    J0       (Optional) Initial functional. If supplied assumes that the
+             forward has already been run, and processed by the equation
+             manager, using the control parameters given by M0.
     manager  (Optional) The equation manager.
 
     Any remaining keyword arguments are passed directly to
@@ -1389,12 +1506,13 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
 
     Returns a tuple
         (M, return_value)
-    return M is the value of the control parameters obtained, and return_value is
-    the return value of scipy.optimize.minimize.
+    return M is the value of the control parameters obtained, and return_value
+    is the return value of scipy.optimize.minimize.
     """
 
     if not isinstance(M0, (list, tuple)):
-        (M,), return_value = minimize_scipy(forward, [M0], J0 = J0, manager = manager, **kwargs)
+        (M,), return_value = minimize_scipy(forward, [M0], J0=J0,
+                                            manager=manager, **kwargs)
         return M, return_value
 
     M0 = [m0 if is_function(m0) else m0.m() for m0 in M0]
@@ -1405,25 +1523,25 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
     N = [0]
     for m in M0:
         N.append(N[-1] + function_local_size(m))
-    size_global = comm.allgather(np.array(N[-1], dtype = np.int64))
+    size_global = comm.allgather(np.array(N[-1], dtype=np.int64))
     N_global = [0]
     for size in size_global:
         N_global.append(N_global[-1] + size)
 
     def get(F):
-        x = np.empty(N[-1], dtype = np.float64)
+        x = np.empty(N[-1], dtype=np.float64)
         for i, f in enumerate(F):
             x[N[i]:N[i + 1]] = function_get_values(f)
 
         x_global = comm.allgather(x)
-        X = np.empty(N_global[-1], dtype = np.float64)
+        X = np.empty(N_global[-1], dtype=np.float64)
         for i, x_p in enumerate(x_global):
             X[N_global[i]:N_global[i + 1]] = x_p
         return X
 
     def set(F, x):
         # Basic cross-process synchonisation check
-        check1 = np.array(zlib.adler32(x.data), dtype = np.uint32)
+        check1 = np.array(zlib.adler32(x.data), dtype=np.uint32)
         check_global = comm.allgather(check1)
         for check2 in check_global:
             if check1 != check2:
@@ -1433,9 +1551,10 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
         for i, f in enumerate(F):
             function_set_values(f, x[N[i]:N[i + 1]])
 
-    M = [function_new(m0, static = function_is_static(m0),
-                                                cache = function_is_cached(m0),
-                                                checkpoint = function_is_checkpointed(m0)) for m0 in M0]
+    M = [function_new(m0, static=function_is_static(m0),
+                      cache=function_is_cached(m0),
+                      checkpoint=function_is_checkpointed(m0))
+         for m0 in M0]
     J = [J0]
     J_M = [M0]
 
@@ -1447,11 +1566,15 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
         old_manager = _manager()
         set_manager(manager)
         manager.reset()
+        manager.stop()
         clear_caches()
+
         manager.start()
         J[0] = forward(*M)
         manager.stop()
+
         set_manager(old_manager)
+
         J_M[0] = M
         return J[0].value()
 
@@ -1462,7 +1585,7 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
         return get(dJ)
 
     from scipy.optimize import minimize
-    return_value = minimize(fun, get(M0), jac = jac, **kwargs)
+    return_value = minimize(fun, get(M0), jac=jac, **kwargs)
     set(M, return_value.x)
 
     return M, return_value
