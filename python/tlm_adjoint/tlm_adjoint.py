@@ -1447,7 +1447,7 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
         old_manager = _manager()
         set_manager(manager)
         manager.reset()
-        clear_caches()  # Could use new caches here
+        clear_caches()
         manager.start()
         J[0] = forward(*M)
         manager.stop()
@@ -1467,47 +1467,53 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
 
     return M, return_value
 
-# Aims for similar behaviour, and largely API compatible with, the
-# dolfin-adjoint taylor_test function in dolfin-adjoint 2017.1.0. Arguments
-# based on dolfin-adjoint taylor_test arguments
-#   forward (renamed from J)
-#   M (renamed from m)
-#   J_val (renamed from Jm)
-#   dJ (renamed from dJdm)
-#   ddJ (renamed from HJm)
-#   seed
-#   dM (renamed from perturbation_direction)
-#   M0 (renamed from value)
-#   size
-def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
-    dM = None, M0 = None, size = 5, manager = None):
+
+def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
+                M0=None, size=5, manager=None):
+    # Aims for similar behaviour to the dolfin-adjoint taylor_test function in
+    # dolfin-adjoint 2017.1.0. Arguments based on dolfin-adjoint taylor_test
+    # arguments
+    #   forward (renamed from J)
+    #   M (renamed from m)
+    #   J_val (renamed from Jm)
+    #   dJ (renamed from dJdm)
+    #   ddJ (renamed from HJm)
+    #   seed
+    #   dM (renamed from perturbation_direction)
+    #   M0 (renamed from value)
+    #   size
     """
-    Perform a Taylor verification test.
+    Perform a Taylor remainder verification test.
 
     Arguments:
 
-    forward  A callable which takes as input a Function defining the value of the
-                     control, and returns the Functional.
+    forward  A callable which takes as input one or more Function objects
+             defining the value of the control, and returns the Functional.
     M        A Control or Function, or a list or tuple of these. The control.
     J_val    The reference functional value.
-    dJ       (Optional if ddJ is not supplied) A Function storing the derivative
-                     of J with respect to m.
-    ddJ      (Optional) A Hessian used to compute Hessian actions associated with
-                     the second derivative of J with respect to m.
+    dJ       (Optional if ddJ is supplied) A Function, or a list or tuple of
+             Function objects, storing the derivative of J with respect to M.
+    ddJ      (Optional) A Hessian used to compute Hessian actions associated
+             with the second derivative of J with respect to M.
     seed     (Optional) The maximum scaling for the perturbation is seed
-                     multiplied by the inf norm of the reference value (coefficients
-                     vector) of the control (or 1 if this is less than 1).
-    dM       A perturbation direction. Values generated using numpy.random.random
-                     are used if not supplied.
+             multiplied by the inf norm of the reference value (degrees of
+             freedom inf norm) of the control (or 1 if this is less than 1).
+    dM       A perturbation direction. Values generated using
+             numpy.random.random are used if not supplied.
     M0       (Optional) The reference value of the control.
     size     (Optional) The number of perturbed forward runs used in the test.
     manager  (Optional) The equation manager.
     """
 
     if not isinstance(M, (list, tuple)):
-        return taylor_test(forward, [M,], J_val, dJ = None if dJ is None else [dJ],
-            ddJ = ddJ, seed = seed, dM = None if dM is None else [dM],
-            M0 = None if M0 is None else [M0], size = size, manager = manager)
+        if dJ is not None:
+            dJ = [dJ]
+        if dM is not None:
+            dM = [dM]
+        if M0 is not None:
+            M0 = [M0]
+        return taylor_test(forward, [M], J_val, dJ=dJ, ddJ=ddJ, seed=seed,
+                           dM=dM, M0=M0, size=size, manager=manager)
 
     if manager is None:
         manager = _manager()
@@ -1515,9 +1521,10 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
     M = [m.m() if not is_function(m) else m for m in M]
     if M0 is None:
         M0 = [manager.initial_condition(m) for m in M]
-    M1 = [function_new(m, static = function_is_static(m),
-                                                cache = function_is_cached(m),
-                                                checkpoint = function_is_checkpointed(m)) for m in M]
+    M1 = [function_new(m, static=function_is_static(m),
+                       cache=function_is_cached(m),
+                       checkpoint=function_is_checkpointed(m))
+          for m in M]
 
     def functions_inner(X, Y):
         inner = 0.0
@@ -1532,33 +1539,34 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
         return norm
 
     # This combination seems to reproduce dolfin-adjoint behaviour
-    eps = np.array([2 ** -p for p in range(size)], dtype = np.float64)
+    eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
     eps = seed * eps * max(1.0, functions_linf_norm(M0))
     if dM is None:
-        dM = [function_new(m1, static = True) for m1 in M1]
+        dM = [function_new(m1, static=True) for m1 in M1]
         for dm in dM:
             function_set_values(dm, np.random.random(function_local_size(dm)))
 
-    J_vals = np.empty(eps.shape, dtype = np.float64)
+    J_vals = np.empty(eps.shape, dtype=np.float64)
     for i in range(eps.shape[0]):
         for m0, m1, dm in zip(M0, M1, dM):
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
-        clear_caches()  # Could use new caches here
+        clear_caches()
         annotation_enabled, tlm_enabled = manager.stop()
         J_vals[i] = forward(*M1).value()
-        manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
+        manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
-    info("Error norms, no adjoint   = %s" % error_norms_0)
-    info("Orders,      no adjoint   = %s" % orders_0)
+    info(f"Error norms, no adjoint   = {error_norms_0}")
+    info(f"Orders,      no adjoint   = {orders_0}")
 
     if ddJ is None:
-        error_norms_1 = abs(J_vals - J_val - eps * functions_inner(dJ, dM))
+        error_norms_1 = abs(J_vals - J_val
+                            - eps * functions_inner(dJ, dM))
         orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
-        info("Error norms, with adjoint = %s" % error_norms_1)
-        info("Orders,      with adjoint = %s" % orders_1)
+        info(f"Error norms, with adjoint = {error_norms_1}")
+        info(f"Orders,      with adjoint = {orders_1}")
         return orders_1.min()
     else:
         if dJ is None:
@@ -1566,49 +1574,56 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
         else:
             dJ = functions_inner(dJ, dM)
             _, _, ddJ = ddJ.action(M, dM)
-        error_norms_2 = abs(J_vals - J_val - eps * dJ - 0.5 * eps * eps * functions_inner(ddJ, dM))
+        error_norms_2 = abs(J_vals - J_val
+                            - eps * dJ
+                            - 0.5 * eps * eps * functions_inner(ddJ, dM))
         orders_2 = np.log(error_norms_2[1:] / error_norms_2[:-1]) / np.log(0.5)
-        info("Error norms, with adjoint = %s" % error_norms_2)
-        info("Orders,      with adjoint = %s" % orders_2)
+        info(f"Error norms, with adjoint = {error_norms_2}")
+        info(f"Orders,      with adjoint = {orders_2}")
         return orders_2.min()
 
-def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed = 1.0e-2,
-    M0 = None, size = 5, manager = None):
+
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, M0=None,
+                            size=5, manager=None):
     if not isinstance(M, (list, tuple)):
-        return taylor_test_tlm_adjoint(forward, [M], adjoint_order, seed = seed,
-            M0 = None if M0 is None else [M0], size = size, manager = manager)
+        if M0 is not None:
+            M0 = [M0]
+        return taylor_test_tlm_adjoint(
+            forward, [M], adjoint_order, seed=seed, M0=M0, size=size,
+            manager=manager)
 
     if manager is None:
         manager = _manager()
     tlm_manager = manager.new()
     tlm_manager.stop()
 
-    tlm = tuple(tuple(function_new(m, static = True) for m in M) for i in range(adjoint_order - 1))
+    tlm = tuple(tuple(function_new(m, static=True) for m in M)
+                for i in range(adjoint_order - 1))
     for dM in tlm:
         for dm in dM:
             function_set_values(dm, np.random.random(function_local_size(dm)))
 
-    def forward_tlm(*M, annotation = False):
+    def forward_tlm(*M, annotation=False):
         old_manager = _manager()
         set_manager(tlm_manager)
         tlm_manager.reset()
         tlm_manager.stop()
-        clear_caches()  # Could use new caches here
+        clear_caches()
 
         for dM in tlm:
             tlm_manager.add_tlm(M, dM)
-        tlm_manager.start(annotation = annotation, tlm = True)
+        tlm_manager.start(annotation=annotation, tlm=True)
         J = forward(*M)
         for dM in tlm:
-            J = J.tlm(M, dM, manager = tlm_manager)
+            J = J.tlm(M, dM, manager=tlm_manager)
 
         set_manager(old_manager)
 
         return J
 
-    J = forward_tlm(*M, annotation = True)
+    J = forward_tlm(*M, annotation=True)
     J_val = J.value()
     dJ = tlm_manager.compute_gradient(J, M)
 
-    return taylor_test(forward_tlm, M, J_val, dJ = dJ, seed = seed, M0 = M0,
-        size = size, manager = tlm_manager)
+    return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, M0=M0,
+                       size=size, manager=tlm_manager)
