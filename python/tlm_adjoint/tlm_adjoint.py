@@ -25,7 +25,7 @@ from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
 import copy
-import numpy
+import numpy as np
 import pickle
 import os
 import weakref
@@ -435,6 +435,7 @@ class EquationManager:
 
         if comm is None:
             comm = default_comm()
+        # FEniCS backwards compatibility
         if hasattr(comm, "tompi4py"):
             comm = comm.tompi4py()
 
@@ -901,10 +902,10 @@ class EquationManager:
                 d[function_local_indices(F)] = values
                 del(values)
 
-                d = g.create_dataset("space_id", shape = (self._comm.size,), dtype = numpy.int64)
+                d = g.create_dataset("space_id", shape = (self._comm.size,), dtype = np.int64)
                 d[self._comm.rank] = self._checkpoint_space_id(F)
 
-                d = g.create_dataset("key", shape = (self._comm.size,), dtype = numpy.int64)
+                d = g.create_dataset("key", shape = (self._comm.size,), dtype = np.int64)
                 d[self._comm.rank] = key
 
             h.close()
@@ -1165,7 +1166,7 @@ class EquationManager:
         for block in blocks:
             M += len(block) * P
         M += len(blocks) + 1
-        pixels = numpy.empty((M, M, 3), dtype = numpy.uint8)
+        pixels = np.empty((M, M, 3), dtype = np.uint8)
         pixels[:] = 255
 
         pixels[0, :, :] = divider
@@ -1404,25 +1405,25 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
     N = [0]
     for m in M0:
         N.append(N[-1] + function_local_size(m))
-    size_global = comm.allgather(numpy.array(N[-1], dtype = numpy.int64))
+    size_global = comm.allgather(np.array(N[-1], dtype = np.int64))
     N_global = [0]
     for size in size_global:
         N_global.append(N_global[-1] + size)
 
     def get(F):
-        x = numpy.empty(N[-1], dtype = numpy.float64)
+        x = np.empty(N[-1], dtype = np.float64)
         for i, f in enumerate(F):
             x[N[i]:N[i + 1]] = function_get_values(f)
 
         x_global = comm.allgather(x)
-        X = numpy.empty(N_global[-1], dtype = numpy.float64)
+        X = np.empty(N_global[-1], dtype = np.float64)
         for i, x_p in enumerate(x_global):
             X[N_global[i]:N_global[i + 1]] = x_p
         return X
 
     def set(F, x):
         # Basic cross-process synchonisation check
-        check1 = numpy.array(zlib.adler32(x.data), dtype = numpy.uint32)
+        check1 = np.array(zlib.adler32(x.data), dtype = np.uint32)
         check_global = comm.allgather(check1)
         for check2 in check_global:
             if check1 != check2:
@@ -1460,8 +1461,8 @@ def minimize_scipy(forward, M0, J0 = None, manager = None, **kwargs):
         J[0] = None
         return get(dJ)
 
-    import scipy.optimize
-    return_value = scipy.optimize.minimize(fun, get(M0), jac = jac, **kwargs)
+    from scipy.optimize import minimize
+    return_value = minimize(fun, get(M0), jac = jac, **kwargs)
     set(M, return_value.x)
 
     return M, return_value
@@ -1531,14 +1532,14 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
         return norm
 
     # This combination seems to reproduce dolfin-adjoint behaviour
-    eps = numpy.array([2 ** -p for p in range(size)], dtype = numpy.float64)
+    eps = np.array([2 ** -p for p in range(size)], dtype = np.float64)
     eps = seed * eps * max(1.0, functions_linf_norm(M0))
     if dM is None:
         dM = [function_new(m1, static = True) for m1 in M1]
         for dm in dM:
-            function_set_values(dm, numpy.random.random(function_local_size(dm)))
+            function_set_values(dm, np.random.random(function_local_size(dm)))
 
-    J_vals = numpy.empty(eps.shape, dtype = numpy.float64)
+    J_vals = np.empty(eps.shape, dtype = np.float64)
     for i in range(eps.shape[0]):
         for m0, m1, dm in zip(M0, M1, dM):
             function_assign(m1, m0)
@@ -1549,13 +1550,13 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
         manager.start(annotation = annotation_enabled, tlm = tlm_enabled)
 
     error_norms_0 = abs(J_vals - J_val)
-    orders_0 = numpy.log(error_norms_0[1:] / error_norms_0[:-1]) / numpy.log(0.5)
+    orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
     info("Error norms, no adjoint   = %s" % error_norms_0)
     info("Orders,      no adjoint   = %s" % orders_0)
 
     if ddJ is None:
         error_norms_1 = abs(J_vals - J_val - eps * functions_inner(dJ, dM))
-        orders_1 = numpy.log(error_norms_1[1:] / error_norms_1[:-1]) / numpy.log(0.5)
+        orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
         info("Error norms, with adjoint = %s" % error_norms_1)
         info("Orders,      with adjoint = %s" % orders_1)
         return orders_1.min()
@@ -1566,7 +1567,7 @@ def taylor_test(forward, M, J_val, dJ = None, ddJ = None, seed = 1.0e-2,
             dJ = functions_inner(dJ, dM)
             _, _, ddJ = ddJ.action(M, dM)
         error_norms_2 = abs(J_vals - J_val - eps * dJ - 0.5 * eps * eps * functions_inner(ddJ, dM))
-        orders_2 = numpy.log(error_norms_2[1:] / error_norms_2[:-1]) / numpy.log(0.5)
+        orders_2 = np.log(error_norms_2[1:] / error_norms_2[:-1]) / np.log(0.5)
         info("Error norms, with adjoint = %s" % error_norms_2)
         info("Orders,      with adjoint = %s" % orders_2)
         return orders_2.min()
@@ -1585,7 +1586,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed = 1.0e-2,
     tlm = tuple(tuple(function_new(m, static = True) for m in M) for i in range(adjoint_order - 1))
     for dM in tlm:
         for dm in dM:
-            function_set_values(dm, numpy.random.random(function_local_size(dm)))
+            function_set_values(dm, np.random.random(function_local_size(dm)))
 
     def forward_tlm(*M, annotation = False):
         old_manager = _manager()

@@ -189,8 +189,8 @@ def function_axpy(x, alpha, y):
 
 
 def default_comm():
-    import mpi4py.MPI
-    return mpi4py.MPI.COMM_WORLD
+    import mpi4py.MPI as MPI
+    return MPI.COMM_WORLD
 
 
 def function_comm(x):
