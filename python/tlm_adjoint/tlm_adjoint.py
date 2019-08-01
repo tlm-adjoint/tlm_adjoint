@@ -21,6 +21,7 @@
 from .backend_interface import *
 
 from .base_equations import *
+from .binomial_checkpointing import MultistageManager
 from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
@@ -372,66 +373,70 @@ class DependencyTransposer:
     def is_empty(self):
         return len(self._dep_map) == 0 and len(self._eq_X_ids) == 0
 
+
 class EquationManager:
     _id_counter = [0]
 
-    def __init__(self, comm = None, cp_method = "memory", cp_parameters = {}):
+    def __init__(self, comm=None, cp_method="memory", cp_parameters={}):
         """
         Manager for tangent-linear and adjoint models.
 
         Arguments:
-        comm  (Optional) PETSc communicator. Default default_comm().
+        comm  (Optional) Communicator. Default default_comm().
 
         cp_method  (Optional) Checkpointing method. Default "memory".
             Possible methods
-                memory         Store everything in RAM.
-                periodic_disk  Periodically store initial condition data on disk.
-                multistage     Binomial checkpointing using the approach described in
-                    GW2000  A. Griewank and A. Walther, "Algorithm 799: Revolve: An
-                                    implementation of checkpointing for the reverse or adjoint
-                                    mode of computational differentiation", ACM Transactions on
-                                    Mathematical Software, 26(1), pp. 19--45, 2000
-                                             with a brute force search used to obtain behaviour
-                                             described in
-                    SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal
-                                    offline checkpointing", SIAM Journal on Scientific Computing,
-                                    31(3), pp. 1946--1967, 2009
+                memory
+                    Store everything in RAM.
+                periodic_disk
+                    Periodically store initial condition data on disk.
+                multistage
+                    Binomial checkpointing using the approach described in
+                        GW2000  A. Griewank and A. Walther, "Algorithm 799:
+                                Revolve: An implementation of checkpointing for
+                                the reverse or adjoint mode of computational
+                                differentiation", ACM Transactions on
+                                Mathematical Software, 26(1), pp. 19--45, 2000
+                    with a brute force search used to obtain behaviour
+                    described in
+                        SW2009  P. Stumm and A. Walther, "MultiStage approaches
+                                for optimal offline checkpointing", SIAM
+                                Journal on Scientific Computing, 31(3),
+                                pp. 1946--1967, 2009
 
         cp_parameters  (Optional) Checkpointing parameters dictionary.
             Parameters for "memory" method
-                replace                   Whether to automatically replace internal
-                                                                    Function objects in the provided equations
-                                                                    with ReplacementFunction objects. Logical,
-                                                                    optional, default False.
+                replace        Whether to automatically replace internal
+                               Function objects in the provided equations with
+                               ReplacementFunction objects. Logical, optional,
+                               default False.
 
             Parameters for "periodic_disk" method
-                path                      Directory in which disk checkpoint data should
-                                                                    be stored.
-                                                                    String, optional, default "checkpoints~".
-                format                    Disk checkpointing format.
-                                                                    One of {"pickle", "hdf5"}, optional,
-                                                                    default "hdf5".
-                period                    Interval between checkpoints.
-                                                                    Positive integer, required.
+                path           Directory in which disk checkpoint data should
+                               be stored. String, optional, default
+                               "checkpoints~".
+                format         Disk checkpointing format. One of {"pickle",
+                               "hdf5"}, optional, default "hdf5".
+                period         Interval between checkpoints. Positive integer,
+                               required.
 
             Parameters for "multistage" method
-                path                      Directory in which disk checkpoint data should
-                                                                    be stored.
-                                                                    String, optional, default "checkpoints~".
-                format                    Disk checkpointing format.
-                                                                    One of {"pickle", "hdf5"}, optional,
-                                                                    default "hdf5".
-                blocks                    Total number of blocks.
-                                                                    Positive integer, required.
-                snaps_in_ram              Number of "snaps" to store in RAM.
-                                                                    Non-negative integer, optional, default 0.
-                snaps_on_disk             Number of "snaps" to store on disk.
-                                                                    Non-negative integer, optional, default 0.
-                verbose                   Whether to enable increased verbosity.
-                                                                    Logical, optional, default False.
+                path           Directory in which disk checkpoint data should
+                               be stored. String, optional, default
+                               "checkpoints~".
+                format         Disk checkpointing format. One of {"pickle",
+                               "hdf5"}, optional, default "hdf5".
+                blocks         Total number of blocks. Positive integer,
+                               required.
+                snaps_in_ram   Number of "snaps" to store in RAM. Non-negative
+                               integer, optional, default 0.
+                snaps_on_disk  Number of "snaps" to store on disk. Non-negative
+                               integer, optional, default 0.
+                verbose        Whether to enable increased verbosity. Logical,
+                               optional, default False.
         """
-        # "multistage" name, and "snaps_in_ram", "snaps_on_disk" and "verbose" in
-        # "multistage" method, are similar to adj_checkpointing arguments in
+        # "multistage" name, and "snaps_in_ram", "snaps_on_disk" and "verbose"
+        # in "multistage" method, are similar to adj_checkpointing arguments in
         # dolfin-adjoint 2017.1.0
 
         if comm is None:
@@ -448,22 +453,18 @@ class EquationManager:
         else:
             id = -1
             comm_py2f = -1
-        self._id = self._comm.bcast(id, root = 0)
-        self._comm_py2f = self._comm.bcast(comm_py2f, root = 0)
-        self.reset(cp_method = cp_method, cp_parameters = cp_parameters)
+        self._id = self._comm.bcast(id, root=0)
+        self._comm_py2f = self._comm.bcast(comm_py2f, root=0)
+        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
     def __del__(self):
         for finalize in self._finalizes.values():
             finalize.detach()
 
     def comm(self):
-        """
-        Return the PETSc communicator.
-        """
-
         return self._comm
 
-    def info(self, info = info):
+    def info(self, info=info):
         """
         Display information about the equation manager state.
 
@@ -473,58 +474,70 @@ class EquationManager:
         """
 
         info("Equation manager status:")
-        info("Annotation state: %s" % self._annotation_state)
-        info("Tangent-linear state: %s" % self._tlm_state)
+        info(f"Annotation state: {self._annotation_state:s}")
+        info(f"Tangent-linear state: {self._tlm_state:s}")
         info("Equations:")
-        for n, block in enumerate(self._blocks + ([self._block] if len(self._block) > 0 else [])):
-            info("  Block %i" % n)
+        blocks = copy.copy(self._blocks)
+        if len(self._block) > 0:
+            blocks.append(self._block)
+        for n, block in enumerate(blocks):
+            info(f"  Block {n:d}")
             for i, eq in enumerate(block):
                 eq_X = eq.X()
                 if len(eq_X) == 1:
                     X_name = eq_X[0].name()
-                    X_ids = "id %i" % eq_X[0].id()
+                    X_ids = f"id {eq_X[0].id():d}"
                 else:
-                    X_name = "(%s)" % (",".join(eq_x.name() for eq_x in eq_X))
-                    X_ids = "ids (%s)" % (",".join(["%i" % eq_x.id() for eq_x in eq_X]))
+                    X_name = "(%s)" % (",".join(eq_x.name()
+                                                for eq_x in eq_X))
+                    X_ids = "ids (%s)" % (",".join(f"{eq_x.id():d}"
+                                                   for eq_x in eq_X))
                 if isinstance(eq, EquationAlias):
-                    eq_type = "%s" % eq
+                    eq_type = f"{eq:s}"
                 else:
                     eq_type = type(eq).__name__
-                info("    Equation %i, %s solving for %s (%s)" % (i, eq_type, X_name, X_ids))
-                nl_dep_ids = set([dep.id() for dep in eq.nonlinear_dependencies()])
+                info("    Equation %i, %s solving for %s (%s)" %
+                     (i, eq_type, X_name, X_ids))
+                nl_dep_ids = set([dep.id()
+                                 for dep in eq.nonlinear_dependencies()])
                 for j, dep in enumerate(eq.dependencies()):
-                    info("      Dependency %i, %s (id %i)%s, %s" % (j, dep.name(), dep.id(), ", replaced" if isinstance(dep, ReplacementFunction) else "", "non-linear" if dep.id() in nl_dep_ids else "linear"))
+                    info("      Dependency %i, %s (id %i)%s, %s" %
+                         (j, dep.name(), dep.id(),
+                         ", replaced" if isinstance(dep, ReplacementFunction) else "",  # noqa: E501
+                         "non-linear" if dep.id() in nl_dep_ids else "linear"))
         info("Storage:")
-        info("  Storing initial conditions: %s" % ("yes" if self._cp.store_ics() else "no"))
-        info("  Storing equation non-linear dependencies: %s" % ("yes" if self._cp.store_data() else "no"))
-        info("  Initial conditions stored: %i" % len(self._cp._cp))
-        info("  Initial conditions referenced: %i" % len(self._cp._refs))
-        info("  Equations with non-linear dependencies: %i" % len(self._cp._deps))
+        info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
+        info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
+        info(f"  Initial conditions stored: {len(self._cp._cp):d}")
+        info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
+        info(f"  Equations with non-linear dependencies: {len(self._cp._deps):d}")  # noqa: E501
         info("Checkpointing:")
-        info("  Method: %s" % self._cp_method)
+        info(f"  Method: {self._cp_method:s}")
         if self._cp_method == "memory":
             pass
         elif self._cp_method == "periodic_disk":
-            info("  Function spaces referenced: %i" % len(self._cp_spaces))
+            info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
         elif self._cp_method == "multistage":
-            info("  Function spaces referenced: %i" % len(self._cp_spaces))
-            info("  Snapshots in RAM: %i" % self._cp_manager.snapshots_in_ram())
-            info("  Snapshots on disk: %i" % self._cp_manager.snapshots_on_disk())
+            info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
+            info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
+            info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
         else:
-            raise ManagerException("Unrecognised checkpointing method: %s" % self._cp_method)
+            raise ManagerException(f"Unrecognised checkpointing method: {self._cp_method:s}")  # noqa: E501
 
     def new(self):
         """
-        Return a new equation manager sharing the communicator and checkpointing
-        configuration of this equation manager.
+        Return a new equation manager sharing the communicator and
+        checkpointing configuration of this equation manager.
         """
 
-        return EquationManager(comm = self._comm, cp_method = self._cp_method, cp_parameters = self._cp_parameters)
+        return EquationManager(comm=self._comm,
+                               cp_method=self._cp_method,
+                               cp_parameters=self._cp_parameters)
 
-    def reset(self, cp_method = None, cp_parameters = None):
+    def reset(self, cp_method=None, cp_parameters=None):
         """
-        Reset the equation manager. Optionally a new checkpointing configuration can
-        be provided.
+        Reset the equation manager. Optionally a new checkpointing
+        configuration can be provided.
         """
 
         if cp_method is None:
@@ -534,10 +547,10 @@ class EquationManager:
 
         self._annotation_state = "initial"
         self._tlm_state = "initial"
+        self._blocks = []
         self._block = []
         self._replaced = set()
         self._replace_map = {}
-        self._blocks = []
         if hasattr(self, "_finalizes"):
             for finalize in self._finalizes.values():
                 finalize.detach()
@@ -546,20 +559,29 @@ class EquationManager:
         self._tlm = OrderedDict()
         self._tlm_eqs = {}
 
-        self.configure_checkpointing(cp_method, cp_parameters)
+        self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
-    def configure_checkpointing(self, cp_method, cp_parameters = {}):
+    def configure_checkpointing(self, cp_method, cp_parameters={}):
         """
         Provide a new checkpointing configuration.
         """
 
-        if not self._annotation_state in ["initial", "stopped_initial"]:
-            raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalisation")
+        if self._annotation_state not in ["initial", "stopped_initial"]:
+            raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalisation")  # noqa: E501
 
         cp_parameters = copy_parameters_dict(cp_parameters)
 
-        if cp_method == "periodic_disk" or (cp_method == "multistage" and cp_parameters.get("snaps_on_disk", 0) > 0):
-            cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")
+        if cp_method == "memory":
+            disk_storage = False
+        elif cp_method == "periodic_disk":
+            disk_storage = True
+        elif cp_method == "multistage":
+            disk_storage = cp_parameters.get("snaps_on_disk", 0) > 0
+        else:
+            raise ManagerException(f"Unrecognised checkpointing method: {cp_method:s}")  # noqa: E501
+
+        if disk_storage:
+            cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
             cp_parameters["format"] = cp_parameters.get("format", "hdf5")
 
             if self._comm.rank == 0:
@@ -574,47 +596,50 @@ class EquationManager:
             cp_manager = set()
         elif cp_method == "multistage":
             cp_blocks = cp_parameters["blocks"]
-            cp_parameters["snaps_in_ram"] = cp_snaps_in_ram = cp_parameters.get("snaps_in_ram", 0)
-            cp_parameters["snaps_on_disk"] = cp_snaps_on_disk = cp_parameters.get("snaps_on_disk", 0)
-            cp_parameters["verbose"] = cp_verbose = cp_parameters.get("verbose", False)
+            cp_parameters["snaps_in_ram"] = cp_snaps_in_ram = cp_parameters.get("snaps_in_ram", 0)  # noqa: E501
+            cp_parameters["snaps_on_disk"] = cp_snaps_on_disk = cp_parameters.get("snaps_on_disk", 0)  # noqa: E501
+            cp_parameters["verbose"] = cp_parameters.get("verbose", False)
 
-            from .binomial_checkpointing import MultistageManager
-            cp_manager = MultistageManager(cp_blocks, cp_snaps_in_ram, cp_snaps_on_disk)
+            cp_manager = MultistageManager(cp_blocks,
+                                           cp_snaps_in_ram, cp_snaps_on_disk)
         else:
-            raise ManagerException("Unrecognised checkpointing method: %s" % cp_method)
+            raise ManagerException(f"Unrecognised checkpointing method: {cp_method:s}")  # noqa: E501
 
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
         self._cp_manager = cp_manager
-        self._cp_spaces = {}  # FunctionSpace objects are currently stored in RAM
+        self._cp_spaces = {}
         self._cp_memory = {}
 
         if cp_method == "multistage":
+            def debug_info(message):
+                if self._cp_parameters["verbose"]:
+                    info(message)
+
             if self._cp_manager.max_n() == 1:
-                if cp_verbose: info("forward: configuring storage for reverse")
-                self._cp = CheckpointStorage(store_ics = True,
-                                                                         store_data = True)
+                debug_info("forward: configuring storage for reverse")
+                self._cp = CheckpointStorage(store_ics=True,
+                                             store_data=True)
             else:
-                if cp_verbose: info("forward: configuring storage for snapshot")
-                self._cp = CheckpointStorage(store_ics = True,
-                                                                         store_data = False)
-                if cp_verbose: info("forward: deferred snapshot at %i" % self._cp_manager.n())
+                debug_info("forward: configuring storage for snapshot")
+                self._cp = CheckpointStorage(store_ics=True,
+                                             store_data=False)
+                debug_info(f"forward: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
                 self._cp_manager.snapshot()
             self._cp_manager.forward()
-            if cp_verbose: info("forward: forward advance to %i" % self._cp_manager.n())
+            debug_info(f"forward: forward advance to {self._cp_manager.n():d}")
         else:
-            self._cp = CheckpointStorage(store_ics = True,
-                                                                     store_data = cp_method == "memory")
+            self._cp = CheckpointStorage(store_ics=True,
+                                         store_data=cp_method == "memory")
 
-    def add_tlm(self, M, dM, max_depth = 1):
+    def add_tlm(self, M, dM, max_depth=1):
         """
-        Add a tangent-linear model defined by the parameter c, where
-        M = M_0 + c dM, M is a Function or a list or tuple of Function objects,
-        c = 0, and dM defines a direction.
+        Add a tangent-linear model computing derivatives with respect to the
+        control defined by M in the direction defined by dM.
         """
 
         if self._tlm_state == "final":
-            raise ManagerException("Cannot add a tangent-linear model after finalisation")
+            raise ManagerException("Cannot add a tangent-linear model after finalisation")  # noqa: E501
 
         if is_function(M):
             M = (M,)
@@ -627,15 +652,21 @@ class EquationManager:
 
         if (M, dM) in self._tlm:
             raise ManagerException("Duplicate tangent-linear model")
+
         if self._tlm_state == "initial":
             self._tlm_state = "deriving"
         elif self._tlm_state == "stopped_initial":
             self._tlm_state = "stopped_deriving"
+
         if len(M) == 1:
-            tlm_map_name_suffix = "_tlm(%s,%s)" % (M[0].name(), dM[0].name())
+            tlm_map_name_suffix = \
+                "_tlm(%s,%s)" % (M[0].name(),
+                                 dM[0].name())
         else:
-            tlm_map_name_suffix = "_tlm((%s),(%s))" % (",".join(m.name() for m in M), ",".join(dm.name() for dm in dM))
-        self._tlm[(M, dM)] = [TangentLinearMap(tlm_map_name_suffix), max_depth]
+            tlm_map_name_suffix = \
+                "_tlm((%s),(%s))" % (",".join(m.name() for m in M),
+                                     ",".join(dm.name() for dm in dM))
+        self._tlm[(M, dM)] = (TangentLinearMap(tlm_map_name_suffix), max_depth)
 
     def tlm_enabled(self):
         """
@@ -646,8 +677,8 @@ class EquationManager:
 
     def tlm(self, M, dM, x):
         """
-        Return a tangent-linear Function associated with the forward Function x,
-        for the tangent-linear model defined by M and dM.
+        Return a tangent-linear Function associated with the forward Function
+        x, for the tangent-linear model defined by M and dM.
         """
 
         if is_function(M):
@@ -674,7 +705,7 @@ class EquationManager:
 
         return self._annotation_state in ["initial", "annotating"]
 
-    def start(self, annotation = True, tlm = True):
+    def start(self, annotation=True, tlm=True):
         """
         Start annotation or tangent-linear derivation.
         """
@@ -691,17 +722,19 @@ class EquationManager:
             elif self._tlm_state == "stopped_deriving":
                 self._tlm_state = "deriving"
 
-    def stop(self, annotation = True, tlm = True):
+    def stop(self, annotation=True, tlm=True):
         """
-        Pause annotation or tangent-linear derivation. Returns a tuple containing:
+        Pause annotation or tangent-linear derivation. Returns a tuple
+        containing:
             (annotation_state, tlm_state)
-        where annotation_state is True if the annotation is in state "initial" or
-        "annotating" and False otherwise, and tlm_state is True if the
-        tangent-linear state is "initial" or "deriving" and False otherwise, each
-        evaluated before changing the state.
+        where annotation_state is True if the annotation is in state "initial"
+        or "annotating" and False otherwise, and tlm_state is True if the
+        tangent-linear state is "initial" or "deriving" and False otherwise,
+        each evaluated before changing the state.
         """
 
-        state = (self._annotation_state in ["initial", "annotating"], self._tlm_state in ["initial", "deriving"])
+        state = (self._annotation_state in ["initial", "annotating"],
+                 self._tlm_state in ["initial", "deriving"])
 
         if annotation:
             if self._annotation_state == "initial":
