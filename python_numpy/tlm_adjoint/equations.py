@@ -20,7 +20,7 @@
 
 from .backend_interface import *
 
-from .base_equations import *
+from .base_equations import EquationException, LinearEquation, Matrix, RHS
 
 import numpy as np
 
@@ -58,7 +58,7 @@ class ConstantMatrix(Matrix):
     def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
         if b_index != 0:
             raise EquationException("Invalid index")
-        sb = self._A_T().dot(x.vector())
+        sb = self._A_T().dot(adj_x.vector())
         if method == "assign":
             b.vector()[:] = sb
         elif method == "add":
