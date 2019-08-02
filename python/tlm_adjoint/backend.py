@@ -5,16 +5,16 @@
 # root directory
 
 # This file is part of tlm_adjoint.
-# 
+#
 # tlm_adjoint is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, version 3 of the License.
-# 
+#
 # tlm_adjoint is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
@@ -45,13 +45,10 @@
 # Modified by Martin Sandve Alnes 2008-2014
 # Modified by Andre Massing 2009
 
-backend = "FEniCS"
-
 from fenics import *
 import fenics
 
-backend_Matrix = fenics.cpp.la.GenericMatrix
-backend_Vector = GenericVector
+backend = "FEniCS"
 
 extract_args = fenics.fem.solving._extract_args
 
@@ -61,6 +58,7 @@ backend_Function = Function
 backend_KrylovSolver = KrylovSolver
 backend_LUSolver = LUSolver
 backend_LinearVariationalSolver = LinearVariationalSolver
+backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_NonlinearVariationalProblem = NonlinearVariationalProblem
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
 backend_assemble = assemble
@@ -72,55 +70,49 @@ cpp_LinearVariationalProblem = fenics.cpp.fem.LinearVariationalProblem
 cpp_NonlinearVariationalProblem = fenics.cpp.fem.NonlinearVariationalProblem
 
 __all__ = \
-  [
-    "backend",
-    
-    "backend_Constant",
-    "backend_DirichletBC",
-    "backend_Function",
-    "backend_KrylovSolver",
-    "backend_LUSolver",
-    "backend_LinearVariationalSolver",
-    "backend_NonlinearVariationalProblem",
-    "backend_NonlinearVariationalSolver",
-    "backend_Matrix",
-    "backend_Vector",
-    "backend_assemble",
-    "backend_assemble_system",
-    "backend_project",
-    "backend_solve",
-    
-    "extract_args",
-    
-    "cpp_LinearVariationalProblem",
-    "cpp_NonlinearVariationalProblem",
-    
-    "Cell",
-    "Expression",
-    "Form",
-    "FunctionSpace",
-    "KrylovSolver",
-    "LUSolver",
-    "LocalSolver",
-    "LinearVariationalSolver",
-    "NonlinearVariationalSolver",
-    "Parameters",
-    "Point",
-    "TestFunction",
-    "TrialFunction",
-    "UnitIntervalMesh",
-    "adjoint",
-    "as_backend_type",
-    "assemble",
-    "assemble_system",
-    "has_lu_solver_method",
-    "info",
-    "interpolate",
-    "mpi_comm_world",
-    "parameters",
-    "solve"
-  ]
+    [
+        "backend",
 
+        "extract_args",
+
+        "backend_Constant",
+        "backend_DirichletBC",
+        "backend_Function",
+        "backend_KrylovSolver",
+        "backend_LUSolver",
+        "backend_LinearVariationalSolver",
+        "backend_NonlinearVariationalProblem",
+        "backend_NonlinearVariationalSolver",
+        "backend_Matrix",
+        "backend_assemble",
+        "backend_assemble_system",
+        "backend_project",
+        "backend_solve",
+
+        "cpp_LinearVariationalProblem",
+        "cpp_NonlinearVariationalProblem",
+
+        "Cell",
+        "Expression",
+        "Form",
+        "FunctionSpace",
+        "LocalSolver",
+        "Parameters",
+        "Point",
+        "TestFunction",
+        "TrialFunction",
+        "UnitIntervalMesh",
+        "adjoint",
+        "as_backend_type",
+        "has_lu_solver_method",
+        "info",
+        "interpolate",
+        "parameters",
+
+        "mpi_comm_world"
+    ]
+
+# FEniCS backwards compatibility
 if not hasattr(fenics, "mpi_comm_world"):
-  def mpi_comm_world():
-    return fenics.MPI.comm_world
+    def mpi_comm_world():
+        return fenics.MPI.comm_world

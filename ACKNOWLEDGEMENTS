@@ -3,12 +3,12 @@
 # tlm_adjoint is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, version 3 of the License.
-# 
+#
 # tlm_adjoint is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
@@ -117,7 +117,7 @@ tangent-linear and adjoint information using the approach described in [4, 5].
      Optimization Methods and Software, 1(1), pp. 13--21, 1992
 [5]  B. Christianson, "Reverse accumulation and attractive fixed points",
      Optimization Methods and Software, 3(4), pp. 311--326, 1994
-     
+
 ================================================================================
 
 tlm_adjoint implements the binomial checkpointing strategy described in [6],
@@ -128,9 +128,9 @@ force approach to yield behaviour described in [7].
 [6]  A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation of
      checkpointing for the reverse or adjoint mode of computational
      differentiation", ACM Transactions on Mathematical Software, 26(1),
-     pp. 19--45, 2000     
+     pp. 19--45, 2000
 [7]  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
      checkpointing", SIAM Journal on Scientific Computing, 31(3),
      pp. 1946--1967, 2009
-     
+
 ================================================================================
