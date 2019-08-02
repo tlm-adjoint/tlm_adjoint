@@ -524,7 +524,7 @@ class EquationManager:
         info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
         info(f"  Initial conditions stored: {len(self._cp._cp):d}")
         info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
-        info(f"  Equations with non-linear dependencies: {len(self._cp._deps):d}")  # noqa: E501
+        info(f"  Equations with non-linear dependencies: {len(self._cp._dep_keys):d}")  # noqa: E501
         info("Checkpointing:")
         info(f"  Method: {self._cp_method:s}")
         if self._cp_method == "memory":
