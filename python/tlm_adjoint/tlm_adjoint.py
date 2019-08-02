@@ -20,7 +20,8 @@
 
 from .backend_interface import *
 
-from .base_equations import *
+from .base_equations import AdjointModelRHS, ControlsMarker, EquationAlias, \
+    FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
 from .manager import manager as _manager, set_manager
 
@@ -59,11 +60,13 @@ __all__ = \
         "tlm_enabled"
     ]
 
+
 class ManagerException(Exception):
     pass
 
+
 class Control:
-    def __init__(self, m, manager = None):
+    def __init__(self, m, manager=None):
         if manager is None:
             manager = _manager()
 
@@ -75,19 +78,20 @@ class Control:
     def m(self):
         return self._m
 
+
 class CheckpointStorage:
-    def __init__(self, store_ics = True, store_data = True):
+    def __init__(self, store_ics=True, store_data=True):
         self._seen_ics = set()
         self._cp = {}
-        self._refs = {}
-        self._deps = {}
+        self._indices = defaultdict(lambda: 0)
+        self._dep_keys = {}
         self._data = {}
-        self._indices = defaultdict(lambda : 0)
+        self._refs = {}
 
-        self.configure(store_ics = store_ics,
-                                     store_data = store_data)
+        self.configure(store_ics=store_ics,
+                       store_data=store_data)
 
-    def configure(self, store_ics = None, store_data = None):
+    def configure(self, store_ics=None, store_data=None):
         """
         Configure storage.
 
@@ -95,12 +99,12 @@ class CheckpointStorage:
 
         store_ics   Store initial condition data, used by checkpointing
         store_data  Store equation non-linear dependency data, used in reverse
-                                mode
+                    mode
         """
 
-        if not store_ics is None:
+        if store_ics is not None:
             self._store_ics = store_ics
-        if not store_data is None:
+        if store_data is not None:
             self._store_data = store_data
 
     def store_ics(self):
@@ -109,28 +113,29 @@ class CheckpointStorage:
     def store_data(self):
         return self._store_data
 
-    def clear(self, clear_cp = True, clear_data = True, clear_refs = False):
+    def clear(self, clear_cp=True, clear_data=True, clear_refs=False):
         if clear_cp:
             self._seen_ics.clear()
             self._cp.clear()
         if clear_data:
-            self._deps.clear()
-            self._data.clear()
             self._indices.clear()
+            self._dep_keys.clear()
+            self._data.clear()
         if clear_refs:
             self._refs.clear()
         else:
             for x_id, x in self._refs.items():
-                self._seen_ics.add(x_id)  # May have been cleared above
+                # May have been cleared above
+                self._seen_ics.add(x_id)
 
                 x_key = self._data_key(x_id)
-                if not x_key in self._data:
+                if x_key not in self._data:
                     self._data[x_key] = x
 
     def __getitem__(self, key):
-        return [self._data[dep_key] for dep_key in self._deps[key]]
+        return tuple(self._data[dep_key] for dep_key in self._dep_keys[key])
 
-    def initial_condition(self, x, copy = True):
+    def initial_condition(self, x, copy=True):
         x_id = x.id()
         if x_id in self._refs:
             ic = self._refs[x_id]
@@ -140,7 +145,7 @@ class CheckpointStorage:
             ic = function_copy(ic)
         return ic
 
-    def initial_conditions(self, cp = True, refs = False, copy = True):
+    def initial_conditions(self, cp=True, refs=False, copy=True):
         cp_d = {}
         if cp:
             for x_id, x in self._cp.items():
@@ -153,13 +158,15 @@ class CheckpointStorage:
     def _data_key(self, x_id):
         return (x_id, self._indices[x_id])
 
-    def add_initial_condition(self, x, value = None, copy = lambda x : function_is_checkpointed(x)):
-        self._add_initial_condition(x_id = x.id(),
-            value = x if value is None else value,
-            copy = copy(x))
+    def add_initial_condition(self, x, value=None, copy=None):
+        if value is None:
+            value = x
+        if copy is None:
+            copy = function_is_checkpointed(x)
+        self._add_initial_condition(x_id=x.id(), value=value, copy=copy)
 
     def _add_initial_condition(self, x_id, value, copy):
-        if self._store_ics and not x_id in self._seen_ics:
+        if self._store_ics and x_id not in self._seen_ics:
             x_key = self._data_key(x_id)
             if x_key in self._data:
                 if copy:
@@ -175,51 +182,50 @@ class CheckpointStorage:
                 self._data[x_key] = value
             self._seen_ics.add(x_id)
 
-    def add_equation(self, key, eq, deps = None, nl_deps = None, copy=None):
+    def add_equation(self, key, eq, deps=None, nl_deps=None,
+                     copy=lambda x: function_is_checkpointed(x)):
         eq_X = eq.X()
         eq_deps = eq.dependencies()
         if deps is None:
             deps = eq_deps
-        if copy is None:
-            def copy(x):
-                return function_is_checkpointed(x)
-        else:
-            def copy(x):
-                return True
 
         for eq_x in eq_X:
             self._indices[eq_x.id()] += 1
 
         if self._store_ics:
-            # Optimization: Since we have solved for x, unless an initial condition
-            # for x has already been added, we need not add an initial condition for
-            # x, and so we mark x as "seen"
             for eq_x in eq_X:
                 self._seen_ics.add(eq_x.id())
             for eq_dep, dep in zip(eq_deps, deps):
-                self.add_initial_condition(eq_dep, value = dep, copy = copy)
+                self.add_initial_condition(eq_dep, value=dep,
+                                           copy=copy(eq_dep))
 
         if self._store_data:
+            if nl_deps is None:
+                nl_deps = tuple(deps[i]
+                                for i in eq.nonlinear_dependencies_map())
+
             dep_keys = []
-            for eq_dep, dep in zip(eq.nonlinear_dependencies(), [deps[i] for i in eq.nonlinear_dependencies_map()] if nl_deps is None else nl_deps):
+            for eq_dep, dep in zip(eq.nonlinear_dependencies(), nl_deps):
                 eq_dep_id = eq_dep.id()
                 dep_key = self._data_key(eq_dep_id)
-                if not dep_key in self._data:
+                if dep_key not in self._data:
                     if copy(eq_dep):
                         self._data[dep_key] = function_copy(dep)
                     else:
                         self._data[dep_key] = dep
-                        if not eq_dep_id in self._refs:
+                        if eq_dep_id not in self._seen_ics:
+                            self._seen_ics.add(eq_dep_id)
                             self._refs[eq_dep_id] = dep
                 dep_keys.append(dep_key)
-            self._deps[key] = dep_keys
+            self._dep_keys[key] = dep_keys
+
 
 class TangentLinearMap:
     """
     A map from forward to tangent-linear variables.
     """
 
-    def __init__(self, name_suffix):
+    def __init__(self, name_suffix=" (tangent-linear)"):
         self._name_suffix = name_suffix
         self._map = {}
         self._finalizes = {}
@@ -235,15 +241,16 @@ class TangentLinearMap:
         if not is_function(x):
             raise ManagerException("x must be a Function")
         x_id = x.id()
-        if not x_id in self._map:
+        if x_id not in self._map:
             def callback(self_ref, x_id):
                 self = self_ref()
-                if not self is None:
+                if self is not None:
                     del(self._map[x_id])
                     del(self._finalizes[x_id])
-            self._finalizes[x_id] = weakref.finalize(x, callback, weakref.ref(self), x_id)
-            tlm_x = self._map[x_id] = function_tangent_linear(x,
-                name = "%s%s" % (x.name(), self._name_suffix))
+            self._finalizes[x_id] = weakref.finalize(
+                x, callback, weakref.ref(self), x_id)
+            self._map[x_id] = function_tangent_linear(
+                x, name=f"{x.name():s}{self._name_suffix:s}")
         return self._map[x_id]
 
 
@@ -304,7 +311,7 @@ class ReplayStorage:
             self._map[x_id] = y
         return y
 
-    def update(self, d, copy=False):
+    def update(self, d, copy=True):
         for key, value in d.items():
             if key in self:
                 self[key] = function_copy(value) if copy else value
