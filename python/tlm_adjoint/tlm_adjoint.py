@@ -311,6 +311,7 @@ class ReplayStorage:
                 return self._last_eq[x_id] > (n, i)
         return copy
 
+
 class DependencyTransposer:
     def __init__(self, blocks, M):
         dep_map = {}
@@ -323,26 +324,29 @@ class DependencyTransposer:
                 X_ids = set(x.id() for x in eq.X())
                 for dep in eq.dependencies():
                     dep_id = dep.id()
-                    if not dep_id in X_ids and dep_id in active_ids:
+                    if dep_id not in X_ids and dep_id in active_ids:
                         eq_active = True
                         break
                 X_ids = tuple(x.id() for x in eq.X())
                 if eq_active:
-                    for l, x_id in enumerate(X_ids):
+                    # A solution component depends on the control(s)
+                    for m, x_id in enumerate(X_ids):
                         active_ids.add(x_id)
                         if x_id in dep_map:
-                            dep_map[x_id].append((p, k, l))
+                            dep_map[x_id].append((p, k, m))
                         else:
-                            dep_map[x_id] = [(p, k, l)]
+                            dep_map[x_id] = [(p, k, m)]
                     eq_X_ids.append(X_ids)
                 else:
                     eq_X_active_ids = []
-                    for l, x_id in enumerate(X_ids):
+                    for m, x_id in enumerate(X_ids):
                         if x_id in M_ids:
+                            # Control
                             M_ids.remove(x_id)
+                            assert(x_id not in active_ids)
                             active_ids.add(x_id)
-                            assert(not x_id in dep_map)
-                            dep_map[x_id] = [(p, k, l)]
+                            assert(x_id not in dep_map)
+                            dep_map[x_id] = [(p, k, m)]
                             eq_X_active_ids.append(x_id)
                         elif x_id in active_ids:
                             active_ids.remove(x_id)
@@ -353,9 +357,10 @@ class DependencyTransposer:
 
     def __contains__(self, dep):
         if isinstance(dep, int):
-            return dep in self._dep_map
+            dep_id = dep
         else:
-            return dep.id() in self._dep_map
+            dep_id = dep.id()
+        return dep_id in self._dep_map
 
     def __getitem__(self, dep):
         if isinstance(dep, int):
