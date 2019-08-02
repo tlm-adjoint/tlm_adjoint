@@ -175,11 +175,17 @@ class CheckpointStorage:
                 self._data[x_key] = value
             self._seen_ics.add(x_id)
 
-    def add_equation(self, key, eq, deps = None, nl_deps = None, copy = lambda x : function_is_checkpointed(x)):
+    def add_equation(self, key, eq, deps = None, nl_deps = None, copy=None):
         eq_X = eq.X()
         eq_deps = eq.dependencies()
         if deps is None:
             deps = eq_deps
+        if copy is None:
+            def copy(x):
+                return function_is_checkpointed(x)
+        else:
+            def copy(x):
+                return True
 
         for eq_x in eq_X:
             self._indices[eq_x.id()] += 1
@@ -240,42 +246,48 @@ class TangentLinearMap:
                 name = "%s%s" % (x.name(), self._name_suffix))
         return self._map[x_id]
 
+
 class ReplayStorage:
     def __init__(self, blocks, N0, N1):
+        # Map from dep (id) to (indices of) last equation which depends on dep
         last_eq = {}
         for n in range(N0, N1):
             for i, eq in enumerate(blocks[n]):
                 for dep in eq.dependencies():
                     last_eq[dep.id()] = (n, i)
 
-        eq_last_d = {}
+        # Ordered container, with each element containing a set of dep ids for
+        # which the corresponding equation is the last equation to depend on
+        # dep
         eq_last_q = deque()
+        eq_last_d = {}
         for n in range(N0, N1):
             for i in range(len(blocks[n])):
                 dep_ids = set()
-                eq_last_d[(n, i)] = dep_ids
                 eq_last_q.append(dep_ids)
+                eq_last_d[(n, i)] = dep_ids
         for dep_id, (n, i) in last_eq.items():
             eq_last_d[(n, i)].add(dep_id)
+        del(eq_last_d)
 
-        self._last_eq = last_eq
         self._eq_last = eq_last_q
-        self._map = {dep_id:None for dep_id in last_eq.keys()}
+        self._map = {dep_id: None for dep_id in last_eq.keys()}
 
     def __len__(self):
         return len(self._map)
 
     def __contains__(self, x):
         if isinstance(x, int):
-            return x in self._map
+            x_id = x
         else:
-            return x.id() in self._map
+            x_id = x.id()
+        return x_id in self._map
 
     def __getitem__(self, x):
         if isinstance(x, int):
             y = self._map[x]
             if y is None:
-                raise KeyError("Unable to create new Function")
+                raise ManagerException("Unable to create new Function")
         else:
             x_id = x.id()
             y = self._map[x_id]
@@ -292,24 +304,14 @@ class ReplayStorage:
             self._map[x_id] = y
         return y
 
-    def update(self, d, copy = False):
+    def update(self, d, copy=False):
         for key, value in d.items():
-            self[key] = function_copy(value) if copy else value
+            if key in self:
+                self[key] = function_copy(value) if copy else value
 
     def pop(self):
         for dep_id in self._eq_last.popleft():
             del(self._map[dep_id])
-
-    def cp_add_equation_copy(self, n, i):
-        def copy(x):
-            if not function_is_checkpointed(x):
-                return False
-            x_id = x.id()
-            if not x_id in self._last_eq:
-                return False
-            else:
-                return self._last_eq[x_id] > (n, i)
-        return copy
 
 
 class DependencyTransposer:
@@ -1127,9 +1129,7 @@ class EquationManager:
                             self._cp.add_initial_condition(
                                 eq_dep, value=storage[eq_dep])
                         eq.forward(X, deps=deps)
-                        self._cp.add_equation(
-                            (n1, i), eq, deps=deps,
-                            copy=storage.cp_add_equation_copy(n1, i))
+                        self._cp.add_equation((n1, i), eq, deps=deps)
 
                         storage.pop()
 
@@ -1194,9 +1194,7 @@ class EquationManager:
                             self._cp.add_initial_condition(
                                 eq_dep, value=storage[eq_dep])
                         eq.forward(X, deps=deps)
-                        self._cp.add_equation(
-                            (n1, i), eq, deps=deps,
-                            copy=storage.cp_add_equation_copy(n1, i))
+                        self._cp.add_equation((n1, i), eq, deps=deps)
 
                         storage.pop()
                 snapshot_n = self._cp_manager.n()
