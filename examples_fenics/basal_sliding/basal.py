@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint import *
-from tlm_adjoint.hessian_optimization import *
+from tlm_adjoint_fenics import *
+from tlm_adjoint_fenics.hessian_optimization import *
 
 import h5py
 import numpy as np
@@ -207,7 +207,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 J_1 = ufl.replace(self._J_1, replace_map)
                 J_2 = ufl.replace(self._J, replace_map)
 
-            from tlm_adjoint.backend_code_generator_interface import \
+            from tlm_adjoint_fenics.backend_code_generator_interface import \
                 assemble, solve
             function_zero(U)
             r = assemble(

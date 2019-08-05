@@ -19,9 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint import *
-from tlm_adjoint import manager as _manager
-from tlm_adjoint.backend import backend_Function
+from tlm_adjoint_fenics import *
+from tlm_adjoint_fenics import manager as _manager
+from tlm_adjoint_fenics.backend import backend_Function
 
 import gc
 import numpy as np
@@ -1195,7 +1195,7 @@ class tests(unittest.TestCase):
             function_assign(kappa, 1.0)
 
             def forward(T_0, kappa):
-                from tlm_adjoint.timestepping import N, TimeFunction, \
+                from tlm_adjoint_fenics.timestepping import N, TimeFunction, \
                     TimeLevels, TimeSystem, n
 
                 levels = TimeLevels([n, n + 1], {n: n + 1})

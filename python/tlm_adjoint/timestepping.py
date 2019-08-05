@@ -21,6 +21,10 @@
 from .backend_interface import *
 
 from .base_equations import AssignmentSolver, Equation
+try:
+    from .equations import EquationSolver
+except ImportError:
+    pass
 
 from collections import OrderedDict
 
@@ -225,7 +229,6 @@ class TimeSystem:
               and hasattr(args[1], "_tlm_adjoint__tfn")):
             eq = AssignmentSolver(args[0], args[1])
         else:
-            from .equations import EquationSolver
             eq = EquationSolver(*args, **kwargs)
 
         X = eq.X()

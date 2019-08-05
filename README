@@ -1,34 +1,6 @@
 To use tlm_adjoint with the FEniCS backend add the 'python' subdirectory to the
 Python search path.
 
-To use the NumPy backend copy (or make symbolic links)
-
-  python/tlm_adjoint/base_equations.py         -> python_numpy/tlm_adjoint/base_equations.py
-  python/tlm_adjoint/binomial_checkpointing.py -> python_numpy/tlm_adjoint/binomial_checkpointing.py
-  python/tlm_adjoint/functional.py             -> python_numpy/tlm_adjoint/functional.py
-  python/tlm_adjoint/hessian.py                -> python_numpy/tlm_adjoint/hessian.py
-  python/tlm_adjoint/hessian_optimization.py   -> python_numpy/tlm_adjoint/hessian_optimization.py
-  python/tlm_adjoint/manager.py                -> python_numpy/tlm_adjoint/manager.py
-  python/tlm_adjoint/tlm_adjoint.py            -> python_numpy/tlm_adjoint/tlm_adjoint.py
-
-and add the 'python_numpy' subdirectory to the Python search path.
-
-To use the Firedrake backend copy (or make symbolic links)
-
-  python/tlm_adjoint/base_equations.py         -> python_firedrake/tlm_adjoint/base_equations.py
-  python/tlm_adjoint/binomial_checkpointing.py -> python_firedrake/tlm_adjoint/binomial_checkpointing.py
-  python/tlm_adjoint/caches.py                 -> python_firedrake/tlm_adjoint/caches.py
-  python/tlm_adjoint/eigendecomposition.py     -> python_firedrake/tlm_adjoint/eigendecomposition.py
-  python/tlm_adjoint/equations.py              -> python_firedrake/tlm_adjoint/equations.py
-  python/tlm_adjoint/functional.py             -> python_firedrake/tlm_adjoint/functional.py
-  python/tlm_adjoint/hessian.py                -> python_firedrake/tlm_adjoint/hessian.py
-  python/tlm_adjoint/hessian_optimization.py   -> python_firedrake/tlm_adjoint/hessian_optimization.py
-  python/tlm_adjoint/manager.py                -> python_firedrake/tlm_adjoint/manager.py
-  python/tlm_adjoint/timestepping.py           -> python_firedrake/tlm_adjoint/timestepping.py
-  python/tlm_adjoint/tlm_adjoint.py            -> python_firedrake/tlm_adjoint/tlm_adjoint.py
-
-and add the 'python_firedrake' subdirectory to the Python search path.
-
 tlm_adjoint is currently targetting FEniCS 2019.1.0, and the Firedrake Git
 master branch.
 

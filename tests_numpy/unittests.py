@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint import *
-from tlm_adjoint import manager as _manager
+from tlm_adjoint_numpy import *
+from tlm_adjoint_numpy import manager as _manager
 
 import gc
 import numpy as np

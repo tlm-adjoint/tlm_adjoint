@@ -21,15 +21,15 @@
 import importlib
 import sys
 
-modules = [("backend", "tlm_adjoint_firedrake"),
-           ("backend_code_generator_interface", "tlm_adjoint_firedrake"),
+modules = [("backend", "tlm_adjoint_fenics"),
+           ("backend_code_generator_interface", "tlm_adjoint_fenics"),
            ("caches", "tlm_adjoint"),
-           ("backend_interface", "tlm_adjoint_firedrake"),
+           ("backend_interface", "tlm_adjoint_fenics"),
            ("base_equations", "tlm_adjoint"),
            ("equations", "tlm_adjoint"),
            ("tlm_adjoint", "tlm_adjoint"),
-           ("firedrake_equations", "tlm_adjoint_firedrake"),
-           ("backend_overrides", "tlm_adjoint_firedrake"),
+           ("fenics_equations", "tlm_adjoint_fenics"),
+           ("backend_overrides", "tlm_adjoint_fenics"),
            ("binomial_checkpointing", "tlm_adjoint"),
            ("eigendecomposition", "tlm_adjoint"),
            ("functional", "tlm_adjoint"),
@@ -42,14 +42,14 @@ tlm_adjoint_module = "tlm_adjoint" in sys.modules
 
 for module_name, package in modules:
     if package == "tlm_adjoint":
-        sys.modules[f"tlm_adjoint_firedrake.{module_name:s}"] \
+        sys.modules[f"tlm_adjoint_fenics.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
                                       package="tlm_adjoint")
     else:
-        assert(package == "tlm_adjoint_firedrake")
+        assert(package == "tlm_adjoint_fenics")
         sys.modules[f"tlm_adjoint.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint_firedrake")
+                                      package="tlm_adjoint_fenics")
 
 for module_name, package in modules:
     del(sys.modules[f"tlm_adjoint.{module_name:s}"])
@@ -59,15 +59,15 @@ if not tlm_adjoint_module:
 
 del(importlib, sys, modules, tlm_adjoint_module, module_name, package)
 
-from .backend import backend        # noqa: F401
-from .backend_interface import *    # noqa: F401
-from .backend_overrides import *    # noqa: F401
-from .base_equations import *       # noqa: F401
-from .caches import *               # noqa: F401
-from .eigendecomposition import *   # noqa: F401
-from .equations import *            # noqa: F401
-from .firedrake_equations import *  # noqa: F401
-from .functional import *           # noqa: F401
-from .hessian import *              # noqa: F401
-from .manager import *              # noqa: F401
-from .tlm_adjoint import *          # noqa: F401
+from .backend import backend       # noqa: F401
+from .backend_interface import *   # noqa: F401
+from .backend_overrides import *   # noqa: F401
+from .base_equations import *      # noqa: F401
+from .caches import *              # noqa: F401
+from .eigendecomposition import *  # noqa: F401
+from .equations import *           # noqa: F401
+from .fenics_equations import *    # noqa: F401
+from .functional import *          # noqa: F401
+from .hessian import *             # noqa: F401
+from .manager import *             # noqa: F401
+from .tlm_adjoint import *         # noqa: F401

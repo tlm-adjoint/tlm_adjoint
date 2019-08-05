@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint import *
-from tlm_adjoint import manager as _manager
+from tlm_adjoint_fenics import *
+from tlm_adjoint_fenics import manager as _manager
 
 import h5py
 import numpy as np

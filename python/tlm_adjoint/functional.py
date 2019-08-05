@@ -21,6 +21,10 @@
 from .backend_interface import *
 
 from .base_equations import AssignmentSolver, AxpySolver
+try:
+    from .equations import AssembleSolver
+except ImportError:
+    pass
 from .manager import manager as _manager
 
 __all__ = \
@@ -96,7 +100,6 @@ class Functional:
         if is_function(term):
             new_fn_eq = AssignmentSolver(term, new_fn)
         else:
-            from .equations import AssembleSolver
             new_fn_eq = AssembleSolver(term, new_fn)
         new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
@@ -134,7 +137,6 @@ class Functional:
                 term_fn = term
             else:
                 term_fn = function_new(self._fn, name=f"{self._name:s}_term")
-                from .equations import AssembleSolver
                 term_eq = AssembleSolver(term, term_fn)
                 term_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
             new_fn_eq = AxpySolver(self._fn, 1.0, term_fn, new_fn)
