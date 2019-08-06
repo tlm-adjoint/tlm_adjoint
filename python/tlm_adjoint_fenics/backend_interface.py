@@ -38,12 +38,12 @@ __all__ = \
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
-        "finalize_adjoint_derivative_action",
         "function_alias",
         "function_assign",
         "function_axpy",
         "function_comm",
         "function_copy",
+        "function_finalize_adjoint_derivative_action",
         "function_get_values",
         "function_global_size",
         "function_inner",
@@ -58,6 +58,7 @@ __all__ = \
         "function_set_values",
         "function_space_id",
         "function_state",
+        "function_subtract_adjoint_derivative_action",
         "function_sum",
         "function_tangent_linear",
         "function_tlm_depth",
@@ -66,7 +67,6 @@ __all__ = \
         "info",
         "is_function",
         "replaced_function",
-        "subtract_adjoint_derivative_action",
         "warning"
     ]
 
@@ -253,7 +253,7 @@ def function_local_indices(x):
     return slice(*x.function_space().dofmap().ownership_range())
 
 
-def subtract_adjoint_derivative_action(x, y):
+def function_subtract_adjoint_derivative_action(x, y):
     if y is None:
         pass
     elif isinstance(y, tuple):
@@ -272,7 +272,7 @@ def subtract_adjoint_derivative_action(x, y):
         x.vector().axpy(-1.0, y)
 
 
-def finalize_adjoint_derivative_action(x):
+def function_finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
         backend_assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
                          add_values=True)
