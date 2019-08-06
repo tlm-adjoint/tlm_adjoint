@@ -245,7 +245,7 @@ class TimeSystem:
         else:
             raise TimesteppingException(f"Invalid time level: {level}")
 
-    def assemble(self, initialize=True):
+    def assemble(self, initialize=True, manager=None):
         if self._state != "initial":
             raise TimesteppingException("Invalid state")
         self._state = "assembled"
@@ -307,7 +307,7 @@ class TimeSystem:
         self._tfns = tuple(tfns.keys())
 
         if initialize:
-            self.initialize()
+            self.initialize(manager=manager)
 
         return self
 
