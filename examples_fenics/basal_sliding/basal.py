@@ -303,7 +303,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             speed_eq.solve(annotate=False, tlm=False)
             speed_file << (speed_n, t)
 
-    # Initialisation
+    # Initialization
     solve_momentum(U[0], h[0])
 
     output(t=0.0)

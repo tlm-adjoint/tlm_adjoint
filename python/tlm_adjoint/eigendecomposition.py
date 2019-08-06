@@ -78,7 +78,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     space          Function space.
     A_action       Function handle accepting a Function and returning an array,
                    defining the action of the left-hand-side matrix.
-    B_matrix       (Optional) Right-hand-side matrix in a generalised
+    B_matrix       (Optional) Right-hand-side matrix in a generalized
                    eigendecomposition.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
                    Defaults to a full eigendecomposition.

@@ -701,7 +701,7 @@ class EquationSolver(Equation):
         self._forward_J_solver = CacheRef()
         self._forward_b_pa = None
 
-    def initialise_adjoint(self, nl_deps):
+    def initialize_adjoint(self, nl_deps):
         update_caches(self.nonlinear_dependencies(), deps=nl_deps)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):

@@ -69,7 +69,7 @@ kappa_space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
 kappa = Function(kappa_space, name="kappa", static=True)
 kappa.assign(Constant(L_x / (Pe * float(N_x))))
 info(f"kappa = {function_max_value(kappa):.16e}")
-# Regularisation parameter
+# Regularization parameter
 alpha = Constant(1.0e-15, static=True)
 
 # Stream function
@@ -185,7 +185,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
 
     # Solution on the previous time level
     T_n = Function(space, name="T_n")
-    # Solution on the next time level, subject to homogenised boundary
+    # Solution on the next time level, subject to homogenized boundary
     # conditions
     T_np1_0 = Function(space, name="T_np1_0")
 
@@ -195,7 +195,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
     def perp(v):
         return as_vector([-v[1], v[0]])
 
-    # Timestep equation, subject to homogenised boundary conditions
+    # Timestep equation, subject to homogenized boundary conditions
     F = (inner(test, (T_np1 - T_n) / dt) * dx
          + inner(test, dot(perp(grad(psi)), grad(T_nph))) * dx
          + inner(grad(test), kappa * grad(T_nph)) * dx)
@@ -236,7 +236,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
     # Mis-match functional
     J.assign(inner(T_n - T_N_ref, T_n - T_N_ref)
              * ds(subdomain_data=boundary_markers)(1))
-    # Regularisation
+    # Regularization
     J.addto(alpha * inner(grad(T_inflow_bc), grad(T_inflow_bc)) * dx)
 
     # Second functional

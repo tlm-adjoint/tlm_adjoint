@@ -1004,7 +1004,7 @@ class tests(unittest.TestCase):
             T_np1 = Function(space, name="T_np1")
             T_s = Constant(0.5, static=True) * (T_n + T_np1)
 
-            # Forward model initialisation and definition
+            # Forward model initialization and definition
             T_n.assign(Constant((1.0, 0.0)))
             eq = EquationSolver(inner(test[0], (T_np1[0] - T_n[0]) / dt) * dx
                                 - inner(test[0], T_s[1]) * dx
@@ -1129,7 +1129,7 @@ class tests(unittest.TestCase):
                     system.timestep()
                     if n_step < n_steps - 1:
                         new_block()
-                system.finalise()
+                system.finalize()
 
                 J = Functional(name="J")
                 J.assign(inner(T[N], T[N]) * dx)

@@ -536,7 +536,7 @@ class EquationManager:
             info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
             info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
         else:
-            raise ManagerException(f"Unrecognised checkpointing method: {self._cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
 
     def new(self):
         """
@@ -581,7 +581,7 @@ class EquationManager:
         """
 
         if self._annotation_state not in ["initial", "stopped_initial"]:
-            raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalisation")  # noqa: E501
+            raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalization")  # noqa: E501
 
         cp_parameters = copy_parameters_dict(cp_parameters)
 
@@ -592,7 +592,7 @@ class EquationManager:
         elif cp_method == "multistage":
             disk_storage = cp_parameters.get("snaps_on_disk", 0) > 0
         else:
-            raise ManagerException(f"Unrecognised checkpointing method: {cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: {cp_method:s}")  # noqa: E501
 
         if disk_storage:
             cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
@@ -617,7 +617,7 @@ class EquationManager:
             cp_manager = MultistageManager(cp_blocks,
                                            cp_snaps_in_ram, cp_snaps_on_disk)
         else:
-            raise ManagerException(f"Unrecognised checkpointing method: {cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: {cp_method:s}")  # noqa: E501
 
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
@@ -653,7 +653,7 @@ class EquationManager:
         """
 
         if self._tlm_state == "final":
-            raise ManagerException("Cannot add a tangent-linear model after finalisation")  # noqa: E501
+            raise ManagerException("Cannot add a tangent-linear model after finalization")  # noqa: E501
 
         if is_function(M):
             M = (M,)
@@ -782,17 +782,17 @@ class EquationManager:
             elif self._annotation_state == "stopped_initial":
                 self._annotation_state = "stopped_annotating"
             elif self._annotation_state == "final":
-                raise ManagerException("Cannot add initial conditions after finalisation")  # noqa: E501
+                raise ManagerException("Cannot add initial conditions after finalization")  # noqa: E501
 
             self._cp.add_initial_condition(x)
 
     def initial_condition(self, x):
         """
         Return the value of the initial condition for x recorded for the first
-        block. Finalises the manager.
+        block. Finalizes the manager.
         """
 
-        self.finalise()
+        self.finalize()
 
         x_id = x.id()
         for eq in self._blocks[0]:
@@ -825,7 +825,7 @@ class EquationManager:
             elif self._annotation_state == "stopped_initial":
                 self._annotation_state = "stopped_annotating"
             elif self._annotation_state == "final":
-                raise ManagerException("Cannot add equations after finalisation")  # noqa: E501
+                raise ManagerException("Cannot add equations after finalization")  # noqa: E501
 
             if self._cp_method == "memory" and not self._cp_parameters["replace"]:  # noqa: E501
                 self._block.append(eq)
@@ -851,7 +851,7 @@ class EquationManager:
             tlm = self.tlm_enabled()
         if tlm:
             if self._tlm_state == "final":
-                raise ManagerException("Cannot add tangent-linear equations after finalisation")  # noqa: E501
+                raise ManagerException("Cannot add tangent-linear equations after finalization")  # noqa: E501
 
             X = eq.X()
             depth = 0 if tlm_skip is None else tlm_skip[1]
@@ -975,7 +975,7 @@ class EquationManager:
 
             h.close()
         else:
-            raise ManagerException(f"Unrecognised checkpointing format: {cp_format:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing format: {cp_format:s}")  # noqa: E501
 
     def _load_disk_checkpoint(self, storage, n, delete=False):
         cp_path = self._cp_parameters["path"]
@@ -1032,7 +1032,7 @@ class EquationManager:
                     os.remove(cp_filename)
                 self._comm.barrier()
         else:
-            raise ManagerException(f"Unrecognised checkpointing format: {cp_format:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing format: {cp_format:s}")  # noqa: E501
 
     def _checkpoint(self, final=False):
         if self._cp_method == "memory":
@@ -1042,7 +1042,7 @@ class EquationManager:
         elif self._cp_method == "multistage":
             self._multistage_checkpoint()
         else:
-            raise ManagerException(f"Unrecognised checkpointing method: {self._cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
 
     def _periodic_disk_checkpoint(self, final=False):
         cp_period = self._cp_parameters["period"]
@@ -1214,7 +1214,7 @@ class EquationManager:
             debug_info(f"reverse: adjoint step back to {n:d}")
             self._cp_manager.reverse()
         else:
-            raise ManagerException(f"Unrecognised checkpointing method: {self._cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
 
     def new_block(self):
         """
@@ -1229,7 +1229,7 @@ class EquationManager:
             return
         elif self._cp_method == "multistage" \
                 and len(self._blocks) == self._cp_parameters["blocks"] - 1:
-            # Wait for the finalise
+            # Wait for the finalize
             warning("Attempting to end the final block without finalising -- ignored")  # noqa: E501
             return
 
@@ -1237,7 +1237,7 @@ class EquationManager:
         self._block = []
         self._checkpoint(final=False)
 
-    def finalise(self):
+    def finalize(self):
         """
         End the final block equation.
         """
@@ -1293,7 +1293,7 @@ class EquationManager:
     def compute_gradient(self, Js, M, callback=None):
         """
         Compute the derivative of one or more functionals with respect to one
-        or more control parameters by running adjoint models. Finalises the
+        or more control parameters by running adjoint models. Finalizes the
         manager.
 
         Arguments:
@@ -1320,7 +1320,7 @@ class EquationManager:
             dJ, = self.compute_gradient([Js], M, callback=callback)
             return dJ
 
-        self.finalise()
+        self.finalize()
 
         # Functionals
         Js = tuple(J.fn() if not is_function(J) else J for J in Js)
@@ -1400,9 +1400,9 @@ class EquationManager:
                                             for adj_x in adj_X)
 
             if n > 0:
-                # Force finalisation of right-hand-sides in the control block
+                # Force finalization of right-hand-sides in the control block
                 for B in Bs:
-                    B[0].finalise()
+                    B[0].finalize()
 
         for B in Bs:
             assert(B.is_empty())
@@ -1583,12 +1583,12 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         return X
 
     def set(F, x):
-        # Basic cross-process synchonisation check
+        # Basic cross-process synchonization check
         check1 = np.array(zlib.adler32(x.data), dtype=np.uint32)
         check_global = comm.allgather(check1)
         for check2 in check_global:
             if check1 != check2:
-                raise ManagerException("Parallel desynchronisation detected")
+                raise ManagerException("Parallel desynchronization detected")
 
         x = x[N_global[comm.rank]:N_global[comm.rank + 1]]
         for i, f in enumerate(F):

@@ -68,7 +68,7 @@ def greedy_coloring(space):
     colors[:] = -1
     i = 0
     while True:
-        # Initialise the advancing front
+        # Initialize the advancing front
         while i < N and colors[i] >= 0:
             i += 1
         if i == N:

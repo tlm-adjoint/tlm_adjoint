@@ -39,7 +39,7 @@ __all__ = \
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
-        "finalise_adjoint_derivative_action",
+        "finalize_adjoint_derivative_action",
         "function_alias",
         "function_assign",
         "function_axpy",
@@ -287,7 +287,7 @@ def subtract_adjoint_derivative_action(x, y):
         function_axpy(x, -1.0, y)
 
 
-def finalise_adjoint_derivative_action(x):
+def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
         function_axpy(x, 1.0, backend_assemble(x._tlm_adjoint__adj_b))
         delattr(x, "_tlm_adjoint__adj_b")

@@ -80,20 +80,20 @@ class AdjointRHS:
         self._b = None
 
     def b(self):
-        self.finalise()
+        self.finalize()
         return self._b
 
-    def initialise(self):
+    def initialize(self):
         if self._b is None:
             self._b = Function(self._space)
 
-    def finalise(self):
-        self.initialise()
-        finalise_adjoint_derivative_action(self._b)
+    def finalize(self):
+        self.initialize()
+        finalize_adjoint_derivative_action(self._b)
 
     def sub(self, b):
         if b is not None:
-            self.initialise()
+            self.initialize()
             subtract_adjoint_derivative_action(self._b, b)
 
     def is_empty(self):
@@ -115,9 +115,9 @@ class AdjointEquationRHS:
     def B(self):
         return tuple(B.b() for B in self._B)
 
-    def finalise(self):
+    def finalize(self):
         for b in self._B:
-            b.finalise()
+            b.finalize()
 
     def is_empty(self):
         for b in self._B:
@@ -140,9 +140,9 @@ class AdjointBlockRHS:
     def pop(self):
         return self._B.pop()
 
-    def finalise(self):
+    def finalize(self):
         for B in self._B:
-            B.finalise()
+            B.finalize()
 
     def is_empty(self):
         return len(self._B) == 0
@@ -394,7 +394,7 @@ class Equation:
         should never be modified by calling code.
         """
 
-        self.initialise_adjoint(nl_deps)
+        self.initialize_adjoint(nl_deps)
 
         adj_X = self.adjoint_jacobian_solve(nl_deps,
                                             B[0] if len(B) == 1 else B)
@@ -405,13 +405,13 @@ class Equation:
             if is_function(adj_X):
                 adj_X = (adj_X,)
 
-        self.finalise_adjoint()
+        self.finalize_adjoint()
 
         return adj_X
 
-    def initialise_adjoint(self, nl_deps):
+    def initialize_adjoint(self, nl_deps):
         """
-        Adjoint initialisation. Called prior to calling adjoint_jacobian_solve
+        Adjoint initialization. Called prior to calling adjoint_jacobian_solve
         or adjoint_derivative_action methods.
 
         Arguments:
@@ -422,9 +422,9 @@ class Equation:
 
         pass
 
-    def finalise_adjoint(self):
+    def finalize_adjoint(self):
         """
-        Adjoint finalisation. Called after calling adjoint_jacobian_solve or
+        Adjoint finalization. Called after calling adjoint_jacobian_solve or
         adjoint_derivative_action methods.
         """
 
@@ -926,14 +926,14 @@ class FixedPointSolver(Equation):
         for eq in self._eqs:
             eq.reset_forward_solve()
 
-    def initialise_adjoint(self, nl_deps):
+    def initialize_adjoint(self, nl_deps):
         self._eq_nl_deps = tuple(tuple(nl_deps[j]
                                        for j in self._eq_nl_dep_indices[i])
                                  for i in range(len(self._eqs)))
         for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
-            eq.initialise_adjoint(eq_nl_deps)
+            eq.initialize_adjoint(eq_nl_deps)
 
-    def finalise_adjoint(self):
+    def finalize_adjoint(self):
         del(self._eq_nl_deps)
 
     def adjoint_jacobian_solve(self, nl_deps, B):
@@ -946,7 +946,7 @@ class FixedPointSolver(Equation):
         maximum_iterations = self._solver_parameters["maximum_iterations"]
         report = self._solver_parameters["report"]
 
-        adj_X = self._initialise_adjoint_jacobian_solve(B)
+        adj_X = self._initialize_adjoint_jacobian_solve(B)
         x = adj_X[-1]
 
         it = 0
@@ -966,7 +966,7 @@ class FixedPointSolver(Equation):
                     sb = eq.adjoint_derivative_action(eq_nl_deps, j, adj_x)
                     subtract_adjoint_derivative_action(b, sb)
                     del(sb)
-                finalise_adjoint_derivative_action(b)
+                finalize_adjoint_derivative_action(b)
 
                 eq = self._eqs[i]
                 eq_nl_deps = self._eq_nl_deps[i]
@@ -997,7 +997,7 @@ class FixedPointSolver(Equation):
 
         return adj_X
 
-    def _initialise_adjoint_jacobian_solve(self, B):
+    def _initialize_adjoint_jacobian_solve(self, B):
         if self._tdeps is None:
             eq_x_ids = {eq.x().id(): i for i, eq in enumerate(self._eqs)}
             self._tdeps = [[] for eq in self._eqs]
@@ -1038,7 +1038,7 @@ class FixedPointSolver(Equation):
                                                   eq_dep_ids[dep_id], adj_x)
                 subtract_adjoint_derivative_action(F, sb)
                 del(sb)
-        finalise_adjoint_derivative_action(F)
+        finalize_adjoint_derivative_action(F)
 
         return (-1.0, F)
 

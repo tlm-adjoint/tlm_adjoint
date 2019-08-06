@@ -245,7 +245,7 @@ class TimeSystem:
         else:
             raise TimesteppingException(f"Invalid time level: {level}")
 
-    def assemble(self, initialise=True):
+    def assemble(self, initialize=True):
         if self._state != "initial":
             raise TimesteppingException("Invalid state")
         self._state = "assembled"
@@ -306,15 +306,15 @@ class TimeSystem:
                     tfns[x_tfn] = x_tfn
         self._tfns = tuple(tfns.keys())
 
-        if initialise:
-            self.initialise()
+        if initialize:
+            self.initialize()
 
         return self
 
-    def initialise(self, manager=None):
+    def initialize(self, manager=None):
         if self._state != "assembled":
             raise TimesteppingException("Invalid state")
-        self._state = "initialised"
+        self._state = "initialized"
 
         for eq in self._sorted_eqs[0]:
             eq.solve(manager=manager)
@@ -329,8 +329,8 @@ class TimeSystem:
 
     def timestep(self, s=1, manager=None):
         if self._state == "initial":
-            self.assemble(initialise=True)
-        if self._state not in ["initialised", "timestepping"]:
+            self.assemble(initialize=True)
+        if self._state not in ["initialized", "timestepping"]:
             raise TimesteppingException("Invalid state")
         self._state = "timestepping"
 
@@ -342,10 +342,10 @@ class TimeSystem:
             for tfn in self._tfns:
                 tfn.cycle(manager=manager)
 
-    def finalise(self, manager=None):
+    def finalize(self, manager=None):
         if self._state == "initial":
-            self.assemble(initialise=True)
-        if self._state not in ["initialised", "timestepping"]:
+            self.assemble(initialize=True)
+        if self._state not in ["initialized", "timestepping"]:
             raise TimesteppingException("Invalid state")
         self._state = "final"
 
