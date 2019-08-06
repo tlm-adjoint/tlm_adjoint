@@ -510,6 +510,13 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
 
+    def __new__(cls, x):
+        if isinstance(x, ReplacementFunction):
+            return x
+        if not hasattr(x, "_tlm_adjoint__replacement"):
+            x._tlm_adjoint__replacement = ufl.classes.Coefficient.__new__(cls)
+        return x._tlm_adjoint__replacement
+
     def function_space(self):
         return self.__space
 
@@ -542,11 +549,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
 
 
 def replaced_function(x):
-    if isinstance(x, ReplacementFunction):
-        return x
-    if not hasattr(x, "_tlm_adjoint__ReplacementFunction"):
-        x._tlm_adjoint__ReplacementFunction = ReplacementFunction(x)
-    return x._tlm_adjoint__ReplacementFunction
+    return ReplacementFunction(x)
 
 
 def replaced_form(form):
