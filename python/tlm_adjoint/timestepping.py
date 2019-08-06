@@ -329,7 +329,7 @@ class TimeSystem:
 
     def timestep(self, s=1, manager=None):
         if self._state == "initial":
-            self.assemble(initialize=True)
+            self.assemble(initialize=True, manager=manager)
         if self._state not in ["initialized", "timestepping"]:
             raise TimesteppingException("Invalid state")
         self._state = "timestepping"
@@ -344,7 +344,7 @@ class TimeSystem:
 
     def finalize(self, manager=None):
         if self._state == "initial":
-            self.assemble(initialize=True)
+            self.assemble(initialize=True, manager=manager)
         if self._state not in ["initialized", "timestepping"]:
             raise TimesteppingException("Invalid state")
         self._state = "final"
