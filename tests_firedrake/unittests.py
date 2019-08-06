@@ -1250,7 +1250,7 @@ class tests(unittest.TestCase):
         stop_manager()
 
         J_val = J.value()
-        self.assertEqual(J_val, 25411681.0)
+        self.assertAlmostEqual(J_val, 25411681.0, places=8)
 
         dJ = compute_gradient(J, x)
         dm = Function(space, name="dm", static=True)
