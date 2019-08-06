@@ -214,7 +214,7 @@ def project(v, V, bcs=None, solver_parameters=None,
         if is_function(V):
             x = V
         else:
-            x = Function(V, name=name)
+            x = function_space_new(V, name=name)
         if bcs is None:
             bcs = []
         elif isinstance(bcs, backend_DirichletBC):

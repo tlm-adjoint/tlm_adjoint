@@ -45,6 +45,7 @@ __all__ = \
         "function_is_cached",
         "function_is_checkpointed",
         "function_is_static",
+        "function_space_new",
         "function_state",
         "function_tlm_depth",
         "function_update_state",
@@ -122,10 +123,10 @@ class Function(backend_Function):
         if self.is_static():
             return None
         else:
-            return Function(self.function_space(), name=name, static=False,
-                            cache=self.is_cached(),
-                            checkpoint=self.is_checkpointed(),
-                            tlm_depth=self.tlm_depth() + 1)
+            return function_space_new(self.function_space(), name=name,
+                                      static=False, cache=self.is_cached(),
+                                      checkpoint=self.is_checkpointed(),
+                                      tlm_depth=self.tlm_depth() + 1)
 
     def caches(self):
         return self.__caches
@@ -163,6 +164,12 @@ def is_cached(e):
         if not hasattr(c, "is_cached") or not c.is_cached():
             return False
     return True
+
+
+def function_space_new(space, name=None, static=False, cache=None,
+                       checkpoint=None, tlm_depth=0):
+    return Function(space, name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
 def function_state(x):

@@ -52,6 +52,7 @@ __all__ = \
         "function_new",
         "function_set_values",
         "function_space_id",
+        "function_space_new",
         "function_state",
         "function_subtract_adjoint_derivative_action",
         "function_sum",
@@ -98,6 +99,12 @@ class FunctionSpace:
 
 def function_space_id(space):
     return space.dim()
+
+
+def function_space_new(space, name=None, static=False, cache=None,
+                       checkpoint=None, tlm_depth=0):
+    return Function(space, name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
 def RealFunctionSpace(comm=None):

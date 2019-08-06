@@ -999,7 +999,7 @@ class EquationManager:
             for key in tuple(cp.keys()):
                 space_id, values = cp.pop(key)
                 if key in storage:
-                    F = Function(self._cp_spaces[space_id])
+                    F = function_space_new(self._cp_spaces[space_id])
                     function_set_values(F, values)
                     storage[key] = F
                 del(space_id, values)
@@ -1020,7 +1020,7 @@ class EquationManager:
                 key = int(d[self._comm.rank])
                 if key in storage:
                     d = g["space_id"]
-                    F = Function(self._cp_spaces[d[self._comm.rank]])
+                    F = function_space_new(self._cp_spaces[d[self._comm.rank]])
                     d = g["value"]
                     function_set_values(F, d[function_local_indices(F)])
                     storage[key] = F

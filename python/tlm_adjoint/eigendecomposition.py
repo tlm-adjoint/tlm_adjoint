@@ -121,7 +121,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
             function_set_values(self._X, x.getArray(readonly=True))
             y.setArray(self._action(self._X))
 
-    X = Function(space)
+    X = function_space_new(space)
     n, N = function_local_size(X), function_global_size(X)
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action, X),

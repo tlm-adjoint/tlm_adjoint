@@ -85,7 +85,7 @@ class AdjointRHS:
 
     def initialize(self):
         if self._b is None:
-            self._b = Function(self._space)
+            self._b = function_space_new(self._space)
 
     def finalize(self):
         self.initialize()

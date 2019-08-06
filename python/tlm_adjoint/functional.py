@@ -94,7 +94,7 @@ class Functional:
             manager = _manager()
 
         if self._fn is None:
-            new_fn = Function(self._space, name=self._name)
+            new_fn = function_space_new(self._space, name=self._name)
         else:
             new_fn = function_new(self._fn, name=self._name)
         if is_function(term):
@@ -149,7 +149,7 @@ class Functional:
         """
 
         if self._fn is None:
-            self._fn = Function(self._space, name=self._name)
+            self._fn = function_space_new(self._space, name=self._name)
         return self._fn
 
     def function_space(self):

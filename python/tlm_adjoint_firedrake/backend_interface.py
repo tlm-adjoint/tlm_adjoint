@@ -24,8 +24,8 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 
 from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_state, function_tlm_depth, function_update_state, is_function, \
-    replaced_function
+    function_space_new, function_state, function_tlm_depth, \
+    function_update_state, is_function, replaced_function
 
 import ufl
 import sys
@@ -58,6 +58,7 @@ __all__ = \
         "function_new",
         "function_set_values",
         "function_space_id",
+        "function_space_new",
         "function_state",
         "function_subtract_adjoint_derivative_action",
         "function_sum",
@@ -95,6 +96,10 @@ def function_space_id(space):
     return id(space)
 
 
+# def function_space_new(space, name=None, static=False, cache=None,
+#                        checkpoint=None, tlm_depth=0):
+
+
 def RealFunctionSpace(comm=None):
     if comm is None:
         comm = default_comm()
@@ -102,8 +107,6 @@ def RealFunctionSpace(comm=None):
 
 
 # class Function:
-#     def __init__(self, space, name=None, static=False, cache=None,
-#                  checkpoint=None, tlm_depth=0):
 #     def function_space(self):
 #     def id(self):
 #     def name(self):
