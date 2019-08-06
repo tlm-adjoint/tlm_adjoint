@@ -1,21 +1,34 @@
-To use tlm_adjoint with the FEniCS backend add the 'python' subdirectory to the
-Python search path.
+To use tlm_adjoint add the 'python' subdirectory to the Python search path. The
+library is used via, e.g., the Python code
 
-tlm_adjoint is currently targetting FEniCS 2019.1.0, and the Firedrake Git
+    FEniCS backend:
+
+        from fenics import *
+        from tlm_adjoint_fenics import *
+
+    Firedrake backend:
+
+        from firedrake import *
+        from tlm_adjoint_firedrake import *
+
+    NumPy backend:
+
+        import numpy as np
+        from tlm_adjoint_numpy import *
+
+tlm_adjoint is currently targeting FEniCS 2019.1.0, and the Firedrake Git
 master branch.
 
 Together with the backend libraries, tlm_adjoint requires
 
-  NumPy
-  mpi4py and petsc4py, for the FEniCS or Firedrake backends
+    NumPy
+    mpi4py and petsc4py (FEniCS or Firedrake backends)
 
 tlm_adjoint optionally requires
 
-  PyPNG, for generation of block Jacobian dependency structure images
-  SciPy, for gradient-based optimisation and (for the FEniCS backend)
-    interpolation equations
-  h5py (compiled with MPI enabled for parallel calculations), for checkpointing
-    using HDF5
-  slec4py, for eigendecomposition functionality
-  
+    PyPNG, for generation of block Jacobian dependency structure images
+    SciPy, for gradient-based optimisation and interpolation equations
+    h5py, with the 'mpio' driver for parallel calculations, for HDF5 storage
+    slepc4py, for eigendecomposition functionality
+
 License: GNU LGPL version 3
