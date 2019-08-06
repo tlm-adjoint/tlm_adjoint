@@ -19,24 +19,6 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 import sys
-
 if "tlm_adjoint.backend" not in sys.modules:
-    backend = None
-
-    try:
-        import fenics  # noqa: F401
-        backend = "FEniCS"
-    except ImportError:
-        try:
-            import firedrake  # noqa: F401
-            backend = "Firedrake"
-        except ImportError:
-            backend = "NumPy"
-
-    if backend == "FEniCS":
-        from tlm_adjoint_fenics import *  # noqa: F401
-    elif backend == "Firedrake":
-        from tlm_adjoint_firedrake import *  # noqa: F401
-    else:
-        assert(backend == "NumPy")
-        from tlm_adjoint_numpy import *  # noqa: F401
+    from tlm_adjoint_fenics import *  # noqa: F401
+del(sys)
