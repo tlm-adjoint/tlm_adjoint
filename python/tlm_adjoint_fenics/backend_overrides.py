@@ -182,8 +182,7 @@ def solve(*args, **kwargs):
              solver_parameters) = extract_args(*args, **kwargs)
             if tol is not None or M is not None:
                 raise OverrideException("Adaptive solves not supported")
-            if isinstance(eq_arg.lhs, ufl.classes.Form) \
-               and isinstance(eq_arg.rhs, ufl.classes.Form):
+            if isinstance(eq_arg.rhs, ufl.classes.Form):
                 eq_arg = linear_equation_new_x(eq_arg, x,
                                                annotate=annotate, tlm=tlm)
             eq = EquationSolver(

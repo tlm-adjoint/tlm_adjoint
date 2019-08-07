@@ -158,8 +158,7 @@ def solve(*args, **kwargs):
                 solver_parameters, options_prefix=options_prefix,
                 nullspace=nullspace, transpose_nullspace=transpose_nullspace,
                 near_nullspace=near_nullspace)
-            if isinstance(eq_arg.lhs, ufl.classes.Form) \
-               and isinstance(eq_arg.rhs, ufl.classes.Form):
+            if isinstance(eq_arg.rhs, ufl.classes.Form):
                 eq_arg = linear_equation_new_x(eq_arg, x,
                                                annotate=annotate, tlm=tlm)
             eq = EquationSolver(

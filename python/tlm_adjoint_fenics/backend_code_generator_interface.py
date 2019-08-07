@@ -344,8 +344,7 @@ def solve(*args, **kwargs):
         return backend_solve(*args, **kwargs)
 
     lhs, rhs = eq.lhs, eq.rhs
-    linear = isinstance(lhs, ufl.classes.Form) \
-        and isinstance(rhs, ufl.classes.Form)
+    linear = isinstance(rhs, ufl.classes.Form)
     if linear:
         lhs = dolfin_form(lhs, form_compiler_parameters)
         rhs = dolfin_form(rhs, form_compiler_parameters)

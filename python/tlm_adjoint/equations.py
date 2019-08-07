@@ -79,6 +79,8 @@ class AssembleSolver(Equation):
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
 
+        rhs = ufl.classes.Form(rhs.integrals())
+
         rank = len(rhs.arguments())
         if rank == 0:
             if not is_real_function(x):
@@ -290,8 +292,14 @@ class EquationSolver(Equation):
             raise EquationException("Cannot both match quadrature and defer adjoint assembly")  # noqa: E501
 
         lhs, rhs = eq.lhs, eq.rhs
-        linear = (isinstance(lhs, ufl.classes.Form)
-                  and isinstance(rhs, ufl.classes.Form))
+        del(eq)
+        lhs = ufl.classes.Form(lhs.integrals())
+        linear = isinstance(rhs, ufl.classes.Form)
+        if linear:
+            rhs = ufl.classes.Form(rhs.integrals())
+        if J is not None:
+            J = ufl.classes.Form(J.integrals())
+
         if linear:
             if x in lhs.coefficients() or x in rhs.coefficients():
                 raise EquationException("Invalid non-linear dependency")
