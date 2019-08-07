@@ -300,7 +300,7 @@ File("T_inflow_inv.pvd", "compressed") << T_inflow
 del(ddJ)
 
 # Re-run the forward at the inverted state
-reset()
+reset_manager()
 start_manager()
 _, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref,
                   output_filename="inversion.pvd")
@@ -341,7 +341,7 @@ File("dK_dkappa.pvd", "compressed") << project(dK_dkappa, kappa_space,
 # Optimality constrained derivative
 dJs1 = Function(inflow_space, static=True)
 function_set_values(dJs1, np.linalg.solve(H, function_get_values(dK_dinflow)))
-reset()
+reset_manager()
 add_tlm(T_inflow, dJs1)
 start_manager()
 _, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref)
@@ -359,7 +359,7 @@ if verify:
     def inversion(kappa, T_N_ref):
         T_inflow = Function(inflow_space, name="T_inflow", static=True)
 
-        reset()
+        reset_manager()
         start_manager()
         _, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref)
         stop_manager()

@@ -268,7 +268,7 @@ min_order = taylor_test(lambda kappa: forward_reference(psi_0, kappa), kappa,
                         J_val=J_ref.value(), dJ=dJ_dkappa, seed=1.0e-4)
 assert(min_order > 1.99)
 
-reset()
+reset_manager()
 clear_caches()
 stop_manager(annotation=True, tlm=False)
 zeta = Function(space, name="zeta", static=True)
@@ -283,7 +283,7 @@ info(f"dJ_dpsi_0_tlm = {dJ_dpsi_0_tlm:.16e}")
 info(f"Error norm = {abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj):.16e}")
 assert(abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj) < 1.0e-14)
 
-reset()
+reset_manager()
 clear_caches()
 stop_manager(annotation=True, tlm=False)
 add_tlm(kappa, zeta)

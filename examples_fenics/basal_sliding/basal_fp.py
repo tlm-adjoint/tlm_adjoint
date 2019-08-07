@@ -374,7 +374,7 @@ if debug:
     beta_sq = Function(space, name="beta_sq", static=True)
     function_assign(beta_sq, 400.0)  # As in GH13 experiment 3
 
-    reset()
+    reset_manager()
     start_manager()
     _, J = forward(beta_sq, ref=ref)
     stop_manager()
