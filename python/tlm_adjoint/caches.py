@@ -91,7 +91,11 @@ class Function(backend_Function):
         kwargs = copy.copy(kwargs)
         static = kwargs.pop("static", False)
         cache = kwargs.pop("cache", static)
+        if cache is None:
+            cache = static
         checkpoint = kwargs.pop("checkpoint", not static)
+        if checkpoint is None:
+            checkpoint = not static
         tlm_depth = kwargs.pop("tlm_depth", 0)
 
         self.__state = 0
