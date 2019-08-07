@@ -73,7 +73,9 @@ class Constant(backend_Constant):
     def __init__(self, *args, **kwargs):
         kwargs = copy.copy(kwargs)
         static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", static)
+        cache = kwargs.pop("cache", None)
+        if cache is None:
+            cache = static
 
         backend_Constant.__init__(self, *args, **kwargs)
         self.__static = static
@@ -90,10 +92,10 @@ class Function(backend_Function):
     def __init__(self, *args, **kwargs):
         kwargs = copy.copy(kwargs)
         static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", static)
+        cache = kwargs.pop("cache", None)
         if cache is None:
             cache = static
-        checkpoint = kwargs.pop("checkpoint", not static)
+        checkpoint = kwargs.pop("checkpoint", None)
         if checkpoint is None:
             checkpoint = not static
         tlm_depth = kwargs.pop("tlm_depth", 0)
@@ -141,7 +143,9 @@ class DirichletBC(backend_DirichletBC):
     def __init__(self, *args, **kwargs):
         kwargs = copy.copy(kwargs)
         static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", static)
+        cache = kwargs.pop("cache", None)
+        if cache is None:
+            cache = static
         homogeneous = kwargs.pop("homogeneous", False)
 
         backend_DirichletBC.__init__(self, *args, **kwargs)
