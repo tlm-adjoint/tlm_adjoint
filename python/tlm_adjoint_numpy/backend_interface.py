@@ -49,6 +49,7 @@ __all__ = \
         "function_local_indices",
         "function_local_size",
         "function_max_value",
+        "function_name",
         "function_new",
         "function_set_values",
         "function_space_id",
@@ -231,6 +232,10 @@ def replaced_function(x):
 
 def is_function(x):
     return isinstance(x, Function)
+
+
+def function_name(x):
+    return x.name()
 
 
 def function_state(x):

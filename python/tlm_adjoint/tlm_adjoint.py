@@ -250,7 +250,7 @@ class TangentLinearMap:
             self._finalizes[x_id] = weakref.finalize(
                 x, callback, weakref.ref(self), x_id)
             self._map[x_id] = function_tangent_linear(
-                x, name=f"{x.name():s}{self._name_suffix:s}")
+                x, name=f"{function_name(x):s}{self._name_suffix:s}")
         return self._map[x_id]
 
 
@@ -499,10 +499,10 @@ class EquationManager:
             for i, eq in enumerate(block):
                 eq_X = eq.X()
                 if len(eq_X) == 1:
-                    X_name = eq_X[0].name()
+                    X_name = function_name(eq_X[0])
                     X_ids = f"id {eq_X[0].id():d}"
                 else:
-                    X_name = "(%s)" % (",".join(eq_x.name()
+                    X_name = "(%s)" % (",".join(function_name(eq_x)
                                                 for eq_x in eq_X))
                     X_ids = "ids (%s)" % (",".join(f"{eq_x.id():d}"
                                                    for eq_x in eq_X))
@@ -516,7 +516,7 @@ class EquationManager:
                                  for dep in eq.nonlinear_dependencies()])
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
-                         (j, dep.name(), dep.id(),
+                         (j, function_name(dep), dep.id(),
                          ", replaced" if isinstance(dep, ReplacementFunction) else "",  # noqa: E501
                          "non-linear" if dep.id() in nl_dep_ids else "linear"))
         info("Storage:")
@@ -674,12 +674,12 @@ class EquationManager:
 
         if len(M) == 1:
             tlm_map_name_suffix = \
-                "_tlm(%s,%s)" % (M[0].name(),
-                                 dM[0].name())
+                "_tlm(%s,%s)" % (function_name(M[0]),
+                                 function_name(dM[0]))
         else:
             tlm_map_name_suffix = \
-                "_tlm((%s),(%s))" % (",".join(m.name() for m in M),
-                                     ",".join(dm.name() for dm in dM))
+                "_tlm((%s),(%s))" % (",".join(function_name(m) for m in M),
+                                     ",".join(function_name(dm) for dm in dM))
         self._tlm[(M, dM)] = (TangentLinearMap(tlm_map_name_suffix), max_depth)
 
     def tlm_enabled(self):
@@ -1424,7 +1424,7 @@ class EquationManager:
             for block in self._blocks + [self._block]:
                 for eq in block:
                     for dep in eq.dependencies():
-                        if dep.name() == x:
+                        if function_name(dep) == x:
                             return dep
             raise ManagerException("Initial condition not found")
 

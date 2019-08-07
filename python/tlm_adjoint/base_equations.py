@@ -907,13 +907,13 @@ class FixedPointSolver(Equation):
             function_axpy(r, -1.0, x)
             r_norm_sq = function_inner(r, r)
             if report:
-                info(f"Fixed point iteration (forward equation for {self.X()[-1].name():s}): iteration {it:d}, change norm {np.sqrt(r_norm_sq):.16e} (tolerance {np.sqrt(tolerance_sq):.16e})")  # noqa: E501
+                info(f"Fixed point iteration (forward equation for {function_name(self.X()[-1]):s}): iteration {it:d}, change norm {np.sqrt(r_norm_sq):.16e} (tolerance {np.sqrt(tolerance_sq):.16e})")  # noqa: E501
             if np.isnan(r_norm_sq):
-                raise EquationException(f"Fixed point iteration (forward equation for {self.X()[-1].name():s}): NaN encountered after {it:d} iteration(s)")  # noqa: E501
+                raise EquationException(f"Fixed point iteration (forward equation for {function_name(self.X()[-1]):s}): NaN encountered after {it:d} iteration(s)")  # noqa: E501
             if r_norm_sq < tolerance_sq or r_norm_sq == 0.0:
                 break
             if it >= maximum_iterations:
-                raise EquationException(f"Fixed point iteration (forward equation for {self.X()[-1].name():s}): did not converge after {it:d} iteration(s)")  # noqa: E501
+                raise EquationException(f"Fixed point iteration (forward equation for {function_name(self.X()[-1]):s}): did not converge after {it:d} iteration(s)")  # noqa: E501
             if it == 1:
                 tolerance_sq = max(tolerance_sq,
                                    r_norm_sq * (relative_tolerance ** 2))
@@ -980,13 +980,13 @@ class FixedPointSolver(Equation):
             function_axpy(r, -1.0, x)
             r_norm_sq = function_inner(r, r)
             if report:
-                info(f"Fixed point iteration (adjoint equation for {self.X()[-1].name():s}): iteration {it:d}, change norm {np.sqrt(r_norm_sq):.16e} (tolerance {np.sqrt(tolerance_sq):.16e})")  # noqa: E501
+                info(f"Fixed point iteration (adjoint equation for {function_name(self.X()[-1]):s}): iteration {it:d}, change norm {np.sqrt(r_norm_sq):.16e} (tolerance {np.sqrt(tolerance_sq):.16e})")  # noqa: E501
             if np.isnan(r_norm_sq):
-                raise EquationException(f"Fixed point iteration (adjoint equation for {self.X()[-1].name():s}): NaN encountered after {it:d} iteration(s)")  # noqa: E501
+                raise EquationException(f"Fixed point iteration (adjoint equation for {function_name(self.X()[-1]):s}): NaN encountered after {it:d} iteration(s)")  # noqa: E501
             if r_norm_sq < tolerance_sq or r_norm_sq == 0.0:
                 break
             if it >= maximum_iterations:
-                raise EquationException(f"Fixed point iteration (adjoint equation for {self.X()[-1].name():s}): did not converge after {it:d} iteration(s)")  # noqa: E501
+                raise EquationException(f"Fixed point iteration (adjoint equation for {function_name(self.X()[-1]):s}): did not converge after {it:d} iteration(s)")  # noqa: E501
             if it == 1:
                 tolerance_sq = max(tolerance_sq,
                                    r_norm_sq * (relative_tolerance ** 2))

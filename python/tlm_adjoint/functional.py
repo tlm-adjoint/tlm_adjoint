@@ -50,7 +50,8 @@ class Functional:
         If fn is supplied:
             space  (Optional) The FunctionSpace for the functional. Must be the
                    same space as fn.function_space().
-            name   (Optional) The name of the functional. Default fn.name().
+            name   (Optional) The name of the functional. Default
+                   function_name(fn).
         If fn is not supplied:
             space  (Optional) The FunctionSpace for the functional. Default
                    RealFunctionSpace().
@@ -71,7 +72,7 @@ class Functional:
                 if space_id != fn_space_id:
                     raise FunctionalException("Invalid function space")
             if name is None:
-                name = fn.name()
+                name = function_name(fn)
 
         self._space = space
         self._name = name

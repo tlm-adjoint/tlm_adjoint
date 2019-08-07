@@ -84,8 +84,8 @@ def leak_check(test):
         refs = 0
         for F in Function_ids.values():
             F = F()
-            if F is not None and F.name() != "Coordinates":
-                info("%s referenced" % F.name())
+            if F is not None and function_name(F) != "Coordinates":
+                info(f"{function_name(F):s} referenced")
                 refs += 1
         if refs == 0:
             info("No references")
@@ -159,7 +159,7 @@ class tests(unittest.TestCase):
             if d is None:
                 function_assign(x_s, x)
                 d = {}
-            MemoryStorage(x_s, d, x_s.name()).solve()
+            MemoryStorage(x_s, d, function_name(x_s)).solve()
 
             ExprEvaluationSolver(x * x * x * x_s, y).solve()
 
@@ -175,7 +175,7 @@ class tests(unittest.TestCase):
                     h = h5py.File(os.path.join("checkpoints~",
                                                "storage.hdf5"),
                                   "w")
-            HDF5Storage(y_s, h, y_s.name()).solve()
+            HDF5Storage(y_s, h, function_name(y_s)).solve()
 
             J = Functional(name="J")
             InnerProductSolver(y, y_s, J.fn()).solve()

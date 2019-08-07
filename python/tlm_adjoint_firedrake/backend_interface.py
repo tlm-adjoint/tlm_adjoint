@@ -24,7 +24,7 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 
 from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_space_new, function_state, function_tlm_depth, \
+    function_name, function_space_new, function_state, function_tlm_depth, \
     function_update_state, is_function, replaced_function
 
 import ufl
@@ -55,6 +55,7 @@ __all__ = \
         "function_local_indices",
         "function_local_size",
         "function_max_value",
+        "function_name",
         "function_new",
         "function_set_values",
         "function_space_id",
@@ -109,7 +110,6 @@ def RealFunctionSpace(comm=None):
 # class Function:
 #     def function_space(self):
 #     def id(self):
-#     def name(self):
 
 
 backend_Function.id = lambda self: self.count()
@@ -119,13 +119,15 @@ backend_Function.id = lambda self: self.count()
 #     def __init__(self, x):
 #     def function_space(self):
 #     def id(self):
-#     def name(self):
 
 
 # def replaced_function(x):
 
 
 # def is_function(x):
+
+
+# def function_name(x):
 
 
 # def function_state(x):
@@ -251,7 +253,7 @@ def function_tangent_linear(x, name=None):
 
 
 def function_alias(x):
-    return Function(x.function_space(), name=x.name(),
+    return Function(x.function_space(), name=function_name(x),
                     static=function_is_static(x), cache=function_is_cached(x),
                     checkpoint=function_is_checkpointed(x),
                     tlm_depth=function_tlm_depth(x), val=x.dat)

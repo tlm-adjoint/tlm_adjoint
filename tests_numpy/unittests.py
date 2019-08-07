@@ -58,7 +58,7 @@ def leak_check(test):
         for F in Function_ids.values():
             F = F()
             if F is not None:
-                info("%s referenced" % F.name())
+                info(f"{function_name(F):s} referenced")
                 refs += 1
         if refs == 0:
             info("No references")

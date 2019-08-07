@@ -45,6 +45,7 @@ __all__ = \
         "function_is_cached",
         "function_is_checkpointed",
         "function_is_static",
+        "function_name",
         "function_space_new",
         "function_state",
         "function_tlm_depth",
@@ -170,6 +171,10 @@ def function_space_new(space, name=None, static=False, cache=None,
                        checkpoint=None, tlm_depth=0):
     return Function(space, name=name, static=static, cache=cache,
                     checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+def function_name(x):
+    return x.name()
 
 
 def function_state(x):
@@ -502,7 +507,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
                                          count=new_count())
         self.__space = x.function_space()
         self.__id = x.id()
-        self.__name = x.name()
+        self.__name = function_name(x)
         self.__state = -1
         self.__static = function_is_static(x)
         self.__cache = function_is_cached(x)
