@@ -792,8 +792,8 @@ class tests(unittest.TestCase):
         info("Orders,      maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % orders_4_adj)  # noqa: E501
 
         self.assertGreater(orders_0[-1], 1.00)
-        self.assertGreater(orders_1_adj.min(), 1.99)
-        self.assertGreater(orders_1_tlm.min(), 1.99)
+        self.assertGreater(orders_1_adj.min(), 1.98)
+        self.assertGreater(orders_1_tlm.min(), 1.98)
         self.assertGreater(orders_2_adj[1:].min(), 2.91)
         self.assertGreater(orders_2_tlm[1:].min(), 2.91)
         self.assertGreater(orders_3_adj.min(), 3.99)
