@@ -699,110 +699,16 @@ class tests(unittest.TestCase):
         kappa = Function(space, name="kappa", static=True)
         function_assign(kappa, 1.0)
 
-        def init_random(x):
-            N = function_local_size(x)
-            function_set_values(x, 2.0 * np.random.random(N) - 1.0)
-        perturb = Function(space, name="perturb", static=True)
-        init_random(perturb)
+        for tlm_order in range(1, 4):
+            min_order = taylor_test_tlm(forward, kappa, tlm_order=tlm_order,
+                                        seed=1.0e-3)
+            self.assertGreater(min_order, 1.99)
 
-        add_tlm(kappa, perturb, max_depth=3)
-        start_manager()
-        J = forward(kappa)
-        dJ_tlm = J.tlm(kappa, perturb)
-        ddJ_tlm = dJ_tlm.tlm(kappa, perturb)
-        dddJ_tlm = ddJ_tlm.tlm(kappa, perturb)
-        stop_manager()
-
-        J_val = J.value()
-        dJ_tlm_val = dJ_tlm.value()
-        ddJ_tlm_val = ddJ_tlm.value()
-        dddJ_tlm_val = dddJ_tlm.value()
-        dJ_adj, ddJ_adj, dddJ_adj, ddddJ_adj = compute_gradient([J,
-                                                                 dJ_tlm,
-                                                                 ddJ_tlm,
-                                                                 dddJ_tlm],
-                                                                kappa)
-
-        eps_vals = 4.0e-2 * np.array([2 ** -p for p in range(5)],
-                                     dtype=np.float64)
-        J_vals = []
-        for eps in eps_vals:
-            kappa_perturb = Function(space, name="kappa_perturb", static=True)
-            function_assign(kappa_perturb, kappa)
-            function_axpy(kappa_perturb, eps, perturb)
-            J_vals.append(forward(kappa_perturb).value())
-        J_vals = np.array(J_vals, dtype=np.float64)
-        error_norms_0 = abs(J_vals - J_val)
-        orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
-        info("Error norms, maximal degree 0 derivative information = %s" % error_norms_0)  # noqa: E501
-        info("Orders,      maximal degree 0 derivative information = %s" % orders_0)  # noqa: E501
-        error_norms_1_adj = abs(J_vals - J_val
-                                - eps_vals * function_inner(dJ_adj, perturb))
-        orders_1_adj = (np.log(error_norms_1_adj[1:] / error_norms_1_adj[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 1 derivative information, adjoint = %s" % error_norms_1_adj)  # noqa: E501
-        info("Orders,      maximal degree 1 derivative information, adjoint = %s" % orders_1_adj)  # noqa: E501
-        error_norms_1_tlm = abs(J_vals - J_val - eps_vals * dJ_tlm_val)
-        orders_1_tlm = (np.log(error_norms_1_tlm[1:] / error_norms_1_tlm[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 1 derivative information, TLM = %s" % error_norms_1_tlm)  # noqa: E501
-        info("Orders,      maximal degree 1 derivative information, TLM = %s" % orders_1_tlm)  # noqa: E501
-        error_norms_2_adj = abs(J_vals - J_val
-                                - eps_vals * dJ_tlm_val
-                                - 0.5 * eps_vals * eps_vals
-                                      * function_inner(ddJ_adj, perturb))
-        orders_2_adj = (np.log(error_norms_2_adj[1:] / error_norms_2_adj[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 2 derivative information, adjoint(TLM) = %s" % error_norms_2_adj)  # noqa: E501
-        info("Orders,      maximal degree 2 derivative information, adjoint(TLM) = %s" % orders_2_adj)  # noqa: E501
-        error_norms_2_tlm = abs(J_vals - J_val
-                                - eps_vals * dJ_tlm_val
-                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val)
-        orders_2_tlm = (np.log(error_norms_2_tlm[1:] / error_norms_2_tlm[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 2 derivative information, TLM(TLM) = %s" % error_norms_2_tlm)  # noqa: E501
-        info("Orders,      maximal degree 2 derivative information, TLM(TLM) = %s" % orders_2_tlm)  # noqa: E501
-        error_norms_3_adj = abs(J_vals - J_val
-                                - eps_vals * dJ_tlm_val
-                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
-                                - (1.0 / 6.0) * np.power(eps_vals, 3.0)
-                                              * function_inner(dddJ_adj, perturb))  # noqa: E501
-        orders_3_adj = (np.log(error_norms_3_adj[1:] / error_norms_3_adj[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 3 derivative information, adjoint(TLM(TLM)) = %s" % error_norms_3_adj)  # noqa: E501
-        info("Orders,      maximal degree 3 derivative information, adjoint(TLM(TLM)) = %s" % orders_3_adj)  # noqa: E501
-        error_norms_3_tlm = abs(J_vals - J_val
-                                - eps_vals * dJ_tlm_val
-                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
-                                - (1.0 / 6.0) * np.power(eps_vals, 3.0)
-                                              * dddJ_tlm_val)
-        orders_3_tlm = (np.log(error_norms_3_tlm[1:] / error_norms_3_tlm[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 3 derivative information, TLM(TLM(TLM)) = %s" % error_norms_3_tlm)  # noqa: E501
-        info("Orders,      maximal degree 3 derivative information, TLM(TLM(TLM)) = %s" % orders_3_tlm)  # noqa: E501
-        error_norms_4_adj = abs(J_vals - J_val - eps_vals * dJ_tlm_val
-                                - 0.5 * eps_vals * eps_vals * ddJ_tlm_val
-                                - (1.0 / 6.0) * np.power(eps_vals, 3.0)
-                                              * dddJ_tlm_val
-                                - (1.0 / 24.0) * np.power(eps_vals, 4.0)
-                                               * function_inner(ddddJ_adj, perturb))  # noqa: E501
-        orders_4_adj = (np.log(error_norms_4_adj[1:] / error_norms_4_adj[:-1])
-                        / np.log(0.5))
-        info("Error norms, maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % error_norms_4_adj)  # noqa: E501
-        info("Orders,      maximal degree 4 derivative information, adjoint(TLM(TLM(TLM))) = %s" % orders_4_adj)  # noqa: E501
-
-        self.assertGreater(orders_0[-1], 1.00)
-        self.assertGreater(orders_1_adj.min(), 1.98)
-        self.assertGreater(orders_1_tlm.min(), 1.98)
-        self.assertGreater(orders_2_adj[1:].min(), 2.91)
-        self.assertGreater(orders_2_tlm[1:].min(), 2.91)
-        self.assertGreater(orders_3_adj.min(), 3.99)
-        self.assertGreater(orders_3_tlm.min(), 3.99)
-        self.assertGreater(orders_4_adj[:-1].min(), 4.91)
-
-        min_order = taylor_test_tlm_adjoint(forward, kappa, adjoint_order=4,
-                                            seed=1.0e-3)
-        self.assertGreater(min_order, 1.99)
+        for adjoint_order in range(1, 5):
+            min_order = taylor_test_tlm_adjoint(forward, kappa,
+                                                adjoint_order=adjoint_order,
+                                                seed=1.0e-3)
+            self.assertGreater(min_order, 1.99)
 
     @leak_check
     def test_minimize_scipy_multiple(self):
