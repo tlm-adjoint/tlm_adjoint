@@ -98,7 +98,7 @@ def leak_check(test):
 class tests(unittest.TestCase):
     @leak_check
     def test_Nullspace(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -143,8 +143,8 @@ class tests(unittest.TestCase):
     @leak_check
     def test_Storage(self):
         # Ensure creation of checkpoints~ directory
-        reset("periodic_disk")
-        reset("memory", {"replace": True})
+        reset_manager("periodic_disk")
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -205,7 +205,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_AssembleSolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -244,7 +244,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_clear_caches(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -309,7 +309,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_LocalProjectionSolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -357,11 +357,11 @@ class tests(unittest.TestCase):
     @leak_check
     def test_LongRange(self):
         n_steps = 200
-        reset("multistage",
-              {"blocks": n_steps,
-               "snaps_on_disk": 0,
-               "snaps_in_ram": 2,
-               "verbose": True})
+        reset_manager("multistage",
+                      {"blocks": n_steps,
+                       "snaps_on_disk": 0,
+                       "snaps_in_ram": 2,
+                       "verbose": True})
         clear_caches()
         stop_manager()
 
@@ -424,7 +424,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_ExprEvaluationSolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -470,7 +470,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_PointInterpolationSolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -523,7 +523,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_FixedPointSolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -594,11 +594,11 @@ class tests(unittest.TestCase):
     @leak_check
     def test_higher_order_adjoint(self):
         n_steps = 20
-        reset("multistage",
-              {"blocks": n_steps,
-               "snaps_on_disk": 2,
-               "snaps_in_ram": 2,
-               "verbose": True})
+        reset_manager("multistage",
+                      {"blocks": n_steps,
+                       "snaps_on_disk": 2,
+                       "snaps_in_ram": 2,
+                       "verbose": True})
         clear_caches()
         stop_manager()
 
@@ -745,7 +745,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_minimize_scipy_multiple(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -808,7 +808,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_minimize_scipy(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -855,7 +855,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_overrides(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -916,7 +916,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_bc(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -975,11 +975,11 @@ class tests(unittest.TestCase):
     @leak_check
     def test_recursive_tlm(self):
         n_steps = 20
-        reset("multistage",
-              {"blocks": n_steps,
-               "snaps_on_disk": 4,
-               "snaps_in_ram": 2,
-               "verbose": True})
+        reset_manager("multistage",
+                      {"blocks": n_steps,
+                       "snaps_on_disk": 4,
+                       "snaps_in_ram": 2,
+                       "verbose": True})
         clear_caches()
         stop_manager()
 
@@ -1085,11 +1085,11 @@ class tests(unittest.TestCase):
     @leak_check
     def test_timestepping(self):
         for n_steps in [1, 2, 5, 20]:
-            reset("multistage",
-                  {"blocks": n_steps,
-                   "snaps_on_disk": 4,
-                   "snaps_in_ram": 2,
-                   "verbose": True})
+            reset_manager("multistage",
+                          {"blocks": n_steps,
+                           "snaps_on_disk": 4,
+                           "snaps_in_ram": 2,
+                           "verbose": True})
             clear_caches()
             stop_manager()
 
@@ -1160,11 +1160,11 @@ class tests(unittest.TestCase):
     @leak_check
     def test_second_order_adjoint(self):
         n_steps = 20
-        reset("multistage",
-              {"blocks": n_steps,
-               "snaps_on_disk": 4,
-               "snaps_in_ram": 2,
-               "verbose": True})
+        reset_manager("multistage",
+                      {"blocks": n_steps,
+                       "snaps_on_disk": 4,
+                       "snaps_in_ram": 2,
+                       "verbose": True})
         clear_caches()
         stop_manager()
 
@@ -1222,7 +1222,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_AxpySolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -1261,7 +1261,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_AssignmentSolver(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -1316,7 +1316,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_HEP(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
@@ -1344,7 +1344,7 @@ class tests(unittest.TestCase):
 
     @leak_check
     def test_NHEP(self):
-        reset("memory", {"replace": True})
+        reset_manager("memory", {"replace": True})
         clear_caches()
         stop_manager()
 
