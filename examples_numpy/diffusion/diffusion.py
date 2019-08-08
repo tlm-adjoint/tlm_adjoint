@@ -254,7 +254,7 @@ stop_manager()
 
 info(f"J = {J.value():.16e}")
 info(f"Reference J = {J_ref.value():.16e}")
-info(f"Error = {abs(J_ref.value() - J.value()):.16e}")
+info(f"Error norm = {abs(J_ref.value() - J.value()):.16e}")
 assert(abs(J_ref.value() - J.value()) < 1.0e-14)
 
 dJ_dpsi_0, dJ_dkappa = compute_gradient(J, [psi_0, kappa])
