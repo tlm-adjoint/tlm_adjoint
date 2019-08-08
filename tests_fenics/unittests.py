@@ -319,7 +319,7 @@ class tests(unittest.TestCase):
             F = Function(space_1, name="F")
             LocalProjectionSolver(G, F).solve()
             J = Functional(name="J")
-            J.assign(F * F * F * dx)
+            J.assign((F ** 2 + F ** 3) * dx)
             return F, J
 
         G = Function(space_2, name="G", static=True)
@@ -337,13 +337,13 @@ class tests(unittest.TestCase):
         function_axpy(F_error, -1.0, F)
 
         F_error_norm = function_linf_norm(F_error)
-        info("Error norm = %.16e" % F_error_norm)
+        info(f"Error norm = {F_error_norm:.16e}")
         self.assertLess(F_error_norm, 1.0e-15)
 
         dJ = compute_gradient(J, G)
         min_order = taylor_test(lambda G: forward(G)[1], G, J_val=J.value(),
-                                dJ=dJ, seed=1.0e-4)
-        self.assertGreater(min_order, 1.99)
+                                dJ=dJ)
+        self.assertGreater(min_order, 2.00)
 
         ddJ = Hessian(lambda G: forward(G)[1])
         min_order = taylor_test(lambda G: forward(G)[1], G, J_val=J.value(),
