@@ -626,6 +626,8 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
+        if function_space_id(x.function_space()) != function_space_id(y.function_space()):  # noqa: E501
+            raise EquationException("Invalid function space")
         Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
 
     def forward_solve(self, x, deps=None):
@@ -655,9 +657,12 @@ class AssignmentSolver(Equation):
 class LinearCombinationSolver(Equation):
     def __init__(self, x, *args):
         alpha = tuple(float(arg[0]) for arg in args)
-        y = [arg[1] for arg in args]
+        Y = [arg[1] for arg in args]
+        for y in Y:
+            if function_space_id(x.function_space()) != function_space_id(y.function_space()):  # noqa: E501
+                raise EquationException("Invalid function space")
 
-        Equation.__init__(self, x, [x] + y, nl_deps=[], ic_deps=[])
+        Equation.__init__(self, x, [x] + Y, nl_deps=[], ic_deps=[])
         self._alpha = alpha
 
     def forward_solve(self, x, deps=None):
@@ -701,6 +706,8 @@ class AxpySolver(LinearCombinationSolver):
 
 class InitialGuessSolver(Equation):
     def __init__(self, y, x):
+        if function_space_id(x.function_space()) != function_space_id(y.function_space()):  # noqa: E501
+            raise EquationException("Invalid function space")
         Equation.__init__(self, x, deps=[x, y], nl_deps=[], ic_deps=[])
 
     def forward_solve(self, x, deps=None):

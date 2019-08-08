@@ -222,7 +222,7 @@ class tests(unittest.TestCase):
                            + inner(test, F) * dx, x).solve()
             AssembleSolver(inner(F, x) * dx, y).solve()
 
-            J = Functional(name="J")
+            J = Functional(name="J", space=y.function_space())
             J.assign(y)
 
             return J
@@ -545,7 +545,7 @@ class tests(unittest.TestCase):
                              "relative_tolerance": 1.0e-14}
             FixedPointSolver(eqs, solver_parameters=fp_parameters).solve()
 
-            J = Functional(name="J")
+            J = Functional(name="J", space=space)
             J.assign(x)
 
             return J
