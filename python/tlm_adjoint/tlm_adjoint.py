@@ -55,6 +55,7 @@ __all__ = \
         "stop_manager",
         "stop_tlm",
         "taylor_test",
+        "taylor_test_tlm",
         "taylor_test_tlm_adjoint",
         "tlm",
         "tlm_enabled"
@@ -538,15 +539,20 @@ class EquationManager:
         else:
             raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
 
-    def new(self):
+    def new(self, cp_method=None, cp_parameters=None):
         """
-        Return a new equation manager sharing the communicator and
-        checkpointing configuration of this equation manager.
+        Return a new equation manager sharing the communicator of this
+        equation manager. Optionally a new checkpointing configuration can be
+        provided.
         """
 
-        return EquationManager(comm=self._comm,
-                               cp_method=self._cp_method,
-                               cp_parameters=self._cp_parameters)
+        if cp_method is None:
+            cp_method = self._cp_method
+        if cp_parameters is None:
+            cp_parameters = self._cp_parameters
+
+        return EquationManager(comm=self._comm, cp_method=cp_method,
+                               cp_parameters=cp_parameters)
 
     def reset(self, cp_method=None, cp_parameters=None):
         """
@@ -1748,23 +1754,90 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return orders_2.min()
 
 
-def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, M0=None,
-                            size=5, manager=None):
+def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, size=5, manager=None):
     if not isinstance(M, (list, tuple)):
-        if M0 is not None:
-            M0 = [M0]
+        return taylor_test_tlm(forward, [M], tlm_order, seed=seed, size=size,
+                               manager=manager)
+
+    if manager is None:
+        manager = _manager()
+    tlm_manager = manager.new("memory", {})
+    tlm_manager.stop()
+
+    M1 = [function_new(m, static=function_is_static(m),
+                       cache=function_is_cached(m),
+                       checkpoint=function_is_checkpointed(m))
+          for m in M]
+
+    def functions_linf_norm(X):
+        norm = 0.0
+        for x in X:
+            norm = max(norm, function_linf_norm(x))
+        return norm
+
+    eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
+    eps = seed * eps * max(1.0, functions_linf_norm(M))
+    dMs = tuple(tuple(function_new(m, static=True) for m in M)
+                for i in range(tlm_order))
+    for dM in dMs:
+        for dm in dM:
+            function_set_values(dm, np.random.random(function_local_size(dm)))
+
+    def forward_tlm(dMs, *M):
+        old_manager = _manager()
+        set_manager(tlm_manager)
+        tlm_manager.reset()
+        tlm_manager.stop()
+        clear_caches()
+
+        for dM in dMs:
+            tlm_manager.add_tlm(M, dM)
+        tlm_manager.start(annotation=False, tlm=True)
+        J = forward(*M)
+        for dM in dMs:
+            J = J.tlm(M, dM, manager=tlm_manager)
+
+        set_manager(old_manager)
+
+        return J
+
+    J_val = forward_tlm(dMs[:-1], *M).value()
+    dJ = forward_tlm(dMs, *M).value()
+
+    J_vals = np.empty(eps.shape, dtype=np.float64)
+    for i in range(eps.shape[0]):
+        for m0, m1, dm in zip(M, M1, dM):
+            function_assign(m1, m0)
+            function_axpy(m1, eps[i], dm)
+        clear_caches()
+        J_vals[i] = forward_tlm(dMs[:-1], *M1).value()
+
+    error_norms_0 = abs(J_vals - J_val)
+    orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
+    info(f"Error norms, no adjoint   = {error_norms_0}")
+    info(f"Orders,      no adjoint   = {orders_0}")
+
+    error_norms_1 = abs(J_vals - J_val - eps * dJ)
+    orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
+    info(f"Error norms, with adjoint = {error_norms_1}")
+    info(f"Orders,      with adjoint = {orders_1}")
+    return orders_1.min()
+
+
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, size=5,
+                            manager=None):
+    if not isinstance(M, (list, tuple)):
         return taylor_test_tlm_adjoint(
-            forward, [M], adjoint_order, seed=seed, M0=M0, size=size,
-            manager=manager)
+            forward, [M], adjoint_order, seed=seed, size=size, manager=manager)
 
     if manager is None:
         manager = _manager()
     tlm_manager = manager.new()
     tlm_manager.stop()
 
-    tlm = tuple(tuple(function_new(m, static=True) for m in M)
+    dMs = tuple(tuple(function_new(m, static=True) for m in M)
                 for i in range(adjoint_order - 1))
-    for dM in tlm:
+    for dM in dMs:
         for dm in dM:
             function_set_values(dm, np.random.random(function_local_size(dm)))
 
@@ -1775,11 +1848,11 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, M0=None,
         tlm_manager.stop()
         clear_caches()
 
-        for dM in tlm:
+        for dM in dMs:
             tlm_manager.add_tlm(M, dM)
         tlm_manager.start(annotation=annotation, tlm=True)
         J = forward(*M)
-        for dM in tlm:
+        for dM in dMs:
             J = J.tlm(M, dM, manager=tlm_manager)
 
         set_manager(old_manager)
@@ -1790,5 +1863,5 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, M0=None,
     J_val = J.value()
     dJ = tlm_manager.compute_gradient(J, M)
 
-    return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, M0=M0,
-                       size=size, manager=tlm_manager)
+    return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, size=size,
+                       manager=tlm_manager)
