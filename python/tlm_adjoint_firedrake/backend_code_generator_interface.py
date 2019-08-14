@@ -250,10 +250,10 @@ def rhs_copy(x):
 def rhs_addto(x, y):
     if is_real_function(x):
         # Work around Firedrake bug (related to issue #1459?)
-        x.dat.data[:] -= y.dat.data
+        x.dat.data[:] += y.dat.data
     else:
         with x.dat.vec as x_v, y.dat.vec_ro as y_v:
-            x_v.axpy(-1.0, y_v)
+            x_v.axpy(1.0, y_v)
 
 
 def parameters_key(parameters):
