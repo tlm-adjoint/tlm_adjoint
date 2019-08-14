@@ -150,17 +150,10 @@ backend_Function.id = lambda self: self.count()
 
 def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
                   tlm_depth=0):
-    y = x.copy(deepcopy=True)
-    if name is not None:
-        y.rename(name, "a Function")
-    y.is_static = lambda: static
-    if cache is None:
-        cache = static
-    y.is_cached = lambda: cache
-    if checkpoint is None:
-        checkpoint = not static
-    y.is_checkpointed = lambda: checkpoint
-    y.tlm_depth = lambda: tlm_depth
+    # This is much faster than x.copy(deepcopy=True)
+    y = function_new(x, name=name, static=static, cache=cache, 
+                     checkpoint=checkpoint, tlm_depth=tlm_depth)
+    function_assign(y, x)
     return y
 
 
@@ -168,28 +161,25 @@ def function_assign(x, y):
     if isinstance(y, (int, float)):
         if is_real_function(x):
             # Work around Firedrake issue #1459
-            x.vector()[:] = float(y)
+            x.dat.data[:] = y
         else:
-            with x.vector().dat.vec_wo as x_v:
+            with x.dat.vec_wo as x_v:
                 x_v.set(float(y))
     else:
         if is_real_function(x):
             # Work around Firedrake bug (related to issue #1459?)
-            function_set_values(x, function_get_values(y))
+            x.dat.data[:] = y.dat.data
         else:
-            with x.vector().dat.vec_wo as x_v, y.vector().dat.vec_ro as y_v:
+            with x.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
 
 
 def function_axpy(x, alpha, y):
     if is_real_function(x):
         # Work around Firedrake bug (related to issue #1459?)
-        function_set_values(x,
-                            function_get_values(x)
-                            + alpha * function_get_values(y))
+        x.dat.data[:] += alpha * y.dat.data
     else:
-        # Work around Firedrake bug #1276
-        with x.vector().dat.vec as x_v, y.vector().dat.vec_ro as y_v:
+        with x.dat.vec as x_v, y.dat.vec_ro as y_v:
             x_v.axpy(alpha, y_v)
 
 
@@ -203,33 +193,43 @@ def function_comm(x):
 
 
 def function_inner(x, y):
-    return x.vector().inner(y.vector())
+    with x.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
+        inner = x_v.dot(y_v)
+    return inner
 
 
 def function_local_size(x):
-    local_range = x.vector().local_range()
-    return local_range[1] - local_range[0]
+    with x.dat.vec_ro as x_v:
+        local_size = x_v.getLocalSize()
+    return local_size
 
 
 def function_get_values(x):
-    return x.vector().get_local()
+    with x.dat.vec_ro as x_v:
+        values = x_v.getArray(readonly=True)
+    return values
 
 
 def function_set_values(x, values):
-    x.vector().set_local(values)
+    with x.dat.vec_wo as x_v:
+        x_v.setArray(values)
 
 
 def function_max_value(x):
-    return x.vector().max()
+    with x.dat.vec_ro as x_v:
+        max = x_v.max()[1]
+    return max
 
 
 def function_sum(x):
-    return x.vector().sum()
+    with x.dat.vec_ro as x_v:
+        sum = x_v.sum()
+    return sum
 
 
 def function_linf_norm(x):
     import petsc4py.PETSc as PETSc
-    with x.vector().dat.vec_ro as x_v:
+    with x.dat.vec_ro as x_v:
         linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
     return linf_norm
 
@@ -260,15 +260,20 @@ def function_alias(x):
 
 
 def function_zero(x):
-    x.vector().dat.zero()
+    with x.dat.vec_wo as x_v:
+        x_v.zeroEntries()
 
 
 def function_global_size(x):
-    return x.function_space().dim()
+    with x.dat.vec_ro as x_v:
+        size = x_v.getSize()
+    return size
 
 
 def function_local_indices(x):
-    return slice(*x.vector().local_range())
+    with x.dat.vec_ro as x_v:
+        local_range = x_v.getOwnershipRange()
+    return slice(*local_range)
 
 
 def function_subtract_adjoint_derivative_action(x, y):
@@ -276,9 +281,6 @@ def function_subtract_adjoint_derivative_action(x, y):
         pass
     elif isinstance(y, tuple):
         alpha, y = y
-        if isinstance(y, backend_Function):
-            y = y.vector()
-        # Works even if x or y are Vector objects
         function_axpy(x, -alpha, y)
     elif isinstance(y, ufl.classes.Form):
         if hasattr(x, "_tlm_adjoint__adj_b"):
@@ -286,9 +288,6 @@ def function_subtract_adjoint_derivative_action(x, y):
         else:
             x._tlm_adjoint__adj_b = form_neg(y)
     else:
-        if isinstance(y, backend_Function):
-            y = y.vector()
-        # Works even if x or y are Vector objects
         function_axpy(x, -1.0, y)
 
 

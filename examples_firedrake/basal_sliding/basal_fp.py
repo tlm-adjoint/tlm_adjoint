@@ -303,7 +303,7 @@ def A_action(x):
     info(f"A_action call {A_action_calls[0]:d}")
     _, _, H_action = ddJ.action(beta_sq_ref, x)
     A_action = Function(space)
-    M_solver.solve(A_action.vector(), H_action.vector())
+    M_solver.solve(A_action, H_action)
     return function_get_values(A_action)
 
 

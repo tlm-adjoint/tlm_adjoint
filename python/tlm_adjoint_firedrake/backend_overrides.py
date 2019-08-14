@@ -181,7 +181,8 @@ def solve(*args, **kwargs):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
 
             A = A.a
-            x = x.function
+            if not is_function(x):
+                x = x.function
             b = b._tlm_adjoint__form
 
             eq = EquationSolver(

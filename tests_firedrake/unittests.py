@@ -784,11 +784,10 @@ class tests(unittest.TestCase):
             A = assemble(inner(test, trial) * dx, bcs=bc)
             b = assemble(inner(test, G[0]) * dx)
             solver = LinearSolver(A, solver_parameters=ls_parameters_cg)
-            solver.solve(G[1].vector(), b)
+            solver.solve(G[1], b)
 
             b = assemble(inner(test, G[1]) * dx)
-            solve(A, G[2].vector(), b,
-                  solver_parameters=ls_parameters_cg)
+            solve(A, G[2], b, solver_parameters=ls_parameters_cg)
 
             eq = inner(test, trial) * dx == inner(test, G[2]) * dx
             problem = LinearVariationalProblem(eq.lhs, eq.rhs, G[3])
@@ -1235,7 +1234,7 @@ class tests(unittest.TestCase):
 
         def M_action(F):
             G = function_new(F)
-            with F.vector().dat.vec_ro as F_v, G.vector().dat.vec_wo as G_v:
+            with F.dat.vec_ro as F_v, G.dat.vec_wo as G_v:
                 M.petscmat.mult(F_v, G_v)
             return function_get_values(G)
 
@@ -1263,7 +1262,7 @@ class tests(unittest.TestCase):
 
         def N_action(F):
             G = function_new(F)
-            with F.vector().dat.vec_ro as F_v, G.vector().dat.vec_wo as G_v:
+            with F.dat.vec_ro as F_v, G.dat.vec_wo as G_v:
                 N.petscmat.mult(F_v, G_v)
             return function_get_values(G)
 

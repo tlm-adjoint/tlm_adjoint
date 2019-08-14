@@ -141,7 +141,7 @@ class LocalProjectionSolver(EquationSolver):
                 self._lhs,
                 form_compiler_parameters=self._form_compiler_parameters)
 
-        local_solver.solve_local(x.vector(), b)
+        local_solver.solve_local(x, b)
 
     def adjoint_jacobian_solve(self, nl_deps, b):
         if self._cache_jacobian:
@@ -157,7 +157,7 @@ class LocalProjectionSolver(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         adj_x = function_new(b)
-        local_solver.solve_local(adj_x.vector(), b.vector())
+        local_solver.solve_local(adj_x, b)
         return adj_x
 
     def reset_adjoint_jacobian_solve(self):

@@ -33,6 +33,7 @@ __all__ = \
         "assemble_matrix",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
+        "function_vector",
         "homogenize",
         "is_real_function",
         "linear_solver",
@@ -238,13 +239,21 @@ def is_real_function(x):
     return e.family() == "Real" and e.degree() == 0
 
 
+def function_vector(x):
+    return x
+
+
 def rhs_copy(x):
     return x.copy(deepcopy=True)
 
 
 def rhs_addto(x, y):
-    # function_axpy
-    x.vector().set_local(x.vector().get_local() + y.vector().get_local())
+    if is_real_function(x):
+        # Work around Firedrake bug (related to issue #1459?)
+        x.dat.data[:] -= y.dat.data
+    else:
+        with x.dat.vec as x_v, y.dat.vec_ro as y_v:
+            x_v.axpy(-1.0, y_v)
 
 
 def parameters_key(parameters):

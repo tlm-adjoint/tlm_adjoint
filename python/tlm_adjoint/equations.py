@@ -128,7 +128,7 @@ class AssembleSolver(Equation):
             assert(self._rank == 1)
             assemble(rhs,
                      form_compiler_parameters=self._form_compiler_parameters,
-                     tensor=x.vector())
+                     tensor=function_vector(x))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -497,15 +497,12 @@ class EquationSolver(Equation):
                     replace_map=None if deps is None else dict(zip(eq_deps,
                                                                    deps)))
             mat, _ = mat_bc
+            dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
-                b = matrix_multiply(
-                    mat,
-                    (eq_deps if deps is None else deps)[dep_index].vector())
+                b = matrix_multiply(mat, function_vector(dep))
             else:
-                matrix_multiply(
-                    mat,
-                    (eq_deps if deps is None else deps)[dep_index].vector(),
-                    tensor=b, addto=True)
+                matrix_multiply(mat, function_vector(dep), tensor=b,
+                                addto=True)
 
         if cached_form is not None:
             cached_b = cached_form[1]()
@@ -671,7 +668,7 @@ class EquationSolver(Equation):
 #             assert(function_linf_norm(b_error)
 #                    <= 1.0e-14 * function_linf_norm(b))
 
-            J_solver.solve(x.vector(), b)
+            J_solver.solve(function_vector(x), b)
             if alias_clear_J:
                 alias_clear(J)
             if alias_clear_rhs:
@@ -732,7 +729,7 @@ class EquationSolver(Equation):
                 mat_bc = mat_cache()
                 if mat_bc is not None:
                     mat, _ = mat_bc
-                    return matrix_multiply(mat, adj_x.vector())
+                    return matrix_multiply(mat, function_vector(adj_x))
                 # else:
                 #   # Cache entry cleared
                 #   pass
@@ -764,7 +761,7 @@ class EquationSolver(Equation):
                     form_compiler_parameters=self._form_compiler_parameters,
                     replace_map=dict(zip(self.nonlinear_dependencies(),
                                          nl_deps)))
-            return matrix_multiply(mat, adj_x.vector())
+            return matrix_multiply(mat, function_vector(adj_x))
         elif self._defer_adjoint_assembly:
             self._derivative_mats[dep_index] = dF
             dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(),
@@ -799,9 +796,9 @@ class EquationSolver(Equation):
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         linear_solver_parameters=self._adjoint_solver_parameters)  # noqa: E501
 
-            apply_rhs_bcs(b.vector(), self._hbcs)
+            apply_rhs_bcs(function_vector(b), self._hbcs)
             adj_x = function_new(b)
-            J_solver.solve(adj_x.vector(), b.vector())
+            J_solver.solve(function_vector(adj_x), function_vector(b))
 
             return adj_x
         else:
@@ -817,9 +814,10 @@ class EquationSolver(Equation):
 
             J_solver = linear_solver(J_mat, self._adjoint_solver_parameters)
 
-            apply_rhs_bcs(b.vector(), self._hbcs)
+            apply_rhs_bcs(function_vector(b), self._hbcs)
             adj_x = function_new(b)
-            J_solver.solve(adj_x.vector(), b.vector())
+            J_solver.solve(function_vector(adj_x),
+                           function_vector(b))
             alias_clear(self._adjoint_J)
 
             return adj_x
@@ -904,8 +902,9 @@ class DirichletBCSolver(Equation):
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
         function_zero(x)
-        DirichletBC(x.function_space(), y,
-                    *self._bc_args, **self._bc_kwargs).apply(x.vector())
+        DirichletBC(
+            x.function_space(), y,
+            *self._bc_args, **self._bc_kwargs).apply(function_vector(x))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index == 0:
@@ -913,8 +912,9 @@ class DirichletBCSolver(Equation):
         elif dep_index == 1:
             _, y = self.dependencies()
             F = function_new(y)
-            DirichletBC(y.function_space(), adj_x,
-                        *self._bc_args, **self._bc_kwargs).apply(F.vector())
+            DirichletBC(
+                y.function_space(), adj_x,
+                *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
             return (-1.0, F)
         else:
             return None

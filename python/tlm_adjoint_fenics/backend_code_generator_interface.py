@@ -33,6 +33,7 @@ __all__ = \
         "assemble_matrix",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
+        "function_vector",
         "homogenize",
         "is_real_function",
         "linear_solver",
@@ -242,6 +243,10 @@ def matrix_multiply(A, x, tensor=None, addto=False):
 def is_real_function(x):
     e = x.ufl_element()
     return e.family() == "Real" and e.degree() == 0
+
+
+def function_vector(x):
+    return x.vector()
 
 
 def rhs_copy(x):
