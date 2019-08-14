@@ -151,7 +151,7 @@ backend_Function.id = lambda self: self.count()
 def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
                   tlm_depth=0):
     # This is much faster than x.copy(deepcopy=True)
-    y = function_new(x, name=name, static=static, cache=cache, 
+    y = function_new(x, name=name, static=static, cache=cache,
                      checkpoint=checkpoint, tlm_depth=tlm_depth)
     function_assign(y, x)
     return y

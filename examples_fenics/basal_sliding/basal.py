@@ -180,7 +180,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 initial_guess=initial_guess,
                 solver_parameters={"nonlinear_solver": "newton",
                                    "newton_solver": {"linear_solver": "cg",
-                                                     "preconditioner": "hypre_amg",
+                                                     "preconditioner": "hypre_amg",  # noqa: E501
                                                      "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
                                                                        "absolute_tolerance": 1.0e-16},  # noqa: E501
                                                      "maximum_iterations": 0,
@@ -222,7 +222,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             solve(F == 0, U, J=J_1,
                   solver_parameters={"nonlinear_solver": "newton",
                                      "newton_solver": {"linear_solver": "cg",
-                                                       "preconditioner": "hypre_amg",
+                                                       "preconditioner": "hypre_amg",  # noqa: E501
                                                        "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
                                                                          "absolute_tolerance": 1.0e-16},  # noqa: E501
                                                        "maximum_iterations": 100,  # noqa: E501
@@ -234,7 +234,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             solve(F == 0, U, J=J_2,
                   solver_parameters={"nonlinear_solver": "newton",
                                      "newton_solver": {"linear_solver": "cg",
-                                                       "preconditioner": "hypre_amg",
+                                                       "preconditioner": "hypre_amg",  # noqa: E501
                                                        "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
                                                                          "absolute_tolerance": 1.0e-16},  # noqa: E501
                                                        "maximum_iterations": 10,  # noqa: E501
