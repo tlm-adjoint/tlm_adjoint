@@ -187,7 +187,9 @@ def function_local_size(x):
 
 
 def function_get_values(x):
-    return x.vector().get_local()
+    values = x.vector().get_local().view()
+    values.setflags(write=False)
+    return values
 
 
 def function_set_values(x, values):
