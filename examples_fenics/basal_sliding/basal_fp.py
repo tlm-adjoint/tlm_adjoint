@@ -185,7 +185,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
         U_eq = EquationSolver(
             lhs(F) == rhs(F), U,
             solver_parameters={"linear_solver": "cg",
-                               "preconditioner": "amg",
+                               "preconditioner": "hypre_amg",
                                 "krylov_solver": {"relative_tolerance": 1.0e-12,  # noqa: E501
                                                   "absolute_tolerance": 1.0e-16}},  # noqa: E501
             adjoint_solver_parameters={"linear_solver": "umfpack"},
