@@ -426,7 +426,7 @@ class EquationSolver(Equation):
         if self._nl_solve_J is not None:
             self._nl_solve_J = ufl.replace(self._nl_solve_J, replace_map)
 
-        if hasattr(self, "_forward_b_pa") and self._forward_b_pa is not None:
+        if self._forward_b_pa is not None:
             if self._forward_b_pa[0] is not None:
                 self._forward_b_pa[0][0] = \
                     ufl.replace(self._forward_b_pa[0][0], replace_map)
@@ -435,7 +435,7 @@ class EquationSolver(Equation):
                 self._forward_b_pa[1][dep_index][0] = \
                     ufl.replace(mat_form, replace_map)
 
-        if self._defer_adjoint_assembly and hasattr(self, "_derivative_mats"):
+        if self._defer_adjoint_assembly:
             for dep_index, mat_cache in self._derivative_mats.items():
                 if isinstance(mat_cache, ufl.classes.Form):
                     self._derivative_mats[dep_index] = \
