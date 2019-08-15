@@ -363,14 +363,6 @@ class Equation:
 
         raise EquationException("Method not overridden")
 
-    def reset_forward_solve(self):
-        """
-        Reset the forward solver. Can be used to clear caches used by
-        forward_solve.
-        """
-
-        pass
-
     def adjoint(self, nl_deps, B, B_indices, Bs):
         """
         Solve the adjoint equation with the given right-hand-side, and subtract
@@ -452,13 +444,6 @@ class Equation:
 
         raise EquationException("Method not overridden")
 
-    def reset_adjoint_derivative_action(self):
-        """
-        Can be used to clear caches used by adjoint_derivative_action.
-        """
-
-        pass
-
     def adjoint_jacobian_solve(self, nl_deps, B):
         """
         Solve an adjoint equation, returning the result. The result must have
@@ -478,13 +463,6 @@ class Equation:
         """
 
         raise EquationException("Method not overridden")
-
-    def reset_adjoint_jacobian_solve(self):
-        """
-        Can be used to clear caches used by adjoint_jacobian_solve.
-        """
-
-        pass
 
     def tangent_linear(self, M, dM, tlm_map):
         """
@@ -929,10 +907,6 @@ class FixedPointSolver(Equation):
             del(r)
             function_assign(x_0, x)
 
-    def reset_forward_solve(self):
-        for eq in self._eqs:
-            eq.reset_forward_solve()
-
     def initialize_adjoint(self, nl_deps):
         self._eq_nl_deps = tuple(tuple(nl_deps[j]
                                        for j in self._eq_nl_dep_indices[i])
@@ -1024,12 +998,6 @@ class FixedPointSolver(Equation):
             adj_X = [function_copy(b) for b in B]
         return adj_X
 
-    def reset_adjoint_jacobian_solve(self):
-        for eq in self._eqs:
-            eq.reset_adjoint_jacobian_solve()
-        self._tdeps = None
-        self._adj_X = None
-
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_function(adj_X):
             adj_X = (adj_X,)
@@ -1048,10 +1016,6 @@ class FixedPointSolver(Equation):
         function_finalize_adjoint_derivative_action(F)
 
         return (-1.0, F)
-
-    def reset_adjoint_derivative_action(self):
-        for eq in self._eqs:
-            eq.reset_adjoint_derivative_action()
 
     def tangent_linear(self, M, dM, tlm_map):
         tlm_eqs = []
@@ -1189,12 +1153,6 @@ class LinearEquation(Equation):
                                   [deps[j] for j in self._A_dep_indices],
                                   B[0] if len(B) == 1 else B)
 
-    def reset_forward_solve(self):
-        for b in self._B:
-            b.reset_add_forward()
-        if self._A is not None:
-            self._A.reset_forward_solve()
-
     def adjoint_jacobian_solve(self, nl_deps, B):
         if self._A is None:
             return B
@@ -1202,10 +1160,6 @@ class LinearEquation(Equation):
             return self._A.adjoint_solve([nl_deps[j]
                                           for j in self._A_nl_dep_indices],
                                          B)
-
-    def reset_adjoint_jacobian_solve(self):
-        if self._A is not None:
-            self._A.reset_adjoint_solve()
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_function(adj_X):
@@ -1245,13 +1199,6 @@ class LinearEquation(Equation):
                     adj_X[0] if len(adj_X) == 1 else adj_X,
                     F, method="add")
             return F
-
-    def reset_adjoint_derivative_action(self):
-        for b in self._B:
-            b.reset_subtract_adjoint_derivative_action()
-        if self._A is not None:
-            self._A.reset_adjoint_action()
-            self._A.reset_adjoint_derivative_action()
 
     def tangent_linear(self, M, dM, tlm_map):
         X = self.X()
@@ -1319,9 +1266,6 @@ class Matrix:
 
         raise EquationException("Method not overridden")
 
-    def reset_forward_action(self):
-        pass
-
     def adjoint_action(self, nl_deps, adj_X, b, b_index=0, method="assign"):
         """
         Evaluate the adjoint action of the matrix.
@@ -1342,14 +1286,8 @@ class Matrix:
 
         raise EquationException("Method not overridden")
 
-    def reset_adjoint_action(self):
-        pass
-
     def forward_solve(self, X, nl_deps, B):
         raise EquationException("Method not overridden")
-
-    def reset_forward_solve(self):
-        pass
 
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
                                   method="assign"):
@@ -1377,14 +1315,8 @@ class Matrix:
 
         raise EquationException("Method not overridden")
 
-    def reset_adjoint_derivative_action(self):
-        pass
-
     def adjoint_solve(self, nl_deps, B):
         raise EquationException("Method not overridden")
-
-    def reset_adjoint_solve(self):
-        pass
 
     def tangent_linear_rhs(self, M, dM, tlm_map, X):
         raise EquationException("Method not overridden")
@@ -1423,14 +1355,8 @@ class RHS:
     def add_forward(self, B, deps):
         raise EquationException("Method not overridden")
 
-    def reset_add_forward(self):
-        pass
-
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
         raise EquationException("Method not overridden")
-
-    def reset_subtract_adjoint_derivative_action(self):
-        pass
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         raise EquationException("Method not overridden")
@@ -1496,9 +1422,6 @@ class MatrixActionRHS(RHS):
                                B[0] if len(B) == 1 else B,
                                method="add")
 
-    def reset_add_forward(self):
-        self._A.reset_forward_action()
-
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
         if is_function(adj_X):
             adj_X = (adj_X,)
@@ -1515,10 +1438,6 @@ class MatrixActionRHS(RHS):
                                    adj_X[0] if len(adj_X) == 1 else adj_X,
                                    b, b_index=self._x_indices[dep_index],
                                    method="sub")
-
-    def reset_subtract_adjoint_derivative_action(self):
-        self._A.reset_adjoint_derivative_action()
-        self._A.reset_adjoint_action()
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         deps = self.dependencies()
@@ -1595,10 +1514,6 @@ class InnerProductRHS(RHS):
                             function_get_values(b) + self._alpha
                             * function_inner(x, Y))
 
-    def reset_add_forward(self):
-        if self._M is not None:
-            self._M.reset_forward_action()
-
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if self._norm_sq:
             if dep_index == 0:
@@ -1634,10 +1549,6 @@ class InnerProductRHS(RHS):
                 self._M.forward_action(M_deps, x, X, method="assign")
 
             function_axpy(b, -self._alpha * function_sum(adj_x), X)
-
-    def reset_subtract_adjoint_derivative_action(self):
-        if self._M is not None:
-            self._M.reset_forward_action()
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         tlm_B = []

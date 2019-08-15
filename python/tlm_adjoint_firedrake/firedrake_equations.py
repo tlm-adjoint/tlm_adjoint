@@ -24,7 +24,7 @@ from .backend_interface import *
 
 from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
-from .caches import Cache, CacheRef, form_dependencies, form_key, \
+from .caches import Cache, form_dependencies, form_key, \
     parameters_key
 from .equations import EquationSolver, alias_assemble, alias_form
 
@@ -156,9 +156,6 @@ class LocalProjectionSolver(EquationSolver):
         adj_x = function_new(b)
         local_solver.solve_local(adj_x, b)
         return adj_x
-
-    def reset_adjoint_jacobian_solve(self):
-        self._forward_J_solver = CacheRef()
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     # A consistent diagonal block adjoint derivative action requires an

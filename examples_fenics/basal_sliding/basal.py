@@ -245,9 +245,6 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                                                         "error_on_nonconvergence": True}},  # noqa: E501
                   form_compiler_parameters=self._form_compiler_parameters)
 
-        def reset_forward_solve(self):
-            pass
-
     h = [Function(space_h, name="h_n"),
          Function(space_h, name="h_np1")]
 

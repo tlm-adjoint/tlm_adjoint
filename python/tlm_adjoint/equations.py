@@ -404,9 +404,16 @@ class EquationSolver(Equation):
         self._cache_tlm_jacobian = cache_tlm_jacobian
         self._cache_rhs_assembly = cache_rhs_assembly
         self._defer_adjoint_assembly = defer_adjoint_assembly
-        self.reset_forward_solve()
-        self.reset_adjoint_derivative_action()
-        self.reset_adjoint_jacobian_solve()
+
+        self._forward_eq = None
+        self._forward_J_mat = CacheRef()
+        self._forward_J_solver = CacheRef()
+        self._forward_b_pa = None
+
+        self._derivative_mats = {}
+
+        self._adjoint_J_solver = CacheRef()
+        self._adjoint_J = None
 
     def replace(self, replace_map):
         Equation.replace(self, replace_map)
@@ -700,12 +707,6 @@ class EquationSolver(Equation):
                 alias_clear(lhs)
                 alias_clear(J)
 
-    def reset_forward_solve(self):
-        self._forward_eq = None
-        self._forward_J_mat = CacheRef()
-        self._forward_J_solver = CacheRef()
-        self._forward_b_pa = None
-
     def initialize_adjoint(self, nl_deps):
         update_caches(self.nonlinear_dependencies(), deps=nl_deps)
 
@@ -776,9 +777,6 @@ class EquationSolver(Equation):
                 dF, list(nl_deps) + [adj_x],
                 form_compiler_parameters=self._form_compiler_parameters)
 
-    def reset_adjoint_derivative_action(self):
-        self._derivative_mats = {}
-
     def adjoint_jacobian_solve(self, nl_deps, b):
         if self._cache_adjoint_jacobian:
             J_solver = self._adjoint_J_solver()
@@ -821,10 +819,6 @@ class EquationSolver(Equation):
             alias_clear(self._adjoint_J)
 
             return adj_x
-
-    def reset_adjoint_jacobian_solve(self):
-        self._adjoint_J_solver = CacheRef()
-        self._adjoint_J = None
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
@@ -1017,8 +1011,10 @@ class ExprEvaluationSolver(Equation):
         Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=[])
         # Store the Expr in a Form to aid caching
         self._rhs = rhs * ufl.dx(x_space.mesh())
-        self.reset_forward_solve()
-        self.reset_adjoint_derivative_action()
+
+        self._forward_rhs = None
+
+        self._adjoint_derivatives = {}
 
     def replace(self, replace_map):
         Equation.replace(self, replace_map)
@@ -1040,9 +1036,6 @@ class ExprEvaluationSolver(Equation):
         else:
             assert(function_local_size(x) == len(rhs_val))
             function_set_values(x, rhs_val)
-
-    def reset_forward_solve(self):
-        self._forward_rhs = None
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index == 0:
@@ -1078,9 +1071,6 @@ class ExprEvaluationSolver(Equation):
                 assert(function_local_size(F) == len(dF_val))
                 function_set_values(F, dF_val)
             return (-1.0, F)
-
-    def reset_adjoint_derivative_action(self):
-        self._adjoint_derivatives = {}
 
     def adjoint_jacobian_solve(self, nl_deps, b):
         return b

@@ -134,7 +134,9 @@ def forward(psi_0, kappa):
             self._x_0_adjoint = Function(space)
             self._alpha = alpha
             self._beta = beta
-            self.reset_forward_solve()
+
+            self._A = None
+            self._A_kappa = None
 
         def forward_action(self, nl_deps, x, b, method="assign"):
             kappa, = nl_deps
@@ -149,27 +151,17 @@ def forward(psi_0, kappa):
             else:
                 raise EquationException(f"Invalid method: '{method:s}'")
 
-        def reset_forward_action(self):
-            self.reset_forward_solve()
-
         def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                            method="assign"):
             if b_index != 0:
                 raise EquationException("Invalid index")
             self.forward_action(nl_deps, adj_x, b, method=method)
 
-        def reset_adjoint_action(self):
-            self.reset_forward_action()
-
         def forward_solve(self, x, nl_deps, b):
             self._assemble_A(kappa)
             x.vector()[:], fail = cg(self._A, b.vector(), x0=x.vector(),
                                      tol=1.0e-10, atol=1.0e-14)
             assert(fail == 0)
-
-        def reset_forward_solve(self):
-            self._A = None
-            self._A_kappa = None
 
         def _assemble_A(self, kappa):
             if self._A_kappa is None \
@@ -201,9 +193,6 @@ def forward(psi_0, kappa):
             assert(fail == 0)
             function_assign(self._x_0_adjoint, x)
             return x
-
-        def reset_adjoint_solve(self):
-            self.reset_forward_solve()
 
         def tangent_linear_rhs(self, M, dM, tlm_map, x):
             kappa, = self.nonlinear_dependencies()
