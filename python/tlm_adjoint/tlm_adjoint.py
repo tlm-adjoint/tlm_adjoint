@@ -1352,6 +1352,7 @@ class EquationManager:
         tdeps = DependencyTransposer(blocks, M)
 
         # Reverse (blocks)
+        seen_eq_ids = set()
         for n in range(len(blocks) - 1, -1, -1):
             cp_n = n - 1  # Forward model block, ignoring the control block
             cp_block = cp_n >= 0 and cp_n < len(self._blocks)
@@ -1362,6 +1363,10 @@ class EquationManager:
             # Reverse (equations in block n)
             for i in range(len(blocks[n]) - 1, -1, -1):
                 eq = blocks[n][i]
+                eq_id = eq.id()
+                if eq_id not in seen_eq_ids:
+                    seen_eq_ids.add(eq_id)
+                    eq.reset_adjoint()
                 # Non-linear dependency data
                 nl_deps = self._cp[(cp_n, i)] if cp_block else tuple()
 

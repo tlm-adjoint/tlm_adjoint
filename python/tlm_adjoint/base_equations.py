@@ -363,6 +363,14 @@ class Equation:
 
         raise EquationException("Method not overridden")
 
+    def reset_adjoint(self):
+        """
+        Can be used to clear adjoint model caches. Called at the start of an
+        adjoint calculation.
+        """
+
+        pass
+
     def adjoint(self, nl_deps, B, B_indices, Bs):
         """
         Solve the adjoint equation with the given right-hand-side, and subtract
