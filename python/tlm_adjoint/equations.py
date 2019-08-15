@@ -707,7 +707,7 @@ class EquationSolver(Equation):
                 alias_clear(lhs)
                 alias_clear(J)
 
-    def initialize_adjoint(self, nl_deps):
+    def initialize_adjoint(self, J, nl_deps):
         update_caches(self.nonlinear_dependencies(), deps=nl_deps)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):

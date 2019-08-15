@@ -1394,7 +1394,7 @@ class EquationManager:
                     else:
                         # Solve adjoint equation, add terms to adjoint
                         # equations
-                        adj_X = eq.adjoint(nl_deps, eq_B.B(), B_indices, B)
+                        adj_X = eq.adjoint(J, nl_deps, eq_B.B(), B_indices, B)
                     if callback is not None and cp_block:
                         if adj_X is None or len(adj_X) > 1:
                             callback(cp_n, i, eq, adj_X)

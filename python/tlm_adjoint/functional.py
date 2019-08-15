@@ -39,6 +39,8 @@ class FunctionalException(Exception):
 
 
 class Functional:
+    _id_counter = [0]
+
     def __init__(self, fn=None, space=None, name=None):
         """
         A functional.
@@ -77,6 +79,11 @@ class Functional:
         self._space = space
         self._name = name
         self._fn = fn
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
+
+    def id(self):
+        return self._id
 
     def assign(self, term, manager=None, annotate=None, tlm=None):
         """

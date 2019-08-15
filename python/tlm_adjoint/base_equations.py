@@ -371,13 +371,14 @@ class Equation:
 
         pass
 
-    def adjoint(self, nl_deps, B, B_indices, Bs):
+    def adjoint(self, J, nl_deps, B, B_indices, Bs):
         """
         Solve the adjoint equation with the given right-hand-side, and subtract
         corresponding adjoint terms from other adjoint equations.
 
         Arguments:
 
+        J          Adjoint model functional.
         nl_deps    A list or tuple of Function objects defining the values of
                    non-linear dependencies.
         B          A list or tuple of Function objects defining the
@@ -394,7 +395,7 @@ class Equation:
         should never be modified by calling code.
         """
 
-        self.initialize_adjoint(nl_deps)
+        self.initialize_adjoint(J, nl_deps)
 
         adj_X = self.adjoint_jacobian_solve(nl_deps,
                                             B[0] if len(B) == 1 else B)
@@ -405,27 +406,32 @@ class Equation:
             if is_function(adj_X):
                 adj_X = (adj_X,)
 
-        self.finalize_adjoint()
+        self.finalize_adjoint(J)
 
         return adj_X
 
-    def initialize_adjoint(self, nl_deps):
+    def initialize_adjoint(self, J, nl_deps):
         """
         Adjoint initialization. Called prior to calling adjoint_jacobian_solve
         or adjoint_derivative_action methods.
 
         Arguments:
 
+        J          Adjoint model functional.
         nl_deps  A list or tuple of Function objects defining the values of
                  non-linear dependencies.
         """
 
         pass
 
-    def finalize_adjoint(self):
+    def finalize_adjoint(self, J):
         """
         Adjoint finalization. Called after calling adjoint_jacobian_solve or
         adjoint_derivative_action methods.
+
+        Arguments:
+
+        J          Adjoint model functional.
         """
 
         pass
@@ -915,14 +921,14 @@ class FixedPointSolver(Equation):
             del(r)
             function_assign(x_0, x)
 
-    def initialize_adjoint(self, nl_deps):
+    def initialize_adjoint(self, J, nl_deps):
         self._eq_nl_deps = tuple(tuple(nl_deps[j]
                                        for j in self._eq_nl_dep_indices[i])
                                  for i in range(len(self._eqs)))
         for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
-            eq.initialize_adjoint(eq_nl_deps)
+            eq.initialize_adjoint(J, eq_nl_deps)
 
-    def finalize_adjoint(self):
+    def finalize_adjoint(self, J):
         del(self._eq_nl_deps)
 
     def adjoint_jacobian_solve(self, nl_deps, B):
