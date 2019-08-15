@@ -482,11 +482,17 @@ class Cache:
 
     def add(self, key, value, deps=[]):
         if key in self._cache:
-            raise CacheException("Duplicate key")
-        value = CacheRef(value)
+            value_ref = self._cache[key]
+            value = value_ref()
+            if value is None:
+                raise CacheException("Unexpected cache value state")
+            return value_ref, value
+
+        value = value()
+        value_ref = CacheRef(value)
         dep_ids = tuple(dep.id() for dep in deps)
 
-        self._cache[key] = value
+        self._cache[key] = value_ref
 
         for dep, dep_id in zip(deps, dep_ids):
             dep_caches = function_caches(dep)
@@ -499,7 +505,7 @@ class Cache:
                 self._deps_map[dep_id] = {key: dep_ids}
                 self._dep_caches[dep_id] = weakref.ref(dep_caches)
 
-        return value
+        return value_ref, value
 
     def get(self, key, default=None):
         return self._cache.get(key, default)
@@ -606,8 +612,8 @@ class AssemblyCache(Cache):
         assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
                                              solver_parameters)
         key = assemble_key(form, bcs, assemble_kwargs)
-        value = self.get(key, None)
-        if value is None or value() is None:
+
+        def value():
             if replace_map is None:
                 assemble_form = form
             else:
@@ -625,12 +631,10 @@ class AssemblyCache(Cache):
                                     **assemble_kwargs)
             else:
                 raise CacheException(f"Unexpected form rank {rank:d}")
-            value = self.add(key, b,
-                             deps=tuple(form_dependencies(form).values()))
-        else:
-            b = value()
+            return b
 
-        return value, b
+        return self.add(key, value,
+                        deps=tuple(form_dependencies(form).values()))
 
 
 def linear_solver_key(form, bcs, linear_solver_parameters,
@@ -645,15 +649,12 @@ class LinearSolverCache(Cache):
                       linear_solver_parameters={}):
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
-        value = self.get(key, None)
-        if value is None or value() is None:
-            solver = linear_solver(A, linear_solver_parameters)
-            value = self.add(key, solver,
-                             deps=tuple(form_dependencies(form).values()))
-        else:
-            solver = value()
 
-        return value, solver
+        def value():
+            return linear_solver(A, linear_solver_parameters)
+
+        return self.add(key, value,
+                        deps=tuple(form_dependencies(form).values()))
 
 
 _assembly_cache = [AssemblyCache()]
