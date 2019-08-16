@@ -514,7 +514,7 @@ class tests(unittest.TestCase):
         dJ = compute_gradient(J, y)
         min_order = taylor_test(lambda y: forward(y)[1], y, J_val=J.value(),
                                 dJ=dJ, seed=1.0e-4)
-        self.assertGreater(min_order, 2.00)
+        self.assertGreater(min_order, 1.99)
 
         ddJ = Hessian(lambda y: forward(y)[1])
         min_order = taylor_test(lambda y: forward(y)[1], y, J_val=J.value(),
@@ -868,7 +868,7 @@ class tests(unittest.TestCase):
         error = Function(space, name="error")
         function_assign(error, x_ref)
         function_axpy(error, -1.0, x)
-        self.assertEqual(function_linf_norm(error), 0.0)
+        self.assertLess(function_linf_norm(error), 1.0e-14)
 
         J_val = J.value()
         dJ = compute_gradient(J, bc)
