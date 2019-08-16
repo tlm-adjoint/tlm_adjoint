@@ -107,34 +107,13 @@ def process_solver_parameters(solver_parameters, J, linear):
     if "options_prefix" not in tlm_adjoint_parameters:
         tlm_adjoint_parameters["options_prefix"] = None
 
-    if "nullspace" in tlm_adjoint_parameters:
-        nullspace = tlm_adjoint_parameters["nullspace"]
-        if nullspace is not None:
-            for fn in nullspace._vecs:
-                if not function_is_static(fn) or not function_is_cached(fn) \
-                   or function_is_checkpointed(fn):
-                    raise InterfaceExecption("Invalid basis function")
-    else:
+    if "nullspace" not in tlm_adjoint_parameters:
         tlm_adjoint_parameters["nullspace"] = None
 
-    if "transpose_nullspace" in tlm_adjoint_parameters:
-        transpose_nullspace = tlm_adjoint_parameters["transpose_nullspace"]
-        if transpose_nullspace is not None:
-            for fn in transpose_nullspace._vecs:
-                if not function_is_static(fn) or not function_is_cached(fn) \
-                   or function_is_checkpointed(fn):
-                    raise InterfaceExecption("Invalid basis function")
-    else:
+    if "transpose_nullspace" not in tlm_adjoint_parameters:
         tlm_adjoint_parameters["transpose_nullspace"] = None
 
-    if "near_nullspace" in tlm_adjoint_parameters:
-        near_nullspace = tlm_adjoint_parameters["near_nullspace"]
-        if near_nullspace is not None:
-            for fn in near_nullspace._vecs:
-                if not function_is_static(fn) or not function_is_cached(fn) \
-                   or function_is_checkpointed(fn):
-                    raise InterfaceExecption("Invalid basis function")
-    else:
+    if "near_nullspace" not in tlm_adjoint_parameters:
         tlm_adjoint_parameters["near_nullspace"] = None
 
     return solver_parameters, solver_parameters, True
