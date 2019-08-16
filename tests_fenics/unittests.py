@@ -513,7 +513,7 @@ class tests(unittest.TestCase):
             x_error_norm = max(x_error_norm, abs(function_max_value(x)
                                                  - x_ref(x_coord)))
         info("Error norm = %.16e" % x_error_norm)
-        self.assertLess(x_error_norm, 1.0e-14)
+        self.assertLess(x_error_norm, 1.0e-13)
 
         dJ = compute_gradient(J, z)
         min_order = taylor_test(lambda z: forward(z)[1], z, J_val=J.value(),
