@@ -1306,10 +1306,11 @@ class EquationManager:
         M         A Control or Function, or a list or tuple of these, defining
                   the control parameters.
         callback  (Optional) Callable of the form
-                      def callback(n, i, eq, adj_X):
+                      def callback(J_i, n, i, eq, adj_X):
                   where adj_X is None, a Function, or a list or tuple of
                   Function objects, corresponding to the adjoint solution for
-                  the equation eq, which is equation i in block n.
+                  the equation eq, which is equation i in block n for the
+                  J_i th Functional.
         """
 
         if not isinstance(M, (list, tuple)):
@@ -1397,9 +1398,9 @@ class EquationManager:
                         adj_X = eq.adjoint(J, nl_deps, eq_B.B(), B_indices, B)
                     if callback is not None and cp_block:
                         if adj_X is None or len(adj_X) > 1:
-                            callback(cp_n, i, eq, adj_X)
+                            callback(J_i, cp_n, i, eq, adj_X)
                         else:
-                            callback(cp_n, i, eq, adj_X[0])
+                            callback(J_i, cp_n, i, eq, adj_X[0])
 
                     if n == 0 and i == 0:
                         # A requested derivative
