@@ -921,6 +921,10 @@ class FixedPointSolver(Equation):
             del(r)
             function_assign(x_0, x)
 
+    def reset_adjoint(self):
+        for eq in self._eqs:
+            eq.reset_adjoint()
+
     def initialize_adjoint(self, J, nl_deps):
         self._eq_nl_deps = tuple(tuple(nl_deps[j]
                                        for j in self._eq_nl_dep_indices[i])
