@@ -168,7 +168,7 @@ def function_assign(x, y):
     else:
         if is_real_function(x):
             # Work around Firedrake bug (related to issue #1459?)
-            x.dat.data[:] = y.dat.data
+            x.dat.data[:] = y.dat.data_ro
         else:
             with x.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
@@ -177,7 +177,7 @@ def function_assign(x, y):
 def function_axpy(x, alpha, y):
     if is_real_function(x):
         # Work around Firedrake bug (related to issue #1459?)
-        x.dat.data[:] += alpha * y.dat.data
+        x.dat.data[:] += alpha * y.dat.data_ro
     else:
         with x.dat.vec as x_v, y.dat.vec_ro as y_v:
             x_v.axpy(alpha, y_v)
