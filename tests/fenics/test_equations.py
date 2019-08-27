@@ -38,7 +38,7 @@ def test_AssignmentSolver():
     function_assign(x, 16.0)
 
     def forward(x):
-        y = [Function(space, name="y_%i" % i) for i in range(9)]
+        y = [Function(space, name=f"y_{i:d}") for i in range(9)]
         z = Function(space, name="z")
 
         AssignmentSolver(x, y[0]).solve()
@@ -68,6 +68,7 @@ def test_AssignmentSolver():
     assert(abs(K.value() - 65536.0) == 0.0)
 
     dJs = compute_gradient([J, K], x)
+
     dm = Function(space, name="dm", static=True)
     function_assign(dm, 1.0)
 
@@ -92,3 +93,61 @@ def test_AssignmentSolver():
         min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                             dMs=(dm, dm))
         assert(min_order > 2.00)
+
+
+@pytest.mark.fenics
+@leak_check
+def test_AxpySolver():
+    reset_manager("memory", {"replace": True})
+    clear_caches()
+    stop_manager()
+
+    space = RealFunctionSpace()
+    x = Function(space, name="x", static=True)
+    function_assign(x, 1.0)
+
+    def forward(x):
+        y = [Function(space, name=f"y_{i:d}") for i in range(5)]
+        z = [Function(space, name=f"z_{i:d}") for i in range(2)]
+        function_assign(z[0], 7.0)
+
+        AssignmentSolver(x, y[0]).solve()
+        for i in range(len(y) - 1):
+            AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
+        NormSqSolver(y[-1], z[1]).solve()
+
+        J = Functional(name="J", space=space)
+        NormSqSolver(z[1], J.fn()).solve()
+
+        return J
+
+    start_manager()
+    J = forward(x)
+    stop_manager()
+
+    J_val = J.value()
+    assert(abs(J_val - 25411681.0) == 0.0)
+
+    dJ = compute_gradient(J, x)
+
+    dm = Function(space, name="dm", static=True)
+    function_assign(dm, 1.0)
+
+    # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(forward, x, J_val=J_val, dJ=dJ, dM=dm)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, x, J_val=J_val, ddJ=ddJ, dM=dm,
+                            seed=2.0e-2)
+    assert(min_order > 3.00)
+
+    min_order = taylor_test_tlm(forward, x, tlm_order=1, dMs=(dm,))
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=1, dMs=(dm,))
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=2,
+                                        dMs=(dm, dm))
+    assert(min_order > 2.00)
