@@ -1760,10 +1760,13 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return orders_2.min()
 
 
-def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, size=5, manager=None):
+def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
+                    manager=None):
     if not isinstance(M, (list, tuple)):
-        return taylor_test_tlm(forward, [M], tlm_order, seed=seed, size=size,
-                               manager=manager)
+        if dMs is not None:
+            dMs = tuple((dM,) for dM in dMs)
+        return taylor_test_tlm(forward, [M], tlm_order, seed=seed, dMs=dMs,
+                               size=size, manager=manager)
 
     if manager is None:
         manager = _manager()
@@ -1783,11 +1786,13 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, size=5, manager=None):
 
     eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
     eps = seed * eps * max(1.0, functions_linf_norm(M))
-    dMs = tuple(tuple(function_new(m, static=True) for m in M)
-                for i in range(tlm_order))
-    for dM in dMs:
-        for dm in dM:
-            function_set_values(dm, np.random.random(function_local_size(dm)))
+    if dMs is None:
+        dMs = tuple(tuple(function_new(m, static=True) for m in M)
+                    for i in range(tlm_order))
+        for dM in dMs:
+            for dm in dM:
+                function_set_values(dm,
+                                    np.random.random(function_local_size(dm)))
 
     def forward_tlm(dMs, *M):
         old_manager = _manager()
@@ -1812,7 +1817,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, size=5, manager=None):
 
     J_vals = np.empty(eps.shape, dtype=np.float64)
     for i in range(eps.shape[0]):
-        for m0, m1, dm in zip(M, M1, dM):
+        for m0, m1, dm in zip(M, M1, dMs[-1]):
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
         clear_caches()
@@ -1830,22 +1835,31 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, size=5, manager=None):
     return orders_1.min()
 
 
-def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, size=5,
-                            manager=None):
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
+                            size=5, manager=None):
     if not isinstance(M, (list, tuple)):
+        if dMs is not None:
+            dMs = tuple((dM,) for dM in dMs)
         return taylor_test_tlm_adjoint(
-            forward, [M], adjoint_order, seed=seed, size=size, manager=manager)
+            forward, [M], adjoint_order, seed=seed, dMs=dMs, size=size,
+            manager=manager)
 
     if manager is None:
         manager = _manager()
     tlm_manager = manager.new()
     tlm_manager.stop()
 
-    dMs = tuple(tuple(function_new(m, static=True) for m in M)
-                for i in range(adjoint_order - 1))
-    for dM in dMs:
-        for dm in dM:
-            function_set_values(dm, np.random.random(function_local_size(dm)))
+    if dMs is None:
+        dM_test = None
+        dMs = tuple(tuple(function_new(m, static=True) for m in M)
+                    for i in range(adjoint_order - 1))
+        for dM in dMs:
+            for dm in dM:
+                function_set_values(dm,
+                                    np.random.random(function_local_size(dm)))
+    else:
+        dM_test = dMs[-1]
+        dMs = dMs[:-1]
 
     def forward_tlm(*M, annotation=False):
         old_manager = _manager()
@@ -1869,5 +1883,5 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, size=5,
     J_val = J.value()
     dJ = tlm_manager.compute_gradient(J, M)
 
-    return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, size=size,
-                       manager=tlm_manager)
+    return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, dM=dM_test,
+                       size=size, manager=tlm_manager)
