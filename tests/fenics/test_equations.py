@@ -476,7 +476,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-def test_LocalProjectionSolver(setup_test, test_leaks, test_configurations):
+def test_LocalProjectionSolver(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)

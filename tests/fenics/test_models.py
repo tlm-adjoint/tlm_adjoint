@@ -115,6 +115,8 @@ def test_oscillator(setup_test, test_leaks,
     dt = Constant(0.01, static=True)
 
     def forward(T_0):
+        clear_caches()
+
         T_n = Function(space, name="T_n")
         T_np1 = Function(space, name="T_np1")
         T_s = 0.5 * (T_n + T_np1)
@@ -173,11 +175,11 @@ def test_oscillator(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @pytest.mark.parametrize("n_steps", [1, 2, 5, 20])
-def test_diffusion_timestepping(setup_test, test_leaks, test_configurations,
-                                n_steps):
+def test_diffusion_1d_timestepping(setup_test, test_leaks,
+                                   n_steps):
     configure_checkpointing("multistage",
-                            {"blocks": n_steps, "snaps_on_disk": 1,
-                             "snaps_in_ram": 2, "verbose": True})
+                            {"blocks": n_steps, "snaps_on_disk": 2,
+                             "snaps_in_ram": 3, "verbose": True})
 
     mesh = UnitIntervalMesh(100)
     X = SpatialCoordinate(mesh)
@@ -258,4 +260,60 @@ def test_diffusion_timestepping(setup_test, test_leaks, test_configurations,
         min_order = taylor_test_tlm_adjoint(
             forward_J, m0, adjoint_order=2,
             dMs=None if dm is None else (dm, dm), seed=1.0e-3)
+        assert(min_order > 1.99)
+
+
+@pytest.mark.fenics
+def test_diffusion_2d(setup_test, test_leaks):
+    n_steps = 20
+    configure_checkpointing("multistage",
+                            {"blocks": n_steps, "snaps_on_disk": 2,
+                             "snaps_in_ram": 3, "verbose": True})
+
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    T_0 = Function(space, name="T_0", static=True)
+    interpolate_expression(T_0, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
+    dt = Constant(0.01, static=True)
+    kappa = Function(space, name="kappa", static=True)
+    function_assign(kappa, 1.0)
+    bc = DirichletBC(space, 0.0, "on_boundary", static=True, homogeneous=True)
+
+    def forward(kappa):
+        clear_caches()
+
+        T_n = Function(space, name="T_n")
+        T_np1 = Function(space, name="T_np1")
+
+        AssignmentSolver(T_0, T_n).solve()
+
+        eq = (inner(test, trial / dt) * dx
+              + inner(grad(test), kappa * grad(trial)) * dx
+              == inner(test, T_n / dt) * dx)
+        eqs = [EquationSolver(eq, T_np1, bc,
+                              solver_parameters=ls_parameters_cg),
+               AssignmentSolver(T_np1, T_n)]
+
+        for n in range(n_steps):
+            for eq in eqs:
+                eq.solve()
+            if n < n_steps - 1:
+                new_block()
+
+        J = Functional(name="J")
+        J.assign(inner(T_np1, T_np1) * dx)
+
+        return J
+
+    for tlm_order in range(1, 4):
+        min_order = taylor_test_tlm(forward, kappa, tlm_order=tlm_order,
+                                    seed=1.0e-3)
+        assert(min_order > 1.99)
+
+    for adjoint_order in range(1, 5):
+        min_order = taylor_test_tlm_adjoint(forward, kappa,
+                                            adjoint_order=adjoint_order,
+                                            seed=1.0e-3)
         assert(min_order > 1.99)
