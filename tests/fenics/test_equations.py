@@ -109,7 +109,6 @@ def test_AxpySolver(setup_test, test_leaks):
 
         J = Functional(name="J", space=space)
         NormSqSolver(z[1], J.fn()).solve()
-
         return J
 
     start_manager()
@@ -237,7 +236,6 @@ def test_FixedPointSolver(setup_test, test_leaks):
 
         J = Functional(name="J", space=space)
         J.assign(x)
-
         return J
 
     start_manager()
@@ -305,7 +303,6 @@ def test_InterpolationSolver(setup_test, test_leaks):
 
         J = Functional(name="J")
         J.assign(x * x * x * dx)
-
         return x, J
 
     z = Function(z_space, name="z", static=True)
@@ -382,7 +379,6 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
         J = Functional(name="J")
         for x in X_vals:
             J.addto(x * x * x * dx)
-
         return X_vals, J
 
     z = Function(z_space, name="z", static=True)
@@ -538,3 +534,49 @@ def test_LocalProjectionSolver(setup_test, test_leaks, test_configurations):
 
     min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=2)
     assert(min_order > 1.99)
+
+
+@pytest.mark.fenics
+def test_AssembleSolver(setup_test, test_leaks):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+
+    def forward(F):
+        x = Function(space, name="x")
+        y = Function(RealFunctionSpace(), name="y")
+
+        AssembleSolver(inner(test, F * F) * dx
+                       + inner(test, F) * dx, x).solve()
+        AssembleSolver(inner(F, x) * dx, y).solve()
+
+        J = Functional(name="J", fn=y)
+        return J
+
+    F = Function(space, name="F", static=True)
+    interpolate_expression(F, X[0] * sin(pi * X[1]))
+
+    start_manager()
+    J = forward(F)
+    stop_manager()
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, F)
+
+    min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 2.99)
+
+    min_order = taylor_test_tlm(forward, F, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
+    assert(min_order > 2.00)
