@@ -641,14 +641,14 @@ def test_Storage(setup_test, test_leaks):
     dJ = compute_gradient(J, x)
 
     min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert(min_order > 1.99)
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ)
     assert(min_order > 2.99)
 
     min_order = taylor_test_tlm(forward_J, x, tlm_order=1)
-    assert(min_order > 2.00)
+    assert(min_order > 1.99)
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1)
     assert(min_order > 1.99)

@@ -33,10 +33,13 @@ import weakref
 __all__ = \
     [
         "interpolate_expression",
-        "ls_parameters_cg",
+
         "setup_test",
         "test_configurations",
-        "test_leaks"
+        "test_leaks",
+
+        "ls_parameters_cg",
+        "ns_parameters_newton_gmres"
     ]
 
 
@@ -165,3 +168,10 @@ ls_parameters_cg = {"linear_solver": "cg",
                     "preconditioner": "sor",
                     "krylov_solver": {"relative_tolerance": 1.0e-14,
                                       "absolute_tolerance": 1.0e-16}}
+
+ns_parameters_newton_gmres = {"linear_solver": "gmres",
+                              "preconditioner": "sor",
+                              "krylov_solver": {"relative_tolerance": 1.0e-14,
+                                                "absolute_tolerance": 1.0e-16},
+                              "relative_tolerance": 1.0e-13,
+                              "absolute_tolerance": 1.0e-15}
