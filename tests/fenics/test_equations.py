@@ -24,6 +24,7 @@ from tlm_adjoint_fenics import *
 from test_base import *
 
 import numpy as np
+import os
 import pytest
 
 
@@ -580,3 +581,77 @@ def test_AssembleSolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
     assert(min_order > 2.00)
+
+
+@pytest.mark.fenics
+def test_Storage(setup_test, test_leaks):
+    comm = manager().comm()
+    if comm.rank == 0:
+        if not os.path.exists("checkpoints~"):
+            os.mkdir("checkpoints~")
+    comm.barrier()
+
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(x, d=None, h=None):
+        y = Function(space, name="y")
+        x_s = Function(space, name="x_s")
+        y_s = Function(space, name="y_s")
+
+        if d is None:
+            function_assign(x_s, x)
+            d = {}
+        MemoryStorage(x_s, d, function_name(x_s)).solve()
+
+        ExprEvaluationSolver(x * x * x * x_s, y).solve()
+
+        if h is None:
+            function_assign(y_s, y)
+            import h5py
+            if comm.size > 1:
+                h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
+                              "w", driver="mpio", comm=comm)
+            else:
+                h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
+                              "w")
+        HDF5Storage(y_s, h, function_name(y_s)).solve()
+
+        J = Functional(name="J")
+        InnerProductSolver(y, y_s, J.fn()).solve()
+        return d, h, J
+
+    x = Function(space, name="x", static=True)
+    interpolate_expression(x, cos(pi * X[0]) * exp(X[1]))
+
+    start_manager()
+    d, h, J = forward(x)
+    stop_manager()
+
+    assert(len(manager()._cp._refs) == 1)
+    assert(tuple(manager()._cp._refs.keys()) == (x.id(),))
+    assert(len(manager()._cp._cp) == 0)
+
+    J_val = J.value()
+
+    def forward_J(x):
+        return forward(x, d=d, h=h)[2]
+
+    dJ = compute_gradient(J, x)
+
+    min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 2.99)
+
+    min_order = taylor_test_tlm(forward_J, x, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1)
+    assert(min_order > 1.99)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2)
+    assert(min_order > 1.99)
