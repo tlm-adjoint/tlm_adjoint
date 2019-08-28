@@ -23,11 +23,12 @@ from tlm_adjoint_fenics import *
 
 from test_base import *
 
+import numpy as np
 import pytest
 
 
 @pytest.mark.fenics
-def test_AssignmentSolver(setup_test, test_leaks,):
+def test_AssignmentSolver(setup_test, test_leaks):
     space = RealFunctionSpace()
     x = Function(space, name="x", static=True)
     function_assign(x, 16.0)
@@ -212,3 +213,67 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
 
     min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=2)
     assert(min_order > 2.00)
+
+
+@pytest.mark.fenics
+def test_FixedPointSolver(setup_test, test_leaks):
+    space = RealFunctionSpace()
+
+    x = Function(space, name="x")
+    z = Function(space, name="z")
+
+    a = Function(space, name="a", static=True)
+    function_assign(a, 2.0)
+    b = Function(space, name="b", static=True)
+    function_assign(b, 3.0)
+
+    def forward(a, b):
+        eqs = [LinearCombinationSolver(z, (1.0, x), (1.0, b)),
+               ExprEvaluationSolver(a / sqrt(z), x)]
+
+        fp_parameters = {"absolute_tolerance": 0.0,
+                         "relative_tolerance": 1.0e-14}
+        FixedPointSolver(eqs, solver_parameters=fp_parameters).solve()
+
+        J = Functional(name="J", space=space)
+        J.assign(x)
+
+        return J
+
+    start_manager()
+    J = forward(a, b)
+    stop_manager()
+
+    x_val = function_max_value(x)
+    a_val = function_max_value(a)
+    b_val = function_max_value(b)
+    assert(abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14)
+
+    J_val = J.value()
+
+    dJda, dJdb = compute_gradient(J, [a, b])
+
+    dm = Function(space, name="dm", static=True)
+    function_assign(dm, 1.0)
+
+    for M, dM, forward_J, dJ in \
+            [(a, dm, lambda a: forward(a, b), dJda),
+             (b, dm, lambda b: forward(a, b), dJdb),
+             ((a, b), (dm, dm), forward, (dJda, dJdb))]:
+        min_order = taylor_test(forward_J, M, J_val=J_val, dJ=dJ, dM=dM)
+        assert(min_order > 1.99)
+
+        ddJ = Hessian(forward_J)
+        min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ, dM=dM)
+        assert(min_order > 2.99)
+
+        min_order = taylor_test_tlm(forward_J, M, tlm_order=1, dMs=(dM,))
+        assert(min_order > 1.99)
+
+        min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=1,
+                                            dMs=(dM,))
+        assert(min_order > 1.99)
+
+        min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2,
+                                            dMs=(dM, dM))
+        assert(min_order > 1.99)
