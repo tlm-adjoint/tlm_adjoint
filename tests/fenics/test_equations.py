@@ -480,3 +480,61 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
     assert(min_order > 2.00)
+
+
+@pytest.mark.fenics
+def test_LocalProjectionSolver(setup_test, test_leaks, test_configurations):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space_1 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
+    space_2 = FunctionSpace(mesh, "Lagrange", 2)
+    test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
+
+    def forward(G):
+        F = Function(space_1, name="F")
+        LocalProjectionSolver(G, F).solve()
+
+        J = Functional(name="J")
+        J.assign((F ** 2 + F ** 3) * dx)
+        return F, J
+
+    G = Function(space_2, name="G", static=True)
+    interpolate_expression(G, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
+
+    start_manager()
+    F, J = forward(G)
+    stop_manager()
+
+    F_ref = Function(space_1, name="F_ref")
+    solve(inner(test_1, trial_1) * dx == inner(test_1, G) * dx, F_ref,
+          solver_parameters=ls_parameters_cg)
+    F_error = Function(space_1, name="F_error")
+    function_assign(F_error, F_ref)
+    function_axpy(F_error, -1.0, F)
+
+    F_error_norm = function_linf_norm(F_error)
+    info(f"Error norm = {F_error_norm:.16e}")
+    assert(F_error_norm < 1.0e-15)
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, G)
+
+    def forward_J(G):
+        return forward(G)[1]
+
+    min_order = taylor_test(forward_J, G, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, G, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 2.99)
+
+    min_order = taylor_test_tlm(forward_J, G, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=2)
+    assert(min_order > 1.99)
