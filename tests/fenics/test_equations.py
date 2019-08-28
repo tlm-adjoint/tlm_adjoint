@@ -71,12 +71,10 @@ def test_AssignmentSolver(setup_test, test_leaks):
 
     for forward_J, J_val, dJ in [(lambda x: forward(x)[0], J.value(), dJs[0]),
                                  (lambda x: forward(x)[1], K.value(), dJs[1])]:
-        # Usage as in dolfin-adjoint tests
         min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, dM=dm)
         assert(min_order > 2.00)
 
         ddJ = Hessian(forward_J)
-        # Usage as in dolfin-adjoint tests
         min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, dM=dm)
         assert(min_order > 3.00)
 
@@ -124,7 +122,6 @@ def test_AxpySolver(setup_test, test_leaks):
     dm = Function(space, name="dm", static=True)
     function_assign(dm, 1.0)
 
-    # Usage as in dolfin-adjoint tests
     min_order = taylor_test(forward, x, J_val=J_val, dJ=dJ, dM=dm)
     assert(min_order > 2.00)
 
@@ -197,7 +194,6 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
     def forward_J(bc):
         return forward(bc)[1]
 
-    # Usage as in dolfin-adjoint tests
     min_order = taylor_test(forward_J, bc, J_val=J_val, dJ=dJ)
     assert(min_order > 2.00)
 

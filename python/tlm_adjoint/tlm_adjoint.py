@@ -1747,10 +1747,10 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return orders_1.min()
     else:
         if dJ is None:
-            _, dJ, ddJ = ddJ.action(M, dM)
+            _, dJ, ddJ = ddJ.action(M0, dM)
         else:
             dJ = functions_inner(dJ, dM)
-            _, _, ddJ = ddJ.action(M, dM)
+            _, _, ddJ = ddJ.action(M0, dM)
         error_norms_2 = abs(J_vals - J_val
                             - eps * dJ
                             - 0.5 * eps * eps * functions_inner(ddJ, dM))
