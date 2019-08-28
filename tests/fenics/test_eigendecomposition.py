@@ -21,18 +21,13 @@
 from fenics import *
 from tlm_adjoint_fenics import *
 
-from test_base import leak_check
+from test_base import *
 
 import pytest
 
 
 @pytest.mark.fenics
-@leak_check
-def test_HEP():
-    reset_manager("memory", {"replace": True})
-    clear_caches()
-    stop_manager()
-
+def test_HEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
@@ -53,12 +48,7 @@ def test_HEP():
 
 
 @pytest.mark.fenics
-@leak_check
-def test_NHEP():
-    reset_manager("memory", {"replace": True})
-    clear_caches()
-    stop_manager()
-
+def test_NHEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)

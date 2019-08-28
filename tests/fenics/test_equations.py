@@ -21,18 +21,13 @@
 from fenics import *
 from tlm_adjoint_fenics import *
 
-from test_base import leak_check
+from test_base import *
 
 import pytest
 
 
 @pytest.mark.fenics
-@leak_check
-def test_AssignmentSolver():
-    reset_manager("memory", {"replace": True})
-    clear_caches()
-    stop_manager()
-
+def test_AssignmentSolver(setup_test, test_leaks,):
     space = RealFunctionSpace()
     x = Function(space, name="x", static=True)
     function_assign(x, 16.0)
@@ -96,12 +91,7 @@ def test_AssignmentSolver():
 
 
 @pytest.mark.fenics
-@leak_check
-def test_AxpySolver():
-    reset_manager("memory", {"replace": True})
-    clear_caches()
-    stop_manager()
-
+def test_AxpySolver(setup_test, test_leaks):
     space = RealFunctionSpace()
     x = Function(space, name="x", static=True)
     function_assign(x, 1.0)
@@ -150,4 +140,75 @@ def test_AxpySolver():
 
     min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=2,
                                         dMs=(dm, dm))
+    assert(min_order > 2.00)
+
+
+@pytest.mark.fenics
+def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    F = Function(space, name="F", static=True)
+    interpolate_expression(F, sin(pi * X[0]) * sin(3.0 * pi * X[1]))
+
+    def forward(bc):
+        x_0 = Function(space, name="x_0")
+        x_1 = Function(space, name="x_1")
+        x = Function(space, name="x")
+
+        DirichletBCSolver(bc, x_1, "on_boundary").solve()
+
+        solve(inner(grad(test), grad(trial)) * dx
+              == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
+              x_0, DirichletBC(space, 0.0, "on_boundary",
+                               static=True, homogeneous=True),
+              solver_parameters=ls_parameters_cg)
+
+        AxpySolver(x_0, 1.0, x_1, x).solve()
+
+        J = Functional(name="J")
+        J.assign(inner(x * x, x * x) * dx)
+        return x, J
+
+    bc = Function(space, name="bc", static=True)
+    function_assign(bc, 1.0)
+
+    start_manager()
+    x, J = forward(bc)
+    stop_manager()
+
+    x_ref = Function(space, name="x_ref")
+    solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
+          x_ref,
+          DirichletBC(space, 1.0, "on_boundary", static=True),
+          solver_parameters=ls_parameters_cg)
+    error = Function(space, name="error")
+    function_assign(error, x_ref)
+    function_axpy(error, -1.0, x)
+    assert(function_linf_norm(error) < 1.0e-13)
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, bc)
+
+    def forward_J(bc):
+        return forward(bc)[1]
+
+    # Usage as in dolfin-adjoint tests
+    min_order = taylor_test(forward_J, bc, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, bc, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 3.00)
+
+    min_order = taylor_test_tlm(forward_J, bc, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=2)
     assert(min_order > 2.00)
