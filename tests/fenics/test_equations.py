@@ -424,3 +424,59 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
     assert(min_order > 1.99)
+
+
+@pytest.mark.fenics
+def test_ExprEvaluationSolver(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def test_expression(y, y_int):
+        return (y_int * y * (sin if is_function(y) else np.sin)(y)
+                + 2.0 + (y ** 2) + y / (1.0 + (y ** 2)))
+
+    def forward(y):
+        x = Function(space, name="x")
+        y_int = Function(RealFunctionSpace(), name="y_int")
+        AssembleSolver(y * dx, y_int).solve()
+        ExprEvaluationSolver(test_expression(y, y_int), x).solve()
+
+        J = Functional(name="J")
+        J.assign(x * x * x * dx)
+        return x, J
+
+    y = Function(space, name="y", static=True)
+    interpolate_expression(y, cos(3.0 * pi * X[0]))
+    start_manager()
+    x, J = forward(y)
+    stop_manager()
+
+    error_norm = abs(function_get_values(x)
+                     - test_expression(function_get_values(y),
+                                       assemble(y * dx))).max()
+    info(f"Error norm = {error_norm:.16e}")
+    assert(error_norm == 0.0)
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, y)
+
+    def forward_J(y):
+        return forward(y)[1]
+
+    min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 3.00)
+
+    min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
+    assert(min_order > 2.00)
