@@ -348,3 +348,79 @@ def test_InterpolationSolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
     assert(min_order > 1.99)
+
+
+@pytest.mark.fenics
+def test_PointInterpolationSolver(setup_test, test_leaks):
+    mesh = UnitCubeMesh(5, 5, 5)
+    X = SpatialCoordinate(mesh)
+    z_space = FunctionSpace(mesh, "Lagrange", 3)
+    if default_comm().size > 1:
+        y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
+    space_0 = RealFunctionSpace()
+    X_coords = np.array([[0.1, 0.1, 0.1],
+                         [0.2, 0.3, 0.4],
+                         [0.9, 0.8, 0.7],
+                         [0.4, 0.2, 0.3]], dtype=np.float64)
+
+    # Test optimization: Use to cache the interpolation matrix
+    P = [None]
+
+    def forward(z):
+        if default_comm().size > 1:
+            y = Function(y_space, name="y")
+            LocalProjectionSolver(z, y).solve()
+        else:
+            y = z
+
+        X_vals = [Function(space_0, name=f"x_{i:d}")
+                  for i in range(X_coords.shape[0])]
+        eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
+        eq.solve()
+        P[0] = eq._P
+
+        J = Functional(name="J")
+        for x in X_vals:
+            J.addto(x * x * x * dx)
+
+        return X_vals, J
+
+    z = Function(z_space, name="z", static=True)
+    interpolate_expression(z, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
+
+    start_manager()
+    X_vals, J = forward(z)
+    stop_manager()
+
+    def x_ref(x):
+        return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
+
+    x_error_norm = 0.0
+    for x, x_coord in zip(X_vals, X_coords):
+        x_error_norm = max(x_error_norm,
+                           abs(function_max_value(x) - x_ref(x_coord)))
+    info(f"Error norm = {x_error_norm:.16e}")
+    assert(x_error_norm < 1.0e-14)
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, z)
+
+    def forward_J(z):
+        return forward(z)[1]
+
+    min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 2.99)
+
+    min_order = taylor_test_tlm(forward_J, z, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
+    assert(min_order > 1.99)
