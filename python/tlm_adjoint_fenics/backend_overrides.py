@@ -230,35 +230,44 @@ def solve(*args, **kwargs):
 
 def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
             preconditioner_type="default", form_compiler_parameters=None,
-            annotate=None, tlm=None):
+            solver_parameters=None, annotate=None, tlm=None):
     if annotate is None:
         annotate = annotation_enabled()
     if tlm is None:
         tlm = tlm_enabled()
-    if annotate or tlm:
+    if annotate or tlm or solver_parameters is not None:
         if function is None:
             if V is None:
                 raise OverrideException("V or function required")
             x = function_space_new(V)
         else:
             x = function
+
         if bcs is None:
             bcs = []
         elif isinstance(bcs, backend_DirichletBC):
             bcs = [bcs]
-        solver_parameters = {"linear_solver": solver_type,
-                             "preconditioner": preconditioner_type}
+
+        solver_parameters_ = {"linear_solver": solver_type,
+                              "preconditioner": preconditioner_type}
+        if solver_parameters is not None:
+            solver_parameters_.update(solver_parameters)
+        solver_parameters = solver_parameters_
+
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
+
         if x in ufl.algorithms.extract_coefficients(v):
             x_old = function_new(x)
             AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
             v = ufl.replace(v, {x: x_old})
+
         eq = ProjectionSolver(
             v, x, bcs, solver_parameters=solver_parameters,
             form_compiler_parameters=form_compiler_parameters,
             cache_jacobian=False, cache_rhs_assembly=False)
         eq.solve(annotate=annotate, tlm=tlm)
+
         return x
     else:
         return backend_project(
