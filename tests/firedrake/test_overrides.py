@@ -121,3 +121,58 @@ def test_overrides(setup_test, test_leaks):
 
         min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=2)
         assert(min_order > 1.99)
+
+
+@pytest.mark.firedrake
+def test_Nullspace(setup_test, test_leaks):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(F):
+        psi = Function(space, name="psi")
+
+        solve(inner(grad(test), grad(trial)) * dx
+              == -inner(test, F * F) * dx, psi,
+              solver_parameters=ls_parameters_cg,
+              nullspace=VectorSpaceBasis(constant=True),
+              transpose_nullspace=VectorSpaceBasis(constant=True))
+
+        J = Functional(name="J")
+        J.assign(inner(psi * psi, psi * psi) * dx
+                 + inner(grad(psi), grad(psi)) * dx)
+
+        return psi, J
+
+    F = Function(space, name="F", static=True)
+    interpolate_expression(F, sqrt(sin(pi * X[1])))
+
+    start_manager()
+    psi, J = forward(F)
+    stop_manager()
+
+    assert(abs(function_sum(psi)) < 1.0e-15)
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, F)
+
+    def forward_J(F):
+        return forward(F)[1]
+
+    min_order = taylor_test(forward_J, F, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, F, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 3.00)
+
+    min_order = taylor_test_tlm(forward_J, F, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=2)
+    assert(min_order > 2.00)
