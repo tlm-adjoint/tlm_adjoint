@@ -50,3 +50,28 @@ def test_SumSolver(setup_test, test_leaks):
 
     dJ = compute_gradient(J, F)
     assert(abs(function_get_values(dJ) - 1.0).max() == 0.0)
+
+
+@pytest.mark.numpy
+def test_InnerProductSolver(setup_test, test_leaks):
+    space = FunctionSpace(10)
+
+    def forward(F):
+        G = Function(space, name="G")
+        AssignmentSolver(F, G).solve()
+
+        J = Functional(name="J")
+        InnerProductSolver(F, G, J.fn()).solve()
+
+        return J
+
+    F = Function(space, name="F", static=True)
+    function_set_values(F, np.random.random(function_local_size(F)))
+
+    start_manager()
+    J = forward(F)
+    stop_manager()
+
+    dJ = compute_gradient(J, F)
+    min_order = taylor_test(forward, F, J_val=J.value(), dJ=dJ)
+    assert(min_order > 1.99)
