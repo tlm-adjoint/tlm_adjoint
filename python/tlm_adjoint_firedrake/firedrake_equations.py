@@ -200,7 +200,7 @@ def interpolation_matrix(x_coords, y, y_nodes):
                 y_v_v.setValue(y_node, 1.0)
                 y_v_v.assemblyBegin()
                 y_v_v.assemblyEnd()
-            x_v = y_v(x_coord)
+            x_v = y_v(tuple(x_coord))
             if y_node in gl_map:
                 y_node_local = gl_map[y_node]
                 if y_node_local < N:
