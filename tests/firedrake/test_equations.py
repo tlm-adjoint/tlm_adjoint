@@ -185,7 +185,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
     error = Function(space, name="error")
     function_assign(error, x_ref)
     function_axpy(error, -1.0, x)
-    assert(function_linf_norm(error) == 0.0)
+    assert(function_linf_norm(error) < 1.0e-14)
 
     J_val = J.value()
 

@@ -134,7 +134,7 @@ def test_EmptySolver(setup_test, test_leaks):
     import petsc4py.PETSc as PETSc
     with F.dat.vec_ro as F_v:
         J_ref = F_v.norm(norm_type=PETSc.NormType.NORM_2) ** 4
-    assert(abs(J_val - J_ref) == 0.0)
+    assert(abs(J_val - J_ref) < 1.0e-11)
 
     dJ = compute_gradient(J, F)
 
