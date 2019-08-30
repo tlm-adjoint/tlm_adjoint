@@ -651,3 +651,5 @@ def test_Storage(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2)
     assert(min_order > 1.99)
+
+    h.close()
