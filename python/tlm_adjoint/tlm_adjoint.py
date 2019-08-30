@@ -508,7 +508,7 @@ class EquationManager:
                     X_ids = "ids (%s)" % (",".join(f"{eq_x.id():d}"
                                                    for eq_x in eq_X))
                 if isinstance(eq, EquationAlias):
-                    eq_type = f"{eq:s}"
+                    eq_type = f"{eq}"
                 else:
                     eq_type = type(eq).__name__
                 info("    Equation %i, %s solving for %s (%s)" %
