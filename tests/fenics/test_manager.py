@@ -20,6 +20,7 @@
 
 from fenics import *
 from tlm_adjoint_fenics import *
+from tlm_adjoint_fenics import manager as _manager
 
 from test_base import *
 
@@ -89,3 +90,63 @@ def test_LongRange(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=2)
     assert(min_order > 1.99)
+
+
+@pytest.mark.fenics
+def test_EmptySolver(setup_test, test_leaks):
+    class EmptySolver(Equation):
+        def __init__(self):
+            Equation.__init__(self, [], [], nl_deps=[], ic_deps=[])
+
+        def forward_solve(self, x, deps=None):
+            pass
+
+    mesh = UnitIntervalMesh(100)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    space_0 = RealFunctionSpace()
+
+    def forward(F):
+        EmptySolver().solve()
+
+        F_norm_sq = Function(space_0, name="F_norm_sq")
+        NormSqSolver(F, F_norm_sq).solve()
+
+        J = Functional(name="J", space=space_0)
+        NormSqSolver(F_norm_sq, J.fn()).solve()
+        return J
+
+    F = Function(space, name="F")
+    interpolate_expression(F, sin(pi * X[0]) * exp(X[0]))
+
+    start_manager()
+    J = forward(F)
+    stop_manager()
+
+    manager = _manager()
+    manager.finalize()
+    manager.info()
+    assert(len(manager._blocks) == 1)
+    assert(len(manager._blocks[0]) == 3)
+    assert(len(manager._blocks[0][0].X()) == 0)
+
+    J_val = J.value()
+    assert(abs(J_val - F.vector().norm("l2") ** 4) < 1.0e-11)
+
+    dJ = compute_gradient(J, F)
+
+    min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 3.00)
+
+    min_order = taylor_test_tlm(forward, F, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
+    assert(min_order > 2.00)
