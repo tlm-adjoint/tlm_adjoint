@@ -25,8 +25,8 @@ from .backend_interface import *
 from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear
 from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
-    bcs_is_static, form_neg, function_is_cached, is_cached, \
-    linear_solver_cache, new_count, split_action, split_form, update_caches
+    bcs_is_static, form_neg, is_cached, linear_solver_cache, new_count, \
+    split_form, update_caches
 
 import copy
 import operator
@@ -433,38 +433,13 @@ class EquationSolver(Equation):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
-            # Split into cached and non-cached components
-            cached_terms, non_cached_terms = split_form(self._rhs)
-            cached_form = sum(cached_terms, ufl.classes.Form([]))
-
+            cached_form, mat_forms_, non_cached_form = split_form(self._rhs)
             mat_forms = {}
-            non_cached_form = ufl.classes.Form([])
-            if len(non_cached_terms) > 0:
-                for non_cached_term in non_cached_terms:
-                    for dep_index, dep in enumerate(eq_deps):
-                        mat_form, non_cached_term = split_action(
-                            non_cached_term, dep)
-                        if not mat_form.empty():
-                            if function_is_cached(dep):
-                                cached_form += ufl.action(mat_form,
-                                                          coefficient=dep)
-                            elif dep_index in mat_forms:
-                                mat_forms[dep_index][0] += mat_form
-                            else:
-                                mat_forms[dep_index] = [mat_form, CacheRef()]
-                        if non_cached_term.empty():
-                            break
-                    non_cached_form += non_cached_term
-
-            if not non_cached_form.empty():
-                # Attempt to split the remaining non-cached component into
-                # cached and non-cached components
-                cached_form_terms, non_cached_form_terms = \
-                    split_form(non_cached_form)
-                cached_form += sum(cached_form_terms,
-                                   ufl.classes.Form([]))
-                non_cached_form = sum(non_cached_form_terms,
-                                      ufl.classes.Form([]))
+            for dep_index, dep in enumerate(eq_deps):
+                dep_id = dep.id()
+                if dep_id in mat_forms_:
+                    mat_forms[dep_index] = [mat_forms_[dep_id], CacheRef()]
+            del(mat_forms_)
 
             if non_cached_form.empty():
                 non_cached_form = None

@@ -21,6 +21,7 @@
 from .backend import *
 from .backend_code_generator_interface import *
 
+from collections import defaultdict
 import copy
 import ufl
 import weakref
@@ -59,7 +60,6 @@ __all__ = \
         "replaced_function",
         "set_assembly_cache",
         "set_linear_solver_cache",
-        "split_action",
         "split_form",
         "update_caches"
     ]
@@ -233,44 +233,6 @@ def bcs_is_cached(bcs):
     return True
 
 
-def split_form(form):
-    def expand(terms):
-        new_terms = []
-        for term in terms:
-            if isinstance(term, ufl.classes.Sum):
-                new_terms.extend(expand(term.ufl_operands))
-            else:
-                new_terms.append(term)
-        return new_terms
-
-    def add_integral(integrals, base_integral, terms):
-        if len(terms) > 0:
-            integrand = ufl.classes.Zero()
-            for term in terms:
-                integrand += term
-            integral = base_integral.reconstruct(integrand=integrand)
-            integrals.append(integral)
-
-    cached_integrals, non_cached_integrals = [], []
-
-    for integral in form.integrals():
-        cached_operands, non_cached_operands = [], []
-        for operand in expand([integral.integrand()]):
-            if is_cached(operand):
-                cached_operands.append(operand)
-            else:
-                non_cached_operands.append(operand)
-        add_integral(cached_integrals, integral, cached_operands)
-        add_integral(non_cached_integrals, integral, non_cached_operands)
-
-    cached_terms = tuple(ufl.classes.Form([integral])
-                         for integral in cached_integrals)
-    non_cached_terms = tuple(ufl.classes.Form([integral])
-                             for integral in non_cached_integrals)
-
-    return cached_terms, non_cached_terms
-
-
 def form_simplify_sign(form, sign=None):
     integrals = []
 
@@ -309,34 +271,141 @@ def form_neg(form):
     return form_simplify_sign(form, sign=-1)
 
 
-def split_action(form, x):
-    if len(form.arguments()) != 1:
-        # Not a linear form
-        return ufl.classes.Form([]), form
-
+def split_arity(form, x, argument):
     if x not in form.coefficients():
         # No dependence on x
         return ufl.classes.Form([]), form
 
-    trial = TrialFunction(x.function_space())
-    form_derivative = ufl.derivative(form, x, argument=trial)
+    form_derivative = ufl.derivative(form, x, argument=argument)
     form_derivative = ufl.algorithms.expand_derivatives(form_derivative)
     if x in form_derivative.coefficients():
         # Non-linear
         return ufl.classes.Form([]), form
 
+    arity = len(form.arguments())
     try:
-        lhs, rhs = ufl.system(ufl.replace(form, {x: trial}))
+        eq_form = ufl.replace(form, {x: argument})
+        A = ufl.algorithms.formtransformations.compute_form_with_arity(
+            eq_form, arity + 1)
+        b = ufl.algorithms.formtransformations.compute_form_with_arity(
+            eq_form, arity)
     except ufl.UFLException:
         # UFL error encountered
         return ufl.classes.Form([]), form
 
-    if not is_cached(lhs):
-        # Non-cached bi-linear form
+    if not is_cached(A):
+        # Non-cached higher arity form
         return ufl.classes.Form([]), form
 
     # Success
-    return form_simplify_sign(lhs), form_neg(rhs)
+    return A, b
+
+
+def split_terms(terms, base_integral,
+                cached_terms=None, mat_terms=None, non_cached_terms=None):
+    if cached_terms is None:
+        cached_terms = []
+    if mat_terms is None:
+        mat_terms = defaultdict(lambda: [])
+    if non_cached_terms is None:
+        non_cached_terms = []
+
+    for term in terms:
+        if is_cached(term):
+            cached_terms.append(term)
+        # FEniCS backwards compatibility
+        elif hasattr(ufl.classes, "Conj") \
+                and isinstance(term, ufl.classes.Conj):
+            x, = term.ufl_operands
+            cached_sub, mat_sub, non_cached_sub = split_terms(
+                [x], base_integral)
+            for term in cached_sub:
+                cached_terms.append(ufl.classes.Conj(term))
+            for dep_id in mat_sub:
+                mat_terms[dep_id].extend(ufl.classes.Conj(mat_term)
+                                         for mat_term in mat_sub[dep_id])
+            for term in non_cached_sub:
+                non_cached_terms.append(ufl.classes.Conj(term))
+        elif isinstance(term, ufl.classes.Sum):
+            split_terms(term.ufl_operands, base_integral,
+                        cached_terms, mat_terms, non_cached_terms)
+        elif isinstance(term, ufl.classes.Product):
+            x, y = term.ufl_operands
+            if is_cached(x):
+                cached_sub, mat_sub, non_cached_sub = split_terms(
+                    [y], base_integral)
+                for term in cached_sub:
+                    cached_terms.append(x * term)
+                for dep_id in mat_sub:
+                    mat_terms[dep_id].extend(
+                        x * mat_term for mat_term in mat_sub[dep_id])
+                for term in non_cached_sub:
+                    non_cached_terms.append(x * term)
+            elif is_cached(y):
+                cached_sub, mat_sub, non_cached_sub = split_terms(
+                    [x], base_integral)
+                for term in cached_sub:
+                    cached_terms.append(term * y)
+                for dep_id in mat_sub:
+                    mat_terms[dep_id].extend(
+                        mat_term * y for mat_term in mat_sub[dep_id])
+                for term in non_cached_sub:
+                    non_cached_terms.append(term * y)
+            else:
+                non_cached_terms.append(term)
+        else:
+            mat_dep = None
+            for dep in ufl.algorithms.extract_coefficients(term):
+                if not is_cached(dep):
+                    if is_function(dep) and mat_dep is None:
+                        mat_dep = dep
+                    else:
+                        mat_dep = None
+                        break
+            if mat_dep is None:
+                non_cached_terms.append(term)
+            else:
+                term_form = ufl.classes.Form(
+                    [base_integral.reconstruct(integrand=term)])
+                mat_sub, non_cached_sub = split_arity(
+                    term_form, mat_dep,
+                    argument=TrialFunction(mat_dep.function_space()))
+                mat_sub = [integral.integrand()
+                           for integral in mat_sub.integrals()]
+                non_cached_sub = [integral.integrand()
+                                  for integral in non_cached_sub.integrals()]
+                if len(mat_sub) > 0:
+                    mat_terms[mat_dep.id()].extend(mat_sub)
+                non_cached_terms.extend(non_cached_sub)
+
+    return cached_terms, mat_terms, non_cached_terms
+
+
+def split_form(form):
+    def add_integral(integrals, base_integral, terms):
+        if len(terms) > 0:
+            integrand = sum(terms, ufl.classes.Zero())
+            integral = base_integral.reconstruct(integrand=integrand)
+            integrals.append(integral)
+
+    cached_integrals = []
+    mat_integrals = defaultdict(lambda: [])
+    non_cached_integrals = []
+    for integral in form.integrals():
+        cached_terms, mat_terms, non_cached_terms = \
+            split_terms([integral.integrand()], integral)
+        add_integral(cached_integrals, integral, cached_terms)
+        for dep_id in mat_terms:
+            add_integral(mat_integrals[dep_id], integral, mat_terms[dep_id])
+        add_integral(non_cached_integrals, integral, non_cached_terms)
+
+    cached_form = ufl.classes.Form(cached_integrals)
+    mat_forms = {}
+    for dep_id in mat_integrals:
+        mat_forms[dep_id] = ufl.classes.Form(mat_integrals[dep_id])
+    non_cached_forms = ufl.classes.Form(non_cached_integrals)
+
+    return cached_form, mat_forms, non_cached_forms
 
 
 class CacheRef:
