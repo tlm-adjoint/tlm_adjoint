@@ -31,7 +31,6 @@ from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
 import copy
 import operator
 import numpy as np
-import types
 import ufl
 
 __all__ = \
@@ -192,40 +191,31 @@ class AssembleSolver(Equation):
 class FunctionAlias(backend_Function):
     def __init__(self, space, x=None):
         ufl.classes.Coefficient.__init__(self, space, count=new_count())
-        self.__base_keys = set(self.__dict__.keys())
-        self.__base_keys.add("_FunctionAlias__base_keys")
         if x is not None:
             self._alias(x)
 
     def _alias(self, x):
         self._clear()
 
-        for key, value in x.__dict__.items():
-            if key not in self.__base_keys:
-                self.__dict__[key] = value
+        d = copy.copy(x.__dict__)
+        d["_alias"] = self._alias
+        d["_clear"] = self._clear
+        d["_tlm_adjoint__alias_x"] = x
+        d["_tlm_adjoint__alias_d"] = self.__dict__
 
-        for key in dir(x):
-            if key in self.__base_keys:
-                continue
-            elif key == "T" and len(x.ufl_shape) != 2:
-                continue
-
-            try:
-                value = getattr(x, key)
-                has_key = True
-            # Can occur with Firedrake
-            except AttributeError:
-                has_key = False
-            if not has_key:
-                continue
-
-            if isinstance(value, types.MethodType):
-                self.__dict__[key] = types.MethodType(value.__func__, self)
+        self.__class__ = x.__class__
+        self.__dict__ = d
 
     def _clear(self):
-        for key in tuple(self.__dict__.keys()):
-            if key not in self.__base_keys:
-                del(self.__dict__[key])
+        if "_tlm_adjoint__alias_x" in self.__dict__:
+            d = self.__dict__
+            del(d["_alias"])
+            del(d["_clear"])
+            x = d.pop("_tlm_adjoint__alias_x")
+
+            self.__class__ = FunctionAlias
+            self.__dict__ = d.pop("_tlm_adjoint__alias_d")
+            x.__dict__ = d
 
 
 def alias_form(form, deps):
