@@ -263,10 +263,12 @@ def split_form(form):
         add_integral(cached_integrals, integral, cached_operands)
         add_integral(non_cached_integrals, integral, non_cached_operands)
 
-    cached_form = ufl.classes.Form(cached_integrals)
-    non_cached_form = ufl.classes.Form(non_cached_integrals)
+    cached_terms = tuple(ufl.classes.Form([integral])
+                         for integral in cached_integrals)
+    non_cached_terms = tuple(ufl.classes.Form([integral])
+                             for integral in non_cached_integrals)
 
-    return cached_form, non_cached_form
+    return cached_terms, non_cached_terms
 
 
 def form_simplify_sign(form, sign=None):
