@@ -134,6 +134,9 @@ def interpolate_expression(F, ex):
         if isinstance(ex, ufl.classes.Cos):
             x, = ex.ufl_operands
             return f"cos({cpp(x):s})"
+        elif isinstance(ex, ufl.classes.Division):
+            x, y = ex.ufl_operands
+            return f"({cpp(x):s}) / ({cpp(y):s})"
         elif isinstance(ex, ufl.classes.Exp):
             x, = ex.ufl_operands
             return f"exp({cpp(x):s})"
@@ -156,6 +159,9 @@ def interpolate_expression(F, ex):
             return f"sin({cpp(x):s})"
         elif isinstance(ex, ufl.classes.SpatialCoordinate):
             return "x"
+        elif isinstance(ex, ufl.classes.Sqrt):
+            x, = ex.ufl_operands
+            return f"sqrt({cpp(x):s})"
         elif isinstance(ex, ufl.classes.Sum):
             return " + ".join(map(lambda op: f"({cpp(op):s})",
                                   ex.ufl_operands))
