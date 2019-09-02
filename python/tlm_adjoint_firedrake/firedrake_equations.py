@@ -164,15 +164,13 @@ class LocalProjectionSolver(EquationSolver):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero()
+        tlm_rhs = ufl.classes.Form([])
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
                     tlm_rhs += ufl.derivative(self._rhs, dep, argument=tau_dep)
 
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-            return NullSolver(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
             return NullSolver(tlm_map[x])
