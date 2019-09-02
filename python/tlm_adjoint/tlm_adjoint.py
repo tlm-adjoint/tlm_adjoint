@@ -836,7 +836,8 @@ class EquationManager:
             if self._cp_method == "memory" and not self._cp_parameters["replace"]:  # noqa: E501
                 self._block.append(eq)
             else:
-                eq_alias = EquationAlias(eq)
+                if not isinstance(eq, EquationAlias):
+                    eq_alias = EquationAlias(eq)
                 eq_id = eq.id()
                 if eq_id not in self._finalizes:
                     def callback(self_ref, eq_ref):

@@ -507,13 +507,6 @@ class EquationAlias(Equation):
                 Equation.__setattr__(self, key,
                                      types.MethodType(value.__func__, self))
 
-    def __new__(cls, eq):
-        if isinstance(eq, EquationAlias):
-            return eq
-        if not hasattr(eq, "_tlm_adjoint__alias"):
-            eq._tlm_adjoint__alias = Equation.__new__(cls)
-        return eq._tlm_adjoint__alias
-
     def __str__(self):
         return self._r
 

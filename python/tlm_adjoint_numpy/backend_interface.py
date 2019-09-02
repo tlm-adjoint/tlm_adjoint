@@ -191,13 +191,6 @@ class ReplacementFunction:
         self._tlm_depth = x.tlm_depth()
         self._id = x.id()
 
-    def __new__(cls, x):
-        if isinstance(x, ReplacementFunction):
-            return x
-        if not hasattr(x, "_tlm_adjoint__replacement"):
-            x._tlm_adjoint__replacement = object.__new__(cls)
-        return x._tlm_adjoint__replacement
-
     def function_space(self):
         return self._space
 
@@ -227,7 +220,9 @@ class ReplacementFunction:
 
 
 def replaced_function(x):
-    return ReplacementFunction(x)
+    if not hasattr(x, "_tlm_adjoint__replacement"):
+        x._tlm_adjoint__replacement = ReplacementFunction(x)
+    return x._tlm_adjoint__replacement
 
 
 def is_function(x):
