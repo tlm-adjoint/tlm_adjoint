@@ -573,7 +573,7 @@ class EquationSolver(Equation):
                         alias_replace(J, deps)
                         alias_clear_J = True
                     J_mat, b_bc = assemble_matrix(
-                        J, self._bcs, force_evaluation=False,
+                        J, self._bcs,
                         **assemble_arguments(2, self._form_compiler_parameters,
                                              self._linear_solver_parameters))
 
@@ -631,7 +631,6 @@ class EquationSolver(Equation):
 #             b_debug = backend_assemble(
 #                 assemble_rhs,
 #                 form_compiler_parameters=self._form_compiler_parameters)
-#             J_mat.force_evaluation()
 #             J_mat_debug.force_evaluation()
 #             J_error = J_mat.petscmat.copy()
 #             J_error.axpy(-1.0, J_mat_debug.petscmat)
@@ -774,7 +773,6 @@ class EquationSolver(Equation):
             alias_replace(self._adjoint_J, nl_deps)
             J_mat, _ = assemble_matrix(
                 self._adjoint_J, self._hbcs,
-                force_evaluation=False,
                 **assemble_arguments(2, self._form_compiler_parameters,
                                      self._adjoint_solver_parameters))
 

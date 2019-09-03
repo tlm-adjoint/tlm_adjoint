@@ -693,8 +693,7 @@ class AssemblyCache(Cache):
                 for bc in bcs:
                     bc.apply(b)
             elif rank == 2:
-                b = assemble_matrix(assemble_form, bcs, force_evaluation=True,
-                                    **assemble_kwargs)
+                b = assemble_matrix(assemble_form, bcs, **assemble_kwargs)
             else:
                 raise CacheException(f"Unexpected form rank {rank:d}")
             return b

@@ -156,7 +156,7 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs, force_evaluation=True, **kwargs):
+def assemble_matrix(form, bcs, **kwargs):
     if len(bcs) > 0:
         test = TestFunction(form.arguments()[0].function_space())
         test_shape = test.ufl_element().value_shape()
