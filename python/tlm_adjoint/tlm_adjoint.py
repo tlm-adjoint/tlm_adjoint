@@ -804,7 +804,8 @@ class EquationManager:
         for eq in self._blocks[0]:
             if x_id in set(dep.id() for dep in eq.dependencies()):
                 self._restore_checkpoint(0)
-                return self._cp.initial_condition(x)
+                return self._cp.initial_condition(
+                    x, copy=function_is_checkpointed(x))
         raise ManagerException("Initial condition not found")
 
     def add_equation(self, eq, annotate=None, tlm=None, tlm_skip=None):
