@@ -24,6 +24,9 @@ import numpy as np
 from scipy.sparse import identity, lil_matrix
 from scipy.sparse.linalg import cg
 
+N_t = 10
+reset_manager("multistage", {"blocks": N_t, "snaps_on_disk": 1,
+                             "snaps_in_ram": 1})
 stop_manager()
 np.random.seed(16143324)
 
@@ -31,7 +34,6 @@ kappa_0 = 0.2
 dt = 0.01
 L = 1.0
 N = 50
-N_t = 10
 
 x = np.linspace(0.0, L, N + 1, dtype=np.float64)
 y = x.copy()
@@ -131,7 +133,6 @@ def forward(psi_0, kappa):
     class DiffusionMatrix(Matrix):
         def __init__(self, kappa, alpha=1.0, beta=1.0):
             Matrix.__init__(self, nl_deps=[kappa], has_ic_dep=True)
-            self._x_0_adjoint = Function(space)
             self._alpha = alpha
             self._beta = beta
 
@@ -151,6 +152,19 @@ def forward(psi_0, kappa):
             else:
                 raise EquationException(f"Invalid method: '{method:s}'")
 
+        def reset_adjoint(self):
+            self._x_0_adjoint_cache = {}
+
+        def initialize_adjoint(self, J, nl_deps):
+            J_id = J.id()
+            if J_id not in self._x_0_adjoint_cache:
+                self._x_0_adjoint_cache[J_id] = \
+                    function_space_new(space)
+            self._x_0_adjoint = self._x_0_adjoint_cache[J_id]
+
+        def finalize_adjoint(self, J):
+            del(self._x_0_adjoint)
+
         def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                            method="assign"):
             if b_index != 0:
@@ -158,6 +172,7 @@ def forward(psi_0, kappa):
             self.forward_action(nl_deps, adj_x, b, method=method)
 
         def forward_solve(self, x, nl_deps, b):
+            kappa, = nl_deps
             self._assemble_A(kappa)
             x.vector()[:], fail = cg(self._A, b.vector(), x0=x.vector(),
                                      tol=1.0e-10, atol=1.0e-14)
@@ -185,6 +200,7 @@ def forward(psi_0, kappa):
                 raise EquationException("Invalid index")
 
         def adjoint_solve(self, nl_deps, b):
+            kappa, = nl_deps
             self._assemble_A(kappa)
             x = function_new(self._x_0_adjoint)
             x.vector()[:], fail = cg(self._A, b.vector(),
@@ -249,44 +265,51 @@ assert(abs(J_ref.value() - J.value()) < 1.0e-14)
 dJ_dpsi_0, dJ_dkappa = compute_gradient(J, [psi_0, kappa])
 del(J)
 
-min_order = taylor_test(lambda psi_0: forward_reference(psi_0, kappa), psi_0,
-                        J_val=J_ref.value(), dJ=dJ_dpsi_0, seed=1.0e-5)
+
+def forward_J(psi_0):
+    return forward(psi_0, kappa)
+
+
+def forward_reference_J(psi_0):
+    return forward_reference(psi_0, kappa)
+
+
+min_order = taylor_test(forward_reference_J, psi_0, J_val=J_ref.value(),
+                        dJ=dJ_dpsi_0, seed=1.0e-5)
 assert(min_order > 1.99)
 
-min_order = taylor_test(lambda kappa: forward_reference(psi_0, kappa), kappa,
-                        J_val=J_ref.value(), dJ=dJ_dkappa, seed=1.0e-4)
+min_order = taylor_test_tlm(forward_J, psi_0, tlm_order=1, seed=1.0e-6)
 assert(min_order > 1.99)
 
-reset_manager()
-clear_caches()
-stop_manager(annotation=True, tlm=False)
-zeta = Function(space, name="zeta", static=True)
-zeta.vector()[:] = 2.0 * np.random.random(zeta.vector().shape) - 1.0
-add_tlm(psi_0, zeta)
-J = forward(psi_0, kappa)
-stop_manager()
-dJ_dpsi_0_adj = dJ_dpsi_0.vector().dot(zeta.vector())
-dJ_dpsi_0_tlm = J.tlm(psi_0, zeta).value()
-info(f"dJ_dpsi_0_adj = {dJ_dpsi_0_adj:.16e}")
-info(f"dJ_dpsi_0_tlm = {dJ_dpsi_0_tlm:.16e}")
-info(f"Error norm = {abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj):.16e}")
-assert(abs(dJ_dpsi_0_tlm - dJ_dpsi_0_adj) < 1.0e-14)
+min_order = taylor_test_tlm_adjoint(forward_J, psi_0, adjoint_order=1,
+                                    seed=1.0e-6)
+assert(min_order > 1.99)
 
-reset_manager()
-clear_caches()
-stop_manager(annotation=True, tlm=False)
-add_tlm(kappa, zeta)
-J = forward(psi_0, kappa)
-stop_manager()
-dJ_dkappa_adj = dJ_dkappa.vector().dot(zeta.vector())
-dJ_dkappa_tlm = J.tlm(kappa, zeta).value()
-info(f"dJ_dkappa_adj = {dJ_dkappa_adj:.16e}")
-info(f"dJ_dkappa_tlm = {dJ_dkappa_tlm:.16e}")
-info(f"Error norm = {abs(dJ_dkappa_tlm - dJ_dkappa_adj):.16e}")
-assert(abs(dJ_dkappa_tlm - dJ_dkappa_adj) < 1.0e-13)
 
-ddJ = Hessian(lambda kappa: forward(psi_0, kappa))
-min_order = taylor_test(lambda kappa: forward_reference(psi_0, kappa), kappa,
-                        M0=kappa, J_val=J_ref.value(), dJ=dJ_dkappa, ddJ=ddJ,
-                        seed=1.0e-2)
-assert(min_order > 2.96)
+def forward_J(kappa):
+    return forward(psi_0, kappa)
+
+
+def forward_reference_J(kappa):
+    return forward_reference(psi_0, kappa)
+
+
+min_order = taylor_test(forward_reference_J, kappa, J_val=J_ref.value(),
+                        dJ=dJ_dkappa, seed=5.0e-3)
+assert(min_order > 1.98)
+
+ddJ = Hessian(forward_J)
+min_order = taylor_test(forward_reference_J, kappa, J_val=J_ref.value(),
+                        ddJ=ddJ, seed=5.0e-3)
+assert(min_order > 2.98)
+
+min_order = taylor_test_tlm(forward_J, kappa, tlm_order=1, seed=1.0e-4)
+assert(min_order > 1.99)
+
+min_order = taylor_test_tlm_adjoint(forward_J, kappa, adjoint_order=1,
+                                    seed=1.0e-3)
+assert(min_order > 1.99)
+
+min_order = taylor_test_tlm_adjoint(forward_J, kappa, adjoint_order=2,
+                                    seed=1.0e-3)
+assert(min_order > 1.99)
