@@ -47,6 +47,7 @@ __all__ = \
         "minimize_scipy",
         "new_block",
         "reset",
+        "reset_adjoint",
         "reset_manager",
         "start_annotating",
         "start_manager",
@@ -567,6 +568,7 @@ class EquationManager:
 
         self._annotation_state = "initial"
         self._tlm_state = "initial"
+        self._eqs = {}
         self._blocks = []
         self._block = []
         self._replaced = set()
@@ -840,6 +842,8 @@ class EquationManager:
                 if not isinstance(eq, EquationAlias):
                     eq_alias = EquationAlias(eq)
                 eq_id = eq.id()
+                if eq_id not in self._eqs:
+                    self._eqs[eq_id] = eq_alias
                 if eq_id not in self._finalizes:
                     def callback(self_ref, eq_ref):
                         self = self_ref()
@@ -1295,6 +1299,14 @@ class EquationManager:
         import png
         return png.from_array(pixels, "RGB")
 
+    def reset_adjoint(self):
+        """
+        Call the reset_adjoint methods of all annotated Equation objects.
+        """
+
+        for eq in self._eqs.values():
+            eq.reset_adjoint()
+
     def compute_gradient(self, Js, M, callback=None):
         """
         Compute the derivative of one or more functionals with respect to one
@@ -1327,6 +1339,7 @@ class EquationManager:
             return dJ
 
         self.finalize()
+        self.reset_adjoint()
 
         # Functionals
         Js = tuple(J.fn() if not is_function(J) else J for J in Js)
@@ -1355,7 +1368,6 @@ class EquationManager:
         tdeps = DependencyTransposer(blocks, M)
 
         # Reverse (blocks)
-        seen_eq_ids = set()
         for n in range(len(blocks) - 1, -1, -1):
             cp_n = n - 1  # Forward model block, ignoring the control block
             cp_block = cp_n >= 0 and cp_n < len(self._blocks)
@@ -1366,10 +1378,6 @@ class EquationManager:
             # Reverse (equations in block n)
             for i in range(len(blocks[n]) - 1, -1, -1):
                 eq = blocks[n][i]
-                eq_id = eq.id()
-                if eq_id not in seen_eq_ids:
-                    seen_eq_ids.add(eq_id)
-                    eq.reset_adjoint()
                 # Non-linear dependency data
                 nl_deps = self._cp[(cp_n, i)] if cp_block else tuple()
 
@@ -1528,6 +1536,12 @@ def tlm(M, dM, x, manager=None):
     if manager is None:
         manager = _manager()
     return manager.tlm(M, dM, x)
+
+
+def reset_adjoint(manager=None):
+    if manager is None:
+        manager = _manager()
+    return manager.reset_adjoint()
 
 
 def compute_gradient(Js, M, callback=None, manager=None):
