@@ -837,6 +837,9 @@ class EquationManager:
                 raise ManagerException("Cannot add equations after finalization")  # noqa: E501
 
             if self._cp_method == "memory" and not self._cp_parameters["replace"]:  # noqa: E501
+                eq_id = eq.id()
+                if eq_id not in self._eqs:
+                    self._eqs[eq_id] = eq                
                 self._block.append(eq)
             else:
                 if not isinstance(eq, EquationAlias):
