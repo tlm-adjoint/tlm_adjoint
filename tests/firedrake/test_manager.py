@@ -98,7 +98,7 @@ def test_EmptySolver(setup_test, test_leaks):
         def __init__(self):
             Equation.__init__(self, [], [], nl_deps=[], ic_deps=[])
 
-        def forward_solve(self, x, deps=None):
+        def forward_solve(self, X, deps=None):
             pass
 
     mesh = UnitIntervalMesh(100)
