@@ -1164,6 +1164,18 @@ class LinearEquation(Equation):
                                   [deps[j] for j in self._A_dep_indices],
                                   B[0] if len(B) == 1 else B)
 
+    def reset_adjoint(self):
+        if self._A is not None:
+            self._A.reset_adjoint()
+
+    def initialize_adjoint(self, J, nl_deps):
+        if self._A is not None:
+            self._A.initialize_adjoint(J, nl_deps)
+
+    def finalize_adjoint(self, J):
+        if self._A is not None:
+            self._A.finalize_adjoint(J)
+
     def adjoint_jacobian_solve(self, nl_deps, B):
         if self._A is None:
             return B
@@ -1299,6 +1311,15 @@ class Matrix:
 
     def forward_solve(self, X, nl_deps, B):
         raise EquationException("Method not overridden")
+
+    def reset_adjoint(self):
+        pass
+
+    def initialize_adjoint(self, J, nl_deps):
+        pass
+
+    def finalize_adjoint(self, J):
+        pass
 
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
                                   method="assign"):
