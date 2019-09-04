@@ -966,7 +966,7 @@ class EquationManager:
 
             h.create_group("/ics")
             for i, (key, F) in enumerate(cp.items()):
-                g = h.create_group("/ics/%i" % i)
+                g = h.create_group(f"/ics/{i:d}")
 
                 values = function_get_values(F)
                 d = g.create_dataset("value", shape=(function_global_size(F),),
