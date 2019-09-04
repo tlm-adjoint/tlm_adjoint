@@ -62,7 +62,9 @@ def test_leaks():
 
     # Clear some internal storage that is allowed to keep references
     manager = _manager()
+    manager.reset_adjoint()
     manager._cp.clear(clear_refs=True)
+    manager._cp_memory.clear()
     tlm_values = manager._tlm.values()  # noqa: F841
     manager._tlm.clear()
     tlm_eqs_values = manager._tlm_eqs.values()  # noqa: F841
