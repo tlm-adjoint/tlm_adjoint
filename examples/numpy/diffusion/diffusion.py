@@ -22,7 +22,20 @@ from tlm_adjoint_numpy import *
 
 import numpy as np
 from scipy.sparse import identity, lil_matrix
-from scipy.sparse.linalg import cg
+import scipy.sparse.linalg
+
+# SciPy backwards compatibility
+import inspect
+cg_atol = "atol" in inspect.getargspec(scipy.sparse.linalg.cg).args
+
+
+def cg(A, b, x0):
+    # SciPy backwards compatibility
+    if cg_atol:
+        return scipy.sparse.linalg.cg(A, b, x0=x0, tol=1.0e-10, atol=1.0e-14)
+    else:
+        return scipy.sparse.linalg.cg(A, b, x0=x0, tol=1.0e-10)
+
 
 N_t = 10
 reset_manager("multistage", {"blocks": N_t, "snaps_on_disk": 1,
@@ -122,7 +135,7 @@ def forward_reference(psi_0, kappa):
     lA = A(kappa)
     psi = psi_0.vector().copy()
     for n in range(N_t):
-        psi, fail = cg(lA, B.dot(psi), x0=psi, tol=1.0e-10, atol=1.0e-14)
+        psi, fail = cg(lA, B.dot(psi), x0=psi)
         assert(fail == 0)
     J = Functional(name="J")
     J.fn().vector()[:] = psi.dot(mass.dot(psi))
@@ -174,8 +187,7 @@ def forward(psi_0, kappa):
         def forward_solve(self, x, nl_deps, b):
             kappa, = nl_deps
             self._assemble_A(kappa)
-            x.vector()[:], fail = cg(self._A, b.vector(), x0=x.vector(),
-                                     tol=1.0e-10, atol=1.0e-14)
+            x.vector()[:], fail = cg(self._A, b.vector(), x0=x.vector())
             assert(fail == 0)
 
         def _assemble_A(self, kappa):
@@ -204,8 +216,7 @@ def forward(psi_0, kappa):
             self._assemble_A(kappa)
             x = function_new(self._x_0_adjoint)
             x.vector()[:], fail = cg(self._A, b.vector(),
-                                     x0=self._x_0_adjoint.vector(),
-                                     tol=1.0e-10, atol=1.0e-14)
+                                     x0=self._x_0_adjoint.vector())
             assert(fail == 0)
             function_assign(self._x_0_adjoint, x)
             return x
