@@ -18,25 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint_numpy import *  # noqa: F401
+from tlm_adjoint_numpy import *
 
-from test_base import *          # noqa: F401
+from test_base import *
 
 import os
-import runpy
 import pytest
 
 
 @pytest.mark.numpy
-@pytest.mark.examples
-@pytest.mark.parametrize("example",
-                         [os.path.join("diffusion", "diffusion.py")])
-def test_examples(setup_test, test_leaks,
-                  example):
-    filename = os.path.join(os.path.dirname(__file__),
-                            os.path.pardir, os.path.pardir,
-                            "examples", "numpy", example)
-    gl = runpy.run_path(filename)
-    # Clear objects created by the script. Requires the script to define a
-    # 'forward' function.
-    gl["forward"].__globals__.clear()
+@pytest.mark.example
+def test_diffusion(setup_test, test_leaks):
+    run_example(os.path.join("diffusion", "diffusion.py"))
