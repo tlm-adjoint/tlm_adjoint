@@ -28,7 +28,7 @@ import numpy as np
 
 stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
-np.random.seed(2212983)
+np.random.seed(2212983 + default_comm().rank)
 
 mesh = UnitSquareMesh(50, 50)
 space = FunctionSpace(mesh, "Lagrange", 1)
@@ -124,7 +124,7 @@ def info_compare(x, y, tol):
 
 
 info("TLM/adjoint consistency, zeta_1")
-info_compare(dJ_tlm_1.value(), function_inner(dJ_adj, zeta_1), tol=1.0e-18)
+info_compare(dJ_tlm_1.value(), function_inner(dJ_adj, zeta_1), tol=1.0e-17)
 
 info("TLM/adjoint consistency, zeta_2")
 info_compare(dJ_tlm_2.value(), function_inner(dJ_adj, zeta_2), tol=1.0e-17)

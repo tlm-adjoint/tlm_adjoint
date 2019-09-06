@@ -32,7 +32,7 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 stop_manager()
-np.random.seed(12143432)
+np.random.seed(12143432 + default_comm().rank)
 # PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:
@@ -447,7 +447,7 @@ if debug:
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), dJ=dJ,
                             seed=1.0e-4)
-    assert(min_order > 1.99)
+    assert(min_order > 2.00)
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
                             seed=1.0e-3)
@@ -455,7 +455,7 @@ if debug:
 
     min_order = taylor_test_tlm(forward_ref_J, beta_sq,
                                 tlm_order=1, seed=1.0e-3)
-    assert(min_order > 2.00)
+    assert(min_order > 1.99)
 
     min_order = taylor_test_tlm_adjoint(forward_ref_J, beta_sq,
                                         adjoint_order=1, seed=1.0e-3)
