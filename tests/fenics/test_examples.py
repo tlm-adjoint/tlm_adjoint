@@ -41,3 +41,12 @@ def test_basal_fp(setup_test):
     configure_checkpointing("memory", {"replace": False})
     run_example(os.path.join("basal_sliding", "basal_fp.py"),
                 clear_globals=False)
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+@pytest.mark.skipif(default_comm().size > 1, reason="serial only")
+def test_transport(setup_test):
+    configure_checkpointing("memory", {"replace": False})
+    run_example(os.path.join("transport", "transport.py"),
+                clear_globals=False)

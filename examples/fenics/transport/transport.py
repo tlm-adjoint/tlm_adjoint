@@ -25,9 +25,9 @@ from tlm_adjoint_fenics import *
 # forward models
 from tlm_adjoint_fenics.hessian_optimization import *
 
-import h5py
+# import h5py
 import numpy as np
-import petsc4py.PETSc as PETSc
+# import petsc4py.PETSc as PETSc
 import time
 
 # Disable the manager until it is needed
@@ -37,7 +37,7 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 
-PETSc.Options().setValue("citations", "petsc.bib")
+# PETSc.Options().setValue("citations", "petsc.bib")
 
 # Seed the random number generator, to ensure reproducibility of the later
 # Taylor verification
@@ -48,7 +48,7 @@ verify = True
 
 # Configure the mesh
 L_x, L_y = 2.0, 1.0
-N_x, N_y = 100, 50
+N_x, N_y = 20, 10
 mesh = RectangleMesh(Point(0.0, 0.0), Point(L_x, L_y), N_x, N_y)
 
 # Configure the interior domain discrete function space
@@ -56,9 +56,9 @@ space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 # Approximate Courant number, relative to background uniform flow
-C = 0.25
+C = 0.05
 # Number of timesteps
-N_t = 2 * N_x
+N_t = 10 * N_x
 # Approximate grid Péclet number, relative to background uniform flow
 Pe = 20.0
 # Time step size
@@ -70,7 +70,7 @@ kappa = Function(kappa_space, name="kappa", static=True)
 kappa.assign(Constant(L_x / (Pe * float(N_x))))
 info(f"kappa = {function_max_value(kappa):.16e}")
 # Regularization parameter
-alpha = Constant(1.0e-15, static=True)
+alpha = Constant(1.0e-8, static=True)
 
 # Stream function
 psi = Function(space, name="psi", static=True)
@@ -249,9 +249,10 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
 
 
 # Generate a reference solution
-File("T_inflow.pvd", "compressed") << T_inflow
-T_N_ref, _, _ = forward(T_inflow, kappa, output_filename="forward.pvd")
-File("T_N_ref.pvd", "compressed") << T_N_ref
+# File("T_inflow.pvd", "compressed") << T_inflow
+# T_N_ref, _, _ = forward(T_inflow, kappa, output_filename="forward.pvd")
+T_N_ref, _, _ = forward(T_inflow, kappa)
+# File("T_N_ref.pvd", "compressed") << T_N_ref
 
 # Delete the original input
 T_inflow = Function(inflow_space, name="T_inflow", static=True)
@@ -279,10 +280,6 @@ def forward_kappa_ref_K(kappa):
     return forward(T_inflow, kappa, T_N_ref=T_N_ref)[2]
 
 
-if verify:
-    # Verify the forward model constrained Hessian
-    min_order = taylor_test(forward_T_inflow_ref_J, T_inflow, J_val=J.value(),
-                            ddJ=ddJ, seed=1.0e-6)
 H = np.empty((function_local_size(T_inflow), function_local_size(T_inflow)),
              dtype=np.float64)
 for i in range(H.shape[0]):
@@ -296,14 +293,15 @@ for i in range(H.shape[0]):
 # Solve the optimization problem
 _, dJ = ddJ.compute_gradient(T_inflow)
 function_set_values(T_inflow, np.linalg.solve(H, -function_get_values(dJ)))
-File("T_inflow_inv.pvd", "compressed") << T_inflow
+# File("T_inflow_inv.pvd", "compressed") << T_inflow
 del(ddJ)
 
 # Re-run the forward at the inverted state
 reset_manager()
 start_manager()
-_, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref,
-                  output_filename="inversion.pvd")
+# _, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref,
+#                   output_filename="inversion.pvd")
+_, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref)
 stop_manager()
 
 # Forward model constrained derivatives
@@ -311,14 +309,26 @@ stop_manager()
     = compute_gradient([J, K], [T_inflow, kappa])
 if verify:
     # Verify the forward model constrained derivatives
-    min_order = taylor_test(forward_T_inflow_ref_J, T_inflow, J_val=J.value(),
-                            dJ=dJ_dinflow, seed=1.0e-4)
+    assert(function_linf_norm(dJ_dinflow) < 1.0e-14)
     min_order = taylor_test(forward_kappa_ref_J, kappa, J_val=J.value(),
-                            dJ=dJ_dkappa, seed=1.0e-4)
+                            dJ=dJ_dkappa, seed=1.0e-6)
+    assert(min_order > 1.99)
     min_order = taylor_test(forward_T_inflow_ref_K, T_inflow, J_val=K.value(),
                             dJ=dK_dinflow, seed=1.0e-4)
+    assert(min_order > 1.99)
     min_order = taylor_test(forward_kappa_ref_K, kappa, J_val=K.value(),
                             dJ=dK_dkappa, seed=1.0e-4)
+    assert(min_order > 1.99)
+
+    min_order = taylor_test_tlm(forward_kappa_ref_J, kappa, tlm_order=1,
+                                seed=1.0e-6)
+    assert(min_order > 1.99)
+    min_order = taylor_test_tlm(forward_T_inflow_ref_K, T_inflow, tlm_order=1,
+                                seed=1.0e-4)
+    assert(min_order > 1.99)
+    min_order = taylor_test_tlm(forward_kappa_ref_K, kappa, tlm_order=1,
+                                seed=1.0e-6)
+    assert(min_order > 1.99)
 
 
 def project(b, space, name):
@@ -329,14 +339,14 @@ def project(b, space, name):
     return x
 
 
-File("dJ_dinflow.pvd", "compressed") << project(dJ_dinflow, inflow_space,
-                                                name="dJ_dinflow")
-File("dJ_dkappa.pvd", "compressed") << project(dJ_dkappa, kappa_space,
-                                               name="dJ_dkappa")
-File("dK_dinflow.pvd", "compressed") << project(dK_dinflow, inflow_space,
-                                                name="dK_dinflow")
-File("dK_dkappa.pvd", "compressed") << project(dK_dkappa, kappa_space,
-                                               name="dK_dkappa")
+# File("dJ_dinflow.pvd", "compressed") << project(dJ_dinflow, inflow_space,
+#                                                 name="dJ_dinflow")
+# File("dJ_dkappa.pvd", "compressed") << project(dJ_dkappa, kappa_space,
+#                                                name="dJ_dkappa")
+# File("dK_dinflow.pvd", "compressed") << project(dK_dinflow, inflow_space,
+#                                                 name="dK_dinflow")
+# File("dK_dkappa.pvd", "compressed") << project(dK_dkappa, kappa_space,
+#                                                name="dK_dkappa")
 
 # Optimality constrained derivative
 dJs1 = Function(inflow_space, static=True)
@@ -387,13 +397,13 @@ if verify:
     function_set_values(perturb,
                         2.0 * np.random.random(function_local_size(perturb))
                         - 1.0)
-    File("taylor_perturb.pvd", "compressed") << perturb
+    # File("taylor_perturb.pvd", "compressed") << perturb
 
     K_val = K.value()
     K_vals = []
     error_norms_0 = []
     error_norms_1 = []
-    eps_values = np.array([1.0e-6 * (2 ** -p) for p in range(6)],
+    eps_values = np.array([1.0e-4 * (2 ** -p) for p in range(6)],
                           dtype=np.float64)
     for eps in eps_values:
         kappa_perturb = function_copy(kappa, name="kappa_perturb", static=True)
@@ -416,13 +426,15 @@ if verify:
     info(f"Error norms 1: {error_norms_1}")
     info(f"Orders 1     : {orders_1}")
 
-    h = h5py.File("taylor.hdf5", "w")
-    h.create_dataset("eps_values", data=eps_values, compression=True,
-                     fletcher32=True, shuffle=True)
-    h.create_dataset("K_vals", data=K_vals, compression=True, fletcher32=True,
-                     shuffle=True)
-    h.create_dataset("error_norms_0", data=error_norms_0, compression=True,
-                     fletcher32=True, shuffle=True)
-    h.create_dataset("error_norms_1", data=error_norms_1, compression=True,
-                     fletcher32=True, shuffle=True)
-    h.close()
+    # h = h5py.File("taylor.hdf5", "w")
+    # h.create_dataset("eps_values", data=eps_values, compression=True,
+    #                  fletcher32=True, shuffle=True)
+    # h.create_dataset("K_vals", data=K_vals, compression=True,
+    #                  fletcher32=True, shuffle=True)
+    # h.create_dataset("error_norms_0", data=error_norms_0, compression=True,
+    #                  fletcher32=True, shuffle=True)
+    # h.create_dataset("error_norms_1", data=error_norms_1, compression=True,
+    #                  fletcher32=True, shuffle=True)
+    # h.close()
+
+    assert(orders_1.min() > 2.00)
