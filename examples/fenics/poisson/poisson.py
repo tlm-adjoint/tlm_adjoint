@@ -22,13 +22,13 @@ from fenics import *
 from tlm_adjoint_fenics import *
 
 import numpy as np
-import petsc4py.PETSc as PETSc
+# import petsc4py.PETSc as PETSc
 
 # Disable the manager until it is needed
 stop_manager()
 
 # Save relevant citation information
-PETSc.Options().setValue("citations", "petsc.bib")
+# PETSc.Options().setValue("citations", "petsc.bib")
 
 # Seed the random number generator, to ensure reproducibility of the later
 # Taylor verification
@@ -105,8 +105,14 @@ min_order = taylor_test(lambda F: forward(F, x0=x0)[1], F, J_val=J.value(),
                         ddJ=ddJ, seed=1.0e-2, size=5)
 assert(min_order > 3.00)
 
+# Taylor verify the first order tangent-linear
+min_order = taylor_test_tlm(lambda F: forward(F, x0=x0)[1], F,
+                            tlm_order=1, seed=1.0e-3, size=5)
+assert(min_order > 2.00)
+
 # Taylor verify forward model constrained Hessian actions for the case of two
 # possibly different perturbation directions. Assumes validity of the first
 # order tangent-linear.
 min_order = taylor_test_tlm_adjoint(lambda F: forward(F, x0=x0)[1], F,
                                     adjoint_order=2, seed=1.0e-3, size=5)
+assert(min_order > 2.00)

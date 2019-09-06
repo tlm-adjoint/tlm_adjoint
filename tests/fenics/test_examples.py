@@ -45,6 +45,12 @@ def test_basal_fp(setup_test):
 
 @pytest.mark.fenics
 @pytest.mark.example
+def test_poisson(setup_test, test_leaks):
+    run_example(os.path.join("poisson", "poisson.py"))
+
+
+@pytest.mark.fenics
+@pytest.mark.example
 @pytest.mark.skipif(default_comm().size > 1, reason="serial only")
 def test_transport(setup_test):
     configure_checkpointing("memory", {"replace": False})
