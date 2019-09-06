@@ -42,7 +42,7 @@ def setup_test():
     clear_caches()
     stop_manager()
 
-    np.random.seed(14012313 + default_comm().rank)
+    np.random.seed(14012313)
 
 
 Function_ids = {}
