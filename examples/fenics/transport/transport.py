@@ -360,8 +360,8 @@ stop_manager()
 dJs2 = compute_gradient(dJ, kappa)
 function_axpy(dK_dkappa, -1.0, dJs2)
 
-File("dK_dkappa_2.pvd", "compressed") << project(dK_dkappa, kappa_space,
-                                                 name="dK_dkappa_2")
+# File("dK_dkappa_2.pvd", "compressed") << project(dK_dkappa, kappa_space,
+#                                                  name="dK_dkappa_2")
 
 if verify:
     # Verify the optimality constrained derivative
