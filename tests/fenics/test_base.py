@@ -134,15 +134,14 @@ def test_leaks():
     assert(refs == 0)
 
 
-def run_example(example, clear_globals=True):
+def run_example(example):
     filename = os.path.join(os.path.dirname(__file__),
                             os.path.pardir, os.path.pardir,
                             "examples", "fenics", example)
     gl = runpy.run_path(filename)
-    if clear_globals:
-        # Clear objects created by the script. Requires the script to define a
-        # 'forward' function.
-        gl["forward"].__globals__.clear()
+    # Clear objects created by the script. Requires the script to define a
+    # 'forward' function.
+    gl["forward"].__globals__.clear()
 
 
 def interpolate_expression(F, ex):

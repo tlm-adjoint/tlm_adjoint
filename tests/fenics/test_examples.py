@@ -30,8 +30,7 @@ import pytest
 @pytest.mark.example
 def test_basal(setup_test):
     configure_checkpointing("memory", {"replace": False})
-    run_example(os.path.join("basal_sliding", "basal.py"),
-                clear_globals=False)
+    run_example(os.path.join("basal_sliding", "basal.py"))
 
 
 @pytest.mark.fenics
@@ -39,8 +38,7 @@ def test_basal(setup_test):
 @pytest.mark.skipif(default_comm().size > 1, reason="serial only")
 def test_basal_fp(setup_test):
     configure_checkpointing("memory", {"replace": False})
-    run_example(os.path.join("basal_sliding", "basal_fp.py"),
-                clear_globals=False)
+    run_example(os.path.join("basal_sliding", "basal_fp.py"))
 
 
 @pytest.mark.fenics
@@ -60,5 +58,4 @@ def test_poisson(setup_test, test_leaks):
 @pytest.mark.skipif(default_comm().size > 1, reason="serial only")
 def test_transport(setup_test):
     configure_checkpointing("memory", {"replace": False})
-    run_example(os.path.join("transport", "transport.py"),
-                clear_globals=False)
+    run_example(os.path.join("transport", "transport.py"))
