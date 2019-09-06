@@ -45,6 +45,12 @@ def test_basal_fp(setup_test):
 
 @pytest.mark.fenics
 @pytest.mark.example
+def test_diffusion(setup_test, test_leaks):
+    run_example(os.path.join("diffusion", "diffusion.py"))
+
+
+@pytest.mark.fenics
+@pytest.mark.example
 def test_poisson(setup_test, test_leaks):
     run_example(os.path.join("poisson", "poisson.py"))
 
