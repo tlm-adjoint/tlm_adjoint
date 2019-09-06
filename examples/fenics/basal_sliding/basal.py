@@ -22,9 +22,9 @@ from fenics import *
 from tlm_adjoint_fenics import *
 from tlm_adjoint_fenics.hessian_optimization import *
 
-import h5py
+# import h5py
 import numpy as np
-import petsc4py.PETSc as PETSc
+# import petsc4py.PETSc as PETSc
 import slepc4py.SLEPc as SLEPc
 import ufl
 
@@ -33,7 +33,7 @@ parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 stop_manager()
 np.random.seed(12143432)
-PETSc.Options().setValue("citations", "petsc.bib")
+# PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:
 # GHS09 D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and
@@ -52,11 +52,11 @@ theta = -0.5 * 2.0 * np.pi / 360.0  # GH13 experiment 3
 # Here b is the topography height
 grad_b_x = Constant(np.tan(theta), static=True)
 # N_x, N_y = 40, 40  # GH13 experiment 3
-N_x, N_y = 20, 20
-timesteps = 120  # Close to (identical to?) GH13 experiment 3
-debug = False
-# # Debug configuration
-# N_x, N_y, timesteps, debug = 3, 3, 10, True
+# N_x, N_y = 20, 20
+# timesteps = 120  # Close to (identical to?) GH13 experiment 3
+# debug = False
+# Debug configuration
+N_x, N_y, timesteps, debug = 3, 3, 10, True
 assert(timesteps % 10 == 0)
 
 # Observe the flow and surface elevation at the end of these timesteps
@@ -113,9 +113,9 @@ beta_sq_ref = Function(space, name="beta_sq_ref", static=True)
 # GH13 eqn (16)
 beta_sq_ref.interpolate(Expression(
     "1000.0 - 750.0 * exp(-(pow(x[0] - (L_x / 2.0), 2.0) + pow(x[1] - (L_y / 2.0), 2.0)) / pow(5.0e3, 2.0))",  # noqa: E501
-     L_x=L_x, L_y=L_y,
-     element=space.ufl_element()))
-File("beta_sq_ref.pvd", "compressed") << beta_sq_ref
+    L_x=L_x, L_y=L_y,
+    element=space.ufl_element()))
+# File("beta_sq_ref.pvd", "compressed") << beta_sq_ref
 
 forward_calls = [0]
 
@@ -370,7 +370,8 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
 
 
 start_manager()
-ref, J = forward(beta_sq_ref, h_filename="h.pvd", speed_filename="speed.pvd")
+# ref, J = forward(beta_sq_ref, h_filename="h.pvd", speed_filename="speed.pvd")
+ref, J = forward(beta_sq_ref)
 stop_manager()
 
 ddJ = SingleBlockHessian(J)
@@ -412,21 +413,21 @@ pack = sorted(zip(lam, V), key=lambda p: p[0], reverse=True)
 lam = [p[0] for p in pack]
 V = [p[1] for p in pack]
 
-h = h5py.File("eigenvalues.hdf5", "w")
-h.create_dataset("lam", data=lam, compression=True, fletcher32=True,
-                 shuffle=True)
-h.close()
+# h = h5py.File("eigenvalues.hdf5", "w")
+# h.create_dataset("lam", data=lam, compression=True, fletcher32=True,
+#                  shuffle=True)
+# h.close()
 
 for i, lam_val in enumerate(lam):
     info(f"Eigenvalue {i + 1:d} = {lam_val:.16e}")
 
-v_file = File("eigenvectors.pvd", "compressed")
-for i, v in enumerate(V):
-    function_set_values(v,
-                        function_get_values(v)
-                        / np.sqrt(assemble(inner(v, v) * dx)))
-    v.rename("eigenvector", "a Function")
-    v_file << (v, float(i + 1))
+# v_file = File("eigenvectors.pvd", "compressed")
+# for i, v in enumerate(V):
+#     function_set_values(v,
+#                         function_get_values(v)
+#                         / np.sqrt(assemble(inner(v, v) * dx)))
+#     v.rename("eigenvector", "a Function")
+#     v_file << (v, float(i + 1))
 
 if debug:
     del(beta_sq_ref, A_action)
@@ -446,7 +447,20 @@ if debug:
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), dJ=dJ,
                             seed=1.0e-4)
-    min_order = taylor_test_tlm_adjoint(forward_ref_J, beta_sq,
-                                        adjoint_order=2, seed=1.0e-3)
+    assert(min_order > 1.99)
+
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
                             seed=1.0e-3)
+    assert(min_order > 2.99)
+
+    min_order = taylor_test_tlm(forward_ref_J, beta_sq,
+                                tlm_order=1, seed=1.0e-3)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward_ref_J, beta_sq,
+                                        adjoint_order=1, seed=1.0e-3)
+    assert(min_order > 1.99)
+
+    min_order = taylor_test_tlm_adjoint(forward_ref_J, beta_sq,
+                                        adjoint_order=2, seed=1.0e-3)
+    assert(min_order > 1.99)
