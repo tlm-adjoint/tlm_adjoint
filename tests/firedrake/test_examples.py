@@ -28,5 +28,12 @@ import pytest
 
 @pytest.mark.firedrake
 @pytest.mark.example
+def test_basal(setup_test):
+    configure_checkpointing("memory", {"replace": False})
+    run_example(os.path.join("basal_sliding", "basal.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
 def test_diffusion(setup_test, test_leaks):
     run_example(os.path.join("diffusion", "diffusion.py"))
