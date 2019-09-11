@@ -26,13 +26,16 @@ from tlm_adjoint_firedrake.backend import backend_Function
 import copy
 import gc
 import numpy as np
+import os
 import pytest
+import runpy
 import weakref
 
 __all__ = \
     [
         "interpolate_expression",
 
+        "run_example",
         "setup_test",
         "test_configurations",
         "test_leaks",
@@ -128,6 +131,16 @@ def test_leaks():
 
     Function_ids.clear()
     assert(refs == 0)
+
+
+def run_example(example):
+    filename = os.path.join(os.path.dirname(__file__),
+                            os.path.pardir, os.path.pardir,
+                            "examples", "firedrake", example)
+    gl = runpy.run_path(filename)
+    # Clear objects created by the script. Requires the script to define a
+    # 'forward' function.
+    gl["forward"].__globals__.clear()
 
 
 def interpolate_expression(F, ex):
