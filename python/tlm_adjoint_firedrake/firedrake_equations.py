@@ -52,7 +52,6 @@ def LocalSolver(form, form_compiler_parameters={}):
     local_solver = backend_assemble(
         Tensor(form).inv,
         form_compiler_parameters=form_compiler_parameters)
-    local_solver.force_evaluation()
 
     def solve_local(self, x, b):
         matrix_multiply(self, b, tensor=x)

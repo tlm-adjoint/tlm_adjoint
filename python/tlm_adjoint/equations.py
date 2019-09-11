@@ -631,7 +631,6 @@ class EquationSolver(Equation):
 #             b_debug = backend_assemble(
 #                 assemble_rhs,
 #                 form_compiler_parameters=self._form_compiler_parameters)
-#             J_mat_debug.force_evaluation()
 #             J_error = J_mat.petscmat.copy()
 #             J_error.axpy(-1.0, J_mat_debug.petscmat)
 #             import petsc4py.PETSc as PETSc

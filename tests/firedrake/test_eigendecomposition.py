@@ -33,7 +33,6 @@ def test_HEP(setup_test, test_leaks):
     test, trial = TestFunction(space), TrialFunction(space)
 
     M = assemble(inner(test, trial) * dx)
-    M.force_evaluation()
 
     def M_action(F):
         G = function_new(F)
@@ -58,7 +57,6 @@ def test_NHEP(setup_test, test_leaks):
     test, trial = TestFunction(space), TrialFunction(space)
 
     N = assemble(inner(test, trial.dx(0)) * dx)
-    N.force_evaluation()
 
     def N_action(F):
         G = function_new(F)

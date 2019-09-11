@@ -145,7 +145,6 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
 
 def assemble_matrix(form, bcs, **kwargs):
     A = backend_assemble(form, bcs=bcs, **kwargs)
-    A.force_evaluation()
     return A, None
 
 
@@ -160,7 +159,6 @@ def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
     A = backend_assemble(A_form, bcs=bcs,
                          form_compiler_parameters=form_compiler_parameters,
                          *args, **kwargs)
-    A.force_evaluation()
     b = backend_assemble(b_form,
                          form_compiler_parameters=form_compiler_parameters,
                          *args, **kwargs)
