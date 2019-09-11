@@ -28,7 +28,7 @@ import pytest
 
 
 @pytest.mark.fenics
-def test_LongRange(setup_test, test_leaks):
+def test_long_range(setup_test, test_leaks):
     n_steps = 200
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 0,
