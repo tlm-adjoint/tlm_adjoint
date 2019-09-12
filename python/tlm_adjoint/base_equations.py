@@ -708,7 +708,7 @@ class InitialGuessSolver(Equation):
         if tau_y is None:
             return NullSolver(tlm_map[x])
         else:
-            return InitialGuessSolver(tlm_y, tlm_map[x])
+            return InitialGuessSolver(tau_y, tlm_map[x])
 
 
 class FixedPointSolver(Equation):

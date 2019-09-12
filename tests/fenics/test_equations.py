@@ -704,3 +704,87 @@ def test_InnerProductSolver(setup_test, test_leaks):
     dJ = compute_gradient(J, F)
     min_order = taylor_test(forward, F, J_val=J.value(), dJ=dJ)
     assert(min_order > 1.99)
+
+
+@pytest.mark.fenics
+def test_InitialGuessSolver(setup_test, test_leaks):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space_1 = FunctionSpace(mesh, "Lagrange", 1)
+    space_2 = FunctionSpace(mesh, "Lagrange", 2)
+
+    def forward(y, x_0=None):
+        if x_0 is None:
+            x_0 = project(y, space_1,
+                          solver_parameters=ls_parameters_cg)
+        x = Function(space_1, name="x")
+
+        class TestSolver(ProjectionSolver):
+            def __init__(self, y, x, form_compiler_parameters={},
+                         solver_parameters={}):
+                ProjectionSolver.__init__(
+                    self, inner(TestFunction(x.function_space()), y) * dx, x,
+                    form_compiler_parameters=form_compiler_parameters,
+                    solver_parameters=solver_parameters,
+                    cache_jacobian=False, cache_rhs_assembly=False)
+
+            def forward_solve(self, x, deps=None):
+                J, b = assemble_system(
+                    self._J, self._rhs,
+                    form_compiler_parameters=self._form_compiler_parameters)
+                solver = linear_solver(J, self._linear_solver_parameters)
+                its = solver.solve(x.vector(), b)
+                assert(its == 0)
+
+            def tangent_linear(self, M, dM, tlm_map):
+                x, y = self.dependencies()
+                tau_y = get_tangent_linear(y, M, dM, tlm_map)
+                if tau_y is None:
+                    return NullSolver(tlm_map[x])
+                else:
+                    return TestSolver(
+                        tau_y, tlm_map[x],
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        solver_parameters=self._solver_parameters)
+
+        InitialGuessSolver(x_0, x).solve()
+        TestSolver(
+            y, x,
+            solver_parameters={"linear_solver": "cg",
+                               "preconditioner": "sor",
+                               "relative_tolerance": 1.0e-10,
+                               "absolute_tolerance": 1.0e-16,
+                               "krylov_solver": {"nonzero_initial_guess": True}}).solve()  # noqa: E501
+
+        J = Functional(name="J")
+        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+        return J
+
+    y = Function(space_2, name="y", static=True)
+    interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
+
+    start_manager()
+    x_0 = project(y, space_1, solver_parameters=ls_parameters_cg)
+    J = forward(y, x_0=x_0)
+    stop_manager()
+
+    dJdx_0, dJdy = compute_gradient(J, [x_0, y])
+    assert(function_linf_norm(dJdx_0) == 0.0)
+
+    J_val = J.value()
+
+    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJdy)
+    assert(min_order > 2.00)
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ)
+    assert(min_order > 3.00)
+
+    min_order = taylor_test_tlm(forward, y, tlm_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1)
+    assert(min_order > 2.00)
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2)
+    assert(min_order > 1.99)
