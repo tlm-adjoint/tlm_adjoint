@@ -125,7 +125,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
     S = Function(space_S, name="S")
     nu = Function(space_S, name="nu")
 
-    def momentum(U, h, initial_guess=None):
+    def momentum(U, h):
         h = h + H_0
         spaces = U.function_space()
         tests, trials = TestFunction(spaces), TrialFunction(spaces)
@@ -171,11 +171,15 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
         return FixedPointSolver(
             [S_eq, nu_eq, U_eq],
             solver_parameters={"absolute_tolerance": 1.0e-16,
-                               "relative_tolerance": 1.0e-11},
-            initial_guess=initial_guess)
+                               "relative_tolerance": 1.0e-11})
+
+    def assignment(y, x):
+        return AssignmentSolver(y, x)
 
     def solve_momentum(U, h, initial_guess=None):
-        momentum(U, h, initial_guess=initial_guess).solve()
+        if initial_guess is not None:
+            assignment(initial_guess, U).solve()
+        momentum(U, h).solve()
 
     def elevation_rhs(U, h, F_h):
         # GHS09 eqn (11) right-hand-side (times timestep size)
@@ -253,7 +257,8 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 (23.0 / 12.0, F_h[2]),
                 (-4.0 / 3.0, F_h[1]),
                 (5.0 / 12.0, F_h[0])),
-           momentum(U[1], h[1], initial_guess=U[0]),
+           assignment(U[0], U[1]),
+           momentum(U[1], h[1]),
            cycle(F_h[1], F_h[0]),
            cycle(F_h[2], F_h[1]),
            cycle(h[1], h[0]),

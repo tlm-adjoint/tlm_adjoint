@@ -695,7 +695,7 @@ class FixedPointSolver(Equation):
     #     Optimization Methods and Software, 1(1), pp. 13--21, 1992
     #   B. Christianson, "Reverse accumulation and attractive fixed points",
     #     Optimization Methods and Software, 3(4), pp. 311--326, 1994
-    def __init__(self, eqs, solver_parameters, initial_guess=None):
+    def __init__(self, eqs, solver_parameters):
         """
         A fixed point solver.
 
@@ -729,9 +729,6 @@ class FixedPointSolver(Equation):
                     initial guess. Logical, optional, default False.
                 report
                     Whether to display output. Optional, default False.
-        initial_guess
-            (Optional) Initial guess for the forward equation solution (the
-            solution to the final equation in eqs).
         """
 
         x_ids = set()
@@ -741,7 +738,6 @@ class FixedPointSolver(Equation):
             if eq_x_id in x_ids:
                 raise EquationException("Duplicate solve")
             x_ids.add(eq_x_id)
-        x = eqs[-1].x()
 
         solver_parameters = copy_parameters_dict(solver_parameters)
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
@@ -757,19 +753,6 @@ class FixedPointSolver(Equation):
         nl_deps = []
         nl_dep_ids = {}
         ic_deps = {}
-
-        if solver_parameters["nonzero_initial_guess"]:
-            if initial_guess is None:
-                initial_guess_index = None
-                initial_guess = x
-            elif initial_guess == x:
-                initial_guess_index = None
-            else:
-                deps.append(initial_guess)
-                initial_guess_index = len(deps) - 1
-                dep_ids[initial_guess.id()] = len(deps) - 1
-        elif initial_guess is not None:
-            raise EquationException("Initial guess provided, but nonzero_initial_guess parameter is False")  # noqa: E501
 
         eq_dep_indices = tuple([] for eq in eqs)
         eq_nl_dep_indices = tuple([] for eq in eqs)
@@ -799,10 +782,6 @@ class FixedPointSolver(Equation):
                 dep_id = dep.id()
                 if dep_id not in previous_x_ids and dep_id not in ic_deps:
                     ic_deps[dep_id] = dep
-            if initial_guess is not None and i == len(eqs) - 1:
-                dep_id = initial_guess.id()
-                if dep_id not in previous_x_ids and dep_id not in ic_deps:
-                    ic_deps[dep_id] = initial_guess
             previous_x_ids.add(x_id)
 
         del(previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids)
@@ -815,10 +794,6 @@ class FixedPointSolver(Equation):
         Equation.__init__(self, [eq.x() for eq in eqs], deps, nl_deps=nl_deps,
                           ic_deps=ic_deps)
         self._eqs = tuple(eqs)
-        if initial_guess is None:
-            self._initial_guess_index = None
-        else:
-            self._initial_guess_index = initial_guess_index
         self._eq_dep_indices = eq_dep_indices
         self._eq_nl_dep_indices = eq_nl_dep_indices
         self._eq_dep_ids = eq_dep_ids
@@ -845,15 +820,7 @@ class FixedPointSolver(Equation):
         report = self._solver_parameters["report"]
 
         x = X[-1]
-        if nonzero_initial_guess:
-            if self._initial_guess_index is not None:
-                if deps is None:
-                    initial_guess = \
-                        self.dependencies()[self._initial_guess_index]
-                else:
-                    initial_guess = deps[self._initial_guess_index]
-                function_assign(x, initial_guess)
-        else:
+        if not nonzero_initial_guess:
             function_zero(x)
 
         if deps is None:
@@ -1013,15 +980,8 @@ class FixedPointSolver(Equation):
                 tlm_eq = NullSolver(tlm_map[eq.x()])
             tlm_eqs.append(tlm_eq)
 
-        if self._initial_guess_index is None:
-            tlm_initial_guess = None
-        else:
-            initial_guess = self.dependencies()[self._initial_guess_index]
-            tlm_initial_guess = tlm_map[initial_guess]
-
         return FixedPointSolver(tlm_eqs,
-                                solver_parameters=self._solver_parameters,
-                                initial_guess=tlm_initial_guess)
+                                solver_parameters=self._solver_parameters)
 
 
 class LinearEquation(Equation):
