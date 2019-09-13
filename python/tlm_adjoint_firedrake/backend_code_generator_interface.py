@@ -116,7 +116,14 @@ def process_solver_parameters(solver_parameters, J, linear):
     if "near_nullspace" not in tlm_adjoint_parameters:
         tlm_adjoint_parameters["near_nullspace"] = None
 
-    return solver_parameters, solver_parameters, True
+    if linear:
+        if "ksp_initial_guess_nonzero" not in solver_parameters:
+            solver_parameters["ksp_initial_guess_nonzero"] = False
+        checkpoint_ic = solver_parameters["ksp_initial_guess_nonzero"]
+    else:
+        checkpoint_ic = True
+
+    return solver_parameters, solver_parameters, checkpoint_ic
 
 
 def process_adjoint_solver_parameters(linear_solver_parameters):
