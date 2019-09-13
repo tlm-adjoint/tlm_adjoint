@@ -45,7 +45,6 @@ __all__ = \
         "AssignmentSolver",
         "AxpySolver",
         "FixedPointSolver",
-        "InitialGuessSolver",
         "LinearCombinationSolver",
         "NullSolver",
         "ScaleSolver",
@@ -687,28 +686,6 @@ class AxpySolver(LinearCombinationSolver):
     def __init__(self, x_old, alpha, y, x_new):
         LinearCombinationSolver.__init__(self, x_new, (1.0, x_old),
                                          (alpha, y))
-
-
-class InitialGuessSolver(Equation):
-    def __init__(self, y, x):
-        if function_space_id(x.function_space()) != function_space_id(y.function_space()):  # noqa: E501
-            raise EquationException("Invalid function space")
-        Equation.__init__(self, x, deps=[x, y], nl_deps=[], ic_deps=[])
-
-    def forward_solve(self, x, deps=None):
-        _, y = self.dependencies() if deps is None else deps
-        function_assign(x, y)
-
-    def adjoint_jacobian_solve(self, nl_deps, b):
-        return None
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x, y = self.dependencies()
-        tau_y = get_tangent_linear(y, M, dM, tlm_map)
-        if tau_y is None:
-            return NullSolver(tlm_map[x])
-        else:
-            return InitialGuessSolver(tau_y, tlm_map[x])
 
 
 class FixedPointSolver(Equation):

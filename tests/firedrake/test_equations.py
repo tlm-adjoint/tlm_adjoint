@@ -631,7 +631,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
-def test_InitialGuessSolver(setup_test, test_leaks):
+def test_initial_guess(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Lagrange", 1)
@@ -671,7 +671,7 @@ def test_InitialGuessSolver(setup_test, test_leaks):
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         solver_parameters=self._solver_parameters)
 
-        InitialGuessSolver(x_0, x).solve()
+        AssignmentSolver(x_0, x).solve()
         TestSolver(
             y, x,
             solver_parameters={"ksp_type": "cg",
