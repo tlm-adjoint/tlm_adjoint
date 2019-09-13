@@ -540,23 +540,26 @@ def test_Storage(setup_test, test_leaks):
 
         J = Functional(name="J")
         InnerProductSolver(y, y_s, J.fn()).solve()
-        return d, h, J
+        return y, x_s, y_s, d, h, J
 
     x = Function(space, name="x", static=True)
     interpolate_expression(x, cos(pi * X[0]) * exp(X[1]))
 
     start_manager()
-    d, h, J = forward(x)
+    y, x_s, y_s, d, h, J = forward(x)
     stop_manager()
 
     assert(len(manager()._cp._refs) == 1)
     assert(tuple(manager()._cp._refs.keys()) == (x.id(),))
     assert(len(manager()._cp._cp) == 0)
+    assert(len(manager()._cp._data) == 4)
+    assert(tuple(manager()._cp._data.keys())
+           == ((x.id(), 0), (x_s.id(), 1), (y.id(), 1), (y_s.id(), 1)))
 
     J_val = J.value()
 
     def forward_J(x):
-        return forward(x, d=d, h=h)[2]
+        return forward(x, d=d, h=h)[5]
 
     dJ = compute_gradient(J, x)
 
@@ -682,33 +685,42 @@ def test_initial_guess(setup_test, test_leaks):
 
         J = Functional(name="J")
         J.assign(inner(dot(x, x), dot(x, x)) * dx)
-        return J
+        return x, J
 
     y = Function(space_2, name="y", static=True)
     interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
 
     start_manager()
     x_0 = project(y, space_1, name="x_0", solver_parameters=ls_parameters_cg)
-    J = forward(y, x_0=x_0)
+    x, J = forward(y, x_0=x_0)
     stop_manager()
+
+    assert(len(manager()._cp._refs) == 1)
+    assert(tuple(manager()._cp._refs.keys()) == (y.id(),))
+    assert(len(manager()._cp._cp) == 0)
+    assert(len(manager()._cp._data) == 2)
+    assert(tuple(manager()._cp._data.keys()) == ((y.id(), 0), (x.id(), 2)))
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
     assert(function_linf_norm(dJdx_0) == 0.0)
 
     J_val = J.value()
 
-    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJdy)
+    def forward_J(y):
+        return forward(y)[1]
+
+    min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJdy)
     assert(min_order > 2.00)
 
-    ddJ = Hessian(forward)
-    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ)
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
     assert(min_order > 3.00)
 
-    min_order = taylor_test_tlm(forward, y, tlm_order=1)
+    min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
     assert(min_order > 2.00)
 
-    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1)
+    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
     assert(min_order > 2.00)
 
-    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2)
+    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
     assert(min_order > 2.00)
