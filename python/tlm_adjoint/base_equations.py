@@ -703,8 +703,8 @@ class FixedPointSolver(Equation):
 
         eqs
             A list or tuple of Equation objects. The last equation defines the
-            solution of the fixed point iteration. All equations must solve for
-            single and distinct Function objects.
+            solution of the fixed point iteration. A single Function cannot
+            appear as the solution to two or more equations.
         solver_parameters
             Solver parameters dictionary. Parameters (based on KrylovSolver
             parameters in FEniCS 2017.2.0):
@@ -719,25 +719,26 @@ class FixedPointSolver(Equation):
                     default 1000.
                 nonzero_initial_guess
                     Whether to use a non-zero initial guess for the forward
-                    solve. Logical, optional, default True.
+                    solve (for the final equation in eqs). Logical, optional,
+                    default True.
                 nonzero_adjoint_initial_guess
                     Whether to use a non-zero initial guess for the adjoint
                     solve. If True, the solution on the previous
                     adjoint_jacobian_solve call is retained and used as an
                     initial guess for a later call. If False, or on the first
-                    call, the adjoint equation right-hand-side is used as an
-                    initial guess. Logical, optional, default False.
+                    call, a zero initial guess is used. Logical, optional,
+                    default False.
                 report
                     Whether to display output. Optional, default False.
         """
 
-        x_ids = set()
+        X_ids = set()
         for eq in eqs:
-            # Raises an error here if eq solves for more than one Function
-            eq_x_id = eq.x().id()
-            if eq_x_id in x_ids:
-                raise EquationException("Duplicate solve")
-            x_ids.add(eq_x_id)
+            for x in eq.X():
+                x_id = x.id()
+                if x_id in X_ids:
+                    raise EquationException("Duplicate solve")
+                X_ids.add(x_id)
 
         solver_parameters = copy_parameters_dict(solver_parameters)
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
@@ -748,22 +749,26 @@ class FixedPointSolver(Equation):
             if key not in solver_parameters:
                 solver_parameters[key] = default_value
 
+        X = []
         deps = []
         dep_ids = {}
         nl_deps = []
         nl_dep_ids = {}
         ic_deps = {}
 
+        eq_X_indices = tuple([] for eq in eqs)
         eq_dep_indices = tuple([] for eq in eqs)
         eq_nl_dep_indices = tuple([] for eq in eqs)
 
         previous_x_ids = set()
-        remaining_x_ids = x_ids
-        del(x_ids)
+        remaining_x_ids = X_ids
+        del(X_ids)
 
         for i, eq in enumerate(eqs):
-            x_id = eq.x().id()
-            remaining_x_ids.remove(x_id)
+            for x in eq.X():
+                X.append(x)
+                eq_X_indices[i].append(len(X) - 1)
+
             for dep in eq.dependencies():
                 dep_id = dep.id()
                 if dep_id not in dep_ids:
@@ -772,17 +777,26 @@ class FixedPointSolver(Equation):
                 eq_dep_indices[i].append(dep_ids[dep_id])
                 if dep_id in remaining_x_ids and dep_id not in ic_deps:
                     ic_deps[dep_id] = dep
+
             for dep in eq.nonlinear_dependencies():
                 dep_id = dep.id()
                 if dep_id not in nl_dep_ids:
                     nl_deps.append(dep)
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 eq_nl_dep_indices[i].append(nl_dep_ids[dep_id])
+
             for dep in eq.initial_condition_dependencies():
                 dep_id = dep.id()
+                # Could exclude eqs[-1].X() here if nonzero_initial_guess is
+                # False
                 if dep_id not in previous_x_ids and dep_id not in ic_deps:
                     ic_deps[dep_id] = dep
-            previous_x_ids.add(x_id)
+
+            for x in eq.X():
+                x_id = x.id()
+                if x_id in remaining_x_ids:
+                    remaining_x_ids.remove(x_id)
+                previous_x_ids.add(x_id)
 
         del(previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids)
         ic_deps = tuple(ic_deps.values())
@@ -791,16 +805,31 @@ class FixedPointSolver(Equation):
                             for i, eq_dep in enumerate(eq.dependencies())}
                            for eq in eqs)
 
-        Equation.__init__(self, [eq.x() for eq in eqs], deps, nl_deps=nl_deps,
-                          ic_deps=ic_deps)
+        dep_map = {}
+        for i, eq in enumerate(eqs):
+            for m, x in enumerate(eq.X()):
+                dep_map[x.id()] = (i, m)
+        tdeps = tuple([] for eq in eqs)
+        for k, eq in enumerate(eqs):
+            X_ids = set(x.id() for x in eq.X())
+            for j, dep in enumerate(eq.dependencies()):
+                dep_id = dep.id()
+                if dep_id not in X_ids and dep_id in dep_map:
+                    i, m = dep_map[dep_id]
+                    tdeps[i].append((j, k, m))
+        del(dep_map)
+
+        Equation.__init__(self, X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._eqs = tuple(eqs)
+        self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices
         self._eq_nl_dep_indices = eq_nl_dep_indices
         self._eq_dep_ids = eq_dep_ids
         self._solver_parameters = solver_parameters
 
-        self._tdeps = None
-        self._adj_X = None
+        self._tdeps = tdeps
+
+        self._adj_X_cache = {}
 
     def replace(self, replace_map):
         Equation.replace(self, replace_map)
@@ -819,58 +848,84 @@ class FixedPointSolver(Equation):
             self._solver_parameters["nonzero_initial_guess"]
         report = self._solver_parameters["report"]
 
-        x = X[-1]
-        if not nonzero_initial_guess:
-            function_zero(x)
-
+        eq_X = tuple(tuple(X[j] for j in self._eq_X_indices[i])
+                     for i in range(len(self._eqs)))
         if deps is None:
             eq_deps = tuple(None for i in range(len(self._eqs)))
         else:
             eq_deps = tuple(tuple(deps[j] for j in self._eq_dep_indices[i])
                             for i in range(len(self._eqs)))
 
+        if not nonzero_initial_guess:
+            for x in eq_X[-1]:
+                function_zero(x)
+
         it = 0
-        x_0 = function_new(x)
+        X_0 = tuple(function_new(x) for x in eq_X[-1])
         tolerance_sq = absolute_tolerance ** 2
         while True:
             it += 1
 
             for i, eq in enumerate(self._eqs):
-                eq.forward((X[i],), deps=eq_deps[i])
+                eq.forward(eq_X[i], deps=eq_deps[i])
 
-            r = x_0
-            del(x_0)
-            function_axpy(r, -1.0, x)
-            r_norm_sq = function_inner(r, r)
+            R = X_0
+            del(X_0)
+            R_norm_sq = 0.0
+            for r, x in zip(R, eq_X[-1]):
+                function_axpy(r, -1.0, x)
+                R_norm_sq += function_inner(r, r)
             if report:
-                info(f"Fixed point iteration (forward equation for {function_name(self.X()[-1]):s}): iteration {it:d}, change norm {np.sqrt(r_norm_sq):.16e} (tolerance {np.sqrt(tolerance_sq):.16e})")  # noqa: E501
-            if np.isnan(r_norm_sq):
-                raise EquationException(f"Fixed point iteration (forward equation for {function_name(self.X()[-1]):s}): NaN encountered after {it:d} iteration(s)")  # noqa: E501
-            if r_norm_sq < tolerance_sq or r_norm_sq == 0.0:
+                info(f"Fixed point iteration, forward iteration {it:d}, "
+                     f"change norm {np.sqrt(R_norm_sq):.16e} "
+                     f"(tolerance {np.sqrt(tolerance_sq):.16e})")
+            if np.isnan(R_norm_sq):
+                raise EquationException(
+                    f"Fixed point iteration, forward iteration {it:d}, "
+                    f"NaN encountered")
+            if R_norm_sq < tolerance_sq or R_norm_sq == 0.0:
                 break
             if it >= maximum_iterations:
-                raise EquationException(f"Fixed point iteration (forward equation for {function_name(self.X()[-1]):s}): did not converge after {it:d} iteration(s)")  # noqa: E501
+                raise EquationException(
+                    f"Fixed point iteration, forward iteration {it:d}, "
+                    f"failed to converge")
             if it == 1:
                 tolerance_sq = max(tolerance_sq,
-                                   r_norm_sq * (relative_tolerance ** 2))
+                                   R_norm_sq * (relative_tolerance ** 2))
 
-            x_0 = r
-            del(r)
-            function_assign(x_0, x)
+            X_0 = R
+            del(R)
+            for x_0, x in zip(X_0, eq_X[-1]):
+                function_assign(x_0, x)
 
     def reset_adjoint(self):
         for eq in self._eqs:
             eq.reset_adjoint()
 
+        self._adj_X_cache.clear()
+
     def initialize_adjoint(self, J, nl_deps):
         self._eq_nl_deps = tuple(tuple(nl_deps[j]
                                        for j in self._eq_nl_dep_indices[i])
                                  for i in range(len(self._eqs)))
+
         for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
             eq.initialize_adjoint(J, eq_nl_deps)
 
+        if self._solver_parameters["nonzero_adjoint_initial_guess"]:
+            J_id = J.id()
+            if J_id not in self._adj_X_cache:
+                self._adj_X_cache[J_id] = [function_new(x) for x in self.X()]
+            self._adj_X = self._adj_X_cache[J_id]
+        else:
+            self._adj_X = [function_new(x) for x in self.X()]
+        self._eq_adj_X = [tuple(self._adj_X[j] for j in self._eq_X_indices[i])
+                          for i in range(len(self._eqs))]
+
     def finalize_adjoint(self, J):
         del(self._eq_nl_deps)
+        del(self._adj_X)
+        del(self._eq_adj_X)
 
     def adjoint_jacobian_solve(self, nl_deps, B):
         if is_function(B):
@@ -882,75 +937,70 @@ class FixedPointSolver(Equation):
         maximum_iterations = self._solver_parameters["maximum_iterations"]
         report = self._solver_parameters["report"]
 
-        adj_X = self._initialize_adjoint_jacobian_solve(B)
-        x = adj_X[-1]
+        adj_X = self._adj_X
+        eq_adj_X = self._eq_adj_X
 
         it = 0
-        x_0 = function_new(x)
+        X_0 = tuple(function_new(x) for x in eq_adj_X[-1])
         tolerance_sq = absolute_tolerance ** 2
         while True:
             it += 1
 
             for i in range(len(self._eqs) - 1, - 1, -1):
                 i = (i - 1) % len(self._eqs)
-                b = function_copy(B[i])
+                eq_B = tuple(function_copy(B[j])
+                             for j in self._eq_X_indices[i])
 
-                for j, k in self._tdeps[i]:
-                    eq = self._eqs[k]
-                    eq_nl_deps = self._eq_nl_deps[k]
-                    adj_x = adj_X[k]
-                    sb = eq.adjoint_derivative_action(eq_nl_deps, j, adj_x)
-                    function_subtract_adjoint_derivative_action(b, sb)
+                for j, k, m in self._tdeps[i]:
+                    if len(eq_adj_X[k]) == 1:
+                        sb = self._eqs[k].adjoint_derivative_action(
+                            self._eq_nl_deps[k], j, eq_adj_X[k][0])
+                    else:
+                        sb = self._eqs[k].adjoint_derivative_action(
+                            self._eq_nl_deps[k], j, eq_adj_X[k])
+                    function_subtract_adjoint_derivative_action(eq_B[m], sb)
                     del(sb)
-                function_finalize_adjoint_derivative_action(b)
+                for b in eq_B:
+                    function_finalize_adjoint_derivative_action(b)
 
-                eq = self._eqs[i]
-                eq_nl_deps = self._eq_nl_deps[i]
-                adj_X[i] = eq.adjoint_jacobian_solve(eq_nl_deps, b)
-                if adj_X[i] is None:
-                    adj_X[i] = function_new(b)
-            x = adj_X[-1]
+                eq_adj_X[i] = self._eqs[i].adjoint_jacobian_solve(
+                    self._eq_nl_deps[i], eq_B[0] if len(eq_B) == 1 else eq_B)
+                if eq_adj_X[i] is None:
+                    eq_adj_X[i] = tuple(function_new(b) for b in eq_B)
+                elif is_function(eq_adj_X[i]):
+                    eq_adj_X[i] = (eq_adj_X[i],)
+                for j, x in zip(self._eq_X_indices[i], eq_adj_X[i]):
+                    adj_X[j] = x
 
-            r = x_0
-            del(x_0)
-            function_axpy(r, -1.0, x)
-            r_norm_sq = function_inner(r, r)
+            R = X_0
+            del(X_0)
+            R_norm_sq = 0.0
+            for r, x in zip(R, eq_adj_X[-1]):
+                function_axpy(r, -1.0, x)
+                R_norm_sq += function_inner(r, r)
             if report:
-                info(f"Fixed point iteration (adjoint equation for {function_name(self.X()[-1]):s}): iteration {it:d}, change norm {np.sqrt(r_norm_sq):.16e} (tolerance {np.sqrt(tolerance_sq):.16e})")  # noqa: E501
-            if np.isnan(r_norm_sq):
-                raise EquationException(f"Fixed point iteration (adjoint equation for {function_name(self.X()[-1]):s}): NaN encountered after {it:d} iteration(s)")  # noqa: E501
-            if r_norm_sq < tolerance_sq or r_norm_sq == 0.0:
+                info(f"Fixed point iteration, adjoint iteration {it:d}, "
+                     f"change norm {np.sqrt(R_norm_sq):.16e} "
+                     f"(tolerance {np.sqrt(tolerance_sq):.16e})")
+            if np.isnan(R_norm_sq):
+                raise EquationException(
+                    f"Fixed point iteration, adjoint iteration {it:d}, "
+                    f"NaN encountered")
+            if R_norm_sq < tolerance_sq or R_norm_sq == 0.0:
                 break
             if it >= maximum_iterations:
-                raise EquationException(f"Fixed point iteration (adjoint equation for {function_name(self.X()[-1]):s}): did not converge after {it:d} iteration(s)")  # noqa: E501
+                raise EquationException(
+                    f"Fixed point iteration, adjoint iteration {it:d}, "
+                    f"failed to converge")
             if it == 1:
                 tolerance_sq = max(tolerance_sq,
-                                   r_norm_sq * (relative_tolerance ** 2))
+                                   R_norm_sq * (relative_tolerance ** 2))
 
-            x_0 = r
-            del(r)
-            function_assign(x_0, x)
+            X_0 = R
+            del(R)
+            for x_0, x in zip(X_0, eq_adj_X[-1]):
+                function_assign(x_0, x)
 
-        return adj_X
-
-    def _initialize_adjoint_jacobian_solve(self, B):
-        if self._tdeps is None:
-            eq_x_ids = {eq.x().id(): i for i, eq in enumerate(self._eqs)}
-            self._tdeps = [[] for eq in self._eqs]
-            for i, eq in enumerate(self._eqs):
-                for j, dep in enumerate(eq.dependencies()):
-                    dep_id = dep.id()
-                    if dep_id in eq_x_ids:
-                        k = eq_x_ids[dep_id]
-                        if k != i:
-                            self._tdeps[k].append((j, i))
-
-        if self._solver_parameters["nonzero_adjoint_initial_guess"]:
-            if self._adj_X is None:
-                self._adj_X = [function_copy(b) for b in B]
-            adj_X = self._adj_X
-        else:
-            adj_X = [function_copy(b) for b in B]
         return adj_X
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
@@ -960,12 +1010,14 @@ class FixedPointSolver(Equation):
         dep = self.dependencies()[dep_index]
         dep_id = dep.id()
         F = function_new(dep)
-        for eq, eq_nl_deps, eq_dep_ids, adj_x in zip(self._eqs,
-                                                     self._eq_nl_deps,
-                                                     self._eq_dep_ids, adj_X):
+        for eq, eq_nl_deps, eq_dep_ids, eq_adj_X in zip(self._eqs,
+                                                        self._eq_nl_deps,
+                                                        self._eq_dep_ids,
+                                                        self._eq_adj_X):
             if dep_id in eq_dep_ids:
-                sb = eq.adjoint_derivative_action(eq_nl_deps,
-                                                  eq_dep_ids[dep_id], adj_x)
+                sb = eq.adjoint_derivative_action(
+                    eq_nl_deps, eq_dep_ids[dep_id],
+                    eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X)
                 function_subtract_adjoint_derivative_action(F, sb)
                 del(sb)
         function_finalize_adjoint_derivative_action(F)
@@ -977,7 +1029,7 @@ class FixedPointSolver(Equation):
         for eq in self._eqs:
             tlm_eq = eq.tangent_linear(M, dM, tlm_map)
             if tlm_eq is None:
-                tlm_eq = NullSolver(tlm_map[eq.x()])
+                tlm_eq = NullSolver([tlm_map[x] for x in eq.X()])
             tlm_eqs.append(tlm_eq)
 
         return FixedPointSolver(tlm_eqs,
