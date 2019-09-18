@@ -22,6 +22,7 @@ from .backend import *
 from .backend import backend_assemble as assemble
 
 import copy
+import numpy as np
 import ufl
 
 __all__ = \
@@ -44,6 +45,7 @@ __all__ = \
         "rhs_addto",
         "rhs_copy",
         "update_parameters_dict",
+        "verify_assembly",
 
         "assemble",
         "assemble_system",
@@ -72,6 +74,12 @@ if "match_quadrature" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"]["match_quadrature"] = False
 if "defer_adjoint_assembly" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"]["defer_adjoint_assembly"] = False
+if "assembly_verification" not in _parameters:
+    _parameters["assembly_verification"] = {}
+if "jacobian_tolerance" not in _parameters["assembly_verification"]:
+    _parameters["assembly_verification"]["jacobian_tolerance"] = np.inf
+if "rhs_tolerance" not in _parameters["assembly_verification"]:
+    _parameters["assembly_verification"]["rhs_tolerance"] = np.inf
 del(_parameters)
 
 
@@ -251,6 +259,30 @@ def parameters_key(parameters):
         else:
             key.append((name, sub_parameters))
     return tuple(key)
+
+
+def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
+                    linear_solver_parameters, J_tolerance, b_tolerance):
+    if not np.isposinf(J_tolerance):
+        J_mat_debug = backend_assemble(
+            J, bcs=bcs, **assemble_arguments(2,
+                                             form_compiler_parameters,
+                                             linear_solver_parameters))
+        J_error = J_mat.petscmat.copy()
+        J_error.axpy(-1.0, J_mat_debug.petscmat)
+        import petsc4py.PETSc as PETSc
+        assert(J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY)
+               <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
+
+    if not np.isposinf(b_tolerance):
+        b_debug = backend_assemble(
+            rhs, form_compiler_parameters=form_compiler_parameters)
+        b_error = b.copy(deepcopy=True)
+        with b_error.dat.vec as b_error_v, b_debug.dat.vec_ro as b_debug_v:
+            b_error_v.axpy(-1.0, b_debug_v)
+        with b_error.dat.vec_ro as b_error_v, b.dat.vec_ro as b_v:
+            assert(b_error_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
+                   <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
 
 
 def solve(*args, **kwargs):

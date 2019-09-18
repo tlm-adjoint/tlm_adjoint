@@ -26,7 +26,7 @@ from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear
 from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
     bcs_is_static, form_neg, is_cached, linear_solver_cache, new_count, \
-    split_form, update_caches
+    split_form, update_caches, verify_assembly
 
 import copy
 import operator
@@ -604,42 +604,16 @@ class EquationSolver(Equation):
                 # Construct the linear solver
                 J_solver = linear_solver(J_mat, self._linear_solver_parameters)
 
-#             if deps is None:
-#                 assemble_J = self._J
-#                 assemble_rhs = self._rhs
-#             else:
-#                 assemble_J = ufl.replace(self._J, dict(zip(eq_deps, deps)))
-#                 assemble_rhs = ufl.replace(self._rhs,
-#                                            dict(zip(eq_deps, deps)))
-#
-#             # FEniCS
-#             J_mat_debug, b_debug = backend_assemble_system(
-#                 assemble_J, assemble_rhs, self._bcs,
-#                 **assemble_arguments(2,
-#                                      self._form_compiler_parameters,
-#                                      self._linear_solver_parameters))
-#             assert((J_mat - J_mat_debug).norm("linf")
-#                    <= 1.0e-15 * J_mat.norm("linf"))
-#             assert((b - b_debug).norm("linf") <= 1.0e-14 * b.norm("linf"))
-#
-#             # Firedrake
-#             J_mat_debug = backend_assemble(
-#                 assemble_J, bcs=self._bcs,
-#                 **assemble_arguments(2,
-#                                      self._form_compiler_parameters,
-#                                      self._linear_solver_parameters))
-#             b_debug = backend_assemble(
-#                 assemble_rhs,
-#                 form_compiler_parameters=self._form_compiler_parameters)
-#             J_error = J_mat.petscmat.copy()
-#             J_error.axpy(-1.0, J_mat_debug.petscmat)
-#             import petsc4py.PETSc as PETSc
-#             assert(J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY)
-#                    <= 1.0e-15 * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
-#             b_error = function_copy(b)
-#             function_axpy(b_error, -1.0, b_debug)
-#             assert(function_linf_norm(b_error)
-#                    <= 1.0e-14 * function_linf_norm(b))
+            J_tolerance = parameters["tlm_adjoint"]["assembly_verification"]["jacobian_tolerance"]  # noqa: E501
+            b_tolerance = parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"]  # noqa: E501
+            if not np.isposinf(J_tolerance) or not np.isposinf(b_tolerance):
+                verify_assembly(
+                    self._J if deps is None
+                    else ufl.replace(self._J, dict(zip(eq_deps, deps))),
+                    self._rhs if deps is None
+                    else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
+                    J_mat, b, self._bcs, self._form_compiler_parameters,
+                    self._linear_solver_parameters, J_tolerance, b_tolerance)
 
             J_solver.solve(function_vector(x), b)
             if alias_clear_J:

@@ -44,6 +44,7 @@ __all__ = \
         "rhs_addto",
         "rhs_copy",
         "update_parameters_dict",
+        "verify_assembly",
 
         "dolfin_form",
         "clear_dolfin_form",
@@ -75,6 +76,12 @@ if "match_quadrature" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("match_quadrature", False)
 if "defer_adjoint_assembly" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("defer_adjoint_assembly", False)
+if "assembly_verification" not in _parameters:
+    _parameters.add(Parameters("assembly_verification"))
+if "jacobian_tolerance" not in _parameters["assembly_verification"]:
+    _parameters["assembly_verification"].add("jacobian_tolerance", np.inf)
+if "rhs_tolerance" not in _parameters["assembly_verification"]:
+    _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
 del(_parameters)
 
 
@@ -268,6 +275,24 @@ def parameters_key(parameters):
         else:
             key.append((name, sub_parameters))
     return tuple(key)
+
+
+def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
+                    linear_solver_parameters, J_tolerance, b_tolerance):
+    if np.isposinf(J_tolerance) and np.isposinf(b_tolerance):
+        return
+
+    J_mat_debug, b_debug = backend_assemble_system(
+        J, rhs, bcs, **assemble_arguments(2,
+                                          form_compiler_parameters,
+                                          linear_solver_parameters))
+
+    if not np.isposinf(J_tolerance):
+        assert((J_mat - J_mat_debug).norm("linf")
+               <= J_tolerance * J_mat.norm("linf"))
+
+    if not np.isposinf(b_tolerance):
+        assert((b - b_debug).norm("linf") <= b_tolerance * b.norm("linf"))
 
 # The following override assemble, assemble_system, and solve so that DOLFIN
 # Form objects are cached on UFL form objects
