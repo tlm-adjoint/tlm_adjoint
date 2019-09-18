@@ -447,7 +447,7 @@ if debug:
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), dJ=dJ,
                             seed=1.0e-4)
-    assert(min_order > 2.00)
+    assert(min_order > 1.99)
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
                             seed=1.0e-3)
