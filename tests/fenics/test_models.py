@@ -247,7 +247,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm)
-        assert(min_order > 2.98)
+        assert(min_order > 2.97)
 
         min_order = taylor_test_tlm(forward_J, m0, tlm_order=1,
                                     dMs=None if dm is None else (dm,))
