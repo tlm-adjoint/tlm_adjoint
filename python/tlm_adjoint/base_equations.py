@@ -862,7 +862,6 @@ class FixedPointSolver(Equation):
 
         it = 0
         X_0 = tuple(function_new(x) for x in eq_X[-1])
-        tolerance_sq = absolute_tolerance ** 2
         while True:
             it += 1
 
@@ -875,6 +874,14 @@ class FixedPointSolver(Equation):
             for r, x in zip(R, eq_X[-1]):
                 function_axpy(r, -1.0, x)
                 R_norm_sq += function_inner(r, r)
+            if relative_tolerance == 0.0:
+                tolerance_sq = absolute_tolerance ** 2
+            else:
+                X_norm_sq = 0.0
+                for x in eq_X[-1]:
+                    X_norm_sq += function_inner(x, x)
+                tolerance_sq = max(absolute_tolerance ** 2,
+                                   X_norm_sq * (relative_tolerance ** 2))
             if report:
                 info(f"Fixed point iteration, forward iteration {it:d}, "
                      f"change norm {np.sqrt(R_norm_sq):.16e} "
@@ -889,9 +896,6 @@ class FixedPointSolver(Equation):
                 raise EquationException(
                     f"Fixed point iteration, forward iteration {it:d}, "
                     f"failed to converge")
-            if it == 1:
-                tolerance_sq = max(tolerance_sq,
-                                   R_norm_sq * (relative_tolerance ** 2))
 
             X_0 = R
             del(R)
@@ -942,7 +946,6 @@ class FixedPointSolver(Equation):
 
         it = 0
         X_0 = tuple(function_new(x) for x in eq_adj_X[-1])
-        tolerance_sq = absolute_tolerance ** 2
         while True:
             it += 1
 
@@ -978,6 +981,14 @@ class FixedPointSolver(Equation):
             for r, x in zip(R, eq_adj_X[-1]):
                 function_axpy(r, -1.0, x)
                 R_norm_sq += function_inner(r, r)
+            if relative_tolerance == 0.0:
+                tolerance_sq = absolute_tolerance ** 2
+            else:
+                X_norm_sq = 0.0
+                for x in eq_adj_X[-1]:
+                    X_norm_sq += function_inner(x, x)
+                tolerance_sq = max(absolute_tolerance ** 2,
+                                   X_norm_sq * (relative_tolerance ** 2))
             if report:
                 info(f"Fixed point iteration, adjoint iteration {it:d}, "
                      f"change norm {np.sqrt(R_norm_sq):.16e} "
@@ -992,9 +1003,6 @@ class FixedPointSolver(Equation):
                 raise EquationException(
                     f"Fixed point iteration, adjoint iteration {it:d}, "
                     f"failed to converge")
-            if it == 1:
-                tolerance_sq = max(tolerance_sq,
-                                   R_norm_sq * (relative_tolerance ** 2))
 
             X_0 = R
             del(R)
