@@ -95,6 +95,7 @@ class SingleBlockHessian(Hessian):
         for i, eq in enumerate(block):
             eq_X = eq.X()
             # Copy annotation of the equation
+            manager._eqs[eq.id()] = eq
             manager._block.append(eq)
             manager._cp.add_equation((0, len(manager._block) - 1), eq,
                                      nl_deps=self._manager._cp[(0, i)],
@@ -138,6 +139,7 @@ class SingleBlockHessian(Hessian):
                     # Solve the tangent-linear equation
                     tlm_eq.forward(tlm_X, deps=tlm_deps)
                     # Post-process the tangent-linear equation
+                    manager._eqs[tlm_eq.id()] = tlm_eq
                     manager._block.append(tlm_eq)
                     manager._cp.add_equation((0, len(manager._block) - 1),
                                              tlm_eq, deps=tlm_deps)
