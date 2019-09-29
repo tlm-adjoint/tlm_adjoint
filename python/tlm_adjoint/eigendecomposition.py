@@ -61,8 +61,13 @@ import numpy as np
 
 __all__ = \
     [
+        "EigendecompositionException",
         "eigendecompose"
     ]
+
+
+class EigendecompositionException(Exception):
+    pass
 
 
 def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
@@ -112,11 +117,23 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     if which is None:
         which = SLEPc.EPS.Which.LARGEST_MAGNITUDE
 
+    eps_error = [False]
+
+    def flag_errors(fn):
+        def wrapped_fn(*args, **kwargs):
+            try:
+                fn(*args, **kwargs)
+            except:  # noqa: E722
+                eps_error[0] = True
+                raise
+        return wrapped_fn
+
     class PythonMatrix:
         def __init__(self, action, X):
             self._action = action
             self._X = X
 
+        @flag_errors
         def mult(self, A, x, y):
             function_set_values(self._X, x.getArray(readonly=True))
             y.setArray(self._action(self._X))
@@ -146,6 +163,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     esolver.setUp()
 
     esolver.solve()
+    if eps_error[0]:
+        raise EigendecompositionException("Error encountered in "
+                                          "SLEPc.EPS.solve")
 
     lam = np.empty(esolver.getConverged(),
                    dtype=np.float64 if esolver.isHermitian() else np.complex64)
