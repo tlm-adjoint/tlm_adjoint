@@ -122,7 +122,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     def flag_errors(fn):
         def wrapped_fn(*args, **kwargs):
             try:
-                fn(*args, **kwargs)
+                return fn(*args, **kwargs)
             except:  # noqa: E722
                 eps_error[0] = True
                 raise
