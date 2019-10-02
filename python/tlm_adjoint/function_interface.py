@@ -20,8 +20,9 @@
 
 __all__ = \
     [
-        "FunctionInterface",
         "InterfaceException",
+
+        "FunctionInterface",
         "function_alias",
         "function_assign",
         "function_axpy",

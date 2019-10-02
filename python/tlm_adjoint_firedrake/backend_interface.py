@@ -32,6 +32,8 @@ import sys
 
 __all__ = \
     [
+        "InterfaceException",
+
         "Function",
         "FunctionSpace",
         "RealFunctionSpace",
@@ -48,8 +50,8 @@ __all__ = \
         "function_function_space",
         "function_get_values",
         "function_global_size",
-        "function_inner",
         "function_id",
+        "function_inner",
         "function_is_cached",
         "function_is_checkpointed",
         "function_is_static",
