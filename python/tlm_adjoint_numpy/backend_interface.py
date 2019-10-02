@@ -18,6 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+from .function_interface import *
+from .function_interface import FunctionInterface as _FunctionInterface
+
 import copy
 import numpy as np
 import sys
@@ -39,6 +42,7 @@ __all__ = \
         "function_comm",
         "function_copy",
         "function_finalize_adjoint_derivative_action",
+        "function_function_space",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -67,10 +71,6 @@ __all__ = \
         "replaced_function",
         "warning"
     ]
-
-
-class InterfaceException(Exception):
-    pass
 
 
 def clear_caches(*deps):
@@ -113,6 +113,132 @@ def RealFunctionSpace(comm=None):
     return FunctionSpace(1)
 
 
+class SerialComm:
+    # Interface as in mpi4py 3.0.1
+    def allgather(self, sendobj):
+        v = sendobj.view()
+        v.setflags(write=False)
+        return (v,)
+
+    def barrier(self):
+        pass
+
+    # Interface as in mpi4py 3.0.1
+    def bcast(self, obj, root=0):
+        return copy.deepcopy(obj)
+
+    def py2f(self):
+        return 0
+
+    @property
+    def rank(self):
+        return 0
+
+    @property
+    def size(self):
+        return 1
+
+
+_comm = SerialComm()
+
+
+class FunctionInterface(_FunctionInterface):
+    def comm(self):
+        return _comm
+
+    def function_space(self):
+        return self._x.function_space()
+
+    def id(self):
+        return self._x.id()
+
+    def name(self):
+        return self._x.name()
+
+    def state(self):
+        return self._x.state()
+
+    def update_state(self):
+        self._x.update_state()
+
+    def is_static(self):
+        return self._x.is_static()
+
+    def is_cached(self):
+        return self._x.is_cached()
+
+    def is_checkpointed(self):
+        return self._x.is_checkpointed()
+
+    def tlm_depth(self):
+        return self._x.tlm_depth()
+
+    def zero(self):
+        self._x.vector()[:] = 0.0
+
+    def assign(self, y):
+        if isinstance(y, (int, float)):
+            self._x.vector()[:] = y
+        else:
+            self._x.vector()[:] = y.vector()
+
+    def axpy(self, alpha, y):
+        self._x.vector()[:] += alpha * y.vector()
+
+    def inner(self, y):
+        return self._x.vector().dot(y.vector())
+
+    def max_value(self):
+        return self._x.vector().max()
+
+    def sum(self):
+        return self._x.vector().sum()
+
+    def linf_norm(self):
+        return abs(self._x.vector()).max()
+
+    def local_size(self):
+        return self._x.vector().shape[0]
+
+    def global_size(self):
+        return self._x.vector().shape[0]
+
+    def local_indices(self):
+        return slice(0, self._x.vector().shape[0])
+
+    def get_values(self):
+        values = self._x.vector().view()
+        values.setflags(write=False)
+        return values
+
+    def set_values(self, values):
+        self._x.vector()[:] = values
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._x.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
+
+    def copy(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        return Function(self._x.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth, _data=self._x.vector().copy())
+
+    def tangent_linear(self, name=None):
+        return self._x.tangent_linear(name=name)
+
+    def replaced(self):
+        return self._x.replaced()
+
+    def alias(self):
+        return Function(self._x.function_space(), name=self._x.name(),
+                        static=self._x.is_static(), cache=self._x.is_cached(),
+                        checkpoint=self._x.is_checkpointed(),
+                        tlm_depth=self._x.tlm_depth(), _data=self._x.vector())
+
+
 class Function:
     _id_counter = [0]
 
@@ -135,11 +261,13 @@ class Function:
         self._cache = cache
         self._checkpoint = checkpoint
         self._tlm_depth = tlm_depth
+        self._replacement = None
         self._id = id
         if _data is None:
             self._data = np.zeros(space.dim(), dtype=np.float64)
         else:
             self._data = _data
+        self._tlm_adjoint__interface = FunctionInterface(self)
 
     def function_space(self):
         return self._space
@@ -177,8 +305,45 @@ class Function:
                             checkpoint=self.is_checkpointed(),
                             tlm_depth=self.tlm_depth() + 1)
 
+    def replaced(self):
+        if self._replacement is None:
+            self._replacement = ReplacementFunction(self)
+        return self._replacement
+
     def vector(self):
         return self._data
+
+
+class ReplacementFunctionInterface(_FunctionInterface):
+    def function_space(self):
+        return self._x.function_space()
+
+    def id(self):
+        return self._x.id()
+
+    def name(self):
+        return self._x.name()
+
+    def state(self):
+        return self._x.state()
+
+    def is_static(self):
+        return self._x.is_static()
+
+    def is_cached(self):
+        return self._x.is_cached()
+
+    def is_checkpointed(self):
+        return self._x.is_checkpointed()
+
+    def tlm_depth(self):
+        return self._x.tlm_depth()
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._x.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
 
 
 class ReplacementFunction:
@@ -191,6 +356,7 @@ class ReplacementFunction:
         self._checkpoint = x.is_checkpointed()
         self._tlm_depth = x.tlm_depth()
         self._id = x.id()
+        self._tlm_adjoint__interface = ReplacementFunctionInterface(self)
 
     def function_space(self):
         return self._space
@@ -203,9 +369,6 @@ class ReplacementFunction:
 
     def state(self):
         return self._state
-
-    def update_state(self):
-        raise InterfaceException("Cannot change a ReplacementFunction")
 
     def is_static(self):
         return self._static
@@ -220,160 +383,8 @@ class ReplacementFunction:
         return self._tlm_depth
 
 
-def replaced_function(x):
-    if not hasattr(x, "_tlm_adjoint__replacement"):
-        x._tlm_adjoint__replacement = ReplacementFunction(x)
-    return x._tlm_adjoint__replacement
-
-
-def is_function(x):
-    return isinstance(x, Function)
-
-
-def function_id(x):
-    return x.id()
-
-
-def function_name(x):
-    return x.name()
-
-
-def function_state(x):
-    return x.state()
-
-
-def function_update_state(*X):
-    for x in X:
-        x.update_state()
-
-
-def function_is_static(x):
-    return x.is_static()
-
-
-def function_is_cached(x):
-    return x.is_cached()
-
-
-def function_is_checkpointed(x):
-    return x.is_checkpointed()
-
-
-def function_tlm_depth(x):
-    return x.tlm_depth()
-
-
-def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
-                  tlm_depth=0):
-    return Function(x.function_space(), name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth,
-                    _data=x.vector().copy())
-
-
-def function_assign(x, y):
-    if isinstance(y, (int, float)):
-        x.vector()[:] = y
-    else:
-        x.vector()[:] = y.vector()
-
-
-def function_axpy(x, alpha, y):
-    x.vector()[:] += alpha * y.vector()
-
-
-class SerialComm:
-    # Interface as in mpi4py 3.0.1
-    def allgather(self, sendobj):
-        v = sendobj.view()
-        v.setflags(write=False)
-        return (v,)
-
-    def barrier(self):
-        pass
-
-    # Interface as in mpi4py 3.0.1
-    def bcast(self, obj, root=0):
-        return copy.deepcopy(obj)
-
-    def py2f(self):
-        return 0
-
-    @property
-    def rank(self):
-        return 0
-
-    @property
-    def size(self):
-        return 1
-
-
-_comm = SerialComm()
-
-
 def default_comm():
     return _comm
-
-
-def function_comm(x):
-    return _comm
-
-
-def function_inner(x, y):
-    return x.vector().dot(y.vector())
-
-
-def function_local_size(x):
-    return x.vector().shape[0]
-
-
-def function_get_values(x):
-    values = x.vector().view()
-    values.setflags(write=False)
-    return values
-
-
-def function_set_values(x, values):
-    x.vector()[:] = values
-
-
-def function_max_value(x):
-    return x.vector().max()
-
-
-def function_sum(x):
-    return x.vector().sum()
-
-
-def function_linf_norm(x):
-    return abs(x.vector()).max()
-
-
-def function_new(x, name=None, static=False, cache=None, checkpoint=None,
-                 tlm_depth=0):
-    return Function(x.function_space(), name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth)
-
-
-def function_tangent_linear(x, name=None):
-    return x.tangent_linear(name=name)
-
-
-def function_alias(x):
-    return Function(x.function_space(), name=x.name(), static=x.is_static(),
-                    cache=x.is_cached(), checkpoint=x.is_checkpointed(),
-                    tlm_depth=x.tlm_depth(), _data=x.vector())
-
-
-def function_zero(x):
-    x.vector()[:] = 0.0
-
-
-def function_global_size(x):
-    return x.vector().shape[0]
-
-
-def function_local_indices(x):
-    return slice(0, x.vector().shape[0])
 
 
 def function_subtract_adjoint_derivative_action(x, y):
