@@ -61,6 +61,7 @@ __all__ = \
         "function_max_value",
         "function_name",
         "function_new",
+        "function_replacement",
         "function_set_values",
         "function_space_id",
         "function_space_new",
@@ -73,7 +74,6 @@ __all__ = \
         "function_zero",
         "info",
         "is_function",
-        "replaced_function",
         "warning"
     ]
 
@@ -227,7 +227,7 @@ class FunctionInterface(_FunctionInterface):
                                 checkpoint=function_is_checkpointed(self._x),
                                 tlm_depth=function_tlm_depth(self._x) + 1)
 
-    def replaced(self):
+    def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
             self._x._tlm_adjoint__replacement = ReplacementFunction(self._x)
         return self._x._tlm_adjoint__replacement

@@ -907,7 +907,7 @@ class EquationManager:
         for dep in deps:
             dep_id = function_id(dep)
             if dep_id not in self._replace_map:
-                replaced_dep = replaced_function(dep)
+                replaced_dep = function_replacement(dep)
                 self._replace_map[dep_id] = replaced_dep
         eq.replace({dep: self._replace_map[function_id(dep)] for dep in deps})
         if eq_id in self._tlm_eqs:

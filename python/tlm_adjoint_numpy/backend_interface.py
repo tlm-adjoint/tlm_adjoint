@@ -56,6 +56,7 @@ __all__ = \
         "function_max_value",
         "function_name",
         "function_new",
+        "function_replacement",
         "function_set_values",
         "function_space_id",
         "function_space_new",
@@ -68,7 +69,6 @@ __all__ = \
         "function_zero",
         "info",
         "is_function",
-        "replaced_function",
         "warning"
     ]
 
@@ -229,8 +229,8 @@ class FunctionInterface(_FunctionInterface):
     def tangent_linear(self, name=None):
         return self._x.tangent_linear(name=name)
 
-    def replaced(self):
-        return self._x.replaced()
+    def replacement(self):
+        return self._x.replacement()
 
     def alias(self):
         return Function(self._x.function_space(), name=self._x.name(),
@@ -305,7 +305,7 @@ class Function:
                             checkpoint=self.is_checkpointed(),
                             tlm_depth=self.tlm_depth() + 1)
 
-    def replaced(self):
+    def replacement(self):
         if self._replacement is None:
             self._replacement = ReplacementFunction(self)
         return self._replacement

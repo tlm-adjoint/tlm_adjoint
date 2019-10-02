@@ -42,6 +42,7 @@ __all__ = \
         "function_max_value",
         "function_name",
         "function_new",
+        "function_replacement",
         "function_set_values",
         "function_state",
         "function_sum",
@@ -49,8 +50,7 @@ __all__ = \
         "function_tlm_depth",
         "function_update_state",
         "function_zero",
-        "is_function",
-        "replaced_function"
+        "is_function"
     ]
 
 
@@ -139,7 +139,7 @@ class FunctionInterface:
     def tangent_linear(self, name=None):
         raise InterfaceException("Method not overridden")
 
-    def replaced(self):
+    def replacement(self):
         raise InterfaceException("Method not overridden")
 
     def alias(self):
@@ -257,8 +257,8 @@ def function_tangent_linear(x, name=None):
     return x._tlm_adjoint__interface.tangent_linear(name=name)
 
 
-def replaced_function(x):
-    return x._tlm_adjoint__interface.replaced()
+def function_replacement(x):
+    return x._tlm_adjoint__interface.replacement()
 
 
 def function_alias(x):

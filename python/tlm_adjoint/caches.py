@@ -620,7 +620,7 @@ def replaced_form(form):
     replace_map = {}
     for c in form.coefficients():
         if isinstance(c, backend_Function):
-            replace_map[c] = replaced_function(c)
+            replace_map[c] = function_replacement(c)
     return ufl.replace(form, replace_map)
 
 
