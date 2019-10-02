@@ -58,6 +58,9 @@ class InterfaceException(Exception):
 
 
 class FunctionInterface:
+    def __init__(self, x):
+        self._x = x
+
     def comm(self):
         raise InterfaceException("Method not overridden")
 

@@ -20,6 +20,7 @@
 
 from .backend import *
 from .backend_code_generator_interface import *
+from .function_interface import *
 
 from collections import defaultdict
 import copy
@@ -43,21 +44,12 @@ __all__ = \
         "form_dependencies",
         "form_neg",
         "function_caches",
-        "function_is_cached",
-        "function_is_checkpointed",
-        "function_is_static",
-        "function_name",
         "function_space_new",
-        "function_state",
-        "function_tlm_depth",
-        "function_update_state",
         "is_cached",
-        "is_function",
         "linear_solver",
         "linear_solver_cache",
         "new_count",
         "replaced_form",
-        "replaced_function",
         "set_assembly_cache",
         "set_linear_solver_cache",
         "split_form",
@@ -179,44 +171,6 @@ def function_space_new(space, name=None, static=False, cache=None,
                        checkpoint=None, tlm_depth=0):
     return Function(space, name=name, static=static, cache=cache,
                     checkpoint=checkpoint, tlm_depth=tlm_depth)
-
-
-def function_name(x):
-    return x.name()
-
-
-def function_state(x):
-    if hasattr(x, "state"):
-        return x.state()
-    if not hasattr(x, "_tlm_adjoint__state"):
-        x._tlm_adjoint__state = 0
-    return x._tlm_adjoint__state
-
-
-def function_update_state(*X):
-    for x in X:
-        if hasattr(x, "update_state"):
-            x.update_state()
-        elif hasattr(x, "_tlm_adjoint__state"):
-            x._tlm_adjoint__state += 1
-        else:
-            x._tlm_adjoint__state = 1
-
-
-def function_is_static(x):
-    return x.is_static() if hasattr(x, "is_static") else False
-
-
-def function_is_cached(x):
-    return x.is_cached() if hasattr(x, "is_cached") else False
-
-
-def function_is_checkpointed(x):
-    return x.is_checkpointed() if hasattr(x, "is_checkpointed") else True
-
-
-def function_tlm_depth(x):
-    return x.tlm_depth() if hasattr(x, "tlm_depth") else 0
 
 
 def bcs_is_static(bcs):
@@ -587,6 +541,38 @@ def new_count():
     return Constant(0).count()
 
 
+class ReplacementFunctionInterface(FunctionInterface):
+    def function_space(self):
+        return self._x.function_space()
+
+    def id(self):
+        return self._x.id()
+
+    def name(self):
+        return self._x.name()
+
+    def state(self):
+        return self._x.state()
+
+    def is_static(self):
+        return self._x.is_static()
+
+    def is_cached(self):
+        return self._x.is_cached()
+
+    def is_checkpointed(self):
+        return self._x.is_checkpointed()
+
+    def tlm_depth(self):
+        return self._x.tlm_depth()
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._x.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
+
+
 class ReplacementFunction(ufl.classes.Coefficient):
     def __init__(self, x):
         ufl.classes.Coefficient.__init__(self, x.function_space(),
@@ -600,6 +586,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
+        self._tlm_adjoint__interface = ReplacementFunctionInterface(self)
 
     def function_space(self):
         return self.__space
@@ -612,9 +599,6 @@ class ReplacementFunction(ufl.classes.Coefficient):
 
     def state(self):
         return self.__state
-
-    def update_state(self):
-        raise CacheException("Cannot change a ReplacementFunction")
 
     def is_static(self):
         return self.__static
@@ -632,22 +616,12 @@ class ReplacementFunction(ufl.classes.Coefficient):
         return self.__caches
 
 
-def replaced_function(x):
-    if not hasattr(x, "_tlm_adjoint__replacement"):
-        x._tlm_adjoint__replacement = ReplacementFunction(x)
-    return x._tlm_adjoint__replacement
-
-
 def replaced_form(form):
     replace_map = {}
     for c in form.coefficients():
         if isinstance(c, backend_Function):
             replace_map[c] = replaced_function(c)
     return ufl.replace(form, replace_map)
-
-
-def is_function(x):
-    return isinstance(x, backend_Function)
 
 
 def form_dependencies(form):
