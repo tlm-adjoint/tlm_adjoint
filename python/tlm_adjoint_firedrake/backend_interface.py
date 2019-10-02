@@ -21,11 +21,11 @@
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict, \
     is_real_function
+from .function_interface import *
+from .function_interface import FunctionInterface as _FunctionInterface
 
 from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_space_new, function_state, function_tlm_depth, \
-    function_update_state, is_function, replaced_function
+    function_space_new
 
 import ufl
 import sys
@@ -45,10 +45,11 @@ __all__ = \
         "function_comm",
         "function_copy",
         "function_finalize_adjoint_derivative_action",
+        "function_function_space",
         "function_get_values",
         "function_global_size",
-        "function_id",
         "function_inner",
+        "function_id",
         "function_is_cached",
         "function_is_checkpointed",
         "function_is_static",
@@ -76,8 +77,165 @@ __all__ = \
 
 
 class FunctionInterface(_FunctionInterface):
+    def comm(self):
+        return self._x.comm
+
+    def function_space(self):
+        return self._x.function_space()
+
     def id(self):
         return self._x.count()
+
+    def name(self):
+        return self._x.name()
+
+    def state(self):
+        if hasattr(self._x, "state"):
+            return self._x.state()
+        if not hasattr(self._x, "_tlm_adjoint__state"):
+            self._x._tlm_adjoint__state = 0
+        return self._x._tlm_adjoint__state
+
+    def update_state(self):
+        if hasattr(self._x, "update_state"):
+            self._x.update_state()
+        elif hasattr(self._x, "_tlm_adjoint__state"):
+            self._x._tlm_adjoint__state += 1
+        else:
+            self._x._tlm_adjoint__state = 1
+
+    def is_static(self):
+        if hasattr(self._x, "is_static"):
+            return self._x.is_static()
+        else:
+            return False
+
+    def is_cached(self):
+        if hasattr(self._x, "is_cached"):
+            return self._x.is_cached()
+        else:
+            return False
+
+    def is_checkpointed(self):
+        if hasattr(self._x, "is_checkpointed"):
+            return self._x.is_checkpointed()
+        else:
+            return True
+
+    def tlm_depth(self):
+        if hasattr(self._x, "tlm_depth"):
+            return self._x.tlm_depth()
+        else:
+            return 0
+
+    def zero(self):
+        with self._x.dat.vec_wo as x_v:
+            x_v.zeroEntries()
+
+    def assign(self, y):
+        if isinstance(y, (int, float)):
+            if is_real_function(self._x):
+                # Work around Firedrake issue #1459
+                self._x.dat.data[:] = y
+            else:
+                with self._x.dat.vec_wo as x_v:
+                    x_v.set(float(y))
+        else:
+            if is_real_function(self._x):
+                # Work around Firedrake bug (related to issue #1459?)
+                self._x.dat.data[:] = y.dat.data_ro
+            else:
+                with self._x.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
+                    y_v.copy(result=x_v)
+
+    def axpy(self, alpha, y):
+        if is_real_function(self._x):
+            # Work around Firedrake bug (related to issue #1459?)
+            self._x.dat.data[:] += alpha * y.dat.data_ro
+        else:
+            with self._x.dat.vec as x_v, y.dat.vec_ro as y_v:
+                x_v.axpy(alpha, y_v)
+
+    def inner(self, y):
+        with self._x.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
+            inner = x_v.dot(y_v)
+        return inner
+
+    def max_value(self):
+        with self._x.dat.vec_ro as x_v:
+            max = x_v.max()[1]
+        return max
+
+    def sum(self):
+        with self._x.dat.vec_ro as x_v:
+            sum = x_v.sum()
+        return sum
+
+    def linf_norm(self):
+        import petsc4py.PETSc as PETSc
+        with self._x.dat.vec_ro as x_v:
+            linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
+        return linf_norm
+
+    def local_size(self):
+        with self._x.dat.vec_ro as x_v:
+            local_size = x_v.getLocalSize()
+        return local_size
+
+    def global_size(self):
+        with self._x.dat.vec_ro as x_v:
+            size = x_v.getSize()
+        return size
+
+    def local_indices(self):
+        with self._x.dat.vec_ro as x_v:
+            local_range = x_v.getOwnershipRange()
+        return slice(*local_range)
+
+    def get_values(self):
+        with self._x.dat.vec_ro as x_v:
+            values = x_v.getArray(readonly=True)
+        return values
+
+    def set_values(self, values):
+        with self._x.dat.vec_wo as x_v:
+            x_v.setArray(values)
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._x.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
+
+    def copy(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        y = function_new(self._x, name=name, static=static, cache=cache,
+                         checkpoint=checkpoint, tlm_depth=tlm_depth)
+        function_assign(y, self._x)
+        return y
+
+    def tangent_linear(self, name=None):
+        if hasattr(self._x, "tangent_linear"):
+            return self._x.tangent_linear(name=name)
+        elif function_is_static(self._x):
+            return None
+        else:
+            return function_new(self._x, name=name, static=False,
+                                cache=function_is_cached(self._x),
+                                checkpoint=function_is_checkpointed(self._x),
+                                tlm_depth=function_tlm_depth(self._x) + 1)
+
+    def replaced(self):
+        if not hasattr(self._x, "_tlm_adjoint__replacement"):
+            self._x._tlm_adjoint__replacement = ReplacementFunction(self._x)
+        return self._x._tlm_adjoint__replacement
+
+    def alias(self):
+        return Function(self._x.function_space(), name=function_name(self._x),
+                        static=function_is_static(self._x),
+                        cache=function_is_cached(self._x),
+                        checkpoint=function_is_checkpointed(self._x),
+                        tlm_depth=function_tlm_depth(self._x), val=self._x.dat)
 
 
 _orig_Function__init__ = backend_Function.__init__
@@ -124,170 +282,9 @@ def RealFunctionSpace(comm=None):
     return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
 
 
-# class Function:
-#     def function_space(self):
-#     def id(self):
-
-
-# class ReplacementFunction:
-#     def __init__(self, x):
-#     def function_space(self):
-#     def id(self):
-
-
-# def replaced_function(x):
-
-
-# def is_function(x):
-
-
-# def function_name(x):
-
-
-# def function_state(x):
-
-
-# def function_update_state(*X):
-
-
-# def function_is_static(x):
-
-
-# def function_is_cached(x):
-
-
-# def function_is_checkpointed(x):
-
-
-# def function_tlm_depth(x):
-
-
-def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
-                  tlm_depth=0):
-    # This is much faster than x.copy(deepcopy=True)
-    y = function_new(x, name=name, static=static, cache=cache,
-                     checkpoint=checkpoint, tlm_depth=tlm_depth)
-    function_assign(y, x)
-    return y
-
-
-def function_assign(x, y):
-    if isinstance(y, (int, float)):
-        if is_real_function(x):
-            # Work around Firedrake issue #1459
-            x.dat.data[:] = y
-        else:
-            with x.dat.vec_wo as x_v:
-                x_v.set(float(y))
-    else:
-        if is_real_function(x):
-            # Work around Firedrake bug (related to issue #1459?)
-            x.dat.data[:] = y.dat.data_ro
-        else:
-            with x.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
-                y_v.copy(result=x_v)
-
-
-def function_axpy(x, alpha, y):
-    if is_real_function(x):
-        # Work around Firedrake bug (related to issue #1459?)
-        x.dat.data[:] += alpha * y.dat.data_ro
-    else:
-        with x.dat.vec as x_v, y.dat.vec_ro as y_v:
-            x_v.axpy(alpha, y_v)
-
-
 def default_comm():
     import mpi4py.MPI as MPI
     return MPI.COMM_WORLD
-
-
-def function_comm(x):
-    return x.comm
-
-
-def function_inner(x, y):
-    with x.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
-        inner = x_v.dot(y_v)
-    return inner
-
-
-def function_local_size(x):
-    with x.dat.vec_ro as x_v:
-        local_size = x_v.getLocalSize()
-    return local_size
-
-
-def function_get_values(x):
-    with x.dat.vec_ro as x_v:
-        values = x_v.getArray(readonly=True)
-    return values
-
-
-def function_set_values(x, values):
-    with x.dat.vec_wo as x_v:
-        x_v.setArray(values)
-
-
-def function_max_value(x):
-    with x.dat.vec_ro as x_v:
-        max = x_v.max()[1]
-    return max
-
-
-def function_sum(x):
-    with x.dat.vec_ro as x_v:
-        sum = x_v.sum()
-    return sum
-
-
-def function_linf_norm(x):
-    import petsc4py.PETSc as PETSc
-    with x.dat.vec_ro as x_v:
-        linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
-    return linf_norm
-
-
-def function_new(x, name=None, static=False, cache=None, checkpoint=None,
-                 tlm_depth=0):
-    return Function(x.function_space(), name=name, static=static,
-                    cache=cache, checkpoint=checkpoint, tlm_depth=tlm_depth)
-
-
-def function_tangent_linear(x, name=None):
-    if hasattr(x, "tangent_linear"):
-        return x.tangent_linear(name=name)
-    elif function_is_static(x):
-        return None
-    else:
-        return function_new(x, name=name, static=False,
-                            cache=function_is_cached(x),
-                            checkpoint=function_is_checkpointed(x),
-                            tlm_depth=function_tlm_depth(x) + 1)
-
-
-def function_alias(x):
-    return Function(x.function_space(), name=function_name(x),
-                    static=function_is_static(x), cache=function_is_cached(x),
-                    checkpoint=function_is_checkpointed(x),
-                    tlm_depth=function_tlm_depth(x), val=x.dat)
-
-
-def function_zero(x):
-    with x.dat.vec_wo as x_v:
-        x_v.zeroEntries()
-
-
-def function_global_size(x):
-    with x.dat.vec_ro as x_v:
-        size = x_v.getSize()
-    return size
-
-
-def function_local_indices(x):
-    with x.dat.vec_ro as x_v:
-        local_range = x_v.getOwnershipRange()
-    return slice(*local_range)
 
 
 def function_subtract_adjoint_derivative_action(x, y):
