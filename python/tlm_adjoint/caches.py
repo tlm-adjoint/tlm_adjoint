@@ -92,19 +92,12 @@ class Function(backend_Function):
             checkpoint = not static
         tlm_depth = kwargs.pop("tlm_depth", 0)
 
-        self.__state = 0
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
         self.__tlm_depth = tlm_depth
         backend_Function.__init__(self, *args, **kwargs)
         self.__caches = FunctionCaches(self)
-
-    def state(self):
-        return self.__state
-
-    def update_state(self):
-        self.__state += 1
 
     def is_static(self):
         return self.__static
@@ -552,7 +545,7 @@ class ReplacementFunctionInterface(FunctionInterface):
         return self._x.name()
 
     def state(self):
-        return self._x.state()
+        return -1
 
     def is_static(self):
         return self._x.is_static()
@@ -580,7 +573,6 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__space = x.function_space()
         self.__id = function_id(x)
         self.__name = function_name(x)
-        self.__state = -1
         self.__static = function_is_static(x)
         self.__cache = function_is_cached(x)
         self.__checkpoint = function_is_checkpointed(x)
@@ -596,9 +588,6 @@ class ReplacementFunction(ufl.classes.Coefficient):
 
     def name(self):
         return self.__name
-
-    def state(self):
-        return self.__state
 
     def is_static(self):
         return self.__static

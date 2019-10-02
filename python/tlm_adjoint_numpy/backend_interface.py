@@ -325,7 +325,7 @@ class ReplacementFunctionInterface(_FunctionInterface):
         return self._x.name()
 
     def state(self):
-        return self._x.state()
+        return -1
 
     def is_static(self):
         return self._x.is_static()
@@ -350,7 +350,6 @@ class ReplacementFunction:
     def __init__(self, x):
         self._space = x.function_space()
         self._name = x.name()
-        self._state = -1
         self._static = x.is_static()
         self._cache = x.is_cached()
         self._checkpoint = x.is_checkpointed()
@@ -366,9 +365,6 @@ class ReplacementFunction:
 
     def name(self):
         return self._name
-
-    def state(self):
-        return self._state
 
     def is_static(self):
         return self._static

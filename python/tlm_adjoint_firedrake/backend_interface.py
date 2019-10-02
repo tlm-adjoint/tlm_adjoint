@@ -92,16 +92,12 @@ class FunctionInterface(_FunctionInterface):
         return self._x.name()
 
     def state(self):
-        if hasattr(self._x, "state"):
-            return self._x.state()
         if not hasattr(self._x, "_tlm_adjoint__state"):
             self._x._tlm_adjoint__state = 0
         return self._x._tlm_adjoint__state
 
     def update_state(self):
-        if hasattr(self._x, "update_state"):
-            self._x.update_state()
-        elif hasattr(self._x, "_tlm_adjoint__state"):
+        if hasattr(self._x, "_tlm_adjoint__state"):
             self._x._tlm_adjoint__state += 1
         else:
             self._x._tlm_adjoint__state = 1
