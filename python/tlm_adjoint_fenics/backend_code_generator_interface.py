@@ -308,7 +308,11 @@ def dolfin_form(form, form_compiler_parameters):
 
     if "_tlm_adjoint__form" in form._cache:
         dolfin_form = form._cache["_tlm_adjoint__form"]
-        deps = form.coefficients()
+        bindings = form._cache.get("_tlm_adjoint__bindings", None)
+        if bindings is None:
+            deps = form.coefficients()
+        else:
+            deps = tuple(bindings.get(c, c) for c in form.coefficients())
         for i, j in enumerate(form._cache["_tlm_adjoint__deps_map"]):
             # FEniCS backwards compatibility
             if hasattr(deps[j], "this"):
@@ -317,8 +321,38 @@ def dolfin_form(form, form_compiler_parameters):
                 cpp_object = deps[j]._cpp_object
             dolfin_form.set_coefficient(i, cpp_object)
     else:
+        bindings = form._cache.get("_tlm_adjoint__bindings", None)
+        if bindings is not None:
+            # FEniCS backwards compatibility
+            dep_this = {}
+            dep_cpp_object = {}
+            for dep in form.coefficients():
+                if dep in bindings:
+                    dep_binding = bindings[dep]
+                    # FEniCS backwards compatibility
+                    if hasattr(dep_binding, "this"):
+                        dep_this[dep] = (dep.__class__,
+                                         getattr(dep, "this", None))
+                        dep.__class__ = dep_binding.__class__
+                        dep.this = dep_binding.this
+                    else:
+                        dep_cpp_object[dep] = getattr(dep, "_cpp_object", None)
+                        dep._cpp_object = dep_binding._cpp_object
         dolfin_form = form._cache["_tlm_adjoint__form"] = \
             Form(form, form_compiler_parameters=form_compiler_parameters)
+        if bindings is not None:
+            # FEniCS backwards compatibility
+            for dep, (cls, this) in dep_this.items():
+                dep.__class__ = cls
+                if this is None:
+                    del(dep.this)
+                else:
+                    dep.this = this
+            for dep, cpp_object in dep_cpp_object.items():
+                if cpp_object is None:
+                    del(dep._cpp_object)
+                else:
+                    dep._cpp_object = cpp_object
         if not hasattr(dolfin_form, "_compiled_form"):
             dolfin_form._compiled_form = None
         form._cache["_tlm_adjoint__deps_map"] = \

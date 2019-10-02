@@ -19,7 +19,6 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend import backend_assemble as assemble
 
 import copy
 import numpy as np
@@ -158,25 +157,56 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
+_form_binding_names = ("_data",
+                       "split")
+
+
+def bind_form(form):
+    if "_tlm_adjoint__bindings" in form._cache:
+        for dep, binding in form._cache["_tlm_adjoint__bindings"].items():
+            for name in _form_binding_names:
+                assert(not hasattr(dep, name))
+                setattr(dep, name, getattr(binding, name))
+
+
+def unbind_form(form):
+    if "_tlm_adjoint__bindings" in form._cache:
+        for dep in form._cache["_tlm_adjoint__bindings"]:
+            for name in _form_binding_names:
+                delattr(dep, name)
+
+
 def assemble_matrix(form, bcs, **kwargs):
+    bind_form(form)
     A = backend_assemble(form, bcs=bcs, **kwargs)
+    unbind_form(form)
     return A, None
 
 
-# def assemble(form, tensor=None, form_compiler_parameters={}, *args,
-#              **kwargs):
-#     # Similar interface to assemble in FEniCS 2019.1.0
+def assemble(form, tensor=None, form_compiler_parameters={}, *args,
+             **kwargs):
+    # Similar interface to assemble in FEniCS 2019.1.0
+    bind_form(form)
+    tensor = backend_assemble(
+        form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
+        *args, **kwargs)
+    unbind_form(form)
+    return tensor
 
 
 def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
                     *args, **kwargs):
     # Similar interface to assemble_system in FEniCS 2019.1.0
+    bind_form(A_form)
     A = backend_assemble(A_form, bcs=bcs,
                          form_compiler_parameters=form_compiler_parameters,
                          *args, **kwargs)
+    unbind_form(A_form)
+    bind_form(b_form)
     b = backend_assemble(b_form,
                          form_compiler_parameters=form_compiler_parameters,
                          *args, **kwargs)
+    unbind_form(b_form)
     return A, b
 
 

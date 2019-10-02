@@ -25,7 +25,7 @@ from .backend_interface import *
 from .base_equations import Equation, EquationException, LinearEquation, \
     Matrix, MatrixActionRHS, NullSolver, get_tangent_linear
 from .caches import Cache, form_dependencies, form_key
-from .equations import EquationSolver, alias_assemble, alias_form
+from .equations import EquationSolver, bind_form, unbind_form, unbound_form
 
 import numpy as np
 import ufl
@@ -172,13 +172,16 @@ class LocalProjectionSolver(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters)
         else:
             if self._forward_eq is None:
-                self._forward_eq = (None,
-                                    None,
-                                    alias_form(self._rhs, self.dependencies()))
+                self._forward_eq = \
+                    (None,
+                     None,
+                     unbound_form(self._rhs, self.dependencies()))
             _, _, rhs = self._forward_eq
-            b = alias_assemble(
-                rhs, deps,
+            bind_form(rhs, deps)
+            b = assemble(
+                rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
+            unbind_form(rhs)
 
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
