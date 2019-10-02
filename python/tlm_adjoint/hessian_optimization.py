@@ -122,13 +122,13 @@ class SingleBlockHessian(Hessian):
                 if tlm_eq is not None:
                     # Extract the dependency values from storage for use in the
                     # solution of the tangent-linear equation
-                    eq_deps = {eq_dep.id(): cp_dep
+                    eq_deps = {function_id(eq_dep): cp_dep
                                for eq_dep, cp_dep in
                                zip(eq.nonlinear_dependencies(),
                                    self._manager._cp[(0, i)])}
                     tlm_deps = list(tlm_eq.dependencies())
                     for j, tlm_dep in enumerate(tlm_deps):
-                        tlm_dep_id = tlm_dep.id()
+                        tlm_dep_id = function_id(tlm_dep)
                         if tlm_dep_id in eq_deps:
                             tlm_deps[j] = eq_deps[tlm_dep_id]
 

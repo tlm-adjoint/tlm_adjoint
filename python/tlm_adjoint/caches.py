@@ -330,7 +330,7 @@ def split_terms(terms, base_integral,
                 non_cached_sub = [integral.integrand()
                                   for integral in non_cached_sub.integrals()]
                 if len(mat_sub) > 0:
-                    mat_terms[mat_dep.id()].extend(mat_sub)
+                    mat_terms[function_id(mat_dep)].extend(mat_sub)
                 non_cached_terms.extend(non_cached_sub)
 
     return cached_terms, mat_terms, non_cached_terms
@@ -377,8 +377,8 @@ class CacheRef:
 class FunctionCaches:
     def __init__(self, x):
         self._caches = weakref.WeakValueDictionary()
-        self._id = x.id()
-        self._state = (x.id(), function_state(x))
+        self._id = function_id(x)
+        self._state = (self._id, function_state(x))
 
     def __len__(self):
         return len(self._caches)
@@ -399,7 +399,7 @@ class FunctionCaches:
         del(self._caches[cache.id()])
 
     def update(self, x):
-        state = (x.id(), function_state(x))
+        state = (function_id(x), function_state(x))
         if state != self._state:
             self.clear()
             self._state = state
@@ -469,7 +469,7 @@ class Cache:
             self._dep_caches.clear()
         else:
             for dep in deps:
-                dep_id = dep if isinstance(dep, int) else dep.id()
+                dep_id = dep if isinstance(dep, int) else function_id(dep)
                 del(dep)
                 if dep_id in self._deps_map:
                     # Steps in removing cached data associated with dep:
@@ -516,7 +516,7 @@ class Cache:
 
         value = value()
         value_ref = CacheRef(value)
-        dep_ids = tuple(dep.id() for dep in deps)
+        dep_ids = tuple(function_id(dep) for dep in deps)
 
         self._cache[key] = value_ref
 
@@ -578,7 +578,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
         ufl.classes.Coefficient.__init__(self, x.function_space(),
                                          count=new_count())
         self.__space = x.function_space()
-        self.__id = x.id()
+        self.__id = function_id(x)
         self.__name = function_name(x)
         self.__state = -1
         self.__static = function_is_static(x)
@@ -628,7 +628,7 @@ def form_dependencies(form):
     deps = {}
     for dep in form.coefficients():
         if is_function(dep):
-            dep_id = dep.id()
+            dep_id = function_id(dep)
             if dep_id not in deps:
                 deps[dep_id] = dep
     return deps

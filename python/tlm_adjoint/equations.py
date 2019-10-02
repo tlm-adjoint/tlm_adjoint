@@ -55,14 +55,14 @@ def extract_dependencies(expr):
     nl_deps = {}
     for dep in ufl.algorithms.extract_coefficients(expr):
         if is_function(dep):
-            dep_id = dep.id()
+            dep_id = function_id(dep)
             if dep_id not in deps:
                 deps[dep_id] = dep
             if dep_id not in nl_deps:
                 n_nl_deps = 0
                 for nl_dep in derivative_dependencies(expr, dep):
                     if is_function(nl_dep):
-                        nl_dep_id = nl_dep.id()
+                        nl_dep_id = function_id(nl_dep)
                         if nl_dep_id not in nl_deps:
                             nl_deps[nl_dep_id] = nl_dep
                         n_nl_deps += 1
@@ -88,7 +88,7 @@ class AssembleSolver(Equation):
             raise EquationException("Must be a rank 0 or 1 form")
 
         deps, nl_deps = extract_dependencies(rhs)
-        if x.id() in deps:
+        if function_id(x) in deps:
             raise EquationException("Invalid non-linear dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
@@ -269,14 +269,14 @@ class EquationSolver(Equation):
         if nl_solve_J is not None:
             for dep in nl_solve_J.coefficients():
                 if is_function(dep):
-                    dep_id = dep.id()
+                    dep_id = function_id(dep)
                     if dep_id not in deps:
                         deps[dep_id] = dep
 
         if initial_guess == x:
             initial_guess = None
         if initial_guess is not None:
-            initial_guess_id = initial_guess.id()
+            initial_guess_id = function_id(initial_guess)
             if initial_guess_id not in deps:
                 deps[initial_guess_id] = initial_guess
 
@@ -398,7 +398,7 @@ class EquationSolver(Equation):
             cached_form, mat_forms_, non_cached_form = split_form(self._rhs)
             mat_forms = {}
             for dep_index, dep in enumerate(eq_deps):
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id in mat_forms_:
                     mat_forms[dep_index] = [mat_forms_[dep_id], CacheRef()]
             del(mat_forms_)

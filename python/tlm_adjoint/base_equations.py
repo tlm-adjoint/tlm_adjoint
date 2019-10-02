@@ -209,18 +209,18 @@ class Equation:
                 raise EquationException("Solution must be checkpointed")
             if x not in deps:
                 raise EquationException("Solution must be a dependency")
-        dep_ids = {dep.id(): i for i, dep in enumerate(deps)}
+        dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
         if nl_deps is None:
             nl_deps_map = tuple(range(len(deps)))
         else:
-            if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
+            if len(set(function_id(dep) for dep in nl_deps)) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
             for dep in nl_deps:
-                if dep.id() not in dep_ids:
+                if function_id(dep) not in dep_ids:
                     raise EquationException("Non-linear dependency is not a dependency")  # noqa: E501
-            nl_deps_map = tuple(dep_ids[dep.id()] for dep in nl_deps)
+            nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
         if ic_deps is None:
             if nl_deps is None:
                 ic_deps = list(X)
@@ -230,10 +230,10 @@ class Equation:
                     if x in nl_deps:
                         ic_deps.append(x)
         else:
-            if len(set(dep.id() for dep in ic_deps)) != len(ic_deps):
+            if len(set(function_id(dep) for dep in ic_deps)) != len(ic_deps):
                 raise EquationException("Duplicate initial condition dependency")  # noqa: E501
             for dep in ic_deps:
-                if dep.id() not in dep_ids:
+                if function_id(dep) not in dep_ids:
                     raise EquationException("Initial condition dependency is not a dependency")  # noqa: E501
 
         self._X = tuple(X)
@@ -739,7 +739,7 @@ class FixedPointSolver(Equation):
         X_ids = set()
         for eq in eqs:
             for x in eq.X():
-                x_id = x.id()
+                x_id = function_id(x)
                 if x_id in X_ids:
                     raise EquationException("Duplicate solve")
                 X_ids.add(x_id)
@@ -774,7 +774,7 @@ class FixedPointSolver(Equation):
                 eq_X_indices[i].append(len(X) - 1)
 
             for dep in eq.dependencies():
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id not in dep_ids:
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
@@ -783,21 +783,21 @@ class FixedPointSolver(Equation):
                     ic_deps[dep_id] = dep
 
             for dep in eq.nonlinear_dependencies():
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id not in nl_dep_ids:
                     nl_deps.append(dep)
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 eq_nl_dep_indices[i].append(nl_dep_ids[dep_id])
 
             for dep in eq.initial_condition_dependencies():
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 # Could exclude eqs[-1].X() here if nonzero_initial_guess is
                 # False
                 if dep_id not in previous_x_ids and dep_id not in ic_deps:
                     ic_deps[dep_id] = dep
 
             for x in eq.X():
-                x_id = x.id()
+                x_id = function_id(x)
                 if x_id in remaining_x_ids:
                     remaining_x_ids.remove(x_id)
                 previous_x_ids.add(x_id)
@@ -805,19 +805,19 @@ class FixedPointSolver(Equation):
         del(previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids)
         ic_deps = tuple(ic_deps.values())
 
-        eq_dep_ids = tuple({eq_dep.id(): i
+        eq_dep_ids = tuple({function_id(eq_dep): i
                             for i, eq_dep in enumerate(eq.dependencies())}
                            for eq in eqs)
 
         dep_map = {}
         for i, eq in enumerate(eqs):
             for m, x in enumerate(eq.X()):
-                dep_map[x.id()] = (i, m)
+                dep_map[function_id(x)] = (i, m)
         tdeps = tuple([] for eq in eqs)
         for k, eq in enumerate(eqs):
-            X_ids = set(x.id() for x in eq.X())
+            X_ids = set(function_id(x) for x in eq.X())
             for j, dep in enumerate(eq.dependencies()):
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id not in X_ids and dep_id in dep_map:
                     i, m = dep_map[dep_id]
                     tdeps[i].append((j, k, m))
@@ -1020,7 +1020,7 @@ class FixedPointSolver(Equation):
             adj_X = (adj_X,)
 
         dep = self.dependencies()[dep_index]
-        dep_id = dep.id()
+        dep_id = function_id(dep)
         F = function_new(dep)
         for eq, eq_nl_deps, eq_dep_ids, eq_adj_X in zip(self._eqs,
                                                         self._eq_nl_deps,
@@ -1062,7 +1062,7 @@ class LinearEquation(Equation):
 
         x_ids = set()
         for x in X:
-            x_id = x.id()
+            x_id = function_id(x)
             if x_id in x_ids:
                 raise EquationException("Duplicate solve")
             x_ids.add(x_id)
@@ -1074,7 +1074,7 @@ class LinearEquation(Equation):
 
         for i, b in enumerate(B):
             for dep in b.dependencies():
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id in x_ids:
                     raise EquationException("Invalid dependency in linear Equation")  # noqa: E501
                 if dep_id not in dep_ids:
@@ -1082,13 +1082,13 @@ class LinearEquation(Equation):
                     dep_ids[dep_id] = len(deps) - 1
                 b_dep_indices[i].append(dep_ids[dep_id])
             for dep in b.nonlinear_dependencies():
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id not in nl_dep_ids:
                     nl_deps.append(dep)
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 b_nl_dep_indices[i].append(nl_dep_ids[dep_id])
 
-        b_dep_ids = tuple({b_dep.id(): i
+        b_dep_ids = tuple({function_id(b_dep): i
                            for i, b_dep in enumerate(b.dependencies())}
                           for b in B)
 
@@ -1098,7 +1098,7 @@ class LinearEquation(Equation):
             A_dep_indices = []
             A_nl_dep_indices = []
             for dep in A.nonlinear_dependencies():
-                dep_id = dep.id()
+                dep_id = function_id(dep)
                 if dep_id not in dep_ids:
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
@@ -1108,14 +1108,14 @@ class LinearEquation(Equation):
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 A_nl_dep_indices.append(nl_dep_ids[dep_id])
 
-            A_nl_dep_ids = {A_nl_dep.id(): i
+            A_nl_dep_ids = {function_id(A_nl_dep): i
                             for i, A_nl_dep
                             in enumerate(A.nonlinear_dependencies())}
 
             if len(A.nonlinear_dependencies()) > 0:
                 A_x_indices = []
                 for x in X:
-                    x_id = x.id()
+                    x_id = function_id(x)
                     if x_id not in nl_dep_ids:
                         nl_deps.append(x)
                         nl_dep_ids[x_id] = len(nl_deps) - 1
@@ -1201,7 +1201,7 @@ class LinearEquation(Equation):
                 return F
         else:
             dep = self.dependencies()[dep_index]
-            dep_id = dep.id()
+            dep_id = function_id(dep)
             F = function_new(dep)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
                 try:
@@ -1255,7 +1255,7 @@ class LinearEquation(Equation):
 class Matrix:
     def __init__(self, nl_deps=None, has_ic_dep=False):
         if nl_deps is not None:
-            if len(set(dep.id() for dep in nl_deps)) != len(nl_deps):
+            if len(set(function_id(dep) for dep in nl_deps)) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
 
         self._nl_deps = tuple() if nl_deps is None else tuple(nl_deps)
@@ -1357,11 +1357,11 @@ class Matrix:
 
 class RHS:
     def __init__(self, deps, nl_deps=None):
-        dep_ids = set(dep.id() for dep in deps)
+        dep_ids = set(function_id(dep) for dep in deps)
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
         if nl_deps is not None:
-            nl_dep_ids = set(dep.id() for dep in nl_deps)
+            nl_dep_ids = set(function_id(dep) for dep in nl_deps)
             if len(nl_dep_ids) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
             if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
@@ -1420,7 +1420,7 @@ class MatrixActionRHS(RHS):
     def __init__(self, A, X):
         if is_function(X):
             X = (X,)
-        if len(set(x.id() for x in X)) != len(X):
+        if len(set(function_id(x) for x in X)) != len(X):
             raise EquationException("Invalid dependency")
 
         A_nl_deps = A.nonlinear_dependencies()
@@ -1429,10 +1429,10 @@ class MatrixActionRHS(RHS):
             RHS.__init__(self, X, nl_deps=[])
         else:
             nl_deps = list(A_nl_deps)
-            nl_dep_ids = {dep.id(): i for i, dep in enumerate(nl_deps)}
+            nl_dep_ids = {function_id(dep): i for i, dep in enumerate(nl_deps)}
             x_indices = {}
             for i, x in enumerate(X):
-                x_id = x.id()
+                x_id = function_id(x)
                 if x_id not in nl_dep_ids:
                     nl_deps.append(x)
                     nl_dep_ids[x_id] = len(nl_deps) - 1

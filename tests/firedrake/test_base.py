@@ -98,7 +98,7 @@ _orig_Function_init = backend_Function.__init__
 
 def _Function__init__(self, *args, **kwargs):
     _orig_Function_init(self, *args, **kwargs)
-    Function_ids[self.id()] = weakref.ref(self)
+    Function_ids[self.count()] = weakref.ref(self)
 
 
 backend_Function.__init__ = _Function__init__

@@ -138,7 +138,7 @@ class CheckpointStorage:
         return tuple(self._data[dep_key] for dep_key in self._dep_keys[key])
 
     def initial_condition(self, x, copy=True):
-        x_id = x.id()
+        x_id = function_id(x)
         if x_id in self._refs:
             ic = self._refs[x_id]
         else:
@@ -165,7 +165,8 @@ class CheckpointStorage:
             value = x
         if copy is None:
             copy = function_is_checkpointed(x)
-        self._add_initial_condition(x_id=x.id(), value=value, copy=copy)
+        self._add_initial_condition(x_id=function_id(x), value=value,
+                                    copy=copy)
 
     def _add_initial_condition(self, x_id, value, copy):
         if self._store_ics and x_id not in self._seen_ics:
@@ -192,11 +193,11 @@ class CheckpointStorage:
             deps = eq_deps
 
         for eq_x in eq_X:
-            self._indices[eq_x.id()] += 1
+            self._indices[function_id(eq_x)] += 1
 
         if self._store_ics:
             for eq_x in eq_X:
-                self._seen_ics.add(eq_x.id())
+                self._seen_ics.add(function_id(eq_x))
             for eq_dep, dep in zip(eq_deps, deps):
                 self.add_initial_condition(eq_dep, value=dep,
                                            copy=copy(eq_dep))
@@ -208,7 +209,7 @@ class CheckpointStorage:
 
             dep_keys = []
             for eq_dep, dep in zip(eq.nonlinear_dependencies(), nl_deps):
-                eq_dep_id = eq_dep.id()
+                eq_dep_id = function_id(eq_dep)
                 dep_key = self._data_key(eq_dep_id)
                 if dep_key not in self._data:
                     if copy(eq_dep):
@@ -237,12 +238,12 @@ class TangentLinearMap:
             finalize.detach()
 
     def __contains__(self, x):
-        return x.id() in self._map
+        return function_id(x) in self._map
 
     def __getitem__(self, x):
         if not is_function(x):
             raise ManagerException("x must be a Function")
-        x_id = x.id()
+        x_id = function_id(x)
         if x_id not in self._map:
             def callback(self_ref, x_id):
                 self = self_ref()
@@ -263,7 +264,7 @@ class ReplayStorage:
         for n in range(N0, N1):
             for i, eq in enumerate(blocks[n]):
                 for dep in eq.dependencies():
-                    last_eq[dep.id()] = (n, i)
+                    last_eq[function_id(dep)] = (n, i)
 
         # Ordered container, with each element containing a set of dep ids for
         # which the corresponding equation is the last equation to depend on
@@ -289,7 +290,7 @@ class ReplayStorage:
         if isinstance(x, int):
             x_id = x
         else:
-            x_id = x.id()
+            x_id = function_id(x)
         return x_id in self._map
 
     def __getitem__(self, x):
@@ -298,7 +299,7 @@ class ReplayStorage:
             if y is None:
                 raise ManagerException("Unable to create new Function")
         else:
-            x_id = x.id()
+            x_id = function_id(x)
             y = self._map[x_id]
             if y is None:
                 y = self._map[x_id] = function_new(x)
@@ -308,7 +309,7 @@ class ReplayStorage:
         if isinstance(x, int):
             x_id = x
         else:
-            x_id = x.id()
+            x_id = function_id(x)
         if x_id in self._map:
             self._map[x_id] = y
         return y
@@ -327,18 +328,18 @@ class DependencyTransposer:
     def __init__(self, blocks, M):
         dep_map = {}
         eq_X_ids = []
-        M_ids = set(m.id() for m in M)
+        M_ids = set(function_id(m) for m in M)
         active_ids = set()
         for p, block in enumerate(blocks):
             for k, eq in enumerate(block):
                 eq_active = False
-                X_ids = set(x.id() for x in eq.X())
+                X_ids = set(function_id(x) for x in eq.X())
                 for dep in eq.dependencies():
-                    dep_id = dep.id()
+                    dep_id = function_id(dep)
                     if dep_id not in X_ids and dep_id in active_ids:
                         eq_active = True
                         break
-                X_ids = tuple(x.id() for x in eq.X())
+                X_ids = tuple(function_id(x) for x in eq.X())
                 if eq_active:
                     # A solution component depends on the control(s)
                     for m, x_id in enumerate(X_ids):
@@ -370,14 +371,14 @@ class DependencyTransposer:
         if isinstance(dep, int):
             dep_id = dep
         else:
-            dep_id = dep.id()
+            dep_id = function_id(dep)
         return dep_id in self._dep_map
 
     def __getitem__(self, dep):
         if isinstance(dep, int):
             dep_id = dep
         else:
-            dep_id = dep.id()
+            dep_id = function_id(dep)
         return self._dep_map[dep_id][-1]
 
     def pop(self):
@@ -502,11 +503,11 @@ class EquationManager:
                 eq_X = eq.X()
                 if len(eq_X) == 1:
                     X_name = function_name(eq_X[0])
-                    X_ids = f"id {eq_X[0].id():d}"
+                    X_ids = f"id {function_id(eq_X[0]):d}"
                 else:
                     X_name = "(%s)" % (",".join(function_name(eq_x)
                                                 for eq_x in eq_X))
-                    X_ids = "ids (%s)" % (",".join(f"{eq_x.id():d}"
+                    X_ids = "ids (%s)" % (",".join(f"{function_id(eq_x):d}"
                                                    for eq_x in eq_X))
                 if isinstance(eq, EquationAlias):
                     eq_type = f"{eq}"
@@ -514,13 +515,13 @@ class EquationManager:
                     eq_type = type(eq).__name__
                 info("    Equation %i, %s solving for %s (%s)" %
                      (i, eq_type, X_name, X_ids))
-                nl_dep_ids = set([dep.id()
+                nl_dep_ids = set([function_id(dep)
                                  for dep in eq.nonlinear_dependencies()])
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
-                         (j, function_name(dep), dep.id(),
+                         (j, function_name(dep), function_id(dep),
                          ", replaced" if isinstance(dep, ReplacementFunction) else "",  # noqa: E501
-                         "non-linear" if dep.id() in nl_dep_ids else "linear"))
+                         "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
         info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
@@ -802,9 +803,9 @@ class EquationManager:
 
         self.finalize()
 
-        x_id = x.id()
+        x_id = function_id(x)
         for eq in self._blocks[0]:
-            if x_id in set(dep.id() for dep in eq.dependencies()):
+            if x_id in set(function_id(dep) for dep in eq.dependencies()):
                 self._restore_checkpoint(0)
                 return self._cp.initial_condition(
                     x, copy=function_is_checkpointed(x))
@@ -904,18 +905,18 @@ class EquationManager:
 
         deps = eq.dependencies()
         for dep in deps:
-            dep_id = dep.id()
+            dep_id = function_id(dep)
             if dep_id not in self._replace_map:
                 replaced_dep = replaced_function(dep)
                 self._replace_map[dep_id] = replaced_dep
-        eq.replace({dep: self._replace_map[dep.id()] for dep in deps})
+        eq.replace({dep: self._replace_map[function_id(dep)] for dep in deps})
         if eq_id in self._tlm_eqs:
             for tlm_eq in self._tlm_eqs[eq_id].values():
                 if tlm_eq is not None:
                     self.replace(tlm_eq)
 
     def map(self, x):
-        return self._replace_map.get(x.id(), x)
+        return self._replace_map.get(function_id(x), x)
 
     def _checkpoint_space_id(self, fn):
         space = fn.function_space()
@@ -1291,10 +1292,10 @@ class EquationManager:
             for eq in block:
                 eq_indices = slice(index, index + P)
                 for x in eq.X():
-                    dep_map[x.id()] = eq_indices
+                    dep_map[function_id(x)] = eq_indices
                 index += P
                 for dep in eq.dependencies():
-                    dep_id = dep.id()
+                    dep_id = function_id(dep)
                     if dep_id in dep_map:
                         pixels[eq_indices, dep_map[dep_id]] = 0
             index += 1

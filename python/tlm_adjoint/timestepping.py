@@ -255,7 +255,7 @@ class TimeSystem:
             x_ids = set()
             for eq in eqs:
                 for x in eq.X():
-                    x_id = x.id()
+                    x_id = function_id(x)
                     if x_id in x_ids:
                         raise TimesteppingException("Duplicate solve")
                     x_ids.add(x_id)
@@ -272,17 +272,17 @@ class TimeSystem:
             if parent_ids is None:
                 parent_ids = set()
             for x in X:
-                parent_ids.add(x.id())
+                parent_ids.add(function_id(x))
             for dep in eq.dependencies():
                 if dep not in X and hasattr(dep, "_tlm_adjoint__tfn"):
-                    if dep.id() in parent_ids:
+                    if function_id(dep) in parent_ids:
                         raise TimesteppingException("Circular dependency")
                     elif dep in eq_xs:
                         add_eq_deps(eq_xs[dep], eq_xs, eqs, parent_ids)
             eqs.append(eq)
             for x in X:
                 del(eq_xs[x])
-                parent_ids.remove(x.id())
+                parent_ids.remove(function_id(x))
 
         self._sorted_eqs = [[], [], []]
         for i, eqs in enumerate([self._initial_eqs,

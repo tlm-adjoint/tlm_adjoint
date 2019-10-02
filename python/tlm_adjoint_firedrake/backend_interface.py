@@ -47,6 +47,7 @@ __all__ = \
         "function_finalize_adjoint_derivative_action",
         "function_get_values",
         "function_global_size",
+        "function_id",
         "function_inner",
         "function_is_cached",
         "function_is_checkpointed",
@@ -72,6 +73,22 @@ __all__ = \
         "replaced_function",
         "warning"
     ]
+
+
+class FunctionInterface(_FunctionInterface):
+    def id(self):
+        return self._x.count()
+
+
+_orig_Function__init__ = backend_Function.__init__
+
+
+def _Function__init__(self, *args, **kwargs):
+    _orig_Function__init__(self, *args, **kwargs)
+    self._tlm_adjoint__interface = FunctionInterface(self)
+
+
+backend_Function.__init__ = _Function__init__
 
 
 # def clear_caches(*deps):
@@ -110,9 +127,6 @@ def RealFunctionSpace(comm=None):
 # class Function:
 #     def function_space(self):
 #     def id(self):
-
-
-backend_Function.id = lambda self: self.count()
 
 
 # class ReplacementFunction:

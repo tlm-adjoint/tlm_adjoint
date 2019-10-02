@@ -41,6 +41,7 @@ __all__ = \
         "function_finalize_adjoint_derivative_action",
         "function_get_values",
         "function_global_size",
+        "function_id",
         "function_inner",
         "function_is_cached",
         "function_is_checkpointed",
@@ -227,6 +228,10 @@ def replaced_function(x):
 
 def is_function(x):
     return isinstance(x, Function)
+
+
+def function_id(x):
+    return x.id()
 
 
 def function_name(x):

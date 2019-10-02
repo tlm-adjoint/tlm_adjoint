@@ -550,11 +550,14 @@ def test_Storage(setup_test, test_leaks):
     stop_manager()
 
     assert(len(manager()._cp._refs) == 1)
-    assert(tuple(manager()._cp._refs.keys()) == (x.id(),))
+    assert(tuple(manager()._cp._refs.keys()) == (function_id(x),))
     assert(len(manager()._cp._cp) == 0)
     assert(len(manager()._cp._data) == 4)
     assert(tuple(manager()._cp._data.keys())
-           == ((x.id(), 0), (x_s.id(), 1), (y.id(), 1), (y_s.id(), 1)))
+           == ((function_id(x), 0),
+               (function_id(x_s), 1),
+               (function_id(y), 1),
+               (function_id(y_s), 1)))
 
     J_val = J.value()
 
@@ -696,10 +699,11 @@ def test_initial_guess(setup_test, test_leaks):
     stop_manager()
 
     assert(len(manager()._cp._refs) == 1)
-    assert(tuple(manager()._cp._refs.keys()) == (y.id(),))
+    assert(tuple(manager()._cp._refs.keys()) == (function_id(y),))
     assert(len(manager()._cp._cp) == 0)
     assert(len(manager()._cp._data) == 2)
-    assert(tuple(manager()._cp._data.keys()) == ((y.id(), 0), (x.id(), 2)))
+    assert(tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
+                                                 (function_id(x), 2)))
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
     assert(function_linf_norm(dJdx_0) == 0.0)
