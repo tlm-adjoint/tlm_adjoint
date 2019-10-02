@@ -49,7 +49,7 @@ def test_overrides(setup_test, test_leaks):
         b = assemble(inner(test, F) * dx)
 
         solver = LinearSolver(A, solver_parameters=ls_parameters_cg)
-        solver.solve(G.vector(), b)
+        solver.solve(G, b)
 
         return G
 

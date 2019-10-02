@@ -53,7 +53,9 @@ def oscillator_ref():
             solver_parameters=ns_parameters_newton_gmres)
         T_n, T_np1 = T_np1, T_n
 
-    return T_n.vector().max()
+    with T_n.dat.vec_ro as T_n_vec:
+        T_n_max = T_n_vec.max()[1]
+    return T_n_max
 
 
 def diffusion_ref():

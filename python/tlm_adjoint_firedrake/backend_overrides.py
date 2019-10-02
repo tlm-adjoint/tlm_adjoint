@@ -182,7 +182,7 @@ def solve(*args, **kwargs):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
 
             A = A.a
-            if not is_function(x):
+            if isinstance(x, backend_Vector):
                 x = x.function
             b = b._tlm_adjoint__form
 
@@ -298,9 +298,9 @@ class LinearSolver(backend_LinearSolver):
             tlm = tlm_enabled()
         if annotate or tlm:
             A = self.A
-            if not is_function(x):
+            if isinstance(x, backend_Vector):
                 x = x.function
-            if not is_function(b):
+            if isinstance(b, backend_Vector):
                 b = b.function
             bcs = A.bcs
             solver_parameters = packed_solver_parameters(
