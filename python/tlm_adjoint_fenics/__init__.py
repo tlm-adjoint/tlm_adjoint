@@ -23,6 +23,7 @@ import sys
 
 modules = [("backend", "tlm_adjoint_fenics"),
            ("backend_code_generator_interface", "tlm_adjoint_fenics"),
+           ("function_interface", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_fenics"),
            ("base_equations", "tlm_adjoint"),
