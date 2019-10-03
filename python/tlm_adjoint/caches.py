@@ -20,7 +20,7 @@
 
 from .backend import *
 from .backend_code_generator_interface import *
-from .function_interface import *
+from .interface import *
 
 from collections import defaultdict
 import copy

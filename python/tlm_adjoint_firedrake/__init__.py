@@ -23,7 +23,7 @@ import sys
 
 modules = [("backend", "tlm_adjoint_firedrake"),
            ("backend_code_generator_interface", "tlm_adjoint_firedrake"),
-           ("function_interface", "tlm_adjoint"),
+           ("interface", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_firedrake"),
            ("base_equations", "tlm_adjoint"),

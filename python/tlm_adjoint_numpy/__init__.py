@@ -22,7 +22,7 @@ import importlib
 import sys
 
 modules = [("backend", "tlm_adjoint_numpy"),
-           ("function_interface", "tlm_adjoint"),
+           ("interface", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_numpy"),
            ("base_equations", "tlm_adjoint"),
            ("binomial_checkpointing", "tlm_adjoint"),

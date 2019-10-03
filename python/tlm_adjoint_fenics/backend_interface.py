@@ -20,8 +20,8 @@
 
 from .backend import *
 from .backend_code_generator_interface import copy_parameters_dict
-from .function_interface import *
-from .function_interface import FunctionInterface as _FunctionInterface
+from .interface import *
+from .interface import FunctionInterface as _FunctionInterface
 
 from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
     function_space_new

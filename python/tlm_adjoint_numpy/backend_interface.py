@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .function_interface import *
-from .function_interface import FunctionInterface as _FunctionInterface
+from .interface import *
+from .interface import FunctionInterface as _FunctionInterface
 
 import copy
 import numpy as np
