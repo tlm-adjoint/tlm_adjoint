@@ -185,6 +185,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__id = function_id(x)
         self.__name = function_name(x)
         self.__static = function_is_static(x)
+        self.__cache = function_is_cached(x)
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)

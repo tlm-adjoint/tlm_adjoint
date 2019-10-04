@@ -251,7 +251,7 @@ _orig_FunctionSpace__init__ = FunctionSpace.__init__
 
 def _FunctionSpace__init__(self, *args, **kwargs):
     _orig_FunctionSpace__init__(self, *args, **kwargs)
-    self._tlm_adjoint__space_interface = SpaceInterface(self)
+    self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
 
 
 FunctionSpace.__init__ = _FunctionSpace__init__
