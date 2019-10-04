@@ -23,7 +23,6 @@ from .interface import *
 
 import copy
 import ufl
-import weakref
 
 __all__ = \
     [
@@ -31,7 +30,6 @@ __all__ = \
         "DirichletBC",
         "Function",
         "ReplacementFunction",
-        "function_caches",
         "bcs_is_cached",
         "bcs_is_static",
         "new_count"
@@ -140,43 +138,6 @@ def bcs_is_cached(bcs):
     return True
 
 
-class FunctionCaches:
-    def __init__(self, x):
-        self._caches = weakref.WeakValueDictionary()
-        self._id = function_id(x)
-        self._state = (self._id, function_state(x))
-
-    def __len__(self):
-        return len(self._caches)
-
-    def clear(self):
-        for cache in tuple(self._caches.valuerefs()):
-            cache = cache()
-            if cache is not None:
-                cache.clear(self._id)
-                assert(not cache.id() in self._caches)
-
-    def add(self, cache):
-        cache_id = cache.id()
-        if cache_id not in self._caches:
-            self._caches[cache_id] = cache
-
-    def remove(self, cache):
-        del(self._caches[cache.id()])
-
-    def update(self, x):
-        state = (function_id(x), function_state(x))
-        if state != self._state:
-            self.clear()
-            self._state = state
-
-
-def function_caches(x):
-    if not hasattr(x, "_tlm_adjoint__caches"):
-        x._tlm_adjoint__caches = FunctionCaches(x)
-    return x._tlm_adjoint__caches
-
-
 def new_count():
     return Constant(0).count()
 
@@ -206,6 +167,9 @@ class ReplacementFunctionInterface(FunctionInterface):
     def tlm_depth(self):
         return self._x.tlm_depth()
 
+    def caches(self):
+        return self._x.caches()
+
     def new(self, name=None, static=False, cache=None, checkpoint=None,
             tlm_depth=0):
         return Function(self._x.function_space(), name=name, static=static,
@@ -223,7 +187,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__static = function_is_static(x)
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
-        self._tlm_adjoint__caches = function_caches(x)
+        self.__caches = function_caches(x)
         self._tlm_adjoint__function_interface = \
             ReplacementFunctionInterface(self)
 
@@ -247,3 +211,6 @@ class ReplacementFunction(ufl.classes.Coefficient):
 
     def tlm_depth(self):
         return self.__tlm_depth
+
+    def caches(self):
+        return self.__caches

@@ -26,6 +26,7 @@ __all__ = \
         "function_alias",
         "function_assign",
         "function_axpy",
+        "function_caches",
         "function_comm",
         "function_copy",
         "function_get_values",
@@ -94,6 +95,9 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def tlm_depth(self):
+        raise InterfaceException("Method not overridden")
+
+    def caches(self):
         raise InterfaceException("Method not overridden")
 
     def zero(self):
@@ -193,6 +197,10 @@ def function_is_checkpointed(x):
 
 def function_tlm_depth(x):
     return x._tlm_adjoint__function_interface.tlm_depth()
+
+
+def function_caches(x):
+    return x._tlm_adjoint__function_interface.caches()
 
 
 def function_zero(x):

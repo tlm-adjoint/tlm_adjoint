@@ -24,7 +24,7 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
-from .caches import clear_caches, form_neg
+from .caches import FunctionCaches, clear_caches, form_neg
 from .functions import Function, ReplacementFunction
 
 import ufl
@@ -43,6 +43,7 @@ __all__ = \
         "function_alias",
         "function_assign",
         "function_axpy",
+        "function_caches",
         "function_comm",
         "function_copy",
         "function_finalize_adjoint_derivative_action",
@@ -124,6 +125,11 @@ class FunctionInterface(_FunctionInterface):
             return self._x.tlm_depth()
         else:
             return 0
+
+    def caches(self):
+        if not hasattr(self._x, "_tlm_adjoint__function_caches"):
+            self._x._tlm_adjoint__function_caches = FunctionCaches(self._x)
+        return self._x._tlm_adjoint__function_caches
 
     def zero(self):
         with self._x.dat.vec_wo as x_v:

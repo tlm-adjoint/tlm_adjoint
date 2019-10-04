@@ -34,6 +34,7 @@ __all__ = \
         "Cache",
         "CacheException",
         "CacheRef",
+        "FunctionCaches",
         "LinearSolverCache",
         "assembly_cache",
         "form_dependencies",
@@ -245,6 +246,37 @@ class CacheRef:
 
     def _clear(self):
         self._value = None
+
+
+class FunctionCaches:
+    def __init__(self, x):
+        self._caches = weakref.WeakValueDictionary()
+        self._id = function_id(x)
+        self._state = (self._id, function_state(x))
+
+    def __len__(self):
+        return len(self._caches)
+
+    def clear(self):
+        for cache in tuple(self._caches.valuerefs()):
+            cache = cache()
+            if cache is not None:
+                cache.clear(self._id)
+                assert(not cache.id() in self._caches)
+
+    def add(self, cache):
+        cache_id = cache.id()
+        if cache_id not in self._caches:
+            self._caches[cache_id] = cache
+
+    def remove(self, cache):
+        del(self._caches[cache.id()])
+
+    def update(self, x):
+        state = (function_id(x), function_state(x))
+        if state != self._state:
+            self.clear()
+            self._state = state
 
 
 def clear_caches(*deps):
