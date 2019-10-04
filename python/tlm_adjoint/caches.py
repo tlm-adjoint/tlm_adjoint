@@ -22,8 +22,9 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .interface import *
 
+from .functions import function_caches
+
 from collections import defaultdict
-import copy
 import ufl
 import weakref
 
@@ -33,21 +34,13 @@ __all__ = \
         "Cache",
         "CacheException",
         "CacheRef",
-        "Constant",
-        "DirichletBC",
-        "Function",
         "LinearSolverCache",
-        "ReplacementFunction",
         "assembly_cache",
-        "bcs_is_cached",
-        "bcs_is_static",
         "form_dependencies",
         "form_neg",
-        "function_caches",
         "is_cached",
         "linear_solver",
         "linear_solver_cache",
-        "new_count",
         "replaced_form",
         "set_assembly_cache",
         "set_linear_solver_cache",
@@ -60,115 +53,9 @@ class CacheException(Exception):
     pass
 
 
-class Constant(backend_Constant):
-    def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", None)
-        if cache is None:
-            cache = static
-
-        backend_Constant.__init__(self, *args, **kwargs)
-        self.__static = static
-        self.__cache = cache
-
-    def is_static(self):
-        return self.__static
-
-    def is_cached(self):
-        return self.__cache
-
-
-class Function(backend_Function):
-    def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", None)
-        if cache is None:
-            cache = static
-        checkpoint = kwargs.pop("checkpoint", None)
-        if checkpoint is None:
-            checkpoint = not static
-        tlm_depth = kwargs.pop("tlm_depth", 0)
-
-        self.__static = static
-        self.__cache = cache
-        self.__checkpoint = checkpoint
-        self.__tlm_depth = tlm_depth
-        backend_Function.__init__(self, *args, **kwargs)
-        self.__caches = FunctionCaches(self)
-
-    def is_static(self):
-        return self.__static
-
-    def is_cached(self):
-        return self.__cache
-
-    def is_checkpointed(self):
-        return self.__checkpoint
-
-    def tlm_depth(self):
-        return self.__tlm_depth
-
-    def tangent_linear(self, name=None):
-        if self.is_static():
-            return None
-        else:
-            return function_new(self, name=name, static=False,
-                                cache=self.is_cached(),
-                                checkpoint=self.is_checkpointed(),
-                                tlm_depth=self.tlm_depth() + 1)
-
-    def caches(self):
-        return self.__caches
-
-
-class DirichletBC(backend_DirichletBC):
-    def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", None)
-        if cache is None:
-            cache = static
-        homogeneous = kwargs.pop("homogeneous", False)
-
-        backend_DirichletBC.__init__(self, *args, **kwargs)
-        self.__static = static
-        self.__cache = cache
-        self.__homogeneous = homogeneous
-
-    def is_static(self):
-        return self.__static
-
-    def is_cached(self):
-        return self.__cache
-
-    def is_homogeneous(self):
-        return self.__homogeneous
-
-    def homogenize(self):
-        if not self.__homogeneous:
-            backend_DirichletBC.homogenize(self)
-            self.__homogeneous = True
-
-
 def is_cached(e):
     for c in ufl.algorithms.extract_coefficients(e):
         if not hasattr(c, "is_cached") or not c.is_cached():
-            return False
-    return True
-
-
-def bcs_is_static(bcs):
-    for bc in bcs:
-        if not hasattr(bc, "is_static") or not bc.is_static():
-            return False
-    return True
-
-
-def bcs_is_cached(bcs):
-    for bc in bcs:
-        if not hasattr(bc, "is_cached") or not bc.is_cached():
             return False
     return True
 
@@ -360,45 +247,6 @@ class CacheRef:
         self._value = None
 
 
-class FunctionCaches:
-    def __init__(self, x):
-        self._caches = weakref.WeakValueDictionary()
-        self._id = function_id(x)
-        self._state = (self._id, function_state(x))
-
-    def __len__(self):
-        return len(self._caches)
-
-    def clear(self):
-        for cache in tuple(self._caches.valuerefs()):
-            cache = cache()
-            if cache is not None:
-                cache.clear(self._id)
-                assert(not cache.id() in self._caches)
-
-    def add(self, cache):
-        cache_id = cache.id()
-        if cache_id not in self._caches:
-            self._caches[cache_id] = cache
-
-    def remove(self, cache):
-        del(self._caches[cache.id()])
-
-    def update(self, x):
-        state = (function_id(x), function_state(x))
-        if state != self._state:
-            self.clear()
-            self._state = state
-
-
-def function_caches(x):
-    if hasattr(x, "caches"):
-        return x.caches()
-    if not hasattr(x, "_tlm_adjoint__caches"):
-        x._tlm_adjoint__caches = FunctionCaches(x)
-    return x._tlm_adjoint__caches
-
-
 def clear_caches(*deps):
     if len(deps) == 0:
         for cache in tuple(Cache._caches.valuerefs()):
@@ -521,82 +369,6 @@ class Cache:
 
     def get(self, key, default=None):
         return self._cache.get(key, default)
-
-
-def new_count():
-    return Constant(0).count()
-
-
-class ReplacementFunctionInterface(FunctionInterface):
-    def space(self):
-        return self._x.function_space()
-
-    def id(self):
-        return self._x.id()
-
-    def name(self):
-        return self._x.name()
-
-    def state(self):
-        return -1
-
-    def is_static(self):
-        return self._x.is_static()
-
-    def is_cached(self):
-        return self._x.is_cached()
-
-    def is_checkpointed(self):
-        return self._x.is_checkpointed()
-
-    def tlm_depth(self):
-        return self._x.tlm_depth()
-
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        return Function(self._x.function_space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
-
-
-class ReplacementFunction(ufl.classes.Coefficient):
-    def __init__(self, x):
-        space = function_space(x)
-        ufl.classes.Coefficient.__init__(self, space, count=new_count())
-        self.__space = space
-        self.__id = function_id(x)
-        self.__name = function_name(x)
-        self.__static = function_is_static(x)
-        self.__cache = function_is_cached(x)
-        self.__checkpoint = function_is_checkpointed(x)
-        self.__tlm_depth = function_tlm_depth(x)
-        self.__caches = function_caches(x)
-        self._tlm_adjoint__function_interface = \
-            ReplacementFunctionInterface(self)
-
-    def function_space(self):
-        return self.__space
-
-    def id(self):
-        return self.__id
-
-    def name(self):
-        return self.__name
-
-    def is_static(self):
-        return self.__static
-
-    def is_cached(self):
-        return self.__cache
-
-    def is_checkpointed(self):
-        return self.__checkpoint
-
-    def tlm_depth(self):
-        return self.__tlm_depth
-
-    def caches(self):
-        return self.__caches
 
 
 def replaced_form(form):

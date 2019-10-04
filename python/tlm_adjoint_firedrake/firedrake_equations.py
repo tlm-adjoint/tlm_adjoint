@@ -24,8 +24,7 @@ from .backend_interface import *
 
 from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
-from .caches import Cache, form_dependencies, form_key, \
-    parameters_key
+from .caches import Cache, form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, unbind_form, unbound_form
 
 import numpy as np

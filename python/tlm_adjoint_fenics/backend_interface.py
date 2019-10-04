@@ -23,7 +23,8 @@ from .backend_code_generator_interface import copy_parameters_dict
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
-from .caches import Function, ReplacementFunction, clear_caches, form_neg
+from .caches import clear_caches, form_neg
+from .functions import Function, ReplacementFunction
 
 import ufl
 import sys

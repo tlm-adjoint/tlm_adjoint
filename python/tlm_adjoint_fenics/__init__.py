@@ -24,6 +24,7 @@ import sys
 modules = [("backend", "tlm_adjoint_fenics"),
            ("backend_code_generator_interface", "tlm_adjoint_fenics"),
            ("interface", "tlm_adjoint"),
+           ("functions", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_fenics"),
            ("base_equations", "tlm_adjoint"),
@@ -68,6 +69,7 @@ from .caches import *              # noqa: F401
 from .eigendecomposition import *  # noqa: F401
 from .equations import *           # noqa: F401
 from .fenics_equations import *    # noqa: F401
+from .functions import *           # noqa: F401
 from .functional import *          # noqa: F401
 from .hessian import *             # noqa: F401
 from .manager import *             # noqa: F401

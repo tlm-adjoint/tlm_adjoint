@@ -24,9 +24,9 @@ from .backend_interface import *
 
 from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear
-from .caches import CacheRef, DirichletBC, assembly_cache, bcs_is_cached, \
-    bcs_is_static, form_neg, is_cached, linear_solver_cache, split_form, \
-    update_caches, verify_assembly
+from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
+    linear_solver_cache, split_form, update_caches, verify_assembly
+from .functions import DirichletBC, bcs_is_cached, bcs_is_static
 
 import copy
 import operator
