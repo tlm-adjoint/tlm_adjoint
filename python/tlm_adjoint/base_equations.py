@@ -536,11 +536,10 @@ class ControlsMarker(Equation):
 
         Arguments:
 
-        M  A Function or ReplacementFunction, or a list or tuple of these.
-           May be static.
+        M  A function, or a list or tuple of functions. May be static.
         """
 
-        if is_function(M) or isinstance(M, ReplacementFunction):
+        if is_function(M):
             M = (M,)
 
         self._X = tuple(M)

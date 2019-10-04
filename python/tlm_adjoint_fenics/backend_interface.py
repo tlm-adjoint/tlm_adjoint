@@ -24,7 +24,7 @@ from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
 from .caches import clear_caches, form_neg
-from .functions import Caches, Function, ReplacementFunction
+from .functions import Caches, Function, Replacement
 
 import ufl
 import sys
@@ -35,7 +35,7 @@ __all__ = \
 
         "Function",
         "RealFunctionSpace",
-        "ReplacementFunction",
+        "Replacement",
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
@@ -208,7 +208,7 @@ class FunctionInterface(_FunctionInterface):
 
     def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
-            self._x._tlm_adjoint__replacement = ReplacementFunction(self._x)
+            self._x._tlm_adjoint__replacement = Replacement(self._x)
         return self._x._tlm_adjoint__replacement
 
     def alias(self):

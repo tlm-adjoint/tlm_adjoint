@@ -424,9 +424,9 @@ class EquationManager:
         cp_parameters  (Optional) Checkpointing parameters dictionary.
             Parameters for "memory" method
                 replace        Whether to automatically replace internal
-                               Function objects in the provided equations with
-                               ReplacementFunction objects. Logical, optional,
-                               default False.
+                               functions in the provided equations with
+                               Replacement objects. Logical, optional, default
+                               False.
 
             Parameters for "periodic_disk" method
                 path           Directory in which disk checkpoint data should
@@ -520,7 +520,7 @@ class EquationManager:
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
-                         ", replaced" if isinstance(dep, ReplacementFunction) else "",  # noqa: E501
+                         ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
                          "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
@@ -894,8 +894,8 @@ class EquationManager:
 
     def replace(self, eq):
         """
-        Replace internal Function objects in the provided equation with
-        ReplacementFunction objects.
+        Replace internal functions in the provided equation with Replacement
+        objects.
         """
 
         eq_id = eq.id()
@@ -1440,8 +1440,8 @@ class EquationManager:
 
     def find_initial_condition(self, x):
         """
-        Find the initial condition Function or ReplacementFunction associated
-        with the given Function or name.
+        Find the initial condition function associated with the given function
+        or name.
         """
 
         if is_function(x):

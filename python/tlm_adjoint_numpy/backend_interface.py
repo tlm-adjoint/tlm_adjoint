@@ -32,7 +32,7 @@ __all__ = \
         "Function",
         "FunctionSpace",
         "RealFunctionSpace",
-        "ReplacementFunction",
+        "Replacement",
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
@@ -308,14 +308,14 @@ class Function:
 
     def replacement(self):
         if self._replacement is None:
-            self._replacement = ReplacementFunction(self)
+            self._replacement = Replacement(self)
         return self._replacement
 
     def vector(self):
         return self._data
 
 
-class ReplacementFunctionInterface(_FunctionInterface):
+class ReplacementInterface(_FunctionInterface):
     def space(self):
         return self._x.space()
 
@@ -346,7 +346,7 @@ class ReplacementFunctionInterface(_FunctionInterface):
                         checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
-class ReplacementFunction:
+class Replacement:
     def __init__(self, x):
         self._space = x.space()
         self._name = x.name()
@@ -355,8 +355,7 @@ class ReplacementFunction:
         self._checkpoint = x.is_checkpointed()
         self._tlm_depth = x.tlm_depth()
         self._id = x.id()
-        self._tlm_adjoint__function_interface = \
-            ReplacementFunctionInterface(self)
+        self._tlm_adjoint__function_interface = ReplacementInterface(self)
 
     def space(self):
         return self._space

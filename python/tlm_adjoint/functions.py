@@ -32,7 +32,7 @@ __all__ = \
         "Constant",
         "DirichletBC",
         "Function",
-        "ReplacementFunction",
+        "Replacement",
         "bcs_is_cached",
         "bcs_is_static",
         "new_count"
@@ -236,7 +236,7 @@ class ConstantInterface(_FunctionInterface):
 
     def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
-            self._x._tlm_adjoint__replacement = ReplacementFunction(self._x)
+            self._x._tlm_adjoint__replacement = Replacement(self._x)
         return self._x._tlm_adjoint__replacement
 
 
@@ -383,7 +383,7 @@ def new_count():
     return backend_Constant(0).count()
 
 
-class ReplacementFunctionInterface(FunctionInterface):
+class ReplacementInterface(FunctionInterface):
     def space(self):
         return self._x.function_space()
 
@@ -418,7 +418,7 @@ class ReplacementFunctionInterface(FunctionInterface):
                         tlm_depth=tlm_depth)
 
 
-class ReplacementFunction(ufl.classes.Coefficient):
+class Replacement(ufl.classes.Coefficient):
     def __init__(self, x):
         space = function_space(x)
         ufl.classes.Coefficient.__init__(self, space, count=new_count())
@@ -430,8 +430,7 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
-        self._tlm_adjoint__function_interface = \
-            ReplacementFunctionInterface(self)
+        self._tlm_adjoint__function_interface = ReplacementInterface(self)
 
     def function_space(self):
         return self.__space
