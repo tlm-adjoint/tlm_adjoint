@@ -84,7 +84,7 @@ class AdjointRHS:
 
     def initialize(self):
         if self._b is None:
-            self._b = function_space_new(self._space)
+            self._b = space_new(self._space)
 
     def finalize(self):
         self.initialize()
@@ -101,7 +101,7 @@ class AdjointRHS:
 
 class AdjointEquationRHS:
     def __init__(self, eq):
-        self._B = tuple(AdjointRHS(x.function_space()) for x in eq.X())
+        self._B = tuple(AdjointRHS(function_space(x)) for x in eq.X())
 
     def __getitem__(self, key):
         return self._B[key]
@@ -614,7 +614,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
-        if function_space_id(x.function_space()) != function_space_id(y.function_space()):  # noqa: E501
+        if space_id(function_space(x)) != space_id(function_space(y)):
             raise EquationException("Invalid function space")
         Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
 
@@ -647,7 +647,7 @@ class LinearCombinationSolver(Equation):
         alpha = tuple(float(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
         for y in Y:
-            if function_space_id(x.function_space()) != function_space_id(y.function_space()):  # noqa: E501
+            if space_id(function_space(x)) != space_id(function_space(y)):
                 raise EquationException("Invalid function space")
 
         Equation.__init__(self, x, [x] + Y, nl_deps=[], ic_deps=[])

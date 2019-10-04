@@ -42,7 +42,6 @@ __all__ = \
         "function_comm",
         "function_copy",
         "function_finalize_adjoint_derivative_action",
-        "function_function_space",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -58,8 +57,7 @@ __all__ = \
         "function_new",
         "function_replacement",
         "function_set_values",
-        "function_space_id",
-        "function_space_new",
+        "function_space",
         "function_state",
         "function_subtract_adjoint_derivative_action",
         "function_sum",
@@ -69,6 +67,8 @@ __all__ = \
         "function_zero",
         "info",
         "is_function",
+        "space_id",
+        "space_new",
         "warning"
     ]
 
@@ -91,22 +91,23 @@ def copy_parameters_dict(parameters):
     return copy.deepcopy(parameters)
 
 
+class FunctionSpaceInterface(SpaceInterface):
+    def id(self):
+        return self._space.dim()
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._space, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
 class FunctionSpace:
     def __init__(self, dim):
         self._dim = dim
+        self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
 
     def dim(self):
         return self._dim
-
-
-def function_space_id(space):
-    return space.dim()
-
-
-def function_space_new(space, name=None, static=False, cache=None,
-                       checkpoint=None, tlm_depth=0):
-    return Function(space, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
 def RealFunctionSpace(comm=None):
@@ -146,8 +147,8 @@ class FunctionInterface(_FunctionInterface):
     def comm(self):
         return _comm
 
-    def function_space(self):
-        return self._x.function_space()
+    def space(self):
+        return self._x.space()
 
     def id(self):
         return self._x.id()
@@ -216,13 +217,13 @@ class FunctionInterface(_FunctionInterface):
 
     def new(self, name=None, static=False, cache=None, checkpoint=None,
             tlm_depth=0):
-        return Function(self._x.function_space(), name=name, static=static,
+        return Function(self._x.space(), name=name, static=static,
                         cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth)
 
     def copy(self, name=None, static=False, cache=None, checkpoint=None,
              tlm_depth=0):
-        return Function(self._x.function_space(), name=name, static=static,
+        return Function(self._x.space(), name=name, static=static,
                         cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth, _data=self._x.vector().copy())
 
@@ -233,7 +234,7 @@ class FunctionInterface(_FunctionInterface):
         return self._x.replacement()
 
     def alias(self):
-        return Function(self._x.function_space(), name=self._x.name(),
+        return Function(self._x.space(), name=self._x.name(),
                         static=self._x.is_static(), cache=self._x.is_cached(),
                         checkpoint=self._x.is_checkpointed(),
                         tlm_depth=self._x.tlm_depth(), _data=self._x.vector())
@@ -267,9 +268,9 @@ class Function:
             self._data = np.zeros(space.dim(), dtype=np.float64)
         else:
             self._data = _data
-        self._tlm_adjoint__interface = FunctionInterface(self)
+        self._tlm_adjoint__function_interface = FunctionInterface(self)
 
-    def function_space(self):
+    def space(self):
         return self._space
 
     def id(self):
@@ -300,7 +301,7 @@ class Function:
         if self.is_static():
             return None
         else:
-            return Function(self.function_space(), name=name, static=False,
+            return Function(self.space(), name=name, static=False,
                             cache=self.is_cached(),
                             checkpoint=self.is_checkpointed(),
                             tlm_depth=self.tlm_depth() + 1)
@@ -315,8 +316,8 @@ class Function:
 
 
 class ReplacementFunctionInterface(_FunctionInterface):
-    def function_space(self):
-        return self._x.function_space()
+    def space(self):
+        return self._x.space()
 
     def id(self):
         return self._x.id()
@@ -341,23 +342,23 @@ class ReplacementFunctionInterface(_FunctionInterface):
 
     def new(self, name=None, static=False, cache=None, checkpoint=None,
             tlm_depth=0):
-        return Function(self._x.function_space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+        return Function(self._x.space(), name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
 class ReplacementFunction:
     def __init__(self, x):
-        self._space = x.function_space()
+        self._space = x.space()
         self._name = x.name()
         self._static = x.is_static()
         self._cache = x.is_cached()
         self._checkpoint = x.is_checkpointed()
         self._tlm_depth = x.tlm_depth()
         self._id = x.id()
-        self._tlm_adjoint__interface = ReplacementFunctionInterface(self)
+        self._tlm_adjoint__function_interface = \
+            ReplacementFunctionInterface(self)
 
-    def function_space(self):
+    def space(self):
         return self._space
 
     def id(self):

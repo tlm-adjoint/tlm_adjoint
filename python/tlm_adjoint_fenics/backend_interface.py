@@ -23,8 +23,7 @@ from .backend_code_generator_interface import copy_parameters_dict
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
-from .caches import Function, ReplacementFunction, clear_caches, form_neg, \
-    function_space_new
+from .caches import Function, ReplacementFunction, clear_caches, form_neg
 
 import ufl
 import sys
@@ -34,7 +33,6 @@ __all__ = \
         "InterfaceException",
 
         "Function",
-        "FunctionSpace",
         "RealFunctionSpace",
         "ReplacementFunction",
         "clear_caches",
@@ -46,7 +44,6 @@ __all__ = \
         "function_comm",
         "function_copy",
         "function_finalize_adjoint_derivative_action",
-        "function_function_space",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -62,8 +59,7 @@ __all__ = \
         "function_new",
         "function_replacement",
         "function_set_values",
-        "function_space_id",
-        "function_space_new",
+        "function_space",
         "function_state",
         "function_subtract_adjoint_derivative_action",
         "function_sum",
@@ -73,6 +69,8 @@ __all__ = \
         "function_zero",
         "info",
         "is_function",
+        "space_id",
+        "space_new",
         "warning"
     ]
 
@@ -81,7 +79,7 @@ class FunctionInterface(_FunctionInterface):
     def comm(self):
         return self._x.function_space().mesh().mpi_comm()
 
-    def function_space(self):
+    def space(self):
         return self._x.function_space()
 
     def id(self):
@@ -225,10 +223,31 @@ _orig_Function__init__ = backend_Function.__init__
 
 def _Function__init__(self, *args, **kwargs):
     _orig_Function__init__(self, *args, **kwargs)
-    self._tlm_adjoint__interface = FunctionInterface(self)
+    self._tlm_adjoint__function_interface = FunctionInterface(self)
 
 
 backend_Function.__init__ = _Function__init__
+
+
+class FunctionSpaceInterface(SpaceInterface):
+    def id(self):
+        return self._space.id()
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._space, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+_orig_FunctionSpace__init__ = FunctionSpace.__init__
+
+
+def _FunctionSpace__init__(self, *args, **kwargs):
+    _orig_FunctionSpace__init__(self, *args, **kwargs)
+    self._tlm_adjoint__space_interface = SpaceInterface(self)
+
+
+FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 # def clear_caches(*deps):
@@ -243,17 +262,6 @@ def warning(message):
 
 
 # def copy_parameters_dict(parameters):
-
-
-# class FunctionSpace:
-
-
-def function_space_id(space):
-    return space.id()
-
-
-# def function_space_new(space, name=None, static=False, cache=None,
-#                        checkpoint=None, tlm_depth=0):
 
 
 def RealFunctionSpace(comm=None):

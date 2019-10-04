@@ -44,7 +44,6 @@ __all__ = \
         "form_dependencies",
         "form_neg",
         "function_caches",
-        "function_space_new",
         "is_cached",
         "linear_solver",
         "linear_solver_cache",
@@ -115,10 +114,10 @@ class Function(backend_Function):
         if self.is_static():
             return None
         else:
-            return function_space_new(self.function_space(), name=name,
-                                      static=False, cache=self.is_cached(),
-                                      checkpoint=self.is_checkpointed(),
-                                      tlm_depth=self.tlm_depth() + 1)
+            return function_new(self, name=name, static=False,
+                                cache=self.is_cached(),
+                                checkpoint=self.is_checkpointed(),
+                                tlm_depth=self.tlm_depth() + 1)
 
     def caches(self):
         return self.__caches
@@ -158,12 +157,6 @@ def is_cached(e):
         if not hasattr(c, "is_cached") or not c.is_cached():
             return False
     return True
-
-
-def function_space_new(space, name=None, static=False, cache=None,
-                       checkpoint=None, tlm_depth=0):
-    return Function(space, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
 def bcs_is_static(bcs):
@@ -317,7 +310,7 @@ def split_terms(terms, base_integral,
                     [base_integral.reconstruct(integrand=term)])
                 mat_sub, non_cached_sub = split_arity(
                     term_form, mat_dep,
-                    argument=TrialFunction(mat_dep.function_space()))
+                    argument=TrialFunction(function_space(mat_dep)))
                 mat_sub = [integral.integrand()
                            for integral in mat_sub.integrals()]
                 non_cached_sub = [integral.integrand()
@@ -535,7 +528,7 @@ def new_count():
 
 
 class ReplacementFunctionInterface(FunctionInterface):
-    def function_space(self):
+    def space(self):
         return self._x.function_space()
 
     def id(self):
@@ -568,9 +561,9 @@ class ReplacementFunctionInterface(FunctionInterface):
 
 class ReplacementFunction(ufl.classes.Coefficient):
     def __init__(self, x):
-        ufl.classes.Coefficient.__init__(self, x.function_space(),
-                                         count=new_count())
-        self.__space = x.function_space()
+        space = function_space(x)
+        ufl.classes.Coefficient.__init__(self, space, count=new_count())
+        self.__space = space
         self.__id = function_id(x)
         self.__name = function_name(x)
         self.__static = function_is_static(x)
@@ -578,7 +571,8 @@ class ReplacementFunction(ufl.classes.Coefficient):
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
-        self._tlm_adjoint__interface = ReplacementFunctionInterface(self)
+        self._tlm_adjoint__function_interface = \
+            ReplacementFunctionInterface(self)
 
     def function_space(self):
         return self.__space

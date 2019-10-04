@@ -143,10 +143,10 @@ class AssembleSolver(Equation):
 
         dep = eq_deps[dep_index]
         if self._rank == 0:
-            argument = TestFunction(dep.function_space())
+            argument = TestFunction(function_space(dep))
         else:
             assert(self._rank == 1)
-            argument = TrialFunction(dep.function_space())
+            argument = TrialFunction(function_space(dep))
         dF = ufl.algorithms.expand_derivatives(
             ufl.derivative(self._rhs, dep, argument=argument))
         if dF.empty():
@@ -262,7 +262,7 @@ class EquationSolver(Equation):
                 raise EquationException("Invalid right-hand-side")
             nl_solve_J = J
             J = ufl.algorithms.expand_derivatives(ufl.derivative(
-                F, x, argument=TrialFunction(x.function_space())))
+                F, x, argument=TrialFunction(function_space(x))))
 
         deps, nl_deps = extract_dependencies(F)
 
@@ -646,7 +646,7 @@ class EquationSolver(Equation):
 
         dep = eq_deps[dep_index]
         dF = ufl.algorithms.expand_derivatives(ufl.derivative(
-            self._F, dep, argument=TrialFunction(dep.function_space())))
+            self._F, dep, argument=TrialFunction(function_space(dep))))
         if dF.empty():
             self._derivative_mats[dep_index] = None
             return None
@@ -775,7 +775,7 @@ def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
 
 class ProjectionSolver(EquationSolver):
     def __init__(self, rhs, x, *args, **kwargs):
-        space = x.function_space()
+        space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(test, rhs) * ufl.dx
@@ -793,7 +793,7 @@ class DirichletBCSolver(Equation):
         _, y = self.dependencies() if deps is None else deps
         function_zero(x)
         DirichletBC(
-            x.function_space(), y,
+            function_space(x), y,
             *self._bc_args, **self._bc_kwargs).apply(function_vector(x))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -803,7 +803,7 @@ class DirichletBCSolver(Equation):
             _, y = self.dependencies()
             F = function_new(y)
             DirichletBC(
-                y.function_space(), adj_x,
+                function_space(y), adj_x,
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
             return (-1.0, F)
         else:
@@ -889,17 +889,17 @@ class ExprEvaluationSolver(Equation):
     def __init__(self, rhs, x):
         if isinstance(rhs, ufl.classes.Form):
             raise EquationException("rhs should not be a Form")
-        x_space = x.function_space()
+        x_space = function_space(x)
         if len(x_space.ufl_element().value_shape()) > 0:
             raise EquationException("Solution must be a scalar Function")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        x_space_id = function_space_id(x_space)
+        x_space_id = space_id(x_space)
         for dep in deps:
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
-            elif function_space_id(dep.function_space()) != x_space_id and \
+            elif space_id(function_space(dep)) != x_space_id and \
                     not is_real_function(dep):
                 raise EquationException("Invalid function space")
         deps.insert(0, x)

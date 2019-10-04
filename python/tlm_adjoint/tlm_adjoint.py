@@ -919,11 +919,11 @@ class EquationManager:
         return self._replace_map.get(function_id(x), x)
 
     def _checkpoint_space_id(self, fn):
-        space = fn.function_space()
-        space_id = function_space_id(space)
-        if space_id not in self._cp_spaces:
-            self._cp_spaces[space_id] = space
-        return space_id
+        space = function_space(fn)
+        id = space_id(space)
+        if id not in self._cp_spaces:
+            self._cp_spaces[id] = space
+        return id
 
     def _save_memory_checkpoint(self, cp, n):
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
@@ -1012,7 +1012,7 @@ class EquationManager:
             for key in tuple(cp.keys()):
                 space_id, values = cp.pop(key)
                 if key in storage:
-                    F = function_space_new(self._cp_spaces[space_id])
+                    F = space_new(self._cp_spaces[space_id])
                     function_set_values(F, values)
                     storage[key] = F
                 del(space_id, values)
@@ -1033,7 +1033,7 @@ class EquationManager:
                 key = int(d[self._comm.rank])
                 if key in storage:
                     d = g["space_id"]
-                    F = function_space_new(self._cp_spaces[d[self._comm.rank]])
+                    F = space_new(self._cp_spaces[d[self._comm.rank]])
                     d = g["value"]
                     function_set_values(F, d[function_local_indices(F)])
                     storage[key] = F

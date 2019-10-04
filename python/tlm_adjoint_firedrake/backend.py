@@ -33,6 +33,7 @@ backend_LinearVariationalProblem = LinearVariationalProblem
 backend_LinearVariationalSolver = LinearVariationalSolver
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
 backend_Vector = Vector
+backend_WithGeometry = firedrake.functionspaceimpl.WithGeometry
 backend_assemble = assemble
 backend_project = project
 backend_solve = solve
@@ -51,6 +52,7 @@ __all__ = \
         "backend_LinearVariationalSolver",
         "backend_NonlinearVariationalSolver",
         "backend_Vector",
+        "backend_WithGeometry",
         "backend_assemble",
         "backend_project",
         "backend_solve",

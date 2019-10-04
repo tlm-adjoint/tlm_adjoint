@@ -171,8 +171,7 @@ def forward(psi_0, kappa):
         def initialize_adjoint(self, J, nl_deps):
             J_id = J.id()
             if J_id not in self._x_0_adjoint_cache:
-                self._x_0_adjoint_cache[J_id] = \
-                    function_space_new(space)
+                self._x_0_adjoint_cache[J_id] = space_new(space)
             self._x_0_adjoint = self._x_0_adjoint_cache[J_id]
 
         def finalize_adjoint(self, J):

@@ -239,7 +239,7 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
         if function is None:
             if V is None:
                 raise OverrideException("V or function required")
-            x = function_space_new(V)
+            x = space_new(V)
         else:
             x = function
 

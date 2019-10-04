@@ -50,12 +50,12 @@ class Functional:
         fn  (Optional) The Function storing the functional value. Replaced by a
             new Function by subsequent assign or addto calls.
         If fn is supplied:
-            space  (Optional) The FunctionSpace for the functional. Must be the
-                   same space as fn.function_space().
+            space  (Optional) The space for the functional. Must be the same
+                   space as function_space(fn).
             name   (Optional) The name of the functional. Default
                    function_name(fn).
         If fn is not supplied:
-            space  (Optional) The FunctionSpace for the functional. Default
+            space  (Optional) The space for the functional. Default
                    RealFunctionSpace().
             name   (Optional) The name of the functional. Default "Functional".
         """
@@ -67,11 +67,9 @@ class Functional:
                 name = "Functional"
         else:
             if space is None:
-                space = fn.function_space()
+                space = function_space(fn)
             else:
-                space_id = function_space_id(space)
-                fn_space_id = function_space_id(fn.function_space())
-                if space_id != fn_space_id:
+                if space_id(space) != space_id(function_space(fn)):
                     raise FunctionalException("Invalid function space")
             if name is None:
                 name = function_name(fn)
@@ -102,7 +100,7 @@ class Functional:
             manager = _manager()
 
         if self._fn is None:
-            new_fn = function_space_new(self._space, name=self._name)
+            new_fn = space_new(self._space, name=self._name)
         else:
             new_fn = function_new(self._fn, name=self._name)
         if is_function(term):
@@ -157,12 +155,12 @@ class Functional:
         """
 
         if self._fn is None:
-            self._fn = function_space_new(self._space, name=self._name)
+            self._fn = space_new(self._space, name=self._name)
         return self._fn
 
-    def function_space(self):
+    def space(self):
         """
-        Return the FunctionSpace for the functional.
+        Return the space for the functional.
         """
 
         return self._space
