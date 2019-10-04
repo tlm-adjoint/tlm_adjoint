@@ -895,12 +895,11 @@ class ExprEvaluationSolver(Equation):
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        x_space_id = space_id(x_space)
         for dep in deps:
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
-            elif space_id(function_space(dep)) != x_space_id and \
-                    not is_real_function(dep):
+            elif function_local_size(dep) != function_local_size(x) \
+                    and not is_real_function(dep):
                 raise EquationException("Invalid function space")
         deps.insert(0, x)
 

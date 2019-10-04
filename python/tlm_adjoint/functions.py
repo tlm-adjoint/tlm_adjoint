@@ -20,9 +20,12 @@
 
 from .backend import *
 from .interface import *
+from .interface import FunctionInterface as _FunctionInterface
 
 import copy
+import numpy as np
 import ufl
+import weakref
 
 __all__ = \
     [
@@ -36,23 +39,261 @@ __all__ = \
     ]
 
 
+class Caches:
+    def __init__(self, x):
+        self._caches = weakref.WeakValueDictionary()
+        self._id = function_id(x)
+        self._state = (self._id, function_state(x))
+
+    def __len__(self):
+        return len(self._caches)
+
+    def clear(self):
+        for cache in tuple(self._caches.valuerefs()):
+            cache = cache()
+            if cache is not None:
+                cache.clear(self._id)
+                assert(not cache.id() in self._caches)
+
+    def add(self, cache):
+        cache_id = cache.id()
+        if cache_id not in self._caches:
+            self._caches[cache_id] = cache
+
+    def remove(self, cache):
+        del(self._caches[cache.id()])
+
+    def update(self, x):
+        state = (function_id(x), function_state(x))
+        if state != self._state:
+            self.clear()
+            self._state = state
+
+
+class ConstantSpaceInterface(SpaceInterface):
+    def __init__(self, space, comm):
+        SpaceInterface.__init__(self, space)
+        self._comm = comm
+        self._id = new_count()
+
+    def id(self):
+        return self._id
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        shape = self._space.ufl_element().value_shape()
+        if len(shape) == 0:
+            value = 0.0
+        else:
+            value = np.zeros(shape, dtype=np.float64)
+        return Constant(value, comm=self._comm, name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
+
+
+class ConstantInterface(_FunctionInterface):
+    def comm(self):
+        return self._x.comm()
+
+    def space(self):
+        return self._x.ufl_function_space()
+
+    def id(self):
+        return self._x.count()
+
+    def name(self):
+        return self._x.name()
+
+    def state(self):
+        if not hasattr(self._x, "_tlm_adjoint__state"):
+            self._x._tlm_adjoint__state = 0
+        return self._x._tlm_adjoint__state
+
+    def update_state(self):
+        if hasattr(self._x, "_tlm_adjoint__state"):
+            self._x._tlm_adjoint__state += 1
+        else:
+            self._x._tlm_adjoint__state = 1
+
+    def is_static(self):
+        return self._x.is_static()
+
+    def is_cached(self):
+        return self._x.is_cached()
+
+    def is_checkpointed(self):
+        return self._x.is_checkpointed()
+
+    def tlm_depth(self):
+        return self._x.tlm_depth()
+
+    def caches(self):
+        if not hasattr(self._x, "_tlm_adjoint__function_caches"):
+            self._x._tlm_adjoint__function_caches = Caches(self._x)
+        return self._x._tlm_adjoint__function_caches
+
+    def zero(self):
+        if len(self._x.ufl_shape) == 0:
+            value = 0.0
+        else:
+            value = np.zeros(self._x.ufl_shape, dtype=np.float64)
+            value = backend_Constant(value)
+        self._x.assign(value)
+
+    def assign(self, y):
+        self._x.assign(y)
+
+    def axpy(self, alpha, y):
+        if len(self._x.ufl_shape) == 0:
+            value = float(self._x) + alpha * float(y)
+        else:
+            value = self._x.values() + alpha * y.values()
+            value = backend_Constant(value)
+        self._x.assign(value)
+
+    def inner(self, y):
+        return (self._x.values() * y.values()).sum()
+
+    def max_value(self):
+        return self._x.values().max()
+
+    def sum(self):
+        return self._x.values().sum()
+
+    def linf_norm(self):
+        return abs(self._x.values()).max()
+
+    def local_size(self):
+        comm = self._x.comm()
+        if comm.rank == 0:
+            if len(self._x.ufl_shape) == 0:
+                return 1
+            else:
+                return np.prod(self._x.ufl_shape)
+        else:
+            return 0
+
+    def global_size(self):
+        if len(self._x.ufl_shape) == 0:
+            return 1
+        else:
+            return np.prod(self._x.ufl_shape)
+
+    def local_indices(self):
+        comm = self._x.comm()
+        if comm.rank == 0:
+            if len(self._x.ufl_shape) == 0:
+                return slice(0, 1)
+            else:
+                return slice(0, np.prod(self._x.ufl_shape))
+        else:
+            return slice(0, 0)
+
+    def get_values(self):
+        comm = self._x.comm()
+        if comm.rank == 0:
+            values = self._x.values().view()
+        else:
+            values = np.array([], dtype=np.float64)
+        values.setflags(write=False)
+        return values
+
+    def set_values(self, values):
+        comm = self._x.comm()
+        if comm.rank != 0:
+            if len(self._x.value_shape) == 0:
+                values = np.array([0.0], dtype=np.float64)
+            else:
+                values = np.zeros(self._x.value_shape, dtype=np.float64)
+        values = comm.bcast(values, root=0)
+        if len(self._x.value_shape) == 0:
+            self._x.assign(values[0])
+        else:
+            self._x.assign(backend_Constant(values))
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        if len(self._x.ufl_shape) == 0:
+            value = 0.0
+        else:
+            value = np.zeros(self._x.ufl_shape, dtype=np.float64)
+        return Constant(value, comm=self._x.comm(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
+
+    def copy(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        if len(self._x.ufl_shape) == 0:
+            value = float(self._x)
+        else:
+            value = self._x.values()
+        return Constant(value, comm=self._x.comm(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint,
+                        tlm_depth=tlm_depth)
+
+    def tangent_linear(self, name=None):
+        return self._x.tangent_linear(name=name)
+
+    def replacement(self):
+        if not hasattr(self._x, "_tlm_adjoint__replacement"):
+            self._x._tlm_adjoint__replacement = ReplacementFunction(self._x)
+        return self._x._tlm_adjoint__replacement
+
+
 class Constant(backend_Constant):
     def __init__(self, *args, **kwargs):
         kwargs = copy.copy(kwargs)
-        static = kwargs.pop("static", False)
+        import mpi4py.MPI as MPI
+        comm = kwargs.pop("comm", MPI.COMM_WORLD)
+        static = kwargs.pop("static", True)
         cache = kwargs.pop("cache", None)
         if cache is None:
             cache = static
+        checkpoint = kwargs.pop("checkpoint", None)
+        if checkpoint is None:
+            checkpoint = not static
+        tlm_depth = kwargs.pop("tlm_depth", 0)
 
         backend_Constant.__init__(self, *args, **kwargs)
+        self.__comm = comm
         self.__static = static
         self.__cache = cache
+        self.__checkpoint = checkpoint
+        self.__tlm_depth = tlm_depth
+        self._tlm_adjoint__function_interface = ConstantInterface(self)
+
+        space = self.ufl_function_space()
+        if not hasattr(space, "_tlm_adjoint__space_interface"):
+            space._tlm_adjoint__space_interface = \
+                ConstantSpaceInterface(space, comm)
+
+    def comm(self):
+        return self.__comm
 
     def is_static(self):
         return self.__static
 
     def is_cached(self):
         return self.__cache
+
+    def is_checkpointed(self):
+        return self.__checkpoint
+
+    def tlm_depth(self):
+        return self.__tlm_depth
+
+    def tangent_linear(self, name=None, static=False, cache=None,
+                       checkpoint=None):
+        if self.is_static():
+            return None
+        else:
+            if len(self.ufl_shape) == 0:
+                value = 0.0
+            else:
+                value = np.zeros(self.ufl_shape, dtype=np.float64)
+            return Constant(value, comm=self.comm(), name=name, static=False,
+                            cache=cache, checkpoint=checkpoint,
+                            tlm_depth=self.tlm_depth() + 1)
 
 
 class Function(backend_Function):
@@ -139,7 +380,7 @@ def bcs_is_cached(bcs):
 
 
 def new_count():
-    return Constant(0).count()
+    return backend_Constant(0).count()
 
 
 class ReplacementFunctionInterface(FunctionInterface):

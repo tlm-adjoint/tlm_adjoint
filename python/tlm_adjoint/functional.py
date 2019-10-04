@@ -68,9 +68,6 @@ class Functional:
         else:
             if space is None:
                 space = function_space(fn)
-            else:
-                if space_id(space) != space_id(function_space(fn)):
-                    raise FunctionalException("Invalid function space")
             if name is None:
                 name = function_name(fn)
 

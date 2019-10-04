@@ -24,8 +24,8 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
-from .caches import FunctionCaches, clear_caches, form_neg
-from .functions import Function, ReplacementFunction
+from .caches import clear_caches, form_neg
+from .functions import Caches, Function, ReplacementFunction
 
 import ufl
 import sys
@@ -128,7 +128,7 @@ class FunctionInterface(_FunctionInterface):
 
     def caches(self):
         if not hasattr(self._x, "_tlm_adjoint__function_caches"):
-            self._x._tlm_adjoint__function_caches = FunctionCaches(self._x)
+            self._x._tlm_adjoint__function_caches = Caches(self._x)
         return self._x._tlm_adjoint__function_caches
 
     def zero(self):

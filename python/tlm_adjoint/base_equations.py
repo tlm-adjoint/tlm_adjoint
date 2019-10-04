@@ -614,7 +614,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
-        if space_id(function_space(x)) != space_id(function_space(y)):
+        if function_local_size(x) != function_local_size(y):
             raise EquationException("Invalid function space")
         Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
 
@@ -647,7 +647,7 @@ class LinearCombinationSolver(Equation):
         alpha = tuple(float(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
         for y in Y:
-            if space_id(function_space(x)) != space_id(function_space(y)):
+            if function_local_size(x) != function_local_size(y):
                 raise EquationException("Invalid function space")
 
         Equation.__init__(self, x, [x] + Y, nl_deps=[], ic_deps=[])
