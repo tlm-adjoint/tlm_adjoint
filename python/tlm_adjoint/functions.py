@@ -128,9 +128,9 @@ class ConstantInterface(_FunctionInterface):
         return self._x.tlm_depth()
 
     def caches(self):
-        if not hasattr(self._x, "_tlm_adjoint__function_caches"):
-            self._x._tlm_adjoint__function_caches = Caches(self._x)
-        return self._x._tlm_adjoint__function_caches
+        if not hasattr(self._x, "_tlm_adjoint__caches"):
+            self._x._tlm_adjoint__caches = Caches(self._x)
+        return self._x._tlm_adjoint__caches
 
     def zero(self):
         if len(self._x.ufl_shape) == 0:

@@ -127,9 +127,9 @@ class FunctionInterface(_FunctionInterface):
             return 0
 
     def caches(self):
-        if not hasattr(self._x, "_tlm_adjoint__function_caches"):
-            self._x._tlm_adjoint__function_caches = Caches(self._x)
-        return self._x._tlm_adjoint__function_caches
+        if not hasattr(self._x, "_tlm_adjoint__caches"):
+            self._x._tlm_adjoint__caches = Caches(self._x)
+        return self._x._tlm_adjoint__caches
 
     def zero(self):
         with self._x.dat.vec_wo as x_v:
