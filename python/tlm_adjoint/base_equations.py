@@ -23,7 +23,6 @@ from .backend_interface import *
 from .manager import manager as _manager
 
 import numpy as np
-import types
 
 __all__ = \
     [
@@ -503,7 +502,7 @@ class EquationAlias(Equation):
             self, "_tlm_adjoint__alias__dict__",
             eq.__dict__)
         Equation.__setattr__(
-            self, "_tlm_adjoint__alias__str__", 
+            self, "_tlm_adjoint__alias__str__",
             f"{type(eq).__name__:s} (aliased)")
 
     def __new__(cls, obj):
