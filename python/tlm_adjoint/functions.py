@@ -432,6 +432,9 @@ class ReplacementInterface(_FunctionInterface):
         return space_new(self._space, name=name, static=static, cache=cache,
                          checkpoint=checkpoint, tlm_depth=tlm_depth)
 
+    def replacement(self):
+        return self._x
+
 
 class Replacement(ufl.classes.Coefficient):
     def __init__(self, x, *args, **kwargs):
