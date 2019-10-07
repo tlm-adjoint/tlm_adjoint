@@ -27,6 +27,7 @@ from .interface import FunctionInterface as _FunctionInterface
 from .caches import clear_caches, form_neg
 from .functions import Caches, Constant, Function, Replacement
 
+import mpi4py.MPI as MPI
 import ufl
 import sys
 
@@ -310,7 +311,6 @@ def new_real_function(name=None, static=False, cache=None, checkpoint=None,
 
 
 def default_comm():
-    import mpi4py.MPI as MPI
     return MPI.COMM_WORLD
 
 

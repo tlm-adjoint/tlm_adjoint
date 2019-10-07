@@ -23,6 +23,7 @@ from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
+import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import weakref
@@ -282,7 +283,6 @@ class Constant(backend_Constant):
         kwargs = copy.copy(kwargs)
         comm = kwargs.pop("comm", None)
         if comm is None:
-            import mpi4py.MPI as MPI
             comm = MPI.COMM_WORLD
         static = kwargs.pop("static", True)
         cache = kwargs.pop("cache", None)

@@ -23,12 +23,13 @@ from tlm_adjoint_firedrake import *
 from tlm_adjoint_firedrake import manager as _manager
 
 # import h5py
+import mpi4py.MPI as MPI
 import numpy as np
 # import petsc4py.PETSc as PETSc
 
 stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
-np.random.seed(2212983 + default_comm().rank)
+np.random.seed(2212983 + MPI.COMM_WORLD.rank)
 
 mesh = UnitSquareMesh(50, 50)
 X = SpatialCoordinate(mesh)

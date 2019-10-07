@@ -22,6 +22,7 @@ from tlm_adjoint_fenics import *
 
 from test_base import *
 
+import mpi4py.MPI as MPI
 import os
 import pytest
 
@@ -35,7 +36,7 @@ def test_basal(setup_test):
 
 @pytest.mark.fenics
 @pytest.mark.example
-@pytest.mark.skipif(default_comm().size > 1, reason="serial only")
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
 def test_basal_fp(setup_test):
     configure_checkpointing("memory", {"replace": False})
     run_example(os.path.join("basal_sliding", "basal_fp.py"))
@@ -55,7 +56,7 @@ def test_poisson(setup_test, test_leaks):
 
 @pytest.mark.fenics
 @pytest.mark.example
-@pytest.mark.skipif(default_comm().size > 1, reason="serial only")
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
 def test_transport(setup_test):
     configure_checkpointing("memory", {"replace": False})
     run_example(os.path.join("transport", "transport.py"))

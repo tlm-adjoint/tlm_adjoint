@@ -25,6 +25,7 @@ from tlm_adjoint_fenics.backend import backend_Function
 
 import copy
 import gc
+import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pytest
@@ -65,7 +66,7 @@ def setup_test():
     clear_caches()
     stop_manager()
 
-    np.random.seed(14012313 + default_comm().rank)
+    np.random.seed(14012313 + MPI.COMM_WORLD.rank)
 
 
 def params_set(names, *values):

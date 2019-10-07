@@ -23,6 +23,7 @@ from tlm_adjoint_fenics import *
 
 from test_base import *
 
+import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pytest
@@ -279,7 +280,7 @@ def test_InterpolationSolver(setup_test, test_leaks):
     mesh = UnitCubeMesh(5, 5, 5)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
-    if default_comm().size > 1:
+    if MPI.COMM_WORLD.size > 1:
         y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
     x_space = FunctionSpace(mesh, "Lagrange", 2)
 
@@ -287,7 +288,7 @@ def test_InterpolationSolver(setup_test, test_leaks):
     P = [None]
 
     def forward(z):
-        if default_comm().size > 1:
+        if MPI.COMM_WORLD.size > 1:
             y = Function(y_space, name="y")
             LocalProjectionSolver(z, y).solve()
         else:
@@ -349,7 +350,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
     mesh = UnitCubeMesh(5, 5, 5)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
-    if default_comm().size > 1:
+    if MPI.COMM_WORLD.size > 1:
         y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
     space_0 = RealFunctionSpace()
     X_coords = np.array([[0.1, 0.1, 0.1],
@@ -361,7 +362,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
     P = [None]
 
     def forward(z):
-        if default_comm().size > 1:
+        if MPI.COMM_WORLD.size > 1:
             y = Function(y_space, name="y")
             LocalProjectionSolver(z, y).solve()
         else:

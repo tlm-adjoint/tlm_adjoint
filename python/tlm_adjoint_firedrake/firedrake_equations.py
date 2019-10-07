@@ -27,6 +27,7 @@ from .base_equations import Equation, EquationException, NullSolver, \
 from .caches import Cache, form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, unbind_form, unbound_form
 
+import mpi4py.MPI as MPI
 import numpy as np
 import types
 import ufl
@@ -261,7 +262,6 @@ class PointInterpolationSolver(Equation):
                         y_nodes_local[i, j] = lg_map[y_node]
 
             y_nodes = np.empty(y_nodes_local.shape, dtype=np.int64)
-            import mpi4py.MPI as MPI
             comm = function_comm(y)
             comm.Allreduce(y_nodes_local, y_nodes, op=MPI.MAX)
 
@@ -284,7 +284,6 @@ class PointInterpolationSolver(Equation):
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
-        import mpi4py.MPI as MPI
         comm = function_comm(y)
         x_v = np.empty(len(X), dtype=np.float64)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)

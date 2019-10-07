@@ -24,6 +24,7 @@ from tlm_adjoint_fenics import *
 from test_base import *
 
 import copy
+import mpi4py.MPI as MPI
 import pytest
 
 
@@ -35,7 +36,6 @@ def oscillator_ref():
     dt = Constant(0.01)
     T_0 = Constant((1.0, 0.0))
 
-    import mpi4py.MPI as MPI
     mesh = UnitIntervalMesh(MPI.COMM_WORLD.size)
     space = FunctionSpace(mesh, "R", 0)
     space = FunctionSpace(mesh, space.ufl_element() * space.ufl_element())

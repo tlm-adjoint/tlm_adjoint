@@ -30,6 +30,7 @@ from .functions import DirichletBC, bcs_is_cached, bcs_is_static
 
 import copy
 import operator
+import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 
@@ -939,11 +940,7 @@ class ExprEvaluationSolver(Equation):
             elif is_real_function(F):
                 dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
                 dF_val = np.empty((1,), dtype=np.float64)
-                import mpi4py.MPI as MPI
                 comm = function_comm(F)
-                # FEniCS backwards compatibility
-                if hasattr(comm, "tompi4py"):
-                    comm = comm.tompi4py()
                 comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
                 dF_val = dF_val[0]
                 function_assign(F, dF_val)

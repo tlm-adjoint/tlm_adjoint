@@ -458,9 +458,6 @@ class EquationManager:
 
         if comm is None:
             comm = default_comm()
-        # FEniCS backwards compatibility
-        if hasattr(comm, "tompi4py"):
-            comm = comm.tompi4py()
 
         self._comm = comm
         if self._comm.rank == 0:

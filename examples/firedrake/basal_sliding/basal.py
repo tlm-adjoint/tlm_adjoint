@@ -23,13 +23,14 @@ from tlm_adjoint_firedrake import *
 from tlm_adjoint_firedrake.hessian_optimization import *
 
 # import h5py
+import mpi4py.MPI as MPI
 import numpy as np
 # import petsc4py.PETSc as PETSc
 import slepc4py.SLEPc as SLEPc
 import ufl
 
 stop_manager()
-np.random.seed(12143432 + default_comm().rank)
+np.random.seed(12143432 + MPI.COMM_WORLD.rank)
 # PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:

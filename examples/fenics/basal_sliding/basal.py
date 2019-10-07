@@ -23,6 +23,7 @@ from tlm_adjoint_fenics import *
 from tlm_adjoint_fenics.hessian_optimization import *
 
 # import h5py
+import mpi4py.MPI as MPI
 import numpy as np
 # import petsc4py.PETSc as PETSc
 import slepc4py.SLEPc as SLEPc
@@ -32,7 +33,7 @@ parameters["form_compiler"]["cpp_optimize"] = True
 parameters["form_compiler"]["cpp_optimize_flags"] = "-O3 -march=native"
 parameters["form_compiler"]["optimize"] = True
 stop_manager()
-np.random.seed(12143432 + default_comm().rank)
+np.random.seed(12143432 + MPI.COMM_WORLD.rank)
 # PETSc.Options().setValue("citations", "petsc.bib")
 
 # References:

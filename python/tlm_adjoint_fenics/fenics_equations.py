@@ -27,6 +27,7 @@ from .base_equations import Equation, EquationException, LinearEquation, \
 from .caches import Cache, form_dependencies, form_key
 from .equations import EquationSolver, bind_form, unbind_form, unbound_form
 
+import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 
@@ -254,11 +255,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             raise EquationException("Non-process-local node-node graph")
 
     y_colors_N = np.empty((1,), dtype=y_colors.dtype)
-    import mpi4py.MPI as MPI
     comm = function_comm(y)
-    # FEniCS backwards compatibility
-    if hasattr(comm, "tompi4py"):
-        comm = comm.tompi4py()
     comm.Allreduce(np.array([y_colors.max() + 1], dtype=y_colors.dtype),
                    y_colors_N, op=MPI.MAX)
     y_colors_N = y_colors_N[0]
@@ -428,11 +425,7 @@ class PointInterpolationSolver(Equation):
             if y_cells is None:
                 y_tree = y_space.mesh().bounding_box_tree()
 
-                import mpi4py.MPI as MPI
                 comm = function_comm(y)
-                # FEniCS backwards compatibility
-                if hasattr(comm, "tompi4py"):
-                    comm = comm.tompi4py()
                 rank = comm.rank
 
                 y_cells = np.empty(len(X), dtype=np.int64)
@@ -479,11 +472,7 @@ class PointInterpolationSolver(Equation):
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
-        import mpi4py.MPI as MPI
         comm = function_comm(y)
-        # FEniCS backwards compatibility
-        if hasattr(comm, "tompi4py"):
-            comm = comm.tompi4py()
         x_v = np.empty(len(X), dtype=np.float64)
         comm.Allreduce(x_v_local, x_v, op=MPI.MAX)
 

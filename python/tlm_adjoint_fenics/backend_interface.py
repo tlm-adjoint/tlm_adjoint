@@ -80,7 +80,11 @@ __all__ = \
 
 class FunctionInterface(_FunctionInterface):
     def comm(self):
-        return self._x.function_space().mesh().mpi_comm()
+        comm = self._x.function_space().mesh().mpi_comm()
+        # FEniCS backwards compatibility
+        if hasattr(comm, "tompi4py"):
+            comm = comm.tompi4py()
+        return comm
 
     def space(self):
         return self._x.function_space()
