@@ -72,7 +72,7 @@ class Caches:
 
 class Alias:
     def __init__(self, obj):
-        type(obj).__setattr__(self, "_tlm_adjoint__alias", obj)
+        object.__setattr__(self, "_tlm_adjoint__alias", obj)
 
     def __new__(cls, obj):
         class Alias(cls, type(obj)):
@@ -80,16 +80,26 @@ class Alias:
         return object.__new__(Alias)
 
     def __getattr__(self, key):
-        return self._tlm_adjoint__alias.__getattr__(self, key)
+        return getattr(self._tlm_adjoint__alias, key)
 
     def __setattr__(self, key, value):
-        return self._tlm_adjoint__alias.__setattr__(self, key, value)
+        return setattr(self._tlm_adjoint__alias, key, value)
 
     def __delattr__(self, key):
-        self._tlm_adjoint__alias.__delattr__(self, key)
+        delattr(self._tlm_adjoint__alias, key)
 
     def __dir__(self):
-        return self._tlm_adjoint__alias.__dir__(self)
+        return dir(self._tlm_adjoint__alias)
+
+
+class FunctionAlias(Alias):
+    def __init__(self, x):
+        Alias.__init__(self, x)
+        interface_alias = Alias(x._tlm_adjoint__function_interface)
+        id = new_count()
+        object.__setattr__(interface_alias, "id", lambda: id)
+        object.__setattr__(self, "_tlm_adjoint__function_interface",
+                           interface_alias)
 
 
 class ConstantSpaceInterface(SpaceInterface):
@@ -223,12 +233,12 @@ class ConstantInterface(_FunctionInterface):
     def set_values(self, values):
         comm = self._x.comm()
         if comm.rank != 0:
-            if len(self._x.value_shape) == 0:
+            if len(self._x.ufl_shape) == 0:
                 values = np.array([0.0], dtype=np.float64)
             else:
-                values = np.zeros(self._x.value_shape, dtype=np.float64)
+                values = np.zeros(self._x.ufl_shape, dtype=np.float64)
         values = comm.bcast(values, root=0)
-        if len(self._x.value_shape) == 0:
+        if len(self._x.ufl_shape) == 0:
             self._x.assign(values[0])
         else:
             self._x.assign(backend_Constant(values))
@@ -264,14 +274,16 @@ class ConstantInterface(_FunctionInterface):
         return self._x._tlm_adjoint__replacement
 
     def alias(self):
-        return Alias(self._x)
+        return FunctionAlias(self._x)
 
 
 class Constant(backend_Constant):
     def __init__(self, *args, **kwargs):
         kwargs = copy.copy(kwargs)
-        import mpi4py.MPI as MPI
-        comm = kwargs.pop("comm", MPI.COMM_WORLD)
+        comm = kwargs.pop("comm", None)
+        if comm is None:
+            import mpi4py.MPI as MPI
+            comm = MPI.COMM_WORLD
         static = kwargs.pop("static", True)
         cache = kwargs.pop("cache", None)
         if cache is None:

@@ -47,31 +47,27 @@ class Functional:
 
         Arguments:
 
-        fn  (Optional) The Function storing the functional value. Replaced by a
-            new Function by subsequent assign or addto calls.
-        If fn is supplied:
-            space  (Optional) The space for the functional. Must be the same
-                   space as function_space(fn).
-            name   (Optional) The name of the functional. Default
-                   function_name(fn).
-        If fn is not supplied:
-            space  (Optional) The space for the functional. Default
-                   RealFunctionSpace().
-            name   (Optional) The name of the functional. Default "Functional".
+        fn     (Optional) The function storing the functional value. Replaced
+               by a new function by subsequent calls to the assign or addto
+               methods.
+        space  (Optional) The space for the functional.
+        name   (Optional) The name of the functional.
         """
 
         if fn is None:
-            if space is None:
-                space = RealFunctionSpace()
             if name is None:
                 name = "Functional"
-        else:
             if space is None:
-                space = function_space(fn)
+                fn = new_real_function(name=name)
+            else:
+                fn = space_new(space, name=name)
+        else:
             if name is None:
                 name = function_name(fn)
+            if space is not None \
+                    and space_id(space) != space_id(function_space(fn)):
+                raise FunctionalException("Invalid function space")
 
-        self._space = space
         self._name = name
         self._fn = fn
         self._id = self._id_counter[0]
@@ -86,7 +82,7 @@ class Functional:
 
         Arguments:
 
-        term      A Form or Function, to which the functional is assigned.
+        term      A Form or function, to which the functional is assigned.
         manager   (Optional) The equation manager.
         annotate  (Optional) Whether the equation should be annotated.
         tlm       (Optional) Whether to derive (and solve) associated
@@ -96,10 +92,7 @@ class Functional:
         if manager is None:
             manager = _manager()
 
-        if self._fn is None:
-            new_fn = space_new(self._space, name=self._name)
-        else:
-            new_fn = function_new(self._fn, name=self._name)
+        new_fn = function_new(self._fn, name=self._name)
         if is_function(term):
             new_fn_eq = AssignmentSolver(term, new_fn)
         else:
@@ -113,7 +106,7 @@ class Functional:
 
         Arguments:
 
-        term      (Optional) A Form or Function, which is added to the
+        term      (Optional) A Form or function, which is added to the
                   functional. If not supplied then the functional is copied
                   into a new function (useful for avoiding long range
                   cross-block dependencies).
@@ -122,11 +115,6 @@ class Functional:
         tlm       (Optional) Whether to derive (and solve) associated
                   tangent-linear equations.
         """
-
-        if self._fn is None:
-            if term is not None:
-                self.assign(term, manager=manager, annotate=annotate, tlm=tlm)
-            return
 
         if manager is None:
             manager = _manager()
@@ -148,11 +136,9 @@ class Functional:
 
     def fn(self):
         """
-        Return the Function storing the functional value.
+        Return the function storing the functional value.
         """
 
-        if self._fn is None:
-            self._fn = space_new(self._space, name=self._name)
         return self._fn
 
     def space(self):
@@ -160,14 +146,14 @@ class Functional:
         Return the space for the functional.
         """
 
-        return self._space
+        return function_space(self._fn)
 
     def value(self):
         """
         Return the value of the functional.
         """
 
-        return 0.0 if self._fn is None else function_max_value(self._fn)
+        return function_max_value(self._fn)
 
     def tlm(self, M, dM, max_depth=1, manager=None):
         """

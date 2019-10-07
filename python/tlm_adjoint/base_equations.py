@@ -88,12 +88,12 @@ class AdjointRHS:
 
     def finalize(self):
         self.initialize()
-        function_finalize_adjoint_derivative_action(self._b)
+        finalize_adjoint_derivative_action(self._b)
 
     def sub(self, b):
         if b is not None:
             self.initialize()
-            function_subtract_adjoint_derivative_action(self._b, b)
+            subtract_adjoint_derivative_action(self._b, b)
 
     def is_empty(self):
         return self._b is None
@@ -965,10 +965,10 @@ class FixedPointSolver(Equation):
                     else:
                         sb = self._eqs[k].adjoint_derivative_action(
                             self._eq_nl_deps[k], j, eq_adj_X[k])
-                    function_subtract_adjoint_derivative_action(eq_B[m], sb)
+                    subtract_adjoint_derivative_action(eq_B[m], sb)
                     del(sb)
                 for b in eq_B:
-                    function_finalize_adjoint_derivative_action(b)
+                    finalize_adjoint_derivative_action(b)
 
                 eq_adj_X[i] = self._eqs[i].adjoint_jacobian_solve(
                     self._eq_nl_deps[i], eq_B[0] if len(eq_B) == 1 else eq_B)
@@ -1030,9 +1030,9 @@ class FixedPointSolver(Equation):
                 sb = eq.adjoint_derivative_action(
                     eq_nl_deps, eq_dep_ids[dep_id],
                     eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X)
-                function_subtract_adjoint_derivative_action(F, sb)
+                subtract_adjoint_derivative_action(F, sb)
                 del(sb)
-        function_finalize_adjoint_derivative_action(F)
+        finalize_adjoint_derivative_action(F)
 
         return (-1.0, F)
 

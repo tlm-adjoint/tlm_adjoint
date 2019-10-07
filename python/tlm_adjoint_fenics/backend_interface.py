@@ -24,7 +24,7 @@ from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
 from .caches import clear_caches, form_neg
-from .functions import Caches, Function, Replacement
+from .functions import Caches, Constant, Function, Replacement
 
 import ufl
 import sys
@@ -39,13 +39,13 @@ __all__ = \
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
+        "finalize_adjoint_derivative_action",
         "function_alias",
         "function_assign",
         "function_axpy",
         "function_caches",
         "function_comm",
         "function_copy",
-        "function_finalize_adjoint_derivative_action",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -63,7 +63,6 @@ __all__ = \
         "function_set_values",
         "function_space",
         "function_state",
-        "function_subtract_adjoint_derivative_action",
         "function_sum",
         "function_tangent_linear",
         "function_tlm_depth",
@@ -71,8 +70,10 @@ __all__ = \
         "function_zero",
         "info",
         "is_function",
+        "new_real_function",
         "space_id",
         "space_new",
+        "subtract_adjoint_derivative_action",
         "warning"
     ]
 
@@ -277,30 +278,42 @@ def RealFunctionSpace(comm=None):
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
+def new_real_function(name=None, static=False, cache=None, checkpoint=None,
+                      tlm_depth=0, comm=None):
+    return Constant(0.0, name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth, comm=comm)
+
+
 def default_comm():
     return mpi_comm_world()
 
 
-def function_subtract_adjoint_derivative_action(x, y):
+def subtract_adjoint_derivative_action(x, y):
     if y is None:
         pass
     elif isinstance(y, tuple):
         alpha, y = y
-        if isinstance(y, backend_Function):
-            y = y.vector()
-        x.vector().axpy(-alpha, y)
+        if isinstance(x, backend_Function):
+            if isinstance(y, backend_Function):
+                y = y.vector()
+            x.vector().axpy(-alpha, y)
+        else:
+            function_axpy(x, -alpha, y)
     elif isinstance(y, ufl.classes.Form):
         if hasattr(x, "_tlm_adjoint__adj_b"):
             x._tlm_adjoint__adj_b += form_neg(y)
         else:
             x._tlm_adjoint__adj_b = form_neg(y)
     else:
-        if isinstance(y, backend_Function):
-            y = y.vector()
-        x.vector().axpy(-1.0, y)
+        if isinstance(x, backend_Function):
+            if isinstance(y, backend_Function):
+                y = y.vector()
+            x.vector().axpy(-1.0, y)
+        else:
+            function_axpy(x, -1.0, y)
 
 
-def function_finalize_adjoint_derivative_action(x):
+def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
         backend_assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
                          add_values=True)
