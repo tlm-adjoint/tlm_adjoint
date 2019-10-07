@@ -157,7 +157,7 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
-_form_binding_names = ("_data",
+_form_binding_names = ("dat",
                        "split")
 
 

@@ -236,7 +236,9 @@ class ConstantInterface(_FunctionInterface):
 
     def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
-            self._x._tlm_adjoint__replacement = Replacement(self._x)
+            # Firedrake requires Constant.function_space() to return None
+            self._x._tlm_adjoint__replacement = \
+                Replacement(self._x, space=None)
         return self._x._tlm_adjoint__replacement
 
 
@@ -254,6 +256,10 @@ class Constant(backend_Constant):
             checkpoint = not static
         tlm_depth = kwargs.pop("tlm_depth", 0)
 
+        # "name" constructor argument not supported by Firedrake
+        if not hasattr(backend_Constant, "name"):
+            name = kwargs.pop("name", None)
+
         backend_Constant.__init__(self, *args, **kwargs)
         self.__comm = comm
         self.__static = static
@@ -261,6 +267,12 @@ class Constant(backend_Constant):
         self.__checkpoint = checkpoint
         self.__tlm_depth = tlm_depth
         self._tlm_adjoint__function_interface = ConstantInterface(self)
+
+        if not hasattr(backend_Constant, "name"):
+            if name is None:
+                # Following FEniCS 2019.1.0 behaviour
+                name = f"f_{self.count():d}"
+            self.name = lambda: name
 
         space = self.ufl_function_space()
         if not hasattr(space, "_tlm_adjoint__space_interface"):
@@ -383,9 +395,13 @@ def new_count():
     return backend_Constant(0).count()
 
 
-class ReplacementInterface(FunctionInterface):
+class ReplacementInterface(_FunctionInterface):
+    def __init__(self, x, space):
+        _FunctionInterface.__init__(self, x)
+        self._space = space
+
     def space(self):
-        return self._x.function_space()
+        return self._space
 
     def id(self):
         return self._x.id()
@@ -413,15 +429,22 @@ class ReplacementInterface(FunctionInterface):
 
     def new(self, name=None, static=False, cache=None, checkpoint=None,
             tlm_depth=0):
-        return Function(self._x.function_space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+        return space_new(self._space, name=name, static=static, cache=cache,
+                         checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
 class Replacement(ufl.classes.Coefficient):
-    def __init__(self, x):
-        space = function_space(x)
-        ufl.classes.Coefficient.__init__(self, space, count=new_count())
+    def __init__(self, x, *args, **kwargs):
+        if len(args) > 0 or len(kwargs) > 0:
+            def extract_args(x, space):
+                return x, space
+            x, space = extract_args(x, *args, **kwargs)
+            x_space = function_space(x)
+        else:
+            space = function_space(x)
+            x_space = space
+
+        ufl.classes.Coefficient.__init__(self, x_space, count=new_count())
         self.__space = space
         self.__id = function_id(x)
         self.__name = function_name(x)
@@ -430,7 +453,8 @@ class Replacement(ufl.classes.Coefficient):
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
-        self._tlm_adjoint__function_interface = ReplacementInterface(self)
+        self._tlm_adjoint__function_interface = \
+            ReplacementInterface(self, x_space)
 
     def function_space(self):
         return self.__space
