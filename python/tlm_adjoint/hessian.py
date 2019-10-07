@@ -110,14 +110,6 @@ class Hessian:
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
-        def control_direction_alias(x):
-            y = function_alias(x)
-            y.is_static = lambda: True
-            y.is_cached = lambda: True
-            y.is_checkpointed = lambda: False
-            return y
-        dM = tuple(control_direction_alias(dm) for dm in dM)
-
         old_manager = _manager()
         set_manager(self._manager)
         self._manager.reset()
