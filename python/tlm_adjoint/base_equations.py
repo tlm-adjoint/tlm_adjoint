@@ -499,34 +499,35 @@ class Equation:
 
 class EquationAlias(Equation):
     def __init__(self, eq):
-        d = eq.__dict__
-        r = f"{type(eq).__name__:s} (aliased)"
-        Equation.__setattr__(self, "_d", d)
-        Equation.__setattr__(self, "_r", r)
+        Equation.__setattr__(
+            self, "_tlm_adjoint__alias__dict__",
+            eq.__dict__)
+        Equation.__setattr__(
+            self, "_tlm_adjoint__alias__str__", 
+            f"{type(eq).__name__:s} (aliased)")
 
-        for key in dir(eq):
-            value = getattr(eq, key)
-            if isinstance(value, types.MethodType):
-                Equation.__setattr__(self, key,
-                                     types.MethodType(value.__func__, self))
+    def __new__(cls, obj):
+        class EquationAlias(cls, type(obj)):
+            pass
+        return object.__new__(EquationAlias)
 
     def __str__(self):
-        return self._r
+        return self._tlm_adjoint__alias__str__
 
     def __getattr__(self, key):
-        if key not in self._d:
+        if key not in self._tlm_adjoint__alias__dict__:
             raise AttributeError(f"No attribute '{key:s}'")
-        return self._d[key]
+        return self._tlm_adjoint__alias__dict__[key]
 
     def __setattr__(self, key, value):
-        self._d[key] = value
+        self._tlm_adjoint__alias__dict__[key] = value
         return value
 
     def __delattr__(self, key):
-        del(self._d[key])
+        del(self._tlm_adjoint__alias__dict__[key])
 
     def __dir__(self):
-        return self._d.keys()
+        return list(self._tlm_adjoint__alias__dict__.keys())
 
 
 class ControlsMarker(Equation):
