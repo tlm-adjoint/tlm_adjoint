@@ -70,6 +70,28 @@ class Caches:
             self._state = state
 
 
+class Alias:
+    def __init__(self, obj):
+        type(obj).__setattr__(self, "_tlm_adjoint__alias", obj)
+
+    def __new__(cls, obj):
+        class Alias(cls, type(obj)):
+            pass
+        return object.__new__(Alias)
+
+    def __getattr__(self, key):
+        return self._tlm_adjoint__alias.__getattr__(self, key)
+
+    def __setattr__(self, key, value):
+        return self._tlm_adjoint__alias.__setattr__(self, key, value)
+
+    def __delattr__(self, key):
+        self._tlm_adjoint__alias.__delattr__(self, key)
+
+    def __dir__(self):
+        return self._tlm_adjoint__alias.__dir__(self)
+
+
 class ConstantSpaceInterface(SpaceInterface):
     def __init__(self, space, comm):
         SpaceInterface.__init__(self, space)
@@ -240,6 +262,9 @@ class ConstantInterface(_FunctionInterface):
             self._x._tlm_adjoint__replacement = \
                 Replacement(self._x, space=None)
         return self._x._tlm_adjoint__replacement
+
+    def alias(self):
+        return Alias(self._x)
 
 
 class Constant(backend_Constant):
