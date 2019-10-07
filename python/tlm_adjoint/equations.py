@@ -187,7 +187,7 @@ class AssembleSolver(Equation):
 
 
 def unbound_form(form, deps):
-    replacement_deps = tuple(Replacement(dep) for dep in deps)
+    replacement_deps = tuple(function_replacement(dep) for dep in deps)
     return_value = ufl.replace(form, dict(zip(deps, replacement_deps)))
     return_value._cache["_tlm_adjoint__replacement_deps"] = replacement_deps
     return return_value
