@@ -180,8 +180,8 @@ class FunctionInterface(_FunctionInterface):
 
     def new(self, name=None, static=False, cache=None, checkpoint=None,
             tlm_depth=0):
-        y = function_copy(self._x, name=name, static=static, cache=cache,
-                          checkpoint=checkpoint, tlm_depth=tlm_depth)
+        y = self.copy(name=name, static=static, cache=cache,
+                      checkpoint=checkpoint, tlm_depth=tlm_depth)
         y.vector().zero()
         return y
 
@@ -203,13 +203,12 @@ class FunctionInterface(_FunctionInterface):
     def tangent_linear(self, name=None):
         if hasattr(self._x, "tangent_linear"):
             return self._x.tangent_linear(name=name)
-        elif function_is_static(self._x):
+        elif self.is_static():
             return None
         else:
-            return function_new(self._x, name=name, static=False,
-                                cache=function_is_cached(self._x),
-                                checkpoint=function_is_checkpointed(self._x),
-                                tlm_depth=function_tlm_depth(self._x) + 1)
+            return self.new(name=name, static=False, cache=self.is_cached(),
+                            checkpoint=self.is_checkpointed(),
+                            tlm_depth=self.tlm_depth() + 1)
 
     def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
@@ -218,14 +217,14 @@ class FunctionInterface(_FunctionInterface):
 
     def alias(self):
         y = self._x.copy(deepcopy=False)
-        y.rename(function_name(self._x), "a Function")
-        static = function_is_static(self._x)
+        y.rename(self._x.name(), "a Function")
+        static = self.is_static()
         y.is_static = lambda: static
-        cache = function_is_cached(self._x)
+        cache = self.is_cached()
         y.is_cached = lambda: cache
-        checkpoint = function_is_checkpointed(self._x)
+        checkpoint = self.is_checkpointed()
         y.is_checkpointed = lambda: checkpoint
-        tlm_depth = function_tlm_depth(self._x)
+        tlm_depth = self.tlm_depth()
         y.tlm_depth = lambda: tlm_depth
         return y
 

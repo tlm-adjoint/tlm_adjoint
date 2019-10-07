@@ -126,7 +126,10 @@ class ConstantSpaceInterface(SpaceInterface):
 
 class ConstantInterface(_FunctionInterface):
     def comm(self):
-        return self._x.comm()
+        if hasattr(self._x, "comm"):
+            return self._x.comm()
+        else:
+            return MPI.COMM_WORLD
 
     def space(self):
         return self._x.ufl_function_space()
@@ -135,7 +138,11 @@ class ConstantInterface(_FunctionInterface):
         return self._x.count()
 
     def name(self):
-        return self._x.name()
+        if hasattr(self._x, "name"):
+            return self._x.name()
+        else:
+            # Following FEniCS 2019.1.0 behaviour
+            return "f_{self._x.count():d}"
 
     def state(self):
         if not hasattr(self._x, "_tlm_adjoint__state"):
@@ -149,16 +156,28 @@ class ConstantInterface(_FunctionInterface):
             self._x._tlm_adjoint__state = 1
 
     def is_static(self):
-        return self._x.is_static()
+        if hasattr(self._x, "is_static"):
+            return self._x.is_static()
+        else:
+            return False
 
     def is_cached(self):
-        return self._x.is_cached()
+        if hasattr(self._x, "is_cached"):
+            return self._x.is_cached()
+        else:
+            return False
 
     def is_checkpointed(self):
-        return self._x.is_checkpointed()
+        if hasattr(self._x, "is_checkpointed"):
+            return self._x.is_checkpointed()
+        else:
+            return True
 
     def tlm_depth(self):
-        return self._x.tlm_depth()
+        if hasattr(self._x, "tlm_depth"):
+            return self._x.tlm_depth()
+        else:
+            return 0
 
     def caches(self):
         if not hasattr(self._x, "_tlm_adjoint__caches"):
@@ -197,7 +216,7 @@ class ConstantInterface(_FunctionInterface):
         return abs(self._x.values()).max()
 
     def local_size(self):
-        comm = self._x.comm()
+        comm = self.comm()
         if comm.rank == 0:
             if len(self._x.ufl_shape) == 0:
                 return 1
@@ -213,7 +232,7 @@ class ConstantInterface(_FunctionInterface):
             return np.prod(self._x.ufl_shape)
 
     def local_indices(self):
-        comm = self._x.comm()
+        comm = self.comm()
         if comm.rank == 0:
             if len(self._x.ufl_shape) == 0:
                 return slice(0, 1)
@@ -223,7 +242,7 @@ class ConstantInterface(_FunctionInterface):
             return slice(0, 0)
 
     def get_values(self):
-        comm = self._x.comm()
+        comm = self.comm()
         if comm.rank == 0:
             values = self._x.values().view()
         else:
@@ -232,7 +251,7 @@ class ConstantInterface(_FunctionInterface):
         return values
 
     def set_values(self, values):
-        comm = self._x.comm()
+        comm = self.comm()
         if comm.rank != 0:
             if len(self._x.ufl_shape) == 0:
                 values = np.array([0.0], dtype=np.float64)
@@ -250,7 +269,7 @@ class ConstantInterface(_FunctionInterface):
             value = 0.0
         else:
             value = np.zeros(self._x.ufl_shape, dtype=np.float64)
-        return Constant(value, comm=self._x.comm(), name=name, static=static,
+        return Constant(value, comm=self.comm(), name=name, static=static,
                         cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth)
 
@@ -260,12 +279,20 @@ class ConstantInterface(_FunctionInterface):
             value = float(self._x)
         else:
             value = self._x.values()
-        return Constant(value, comm=self._x.comm(), name=name, static=static,
+        return Constant(value, comm=self.comm(), name=name, static=static,
                         cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth)
 
     def tangent_linear(self, name=None):
-        return self._x.tangent_linear(name=name)
+        if hasattr(self._x, "tangent_linear"):
+            return self._x.tangent_linear(name=name)
+        elif self.is_static():
+            return None
+        else:
+            return Constant(0.0, comm=self.comm(), name=name, static=False,
+                            cache=self.is_cached(),
+                            checkpoint=self.is_checkpointed(),
+                            tlm_depth=self.tlm_depth() + 1)
 
     def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
@@ -276,6 +303,17 @@ class ConstantInterface(_FunctionInterface):
 
     def alias(self):
         return FunctionAlias(self._x)
+
+
+_orig_Constant__init__ = backend_Constant.__init__
+
+
+def _Constant__init__(self, *args, **kwargs):
+    _orig_Constant__init__(self, *args, **kwargs)
+    self._tlm_adjoint__function_interface = ConstantInterface(self)
+
+
+backend_Constant.__init__ = _Constant__init__
 
 
 class Constant(backend_Constant):

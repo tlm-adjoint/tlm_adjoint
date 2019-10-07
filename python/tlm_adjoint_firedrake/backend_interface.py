@@ -214,21 +214,20 @@ class FunctionInterface(_FunctionInterface):
 
     def copy(self, name=None, static=False, cache=None, checkpoint=None,
              tlm_depth=0):
-        y = function_new(self._x, name=name, static=static, cache=cache,
-                         checkpoint=checkpoint, tlm_depth=tlm_depth)
+        y = self.new(name=name, static=static, cache=cache,
+                     checkpoint=checkpoint, tlm_depth=tlm_depth)
         function_assign(y, self._x)
         return y
 
     def tangent_linear(self, name=None):
         if hasattr(self._x, "tangent_linear"):
             return self._x.tangent_linear(name=name)
-        elif function_is_static(self._x):
+        elif self.is_static():
             return None
         else:
-            return function_new(self._x, name=name, static=False,
-                                cache=function_is_cached(self._x),
-                                checkpoint=function_is_checkpointed(self._x),
-                                tlm_depth=function_tlm_depth(self._x) + 1)
+            return self.new(name=name, static=False, cache=self.is_cached(),
+                            checkpoint=self.is_checkpointed(),
+                            tlm_depth=self.tlm_depth() + 1)
 
     def replacement(self):
         if not hasattr(self._x, "_tlm_adjoint__replacement"):
@@ -236,11 +235,10 @@ class FunctionInterface(_FunctionInterface):
         return self._x._tlm_adjoint__replacement
 
     def alias(self):
-        return Function(self._x.function_space(), name=function_name(self._x),
-                        static=function_is_static(self._x),
-                        cache=function_is_cached(self._x),
-                        checkpoint=function_is_checkpointed(self._x),
-                        tlm_depth=function_tlm_depth(self._x), val=self._x.dat)
+        return Function(self._x.function_space(), name=self._x.name(),
+                        static=self.is_static(), cache=self.is_cached(),
+                        checkpoint=self.is_checkpointed(),
+                        tlm_depth=self.tlm_depth(), val=self._x.dat)
 
 
 _orig_Function__init__ = backend_Function.__init__

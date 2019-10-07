@@ -55,7 +55,7 @@ class CacheException(Exception):
 
 def is_cached(e):
     for c in ufl.algorithms.extract_coefficients(e):
-        if not hasattr(c, "is_cached") or not c.is_cached():
+        if not is_function(c) or not function_is_cached(c):
             return False
     return True
 
