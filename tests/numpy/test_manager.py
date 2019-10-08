@@ -37,7 +37,7 @@ def test_EmptySolver(setup_test, test_leaks):
             pass
 
     space = FunctionSpace(100)
-    space_0 = RealFunctionSpace()
+    space_0 = FunctionSpace(1)
 
     def forward(F):
         EmptySolver().solve()

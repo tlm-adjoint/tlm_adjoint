@@ -326,8 +326,16 @@ backend_Constant.__init__ = _Constant__init__
 
 
 class Constant(backend_Constant):
-    def __init__(self, *args, comm=None, static=False, cache=None,
-                 checkpoint=None, tlm_depth=0, **kwargs):
+    def __init__(self, value=None, *args, comm=None, shape=None, static=False,
+                 cache=None, checkpoint=None, tlm_depth=0, **kwargs):
+        if value is None:
+            if shape is None:
+                value = 0.0
+            else:
+                value = np.zeros(shape, dtype=np.float64)
+        elif shape is not None:
+            raise InterfaceException("Cannot specify both value and shape")
+
         if comm is None:
             comm = MPI.COMM_WORLD
         if cache is None:
@@ -340,7 +348,7 @@ class Constant(backend_Constant):
             kwargs = copy.copy(kwargs)
             name = kwargs.pop("name", None)
 
-        backend_Constant.__init__(self, *args, comm=comm, **kwargs)
+        backend_Constant.__init__(self, value, *args, comm=comm, **kwargs)
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint

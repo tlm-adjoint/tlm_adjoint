@@ -32,29 +32,27 @@ import pytest
 
 @pytest.mark.firedrake
 def test_AssignmentSolver(setup_test, test_leaks):
-    space = RealFunctionSpace()
-    x = Function(space, name="x", static=True)
-    function_assign(x, 16.0)
+    x = Constant(16.0, name="x", static=True)
 
     def forward(x):
-        y = [Function(space, name=f"y_{i:d}") for i in range(9)]
-        z = Function(space, name="z")
+        y = [Constant(name=f"y_{i:d}") for i in range(9)]
+        z = Constant(name="z")
 
         AssignmentSolver(x, y[0]).solve()
         for i in range(len(y) - 1):
             AssignmentSolver(y[i], y[i + 1]).solve()
         NormSqSolver(y[-1], z).solve()
 
-        x_norm_sq = Function(space, name="x_norm_sq")
+        x_norm_sq = Constant(name="x_norm_sq")
         NormSqSolver(x, x_norm_sq).solve()
 
-        z_norm_sq = Function(space, name="z_norm_sq")
+        z_norm_sq = Constant(name="z_norm_sq")
         NormSqSolver(z, z_norm_sq).solve()
 
-        J = Functional(name="J", space=space)
+        J = Functional(name="J")
         AxpySolver(z_norm_sq, 2.0, x_norm_sq, J.fn()).solve()
 
-        K = Functional(name="K", space=space)
+        K = Functional(name="K")
         AssignmentSolver(z_norm_sq, K.fn()).solve()
 
         return J, K
@@ -68,8 +66,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
 
     dJs = compute_gradient([J, K], x)
 
-    dm = Function(space, name="dm", static=True)
-    function_assign(dm, 1.0)
+    dm = Constant(1.0, name="dm", static=True)
 
     for forward_J, J_val, dJ in [(lambda x: forward(x)[0], J.value(), dJs[0]),
                                  (lambda x: forward(x)[1], K.value(), dJs[1])]:
@@ -94,21 +91,19 @@ def test_AssignmentSolver(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 def test_AxpySolver(setup_test, test_leaks):
-    space = RealFunctionSpace()
-    x = Function(space, name="x", static=True)
-    function_assign(x, 1.0)
+    x = Constant(1.0, name="x", static=True)
 
     def forward(x):
-        y = [Function(space, name=f"y_{i:d}") for i in range(5)]
-        z = [Function(space, name=f"z_{i:d}") for i in range(2)]
-        function_assign(z[0], 7.0)
+        y = [Constant(name=f"y_{i:d}") for i in range(5)]
+        z = [Constant(name=f"z_{i:d}") for i in range(2)]
+        z[0].assign(7.0)
 
         AssignmentSolver(x, y[0]).solve()
         for i in range(len(y) - 1):
             AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
         NormSqSolver(y[-1], z[1]).solve()
 
-        J = Functional(name="J", space=space)
+        J = Functional(name="J")
         NormSqSolver(z[1], J.fn()).solve()
         return J
 
@@ -121,8 +116,7 @@ def test_AxpySolver(setup_test, test_leaks):
 
     dJ = compute_gradient(J, x)
 
-    dm = Function(space, name="dm", static=True)
-    function_assign(dm, 1.0)
+    dm = Constant(1.0, name="dm", static=True)
 
     min_order = taylor_test(forward, x, J_val=J_val, dJ=dJ, dM=dm)
     assert(min_order > 2.00)
@@ -215,15 +209,11 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
 
 @pytest.mark.firedrake
 def test_FixedPointSolver(setup_test, test_leaks):
-    space = RealFunctionSpace()
+    x = Constant(name="x")
+    z = Constant(name="z")
 
-    x = Function(space, name="x")
-    z = Function(space, name="z")
-
-    a = Function(space, name="a", static=True)
-    function_assign(a, 2.0)
-    b = Function(space, name="b", static=True)
-    function_assign(b, 3.0)
+    a = Constant(2.0, name="a", static=True)
+    b = Constant(3.0, name="b", static=True)
 
     def forward(a, b):
         eqs = [LinearCombinationSolver(z, (1.0, x), (1.0, b)),
@@ -233,7 +223,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
                          "relative_tolerance": 1.0e-14}
         FixedPointSolver(eqs, solver_parameters=fp_parameters).solve()
 
-        J = Functional(name="J", space=space)
+        J = Functional(name="J")
         J.assign(x)
         return J
 
@@ -241,17 +231,16 @@ def test_FixedPointSolver(setup_test, test_leaks):
     J = forward(a, b)
     stop_manager()
 
-    x_val = function_max_value(x)
-    a_val = function_max_value(a)
-    b_val = function_max_value(b)
+    x_val = float(x)
+    a_val = float(a)
+    b_val = float(b)
     assert(abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14)
 
     J_val = J.value()
 
     dJda, dJdb = compute_gradient(J, [a, b])
 
-    dm = Function(space, name="dm", static=True)
-    function_assign(dm, 1.0)
+    dm = Constant(1.0, name="dm", static=True)
 
     for M, dM, forward_J, dJ in \
             [(a, dm, lambda a: forward(a, b), dJda),
@@ -280,7 +269,6 @@ def test_FixedPointSolver(setup_test, test_leaks):
 def test_PointInterpolationSolver(setup_test, test_leaks):
     mesh = UnitCubeMesh(5, 5, 5)
     X = SpatialCoordinate(mesh)
-    space_0 = RealFunctionSpace()
     y_space = FunctionSpace(mesh, "Lagrange", 3)
     X_coords = np.array([[0.1, 0.1, 0.1],
                          [0.2, 0.3, 0.4],
@@ -291,15 +279,16 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
     P = [None]
 
     def forward(y):
-        X_vals = [Function(space_0, name=f"x_{i:d}")
-                  for i in range(X_coords.shape[0])]
+        X_vals = [Constant(name=f"x_{i:d}") for i in range(X_coords.shape[0])]
         eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
         eq.solve()
         P[0] = eq._P
 
         J = Functional(name="J")
         for x in X_vals:
-            J.addto(x * x * x * dx)
+            term = space_new(J.space())
+            ExprEvaluationSolver(x ** 3, term).solve()
+            J.addto(term)
         return X_vals, J
 
     y = Function(y_space, name="y", static=True)
@@ -355,7 +344,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
 
     def forward(y):
         x = Function(space, name="x")
-        y_int = Function(RealFunctionSpace(), name="y_int")
+        y_int = Constant(name="y_int")
         AssembleSolver(y * dx, y_int).solve()
         ExprEvaluationSolver(test_expression(y, y_int), x).solve()
 
@@ -466,7 +455,7 @@ def test_AssembleSolver(setup_test, test_leaks):
 
     def forward(F):
         x = Function(space, name="x")
-        y = Function(RealFunctionSpace(), name="y")
+        y = Constant(name="y")
 
         AssembleSolver(inner(test, F * F) * dx
                        + inner(test, F) * dx, x).solve()

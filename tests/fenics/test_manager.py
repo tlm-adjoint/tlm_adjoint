@@ -104,15 +104,14 @@ def test_EmptySolver(setup_test, test_leaks):
     mesh = UnitIntervalMesh(100)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
-    space_0 = RealFunctionSpace()
 
     def forward(F):
         EmptySolver().solve()
 
-        F_norm_sq = Function(space_0, name="F_norm_sq")
+        F_norm_sq = Constant(name="F_norm_sq")
         NormSqSolver(F, F_norm_sq).solve()
 
-        J = Functional(name="J", space=space_0)
+        J = Functional(name="J")
         NormSqSolver(F_norm_sq, J.fn()).solve()
         return J
 
