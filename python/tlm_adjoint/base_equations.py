@@ -187,23 +187,23 @@ class Equation:
 
         Arguments:
 
-        X        A Function, or a list or tuple of Function objects. The
-                 solution to the equation.
-        deps     A list or tuple of Function dependencies, which must include
-                 the solution itself.
-        nl_deps  (Optional) A list or tuple of Function non-linear
-                 dependencies. Must be a subset of deps. Defaults to deps.
-        ic_deps  (Optional) A list or tuple of Function dependencies whose
-                 initial value should be available prior to solving the forward
-                 equation. Must be a subset of deps. Defaults to the elements
-                 of X which are in nl_deps.
+        X        A function, or a list or tuple of functions. The solution to
+                 the equation.
+        deps     A list or tuple of dependencies, which must include the
+                 solution itself.
+        nl_deps  (Optional) A list or tuple of non-linear dependencies. Must be
+                 a subset of deps. Defaults to deps.
+        ic_deps  (Optional) A list or tuple of dependencies whose initial value
+                 should be available prior to solving the forward equation.
+                 Must be a subset of deps. Defaults to the elements of X which
+                 are in nl_deps.
         """
 
         if is_function(X):
             X = (X,)
         for x in X:
             if not is_function(x):
-                raise EquationException("Solution must be a Function")
+                raise EquationException("Solution must be a function")
             if not function_is_checkpointed(x):
                 raise EquationException("Solution must be checkpointed")
             if x not in deps:
@@ -248,8 +248,8 @@ class Equation:
 
     def replace(self, replace_map):
         """
-        Replace all internal Function objects using the supplied replace map.
-        Must call the base class replace method.
+        Replace all internal functions using the supplied replace map. Must
+        call the base class replace method.
         """
 
         self._X = tuple(replace_map.get(x, x) for x in self._X)
@@ -263,17 +263,18 @@ class Equation:
 
     def x(self):
         """
-        If the equation solves for exactly one Function, return it. Otherwise
+        If the equation solves for exactly one function, return it. Otherwise
         raise an error.
         """
 
         if len(self._X) != 1:
-            raise EquationException("Equation does not solve for exactly one Function")  # noqa: E501
+            raise EquationException("Equation does not solve for exactly one "
+                                    "function")
         return self._X[0]
 
     def X(self):
         """
-        A tuple of Function objects. The solution to the equation.
+        A tuple of functions. The solution to the equation.
         """
 
         return self._X
@@ -338,10 +339,10 @@ class Equation:
 
         Arguments:
 
-        X     A list or tuple of Function objects. The solution, which should
-              be set by this method.
-        deps  (Optional) A list or tuple of Function objects defining the
-              values of dependencies.
+        X     A list or tuple of functions. The solution, which should be set
+              by this method.
+        deps  (Optional) A list or tuple of functions defining the values of
+              dependencies.
         """
 
         self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
@@ -353,14 +354,14 @@ class Equation:
 
         The form:
             forward_solve(self, x, deps=None)
-        should be used for equations which solve for a single Function object.
+        should be used for equations which solve for a single function.
 
         Arguments:
 
         x/X   The solution, which should be set by this method.
-        deps  (Optional) A list or tuple of Function objects defining the
-              values of dependencies. self.dependencies() should be used if
-              this is not supplied.
+        deps  (Optional) A list or tuple of functions defining the values of
+              dependencies. self.dependencies() should be used if this is not
+              supplied.
         """
 
         raise EquationException("Method not overridden")
@@ -381,20 +382,20 @@ class Equation:
         Arguments:
 
         J          Adjoint model functional.
-        nl_deps    A list or tuple of Function objects defining the values of
+        nl_deps    A list or tuple of functions defining the values of
                    non-linear dependencies.
-        B          A list or tuple of Function objects defining the
-                   right-hand-side. May be modified by this method. May not
-                   have previously have had boundary conditions applied.
+        B          A list or tuple of functions defining the right-hand-side.
+                   May be modified by this method. May not have previously have
+                   had boundary conditions applied.
         b_indices  A dictionary of j:(p, k, m) pairs. Bs[p][k][m] has an
                    adjoint term arising from a derivative action,
                    differentiating with respect to the dependency for this
                    equation with index j.
         Bs         An AdjointModelRHS, storing adjoint RHS data.
 
-        Returns the solution of the adjoint equation as a tuple of Function
-        objects. The result must have relevant boundary conditions applied, and
-        should never be modified by calling code.
+        Returns the solution of the adjoint equation as a tuple of functions.
+        The result must have relevant boundary conditions applied, and should
+        never be modified by calling code.
         """
 
         self.initialize_adjoint(J, nl_deps)
@@ -419,9 +420,9 @@ class Equation:
 
         Arguments:
 
-        J          Adjoint model functional.
-        nl_deps  A list or tuple of Function objects defining the values of
-                 non-linear dependencies.
+        J        Adjoint model functional.
+        nl_deps  A list or tuple of functions defining the values of non-linear
+                 dependencies.
         """
 
         pass
@@ -447,11 +448,11 @@ class Equation:
 
         The form:
             adjoint_derivative_action(self, nl_deps, dep_index, adj_x)
-        should be used for equations which solve for a single Function object.
+        should be used for equations which solve for a single function.
 
         Arguments:
 
-        nl_deps      A list or tuple of Function objects defining the values of
+        nl_deps      A list or tuple of functions defining the values of
                      non-linear dependencies.
         dep_index    The index of the dependency in self.dependencies() with
                      respect to which a derivative should be taken.
@@ -468,11 +469,11 @@ class Equation:
 
         The form:
             adjoint_jacobian_solve(self, nl_deps, b)
-        should be used for equations which solve for a single Function object.
+        should be used for equations which solve for a single function.
 
         Arguments:
 
-        nl_deps    A list or tuple of Function objects defining the values of
+        nl_deps    A list or tuple of functions defining the values of
                    non-linear dependencies.
         b/B        The right-hand-side. May be modified by this method. May not
                    have previously have had boundary conditions applied.
@@ -488,8 +489,8 @@ class Equation:
 
         Arguments:
 
-        M        A list or tuple of Function objects defining the control.
-        dM       A list or tuple of Function objects defining the direction.
+        M        A list or tuple of functions defining the control.
+        dM       A list or tuple of functions defining the direction.
         tlm_map  The TangentLinearMap.
         """
 
@@ -561,7 +562,7 @@ class FunctionalMarker(Equation):
 
         Arguments:
 
-        J  A Function. The functional.
+        J  A function. The functional.
         """
 
         # Any function in the correct space suffices here
@@ -706,7 +707,7 @@ class FixedPointSolver(Equation):
 
         eqs
             A list or tuple of Equation objects. The last equation defines the
-            solution of the fixed point iteration. A single Function cannot
+            solution of the fixed point iteration. A single function cannot
             appear as the solution to two or more equations.
         solver_parameters
             Solver parameters dictionary. Parameters (based on KrylovSolver
@@ -1276,11 +1277,11 @@ class Matrix:
 
         The form:
             forward_action(self, nl_deps, x, b, method="assign")
-        should be used for matrices which act on a single Function object.
+        should be used for matrices which act on a single function.
 
         Arguments:
 
-        nl_deps      A list or tuple of Function objects defining the values of
+        nl_deps      A list or tuple of functions defining the values of
                      non-linear dependencies.
         x/X          The argument of the matrix action.
         b/B          The result of the matrix action.
@@ -1295,11 +1296,11 @@ class Matrix:
 
         The form:
             adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign")
-        should be used for matrices which act on a single Function object.
+        should be used for matrices which act on a single function.
 
         Arguments:
 
-        nl_deps      A list or tuple of Function objects defining the values of
+        nl_deps      A list or tuple of functions defining the values of
                      non-linear dependencies.
         adj_x/adj_X  The argument of the matrix action.
         b            The result of the matrix action.
@@ -1330,11 +1331,11 @@ class Matrix:
         The form:
             adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
                                       method="assign")
-        should be used for matrices which act on a single Function object.
+        should be used for matrices which act on a single function.
 
         Arguments:
 
-        nl_deps      A list or tuple of Function objects defining the values of
+        nl_deps      A list or tuple of functions defining the values of
                      non-linear dependencies.
         nl_dep_index The index of the dependency in
                      self.nonlinear_dependencies() with respect to which a
@@ -1498,7 +1499,7 @@ class InnerProductRHS(RHS):
 
         Arguments:
 
-        x, y   Inner product arguments. May be the same Function.
+        x, y   Inner product arguments. May be the same function.
         alpha  (Optional) Scale the result of the inner product by alpha.
         M      (Optional) Matrix defining the inner product. Assumed symmetric,
                and must have no non-linear dependencies. Defaults to an

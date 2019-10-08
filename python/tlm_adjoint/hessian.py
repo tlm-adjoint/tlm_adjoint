@@ -63,7 +63,7 @@ class Hessian:
 
         Arguments:
 
-        M   A Function or Control, or a list or tuple of these, defining the
+        M   A Control or function, or a list or tuple of these, defining the
             derivative.
         """
 
@@ -100,10 +100,10 @@ class Hessian:
 
         Arguments:
 
-        M   A Function or Control, or a list or tuple of these, defining the
+        M   A Control or function, or a list or tuple of these, defining the
             Hessian.
-        dM  A Function, or list or tuple or Function objects, defining the
-            Hessian action direction.
+        dM  A function, or list or tuple or functions, defining the Hessian
+            action direction.
         """
 
         if not isinstance(M, (list, tuple)):
@@ -131,12 +131,12 @@ class Hessian:
 
     def action_fn(self, m):
         """
-        Return a callable which accepts a Function defining dm, and returns the
+        Return a callable which accepts a function defining dm, and returns the
         Hessian action as a NumPy array.
 
         Arguments:
 
-        m   A Function or Control
+        m   A Control or function
         """
 
         def action(dm):

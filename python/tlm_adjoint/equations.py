@@ -892,7 +892,7 @@ class ExprEvaluationSolver(Equation):
             raise EquationException("rhs should not be a Form")
         x_space = function_space(x)
         if len(x_space.ufl_element().value_shape()) > 0:
-            raise EquationException("Solution must be a scalar Function")
+            raise EquationException("Solution must be a scalar function")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())

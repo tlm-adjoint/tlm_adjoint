@@ -242,7 +242,7 @@ class TangentLinearMap:
 
     def __getitem__(self, x):
         if not is_function(x):
-            raise ManagerException("x must be a Function")
+            raise ManagerException("x must be a function")
         x_id = function_id(x)
         if x_id not in self._map:
             def callback(self_ref, x_id):
@@ -297,7 +297,7 @@ class ReplayStorage:
         if isinstance(x, int):
             y = self._map[x]
             if y is None:
-                raise ManagerException("Unable to create new Function")
+                raise ManagerException("Unable to create new function")
         else:
             x_id = function_id(x)
             y = self._map[x_id]
@@ -697,7 +697,7 @@ class EquationManager:
 
     def tlm(self, M, dM, x):
         """
-        Return a tangent-linear Function associated with the forward Function
+        Return a tangent-linear function associated with the forward function
         x, for the tangent-linear model defined by M and dM.
         """
 
@@ -772,7 +772,7 @@ class EquationManager:
 
     def add_initial_condition(self, x, annotate=None):
         """
-        Add an initial condition associated with the Function x on the adjoint
+        Add an initial condition associated with the function x on the adjoint
         tape.
 
         annotate (default self.annotation_enabled()):
@@ -1316,16 +1316,16 @@ class EquationManager:
 
         Arguments:
 
-        Js        A Functional or Function, or a list or tuple of these,
+        Js        A Functional or function, or a list or tuple of these,
                   defining the functionals.
-        M         A Control or Function, or a list or tuple of these, defining
+        M         A Control or function, or a list or tuple of these, defining
                   the control parameters.
         callback  (Optional) Callable of the form
                       def callback(J_i, n, i, eq, adj_X):
-                  where adj_X is None, a Function, or a list or tuple of
-                  Function objects, corresponding to the adjoint solution for
-                  the equation eq, which is equation i in block n for the
-                  J_i th Functional.
+                  where adj_X is None, a function, or a list or tuple of
+                  functions, corresponding to the adjoint solution for the
+                  equation eq, which is equation i in block n for the J_i th
+                  Functional.
         """
 
         if not isinstance(M, (list, tuple)):
@@ -1565,8 +1565,8 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
     forward  A callable which takes as input the control and returns the
              Functional to be minimized.
-    M0       A Function, or a list or tuple of Function objects. Control
-             parameters initial guess.
+    M0       A function, or a list or tuple of functions. Control parameters
+             initial guess.
     J0       (Optional) Initial functional. If supplied assumes that the
              forward has already been run, and processed by the equation
              manager, using the control parameters given by M0.
@@ -1681,12 +1681,12 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     Arguments:
 
-    forward  A callable which takes as input one or more Function objects
-             defining the value of the control, and returns the Functional.
-    M        A Control or Function, or a list or tuple of these. The control.
+    forward  A callable which takes as input one or more functions defining the
+             value of the control, and returns the Functional.
+    M        A Control or function, or a list or tuple of these. The control.
     J_val    The reference functional value.
-    dJ       (Optional if ddJ is supplied) A Function, or a list or tuple of
-             Function objects, storing the derivative of J with respect to M.
+    dJ       (Optional if ddJ is supplied) A function, or a list or tuple of
+             functions, storing the derivative of J with respect to M.
     ddJ      (Optional) A Hessian used to compute Hessian actions associated
              with the second derivative of J with respect to M.
     seed     (Optional) The maximum scaling for the perturbation is seed

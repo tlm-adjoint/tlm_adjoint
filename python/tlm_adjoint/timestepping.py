@@ -160,12 +160,11 @@ class TimeLevels:
 
 
 class TimeFunction:
-    def __init__(self, levels, *args, **kwargs):
-        # Note that this keeps references to the Function objects on each time
-        # level
+    def __init__(self, levels, *args, cls=Function, **kwargs):
+        # Note that this keeps references to the functions on each time level
         self._fns = {}
         for level in levels:
-            fn = Function(*args, **kwargs)
+            fn = cls(*args, **kwargs)
             fn._tlm_adjoint__tfn = self
             fn._tlm_adjoint__level = level
             self._fns[level] = fn

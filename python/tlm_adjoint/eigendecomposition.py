@@ -80,8 +80,8 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
 
     Arguments:
 
-    space          Function space.
-    A_action       Function handle accepting a Function and returning an array,
+    space          Eigenspace.
+    A_action       Function handle accepting a function and returning an array,
                    defining the action of the left-hand-side matrix.
     B_matrix       (Optional) Right-hand-side matrix in a generalized
                    eigendecomposition.
@@ -101,9 +101,8 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     Returns:
 
     A tuple (lam, V_r) for Hermitian problems, or (lam, (V_r, V_i)) otherwise,
-    where lam is an array of eigenvalues, and V_r / V_i are tuples of Function
-    objects containing the real and imaginary parts of the corresponding
-    eigenvectors.
+    where lam is an array of eigenvalues, and V_r / V_i are tuples of functions
+    containing the real and imaginary parts of the corresponding eigenvectors.
     """
 
     import petsc4py.PETSc as PETSc

@@ -76,8 +76,8 @@ class ConstantMatrix(Matrix):
         raise EquationException("Unexpected call to adjoint_derivative_action")
 
     def adjoint_solve(self, nl_deps, b):
-        return Function(b.space(),
-                        _data=np.linalg.solve(self.A_T(), b.vector()))
+        return space_new(b.space(),
+                         _data=np.linalg.solve(self.A_T(), b.vector()))
 
     def tangent_linear_rhs(self, M, dM, tlm_map, x):
         return None

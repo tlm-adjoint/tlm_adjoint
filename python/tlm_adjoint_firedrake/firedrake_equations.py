@@ -221,10 +221,10 @@ class PointInterpolationSolver(Equation):
 
         Arguments:
 
-        y         A continuous scalar Function. The function to be
+        y         A continuous scalar function. The function to be
                   interpolated.
-        X         A real Function, or a list or tuple of real Function objects.
-                  The solution to the equation.
+        X         A real function, or a list or tuple of real functions. The
+                  solution to the equation.
         X_coords  A float NumPy matrix. Points at which to interpolate y.
                   Ignored if P is supplied, required otherwise.
         P         (Optional) Interpolation matrix.
@@ -235,15 +235,16 @@ class PointInterpolationSolver(Equation):
             X = (X,)
         for x in X:
             if not is_real_function(x):
-                raise EquationException("Solution must be a real Function, or a list or tuple of real Function objects")  # noqa: E501
+                raise EquationException("Solution must be a real function, "
+                                        "or a list or tuple of real functions")
         if X_coords is None:
             if P is None:
                 raise EquationException("X_coords required when P is not supplied")  # noqa: E501
         else:
             if len(X) != X_coords.shape[0]:
-                raise EquationException("Invalid number of Function objects")
+                raise EquationException("Invalid number of functions")
         if len(y.function_space().ufl_element().value_shape()) > 0:
-            raise EquationException("y must be a scalar Function")
+            raise EquationException("y must be a scalar function")
 
         if P is None:
             y_space = y.function_space()
