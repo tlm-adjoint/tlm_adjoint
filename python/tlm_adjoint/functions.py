@@ -22,6 +22,7 @@ from .backend import *
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
+import copy
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
@@ -336,6 +337,7 @@ class Constant(backend_Constant):
 
         # "name" constructor argument not supported by Firedrake
         if not hasattr(backend_Constant, "name"):
+            kwargs = copy.copy(kwargs)
             name = kwargs.pop("name", None)
 
         backend_Constant.__init__(self, *args, comm=comm, **kwargs)
