@@ -861,7 +861,7 @@ class FixedPointSolver(Equation):
                 function_zero(x)
 
         it = 0
-        X_0 = tuple(function_new(x) for x in eq_X[-1])
+        X_0 = tuple(function_copy(x) for x in eq_X[-1])
         while True:
             it += 1
 
@@ -945,7 +945,7 @@ class FixedPointSolver(Equation):
         eq_adj_X = self._eq_adj_X
 
         it = 0
-        X_0 = tuple(function_new(x) for x in eq_adj_X[-1])
+        X_0 = tuple(function_copy(x) for x in eq_adj_X[-1])
         while True:
             it += 1
 
