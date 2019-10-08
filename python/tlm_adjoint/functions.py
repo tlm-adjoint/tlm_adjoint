@@ -39,6 +39,12 @@ __all__ = \
     ]
 
 
+def new_count():
+    c = backend_Constant.__new__(backend_Constant, 0.0)
+    _orig_Constant__init__(c, 0.0)
+    return c.count()
+
+
 class Caches:
     def __init__(self, x):
         self._caches = weakref.WeakValueDictionary()
@@ -445,12 +451,6 @@ def bcs_is_cached(bcs):
         if not hasattr(bc, "is_cached") or not bc.is_cached():
             return False
     return True
-
-
-def new_count():
-    c = backend_Constant.__new__(backend_Constant, 0.0)
-    _orig_Constant__init__(c, 0.0)
-    return c.count()
 
 
 class ReplacementInterface(_FunctionInterface):

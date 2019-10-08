@@ -40,6 +40,7 @@ __all__ = \
         "function_alias",
         "function_assign",
         "function_axpy",
+        "function_caches",
         "function_comm",
         "function_copy",
         "function_get_values",
@@ -74,47 +75,6 @@ __all__ = \
     ]
 
 
-def clear_caches(*deps):
-    pass
-
-
-def info(message):
-    sys.stdout.write(f"{message:s}\n")
-    sys.stdout.flush()
-
-
-def warning(message):
-    sys.stderr.write(f"{message:s}\n")
-    sys.stderr.flush()
-
-
-def copy_parameters_dict(parameters):
-    return copy.deepcopy(parameters)
-
-
-class FunctionSpaceInterface(SpaceInterface):
-    def id(self):
-        return self._space.dim()
-
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        return Function(self._space, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, tlm_depth=tlm_depth)
-
-
-class FunctionSpace:
-    def __init__(self, dim):
-        self._dim = dim
-        self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
-
-    def dim(self):
-        return self._dim
-
-
-def RealFunctionSpace(comm=None):
-    return FunctionSpace(1)
-
-
 class SerialComm:
     # Interface as in mpi4py 3.0.1
     def allgather(self, sendobj):
@@ -142,6 +102,33 @@ class SerialComm:
 
 
 _comm = SerialComm()
+
+
+def default_comm():
+    return _comm
+
+
+class FunctionSpaceInterface(SpaceInterface):
+    def id(self):
+        return self._space.dim()
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._space, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+class FunctionSpace:
+    def __init__(self, dim):
+        self._dim = dim
+        self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
+
+    def dim(self):
+        return self._dim
+
+
+def RealFunctionSpace(comm=None):
+    return FunctionSpace(1)
 
 
 class FunctionInterface(_FunctionInterface):
@@ -386,8 +373,22 @@ def new_real_function(name=None, comm=None, static=False, cache=None,
                     checkpoint=checkpoint, tlm_depth=tlm_depth)
 
 
-def default_comm():
-    return _comm
+def clear_caches(*deps):
+    pass
+
+
+def info(message):
+    sys.stdout.write(f"{message:s}\n")
+    sys.stdout.flush()
+
+
+def warning(message):
+    sys.stderr.write(f"{message:s}\n")
+    sys.stderr.flush()
+
+
+def copy_parameters_dict(parameters):
+    return copy.deepcopy(parameters)
 
 
 def subtract_adjoint_derivative_action(x, y):

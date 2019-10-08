@@ -80,6 +80,44 @@ __all__ = \
     ]
 
 
+def default_comm():
+    return MPI.COMM_WORLD
+
+
+class FunctionSpaceInterface(SpaceInterface):
+    _id_counter = [0]
+
+    def __init__(self, space):
+        SpaceInterface.__init__(self, space)
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
+
+    def id(self):
+        return self._id
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._space, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+def RealFunctionSpace(comm=None):
+    if comm is None:
+        comm = default_comm()
+    return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
+
+
+_orig_WithGeometry__init__ = backend_WithGeometry.__init__
+
+
+def _WithGeometry__init__(self, *args, **kwargs):
+    _orig_WithGeometry__init__(self, *args, **kwargs)
+    self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
+
+
+backend_WithGeometry.__init__ = _WithGeometry__init__
+
+
 class FunctionInterface(_FunctionInterface):
     def comm(self):
         return self._x.comm
@@ -252,32 +290,10 @@ def _Function__init__(self, *args, **kwargs):
 backend_Function.__init__ = _Function__init__
 
 
-class FunctionSpaceInterface(SpaceInterface):
-    _id_counter = [0]
-
-    def __init__(self, space):
-        SpaceInterface.__init__(self, space)
-        self._id = self._id_counter[0]
-        self._id_counter[0] += 1
-
-    def id(self):
-        return self._id
-
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        return Function(self._space, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, tlm_depth=tlm_depth)
-
-
-_orig_WithGeometry__init__ = backend_WithGeometry.__init__
-
-
-def _WithGeometry__init__(self, *args, **kwargs):
-    _orig_WithGeometry__init__(self, *args, **kwargs)
-    self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
-
-
-backend_WithGeometry.__init__ = _WithGeometry__init__
+def new_real_function(name=None, comm=None, static=False, cache=None,
+                      checkpoint=None, tlm_depth=0):
+    return Constant(0.0, name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth, comm=comm)
 
 
 # def clear_caches(*deps):
@@ -294,23 +310,6 @@ def warning(message):
 
 
 # def copy_parameters_dict(parameters):
-
-
-def RealFunctionSpace(comm=None):
-    if comm is None:
-        comm = default_comm()
-    return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
-
-
-def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None,
-                      tlm_depth=0):
-    return Constant(0.0, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth, comm=comm)
-
-
-def default_comm():
-    return MPI.COMM_WORLD
 
 
 def subtract_adjoint_derivative_action(x, y):

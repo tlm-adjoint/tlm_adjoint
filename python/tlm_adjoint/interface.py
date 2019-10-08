@@ -63,6 +63,29 @@ class InterfaceException(Exception):
     pass
 
 
+class SpaceInterface:
+    def __init__(self, space):
+        self._space = space
+
+    def id(self):
+        raise InterfaceException("Method not overridden")
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        raise InterfaceException("Method not overridden")
+
+
+def space_id(space):
+    return space._tlm_adjoint__space_interface.id()
+
+
+def space_new(space, name=None, static=False, cache=None, checkpoint=None,
+              tlm_depth=0):
+    return space._tlm_adjoint__space_interface.new(
+        name=name, static=static, cache=cache, checkpoint=checkpoint,
+        tlm_depth=tlm_depth)
+
+
 class FunctionInterface:
     def __init__(self, x):
         self._x = x
@@ -275,26 +298,3 @@ def function_replacement(x):
 
 def function_alias(x):
     return x._tlm_adjoint__function_interface.alias()
-
-
-class SpaceInterface:
-    def __init__(self, space):
-        self._space = space
-
-    def id(self):
-        raise InterfaceException("Method not overridden")
-
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        raise InterfaceException("Method not overridden")
-
-
-def space_id(space):
-    return space._tlm_adjoint__space_interface.id()
-
-
-def space_new(space, name=None, static=False, cache=None, checkpoint=None,
-              tlm_depth=0):
-    return space._tlm_adjoint__space_interface.new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint,
-        tlm_depth=tlm_depth)

@@ -78,6 +78,37 @@ __all__ = \
     ]
 
 
+def default_comm():
+    return mpi_comm_world()
+
+
+class FunctionSpaceInterface(SpaceInterface):
+    def id(self):
+        return self._space.id()
+
+    def new(self, name=None, static=False, cache=None, checkpoint=None,
+            tlm_depth=0):
+        return Function(self._space, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+def RealFunctionSpace(comm=None):
+    if comm is None:
+        comm = default_comm()
+    return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
+
+
+_orig_FunctionSpace__init__ = FunctionSpace.__init__
+
+
+def _FunctionSpace__init__(self, *args, **kwargs):
+    _orig_FunctionSpace__init__(self, *args, **kwargs)
+    self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
+
+
+FunctionSpace.__init__ = _FunctionSpace__init__
+
+
 class FunctionInterface(_FunctionInterface):
     def comm(self):
         comm = self._x.function_space().mesh().mpi_comm()
@@ -240,25 +271,10 @@ def _Function__init__(self, *args, **kwargs):
 backend_Function.__init__ = _Function__init__
 
 
-class FunctionSpaceInterface(SpaceInterface):
-    def id(self):
-        return self._space.id()
-
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        return Function(self._space, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, tlm_depth=tlm_depth)
-
-
-_orig_FunctionSpace__init__ = FunctionSpace.__init__
-
-
-def _FunctionSpace__init__(self, *args, **kwargs):
-    _orig_FunctionSpace__init__(self, *args, **kwargs)
-    self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
-
-
-FunctionSpace.__init__ = _FunctionSpace__init__
+def new_real_function(name=None, comm=None, static=False, cache=None,
+                      checkpoint=None, tlm_depth=0):
+    return Constant(0.0, name=name, static=static, cache=cache,
+                    checkpoint=checkpoint, tlm_depth=tlm_depth, comm=comm)
 
 
 # def clear_caches(*deps):
@@ -273,22 +289,6 @@ def warning(message):
 
 
 # def copy_parameters_dict(parameters):
-
-
-def RealFunctionSpace(comm=None):
-    if comm is None:
-        comm = default_comm()
-    return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
-
-
-def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None, tlm_depth=0):
-    return Constant(0.0, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth, comm=comm)
-
-
-def default_comm():
-    return mpi_comm_world()
 
 
 def subtract_adjoint_derivative_action(x, y):
