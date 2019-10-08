@@ -153,3 +153,19 @@ def test_EmptySolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
     assert(min_order > 2.00)
+
+
+@pytest.mark.firedrake
+def test_empty(setup_test, test_leaks):
+    space = RealFunctionSpace()
+    def forward(m):
+        return Functional(name="J", space=space)
+
+    m = Function(space, name="m", static=True)
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    dJ = compute_gradient(J, m)
+    assert(function_max_value(dJ) == 0.0)

@@ -163,7 +163,7 @@ class AdjointModelRHS:
 
     def pop(self):
         B = self._B[-1].pop()
-        if self._B[-1].is_empty():
+        while len(self._B) > 0 and self._B[-1].is_empty():
             self._B.pop()
         return B
 
