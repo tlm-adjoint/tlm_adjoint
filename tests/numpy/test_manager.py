@@ -87,7 +87,7 @@ def test_EmptySolver(setup_test, test_leaks):
 
 @pytest.mark.numpy
 def test_empty(setup_test, test_leaks):
-    space = RealFunctionSpace()
+    space = FunctionSpace(1)
 
     def forward(m):
         return Functional(name="J", space=space)
@@ -99,4 +99,4 @@ def test_empty(setup_test, test_leaks):
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert(function_max_value(dJ) == 0.0)
+    assert(dJ.vector()[0] == 0.0)

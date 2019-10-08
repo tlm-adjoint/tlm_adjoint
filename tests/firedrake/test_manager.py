@@ -156,16 +156,14 @@ def test_EmptySolver(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 def test_empty(setup_test, test_leaks):
-    space = RealFunctionSpace()
-
     def forward(m):
-        return Functional(name="J", space=space)
+        return Functional(name="J")
 
-    m = Function(space, name="m", static=True)
+    m = Constant(name="m", static=True)
 
     start_manager()
     J = forward(m)
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert(function_max_value(dJ) == 0.0)
+    assert(float(dJ) == 0.0)
