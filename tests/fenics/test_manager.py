@@ -155,6 +155,7 @@ def test_EmptySolver(setup_test, test_leaks):
 @pytest.mark.fenics
 def test_empty(setup_test, test_leaks):
     space = RealFunctionSpace()
+
     def forward(m):
         return Functional(name="J", space=space)
 
