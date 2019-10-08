@@ -380,8 +380,8 @@ class Replacement:
         return self._tlm_depth
 
 
-def new_real_function(name=None, static=False, cache=None, checkpoint=None,
-                      tlm_depth=0, comm=None):
+def new_real_function(name=None, comm=None, static=False, cache=None,
+                      checkpoint=None, tlm_depth=0):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint, tlm_depth=tlm_depth)
 
