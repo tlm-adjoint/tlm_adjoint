@@ -544,9 +544,9 @@ class ControlsMarker(Equation):
 
         self._X = tuple(M)
         self._deps = tuple(M)
-        self._nl_deps = tuple()
-        self._nl_deps_map = tuple()
-        self._ic_deps = tuple()
+        self._nl_deps = ()
+        self._nl_deps_map = ()
+        self._ic_deps = ()
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
@@ -1257,7 +1257,7 @@ class Matrix:
             if len(set(function_id(dep) for dep in nl_deps)) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
 
-        self._nl_deps = tuple() if nl_deps is None else tuple(nl_deps)
+        self._nl_deps = () if nl_deps is None else tuple(nl_deps)
         self._has_ic_dep = has_ic_dep
 
     def replace(self, replace_map):

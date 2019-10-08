@@ -1380,7 +1380,7 @@ class EquationManager:
             for i in range(len(blocks[n]) - 1, -1, -1):
                 eq = blocks[n][i]
                 # Non-linear dependency data
-                nl_deps = self._cp[(cp_n, i)] if cp_block else tuple()
+                nl_deps = self._cp[(cp_n, i)] if cp_block else ()
 
                 # Transposed dependency graph information for this equation
                 B_indices = {}
