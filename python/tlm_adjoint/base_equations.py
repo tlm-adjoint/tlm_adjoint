@@ -150,6 +150,7 @@ class AdjointBlockRHS:
 class AdjointModelRHS:
     def __init__(self, blocks):
         self._B = [AdjointBlockRHS(block) for block in blocks]
+        self._pop_empty()
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -163,9 +164,12 @@ class AdjointModelRHS:
 
     def pop(self):
         B = self._B[-1].pop()
+        self._pop_empty()
+        return B
+
+    def _pop_empty(self):
         while len(self._B) > 0 and self._B[-1].is_empty():
             self._B.pop()
-        return B
 
     def is_empty(self):
         return len(self._B) == 0
