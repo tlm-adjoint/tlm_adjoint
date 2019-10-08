@@ -125,10 +125,7 @@ class ConstantSpaceInterface(SpaceInterface):
 
 class ConstantInterface(_FunctionInterface):
     def comm(self):
-        if hasattr(self._x, "comm"):
-            return self._x.comm()
-        else:
-            return MPI.COMM_WORLD
+        return self._x.ufl_function_space()._tlm_adjoint__space_interface._comm
 
     def space(self):
         return self._x.ufl_function_space()
@@ -307,9 +304,15 @@ class ConstantInterface(_FunctionInterface):
 _orig_Constant__init__ = backend_Constant.__init__
 
 
-def _Constant__init__(self, *args, **kwargs):
+def _Constant__init__(self, *args, comm=None, **kwargs):
+    if comm is None:
+        comm = MPI.COMM_WORLD
+
     _orig_Constant__init__(self, *args, **kwargs)
+
     self._tlm_adjoint__function_interface = ConstantInterface(self)
+    space = self.ufl_function_space()
+    space._tlm_adjoint__space_interface = ConstantSpaceInterface(space, comm)
 
 
 backend_Constant.__init__ = _Constant__init__
@@ -329,8 +332,7 @@ class Constant(backend_Constant):
         if not hasattr(backend_Constant, "name"):
             name = kwargs.pop("name", None)
 
-        backend_Constant.__init__(self, *args, **kwargs)
-        self.__comm = comm
+        backend_Constant.__init__(self, *args, comm=comm, **kwargs)
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
@@ -342,14 +344,6 @@ class Constant(backend_Constant):
                 # Following FEniCS 2019.1.0 behaviour
                 name = f"f_{self.count():d}"
             self.name = lambda: name
-
-        space = self.ufl_function_space()
-        if not hasattr(space, "_tlm_adjoint__space_interface"):
-            space._tlm_adjoint__space_interface = \
-                ConstantSpaceInterface(space, comm)
-
-    def comm(self):
-        return self.__comm
 
     def is_static(self):
         return self.__static
@@ -372,8 +366,8 @@ class Constant(backend_Constant):
                 value = 0.0
             else:
                 value = np.zeros(self.ufl_shape, dtype=np.float64)
-            return Constant(value, comm=self.comm(), name=name, static=False,
-                            cache=cache, checkpoint=checkpoint,
+            return Constant(value, comm=function_comm(self), name=name,
+                            static=False, cache=cache, checkpoint=checkpoint,
                             tlm_depth=self.tlm_depth() + 1)
 
 
@@ -454,7 +448,9 @@ def bcs_is_cached(bcs):
 
 
 def new_count():
-    return backend_Constant(0).count()
+    c = backend_Constant.__new__(backend_Constant, 0.0)
+    _orig_Constant__init__(c, 0.0)
+    return c.count()
 
 
 class ReplacementInterface(_FunctionInterface):
