@@ -22,7 +22,6 @@ from .backend import *
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
-import copy
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
@@ -317,19 +316,14 @@ backend_Constant.__init__ = _Constant__init__
 
 
 class Constant(backend_Constant):
-    def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        comm = kwargs.pop("comm", None)
+    def __init__(self, *args, comm=None, static=False, cache=None,
+                 checkpoint=None, tlm_depth=0, **kwargs):
         if comm is None:
             comm = MPI.COMM_WORLD
-        static = kwargs.pop("static", True)
-        cache = kwargs.pop("cache", None)
         if cache is None:
             cache = static
-        checkpoint = kwargs.pop("checkpoint", None)
         if checkpoint is None:
             checkpoint = not static
-        tlm_depth = kwargs.pop("tlm_depth", 0)
 
         # "name" constructor argument not supported by Firedrake
         if not hasattr(backend_Constant, "name"):
@@ -384,16 +378,12 @@ class Constant(backend_Constant):
 
 
 class Function(backend_Function):
-    def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", None)
+    def __init__(self, *args, static=False, cache=None, checkpoint=None,
+                 tlm_depth=0, **kwargs):
         if cache is None:
             cache = static
-        checkpoint = kwargs.pop("checkpoint", None)
         if checkpoint is None:
             checkpoint = not static
-        tlm_depth = kwargs.pop("tlm_depth", 0)
 
         self.__static = static
         self.__cache = cache
@@ -424,13 +414,10 @@ class Function(backend_Function):
 
 
 class DirichletBC(backend_DirichletBC):
-    def __init__(self, *args, **kwargs):
-        kwargs = copy.copy(kwargs)
-        static = kwargs.pop("static", False)
-        cache = kwargs.pop("cache", None)
+    def __init__(self, *args, static=False, cache=None, homogeneous=False,
+                 **kwargs):
         if cache is None:
             cache = static
-        homogeneous = kwargs.pop("homogeneous", False)
 
         backend_DirichletBC.__init__(self, *args, **kwargs)
         self.__static = static

@@ -26,7 +26,6 @@ from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
 from .tlm_adjoint import annotation_enabled, tlm_enabled
 
-import copy
 import ufl
 
 __all__ = \
@@ -165,11 +164,7 @@ def extract_args_linear_solve(A, x, b, linear_solver="default",
     return A, x, b, linear_solver, preconditioner
 
 
-def solve(*args, **kwargs):
-    kwargs = copy.copy(kwargs)
-    annotate = kwargs.pop("annotate", None)
-    tlm = kwargs.pop("tlm", None)
-
+def solve(*args, annotate=None, tlm=None, **kwargs):
     if annotate is None:
         annotate = annotation_enabled()
     if tlm is None:

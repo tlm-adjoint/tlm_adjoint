@@ -134,11 +134,7 @@ def extract_args_linear_solve(A, x, b, bcs=None, solver_parameters={}):
     return A, x, b, bcs, solver_parameters
 
 
-def solve(*args, **kwargs):
-    kwargs = copy.copy(kwargs)
-    annotate = kwargs.pop("annotate", None)
-    tlm = kwargs.pop("tlm", None)
-
+def solve(*args, annotate=None, tlm=None, **kwargs):
     if annotate is None:
         annotate = annotation_enabled()
     if tlm is None:
