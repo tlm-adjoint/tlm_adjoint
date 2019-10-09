@@ -79,7 +79,11 @@ __all__ = \
 
 
 def default_comm():
-    return mpi_comm_world()
+    comm = mpi_comm_world()
+    # FEniCS backwards compatibility
+    if hasattr(comm, "tompi4py"):
+        comm = comm.tompi4py()
+    return comm
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -94,7 +98,8 @@ class FunctionSpaceInterface(SpaceInterface):
 
 def RealFunctionSpace(comm=None):
     if comm is None:
-        comm = default_comm()
+        # FEniCS backwards compatibility
+        comm = mpi_comm_world()
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
