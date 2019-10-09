@@ -35,7 +35,7 @@ mesh = UnitSquareMesh(50, 50)
 X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
-bc = DirichletBC(space, 0.0, "on_boundary", static=True, homogeneous=True)
+bc = HomogeneousDirichletBC(space, "on_boundary")
 
 dt = Constant(0.01, static=True)
 N = 10

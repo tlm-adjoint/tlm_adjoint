@@ -38,9 +38,8 @@ np.random.seed(1352)
 mesh = UnitSquareMesh(20, 20)
 space = FunctionSpace(mesh, "Lagrange", 1)
 
-# Configure a boundary condition. The optional "static" and "homogeneous"
-# arguments are flags used for optimization.
-bc = DirichletBC(space, 1.0, "on_boundary", static=True, homogeneous=False)
+# Configure a boundary condition
+bc = DirichletBC(space, 1.0, "on_boundary")
 
 
 def forward(F, x0=None):

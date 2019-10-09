@@ -36,7 +36,7 @@ def test_overrides(setup_test, test_leaks):
     F = Function(space, name="F", static=True)
     interpolate_expression(F, sin(pi * X[0]) * sin(3.0 * pi * X[1]))
 
-    bc = DirichletBC(space, 1.0, "on_boundary", static=True)
+    bc = DirichletBC(space, 1.0, "on_boundary")
 
     def project_project(F):
         return project(F, space, bcs=bc, name="G",

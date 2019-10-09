@@ -26,7 +26,7 @@ from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear
 from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
     linear_solver_cache, split_form, update_caches, verify_assembly
-from .functions import DirichletBC, bcs_is_cached, bcs_is_static
+from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static
 
 import copy
 import operator
@@ -205,7 +205,7 @@ def unbind_form(form):
 
 
 def homogenized_bc(bc):
-    if hasattr(bc, "is_homogeneous") and bc.is_homogeneous():
+    if bcs_is_homogeneous([bc]):
         return bc
     else:
         hbc = homogenize(bc)
@@ -793,7 +793,7 @@ class DirichletBCSolver(Equation):
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
         function_zero(x)
-        DirichletBC(
+        backend_DirichletBC(
             function_space(x), y,
             *self._bc_args, **self._bc_kwargs).apply(function_vector(x))
 
@@ -803,7 +803,7 @@ class DirichletBCSolver(Equation):
         elif dep_index == 1:
             _, y = self.dependencies()
             F = function_new(y)
-            DirichletBC(
+            backend_DirichletBC(
                 function_space(y), adj_x,
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
             return (-1.0, F)

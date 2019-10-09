@@ -33,8 +33,10 @@ __all__ = \
         "Constant",
         "DirichletBC",
         "Function",
+        "HomogeneousDirichletBC",
         "Replacement",
         "bcs_is_cached",
+        "bcs_is_homogeneous",
         "bcs_is_static",
         "new_count"
     ]
@@ -424,12 +426,26 @@ class Function(backend_Function):
 
 
 class DirichletBC(backend_DirichletBC):
-    def __init__(self, *args, static=False, cache=None, homogeneous=False,
-                 **kwargs):
+    # Based on FEniCS 2019.1.0 DirichletBC API
+    def __init__(self, V, g, sub_domain, *args, static=None, cache=None,
+                 homogeneous=False, **kwargs):
+        backend_DirichletBC.__init__(self, V, g, sub_domain, *args, **kwargs)
+
+        if not isinstance(g, ufl.classes.Expr):
+            g = backend_Constant(g)
+
+        if static is None:
+            static = True
+            for dep in ufl.algorithms.extract_coefficients(g):
+                # The 'static' flag for functions is only a hint. 'not
+                # checkpointed' is a guarantee that the function will never
+                # appear as the solution to an Equation.
+                if not is_function(dep) or not function_is_checkpointed(dep):
+                    static = False
+                    break
         if cache is None:
             cache = static
 
-        backend_DirichletBC.__init__(self, *args, **kwargs)
         self.__static = static
         self.__cache = cache
         self.__homogeneous = homogeneous
@@ -444,9 +460,30 @@ class DirichletBC(backend_DirichletBC):
         return self.__homogeneous
 
     def homogenize(self):
+        if self.is_static():
+            raise InterfaceException("Cannot call homogenize method for "
+                                     "static DirichletBC")
         if not self.__homogeneous:
             backend_DirichletBC.homogenize(self)
             self.__homogeneous = True
+
+    def set_value(self, *args, **kwargs):
+        if self.is_static():
+            raise InterfaceException("Cannot call set_value method for "
+                                     "static DirichletBC")
+        backend_DirichletBC.set_value(self, *args, **kwargs)
+
+
+class HomogeneousDirichletBC(DirichletBC):
+    # Based on FEniCS 2019.1.0 DirichletBC API
+    def __init__(self, V, sub_domain):
+        shape = V.ufl_element().value_shape()
+        if len(shape) == 0:
+            g = backend_Constant(0.0)
+        else:
+            g = backend_Constant(np.zeros(shape, dtype=np.float64))
+        DirichletBC.__init__(self, V, g, sub_domain, static=True,
+                             homogeneous=True)
 
 
 def bcs_is_static(bcs):
@@ -459,6 +496,13 @@ def bcs_is_static(bcs):
 def bcs_is_cached(bcs):
     for bc in bcs:
         if not hasattr(bc, "is_cached") or not bc.is_cached():
+            return False
+    return True
+
+
+def bcs_is_homogeneous(bcs):
+    for bc in bcs:
+        if not hasattr(bc, "is_homogeneous") or not bc.is_homogeneous():
             return False
     return True
 

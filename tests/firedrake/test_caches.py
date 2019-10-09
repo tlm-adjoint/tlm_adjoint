@@ -90,7 +90,7 @@ def test_clear_caches(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("non_static_term", [True, False])
-@pytest.mark.parametrize("static_bc", [True, False])
+@pytest.mark.parametrize("static_bc", [None, True, False])
 def test_cached_rhs(setup_test, test_leaks,
                     non_static_term, static_bc):
     mesh = UnitSquareMesh(10, 10)
@@ -143,7 +143,7 @@ def test_cached_rhs(setup_test, test_leaks,
                         solver_parameters=ls_parameters_cg)
     eq.solve()
 
-    if static_bc:
+    if static_bc in [None, True]:
         assert(tuple(len(cache) for cache in caches) == (4, 1, 0))
         assert(eq._cache_jacobian)
     else:

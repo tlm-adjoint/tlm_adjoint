@@ -209,7 +209,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
                          + dt * inner(grad(test), kappa * grad(trial)) * dx
                          == inner(test, T[n]) * dx,
                          T[n + 1],
-                         DirichletBC(space, 1.0, "on_boundary", static=True),
+                         DirichletBC(space, 1.0, "on_boundary"),
                          solver_parameters=ls_parameters_cg)
 
         for n_step in range(n_steps):
@@ -279,7 +279,7 @@ def test_diffusion_2d(setup_test, test_leaks):
     dt = Constant(0.01, static=True)
     kappa = Function(space, name="kappa", static=True)
     function_assign(kappa, 1.0)
-    bc = DirichletBC(space, 0.0, "on_boundary", static=True, homogeneous=True)
+    bc = HomogeneousDirichletBC(space, "on_boundary")
 
     def forward(kappa):
         clear_caches()

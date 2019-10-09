@@ -156,8 +156,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
 
         solve(inner(grad(test), grad(trial)) * dx
               == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
-              x_0, DirichletBC(space, 0.0, "on_boundary",
-                               static=True, homogeneous=True),
+              x_0, HomogeneousDirichletBC(space, "on_boundary"),
               solver_parameters=ls_parameters_cg)
 
         AxpySolver(x_0, 1.0, x_1, x).solve()
@@ -176,7 +175,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
     x_ref = Function(space, name="x_ref")
     solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
           x_ref,
-          DirichletBC(space, 1.0, "on_boundary", static=True),
+          DirichletBC(space, 1.0, "on_boundary"),
           solver_parameters=ls_parameters_cg)
     error = Function(space, name="error")
     function_assign(error, x_ref)

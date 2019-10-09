@@ -202,9 +202,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
     timestep_eq = EquationSolver(
         lhs(F) == rhs(F),
         T_np1_0,
-        DirichletBC(space, 0.0,
-                    "fabs(x[0]) < DOLFIN_EPS",
-                    static=True, homogeneous=True),
+        HomogeneousDirichletBC(space, "fabs(x[0]) < DOLFIN_EPS"),
         solver_parameters={"linear_solver": "umfpack"})
 
     # Equation which constructs the complete solution on the next time level
