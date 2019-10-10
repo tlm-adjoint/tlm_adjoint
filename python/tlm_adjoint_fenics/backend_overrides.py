@@ -306,7 +306,7 @@ _orig_Function_assign = backend_Function.assign
 
 def _Function_assign(self, rhs, annotate=None, tlm=None):
     return_value = _orig_Function_assign(self, rhs)
-    if not is_function(rhs):
+    if not isinstance(rhs, backend_Function):
         return return_value
 
     if annotate is None:

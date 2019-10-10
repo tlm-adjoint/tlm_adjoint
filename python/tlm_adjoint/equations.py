@@ -880,8 +880,6 @@ def evaluate_expr(x):
             return function_max_value(x)
         else:
             return function_get_values(x)
-    elif isinstance(x, backend_Constant):
-        return float(x)
     else:
         return evaluate_expr_types[type(x)](x)
 

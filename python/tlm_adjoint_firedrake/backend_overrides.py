@@ -209,7 +209,7 @@ def project(v, V, bcs=None, solver_parameters=None,
                 use_slate_for_inverse=True)
             use_slate_for_inverse = getattr(projector,
                                             "use_slate_for_inverse", False)
-        if is_function(V):
+        if isinstance(V, backend_Function):
             x = V
         else:
             x = space_new(V, name=name)
@@ -251,7 +251,7 @@ _orig_Function_assign = backend_Function.assign
 
 def _Function_assign(self, expr, subset=None, annotate=None, tlm=None):
     return_value = _orig_Function_assign(self, expr, subset=subset)
-    if not is_function(expr) or subset is not None:
+    if not isinstance(expr, backend_Function) or subset is not None:
         return return_value
 
     if annotate is None:

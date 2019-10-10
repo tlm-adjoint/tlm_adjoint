@@ -185,7 +185,7 @@ def split_terms(terms, base_integral,
             mat_dep = None
             for dep in ufl.algorithms.extract_coefficients(term):
                 if not is_cached(dep):
-                    if is_function(dep) and mat_dep is None:
+                    if isinstance(dep, backend_Function) and mat_dep is None:
                         mat_dep = dep
                     else:
                         mat_dep = None
