@@ -23,6 +23,7 @@ from .backend_interface import *
 from .base_equations import AdjointModelRHS, ControlsMarker, EquationAlias, \
     FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
+from .functional import Functional
 from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
@@ -1343,7 +1344,7 @@ class EquationManager:
         self.reset_adjoint()
 
         # Functionals
-        Js = tuple(J.fn() if not is_function(J) else J for J in Js)
+        Js = tuple(Functional(fn=J) if is_function(J) else J for J in Js)
 
         # Controls
         M = tuple(m if is_function(m) else m.m() for m in M)

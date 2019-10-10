@@ -565,6 +565,7 @@ class FunctionalMarker(Equation):
         J  A function. The functional.
         """
 
+        J = J.fn()
         # Any function in the correct space suffices here
         J_alias = function_alias(J)
         Equation.__init__(self, J_alias, [J_alias, J], nl_deps=[], ic_deps=[])
