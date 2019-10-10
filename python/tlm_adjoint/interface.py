@@ -53,7 +53,6 @@ __all__ = \
         "function_state",
         "function_sum",
         "function_tangent_linear",
-        "function_tlm_depth",
         "function_update_state",
         "function_zero",
         "is_function",
@@ -94,8 +93,7 @@ class SpaceInterface:
     def _id(self):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
 
@@ -103,21 +101,19 @@ def space_id(space):
     return space._tlm_adjoint__space_interface_id()
 
 
-def space_new(space, name=None, static=False, cache=None, checkpoint=None,
-              tlm_depth=0):
+def space_new(space, name=None, static=False, cache=None, checkpoint=None):
     return space._tlm_adjoint__space_interface_new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint,
-        tlm_depth=tlm_depth)
+        name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_id", "_name", "_state", "_update_state",
-             "_is_static", "_is_cached", "_is_checkpointed", "_tlm_depth",
-             "_caches", "_zero", "_assign", "_axpy", "_inner", "_max_value",
-             "_sum", "_linf_norm", "_local_size", "_global_size",
-             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_tangent_linear", "_replacement", "_alias")
+             "_is_static", "_is_cached", "_is_checkpointed", "_caches",
+             "_zero", "_assign", "_axpy", "_inner", "_max_value", "_sum",
+             "_linf_norm", "_local_size", "_global_size", "_local_indices",
+             "_get_values", "_set_values", "_new", "_copy", "_tangent_linear",
+             "_replacement", "_alias")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -147,9 +143,6 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _is_checkpointed(self):
-        raise InterfaceException("Method not overridden")
-
-    def _tlm_depth(self):
         raise InterfaceException("Method not overridden")
 
     def _caches(self):
@@ -191,12 +184,10 @@ class FunctionInterface:
     def _set_values(self, values):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
-              tlm_depth=0):
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
     def _tangent_linear(self, name=None):
@@ -248,10 +239,6 @@ def function_is_cached(x):
 
 def function_is_checkpointed(x):
     return x._tlm_adjoint__function_interface_is_checkpointed()
-
-
-def function_tlm_depth(x):
-    return x._tlm_adjoint__function_interface_tlm_depth()
 
 
 def function_caches(x):
@@ -306,18 +293,14 @@ def function_set_values(x, values):
     x._tlm_adjoint__function_interface_set_values(values)
 
 
-def function_new(x, name=None, static=False, cache=None, checkpoint=None,
-                 tlm_depth=0):
+def function_new(x, name=None, static=False, cache=None, checkpoint=None):
     return x._tlm_adjoint__function_interface_new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint,
-        tlm_depth=tlm_depth)
+        name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
-def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
-                  tlm_depth=0):
+def function_copy(x, name=None, static=False, cache=None, checkpoint=None):
     return x._tlm_adjoint__function_interface_copy(
-        name=name, static=static, cache=cache, checkpoint=checkpoint,
-        tlm_depth=tlm_depth)
+        name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
 def function_tangent_linear(x, name=None):

@@ -67,7 +67,6 @@ __all__ = \
         "function_state",
         "function_sum",
         "function_tangent_linear",
-        "function_tlm_depth",
         "function_update_state",
         "function_zero",
         "info",
@@ -91,10 +90,9 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+                        checkpoint=checkpoint)
 
 
 _space_id_counter = [0]
@@ -154,12 +152,6 @@ class FunctionInterface(_FunctionInterface):
             return self.is_checkpointed()
         else:
             return True
-
-    def _tlm_depth(self):
-        if hasattr(self, "tlm_depth"):
-            return self.tlm_depth()
-        else:
-            return 0
 
     def _caches(self):
         if not hasattr(self, "_tlm_adjoint__caches"):
@@ -239,16 +231,13 @@ class FunctionInterface(_FunctionInterface):
         with self.dat.vec_wo as x_v:
             x_v.setArray(values)
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.function_space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+                        cache=cache, checkpoint=checkpoint)
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
-              tlm_depth=0):
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         y = function_new(self, name=name, static=static, cache=cache,
-                         checkpoint=checkpoint, tlm_depth=tlm_depth)
+                         checkpoint=checkpoint)
         function_assign(y, self)
         return y
 
@@ -260,8 +249,7 @@ class FunctionInterface(_FunctionInterface):
         else:
             return function_new(self, name=name, static=False,
                                 cache=function_is_cached(self),
-                                checkpoint=function_is_checkpointed(self),
-                                tlm_depth=function_tlm_depth(self) + 1)
+                                checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
@@ -273,7 +261,7 @@ class FunctionInterface(_FunctionInterface):
                         static=function_is_static(self),
                         cache=function_is_cached(self),
                         checkpoint=function_is_checkpointed(self),
-                        tlm_depth=function_tlm_depth(self), val=self.dat)
+                        val=self.dat)
 
 
 _orig_Function__init__ = backend_Function.__init__
@@ -288,9 +276,9 @@ backend_Function.__init__ = _Function__init__
 
 
 def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None, tlm_depth=0):
+                      checkpoint=None):
     return Constant(0.0, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth, comm=comm)
+                    checkpoint=checkpoint, comm=comm)
 
 
 # def clear_caches(*deps):

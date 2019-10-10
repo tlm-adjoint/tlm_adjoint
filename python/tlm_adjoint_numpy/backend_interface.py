@@ -61,7 +61,6 @@ __all__ = \
         "function_state",
         "function_sum",
         "function_tangent_linear",
-        "function_tlm_depth",
         "function_update_state",
         "function_zero",
         "info",
@@ -111,10 +110,9 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self.dim()
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+                        checkpoint=checkpoint)
 
 
 class FunctionSpace:
@@ -153,9 +151,6 @@ class FunctionInterface(_FunctionInterface):
 
     def _is_checkpointed(self):
         return self.is_checkpointed()
-
-    def _tlm_depth(self):
-        return self.tlm_depth()
 
     def _zero(self):
         self.vector()[:] = 0.0
@@ -198,17 +193,13 @@ class FunctionInterface(_FunctionInterface):
     def _set_values(self, values):
         self.vector()[:] = values
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+                        cache=cache, checkpoint=checkpoint)
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
-              tlm_depth=0):
-        return Function(self.space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth, _data=self.vector().copy())
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
+        return Function(self.space(), name=name, static=static, cache=cache,
+                        checkpoint=checkpoint, _data=self.vector().copy())
 
     def _tangent_linear(self, name=None):
         return self.tangent_linear(name=name)
@@ -219,15 +210,14 @@ class FunctionInterface(_FunctionInterface):
     def _alias(self):
         return Function(self.space(), name=self.name(),
                         static=self.is_static(), cache=self.is_cached(),
-                        checkpoint=self.is_checkpointed(),
-                        tlm_depth=self.tlm_depth(), _data=self.vector())
+                        checkpoint=self.is_checkpointed(), _data=self.vector())
 
 
 class Function:
     _id_counter = [0]
 
     def __init__(self, space, name=None, static=False, cache=None,
-                 checkpoint=None, tlm_depth=0, _data=None):
+                 checkpoint=None, _data=None):
         id = self._id_counter[0]
         self._id_counter[0] += 1
         if name is None:
@@ -244,7 +234,6 @@ class Function:
         self._static = static
         self._cache = cache
         self._checkpoint = checkpoint
-        self._tlm_depth = tlm_depth
         self._replacement = None
         self._id = id
         if _data is None:
@@ -277,17 +266,13 @@ class Function:
     def is_checkpointed(self):
         return self._checkpoint
 
-    def tlm_depth(self):
-        return self._tlm_depth
-
     def tangent_linear(self, name=None):
         if self.is_static():
             return None
         else:
             return Function(self.space(), name=name, static=False,
                             cache=self.is_cached(),
-                            checkpoint=self.is_checkpointed(),
-                            tlm_depth=self.tlm_depth() + 1)
+                            checkpoint=self.is_checkpointed())
 
     def replacement(self):
         if self._replacement is None:
@@ -320,13 +305,9 @@ class ReplacementInterface(_FunctionInterface):
     def _is_checkpointed(self):
         return self.is_checkpointed()
 
-    def _tlm_depth(self):
-        return self.tlm_depth()
-
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.space(), name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, tlm_depth=tlm_depth)
+                        checkpoint=checkpoint)
 
 
 class Replacement:
@@ -336,7 +317,6 @@ class Replacement:
         self._static = x.is_static()
         self._cache = x.is_cached()
         self._checkpoint = x.is_checkpointed()
-        self._tlm_depth = x.tlm_depth()
         self._id = x.id()
         add_interface(self, ReplacementInterface)
 
@@ -358,14 +338,11 @@ class Replacement:
     def is_checkpointed(self):
         return self._checkpoint
 
-    def tlm_depth(self):
-        return self._tlm_depth
-
 
 def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None, tlm_depth=0):
+                      checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, tlm_depth=tlm_depth)
+                    checkpoint=checkpoint)
 
 
 def clear_caches(*deps):

@@ -109,8 +109,7 @@ class ConstantSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         shape = self.ufl_element().value_shape()
         if len(shape) == 0:
             value = 0.0
@@ -118,8 +117,7 @@ class ConstantSpaceInterface(SpaceInterface):
             value = np.zeros(shape, dtype=np.float64)
         comm = self._tlm_adjoint__space_interface_attrs["comm"]
         return Constant(value, comm=comm, name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+                        cache=cache, checkpoint=checkpoint)
 
 
 class ConstantInterface(_FunctionInterface):
@@ -168,12 +166,6 @@ class ConstantInterface(_FunctionInterface):
             return self.is_checkpointed()
         else:
             return True
-
-    def _tlm_depth(self):
-        if hasattr(self, "tlm_depth"):
-            return self.tlm_depth()
-        else:
-            return 0
 
     def _caches(self):
         if not hasattr(self, "_tlm_adjoint__caches"):
@@ -259,25 +251,21 @@ class ConstantInterface(_FunctionInterface):
         else:
             self.assign(backend_Constant(values))
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
             value = 0.0
         else:
             value = np.zeros(self.ufl_shape, dtype=np.float64)
         return Constant(value, comm=function_comm(self), name=name,
-                        static=static, cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+                        static=static, cache=cache, checkpoint=checkpoint)
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
-              tlm_depth=0):
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
             value = float(self)
         else:
             value = self.values()
         return Constant(value, comm=function_comm(self), name=name,
-                        static=static, cache=cache, checkpoint=checkpoint,
-                        tlm_depth=tlm_depth)
+                        static=static, cache=cache, checkpoint=checkpoint)
 
     def _tangent_linear(self, name=None):
         if hasattr(self, "tangent_linear"):
@@ -291,8 +279,7 @@ class ConstantInterface(_FunctionInterface):
                 value = np.zeros(self.ufl_shape, dtype=np.float64)
             return Constant(value, comm=funtion_comm(self), name=name,
                             static=False, cache=function_is_cached(self),
-                            checkpoint=function_is_checkpointed(self),
-                            tlm_depth=function_tlm_depth(self) + 1)
+                            checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
@@ -324,7 +311,7 @@ backend_Constant.__init__ = _Constant__init__
 
 class Constant(backend_Constant):
     def __init__(self, value=None, *args, comm=None, shape=None, static=False,
-                 cache=None, checkpoint=None, tlm_depth=0, **kwargs):
+                 cache=None, checkpoint=None, **kwargs):
         if value is None:
             if shape is None:
                 value = 0.0
@@ -349,7 +336,6 @@ class Constant(backend_Constant):
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
-        self.__tlm_depth = tlm_depth
 
         if not hasattr(backend_Constant, "name"):
             if name is None:
@@ -366,9 +352,6 @@ class Constant(backend_Constant):
     def is_checkpointed(self):
         return self.__checkpoint
 
-    def tlm_depth(self):
-        return self.__tlm_depth
-
     def tangent_linear(self, name=None, static=False, cache=None,
                        checkpoint=None):
         if self.is_static():
@@ -379,13 +362,12 @@ class Constant(backend_Constant):
             else:
                 value = np.zeros(self.ufl_shape, dtype=np.float64)
             return Constant(value, comm=function_comm(self), name=name,
-                            static=False, cache=cache, checkpoint=checkpoint,
-                            tlm_depth=self.tlm_depth() + 1)
+                            static=False, cache=cache, checkpoint=checkpoint)
 
 
 class Function(backend_Function):
     def __init__(self, *args, static=False, cache=None, checkpoint=None,
-                 tlm_depth=0, **kwargs):
+                 **kwargs):
         if cache is None:
             cache = static
         if checkpoint is None:
@@ -394,7 +376,6 @@ class Function(backend_Function):
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
-        self.__tlm_depth = tlm_depth
         backend_Function.__init__(self, *args, **kwargs)
 
     def is_static(self):
@@ -406,17 +387,13 @@ class Function(backend_Function):
     def is_checkpointed(self):
         return self.__checkpoint
 
-    def tlm_depth(self):
-        return self.__tlm_depth
-
     def tangent_linear(self, name=None):
         if self.is_static():
             return None
         else:
             return function_new(self, name=name, static=False,
                                 cache=self.is_cached(),
-                                checkpoint=self.is_checkpointed(),
-                                tlm_depth=self.tlm_depth() + 1)
+                                checkpoint=self.is_checkpointed())
 
 
 class DirichletBC(backend_DirichletBC):
@@ -534,17 +511,13 @@ class ReplacementInterface(_FunctionInterface):
     def _is_checkpointed(self):
         return self.is_checkpointed()
 
-    def _tlm_depth(self):
-        return self.tlm_depth()
-
     def _caches(self):
         return self.caches()
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return space_new(self._tlm_adjoint__function_interface_attrs["space"],
                          name=name, static=static, cache=cache,
-                         checkpoint=checkpoint, tlm_depth=tlm_depth)
+                         checkpoint=checkpoint)
 
     def _replacement(self):
         return self
@@ -568,7 +541,6 @@ class Replacement(ufl.classes.Coefficient):
         self.__static = function_is_static(x)
         self.__cache = function_is_cached(x)
         self.__checkpoint = function_is_checkpointed(x)
-        self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
         add_interface(self, ReplacementInterface, {"space": x_space})
 
@@ -589,9 +561,6 @@ class Replacement(ufl.classes.Coefficient):
 
     def is_checkpointed(self):
         return self.__checkpoint
-
-    def tlm_depth(self):
-        return self.__tlm_depth
 
     def caches(self):
         return self.__caches
