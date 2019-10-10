@@ -36,7 +36,6 @@ __all__ = \
         "copy_parameters_dict",
         "default_comm",
         "finalize_adjoint_derivative_action",
-        "function_alias",
         "function_assign",
         "function_axpy",
         "function_caches",
@@ -206,11 +205,6 @@ class FunctionInterface(_FunctionInterface):
 
     def _replacement(self):
         return self.replacement()
-
-    def _alias(self):
-        return Function(self.space(), name=self.name(),
-                        static=self.is_static(), cache=self.is_cached(),
-                        checkpoint=self.is_checkpointed(), _data=self.vector())
 
 
 class Function:

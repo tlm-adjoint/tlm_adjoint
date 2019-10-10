@@ -28,7 +28,6 @@ __all__ = \
         "add_interface",
 
         "FunctionInterface",
-        "function_alias",
         "function_assign",
         "function_axpy",
         "function_caches",
@@ -113,7 +112,7 @@ class FunctionInterface:
              "_zero", "_assign", "_axpy", "_inner", "_max_value", "_sum",
              "_linf_norm", "_local_size", "_global_size", "_local_indices",
              "_get_values", "_set_values", "_new", "_copy", "_tangent_linear",
-             "_replacement", "_alias")
+             "_replacement")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -194,9 +193,6 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _replacement(self):
-        raise InterfaceException("Method not overridden")
-
-    def _alias(self):
         raise InterfaceException("Method not overridden")
 
 
@@ -309,7 +305,3 @@ def function_tangent_linear(x, name=None):
 
 def function_replacement(x):
     return x._tlm_adjoint__function_interface_replacement()
-
-
-def function_alias(x):
-    return x._tlm_adjoint__function_interface_alias()

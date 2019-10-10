@@ -159,6 +159,28 @@ class TimeLevels:
         return len(self._levels)
 
 
+class Alias:
+    def __init__(self, obj):
+        object.__setattr__(self, "_tlm_adjoint__alias", obj)
+
+    def __new__(cls, obj):
+        class Alias(cls, type(obj)):
+            pass
+        return object.__new__(Alias)
+
+    def __getattr__(self, key):
+        return getattr(self._tlm_adjoint__alias, key)
+
+    def __setattr__(self, key, value):
+        return setattr(self._tlm_adjoint__alias, key, value)
+
+    def __delattr__(self, key):
+        delattr(self._tlm_adjoint__alias, key)
+
+    def __dir__(self):
+        return dir(self._tlm_adjoint__alias)
+
+
 class TimeFunction:
     def __init__(self, levels, *args, cls=Function, **kwargs):
         # Note that this keeps references to the functions on each time level
@@ -170,14 +192,15 @@ class TimeFunction:
             self._fns[level] = fn
 
             initial_level = InitialTimeLevel(level.i())
-            initial_fn = self._fns[initial_level] = function_alias(fn)
-            initial_fn._tlm_adjoint__tfn = self
-            initial_fn._tlm_adjoint__level = initial_level
+            initial_fn = self._fns[initial_level] = Alias(fn)
+            object.__setattr__(initial_fn, "_tlm_adjoint__tfn", self)
+            object.__setattr__(initial_fn, "_tlm_adjoint__level",
+                               initial_level)
 
             final_level = FinalTimeLevel(level.i())
-            final_fn = self._fns[final_level] = function_alias(fn)
-            final_fn._tlm_adjoint__tfn = self
-            final_fn._tlm_adjoint__level = final_level
+            final_fn = self._fns[final_level] = Alias(fn)
+            object.__setattr__(final_fn, "_tlm_adjoint__tfn", self)
+            object.__setattr__(final_fn, "_tlm_adjoint__level", final_level)
 
         self._levels = levels
         self._cycle_eqs = None
@@ -321,11 +344,6 @@ class TimeSystem:
         self._initial_eqs = []
         self._sorted_eqs[0] = []
 
-        for tfn in self._tfns:
-            for level in tfn.levels():
-                transfer_eq = AssignmentSolver(tfn[level.i()], tfn[level])
-                transfer_eq._post_process(manager=manager)
-
     def timestep(self, s=1, manager=None):
         if self._state == "initial":
             self.assemble(initialize=True, manager=manager)
@@ -353,12 +371,6 @@ class TimeSystem:
         for tfn in self._tfns:
             if tfn._cycle_eqs is not None:
                 tfn._cycle_eqs = None
-
-        for tfn in self._tfns:
-            for level in tfn.levels():
-                transfer_eq = AssignmentSolver(tfn[level],
-                                               tfn[FinalTimeLevel(level.i())])
-                transfer_eq._post_process(manager=manager)
         self._tfns = None
 
         for eq in self._sorted_eqs[2]:

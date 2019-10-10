@@ -566,9 +566,9 @@ class FunctionalMarker(Equation):
         """
 
         J = J.fn()
-        # Any function in the correct space suffices here
-        J_alias = function_alias(J)
-        Equation.__init__(self, J_alias, [J_alias, J], nl_deps=[], ic_deps=[])
+        # Extra function allocation could be avoided
+        J_ = function_new(J)
+        Equation.__init__(self, [J_], [J_, J], nl_deps=[], ic_deps=[])
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:

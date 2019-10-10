@@ -42,7 +42,6 @@ __all__ = \
         "copy_parameters_dict",
         "default_comm",
         "finalize_adjoint_derivative_action",
-        "function_alias",
         "function_assign",
         "function_axpy",
         "function_caches",
@@ -255,13 +254,6 @@ class FunctionInterface(_FunctionInterface):
         if not hasattr(self, "_tlm_adjoint__replacement"):
             self._tlm_adjoint__replacement = Replacement(self)
         return self._tlm_adjoint__replacement
-
-    def _alias(self):
-        return Function(self.function_space(), name=self.name(),
-                        static=function_is_static(self),
-                        cache=function_is_cached(self),
-                        checkpoint=function_is_checkpointed(self),
-                        val=self.dat)
 
 
 _orig_Function__init__ = backend_Function.__init__
