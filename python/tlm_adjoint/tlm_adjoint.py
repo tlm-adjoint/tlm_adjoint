@@ -1385,11 +1385,12 @@ class EquationManager:
 
                 # Transposed dependency graph information for this equation
                 B_indices = {}
+                eq_X_ids = set(x.id() for x in eq.X())
                 for j, dep in enumerate(eq.dependencies()):
-                    if dep in tdeps:
+                    if dep.id() not in eq_X_ids and dep in tdeps:
                         p, k, m = tdeps[dep]
-                        if p != n or k != i:
-                            B_indices[j] = (p, k, m)
+                        assert(p != n or k != i)
+                        B_indices[j] = (p, k, m)
                 # Clear dependency information for this equation
                 tdeps.pop()
 
@@ -1399,9 +1400,7 @@ class EquationManager:
                     # Adjoint right-hand-side associated with this equation
                     eq_B = B.pop()
 
-                    # Zero right-hand-side, adjoint solution is zero, or the
-                    # sensitivity does not depend on the adjoint solution
-                    # associated with this equation
+                    # Zero right-hand-side, adjoint solution is zero
                     if eq_B.is_empty():
                         adj_X = None
                     else:
