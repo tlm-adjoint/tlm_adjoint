@@ -1385,9 +1385,9 @@ class EquationManager:
 
                 # Transposed dependency graph information for this equation
                 B_indices = {}
-                eq_X_ids = set(x.id() for x in eq.X())
+                eq_X_ids = set(function_id(x) for x in eq.X())
                 for j, dep in enumerate(eq.dependencies()):
-                    if dep.id() not in eq_X_ids and dep in tdeps:
+                    if function_id(dep) not in eq_X_ids and dep in tdeps:
                         p, k, m = tdeps[dep]
                         assert(p != n or k != i)
                         B_indices[j] = (p, k, m)
