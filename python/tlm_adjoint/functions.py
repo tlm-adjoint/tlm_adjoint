@@ -26,6 +26,7 @@ import copy
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import warnings
 import weakref
 
 __all__ = \
@@ -421,7 +422,7 @@ class Function(backend_Function):
 class DirichletBC(backend_DirichletBC):
     # Based on FEniCS 2019.1.0 DirichletBC API
     def __init__(self, V, g, sub_domain, *args, static=None, cache=None,
-                 homogeneous=False, **kwargs):
+                 homogeneous=None, _homogeneous=None, **kwargs):
         backend_DirichletBC.__init__(self, V, g, sub_domain, *args, **kwargs)
 
         if not isinstance(g, ufl.classes.Expr):
@@ -438,6 +439,17 @@ class DirichletBC(backend_DirichletBC):
                     break
         if cache is None:
             cache = static
+        if homogeneous is not None:
+            warnings.warn("homogeneous argument is deprecated -- "
+                          "use HomogeneousDirichletBC instead",
+                          DeprecationWarning, stacklevel=2)
+            if _homogeneous is not None:
+                raise InterfaceException("Cannot supply both homogeneous and "
+                                         "_homogeneous arguments")
+        elif _homogeneous is None:
+            homogeneous = False
+        else:
+            homogeneous = _homogeneous
 
         self.__static = static
         self.__cache = cache
@@ -476,7 +488,7 @@ class HomogeneousDirichletBC(DirichletBC):
         else:
             g = backend_Constant(np.zeros(shape, dtype=np.float64))
         DirichletBC.__init__(self, V, g, sub_domain, static=True,
-                             homogeneous=True)
+                             _homogeneous=True)
 
 
 def bcs_is_static(bcs):

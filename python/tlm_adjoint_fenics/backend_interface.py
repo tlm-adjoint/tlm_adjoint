@@ -28,13 +28,13 @@ from .functions import Caches, Constant, Function, Replacement
 
 import ufl
 import sys
+import warnings
 
 __all__ = \
     [
         "InterfaceException",
 
         "Function",
-        "RealFunctionSpace",
         "Replacement",
         "clear_caches",
         "copy_parameters_dict",
@@ -74,7 +74,10 @@ __all__ = \
         "space_id",
         "space_new",
         "subtract_adjoint_derivative_action",
-        "warning"
+        "warning",
+
+        "RealFunctionSpace",
+        "function_space_id"
     ]
 
 
@@ -105,13 +108,6 @@ def _FunctionSpace__init__(self, *args, **kwargs):
 
 
 FunctionSpace.__init__ = _FunctionSpace__init__
-
-
-def RealFunctionSpace(comm=None):
-    if comm is None:
-        # FEniCS backwards compatibility
-        comm = mpi_comm_world()
-    return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
 class FunctionInterface(_FunctionInterface):
@@ -327,3 +323,17 @@ def finalize_adjoint_derivative_action(x):
         backend_assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
                          add_values=True)
         delattr(x, "_tlm_adjoint__adj_b")
+
+
+def RealFunctionSpace(comm=None):
+    warnings.warn("RealFunctionSpace is deprecated -- "
+                  "use new_real_function instead")
+    if comm is None:
+        # FEniCS backwards compatibility
+        comm = mpi_comm_world()
+    return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
+
+
+def function_space_id(*args, **kwargs):
+    warnings.warn("function_space_id is deprecated -- use space_id instead")
+    return space_id(*args, **kwargs)

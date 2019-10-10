@@ -30,13 +30,13 @@ from .functions import Caches, Constant, Function, Replacement
 import mpi4py.MPI as MPI
 import ufl
 import sys
+import warnings
 
 __all__ = \
     [
         "InterfaceException",
 
         "Function",
-        "RealFunctionSpace",
         "Replacement",
         "clear_caches",
         "copy_parameters_dict",
@@ -76,7 +76,10 @@ __all__ = \
         "space_id",
         "space_new",
         "subtract_adjoint_derivative_action",
-        "warning"
+        "warning",
+
+        "RealFunctionSpace",
+        "function_space_id",
     ]
 
 
@@ -108,12 +111,6 @@ def _WithGeometry__init__(self, *args, **kwargs):
 
 
 backend_WithGeometry.__init__ = _WithGeometry__init__
-
-
-def RealFunctionSpace(comm=None):
-    if comm is None:
-        comm = default_comm()
-    return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
 
 
 class FunctionInterface(_FunctionInterface):
@@ -331,3 +328,16 @@ def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
         function_axpy(x, 1.0, backend_assemble(x._tlm_adjoint__adj_b))
         delattr(x, "_tlm_adjoint__adj_b")
+
+
+def RealFunctionSpace(comm=None):
+    warnings.warn("RealFunctionSpace is deprecated -- "
+                  "use new_real_function instead")
+    if comm is None:
+        comm = default_comm()
+    return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
+
+
+def function_space_id(*args, **kwargs):
+    warnings.warn("function_space_id is deprecated -- use space_id instead")
+    return space_id(*args, **kwargs)

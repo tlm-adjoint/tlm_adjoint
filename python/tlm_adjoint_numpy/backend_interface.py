@@ -31,7 +31,6 @@ __all__ = \
 
         "Function",
         "FunctionSpace",
-        "RealFunctionSpace",
         "Replacement",
         "clear_caches",
         "copy_parameters_dict",
@@ -125,10 +124,6 @@ class FunctionSpace:
 
     def dim(self):
         return self._dim
-
-
-def RealFunctionSpace(comm=None):
-    return FunctionSpace(1)
 
 
 class FunctionInterface(_FunctionInterface):
