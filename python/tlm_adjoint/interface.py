@@ -18,9 +18,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+import copy
+import types
+
 __all__ = \
     [
         "InterfaceException",
+
+        "add_interface",
 
         "FunctionInterface",
         "function_alias",
@@ -63,238 +68,265 @@ class InterfaceException(Exception):
     pass
 
 
-class SpaceInterface:
-    def __init__(self, space):
-        self._space = space
+def add_interface(obj, interface_cls, attrs={}):
+    interface_name = f"{interface_cls.prefix:s}"
+    assert(not hasattr(obj, interface_name))
+    setattr(obj, interface_name, interface_cls)
 
-    def id(self):
+    for name in interface_cls.names:
+        attr_name = f"{interface_cls.prefix:s}{name:s}"
+        assert(not hasattr(obj, attr_name))
+        setattr(obj, attr_name,
+                types.MethodType(getattr(interface_cls, name), obj))
+
+    attrs_name = f"{interface_cls.prefix:s}_attrs"
+    assert(not hasattr(obj, attrs_name))
+    setattr(obj, attrs_name, copy.copy(attrs))
+
+
+class SpaceInterface:
+    prefix = "_tlm_adjoint__space_interface"
+    names = ("_id", "_new")
+
+    def __init__(self):
+        raise InterfaceException("Cannot instantiate SpaceInterface object")
+
+    def _id(self):
         raise InterfaceException("Method not overridden")
 
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
         raise InterfaceException("Method not overridden")
 
 
 def space_id(space):
-    return space._tlm_adjoint__space_interface.id()
+    return space._tlm_adjoint__space_interface_id()
 
 
 def space_new(space, name=None, static=False, cache=None, checkpoint=None,
               tlm_depth=0):
-    return space._tlm_adjoint__space_interface.new(
+    return space._tlm_adjoint__space_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
         tlm_depth=tlm_depth)
 
 
 class FunctionInterface:
-    def __init__(self, x):
-        self._x = x
+    prefix = "_tlm_adjoint__function_interface"
+    names = ("_comm", "_space", "_id", "_name", "_state", "_update_state",
+             "_is_static", "_is_cached", "_is_checkpointed", "_tlm_depth",
+             "_caches", "_zero", "_assign", "_axpy", "_inner", "_max_value",
+             "_sum", "_linf_norm", "_local_size", "_global_size",
+             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
+             "_tangent_linear", "_replacement", "_alias")
 
-    def comm(self):
+    def __init__(self):
+        raise InterfaceException("Cannot instantiate FunctionInterface object")
+
+    def _comm(self):
         raise InterfaceException("Method not overridden")
 
-    def space(self):
+    def _space(self):
         raise InterfaceException("Method not overridden")
 
-    def id(self):
+    def _id(self):
         raise InterfaceException("Method not overridden")
 
-    def name(self):
+    def _name(self):
         raise InterfaceException("Method not overridden")
 
-    def state(self):
+    def _state(self):
         raise InterfaceException("Method not overridden")
 
-    def update_state(self):
+    def _update_state(self):
         raise InterfaceException("Method not overridden")
 
-    def is_static(self):
+    def _is_static(self):
         raise InterfaceException("Method not overridden")
 
-    def is_cached(self):
+    def _is_cached(self):
         raise InterfaceException("Method not overridden")
 
-    def is_checkpointed(self):
+    def _is_checkpointed(self):
         raise InterfaceException("Method not overridden")
 
-    def tlm_depth(self):
+    def _tlm_depth(self):
         raise InterfaceException("Method not overridden")
 
-    def caches(self):
+    def _caches(self):
         raise InterfaceException("Method not overridden")
 
-    def zero(self):
+    def _zero(self):
         raise InterfaceException("Method not overridden")
 
-    def assign(self, y):
+    def _assign(self, y):
         raise InterfaceException("Method not overridden")
 
-    def axpy(self, alpha, y):
+    def _axpy(self, alpha, y):
         raise InterfaceException("Method not overridden")
 
-    def inner(self, y):
+    def _inner(self, y):
         raise InterfaceException("Method not overridden")
 
-    def max_value(self):
+    def _max_value(self):
         raise InterfaceException("Method not overridden")
 
-    def sum(self):
+    def _sum(self):
         raise InterfaceException("Method not overridden")
 
-    def linf_norm(self):
+    def _linf_norm(self):
         raise InterfaceException("Method not overridden")
 
-    def local_size(self):
+    def _local_size(self):
         raise InterfaceException("Method not overridden")
 
-    def global_size(self):
+    def _global_size(self):
         raise InterfaceException("Method not overridden")
 
-    def local_indices(self):
+    def _local_indices(self):
         raise InterfaceException("Method not overridden")
 
-    def get_values(self):
+    def _get_values(self):
         raise InterfaceException("Method not overridden")
 
-    def set_values(self, values):
+    def _set_values(self, values):
         raise InterfaceException("Method not overridden")
 
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        raise InterfaceException("Method not overridden")
-
-    def copy(self, name=None, static=False, cache=None, checkpoint=None,
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
              tlm_depth=0):
         raise InterfaceException("Method not overridden")
 
-    def tangent_linear(self, name=None):
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
+              tlm_depth=0):
         raise InterfaceException("Method not overridden")
 
-    def replacement(self):
+    def _tangent_linear(self, name=None):
         raise InterfaceException("Method not overridden")
 
-    def alias(self):
+    def _replacement(self):
+        raise InterfaceException("Method not overridden")
+
+    def _alias(self):
         raise InterfaceException("Method not overridden")
 
 
 def is_function(x):
-    return hasattr(x, "_tlm_adjoint__function_interface")
+    return hasattr(x, FunctionInterface.prefix)
 
 
 def function_comm(x):
-    return x._tlm_adjoint__function_interface.comm()
+    return x._tlm_adjoint__function_interface_comm()
 
 
 def function_space(x):
-    return x._tlm_adjoint__function_interface.space()
+    return x._tlm_adjoint__function_interface_space()
 
 
 def function_id(x):
-    return x._tlm_adjoint__function_interface.id()
+    return x._tlm_adjoint__function_interface_id()
 
 
 def function_name(x):
-    return x._tlm_adjoint__function_interface.name()
+    return x._tlm_adjoint__function_interface_name()
 
 
 def function_state(x):
-    return x._tlm_adjoint__function_interface.state()
+    return x._tlm_adjoint__function_interface_state()
 
 
 def function_update_state(*X):
     for x in X:
-        x._tlm_adjoint__function_interface.update_state()
+        x._tlm_adjoint__function_interface_update_state()
 
 
 def function_is_static(x):
-    return x._tlm_adjoint__function_interface.is_static()
+    return x._tlm_adjoint__function_interface_is_static()
 
 
 def function_is_cached(x):
-    return x._tlm_adjoint__function_interface.is_cached()
+    return x._tlm_adjoint__function_interface_is_cached()
 
 
 def function_is_checkpointed(x):
-    return x._tlm_adjoint__function_interface.is_checkpointed()
+    return x._tlm_adjoint__function_interface_is_checkpointed()
 
 
 def function_tlm_depth(x):
-    return x._tlm_adjoint__function_interface.tlm_depth()
+    return x._tlm_adjoint__function_interface_tlm_depth()
 
 
 def function_caches(x):
-    return x._tlm_adjoint__function_interface.caches()
+    return x._tlm_adjoint__function_interface_caches()
 
 
 def function_zero(x):
-    x._tlm_adjoint__function_interface.zero()
+    x._tlm_adjoint__function_interface_zero()
 
 
 def function_assign(x, y):
-    x._tlm_adjoint__function_interface.assign(y)
+    x._tlm_adjoint__function_interface_assign(y)
 
 
 def function_axpy(x, alpha, y):
-    x._tlm_adjoint__function_interface.axpy(alpha, y)
+    x._tlm_adjoint__function_interface_axpy(alpha, y)
 
 
 def function_inner(x, y):
-    return x._tlm_adjoint__function_interface.inner(y)
+    return x._tlm_adjoint__function_interface_inner(y)
 
 
 def function_max_value(x):
-    return x._tlm_adjoint__function_interface.max_value()
+    return x._tlm_adjoint__function_interface_max_value()
 
 
 def function_sum(x):
-    return x._tlm_adjoint__function_interface.sum()
+    return x._tlm_adjoint__function_interface_sum()
 
 
 def function_linf_norm(x):
-    return x._tlm_adjoint__function_interface.linf_norm()
+    return x._tlm_adjoint__function_interface_linf_norm()
 
 
 def function_local_size(x):
-    return x._tlm_adjoint__function_interface.local_size()
+    return x._tlm_adjoint__function_interface_local_size()
 
 
 def function_global_size(x):
-    return x._tlm_adjoint__function_interface.global_size()
+    return x._tlm_adjoint__function_interface_global_size()
 
 
 def function_local_indices(x):
-    return x._tlm_adjoint__function_interface.local_indices()
+    return x._tlm_adjoint__function_interface_local_indices()
 
 
 def function_get_values(x):
-    return x._tlm_adjoint__function_interface.get_values()
+    return x._tlm_adjoint__function_interface_get_values()
 
 
 def function_set_values(x, values):
-    x._tlm_adjoint__function_interface.set_values(values)
+    x._tlm_adjoint__function_interface_set_values(values)
 
 
 def function_new(x, name=None, static=False, cache=None, checkpoint=None,
                  tlm_depth=0):
-    return x._tlm_adjoint__function_interface.new(
+    return x._tlm_adjoint__function_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
         tlm_depth=tlm_depth)
 
 
 def function_copy(x, name=None, static=False, cache=None, checkpoint=None,
                   tlm_depth=0):
-    return x._tlm_adjoint__function_interface.copy(
+    return x._tlm_adjoint__function_interface_copy(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
         tlm_depth=tlm_depth)
 
 
 def function_tangent_linear(x, name=None):
-    return x._tlm_adjoint__function_interface.tangent_linear(name=name)
+    return x._tlm_adjoint__function_interface_tangent_linear(name=name)
 
 
 def function_replacement(x):
-    return x._tlm_adjoint__function_interface.replacement()
+    return x._tlm_adjoint__function_interface_replacement()
 
 
 def function_alias(x):
-    return x._tlm_adjoint__function_interface.alias()
+    return x._tlm_adjoint__function_interface_alias()

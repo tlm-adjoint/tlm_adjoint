@@ -87,13 +87,24 @@ def default_comm():
 
 
 class FunctionSpaceInterface(SpaceInterface):
-    def id(self):
-        return self._space.id()
+    def _id(self):
+        return self.id()
 
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        return Function(self._space, name=name, static=static, cache=cache,
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        return Function(self, name=name, static=static, cache=cache,
                         checkpoint=checkpoint, tlm_depth=tlm_depth)
+
+
+_orig_FunctionSpace__init__ = FunctionSpace.__init__
+
+
+def _FunctionSpace__init__(self, *args, **kwargs):
+    _orig_FunctionSpace__init__(self, *args, **kwargs)
+    add_interface(self, FunctionSpaceInterface)
+
+
+FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 def RealFunctionSpace(comm=None):
@@ -103,127 +114,116 @@ def RealFunctionSpace(comm=None):
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
-_orig_FunctionSpace__init__ = FunctionSpace.__init__
-
-
-def _FunctionSpace__init__(self, *args, **kwargs):
-    _orig_FunctionSpace__init__(self, *args, **kwargs)
-    self._tlm_adjoint__space_interface = FunctionSpaceInterface(self)
-
-
-FunctionSpace.__init__ = _FunctionSpace__init__
-
-
 class FunctionInterface(_FunctionInterface):
-    def comm(self):
-        comm = self._x.function_space().mesh().mpi_comm()
+    def _comm(self):
+        comm = self.function_space().mesh().mpi_comm()
         # FEniCS backwards compatibility
         if hasattr(comm, "tompi4py"):
             comm = comm.tompi4py()
         return comm
 
-    def space(self):
-        return self._x.function_space()
+    def _space(self):
+        return self.function_space()
 
-    def id(self):
-        return self._x.id()
+    def _id(self):
+        return self.id()
 
-    def name(self):
-        return self._x.name()
+    def _name(self):
+        return self.name()
 
-    def state(self):
-        if not hasattr(self._x, "_tlm_adjoint__state"):
-            self._x._tlm_adjoint__state = 0
-        return self._x._tlm_adjoint__state
+    def _state(self):
+        if not hasattr(self, "_tlm_adjoint__state"):
+            self._tlm_adjoint__state = 0
+        return self._tlm_adjoint__state
 
-    def update_state(self):
-        if hasattr(self._x, "_tlm_adjoint__state"):
-            self._x._tlm_adjoint__state += 1
+    def _update_state(self):
+        if hasattr(self, "_tlm_adjoint__state"):
+            self._tlm_adjoint__state += 1
         else:
-            self._x._tlm_adjoint__state = 1
+            self._tlm_adjoint__state = 1
 
-    def is_static(self):
-        if hasattr(self._x, "is_static"):
-            return self._x.is_static()
-        else:
-            return False
-
-    def is_cached(self):
-        if hasattr(self._x, "is_cached"):
-            return self._x.is_cached()
+    def _is_static(self):
+        if hasattr(self, "is_static"):
+            return self.is_static()
         else:
             return False
 
-    def is_checkpointed(self):
-        if hasattr(self._x, "is_checkpointed"):
-            return self._x.is_checkpointed()
+    def _is_cached(self):
+        if hasattr(self, "is_cached"):
+            return self.is_cached()
+        else:
+            return False
+
+    def _is_checkpointed(self):
+        if hasattr(self, "is_checkpointed"):
+            return self.is_checkpointed()
         else:
             return True
 
-    def tlm_depth(self):
-        if hasattr(self._x, "tlm_depth"):
-            return self._x.tlm_depth()
+    def _tlm_depth(self):
+        if hasattr(self, "tlm_depth"):
+            return self.tlm_depth()
         else:
             return 0
 
-    def caches(self):
-        if not hasattr(self._x, "_tlm_adjoint__caches"):
-            self._x._tlm_adjoint__caches = Caches(self._x)
-        return self._x._tlm_adjoint__caches
+    def _caches(self):
+        if not hasattr(self, "_tlm_adjoint__caches"):
+            self._tlm_adjoint__caches = Caches(self)
+        return self._tlm_adjoint__caches
 
-    def zero(self):
-        self._x.vector().zero()
+    def _zero(self):
+        self.vector().zero()
 
-    def assign(self, y):
+    def _assign(self, y):
         if isinstance(y, (int, float)):
-            self._x.vector()[:] = float(y)
+            self.vector()[:] = float(y)
         else:
-            self._x.vector().zero()
-            self._x.vector().axpy(1.0, y.vector())
+            self.vector().zero()
+            self.vector().axpy(1.0, y.vector())
 
-    def axpy(self, alpha, y):
-        self._x.vector().axpy(alpha, y.vector())
+    def _axpy(self, alpha, y):
+        self.vector().axpy(alpha, y.vector())
 
-    def inner(self, y):
-        return self._x.vector().inner(y.vector())
+    def _inner(self, y):
+        return self.vector().inner(y.vector())
 
-    def max_value(self):
-        return self._x.vector().max()
+    def _max_value(self):
+        return self.vector().max()
 
-    def sum(self):
-        return self._x.vector().sum()
+    def _sum(self):
+        return self.vector().sum()
 
-    def linf_norm(self):
-        return self._x.vector().norm("linf")
+    def _linf_norm(self):
+        return self.vector().norm("linf")
 
-    def local_size(self):
-        return self._x.vector().local_size()
+    def _local_size(self):
+        return self.vector().local_size()
 
-    def global_size(self):
-        return self._x.function_space().dofmap().global_dimension()
+    def _global_size(self):
+        return self.function_space().dofmap().global_dimension()
 
-    def local_indices(self):
-        return slice(*self._x.function_space().dofmap().ownership_range())
+    def _local_indices(self):
+        return slice(*self.function_space().dofmap().ownership_range())
 
-    def get_values(self):
-        values = self._x.vector().get_local().view()
+    def _get_values(self):
+        values = self.vector().get_local().view()
         values.setflags(write=False)
         return values
 
-    def set_values(self, values):
-        self._x.vector().set_local(values)
-        self._x.vector().apply("insert")
+    def _set_values(self, values):
+        self.vector().set_local(values)
+        self.vector().apply("insert")
 
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        y = self.copy(name=name, static=static, cache=cache,
-                      checkpoint=checkpoint, tlm_depth=tlm_depth)
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        y = function_copy(self, name=name, static=static, cache=cache,
+                          checkpoint=checkpoint, tlm_depth=tlm_depth)
         y.vector().zero()
         return y
 
-    def copy(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
-        y = self._x.copy(deepcopy=True)
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
+              tlm_depth=0):
+        y = self.copy(deepcopy=True)
         if name is not None:
             y.rename(name, "a Function")
         y.is_static = lambda: static
@@ -236,31 +236,32 @@ class FunctionInterface(_FunctionInterface):
         y.tlm_depth = lambda: tlm_depth
         return y
 
-    def tangent_linear(self, name=None):
-        if hasattr(self._x, "tangent_linear"):
-            return self._x.tangent_linear(name=name)
-        elif self.is_static():
+    def _tangent_linear(self, name=None):
+        if hasattr(self, "tangent_linear"):
+            return self.tangent_linear(name=name)
+        elif function_is_static(self):
             return None
         else:
-            return self.new(name=name, static=False, cache=self.is_cached(),
-                            checkpoint=self.is_checkpointed(),
-                            tlm_depth=self.tlm_depth() + 1)
+            return function_new(self, name=name, static=False,
+                                cache=function_is_cached(self),
+                                checkpoint=function_is_checkpointed(self),
+                                tlm_depth=function_tlm_depth(self) + 1)
 
-    def replacement(self):
-        if not hasattr(self._x, "_tlm_adjoint__replacement"):
-            self._x._tlm_adjoint__replacement = Replacement(self._x)
-        return self._x._tlm_adjoint__replacement
+    def _replacement(self):
+        if not hasattr(self, "_tlm_adjoint__replacement"):
+            self._tlm_adjoint__replacement = Replacement(self)
+        return self._tlm_adjoint__replacement
 
-    def alias(self):
-        y = self._x.copy(deepcopy=False)
-        y.rename(self._x.name(), "a Function")
-        static = self.is_static()
+    def _alias(self):
+        y = self.copy(deepcopy=False)
+        y.rename(self.name(), "a Function")
+        static = function_is_static(self)
         y.is_static = lambda: static
-        cache = self.is_cached()
+        cache = function_is_cached(self)
         y.is_cached = lambda: cache
-        checkpoint = self.is_checkpointed()
+        checkpoint = function_is_checkpointed(self)
         y.is_checkpointed = lambda: checkpoint
-        tlm_depth = self.tlm_depth()
+        tlm_depth = function_tlm_depth(self)
         y.tlm_depth = lambda: tlm_depth
         return y
 
@@ -270,7 +271,7 @@ _orig_Function__init__ = backend_Function.__init__
 
 def _Function__init__(self, *args, **kwargs):
     _orig_Function__init__(self, *args, **kwargs)
-    self._tlm_adjoint__function_interface = FunctionInterface(self)
+    add_interface(self, FunctionInterface)
 
 
 backend_Function.__init__ = _Function__init__

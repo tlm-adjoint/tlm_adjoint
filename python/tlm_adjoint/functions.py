@@ -79,14 +79,17 @@ class Caches:
             self._state = state
 
 
-class Alias:
-    def __init__(self, obj):
-        object.__setattr__(self, "_tlm_adjoint__alias", obj)
+class FunctionAlias:
+    def __init__(self, x):
+        object.__setattr__(self, "_tlm_adjoint__alias", x)
+        id = new_count()
+        object.__setattr__(self, "_tlm_adjoint__function_interface_id",
+                           lambda: id)
 
     def __new__(cls, obj):
-        class Alias(cls, type(obj)):
+        class FunctionAlias(cls, type(obj)):
             pass
-        return object.__new__(Alias)
+        return object.__new__(FunctionAlias)
 
     def __getattr__(self, key):
         return getattr(self._tlm_adjoint__alias, key)
@@ -101,213 +104,204 @@ class Alias:
         return dir(self._tlm_adjoint__alias)
 
 
-class FunctionAlias(Alias):
-    def __init__(self, x):
-        Alias.__init__(self, x)
-        interface_alias = Alias(x._tlm_adjoint__function_interface)
-        id = new_count()
-        object.__setattr__(interface_alias, "id", lambda: id)
-        object.__setattr__(self, "_tlm_adjoint__function_interface",
-                           interface_alias)
-
-
 class ConstantSpaceInterface(SpaceInterface):
-    def __init__(self, space, comm):
-        SpaceInterface.__init__(self, space)
-        self._comm = comm
-        self._id = new_count()
+    def _id(self):
+        return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def id(self):
-        return self._id
-
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        shape = self._space.ufl_element().value_shape()
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        shape = self.ufl_element().value_shape()
         if len(shape) == 0:
             value = 0.0
         else:
             value = np.zeros(shape, dtype=np.float64)
-        return Constant(value, comm=self._comm, name=name, static=static,
+        comm = self._tlm_adjoint__space_interface_attrs["comm"]
+        return Constant(value, comm=comm, name=name, static=static,
                         cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth)
 
 
 class ConstantInterface(_FunctionInterface):
-    def comm(self):
-        return self._x.ufl_function_space()._tlm_adjoint__space_interface._comm
+    def _comm(self):
+        space = self.ufl_function_space()
+        return space._tlm_adjoint__space_interface_attrs["comm"]
 
-    def space(self):
-        return self._x.ufl_function_space()
+    def _space(self):
+        return self.ufl_function_space()
 
-    def id(self):
-        return self._x.count()
+    def _id(self):
+        return self.count()
 
-    def name(self):
-        if hasattr(self._x, "name"):
-            return self._x.name()
+    def _name(self):
+        if hasattr(self, "name"):
+            return self.name()
         else:
             # Following FEniCS 2019.1.0 behaviour
-            return "f_{self._x.count():d}"
+            return "f_{self.count():d}"
 
-    def state(self):
-        if not hasattr(self._x, "_tlm_adjoint__state"):
-            self._x._tlm_adjoint__state = 0
-        return self._x._tlm_adjoint__state
+    def _state(self):
+        if not hasattr(self, "_tlm_adjoint__state"):
+            self._tlm_adjoint__state = 0
+        return self._tlm_adjoint__state
 
-    def update_state(self):
-        if hasattr(self._x, "_tlm_adjoint__state"):
-            self._x._tlm_adjoint__state += 1
+    def _update_state(self):
+        if hasattr(self, "_tlm_adjoint__state"):
+            self._tlm_adjoint__state += 1
         else:
-            self._x._tlm_adjoint__state = 1
+            self._tlm_adjoint__state = 1
 
-    def is_static(self):
-        if hasattr(self._x, "is_static"):
-            return self._x.is_static()
-        else:
-            return False
-
-    def is_cached(self):
-        if hasattr(self._x, "is_cached"):
-            return self._x.is_cached()
+    def _is_static(self):
+        if hasattr(self, "is_static"):
+            return self.is_static()
         else:
             return False
 
-    def is_checkpointed(self):
-        if hasattr(self._x, "is_checkpointed"):
-            return self._x.is_checkpointed()
+    def _is_cached(self):
+        if hasattr(self, "is_cached"):
+            return self.is_cached()
+        else:
+            return False
+
+    def _is_checkpointed(self):
+        if hasattr(self, "is_checkpointed"):
+            return self.is_checkpointed()
         else:
             return True
 
-    def tlm_depth(self):
-        if hasattr(self._x, "tlm_depth"):
-            return self._x.tlm_depth()
+    def _tlm_depth(self):
+        if hasattr(self, "tlm_depth"):
+            return self.tlm_depth()
         else:
             return 0
 
-    def caches(self):
-        if not hasattr(self._x, "_tlm_adjoint__caches"):
-            self._x._tlm_adjoint__caches = Caches(self._x)
-        return self._x._tlm_adjoint__caches
+    def _caches(self):
+        if not hasattr(self, "_tlm_adjoint__caches"):
+            self._tlm_adjoint__caches = Caches(self)
+        return self._tlm_adjoint__caches
 
-    def zero(self):
-        if len(self._x.ufl_shape) == 0:
+    def _zero(self):
+        if len(self.ufl_shape) == 0:
             value = 0.0
         else:
-            value = np.zeros(self._x.ufl_shape, dtype=np.float64)
+            value = np.zeros(self.ufl_shape, dtype=np.float64)
             value = backend_Constant(value)
-        self._x.assign(value)
+        self.assign(value)
 
-    def assign(self, y):
-        self._x.assign(y)
+    def _assign(self, y):
+        self.assign(y)
 
-    def axpy(self, alpha, y):
-        if len(self._x.ufl_shape) == 0:
-            value = float(self._x) + alpha * float(y)
+    def _axpy(self, alpha, y):
+        if len(self.ufl_shape) == 0:
+            value = float(self) + alpha * float(y)
         else:
-            value = self._x.values() + alpha * y.values()
+            value = self.values() + alpha * y.values()
             value = backend_Constant(value)
-        self._x.assign(value)
+        self.assign(value)
 
-    def inner(self, y):
-        return (self._x.values() * y.values()).sum()
+    def _inner(self, y):
+        return (self.values() * y.values()).sum()
 
-    def max_value(self):
-        return self._x.values().max()
+    def _max_value(self):
+        return self.values().max()
 
-    def sum(self):
-        return self._x.values().sum()
+    def _sum(self):
+        return self.values().sum()
 
-    def linf_norm(self):
-        return abs(self._x.values()).max()
+    def _linf_norm(self):
+        return abs(self.values()).max()
 
-    def local_size(self):
-        comm = self.comm()
+    def _local_size(self):
+        comm = function_comm(self)
         if comm.rank == 0:
-            if len(self._x.ufl_shape) == 0:
+            if len(self.ufl_shape) == 0:
                 return 1
             else:
-                return np.prod(self._x.ufl_shape)
+                return np.prod(self.ufl_shape)
         else:
             return 0
 
-    def global_size(self):
-        if len(self._x.ufl_shape) == 0:
+    def _global_size(self):
+        if len(self.ufl_shape) == 0:
             return 1
         else:
-            return np.prod(self._x.ufl_shape)
+            return np.prod(self.ufl_shape)
 
-    def local_indices(self):
-        comm = self.comm()
+    def _local_indices(self):
+        comm = function_comm(self)
         if comm.rank == 0:
-            if len(self._x.ufl_shape) == 0:
+            if len(self.ufl_shape) == 0:
                 return slice(0, 1)
             else:
-                return slice(0, np.prod(self._x.ufl_shape))
+                return slice(0, np.prod(self.ufl_shape))
         else:
             return slice(0, 0)
 
-    def get_values(self):
-        comm = self.comm()
+    def _get_values(self):
+        comm = function_comm(self)
         if comm.rank == 0:
-            values = self._x.values().view()
+            values = self.values().view()
         else:
             values = np.array([], dtype=np.float64)
         values.setflags(write=False)
         return values
 
-    def set_values(self, values):
-        comm = self.comm()
+    def _set_values(self, values):
+        comm = function_comm(self)
         if comm.rank != 0:
-            if len(self._x.ufl_shape) == 0:
+            if len(self.ufl_shape) == 0:
                 values = np.array([0.0], dtype=np.float64)
             else:
-                values = np.zeros(self._x.ufl_shape, dtype=np.float64)
+                values = np.zeros(self.ufl_shape, dtype=np.float64)
         values = comm.bcast(values, root=0)
-        if len(self._x.ufl_shape) == 0:
-            self._x.assign(values[0])
+        if len(self.ufl_shape) == 0:
+            self.assign(values[0])
         else:
-            self._x.assign(backend_Constant(values))
+            self.assign(backend_Constant(values))
 
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        if len(self._x.ufl_shape) == 0:
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        if len(self.ufl_shape) == 0:
             value = 0.0
         else:
-            value = np.zeros(self._x.ufl_shape, dtype=np.float64)
-        return Constant(value, comm=self.comm(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
+            value = np.zeros(self.ufl_shape, dtype=np.float64)
+        return Constant(value, comm=function_comm(self), name=name,
+                        static=static, cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth)
 
-    def copy(self, name=None, static=False, cache=None, checkpoint=None,
-             tlm_depth=0):
-        if len(self._x.ufl_shape) == 0:
-            value = float(self._x)
+    def _copy(self, name=None, static=False, cache=None, checkpoint=None,
+              tlm_depth=0):
+        if len(self.ufl_shape) == 0:
+            value = float(self)
         else:
-            value = self._x.values()
-        return Constant(value, comm=self.comm(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint,
+            value = self.values()
+        return Constant(value, comm=function_comm(self), name=name,
+                        static=static, cache=cache, checkpoint=checkpoint,
                         tlm_depth=tlm_depth)
 
-    def tangent_linear(self, name=None):
-        if hasattr(self._x, "tangent_linear"):
-            return self._x.tangent_linear(name=name)
-        elif self.is_static():
+    def _tangent_linear(self, name=None):
+        if hasattr(self, "tangent_linear"):
+            return self.tangent_linear(name=name)
+        elif function_is_static(self):
             return None
         else:
-            return Constant(0.0, comm=self.comm(), name=name, static=False,
-                            cache=self.is_cached(),
-                            checkpoint=self.is_checkpointed(),
-                            tlm_depth=self.tlm_depth() + 1)
+            if len(self.ufl_shape) == 0:
+                value = 0.0
+            else:
+                value = np.zeros(self.ufl_shape, dtype=np.float64)
+            return Constant(value, comm=funtion_comm(self), name=name,
+                            static=False, cache=function_is_cached(self),
+                            checkpoint=function_is_checkpointed(self),
+                            tlm_depth=function_tlm_depth(self) + 1)
 
-    def replacement(self):
-        if not hasattr(self._x, "_tlm_adjoint__replacement"):
+    def _replacement(self):
+        if not hasattr(self, "_tlm_adjoint__replacement"):
             # Firedrake requires Constant.function_space() to return None
-            self._x._tlm_adjoint__replacement = \
-                Replacement(self._x, space=None)
-        return self._x._tlm_adjoint__replacement
+            self._tlm_adjoint__replacement = \
+                Replacement(self, space=None)
+        return self._tlm_adjoint__replacement
 
-    def alias(self):
-        return FunctionAlias(self._x)
+    def _alias(self):
+        return FunctionAlias(self)
 
 
 _orig_Constant__init__ = backend_Constant.__init__
@@ -319,9 +313,9 @@ def _Constant__init__(self, *args, comm=None, **kwargs):
 
     _orig_Constant__init__(self, *args, **kwargs)
 
-    self._tlm_adjoint__function_interface = ConstantInterface(self)
-    space = self.ufl_function_space()
-    space._tlm_adjoint__space_interface = ConstantSpaceInterface(space, comm)
+    add_interface(self, ConstantInterface)
+    add_interface(self.ufl_function_space(), ConstantSpaceInterface,
+                  {"comm": comm, "id": new_count()})
 
 
 backend_Constant.__init__ = _Constant__init__
@@ -355,7 +349,6 @@ class Constant(backend_Constant):
         self.__cache = cache
         self.__checkpoint = checkpoint
         self.__tlm_depth = tlm_depth
-        self._tlm_adjoint__function_interface = ConstantInterface(self)
 
         if not hasattr(backend_Constant, "name"):
             if name is None:
@@ -508,44 +501,41 @@ def bcs_is_homogeneous(bcs):
 
 
 class ReplacementInterface(_FunctionInterface):
-    def __init__(self, x, space):
-        _FunctionInterface.__init__(self, x)
-        self._space = space
+    def _space(self):
+        return self.ufl_function_space()
 
-    def space(self):
-        return self._space
+    def _id(self):
+        return self.id()
 
-    def id(self):
-        return self._x.id()
+    def _name(self):
+        return self.name()
 
-    def name(self):
-        return self._x.name()
-
-    def state(self):
+    def _state(self):
         return -1
 
-    def is_static(self):
-        return self._x.is_static()
+    def _is_static(self):
+        return self.is_static()
 
-    def is_cached(self):
-        return self._x.is_cached()
+    def _is_cached(self):
+        return self.is_cached()
 
-    def is_checkpointed(self):
-        return self._x.is_checkpointed()
+    def _is_checkpointed(self):
+        return self.is_checkpointed()
 
-    def tlm_depth(self):
-        return self._x.tlm_depth()
+    def _tlm_depth(self):
+        return self.tlm_depth()
 
-    def caches(self):
-        return self._x.caches()
+    def _caches(self):
+        return self.caches()
 
-    def new(self, name=None, static=False, cache=None, checkpoint=None,
-            tlm_depth=0):
-        return space_new(self._space, name=name, static=static, cache=cache,
+    def _new(self, name=None, static=False, cache=None, checkpoint=None,
+             tlm_depth=0):
+        return space_new(self._tlm_adjoint__function_interface_attrs["space"],
+                         name=name, static=static, cache=cache,
                          checkpoint=checkpoint, tlm_depth=tlm_depth)
 
-    def replacement(self):
-        return self._x
+    def _replacement(self):
+        return self
 
 
 class Replacement(ufl.classes.Coefficient):
@@ -568,8 +558,7 @@ class Replacement(ufl.classes.Coefficient):
         self.__checkpoint = function_is_checkpointed(x)
         self.__tlm_depth = function_tlm_depth(x)
         self.__caches = function_caches(x)
-        self._tlm_adjoint__function_interface = \
-            ReplacementInterface(self, x_space)
+        add_interface(self, ReplacementInterface, {"space": x_space})
 
     def function_space(self):
         return self.__space
