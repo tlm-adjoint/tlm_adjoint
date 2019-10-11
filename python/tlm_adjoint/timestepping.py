@@ -164,8 +164,14 @@ class Alias:
         object.__setattr__(self, "_tlm_adjoint__alias", obj)
 
     def __new__(cls, obj):
-        class Alias(cls, type(obj)):
-            pass
+        obj_cls = type(obj)
+
+        class Alias(cls, obj_cls):
+            def __new__(cls, *args, **kwargs):
+                obj = obj_cls.__new__(obj_cls, *args, **kwargs)
+                obj.__init__(*args, **kwargs)
+                return obj
+
         return object.__new__(Alias)
 
     def __getattr__(self, key):
