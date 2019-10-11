@@ -1400,7 +1400,9 @@ class EquationManager:
                     # Adjoint right-hand-side associated with this equation
                     eq_B = B.pop()
 
-                    # Zero right-hand-side, adjoint solution is zero
+                    # Zero right-hand-side, adjoint solution is zero, or the
+                    # sensitivity does not depend on the adjoint solution
+                    # associated with this equation
                     if eq_B.is_empty():
                         adj_X = None
                     else:
