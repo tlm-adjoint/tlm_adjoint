@@ -329,12 +329,12 @@ class DependencyTransposer:
     def __init__(self, blocks, M):
         dep_map = {}
         eq_X_ids = []
-        M_ids = set(function_id(m) for m in M)
+        M_ids = {function_id(m) for m in M}
         active_ids = set()
         for p, block in enumerate(blocks):
             for k, eq in enumerate(block):
                 eq_active = False
-                X_ids = set(function_id(x) for x in eq.X())
+                X_ids = {function_id(x) for x in eq.X()}
                 for dep in eq.dependencies():
                     dep_id = function_id(dep)
                     if dep_id not in X_ids and dep_id in active_ids:
@@ -513,8 +513,8 @@ class EquationManager:
                     eq_type = type(eq).__name__
                 info("    Equation %i, %s solving for %s (%s)" %
                      (i, eq_type, X_name, X_ids))
-                nl_dep_ids = set([function_id(dep)
-                                 for dep in eq.nonlinear_dependencies()])
+                nl_dep_ids = {function_id(dep)
+                              for dep in eq.nonlinear_dependencies()}
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
@@ -803,7 +803,7 @@ class EquationManager:
 
         x_id = function_id(x)
         for eq in self._blocks[0]:
-            if x_id in set(function_id(dep) for dep in eq.dependencies()):
+            if x_id in {function_id(dep) for dep in eq.dependencies()}:
                 self._restore_checkpoint(0)
                 return self._cp.initial_condition(
                     x, copy=function_is_checkpointed(x))
@@ -1385,7 +1385,7 @@ class EquationManager:
 
                 # Transposed dependency graph information for this equation
                 B_indices = {}
-                eq_X_ids = set(function_id(x) for x in eq.X())
+                eq_X_ids = {function_id(x) for x in eq.X()}
                 for j, dep in enumerate(eq.dependencies()):
                     if function_id(dep) not in eq_X_ids and dep in tdeps:
                         p, k, m = tdeps[dep]

@@ -214,7 +214,7 @@ class Equation:
         if nl_deps is None:
             nl_deps_map = tuple(range(len(deps)))
         else:
-            if len(set(function_id(dep) for dep in nl_deps)) != len(nl_deps):
+            if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
             for dep in nl_deps:
                 if function_id(dep) not in dep_ids:
@@ -229,7 +229,7 @@ class Equation:
                     if x in nl_deps:
                         ic_deps.append(x)
         else:
-            if len(set(function_id(dep) for dep in ic_deps)) != len(ic_deps):
+            if len({function_id(dep) for dep in ic_deps}) != len(ic_deps):
                 raise EquationException("Duplicate initial condition dependency")  # noqa: E501
             for dep in ic_deps:
                 if function_id(dep) not in dep_ids:
@@ -816,7 +816,7 @@ class FixedPointSolver(Equation):
                 dep_map[function_id(x)] = (i, m)
         tdeps = tuple([] for eq in eqs)
         for k, eq in enumerate(eqs):
-            X_ids = set(function_id(x) for x in eq.X())
+            X_ids = {function_id(x) for x in eq.X()}
             for j, dep in enumerate(eq.dependencies()):
                 dep_id = function_id(dep)
                 if dep_id not in X_ids and dep_id in dep_map:
@@ -1256,7 +1256,7 @@ class LinearEquation(Equation):
 class Matrix:
     def __init__(self, nl_deps=None, has_ic_dep=False):
         if nl_deps is not None:
-            if len(set(function_id(dep) for dep in nl_deps)) != len(nl_deps):
+            if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
 
         self._nl_deps = () if nl_deps is None else tuple(nl_deps)
@@ -1358,11 +1358,11 @@ class Matrix:
 
 class RHS:
     def __init__(self, deps, nl_deps=None):
-        dep_ids = set(function_id(dep) for dep in deps)
+        dep_ids = {function_id(dep) for dep in deps}
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
         if nl_deps is not None:
-            nl_dep_ids = set(function_id(dep) for dep in nl_deps)
+            nl_dep_ids = {function_id(dep) for dep in nl_deps}
             if len(nl_dep_ids) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
             if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
@@ -1421,7 +1421,7 @@ class MatrixActionRHS(RHS):
     def __init__(self, A, X):
         if is_function(X):
             X = (X,)
-        if len(set(function_id(x) for x in X)) != len(X):
+        if len({function_id(x) for x in X}) != len(X):
             raise EquationException("Invalid dependency")
 
         A_nl_deps = A.nonlinear_dependencies()
