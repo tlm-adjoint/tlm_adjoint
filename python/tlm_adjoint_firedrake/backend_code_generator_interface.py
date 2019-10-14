@@ -22,6 +22,7 @@ from .backend import *
 
 import copy
 import numpy as np
+import petsc4py.PETSc as PETSc
 import ufl
 
 __all__ = \
@@ -300,7 +301,6 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                                              linear_solver_parameters))
         J_error = J_mat.petscmat.copy()
         J_error.axpy(-1.0, J_mat_debug.petscmat)
-        import petsc4py.PETSc as PETSc
         assert(J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY)
                <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
 

@@ -27,7 +27,13 @@ __all__ = \
 
         "add_interface",
 
+        "SpaceInterface",
+        "is_space",
+        "space_id",
+        "space_new",
+
         "FunctionInterface",
+        "is_function",
         "function_assign",
         "function_axpy",
         "function_caches",
@@ -53,12 +59,7 @@ __all__ = \
         "function_sum",
         "function_tangent_linear",
         "function_update_state",
-        "function_zero",
-        "is_function",
-
-        "SpaceInterface",
-        "space_id",
-        "space_new"
+        "function_zero"
     ]
 
 
@@ -94,6 +95,10 @@ class SpaceInterface:
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
+
+
+def is_space(x):
+    return hasattr(x, "_tlm_adjoint__space_interface")
 
 
 def space_id(space):
@@ -197,7 +202,7 @@ class FunctionInterface:
 
 
 def is_function(x):
-    return hasattr(x, FunctionInterface.prefix)
+    return hasattr(x, "_tlm_adjoint__function_interface")
 
 
 def function_comm(x):

@@ -107,12 +107,5 @@ __all__ = \
         "has_lu_solver_method",
         "info",
         "interpolate",
-        "parameters",
-
-        "mpi_comm_world"
+        "parameters"
     ]
-
-# FEniCS backwards compatibility
-if not hasattr(fenics, "mpi_comm_world"):
-    def mpi_comm_world():
-        return fenics.MPI.comm_world

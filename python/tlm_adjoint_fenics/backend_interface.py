@@ -26,20 +26,19 @@ from .interface import FunctionInterface as _FunctionInterface
 from .caches import clear_caches, form_neg
 from .functions import Caches, Constant, Function, Replacement
 
+import mpi4py.MPI as MPI
 import ufl
-import sys
 import warnings
 
 __all__ = \
     [
         "InterfaceException",
 
-        "Function",
-        "Replacement",
-        "clear_caches",
-        "copy_parameters_dict",
-        "default_comm",
-        "finalize_adjoint_derivative_action",
+        "is_space",
+        "space_id",
+        "space_new",
+
+        "is_function",
         "function_assign",
         "function_axpy",
         "function_caches",
@@ -66,26 +65,28 @@ __all__ = \
         "function_tangent_linear",
         "function_update_state",
         "function_zero",
+
+        "clear_caches",
+        "copy_parameters_dict",
+        "default_comm",
+        "finalize_adjoint_derivative_action",
         "info",
-        "is_function",
         "new_real_function",
-        "space_id",
-        "space_new",
         "subtract_adjoint_derivative_action",
-        "warning",
+
+        "Constant",
+        "Function",
+        "Replacement",
 
         "RealFunctionSpace",
         "function_space_id",
-        "function_space_new"
+        "function_space_new",
+        "warning"
     ]
 
 
 def default_comm():
-    comm = mpi_comm_world()
-    # FEniCS backwards compatibility
-    if hasattr(comm, "tompi4py"):
-        comm = comm.tompi4py()
-    return comm
+    return MPI.COMM_WORLD
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -250,19 +251,14 @@ backend_Function.__init__ = _Function__init__
 
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
-    return Constant(0.0, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint, comm=comm)
+    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
+                    checkpoint=checkpoint)
 
 
 # def clear_caches(*deps):
 
 
 # def info(message):
-
-
-def warning(message):
-    sys.stderr.write(f"{message:s}\n")
-    sys.stderr.flush()
 
 
 # def copy_parameters_dict(parameters):
@@ -302,18 +298,30 @@ def finalize_adjoint_derivative_action(x):
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_real_function instead")
-    if comm is None:
-        # FEniCS backwards compatibility
-        comm = mpi_comm_world()
+                  "use new_real_function instead",
+                  DeprecationWarning, stacklevel=2)
+    import fenics
+    # FEniCS backwards compatibility
+    if hasattr(fenics, "MPI"):
+        comm = fenics.MPI.comm_world
+    else:
+        comm = fenics.mpi_comm_world()
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
 def function_space_id(*args, **kwargs):
-    warnings.warn("function_space_id is deprecated -- use space_id instead")
+    warnings.warn("function_space_id is deprecated -- use space_id instead",
+                  DeprecationWarning, stacklevel=2)
     return space_id(*args, **kwargs)
 
 
 def function_space_new(*args, **kwargs):
-    warnings.warn("function_space_new is deprecated -- use space_new instead")
+    warnings.warn("function_space_new is deprecated -- use space_new instead",
+                  DeprecationWarning, stacklevel=2)
     return space_new(*args, **kwargs)
+
+
+def warning(message):
+    warnings.warn("warning is deprecated -- use warnings.warn instead",
+                  DeprecationWarning, stacklevel=2)
+    warnings.warn(message, RuntimeWarning)

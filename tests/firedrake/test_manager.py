@@ -24,6 +24,7 @@ from tlm_adjoint_firedrake import manager as _manager
 
 from test_base import *
 
+import petsc4py.PETSc as PETSc
 import pytest
 
 
@@ -130,7 +131,6 @@ def test_EmptySolver(setup_test, test_leaks):
     assert(len(manager._blocks[0][0].X()) == 0)
 
     J_val = J.value()
-    import petsc4py.PETSc as PETSc
     with F.dat.vec_ro as F_v:
         J_ref = F_v.norm(norm_type=PETSc.NormType.NORM_2) ** 4
     assert(abs(J_val - J_ref) < 1.0e-11)

@@ -31,6 +31,7 @@ import copy
 import numpy as np
 import pickle
 import os
+import warnings
 import weakref
 import zlib
 
@@ -1241,7 +1242,9 @@ class EquationManager:
         elif self._cp_method == "multistage" \
                 and len(self._blocks) == self._cp_parameters["blocks"] - 1:
             # Wait for the finalize
-            warning("Attempting to end the final block without finalising -- ignored")  # noqa: E501
+            warnings.warn(
+                "Attempting to end the final block without finalising -- "
+                "ignored", RuntimeWarning, stacklevel=2)
             return
 
         self._blocks.append(self._block)

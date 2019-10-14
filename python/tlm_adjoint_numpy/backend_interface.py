@@ -30,14 +30,11 @@ __all__ = \
     [
         "InterfaceException",
 
-        "FunctionSpace",
+        "is_space",
+        "space_id",
+        "space_new",
 
-        "Function",
-        "Replacement",
-        "clear_caches",
-        "copy_parameters_dict",
-        "default_comm",
-        "finalize_adjoint_derivative_action",
+        "is_function",
         "function_assign",
         "function_axpy",
         "function_caches",
@@ -64,17 +61,23 @@ __all__ = \
         "function_tangent_linear",
         "function_update_state",
         "function_zero",
+
+        "clear_caches",
+        "copy_parameters_dict",
+        "default_comm",
+        "finalize_adjoint_derivative_action",
         "info",
-        "is_function",
         "new_real_function",
-        "space_id",
-        "space_new",
         "subtract_adjoint_derivative_action",
-        "warning",
+
+        "Function",
+        "FunctionSpace",
+        "Replacement",
 
         "RealFunctionSpace",
         "function_space_id",
-        "function_space_new"
+        "function_space_new",
+        "warning"
     ]
 
 
@@ -309,6 +312,9 @@ class ReplacementInterface(_FunctionInterface):
         return Function(self.space(), name=name, static=static, cache=cache,
                         checkpoint=checkpoint)
 
+    def _replacement(self):
+        return self
+
 
 class Replacement:
     def __init__(self, x):
@@ -354,11 +360,6 @@ def info(message):
     sys.stdout.flush()
 
 
-def warning(message):
-    sys.stderr.write(f"{message:s}\n")
-    sys.stderr.flush()
-
-
 def copy_parameters_dict(parameters):
     return copy.deepcopy(parameters)
 
@@ -386,15 +387,24 @@ def finalize_adjoint_derivative_action(x):
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_real_function instead")
+                  "use new_real_function instead",
+                  DeprecationWarning, stacklevel=2)
     return FunctionSpace(1)
 
 
 def function_space_id(*args, **kwargs):
-    warnings.warn("function_space_id is deprecated -- use space_id instead")
+    warnings.warn("function_space_id is deprecated -- use space_id instead",
+                  DeprecationWarning, stacklevel=2)
     return space_id(*args, **kwargs)
 
 
 def function_space_new(*args, **kwargs):
-    warnings.warn("function_space_new is deprecated -- use space_new instead")
+    warnings.warn("function_space_new is deprecated -- use space_new instead",
+                  DeprecationWarning, stacklevel=2)
     return space_new(*args, **kwargs)
+
+
+def warning(message):
+    warnings.warn("warning is deprecated -- use warnings.warn instead",
+                  DeprecationWarning, stacklevel=2)
+    warnings.warn(message, RuntimeWarning)

@@ -324,8 +324,7 @@ class Constant(backend_Constant):
     def is_checkpointed(self):
         return self.__checkpoint
 
-    def tangent_linear(self, name=None, static=False, cache=None,
-                       checkpoint=None):
+    def tangent_linear(self, name=None):
         if self.is_static():
             return None
         else:
@@ -334,7 +333,8 @@ class Constant(backend_Constant):
             else:
                 value = np.zeros(self.ufl_shape, dtype=np.float64)
             return Constant(value, comm=function_comm(self), name=name,
-                            static=False, cache=cache, checkpoint=checkpoint)
+                            static=False, cache=self.is_cached(),
+                            checkpoint=self.is_checkpointed())
 
 
 class Function(backend_Function):
@@ -374,12 +374,11 @@ class DirichletBC(backend_DirichletBC):
                  homogeneous=None, _homogeneous=None, **kwargs):
         backend_DirichletBC.__init__(self, V, g, sub_domain, *args, **kwargs)
 
-        if not isinstance(g, ufl.classes.Expr):
-            g = backend_Constant(g)
-
         if static is None:
             static = True
-            for dep in ufl.algorithms.extract_coefficients(g):
+            for dep in ufl.algorithms.extract_coefficients(
+                    g if isinstance(g, ufl.classes.Expr)
+                    else backend_Constant(g)):
                 # The 'static' flag for functions is only a hint. 'not
                 # checkpointed' is a guarantee that the function will never
                 # appear as the solution to an Equation.

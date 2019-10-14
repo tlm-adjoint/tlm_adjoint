@@ -58,6 +58,7 @@
 from .backend_interface import *
 
 import numpy as np
+import petsc4py.PETSc as PETSc
 
 __all__ = \
     [
@@ -105,7 +106,6 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     containing the real and imaginary parts of the corresponding eigenvectors.
     """
 
-    import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
 
     if problem_type is None:
