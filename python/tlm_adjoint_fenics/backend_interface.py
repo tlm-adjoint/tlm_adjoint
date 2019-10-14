@@ -75,7 +75,8 @@ __all__ = \
         "warning",
 
         "RealFunctionSpace",
-        "function_space_id"
+        "function_space_id",
+        "function_space_new"
     ]
 
 
@@ -311,3 +312,8 @@ def RealFunctionSpace(comm=None):
 def function_space_id(*args, **kwargs):
     warnings.warn("function_space_id is deprecated -- use space_id instead")
     return space_id(*args, **kwargs)
+
+
+def function_space_new(*args, **kwargs):
+    warnings.warn("function_space_new is deprecated -- use space_new instead")
+    return space_new(*args, **kwargs)

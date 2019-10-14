@@ -24,13 +24,15 @@ from .interface import FunctionInterface as _FunctionInterface
 import copy
 import numpy as np
 import sys
+import warnings
 
 __all__ = \
     [
         "InterfaceException",
 
-        "Function",
         "FunctionSpace",
+
+        "Function",
         "Replacement",
         "clear_caches",
         "copy_parameters_dict",
@@ -68,7 +70,11 @@ __all__ = \
         "space_id",
         "space_new",
         "subtract_adjoint_derivative_action",
-        "warning"
+        "warning",
+
+        "RealFunctionSpace",
+        "function_space_id",
+        "function_space_new"
     ]
 
 
@@ -376,3 +382,19 @@ def subtract_adjoint_derivative_action(x, y):
 
 def finalize_adjoint_derivative_action(x):
     pass
+
+
+def RealFunctionSpace(comm=None):
+    warnings.warn("RealFunctionSpace is deprecated -- "
+                  "use new_real_function instead")
+    return FunctionSpace(1)
+
+
+def function_space_id(*args, **kwargs):
+    warnings.warn("function_space_id is deprecated -- use space_id instead")
+    return space_id(*args, **kwargs)
+
+
+def function_space_new(*args, **kwargs):
+    warnings.warn("function_space_new is deprecated -- use space_new instead")
+    return space_new(*args, **kwargs)
