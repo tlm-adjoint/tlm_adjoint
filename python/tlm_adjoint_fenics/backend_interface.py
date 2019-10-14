@@ -302,7 +302,7 @@ def RealFunctionSpace(comm=None):
                   DeprecationWarning, stacklevel=2)
     import fenics
     # FEniCS backwards compatibility
-    if hasattr(fenics, "MPI"):
+    if hasattr(fenics.MPI, "comm_world"):
         comm = fenics.MPI.comm_world
     else:
         comm = fenics.mpi_comm_world()
