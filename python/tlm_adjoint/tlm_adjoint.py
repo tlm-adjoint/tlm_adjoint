@@ -1549,7 +1549,7 @@ def tlm(M, dM, x, manager=None):
 def reset_adjoint(manager=None):
     if manager is None:
         manager = _manager()
-    return manager.reset_adjoint()
+    manager.reset_adjoint()
 
 
 def compute_gradient(Js, M, callback=None, manager=None):
