@@ -22,8 +22,8 @@ import importlib
 import sys
 
 modules = [("backend", "tlm_adjoint_fenics"),
-           ("backend_code_generator_interface", "tlm_adjoint_fenics"),
            ("interface", "tlm_adjoint"),
+           ("backend_code_generator_interface", "tlm_adjoint_fenics"),
            ("functions", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_fenics"),

@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
+from .interface import InterfaceException
 
 import copy
 import numpy as np
@@ -51,10 +52,6 @@ __all__ = \
         "assemble_system",
         "solve"
     ]
-
-
-class InterfaceException(Exception):
-    pass
 
 
 if "tlm_adjoint" not in parameters:

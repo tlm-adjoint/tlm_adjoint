@@ -22,8 +22,8 @@ import importlib
 import sys
 
 modules = [("backend", "tlm_adjoint_firedrake"),
-           ("backend_code_generator_interface", "tlm_adjoint_firedrake"),
            ("interface", "tlm_adjoint"),
+           ("backend_code_generator_interface", "tlm_adjoint_firedrake"),
            ("functions", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_firedrake"),
