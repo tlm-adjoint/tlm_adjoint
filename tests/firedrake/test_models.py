@@ -28,8 +28,8 @@ import pytest
 
 
 def oscillator_ref():
-    assert(not manager().annotation_enabled())
-    assert(not manager().tlm_enabled())
+    assert not manager().annotation_enabled()
+    assert not manager().tlm_enabled()
 
     nsteps = 20
     dt = Constant(0.01)
@@ -59,8 +59,8 @@ def oscillator_ref():
 
 
 def diffusion_ref():
-    assert(not manager().annotation_enabled())
-    assert(not manager().tlm_enabled())
+    assert not manager().annotation_enabled()
+    assert not manager().tlm_enabled()
 
     n_steps = 20
     dt = Constant(0.01)
@@ -144,7 +144,7 @@ def test_oscillator(setup_test, test_leaks,
 
     J_val = J.value()
     J_val_ref = oscillator_ref() ** 2
-    assert(abs(J_val - J_val_ref) < 1.0e-15)
+    assert abs(J_val - J_val_ref) < 1.0e-15
 
     dJ = compute_gradient(J, T_0)
 
@@ -152,22 +152,22 @@ def test_oscillator(setup_test, test_leaks,
     function_assign(dm, 1.0)
 
     min_order = taylor_test(forward, T_0, J_val=J_val, dJ=dJ, dM=dm)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, T_0, J_val=J_val, ddJ=ddJ, dM=dm)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, T_0, tlm_order=1, dMs=(dm,))
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=1,
                                         dMs=(dm,))
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=2,
                                         dMs=(dm, dm))
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
@@ -226,7 +226,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     J_val = J.value()
     if n_steps == 20:
         J_val_ref = diffusion_ref()
-        assert(abs(J_val - J_val_ref) < 1.0e-13)
+        assert abs(J_val - J_val_ref) < 1.0e-13
 
     controls = [Control("T_0"), Control("kappa")]
     dJs = compute_gradient(J, controls)
@@ -240,24 +240,24 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
              (controls[1], kappa, lambda kappa: forward(T_0, kappa), dJs[1],
               one)]:
         min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, dM=dm)
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm)
-        assert(min_order > 2.92)
+        assert min_order > 2.92
 
         min_order = taylor_test_tlm(forward_J, m0, tlm_order=1,
                                     dMs=None if dm is None else (dm,))
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward_J, m0, adjoint_order=1,
                                             dMs=None if dm is None else (dm,))
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(
             forward_J, m0, adjoint_order=2,
             dMs=None if dm is None else (dm, dm), seed=1.0e-3)
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -307,10 +307,10 @@ def test_diffusion_2d(setup_test, test_leaks):
     for tlm_order in range(1, 4):
         min_order = taylor_test_tlm(forward, kappa, tlm_order=tlm_order,
                                     seed=1.0e-3)
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
     for adjoint_order in range(1, 5):
         min_order = taylor_test_tlm_adjoint(forward, kappa,
                                             adjoint_order=adjoint_order,
                                             seed=1.0e-3)
-        assert(min_order > 1.99)
+        assert min_order > 1.99

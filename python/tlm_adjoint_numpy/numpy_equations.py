@@ -132,7 +132,7 @@ class ContractionRHS(RHS):
         for i in I:
             # Raises an error if there is a duplicate element in I
             j.remove(i)
-        assert(len(j) == 1)
+        assert len(j) == 1
         j = j.pop()
 
         RHS.__init__(self, X, nl_deps=[] if len(X) == 1 else X)

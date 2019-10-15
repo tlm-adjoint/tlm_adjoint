@@ -44,7 +44,7 @@ def test_HEP(setup_test, test_leaks):
     for lam_val, v_r in zip(lam, V_r):
         function_set_values(diff, M_action(v_r))
         function_axpy(diff, -lam_val, v_r)
-        assert(function_linf_norm(diff) < 1.0e-16)
+        assert function_linf_norm(diff) < 1.0e-16
 
 
 @pytest.mark.fenics
@@ -64,8 +64,8 @@ def test_NHEP(setup_test, test_leaks):
         function_set_values(diff, N_action(v_r))
         function_axpy(diff, -float(lam_val.real), v_r)
         function_axpy(diff, +float(lam_val.imag), v_i)
-        assert(function_linf_norm(diff) < 1.0e-8)
+        assert function_linf_norm(diff) < 1.0e-8
         function_set_values(diff, N_action(v_i))
         function_axpy(diff, -float(lam_val.real), v_i)
         function_axpy(diff, -float(lam_val.imag), v_r)
-        assert(function_linf_norm(diff) < 1.0e-8)
+        assert function_linf_norm(diff) < 1.0e-8

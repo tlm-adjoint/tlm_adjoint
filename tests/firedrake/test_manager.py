@@ -77,20 +77,20 @@ def test_long_range(setup_test, test_leaks):
         return forward(F, x_ref=x_ref)[1]
 
     min_order = taylor_test(forward_J, F, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, F, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, F, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=2)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -126,32 +126,32 @@ def test_EmptySolver(setup_test, test_leaks):
     manager = _manager()
     manager.finalize()
     manager.info()
-    assert(len(manager._blocks) == 1)
-    assert(len(manager._blocks[0]) == 3)
-    assert(len(manager._blocks[0][0].X()) == 0)
+    assert len(manager._blocks) == 1
+    assert len(manager._blocks[0]) == 3
+    assert len(manager._blocks[0][0].X()) == 0
 
     J_val = J.value()
     with F.dat.vec_ro as F_v:
         J_ref = F_v.norm(norm_type=PETSc.NormType.NORM_2) ** 4
-    assert(abs(J_val - J_ref) < 1.0e-11)
+    assert abs(J_val - J_ref) < 1.0e-11
 
     dJ = compute_gradient(J, F)
 
     min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
@@ -166,4 +166,4 @@ def test_empty(setup_test, test_leaks):
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert(float(dJ) == 0.0)
+    assert float(dJ) == 0.0

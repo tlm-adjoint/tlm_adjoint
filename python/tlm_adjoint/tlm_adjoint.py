@@ -177,7 +177,7 @@ class CheckpointStorage:
                 if copy:
                     self._cp[x_id] = self._data[x_key]
                 else:
-                    assert(x_id in self._refs)
+                    assert x_id in self._refs
             else:
                 if copy:
                     value = function_copy(value)
@@ -357,9 +357,9 @@ class DependencyTransposer:
                         if x_id in M_ids:
                             # Control
                             M_ids.remove(x_id)
-                            assert(x_id not in active_ids)
+                            assert x_id not in active_ids
                             active_ids.add(x_id)
-                            assert(x_id not in dep_map)
+                            assert x_id not in dep_map
                             dep_map[x_id] = [(p, k, m)]
                             eq_X_active_ids.append(x_id)
                         elif x_id in active_ids:
@@ -1153,7 +1153,7 @@ class EquationManager:
                         storage.pop()
 
                     self._cp_manager.add(n1)
-                assert(len(storage) == 0)
+                assert len(storage) == 0
         elif self._cp_method == "multistage":
             def debug_info(message):
                 if self._cp_parameters["verbose"]:
@@ -1221,7 +1221,7 @@ class EquationManager:
                     break
                 self._save_multistage_checkpoint()
                 self._cp.clear()
-            assert(len(storage) == 0)
+            assert len(storage) == 0
 
             debug_info(f"reverse: adjoint step back to {n:d}")
             self._cp_manager.reverse()
@@ -1392,7 +1392,7 @@ class EquationManager:
                 for j, dep in enumerate(eq.dependencies()):
                     if function_id(dep) not in eq_X_ids and dep in tdeps:
                         p, k, m = tdeps[dep]
-                        assert(p != n or k != i)
+                        assert p != n or k != i
                         B_indices[j] = (p, k, m)
                 # Clear dependency information for this equation
                 tdeps.pop()
@@ -1432,8 +1432,8 @@ class EquationManager:
                     B[0].finalize()
 
         for B in Bs:
-            assert(B.is_empty())
-        assert(tdeps.is_empty())
+            assert B.is_empty()
+        assert tdeps.is_empty()
 
         if self._cp_method == "multistage":
             self._cp.clear(clear_cp=False, clear_data=True, clear_refs=False)

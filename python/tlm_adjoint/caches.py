@@ -360,7 +360,7 @@ class Cache:
 
             if dep_id in self._deps_map:
                 self._deps_map[dep_id][key] = dep_ids
-                assert(dep_id in self._dep_caches)
+                assert dep_id in self._dep_caches
             else:
                 self._deps_map[dep_id] = {key: dep_ids}
                 self._dep_caches[dep_id] = weakref.ref(dep_caches)

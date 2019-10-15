@@ -176,9 +176,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         lam_i = esolver.getEigenpair(i, v_r, v_i)
         if esolver.isHermitian():
             lam[i] = lam_i.real
-            assert(lam_i.imag == 0.0)
+            assert lam_i.imag == 0.0
             function_set_values(V_r[i], v_r.getArray())
-            assert(abs(v_i.getArray()).max() == 0.0)
+            assert abs(v_i.getArray()).max() == 0.0
         else:
             lam[i] = lam_i
             function_set_values(V_r[i], v_r.getArray())

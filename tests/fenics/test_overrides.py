@@ -141,7 +141,7 @@ def test_overrides(setup_test, test_leaks):
         solve(inner(test, trial) * dx == inner(test, F) * dx,
               error, bc, solver_parameters=ls_parameters_cg)
         function_axpy(error, -1.0, G)
-        assert(function_linf_norm(error) < 1.0e-13)
+        assert function_linf_norm(error) < 1.0e-13
 
         J_val = J.value()
 
@@ -151,17 +151,17 @@ def test_overrides(setup_test, test_leaks):
             return forward(F)[1]
 
         min_order = taylor_test(forward_J, F, J_val=J_val, dJ=dJ)
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, F, J_val=J_val, ddJ=ddJ)
-        assert(min_order > 2.99)
+        assert min_order > 2.99
 
         min_order = taylor_test_tlm(forward_J, F, tlm_order=1)
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
         min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=1)
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
         min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=2)
-        assert(min_order > 1.99)
+        assert min_order > 1.99

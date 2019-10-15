@@ -60,8 +60,8 @@ def test_AssignmentSolver(setup_test, test_leaks):
     J, K = forward(x)
     stop_manager()
 
-    assert(abs(J.value() - 66048.0) == 0.0)
-    assert(abs(K.value() - 65536.0) == 0.0)
+    assert abs(J.value() - 66048.0) == 0.0
+    assert abs(K.value() - 65536.0) == 0.0
 
     dJs = compute_gradient([J, K], x)
 
@@ -70,22 +70,22 @@ def test_AssignmentSolver(setup_test, test_leaks):
     for forward_J, J_val, dJ in [(lambda x: forward(x)[0], J.value(), dJs[0]),
                                  (lambda x: forward(x)[1], K.value(), dJs[1])]:
         min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, dM=dm)
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, dM=dm)
-        assert(min_order > 3.00)
+        assert min_order > 3.00
 
         min_order = taylor_test_tlm(forward_J, x, tlm_order=1, dMs=(dm,))
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
         min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1,
                                             dMs=(dm,))
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
         min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                             dMs=(dm, dm))
-        assert(min_order > 2.00)
+        assert min_order > 2.00
 
 
 @pytest.mark.fenics
@@ -111,29 +111,29 @@ def test_AxpySolver(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
-    assert(abs(J_val - 25411681.0) == 0.0)
+    assert abs(J_val - 25411681.0) == 0.0
 
     dJ = compute_gradient(J, x)
 
     dm = Constant(1.0, name="dm", static=True)
 
     min_order = taylor_test(forward, x, J_val=J_val, dJ=dJ, dM=dm)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, x, J_val=J_val, ddJ=ddJ, dM=dm,
                             seed=2.0e-2)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward, x, tlm_order=1, dMs=(dm,))
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=1, dMs=(dm,))
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=2,
                                         dMs=(dm, dm))
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.fenics
@@ -179,7 +179,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
     error = Function(space, name="error")
     function_assign(error, x_ref)
     function_axpy(error, -1.0, x)
-    assert(function_linf_norm(error) < 1.0e-13)
+    assert function_linf_norm(error) < 1.0e-13
 
     J_val = J.value()
 
@@ -189,20 +189,20 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
         return forward(bc)[1]
 
     min_order = taylor_test(forward_J, bc, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, bc, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward_J, bc, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=2)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.fenics
@@ -232,7 +232,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
     x_val = float(x)
     a_val = float(a)
     b_val = float(b)
-    assert(abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14)
+    assert abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14
 
     J_val = J.value()
 
@@ -245,22 +245,22 @@ def test_FixedPointSolver(setup_test, test_leaks):
              (b, dm, lambda b: forward(a, b), dJdb),
              ((a, b), (dm, dm), forward, (dJda, dJdb))]:
         min_order = taylor_test(forward_J, M, J_val=J_val, dJ=dJ, dM=dM)
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ, dM=dM)
-        assert(min_order > 2.99)
+        assert min_order > 2.99
 
         min_order = taylor_test_tlm(forward_J, M, tlm_order=1, dMs=(dM,))
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=1,
                                             dMs=(dM,))
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2,
                                             dMs=(dM, dM))
-        assert(min_order > 1.99)
+        assert min_order > 1.99
 
 
 @pytest.mark.fenics
@@ -307,7 +307,7 @@ def test_InterpolationSolver(setup_test, test_leaks):
 
     x_error_norm = function_linf_norm(x_error)
     info(f"Error norm = {x_error_norm:.16e}")
-    assert(x_error_norm < 1.0e-13)
+    assert x_error_norm < 1.0e-13
 
     J_val = J.value()
 
@@ -317,20 +317,20 @@ def test_InterpolationSolver(setup_test, test_leaks):
         return forward(z)[1]
 
     min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, z, tlm_order=1, seed=1.0e-4)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 @pytest.mark.fenics
@@ -382,7 +382,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
         x_error_norm = max(x_error_norm,
                            abs(function_max_value(x) - x_ref(x_coord)))
     info(f"Error norm = {x_error_norm:.16e}")
-    assert(x_error_norm < 1.0e-13)
+    assert x_error_norm < 1.0e-13
 
     J_val = J.value()
 
@@ -392,20 +392,20 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
         return forward(z)[1]
 
     min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, z, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 @pytest.mark.fenics
@@ -438,7 +438,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
                      - test_expression(function_get_values(y),
                                        assemble(y * dx))).max()
     info(f"Error norm = {error_norm:.16e}")
-    assert(error_norm == 0.0)
+    assert error_norm == 0.0
 
     J_val = J.value()
 
@@ -448,20 +448,20 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
         return forward(y)[1]
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.fenics
@@ -496,7 +496,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
 
     F_error_norm = function_linf_norm(F_error)
     info(f"Error norm = {F_error_norm:.16e}")
-    assert(F_error_norm < 1.0e-15)
+    assert F_error_norm < 1.0e-15
 
     J_val = J.value()
 
@@ -506,20 +506,20 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
         return forward(G)[1]
 
     min_order = taylor_test(forward_J, G, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, G, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, G, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=2)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 @pytest.mark.fenics
@@ -552,20 +552,20 @@ def test_AssembleSolver(setup_test, test_leaks):
     dJ = compute_gradient(J, F)
 
     min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.fenics
@@ -614,15 +614,15 @@ def test_Storage(setup_test, test_leaks):
     y, x_s, y_s, d, h, J = forward(x)
     stop_manager()
 
-    assert(len(manager()._cp._refs) == 1)
-    assert(tuple(manager()._cp._refs.keys()) == (function_id(x),))
-    assert(len(manager()._cp._cp) == 0)
-    assert(len(manager()._cp._data) == 4)
-    assert(tuple(manager()._cp._data.keys())
-           == ((function_id(x), 0),
-               (function_id(x_s), 1),
-               (function_id(y), 1),
-               (function_id(y_s), 1)))
+    assert len(manager()._cp._refs) == 1
+    assert tuple(manager()._cp._refs.keys()) == (function_id(x),)
+    assert len(manager()._cp._cp) == 0
+    assert len(manager()._cp._data) == 4
+    assert tuple(manager()._cp._data.keys()) \
+        == ((function_id(x), 0),
+            (function_id(x_s), 1),
+            (function_id(y), 1),
+            (function_id(y_s), 1))
 
     J_val = J.value()
 
@@ -632,20 +632,20 @@ def test_Storage(setup_test, test_leaks):
     dJ = compute_gradient(J, x)
 
     min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, x, tlm_order=1)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     h.close()
 
@@ -670,10 +670,10 @@ def test_SumSolver(setup_test, test_leaks):
     J = forward(F)
     stop_manager()
 
-    assert(J.value() == function_sum(F))
+    assert J.value() == function_sum(F)
 
     dJ = compute_gradient(J, F)
-    assert(abs(function_get_values(dJ) - 1.0).max() == 0.0)
+    assert abs(function_get_values(dJ) - 1.0).max() == 0.0
 
 
 @pytest.mark.fenics
@@ -698,7 +698,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
     dJ = compute_gradient(J, F)
     min_order = taylor_test(forward, F, J_val=J.value(), dJ=dJ)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 @pytest.mark.fenics
@@ -729,7 +729,7 @@ def test_initial_guess(setup_test, test_leaks):
                     form_compiler_parameters=self._form_compiler_parameters)
                 solver = linear_solver(J, self._linear_solver_parameters)
                 its = solver.solve(x.vector(), b)
-                assert(its == 0)
+                assert its == 0
 
             def tangent_linear(self, M, dM, tlm_map):
                 x, y = self.dependencies()
@@ -763,15 +763,15 @@ def test_initial_guess(setup_test, test_leaks):
     x, J = forward(y, x_0=x_0)
     stop_manager()
 
-    assert(len(manager()._cp._refs) == 1)
-    assert(tuple(manager()._cp._refs.keys()) == (function_id(y),))
-    assert(len(manager()._cp._cp) == 0)
-    assert(len(manager()._cp._data) == 2)
-    assert(tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
-                                                 (function_id(x), 2)))
+    assert len(manager()._cp._refs) == 1
+    assert tuple(manager()._cp._refs.keys()) == (function_id(y),)
+    assert len(manager()._cp._cp) == 0
+    assert len(manager()._cp._data) == 2
+    assert tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
+                                                 (function_id(x), 2))
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
-    assert(function_linf_norm(dJdx_0) == 0.0)
+    assert function_linf_norm(dJdx_0) == 0.0
 
     J_val = J.value()
 
@@ -779,17 +779,17 @@ def test_initial_guess(setup_test, test_leaks):
         return forward(y)[1]
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJdy)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
-    assert(min_order > 1.99)
+    assert min_order > 1.99

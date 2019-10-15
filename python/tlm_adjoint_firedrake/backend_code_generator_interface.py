@@ -166,7 +166,7 @@ def bind_form(form):
     if "_tlm_adjoint__bindings" in form._cache:
         for dep, binding in form._cache["_tlm_adjoint__bindings"].items():
             for name in _form_binding_names:
-                assert(not hasattr(dep, name))
+                assert not hasattr(dep, name)
                 setattr(dep, name, getattr(binding, name))
 
 
@@ -301,8 +301,8 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                                              linear_solver_parameters))
         J_error = J_mat.petscmat.copy()
         J_error.axpy(-1.0, J_mat_debug.petscmat)
-        assert(J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY)
-               <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
+        assert J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
+            <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
     if not np.isposinf(b_tolerance):
         b_debug = backend_assemble(
@@ -311,8 +311,8 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         with b_error.dat.vec as b_error_v, b_debug.dat.vec_ro as b_debug_v:
             b_error_v.axpy(-1.0, b_debug_v)
         with b_error.dat.vec_ro as b_error_v, b.dat.vec_ro as b_v:
-            assert(b_error_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
-                   <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY))  # noqa: E501
+            assert b_error_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
+                <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
 
 def solve(*args, **kwargs):

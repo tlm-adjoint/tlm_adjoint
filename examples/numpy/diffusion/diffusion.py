@@ -136,7 +136,7 @@ def forward_reference(psi_0, kappa):
     psi = psi_0.vector().copy()
     for n in range(N_t):
         psi, fail = cg(lA, B.dot(psi), x0=psi)
-        assert(fail == 0)
+        assert fail == 0
     J = Functional(name="J")
     J.fn().vector()[:] = psi.dot(mass.dot(psi))
     return J
@@ -187,7 +187,7 @@ def forward(psi_0, kappa):
             kappa, = nl_deps
             self._assemble_A(kappa)
             x.vector()[:], fail = cg(self._A, b.vector(), x0=x.vector())
-            assert(fail == 0)
+            assert fail == 0
 
         def _assemble_A(self, kappa):
             if self._A_kappa is None \
@@ -216,7 +216,7 @@ def forward(psi_0, kappa):
             x = function_new(self._x_0_adjoint)
             x.vector()[:], fail = cg(self._A, b.vector(),
                                      x0=self._x_0_adjoint.vector())
-            assert(fail == 0)
+            assert fail == 0
             function_assign(self._x_0_adjoint, x)
             return x
 
@@ -270,7 +270,7 @@ stop_manager()
 info(f"J = {J.value():.16e}")
 info(f"Reference J = {J_ref.value():.16e}")
 info(f"Error norm = {abs(J_ref.value() - J.value()):.16e}")
-assert(abs(J_ref.value() - J.value()) < 1.0e-14)
+assert abs(J_ref.value() - J.value()) < 1.0e-14
 
 dJ_dpsi_0, dJ_dkappa = compute_gradient(J, [psi_0, kappa])
 del(J)
@@ -286,14 +286,14 @@ def forward_reference_J(psi_0):
 
 min_order = taylor_test(forward_reference_J, psi_0, J_val=J_ref.value(),
                         dJ=dJ_dpsi_0, seed=1.0e-5)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm(forward_J, psi_0, tlm_order=1, seed=1.0e-6)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward_J, psi_0, adjoint_order=1,
                                     seed=1.0e-6)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 
 def forward_J(kappa):
@@ -306,20 +306,20 @@ def forward_reference_J(kappa):
 
 min_order = taylor_test(forward_reference_J, kappa, J_val=J_ref.value(),
                         dJ=dJ_dkappa, seed=5.0e-3)
-assert(min_order > 1.98)
+assert min_order > 1.98
 
 ddJ = Hessian(forward_J)
 min_order = taylor_test(forward_reference_J, kappa, J_val=J_ref.value(),
                         ddJ=ddJ, seed=5.0e-3)
-assert(min_order > 2.98)
+assert min_order > 2.98
 
 min_order = taylor_test_tlm(forward_J, kappa, tlm_order=1, seed=1.0e-4)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward_J, kappa, adjoint_order=1,
                                     seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward_J, kappa, adjoint_order=2,
                                     seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99

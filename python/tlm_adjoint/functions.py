@@ -63,7 +63,7 @@ class Caches:
             cache = cache()
             if cache is not None:
                 cache.clear(self._id)
-                assert(not cache.id() in self._caches)
+                assert not cache.id() in self._caches
 
     def add(self, cache):
         cache_id = cache.id()

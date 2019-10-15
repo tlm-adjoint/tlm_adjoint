@@ -59,30 +59,30 @@ def test_EmptySolver(setup_test, test_leaks):
     manager = _manager()
     manager.finalize()
     manager.info()
-    assert(len(manager._blocks) == 1)
-    assert(len(manager._blocks[0]) == 3)
-    assert(len(manager._blocks[0][0].X()) == 0)
+    assert len(manager._blocks) == 1
+    assert len(manager._blocks[0]) == 3
+    assert len(manager._blocks[0][0].X()) == 0
 
     J_val = J.value()
-    assert(abs(J_val - (F.vector() ** 2).sum() ** 2) == 0.0)
+    assert abs(J_val - (F.vector() ** 2).sum() ** 2) == 0.0
 
     dJ = compute_gradient(J, F)
 
     min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
 
 @pytest.mark.numpy
@@ -99,4 +99,4 @@ def test_empty(setup_test, test_leaks):
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert(dJ.vector()[0] == 0.0)
+    assert dJ.vector()[0] == 0.0

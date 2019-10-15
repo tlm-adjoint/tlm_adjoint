@@ -125,7 +125,7 @@ class AssembleSolver(Equation):
                 assemble(rhs,
                          form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
         else:
-            assert(self._rank == 1)
+            assert self._rank == 1
             assemble(rhs,
                      form_compiler_parameters=self._form_compiler_parameters,
                      tensor=function_vector(x))
@@ -146,7 +146,7 @@ class AssembleSolver(Equation):
         if self._rank == 0:
             argument = TestFunction(function_space(dep))
         else:
-            assert(self._rank == 1)
+            assert self._rank == 1
             argument = TrialFunction(function_space(dep))
         dF = ufl.algorithms.expand_derivatives(
             ufl.derivative(self._rhs, dep, argument=argument))
@@ -159,7 +159,7 @@ class AssembleSolver(Equation):
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-function_max_value(adj_x), dF)
         else:
-            assert(self._rank == 1)
+            assert self._rank == 1
             dF = assemble(
                 ufl.action(adjoint(dF), adj_x),
                 form_compiler_parameters=self._form_compiler_parameters)
@@ -588,7 +588,7 @@ class EquationSolver(Equation):
             J_solver.solve(function_vector(x), b)
         else:
             # Case 5: Non-linear
-            assert(self._rhs == 0)
+            assert self._rhs == 0
             lhs = self._lhs
             if self._nl_solve_J is None:
                 J = self._J
@@ -630,14 +630,14 @@ class EquationSolver(Equation):
                 #   # Cache entry cleared
                 #   pass
             elif self._defer_adjoint_assembly:
-                assert(isinstance(mat_cache, ufl.classes.Form))
+                assert isinstance(mat_cache, ufl.classes.Form)
                 return ufl.action(
                     ufl.replace(
                         mat_cache,
                         dict(zip(self.nonlinear_dependencies(), nl_deps))),
                     coefficient=adj_x)
             else:
-                assert(isinstance(mat_cache, ufl.classes.Form))
+                assert isinstance(mat_cache, ufl.classes.Form)
                 bind_form(mat_cache, list(nl_deps) + [adj_x])
                 return_value = assemble(
                     mat_cache,
@@ -919,7 +919,7 @@ class ExprEvaluationSolver(Equation):
         if isinstance(rhs_val, float):
             function_assign(x, rhs_val)
         else:
-            assert(function_local_size(x) == len(rhs_val))
+            assert function_local_size(x) == len(rhs_val)
             function_set_values(x, rhs_val)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -943,7 +943,7 @@ class ExprEvaluationSolver(Equation):
                 dF_val = dF_val[0]
                 function_assign(F, dF_val)
             else:
-                assert(function_local_size(F) == len(dF_val))
+                assert function_local_size(F) == len(dF_val)
                 function_set_values(F, dF_val)
             return (-1.0, F)
 

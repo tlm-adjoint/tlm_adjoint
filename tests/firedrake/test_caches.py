@@ -38,16 +38,16 @@ def test_clear_caches(setup_test, test_leaks):
         return cached_form
 
     def test_not_cleared(F, cached_form):
-        assert(len(assembly_cache()) == 1)
-        assert(cached_form() is not None)
-        assert(len(function_caches(F)) == 1)
+        assert len(assembly_cache()) == 1
+        assert cached_form() is not None
+        assert len(function_caches(F)) == 1
 
     def test_cleared(F, cached_form):
-        assert(len(assembly_cache()) == 0)
-        assert(cached_form() is None)
-        assert(len(function_caches(F)) == 0)
+        assert len(assembly_cache()) == 0
+        assert cached_form() is None
+        assert len(function_caches(F)) == 0
 
-    assert(len(assembly_cache()) == 0)
+    assert len(assembly_cache()) == 0
 
     # Clear default
     cached_form = cache_item(F)
@@ -137,24 +137,24 @@ def test_cached_rhs(setup_test, test_leaks,
 
     caches = (assembly_cache(), linear_solver_cache(), local_solver_cache())
 
-    assert(tuple(len(cache) for cache in caches) == (0, 0, 0))
+    assert tuple(len(cache) for cache in caches) == (0, 0, 0)
 
     eq = EquationSolver(inner(test_1, trial_1) * dx == b, F, bc,
                         solver_parameters=ls_parameters_cg)
     eq.solve()
 
     if static_bc in [None, True]:
-        assert(tuple(len(cache) for cache in caches) == (4, 1, 0))
-        assert(eq._cache_jacobian)
+        assert tuple(len(cache) for cache in caches) == (4, 1, 0)
+        assert eq._cache_jacobian
     else:
-        assert(tuple(len(cache) for cache in caches) == (3, 0, 0))
-        assert(not eq._cache_jacobian)
-    assert(eq._forward_b_pa[0] is not None)
-    assert(len(eq._forward_b_pa[1]) == 3)
+        assert tuple(len(cache) for cache in caches) == (3, 0, 0)
+        assert not eq._cache_jacobian
+    assert eq._forward_b_pa[0] is not None
+    assert len(eq._forward_b_pa[1]) == 3
     if non_static_term:
-        assert(eq._forward_b_pa[2] is not None)
+        assert eq._forward_b_pa[2] is not None
     else:
-        assert(eq._forward_b_pa[2] is None)
+        assert eq._forward_b_pa[2] is None
 
     solve(inner(test_1, trial_1) * dx == b, F_ref, bc,
           solver_parameters=ls_parameters_cg)
@@ -163,4 +163,4 @@ def test_cached_rhs(setup_test, test_leaks,
     function_axpy(error, -1.0, F)
     error_norm = function_linf_norm(error)
     info(f"Error norm = {error_norm:.16e}")
-    assert(error_norm < 1.0e-13)
+    assert error_norm < 1.0e-13

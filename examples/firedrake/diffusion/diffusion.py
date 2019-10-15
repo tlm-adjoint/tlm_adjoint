@@ -121,7 +121,7 @@ dJ_adj, ddJ_adj, dddJ_adj = compute_gradient((J, dJ_tlm_1, ddJ_tlm), kappa)
 
 def info_compare(x, y, tol):
     info(f"{x:.16e} {y:.16e} {abs(x - y):.16e}")
-    assert(abs(x - y) < tol)
+    assert abs(x - y) < tol
 
 
 info("TLM/adjoint consistency, zeta_1")
@@ -136,19 +136,19 @@ info_compare(ddJ_tlm.value(), function_inner(ddJ_adj, zeta_2), tol=1.0e-18)
 kappa_perturb = Function(space, name="kappa_perturb", static=True)
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=1, seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=2, seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward, kappa, adjoint_order=1,
                                     seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward, kappa, adjoint_order=2,
                                     seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward, kappa, adjoint_order=3,
                                     seed=1.0e-3)
-assert(min_order > 1.99)
+assert min_order > 1.99

@@ -307,26 +307,26 @@ stop_manager()
     = compute_gradient([J, K], [T_inflow, kappa])
 if verify:
     # Verify the forward model constrained derivatives
-    assert(function_linf_norm(dJ_dinflow) < 1.0e-14)
+    assert function_linf_norm(dJ_dinflow) < 1.0e-14
     min_order = taylor_test(forward_kappa_ref_J, kappa, J_val=J.value(),
                             dJ=dJ_dkappa, seed=1.0e-6)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
     min_order = taylor_test(forward_T_inflow_ref_K, T_inflow, J_val=K.value(),
                             dJ=dK_dinflow, seed=1.0e-4)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
     min_order = taylor_test(forward_kappa_ref_K, kappa, J_val=K.value(),
                             dJ=dK_dkappa, seed=1.0e-4)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm(forward_kappa_ref_J, kappa, tlm_order=1,
                                 seed=1.0e-6)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
     min_order = taylor_test_tlm(forward_T_inflow_ref_K, T_inflow, tlm_order=1,
                                 seed=1.0e-4)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
     min_order = taylor_test_tlm(forward_kappa_ref_K, kappa, tlm_order=1,
                                 seed=1.0e-6)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 def project(b, space, name):
@@ -435,4 +435,4 @@ if verify:
     #                  fletcher32=True, shuffle=True)
     # h.close()
 
-    assert(orders_1.min() > 2.00)
+    assert orders_1.min() > 2.00

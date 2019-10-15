@@ -41,7 +41,7 @@ for module_name, package in modules:
             = importlib.import_module(f".{module_name:s}",
                                       package="tlm_adjoint")
     else:
-        assert(package == "tlm_adjoint_numpy")
+        assert package == "tlm_adjoint_numpy"
         sys.modules[f"tlm_adjoint.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
                                       package="tlm_adjoint_numpy")

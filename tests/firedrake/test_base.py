@@ -134,7 +134,7 @@ def test_leaks():
         info("No references")
 
     Function_ids.clear()
-    assert(refs == 0)
+    assert refs == 0
 
 
 def run_example(example):

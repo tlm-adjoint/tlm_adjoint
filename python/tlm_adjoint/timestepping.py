@@ -277,7 +277,7 @@ class TimeSystem:
         if self._state != "initial":
             raise TimesteppingException("Invalid state")
         self._state = "assembled"
-        assert(self._sorted_eqs is None)
+        assert self._sorted_eqs is None
 
         for eqs in [self._initial_eqs, self._timestep_eqs, self._final_eqs]:
             x_ids = set()
@@ -294,7 +294,7 @@ class TimeSystem:
             X = eq.X()
             process = X[0] in eq_xs
             for x in X[1:]:
-                assert((x in eq_xs) == process)
+                assert (x in eq_xs) == process
             if not process:
                 return
             if parent_ids is None:

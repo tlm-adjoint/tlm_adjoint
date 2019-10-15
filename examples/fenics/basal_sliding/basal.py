@@ -58,7 +58,7 @@ grad_b_x = Constant(np.tan(theta), static=True)
 # debug = False
 # Debug configuration
 N_x, N_y, timesteps, debug = 3, 3, 10, True
-assert(timesteps % 10 == 0)
+assert timesteps % 10 == 0
 
 # Observe the flow and surface elevation at the end of these timesteps
 # Similar to GH13 experiment 3
@@ -136,7 +136,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             u_split = U.split(deepcopy=True)
             U_norm_arr = np.zeros(function_local_size(x), dtype=np.float64)
             for u in u_split:
-                assert(function_local_size(u) == function_local_size(x))
+                assert function_local_size(u) == function_local_size(x)
                 U_norm_arr[:] += function_get_values(u) ** 2
             function_set_values(x, np.sqrt(U_norm_arr))
 
@@ -404,9 +404,9 @@ def eigendecompose_configure(esolver):
 
 lam, (V, V_i) = eigendecompose(space, A_action,
                                configure=eigendecompose_configure)
-assert(abs(lam.imag).max() == 0.0)
+assert abs(lam.imag).max() == 0.0
 for v_i in V_i:
-    assert(function_linf_norm(v_i) == 0.0)
+    assert function_linf_norm(v_i) == 0.0
 del(v_i, V_i)
 
 lam = lam.real
@@ -448,20 +448,20 @@ if debug:
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), dJ=dJ,
                             seed=1.0e-4)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
                             seed=1.0e-3)
-    assert(min_order > 2.99)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_ref_J, beta_sq,
                                 tlm_order=1, seed=1.0e-3)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_ref_J, beta_sq,
                                         adjoint_order=1, seed=1.0e-3)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_ref_J, beta_sq,
                                         adjoint_order=2, seed=1.0e-3)
-    assert(min_order > 1.99)
+    assert min_order > 1.99

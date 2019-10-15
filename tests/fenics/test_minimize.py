@@ -61,12 +61,12 @@ def test_minimize_project(setup_test, test_leaks):
     alpha, result = minimize_scipy(forward_J, alpha0, J0=J,
                                    method="L-BFGS-B",
                                    options={"ftol": 0.0, "gtol": 1.0e-10})
-    assert(result.success)
+    assert result.success
 
     error = Function(space, name="error")
     function_assign(error, alpha_ref)
     function_axpy(error, -1.0, alpha)
-    assert(function_linf_norm(error) < 1.0e-7)
+    assert function_linf_norm(error) < 1.0e-7
 
 
 @pytest.mark.fenics
@@ -116,13 +116,13 @@ def test_minimize_project_multiple(setup_test, test_leaks):
                                            method="L-BFGS-B",
                                            options={"ftol": 0.0,
                                                     "gtol": 1.0e-11})
-    assert(result.success)
+    assert result.success
 
     error = Function(space, name="error")
     function_assign(error, alpha_ref)
     function_axpy(error, -1.0, alpha)
-    assert(function_linf_norm(error) < 1.0e-8)
+    assert function_linf_norm(error) < 1.0e-8
 
     function_assign(error, beta_ref)
     function_axpy(error, -1.0, beta)
-    assert(function_linf_norm(error) < 1.0e-9)
+    assert function_linf_norm(error) < 1.0e-9

@@ -288,11 +288,11 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                                           linear_solver_parameters))
 
     if not np.isposinf(J_tolerance):
-        assert((J_mat - J_mat_debug).norm("linf")
-               <= J_tolerance * J_mat.norm("linf"))
+        assert (J_mat - J_mat_debug).norm("linf") \
+            <= J_tolerance * J_mat.norm("linf")
 
     if not np.isposinf(b_tolerance):
-        assert((b - b_debug).norm("linf") <= b_tolerance * b.norm("linf"))
+        assert (b - b_debug).norm("linf") <= b_tolerance * b.norm("linf")
 
 # The following override assemble, assemble_system, and solve so that DOLFIN
 # Form objects are cached on UFL form objects
@@ -426,7 +426,7 @@ def solve(*args, **kwargs):
         return return_value
     else:
         F = lhs
-        assert(rhs == 0)
+        assert rhs == 0
         if J is None:
             if "_tlm_adjoint__J" in F._cache:
                 J = F._cache["_tlm_adjoint__J"]

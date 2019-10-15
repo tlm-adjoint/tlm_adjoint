@@ -45,10 +45,10 @@ def test_SumSolver(setup_test, test_leaks):
     J = forward(F)
     stop_manager()
 
-    assert(J.value() == function_sum(F))
+    assert J.value() == function_sum(F)
 
     dJ = compute_gradient(J, F)
-    assert(abs(function_get_values(dJ) - 1.0).max() == 0.0)
+    assert abs(function_get_values(dJ) - 1.0).max() == 0.0
 
 
 @pytest.mark.numpy
@@ -72,7 +72,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
     dJ = compute_gradient(J, F)
     min_order = taylor_test(forward, F, J_val=J.value(), dJ=dJ)
-    assert(min_order > 1.99)
+    assert min_order > 1.99
 
 
 @pytest.mark.numpy
@@ -100,7 +100,7 @@ def test_ContractionSolver(setup_test, test_leaks):
     x, J = forward(m)
     stop_manager()
 
-    assert(abs(A.dot(m.vector()) - x.vector()).max() == 0.0)
+    assert abs(A.dot(m.vector()) - x.vector()).max() == 0.0
 
     J_val = J.value()
 
@@ -110,17 +110,17 @@ def test_ContractionSolver(setup_test, test_leaks):
         return forward(m)[1]
 
     min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ)
-    assert(min_order > 3.00)
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward_J, m, tlm_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1)
-    assert(min_order > 2.00)
+    assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
-    assert(min_order > 2.00)
+    assert min_order > 2.00

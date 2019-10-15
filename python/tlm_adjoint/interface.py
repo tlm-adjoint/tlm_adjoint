@@ -69,17 +69,17 @@ class InterfaceException(Exception):
 
 def add_interface(obj, interface_cls, attrs={}):
     interface_name = f"{interface_cls.prefix:s}"
-    assert(not hasattr(obj, interface_name))
+    assert not hasattr(obj, interface_name)
     setattr(obj, interface_name, interface_cls)
 
     for name in interface_cls.names:
         attr_name = f"{interface_cls.prefix:s}{name:s}"
-        assert(not hasattr(obj, attr_name))
+        assert not hasattr(obj, attr_name)
         setattr(obj, attr_name,
                 types.MethodType(getattr(interface_cls, name), obj))
 
     attrs_name = f"{interface_cls.prefix:s}_attrs"
-    assert(not hasattr(obj, attrs_name))
+    assert not hasattr(obj, attrs_name)
     setattr(obj, attrs_name, copy.copy(attrs))
 
 
