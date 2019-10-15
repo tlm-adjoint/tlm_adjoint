@@ -429,14 +429,14 @@ class DirichletBC(backend_DirichletBC):
 
 class HomogeneousDirichletBC(DirichletBC):
     # Based on FEniCS 2019.1.0 DirichletBC API
-    def __init__(self, V, sub_domain):
+    def __init__(self, V, sub_domain, *args, **kwargs):
         shape = V.ufl_element().value_shape()
         if len(shape) == 0:
             g = backend_Constant(0.0)
         else:
             g = backend_Constant(np.zeros(shape, dtype=np.float64))
-        DirichletBC.__init__(self, V, g, sub_domain, static=True,
-                             _homogeneous=True)
+        DirichletBC.__init__(self, V, g, sub_domain, *args, static=True,
+                             _homogeneous=True, **kwargs)
 
 
 def bcs_is_static(bcs):
