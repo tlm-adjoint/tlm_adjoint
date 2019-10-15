@@ -1479,6 +1479,8 @@ def reset_manager(cp_method=None, cp_parameters=None, manager=None):
 
 
 def reset(cp_method=None, cp_parameters=None, manager=None):
+    warnings.warn("reset is deprecated -- use reset_manager instead",
+                  DeprecationWarning, stacklevel=2)
     if manager is None:
         manager = _manager()
     manager.reset(cp_method=cp_method, cp_parameters=cp_parameters)
