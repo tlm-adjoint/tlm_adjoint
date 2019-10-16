@@ -32,6 +32,7 @@ __all__ = \
 
         "apply_rhs_bcs",
         "assemble_arguments",
+        "assemble_linear_solver",
         "assemble_matrix",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
@@ -206,6 +207,30 @@ def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
                          *args, **kwargs)
     unbind_form(b_form)
     return A, b
+
+
+def assemble_linear_solver(A_form, b_form=None, bcs=[],
+                           form_compiler_parameters={},
+                           linear_solver_parameters={}):
+    bind_form(A_form)
+    A = backend_assemble(
+        A_form, bcs=bcs,
+        **assemble_arguments(2,
+                             form_compiler_parameters,
+                             linear_solver_parameters))
+    solver = linear_solver(A, linear_solver_parameters)
+    if A.has_bcs:
+        solver._rhs
+    unbind_form(A_form)
+    if b_form is None:
+        return solver, A, None
+    else:
+        bind_form(b_form)
+        b = backend_assemble(
+            b_form, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters)
+        unbind_form(b_form)
+        return solver, A, b
 
 
 def linear_solver(A, linear_solver_parameters):

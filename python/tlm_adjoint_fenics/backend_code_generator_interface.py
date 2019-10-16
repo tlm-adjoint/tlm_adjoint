@@ -31,6 +31,7 @@ __all__ = \
 
         "apply_rhs_bcs",
         "assemble_arguments",
+        "assemble_linear_solver",
         "assemble_matrix",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
@@ -188,6 +189,22 @@ def assemble_matrix(form, bcs, **kwargs):
 #     # Similar interface to assemble_system in FEniCS 2019.1.0
 
 
+def assemble_linear_solver(A_form, b_form=None, bcs=[],
+                           form_compiler_parameters={},
+                           linear_solver_parameters={}):
+    if b_form is None:
+        A, b_bc = assemble_matrix(
+            A_form, bcs, form_compiler_parameters=form_compiler_parameters)
+        solver = linear_solver(A, linear_solver_parameters)
+        return solver, A, b_bc
+    else:
+        A, b = assemble_system(
+            A_form, b_form, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters)
+        solver = linear_solver(A, linear_solver_parameters)
+        return solver, A, b
+
+
 def linear_solver(A, linear_solver_parameters):
     linear_solver = linear_solver_parameters.get("linear_solver", "default")
     if linear_solver in ["direct", "lu"]:
@@ -280,9 +297,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         return
 
     J_mat_debug, b_debug = backend_assemble_system(
-        J, rhs, bcs, **assemble_arguments(2,
-                                          form_compiler_parameters,
-                                          linear_solver_parameters))
+        J, rhs, bcs, form_compiler_parameters=form_compiler_parameters)
 
     if not np.isposinf(J_tolerance):
         assert (J_mat - J_mat_debug).norm("linf") \

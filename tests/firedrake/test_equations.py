@@ -716,3 +716,58 @@ def test_initial_guess(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
     assert min_order > 2.00
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("cache_rhs_assembly", [True, False])
+def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
+                                        cache_rhs_assembly):
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        class CustomEquationSolver(EquationSolver):
+            def forward_solve(self, x, deps=None):
+                # Force into form binding code paths
+                EquationSolver.forward_solve(self, x, deps=self.dependencies())
+
+        x = Function(space, name="x")
+        CustomEquationSolver(
+            inner(test, m * trial) * dx == inner(test, Constant(0.0)) * dx,
+            x, DirichletBC(space, 1.0, "on_boundary"),
+            solver_parameters=ls_parameters_cg,
+            cache_jacobian=False,
+            cache_rhs_assembly=cache_rhs_assembly).solve()
+
+        J = Functional(name="J")
+        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+        return J
+
+    # m should not be static for this test
+    m = Function(space, name="m")
+    function_assign(m, 1.0)
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 1.99

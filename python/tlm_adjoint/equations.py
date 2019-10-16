@@ -527,7 +527,7 @@ class EquationSolver(Equation):
                     # Case 3: Linear, Jacobian not cached, with RHS assembly
                     # caching
 
-                    # Assemble the Jacobian
+                    # Construct the linear solver, assemble the Jacobian
                     if deps is None:
                         J = self._J
                     else:
@@ -538,10 +538,10 @@ class EquationSolver(Equation):
                                  None)
                         _, J, _ = self._forward_eq
                         bind_form(J, deps)
-                    J_mat, b_bc = assemble_matrix(
-                        J, self._bcs,
-                        **assemble_arguments(2, self._form_compiler_parameters,
-                                             self._linear_solver_parameters))
+                    J_solver, J_mat, b_bc = assemble_linear_solver(
+                        J, bcs=self._bcs,
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
                     if deps is not None:
                         unbind_form(J)
 
@@ -551,7 +551,8 @@ class EquationSolver(Equation):
                     # Case 4: Linear, Jacobian not cached, without RHS assembly
                     # caching
 
-                    # Assemble the Jacobian and RHS
+                    # Construct the linear solver, assemble the Jacobian and
+                    # RHS
                     if deps is None:
                         J, rhs = self._J, self._rhs
                     else:
@@ -563,16 +564,13 @@ class EquationSolver(Equation):
                         _, J, rhs = self._forward_eq
                         bind_form(J, deps)
                         bind_form(rhs, deps)
-                    J_mat, b = assemble_system(
-                        J, rhs, bcs=self._bcs,
-                        **assemble_arguments(2, self._form_compiler_parameters,
-                                             self._linear_solver_parameters))
+                    J_solver, J_mat, b = assemble_linear_solver(
+                        J, b_form=rhs, bcs=self._bcs,
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
                     if deps is not None:
                         unbind_form(J)
                         unbind_form(rhs)
-
-                # Construct the linear solver
-                J_solver = linear_solver(J_mat, self._linear_solver_parameters)
 
             J_tolerance = parameters["tlm_adjoint"]["assembly_verification"]["jacobian_tolerance"]  # noqa: E501
             b_tolerance = parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"]  # noqa: E501
@@ -704,13 +702,11 @@ class EquationSolver(Equation):
                 self._adjoint_J = unbound_form(
                     adjoint(self._J), self.nonlinear_dependencies())
             bind_form(self._adjoint_J, nl_deps)
-            J_mat, _ = assemble_matrix(
-                self._adjoint_J, self._hbcs,
-                **assemble_arguments(2, self._form_compiler_parameters,
-                                     self._adjoint_solver_parameters))
+            J_solver, J_mat, _ = assemble_linear_solver(
+                self._adjoint_J, bcs=self._hbcs,
+                form_compiler_parameters=self._form_compiler_parameters,
+                linear_solver_parameters=self._adjoint_solver_parameters)
             unbind_form(self._adjoint_J)
-
-            J_solver = linear_solver(J_mat, self._adjoint_solver_parameters)
 
             apply_rhs_bcs(function_vector(b), self._hbcs)
             adj_x = function_new(b)
