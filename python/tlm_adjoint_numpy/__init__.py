@@ -25,13 +25,15 @@ modules = [("backend", "tlm_adjoint_numpy"),
            ("interface", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_numpy"),
            ("base_equations", "tlm_adjoint"),
+           ("numpy_equations", "tlm_adjoint_numpy"),
            ("binomial_checkpointing", "tlm_adjoint"),
            ("functional", "tlm_adjoint"),
            ("hessian", "tlm_adjoint"),
            ("hessian_optimization", "tlm_adjoint"),
            ("manager", "tlm_adjoint"),
-           ("numpy_equations", "tlm_adjoint_numpy"),
-           ("tlm_adjoint", "tlm_adjoint")]
+           ("optimization", "tlm_adjoint"),
+           ("tlm_adjoint", "tlm_adjoint"),
+           ("verification", "tlm_adjoint")]
 
 tlm_adjoint_module = "tlm_adjoint" in sys.modules
 
@@ -61,4 +63,6 @@ from .functional import *         # noqa: F401
 from .hessian import *            # noqa: F401
 from .manager import *            # noqa: F401
 from .numpy_equations import *    # noqa: F401
+from .optimization import *       # noqa: F401
 from .tlm_adjoint import *        # noqa: F401
+from .verification import *       # noqa: F401

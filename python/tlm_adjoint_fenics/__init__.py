@@ -24,13 +24,13 @@ import sys
 modules = [("backend", "tlm_adjoint_fenics"),
            ("interface", "tlm_adjoint"),
            ("backend_code_generator_interface", "tlm_adjoint_fenics"),
-           ("functions", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
+           ("functions", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_fenics"),
            ("base_equations", "tlm_adjoint"),
            ("equations", "tlm_adjoint"),
-           ("tlm_adjoint", "tlm_adjoint"),
            ("fenics_equations", "tlm_adjoint_fenics"),
+           ("tlm_adjoint", "tlm_adjoint"),
            ("backend_overrides", "tlm_adjoint_fenics"),
            ("binomial_checkpointing", "tlm_adjoint"),
            ("eigendecomposition", "tlm_adjoint"),
@@ -38,7 +38,9 @@ modules = [("backend", "tlm_adjoint_fenics"),
            ("hessian", "tlm_adjoint"),
            ("hessian_optimization", "tlm_adjoint"),
            ("manager", "tlm_adjoint"),
-           ("timestepping", "tlm_adjoint")]
+           ("optimization", "tlm_adjoint"),
+           ("timestepping", "tlm_adjoint"),
+           ("verification", "tlm_adjoint")]
 
 tlm_adjoint_module = "tlm_adjoint" in sys.modules
 
@@ -73,4 +75,6 @@ from .functions import *           # noqa: F401
 from .functional import *          # noqa: F401
 from .hessian import *             # noqa: F401
 from .manager import *             # noqa: F401
+from .optimization import *        # noqa: F401
 from .tlm_adjoint import *         # noqa: F401
+from .verification import *        # noqa: F401
