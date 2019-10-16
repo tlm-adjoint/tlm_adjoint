@@ -160,6 +160,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
     tlm_manager = manager.new("memory", {})
     tlm_manager.stop()
 
+    M = [m.m() if not is_function(m) else m for m in M]
     M1 = [function_new(m, static=function_is_static(m),
                        cache=function_is_cached(m),
                        checkpoint=function_is_checkpointed(m))
@@ -235,6 +236,8 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
         manager = _manager()
     tlm_manager = manager.new()
     tlm_manager.stop()
+
+    M = [m.m() if not is_function(m) else m for m in M]
 
     if dMs is None:
         dM_test = None
