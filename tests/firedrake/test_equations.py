@@ -154,10 +154,11 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
 
         DirichletBCSolver(bc, x_1, "on_boundary").solve()
 
-        solve(inner(grad(test), grad(trial)) * dx
-              == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
-              x_0, HomogeneousDirichletBC(space, "on_boundary"),
-              solver_parameters=ls_parameters_cg)
+        EquationSolver(
+            inner(grad(test), grad(trial)) * dx
+            == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
+            x_0, HomogeneousDirichletBC(space, "on_boundary"),
+            solver_parameters=ls_parameters_cg).solve()
 
         AxpySolver(x_0, 1.0, x_1, x).solve()
 
