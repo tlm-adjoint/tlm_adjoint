@@ -75,6 +75,6 @@ from .functions import *            # noqa: F401
 from .functional import *           # noqa: F401
 from .hessian import *              # noqa: F401
 from .manager import *              # noqa: F401
-from .optimization import *        # noqa: F401
+from .optimization import *         # noqa: F401
 from .tlm_adjoint import *          # noqa: F401
 from .verification import *         # noqa: F401
