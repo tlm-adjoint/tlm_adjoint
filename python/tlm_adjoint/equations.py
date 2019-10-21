@@ -229,7 +229,9 @@ class EquationSolver(Equation):
                  cache_tlm_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
         if isinstance(bcs, backend_DirichletBC):
-            bcs = [bcs]
+            bcs = (bcs,)
+        else:
+            bcs = tuple(bcs)
         if cache_jacobian is None:
             if not parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"]:  # noqa: E501
                 cache_jacobian = False
@@ -287,7 +289,7 @@ class EquationSolver(Equation):
         deps.insert(0, x)
         nl_deps = tuple(nl_deps.values())
 
-        hbcs = [homogenized_bc(bc) for bc in bcs]
+        hbcs = tuple(homogenized_bc(bc) for bc in bcs)
 
         if cache_jacobian is None:
             cache_jacobian = is_cached(J) and bcs_is_cached(bcs)
@@ -335,7 +337,7 @@ class EquationSolver(Equation):
         Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._F = F
         self._lhs, self._rhs = lhs, rhs
-        self._bcs = list(bcs)
+        self._bcs = bcs
         self._hbcs = hbcs
         self._J = J
         self._nl_solve_J = nl_solve_J
