@@ -73,6 +73,13 @@ def extract_dependencies(expr):
     return deps, nl_deps
 
 
+def apply_rhs_bcs(b, hbcs, b_bc=None):
+    for bc in hbcs:
+        bc.apply(b)
+    if b_bc is not None:
+        rhs_addto(b, b_bc)
+
+
 class AssembleSolver(Equation):
     def __init__(self, rhs, x, form_compiler_parameters={},
                  match_quadrature=None):

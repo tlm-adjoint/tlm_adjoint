@@ -30,7 +30,6 @@ __all__ = \
     [
         "InterfaceException",
 
-        "apply_rhs_bcs",
         "assemble_arguments",
         "assemble_linear_solver",
         "assemble_matrix",
@@ -160,86 +159,132 @@ _form_binding_names = ("dat",
                        "split")
 
 
-def bind_form(form):
-    if "_tlm_adjoint__bindings" in form._cache:
-        for dep, binding in form._cache["_tlm_adjoint__bindings"].items():
-            for name in _form_binding_names:
-                assert not hasattr(dep, name)
-                setattr(dep, name, getattr(binding, name))
+def form_bindings(*forms):
+    if len(forms) == 1:
+        if "_tlm_adjoint__bindings" in forms[0]._cache:
+            for dep, binding in forms[0]._cache["_tlm_adjoint__bindings"].items():  # noqa: E501
+                yield dep, binding
+    else:
+        seen = set()
+        for form in forms:
+            if "_tlm_adjoint__bindings" in form._cache:
+                for dep, binding in form._cache["_tlm_adjoint__bindings"].items():  # noqa: E501
+                    if dep not in seen:
+                        seen.add(dep)
+                        yield dep, binding
 
 
-def unbind_form(form):
-    if "_tlm_adjoint__bindings" in form._cache:
-        for dep in form._cache["_tlm_adjoint__bindings"]:
-            for name in _form_binding_names:
-                delattr(dep, name)
+def bind_forms(*forms):
+    for dep, binding in form_bindings(*forms):
+        for name in _form_binding_names:
+            assert not hasattr(dep, name)
+            setattr(dep, name, getattr(binding, name))
 
 
-def assemble_matrix(form, bcs=[], form_compiler_parameters={}, **kwargs):
+def unbind_forms(*forms):
+    for dep, binding in form_bindings(*forms):
+        for name in _form_binding_names:
+            delattr(dep, name)
+
+
+def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
+                     *args, **kwargs):
     if isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
-    bind_form(form)
+    if b_form is None:
+        bind_forms(A_form)
+    else:
+        bind_forms(A_form, b_form)
 
     A = backend_assemble(
-        form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
-        **kwargs)
+        A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
+        *args, **kwargs)
 
-    unbind_form(form)
-    return A, None
+    if len(bcs) > 0:
+        F = backend_Function(A_form.arguments()[0].function_space())
+        for bc in bcs:
+            bc.apply(F)
+
+        if b_form is None:
+            b = backend_assemble(
+                -ufl.action(A_form, F), bcs=bcs,
+                form_compiler_parameters=form_compiler_parameters,
+                *args, **kwargs)
+
+            with b.dat.vec_ro as b_v:
+                if b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) == 0.0:
+                    b = None
+        else:
+            b = backend_assemble(
+                b_form - ufl.action(A_form, F), bcs=bcs,
+                form_compiler_parameters=form_compiler_parameters,
+                *args, **kwargs)
+    else:
+        if b_form is None:
+            b = None
+        else:
+            b = backend_assemble(
+                b_form,
+                form_compiler_parameters=form_compiler_parameters,
+                *args, **kwargs)
+
+    A._tlm_adjoint__lift_bcs = False
+
+    if b_form is None:
+        unbind_forms(A_form)
+    else:
+        unbind_forms(A_form, b_form)
+    return A, b
+
+
+_orig_LinearSolver_lifted = backend_LinearSolver._lifted
+
+
+def _LinearSolver_lifted(self, b):
+    if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
+        return _orig_LinearSolver_lifted(self, b)
+    else:
+        return b
+
+
+backend_LinearSolver._lifted = _LinearSolver_lifted
+
+
+def assemble_matrix(form, bcs=[], form_compiler_parameters={},
+                    *args, **kwargs):
+    return _assemble_system(form, bcs=bcs,
+                            form_compiler_parameters=form_compiler_parameters,
+                            *args, **kwargs)
 
 
 def assemble(form, tensor=None, form_compiler_parameters={}, *args,
              **kwargs):
     # Similar interface to assemble in FEniCS 2019.1.0
-    bind_form(form)
+    bind_forms(form)
     tensor = backend_assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
-    unbind_form(form)
+    unbind_forms(form)
     return tensor
 
 
 def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
                     *args, **kwargs):
     # Similar interface to assemble_system in FEniCS 2019.1.0
-    bind_form(A_form)
-    A = backend_assemble(A_form, bcs=bcs,
-                         form_compiler_parameters=form_compiler_parameters,
-                         *args, **kwargs)
-    unbind_form(A_form)
-    bind_form(b_form)
-    b = backend_assemble(b_form,
-                         form_compiler_parameters=form_compiler_parameters,
-                         *args, **kwargs)
-    unbind_form(b_form)
-    return A, b
+    return _assemble_system(
+        A_form, b_form=b_form, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters, *args, **kwargs)
 
 
 def assemble_linear_solver(A_form, b_form=None, bcs=[],
                            form_compiler_parameters={},
                            linear_solver_parameters={}):
-    if isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-
-    bind_form(A_form)
-    A = backend_assemble(
-        A_form, bcs=bcs,
-        **assemble_arguments(2,
-                             form_compiler_parameters,
+    A, b = _assemble_system(
+        A_form, b_form=b_form, bcs=bcs,
+        **assemble_arguments(2, form_compiler_parameters,
                              linear_solver_parameters))
-    solver = linear_solver(A, linear_solver_parameters)
-    if A.has_bcs:
-        solver._rhs
-    unbind_form(A_form)
 
-    if b_form is None:
-        b = None
-    else:
-        bind_form(b_form)
-        b = backend_assemble(
-            b_form, bcs=bcs,
-            form_compiler_parameters=form_compiler_parameters)
-        unbind_form(b_form)
+    solver = linear_solver(A, linear_solver_parameters)
 
     return solver, A, b
 
@@ -271,11 +316,6 @@ def form_form_compiler_parameters(form, form_compiler_parameters):
 
 
 # def homogenize(bc):
-
-
-def apply_rhs_bcs(b, hbcs, b_bc=None):
-    if b_bc is not None:
-        raise InterfaceException("Unexpected RHS terms")
 
 
 def matrix_multiply(A, x, tensor=None, addto=False):

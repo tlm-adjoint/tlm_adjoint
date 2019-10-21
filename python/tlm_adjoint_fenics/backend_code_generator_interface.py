@@ -29,7 +29,6 @@ __all__ = \
     [
         "InterfaceException",
 
-        "apply_rhs_bcs",
         "assemble_arguments",
         "assemble_linear_solver",
         "assemble_matrix",
@@ -161,7 +160,8 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs=[], form_compiler_parameters={}, **kwargs):
+def assemble_matrix(form, bcs=[], form_compiler_parameters={},
+                    *args, **kwargs):
     if isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
 
@@ -175,12 +175,13 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={}, **kwargs):
         dummy_rhs = ufl.inner(test, zero) * ufl.dx
         A, b_bc = assemble_system(
             form, dummy_rhs, bcs,
-            form_compiler_parameters=form_compiler_parameters, **kwargs)
+            form_compiler_parameters=form_compiler_parameters, *args, **kwargs)
         if b_bc.norm("linf") == 0.0:
             b_bc = None
     else:
         A = assemble(
-            form, form_compiler_parameters=form_compiler_parameters, **kwargs)
+            form, form_compiler_parameters=form_compiler_parameters,
+            *args, **kwargs)
         b_bc = None
 
     return A, b_bc
@@ -249,13 +250,6 @@ def homogenize(bc):
     hbc = backend_DirichletBC(bc)
     hbc.homogenize()
     return hbc
-
-
-def apply_rhs_bcs(b, hbcs, b_bc=None):
-    for bc in hbcs:
-        bc.apply(b)
-    if b_bc is not None:
-        b.axpy(1.0, b_bc)
 
 
 def matrix_multiply(A, x, tensor=None, addto=False):

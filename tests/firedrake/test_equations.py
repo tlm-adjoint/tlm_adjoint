@@ -768,7 +768,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
     assert min_order > 1.99
