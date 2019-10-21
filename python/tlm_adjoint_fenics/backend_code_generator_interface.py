@@ -161,7 +161,10 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs, **kwargs):
+def assemble_matrix(form, bcs=[], form_compiler_parameters={}, **kwargs):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+
     if len(bcs) > 0:
         test = TestFunction(form.arguments()[0].function_space())
         test_shape = test.ufl_element().value_shape()
@@ -170,12 +173,16 @@ def assemble_matrix(form, bcs, **kwargs):
         else:
             zero = backend_Constant(np.zeros(test_shape, dtype=np.float64))
         dummy_rhs = ufl.inner(test, zero) * ufl.dx
-        A, b_bc = assemble_system(form, dummy_rhs, bcs, **kwargs)
+        A, b_bc = assemble_system(
+            form, dummy_rhs, bcs,
+            form_compiler_parameters=form_compiler_parameters, **kwargs)
         if b_bc.norm("linf") == 0.0:
             b_bc = None
     else:
-        A = assemble(form, **kwargs)
+        A = assemble(
+            form, form_compiler_parameters=form_compiler_parameters, **kwargs)
         b_bc = None
+
     return A, b_bc
 
 
@@ -192,17 +199,20 @@ def assemble_matrix(form, bcs, **kwargs):
 def assemble_linear_solver(A_form, b_form=None, bcs=[],
                            form_compiler_parameters={},
                            linear_solver_parameters={}):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+
     if b_form is None:
-        A, b_bc = assemble_matrix(
+        A, b = assemble_matrix(
             A_form, bcs, form_compiler_parameters=form_compiler_parameters)
         solver = linear_solver(A, linear_solver_parameters)
-        return solver, A, b_bc
     else:
         A, b = assemble_system(
             A_form, b_form, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters)
         solver = linear_solver(A, linear_solver_parameters)
-        return solver, A, b
+
+    return solver, A, b
 
 
 def linear_solver(A, linear_solver_parameters):

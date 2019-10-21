@@ -175,9 +175,15 @@ def unbind_form(form):
                 delattr(dep, name)
 
 
-def assemble_matrix(form, bcs, **kwargs):
+def assemble_matrix(form, bcs=[], form_compiler_parameters={}, **kwargs):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
     bind_form(form)
-    A = backend_assemble(form, bcs=bcs, **kwargs)
+
+    A = backend_assemble(
+        form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
+        **kwargs)
+
     unbind_form(form)
     return A, None
 
@@ -212,6 +218,9 @@ def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
 def assemble_linear_solver(A_form, b_form=None, bcs=[],
                            form_compiler_parameters={},
                            linear_solver_parameters={}):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+
     bind_form(A_form)
     A = backend_assemble(
         A_form, bcs=bcs,
@@ -222,15 +231,17 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
     if A.has_bcs:
         solver._rhs
     unbind_form(A_form)
+
     if b_form is None:
-        return solver, A, None
+        b = None
     else:
         bind_form(b_form)
         b = backend_assemble(
             b_form, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters)
         unbind_form(b_form)
-        return solver, A, b
+
+    return solver, A, b
 
 
 def linear_solver(A, linear_solver_parameters):
