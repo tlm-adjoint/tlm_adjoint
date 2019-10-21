@@ -378,8 +378,12 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
             <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
     if not np.isposinf(b_tolerance):
+        F = backend_Function(rhs.arguments()[0].function_space())
+        for bc in bcs:
+            bc.apply(F)
         b_debug = backend_assemble(
-            rhs, form_compiler_parameters=form_compiler_parameters)
+            rhs - ufl.action(J, F), bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters)
         b_error = b.copy(deepcopy=True)
         with b_error.dat.vec as b_error_v, b_debug.dat.vec_ro as b_debug_v:
             b_error_v.axpy(-1.0, b_debug_v)
