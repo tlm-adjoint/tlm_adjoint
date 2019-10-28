@@ -420,6 +420,8 @@ def solve(*args, **kwargs):
 
     eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
         = extract_args(*args, **kwargs)
+    # FEniCS backwards compatibility
+    bcs = list(bcs)
     if tol is not None or M is not None:
         return backend_solve(*args, **kwargs)
 
