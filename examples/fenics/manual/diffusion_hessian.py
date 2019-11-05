@@ -93,13 +93,15 @@ zeta.interpolate(Expression("sin(pi * x[0]) * sin(pi * x[1])",
 add_tlm(psi_0, zeta)
 
 start_manager()
-J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+# J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+J = forward(psi_0)
 stop_manager()
 
 ddJ = compute_gradient(J.tlm(psi_0, zeta), psi_0)
 
+import mpi4py.MPI as MPI  # noqa: E402
 import numpy as np  # noqa: E402
-np.random.seed(174632238)
+np.random.seed(174632238 + MPI.COMM_WORLD.rank)
 
 min_order = taylor_test_tlm(forward, psi_0, tlm_order=1, dMs=(zeta,),
                             seed=1.0e-5)

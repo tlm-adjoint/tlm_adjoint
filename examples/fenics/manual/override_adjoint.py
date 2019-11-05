@@ -22,8 +22,9 @@ info(f"G L^2 norm = {sqrt(J.value()):.16e}")
 
 dJ = compute_gradient(J, F)
 
+import mpi4py.MPI as MPI  # noqa: E402
 import numpy as np  # noqa: E402
-np.random.seed(174632238)
+np.random.seed(174632238 + MPI.COMM_WORLD.rank)
 
 
 def forward(F):

@@ -60,3 +60,42 @@ def test_poisson(setup_test, test_leaks):
 def test_transport(setup_test):
     configure_checkpointing("memory", {"replace": False})
     run_example(os.path.join("transport", "transport.py"))
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+def test_manual_diffusion_forward(setup_test):
+    run_example(os.path.join("manual", "diffusion_forward.py"),
+                clear_forward_globals=False)
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+def test_manual_diffusion_adjoint(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_adjoint.py"))
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+def test_manual_diffusion_hessian(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_hessian.py"))
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+def test_manual_override_forward(setup_test):
+    run_example(os.path.join("manual", "override_forward.py"),
+                clear_forward_globals=False)
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+def test_manual_override_adjoint(setup_test, test_leaks):
+    start_manager()
+    run_example(os.path.join("manual", "override_adjoint.py"))
+
+
+@pytest.mark.fenics
+@pytest.mark.example
+def test_manual_diffusion_adjoint_timestepping(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_adjoint_timestepping.py"))

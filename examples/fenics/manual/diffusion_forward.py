@@ -27,11 +27,11 @@ solver = LinearVariationalSolver(
                              psi_np1, bc))
 solver.parameters.update({"linear_solver": "direct"})
 
-psi_n_file = File("psi.pvd", "compressed")
-psi_n_file << (psi_n, 0.0)
+# psi_n_file = File("psi.pvd", "compressed")
+# psi_n_file << (psi_n, 0.0)
 
 for n in range(N):
     solver.solve()
     psi_n.assign(psi_np1)
 
-    psi_n_file << (psi_n, (n + 1) * float(dt))
+    # psi_n_file << (psi_n, (n + 1) * float(dt))

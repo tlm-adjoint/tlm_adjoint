@@ -88,13 +88,15 @@ def forward(psi_0, psi_n_file=None):
 
 
 start_manager()
-J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+# J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+J = forward(psi_0)
 stop_manager()
 
 dJ = compute_gradient(J, psi_0)
 
+import mpi4py.MPI as MPI  # noqa: E402
 import numpy as np  # noqa: E402
-np.random.seed(174632238)
+np.random.seed(174632238 + MPI.COMM_WORLD.rank)
 
 min_order = taylor_test(forward, psi_0, J_val=J.value(), dJ=dJ, seed=1.0e-5)
 assert min_order > 1.99
