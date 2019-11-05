@@ -1637,9 +1637,10 @@ class SumRHS(RHS):
 
 
 class Storage(Equation):
-    def __init__(self, x, key):
+    def __init__(self, x, key, save=False):
         Equation.__init__(self, x, [x], nl_deps=[], ic_deps=[])
         self._key = key
+        self._save = save
 
     def key(self):
         return self._key
@@ -1654,7 +1655,7 @@ class Storage(Equation):
         raise EquationException("Method not overridden")
 
     def forward_solve(self, x, deps=None):
-        if self.is_saved():
+        if not self._save or self.is_saved():
             self.load(x)
         else:
             self.save(x)
@@ -1673,8 +1674,8 @@ class Storage(Equation):
 
 
 class MemoryStorage(Storage):
-    def __init__(self, x, d, key):
-        Storage.__init__(self, x, key)
+    def __init__(self, x, d, key, save=False):
+        Storage.__init__(self, x, key, save=save)
         self._d = d
 
     def is_saved(self):
@@ -1688,8 +1689,8 @@ class MemoryStorage(Storage):
 
 
 class HDF5Storage(Storage):
-    def __init__(self, x, h, key):
-        Storage.__init__(self, x, key)
+    def __init__(self, x, h, key, save=False):
+        Storage.__init__(self, x, key, save=save)
         self._h = h
 
     def is_saved(self):

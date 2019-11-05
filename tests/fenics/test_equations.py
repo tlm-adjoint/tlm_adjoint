@@ -589,7 +589,7 @@ def test_Storage(setup_test, test_leaks):
         if d is None:
             function_assign(x_s, x)
             d = {}
-        MemoryStorage(x_s, d, function_name(x_s)).solve()
+        MemoryStorage(x_s, d, function_name(x_s), save=True).solve()
 
         ExprEvaluationSolver(x * x * x * x_s, y).solve()
 
@@ -602,7 +602,7 @@ def test_Storage(setup_test, test_leaks):
             else:
                 h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
                               "w")
-        HDF5Storage(y_s, h, function_name(y_s)).solve()
+        HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 
         J = Functional(name="J")
         InnerProductSolver(y, y_s, J.fn()).solve()
