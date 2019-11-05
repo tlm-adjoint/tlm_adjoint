@@ -1,0 +1,2705 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=2cm,left=1cm,right=1cm]{geometry}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage[colorlinks,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{natbib}
+
+\pretolerance=10000
+
+\definecolor{grey}{rgb}{0.7,0.7,0.7}
+\usepackage{listings}
+\lstset{
+  aboveskip=5.5pt,
+  basicstyle=\ttfamily\footnotesize,
+  belowskip=0cm,
+  firstnumber=1,
+  keywordstyle=\color{blue},
+  language=Python,
+  numbers=left,
+  numberstyle=\color{grey},
+  showstringspaces=false,
+  stepnumber=5,
+  stringstyle=\color{red},
+  xleftmargin=1.5cm
+}
+
+\usepackage[compact]{titlesec}
+\setlength{\parindent}{0cm}
+\setlength{\parskip}{5.5pt}
+
+\title{\texttt{tlm\_adjoint} manual}
+\author{Dr. James R. Maddison \\
+  School of Mathematics and Maxwell Institute for Mathematical Sciences \\
+  The University of Edinburgh}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\section{Introduction}
+
+\texttt{tlm\_adjoint} \citep{maddison2019} is a Python library for high-level
+algorithmic differentiation, principally for models written using FEniCS
+\citep{logg2012,alnaes2015} or Firedrake \citep{rathgeber2016}.
+\texttt{tlm\_adjoint} follows the high-level algorithmic differentiation
+methodology described in \citet{farrell2013}, and generalizes these for higher
+order tangent-linear and adjoint calculations. \texttt{tlm\_adjoint} further
+allows for automated assembly and solver caching \citep[see][]{maddison2014},
+and allows for the introduction of custom equations.
+
+\section{Installation}
+
+For installation information see the \texttt{README} file in the
+\texttt{tlm\_adjoint} top level directory.
+
+\section{A simple example}\label{sect:diffusion}
+
+Consider the diffusion equation, discretized with a continuous Galerkin finite
+element discretization in space and with a backward Euler discretization in
+time, subject to homogeneous Dirichlet boundary conditions,
+\begin{equation*}
+  \int_\Omega \zeta \frac{\psi^{n + 1} - \psi^n}{\Delta t}
+    = -\int_\Omega \nabla \zeta \cdot \kappa \nabla \psi^{n + 1}
+    \quad \forall \zeta \in V \quad \forall n = 0, 1, 2, \ldots,
+\end{equation*}
+where the discrete solution at time $t = n \Delta t$ is $\psi^n \in V$, $V$ is
+some appropriate subpace of $H^1_0 \left( \Omega; \mathbb{R} \right)$, and
+where $\Omega$ is some appropriate subset of $\mathbb{R}^d$ in $d$-dimensions.
+Here $\kappa$ is a positive real constant, and $\psi^0 \in V$ is a discrete
+initial condition.
+
+\subsection{Forward}
+
+A basic implementation in FEniCS (compatible with FEniCS 2019.1.0) takes the
+form
+\begin{lstlisting}
+from fenics import *
+
+mesh = UnitSquareMesh(100, 100)
+space = FunctionSpace(mesh, "Lagrange", 1)
+test, trial = TestFunction(space), TrialFunction(space)
+
+psi_n = Function(space, name="psi_n")
+psi_n.interpolate(Expression(
+    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
+    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
+    element=space.ufl_element()))
+
+psi_np1 = Function(space, name="psi_np1")
+
+kappa = Constant(0.001)
+dt = Constant(0.2)
+bc = DirichletBC(space, 0.0, "on_boundary")
+N = 100
+
+solver = LinearVariationalSolver(
+    LinearVariationalProblem(inner(test, trial / dt) * dx
+                             + inner(grad(test), kappa * grad(trial)) * dx,
+                             inner(test, psi_n / dt) * dx,
+                             psi_np1, bc))
+solver.parameters.update({"linear_solver": "direct"})
+
+psi_n_file = File("psi.pvd", "compressed")
+psi_n_file << (psi_n, 0.0)
+
+for n in range(N):
+    solver.solve()
+    psi_n.assign(psi_np1)
+
+    psi_n_file << (psi_n, (n + 1) * float(dt))
+\end{lstlisting}
+
+\subsection{First order adjoint}
+
+Define the functional
+\begin{equation*}
+  J \left( \psi^N \right) = \int_\Omega \psi^N \psi^N.
+\end{equation*}
+A forward model constrained derivative of $J$ with respect to the discrete
+initial condition $\psi^0$ can computed via
+\begin{lstlisting}
+from fenics import *
+from tlm_adjoint_fenics import *
+stop_manager()
+
+N = 100
+configure_checkpointing("multistage", {"blocks": N, "snaps_in_ram": 5})
+
+mesh = UnitSquareMesh(100, 100)
+space = FunctionSpace(mesh, "Lagrange", 1)
+test, trial = TestFunction(space), TrialFunction(space)
+
+psi_0 = Function(space, name="psi_0", static=True)
+psi_0.interpolate(Expression(
+    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
+    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
+    element=space.ufl_element()))
+
+kappa = Constant(0.001, static=True)
+dt = Constant(0.2, static=True)
+bc = HomogeneousDirichletBC(space, "on_boundary")
+
+
+def forward(psi_0, psi_n_file=None):
+    clear_caches()
+
+    psi_n = Function(space, name="psi_n")
+    psi_np1 = Function(space, name="psi_np1")
+
+    class InteriorAssignmentSolver(Equation):
+        def __init__(self, y, x):
+            Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
+            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+
+        def forward_solve(self, x, deps=None):
+            _, y = self.dependencies() if deps is None else deps
+            function_assign(x, y)
+            self._bc.apply(x.vector())
+
+        def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+            if dep_index == 0:
+                return b
+            elif dep_index == 1:
+                b = function_copy(adj_x)
+                self._bc.apply(b.vector())
+                return (-1.0, b)
+            else:
+                return None
+
+        def adjoint_jacobian_solve(self, nl_deps, b):
+            return b
+
+        def tangent_linear(self, M, dM, tlm_map):
+            x, y = self.dependencies()
+            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+            if tlm_y is None:
+                return NullSolver(tlm_map[x])
+            else:
+                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+
+    InteriorAssignmentSolver(psi_0, psi_n).solve()
+
+    eq = EquationSolver(
+        inner(test, trial / dt) * dx
+        + inner(grad(test), kappa * grad(trial)) * dx
+        == inner(test, psi_n / dt) * dx,
+        psi_np1, bc,
+        solver_parameters={"linear_solver": "direct"})
+    cycle = AssignmentSolver(psi_np1, psi_n)
+
+    if psi_n_file is not None:
+        psi_n_file << (psi_n, 0.0)
+
+    for n in range(N):
+        eq.solve()
+        cycle.solve()
+
+        if psi_n_file is not None:
+            psi_n_file << (psi_n, (n + 1) * float(dt))
+        if n < N - 1:
+            new_block()
+
+    J = Functional(name="J")
+    J.assign(inner(psi_n, psi_n) * dx)
+    return J
+
+
+start_manager()
+J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+stop_manager()
+
+dJ = compute_gradient(J, psi_0)
+\end{lstlisting}
+
+The key changes which appear here are
+\begin{itemize}
+  \item \texttt{import tlm\_adjoint\_fenics}, to use the \texttt{tlm\_adjoint}
+    library. For further details see section \ref{sect:backends}.
+  \item \texttt{start\_manager} and \texttt{stop\_manager}, which enable and
+    disable the underlying \texttt{EquationManager}. For further details see
+    section \ref{sect:EquationManager_state}.
+  \item The instantiation of \texttt{AssignmentSolver} and
+    \texttt{EquationSolver} objects. For further details see section
+    \ref{sect:Equation}.
+  \item The use of a subclass of \texttt{Equation} to define a custom equation.
+    For further details see section \ref{sect:custom}.
+  \item The \texttt{static} keyword when initialising certain \texttt{Constant}
+    and \texttt{Function} objects, and the instantiation of a
+    \texttt{HomogeneousDirichletBC} object. For further details see sections
+    \ref{sect:EquationSolver_caching} and \ref{sect:flags}.
+  \item The use of the \texttt{clear\_caches} function. For further details see
+    section \ref{sect:clear_caches}.
+  \item The definition of the functional. For further details see section
+    \ref{sect:Functional}.
+  \item The use of a \texttt{forward} function mapping from the control (here
+    $\psi^0$) to the functional. This facilitates verification (section
+    \ref{sect:verification}), the evaluation of forward model constrained
+    Hessian actions (section \ref{sect:Hessian}), and the solution of
+    optimization problems (section \ref{sect:minimization}).
+  \item The use of the \texttt{configure\_checkpointing} and
+    \texttt{new\_block} functions to control checkpointing. For further details
+    see section \ref{sect:checkpointing}. Here the binomial checkpointing
+    method of \citet{griewank2000} is used, with $5$ checkpoints stored in
+    memory. 
+  \item The calculation of the forward model constrained derivative using the
+    \texttt{compute\_gradient} function. For further details see section
+    \ref{sect:first_order_adjoint}.
+\end{itemize}
+
+\subsection{Second order adjoint}
+
+The action of the forward model constrained Hessian in a direction $\zeta \in
+V$, where the Hessian is defined by the forward model constrained (second)
+derivative of the functional $J$ with respect to the initial condition
+$\psi^0$, in a direction $\zeta \in V$, can be computed via
+\begin{lstlisting}
+from fenics import *
+from tlm_adjoint_fenics import *
+stop_manager()
+
+N = 100
+configure_checkpointing("multistage", {"blocks": N, "snaps_in_ram": 5})
+
+mesh = UnitSquareMesh(100, 100)
+space = FunctionSpace(mesh, "Lagrange", 1)
+test, trial = TestFunction(space), TrialFunction(space)
+
+psi_0 = Function(space, name="psi_0", static=True)
+psi_0.interpolate(Expression(
+    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
+    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
+    element=space.ufl_element()))
+
+kappa = Constant(0.001, static=True)
+dt = Constant(0.2, static=True)
+bc = HomogeneousDirichletBC(space, "on_boundary")
+
+
+def forward(psi_0, psi_n_file=None):
+    clear_caches()
+
+    psi_n = Function(space, name="psi_n")
+    psi_np1 = Function(space, name="psi_np1")
+
+    class InteriorAssignmentSolver(Equation):
+        def __init__(self, y, x):
+            Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
+            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+
+        def forward_solve(self, x, deps=None):
+            _, y = self.dependencies() if deps is None else deps
+            function_assign(x, y)
+            self._bc.apply(x.vector())
+
+        def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+            if dep_index == 0:
+                return b
+            elif dep_index == 1:
+                b = function_copy(adj_x)
+                self._bc.apply(b.vector())
+                return (-1.0, b)
+            else:
+                return None
+
+        def adjoint_jacobian_solve(self, nl_deps, b):
+            return b
+
+        def tangent_linear(self, M, dM, tlm_map):
+            x, y = self.dependencies()
+            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+            if tlm_y is None:
+                return NullSolver(tlm_map[x])
+            else:
+                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+
+    InteriorAssignmentSolver(psi_0, psi_n).solve()
+
+    eq = EquationSolver(
+        inner(test, trial / dt) * dx
+        + inner(grad(test), kappa * grad(trial)) * dx
+        == inner(test, psi_n / dt) * dx,
+        psi_np1, bc,
+        solver_parameters={"linear_solver": "direct"})
+    cycle = AssignmentSolver(psi_np1, psi_n)
+
+    if psi_n_file is not None:
+        psi_n_file << (psi_n, 0.0)
+
+    for n in range(N):
+        eq.solve()
+        cycle.solve()
+
+        if psi_n_file is not None:
+            psi_n_file << (psi_n, (n + 1) * float(dt))
+        if n < N - 1:
+            new_block()
+
+    J = Functional(name="J")
+    J.assign(inner(psi_n, psi_n) * dx)
+    return J
+
+
+zeta = Function(space, name="zeta", static=True)
+zeta.interpolate(Expression("sin(pi * x[0]) * sin(pi * x[1])",
+                            element=space.ufl_element()))
+add_tlm(psi_0, zeta)
+
+start_manager()
+J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+stop_manager()
+
+ddJ = compute_gradient(J.tlm(psi_0, zeta), psi_0)
+\end{lstlisting}
+
+The key changes which appear here are
+\begin{itemize}
+  \item The use of the \texttt{add\_tlm} function, to enable the derivation and
+    solution of tangent-linear equations. 
+  \item The use of the \texttt{tlm} method of the \texttt{Functional} object
+    when performing the derivative calculation.
+\end{itemize}
+For further details see section \ref{sect:higher_order}.
+
+\section{Backends}\label{sect:backends}
+
+The FEniCS backend may be used via, e.g.
+\begin{lstlisting}
+from fenics import *
+from tlm_adjoint_fenics import *
+\end{lstlisting}
+
+The Firedrake backend may be used via, e.g.
+\begin{lstlisting}
+from firedrake import *
+from tlm_adjoint_firedrake import *
+\end{lstlisting}
+
+The NumPy backend may be used via, e.g.
+\begin{lstlisting}
+import numpy as np
+from tlm_adjoint_numpy import *
+\end{lstlisting}
+
+\section{Automatic processing}\label{sect:overrides}
+
+\texttt{tlm\_adjoint} has the ability to compute derivative information
+associated with some models written using FEniCS or Firedrake with minimal
+modification, through automatic processing of encountered calculations.
+Consider for example the very basic model
+\begin{lstlisting}
+from fenics import *
+
+mesh = UnitIntervalMesh(10)
+space = FunctionSpace(mesh, "Lagrange", 1)
+test, trial = TestFunction(space), TrialFunction(space)
+
+F = Function(space, name="F")
+G = Function(space, name="G")
+
+F.interpolate(Expression("sin(pi * x[0])", element=space.ufl_element()))
+solve(inner(test, trial) * dx == inner(test, F * F) * dx,
+      G, solver_parameters={"linear_solver": "direct"})
+
+J = assemble(inner(G, G) * dx)
+
+info(f"G L^2 norm = {sqrt(J):.16e}")
+\end{lstlisting}
+This model contains the key line
+\begin{lstlisting}
+solve(inner(test, trial) * dx == inner(test, F * F) * dx,
+      G, solver_parameters={"linear_solver": "direct"})
+\end{lstlisting}
+
+A forward model constrained derivative can be computed via, for example
+\begin{lstlisting}
+from fenics import *
+from tlm_adjoint_fenics import *
+
+mesh = UnitIntervalMesh(10)
+space = FunctionSpace(mesh, "Lagrange", 1)
+test, trial = TestFunction(space), TrialFunction(space)
+
+F = Function(space, name="F")
+G = Function(space, name="G")
+
+F.interpolate(Expression("sin(pi * x[0])", element=space.ufl_element()))
+solve(inner(test, trial) * dx == inner(test, F * F) * dx,
+      G, solver_parameters={"linear_solver": "direct"})
+
+J = Functional(name="J")
+J.assign(inner(G, G) * dx)
+
+info(f"G L^2 norm = {sqrt(J.value()):.16e}")
+
+dJ = compute_gradient(J, F)
+\end{lstlisting}
+Note that the use of the \texttt{solve} function is unchanged. Internally
+\texttt{tlm\_adjoint} overrides the \texttt{solve} function and processes the
+equation being solved.
+
+\texttt{tlm\_adjoint} intercepts or overrides a small number of functions,
+classes, and methods in this way, but this is limited to
+\begin{itemize}
+  \item \texttt{assemble}
+  \item (FEniCS only) \texttt{assemble\_system}
+  \item \texttt{solve}
+  \item \texttt{project}
+  \item (FEniCS only) \texttt{DirichletBC.apply}
+  \item \texttt{Function.assign}
+  \item (Firedrake only) \texttt{Function.project}
+  \item \texttt{Function.vector}
+  \item (FEniCS only) Multiplication by assembled matrices
+  \item (FEniCS only) \texttt{LUSolver} and \texttt{KrylovSolver}
+  \item (Firedrake only) \texttt{LinearSolver}
+  \item \texttt{LinearVariationalSolver}
+  \item \texttt{NonlinearVariationalSolver}
+\end{itemize}
+
+Note that the full functionality of intercepted or overridden functions,
+classes, or methods may not be supported by \texttt{tlm\_adjoint}. The use of
+this approach may also be inefficient -- see section
+\ref{sect:Equation_rationale} -- and it is instead recommended that appropriate
+\texttt{Equation} objects are used directly.
+
+\section{\texttt{Equation} objects}\label{sect:Equation}
+
+\subsection{Rationale}\label{sect:Equation_rationale}
+
+\texttt{tlm\_adjoint} constructs a representation of a forward model in terms
+of \texttt{Equation} objects. When intercepting or overriding FEniCS or
+Firedrake functionality (see section \ref{sect:overrides})
+\texttt{tlm\_adjoint} builds the required \texttt{Equation} objects
+automatically. However this can potentially lead to the construction of a large
+number of independent \texttt{Equation} objects, even if the same equations are
+solved repeatedly. Instead, one can explicitly instantiate \texttt{Equation}
+objects, and then solve the same equation multiple times by calling its
+\texttt{solve} method. This can facilitate caching and improve performance.
+
+\subsection{Solving equations}
+
+An equation, defined by an \texttt{Equation} object, is solved by calling its
+\texttt{solve} method, for example
+\begin{lstlisting}
+eq = EquationSolver(inner(test, trial) * dx == inner(test, F * F) * dx,
+                    G, solver_parameters={"linear_solver": "direct"})
+eq.solve()
+\end{lstlisting}
+
+\subsection{``Functions''}
+
+\texttt{tlm\_adjoint} interfaces with backend datatypes, termed ``functions'',
+by providing a generic interface which can be used to extract or update
+``function'' data. With the FEniCS and Firedrake backends \texttt{Constant} and
+\texttt{Function} objects are interfaced, and these can appear as the solution
+or a dependency of an \texttt{Equation}.
+
+\subsection{Built-in \texttt{Equation} classes: All backends}
+
+\subsubsection{\texttt{NullSolver}}
+
+A \texttt{NullSolver} represents the trivial equation
+\begin{equation*}
+  x = 0.
+\end{equation*}
+A \texttt{NullSolver} can be instantiated via
+\begin{lstlisting}
+eq = NullSolver(x)
+\end{lstlisting}
+where \texttt{x} is the function being solved for, or
+\begin{lstlisting}
+eq = NullSolver(X)
+\end{lstlisting}
+where \texttt{X} is a list or tuple of functions being solved for.
+
+The intended use of a \texttt{NullSolver} is in the definition of
+\texttt{tangent\_linear} methods of \texttt{Equation} classes (see section
+\ref{sect:tangent_linear}).
+
+\subsubsection{\texttt{AssignmentSolver}}
+
+An \texttt{AssignmentSolver} represents an assignment
+\begin{equation*}
+  x = y.
+\end{equation*}
+An \texttt{AssignmentSolver} can be instantiated via
+\begin{lstlisting}
+eq = AssignmentSolver(y, x)
+\end{lstlisting}
+where \texttt{x} is the function being solved for.
+
+\subsubsection{\texttt{ScaleSolver}}
+
+A \texttt{ScaleSolver} represents the equation
+\begin{equation*}
+  x = \alpha y,
+\end{equation*}
+where $\alpha$ is a real constant. A \texttt{ScaleSolver} can be instantiated
+via
+\begin{lstlisting}
+eq = ScaleSolver(alpha, y, x)
+\end{lstlisting}
+where \texttt{x} is the function being solved for.
+
+\subsubsection{\texttt{AxpySolver}}
+
+An \texttt{AxpySolver} represents the equation
+\begin{equation*}
+  x = y_1 + \alpha y_2,
+\end{equation*}
+where $\alpha$ is a real constant. An \texttt{AxpySolver} can be instantiated
+via
+\begin{lstlisting}
+eq = AxpySolver(y_1, alpha, y_2, x)
+\end{lstlisting}
+where \texttt{x} is the function being solved for.
+
+\subsubsection{\texttt{LinearCombinationSolver}}
+
+A \texttt{LinearCombinationSolver} represents the equation
+\begin{equation*}
+  x = \sum_{i = 1}^N \alpha_i y_i,
+\end{equation*}
+where the $\alpha_i$ are real constants. A \texttt{LinearCombinationSolver} is
+instantiated via
+\begin{lstlisting}
+eq = LinearCombinationSolver(x, (alpha_1, y_1), (alpha_2, y_2), [...])
+\end{lstlisting}
+where \texttt{x} is the function being solved for, and where an arbitrary
+number of tuples may be supplied as further arguments.
+
+\subsubsection{\texttt{FixedPointSolver}}
+
+The \texttt{FixedPointSolver} class implements the adjoint fixed-point
+iteration approach described in \citet{christianson1994}, and its
+tangent-linear analogue \citep{gilbert1992}. The \texttt{FixedPointSolver}
+constructor has the form
+\begin{lstlisting}
+def __init__(self, eqs, solver_parameters):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{eqs}, a list or tuple of \texttt{Equation} objects. The final
+    equation defines the solution to the fixed-point problem. A single function
+    cannot appear as the solution to two or more equations.
+  \item \texttt{solver\_parameters}, a dictionary, solver parameters (described
+    below).
+\end{itemize}
+Keys for the \texttt{solver\_parameters} argument are based on the
+\texttt{KrylovSolver} parameters in FEniCS 2017.2.0, and are
+\begin{itemize}
+  \item \texttt{absolute\_tolerance}, a float, absolute tolerance for the
+    solution change $2$-norm (required).
+  \item \texttt{relative\_tolerance}, a float, relative tolerance for the
+    solution change $2$-norm (required).
+  \item \texttt{maximum\_iterations}, a positive integer, maximum permitted
+    iterations (default $1000$).
+  \item \texttt{nonzero\_initial\_guess}, a logical, whether to use a non-zero
+    initial guess for the solution to the final \texttt{Equation} in
+    \texttt{eqs} (default true).
+  \item \texttt{report}, a logical, whether to display output during fixed
+    point iteration (default false).
+\end{itemize}
+
+\texttt{Equation} objects used to define a \texttt{FixedPointSolver} may not be
+used to define further equations -- for example you should not call their
+\texttt{solve} method, and should not use a single \texttt{Equation} to
+instantiate two or more \texttt{FixedPointSolver} objects.
+
+\subsection{Built-in \texttt{Equation} classes: FEniCS and Firedrake}
+
+\subsubsection{\texttt{EquationSolver}}\label{sect:EquationSolver}
+
+The \texttt{EquationSolver} class defines a finite element discretized partial
+differential equation. The \texttt{EquationSolver} constructor has the form
+\begin{lstlisting}
+def __init__(self, eq, x, bcs=[], J=None, form_compiler_parameters={},
+             solver_parameters={}, adjoint_solver_parameters=None,
+             tlm_solver_parameters=None, initial_guess=None,
+             cache_jacobian=None, cache_adjoint_jacobian=None,
+             cache_tlm_jacobian=None, cache_rhs_assembly=None,
+             match_quadrature=None, defer_adjoint_assembly=None):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{eq}, a \texttt{ufl.classes.Equation}, defining the finite
+    element discretized partial differential equation. As for the FEniCS
+    \texttt{solve} function the equation must be linear if \texttt{eq} is of
+    the form ``bilinear form equals linear form'', and is assumed non-linear if
+    \texttt{eq} is of the form ``linear form equals zero''.
+  \item \texttt{x}, a \texttt{Function}, the solution to the equation.
+  \item \texttt{bcs}, a Dirichlet boundary condition, or a list or tuple of
+    Dirichlet boundary conditions.
+  \item \texttt{J}, a \texttt{ufl.classes.Form}, defining the Jacobian to be
+    used in the solution of a non-linear forward equation. Used only if the
+    forward equation is assumed non-linear.
+  \item \texttt{form\_compiler\_parameters}, a dictionary of parameters passed
+    to the form compiler.
+  \item \texttt{solver\_parameters}, a dictionary of solver parameters.
+  \item \texttt{adjoint\_solver\_parameters}, a dictionary of solver parameters
+    used to solve an associated adjoint equation. Adjoint solver parameters are
+    derived from \texttt{solver\_parameters} if this is not supplied.
+  \item \texttt{tlm\_solver\_parameters}, a dictionary of solver parameters
+    used to solve associated tangent-linear equations. Linear solver parameters
+    as defined by \texttt{solver\_parameters} are used if this is not supplied.
+  \item \texttt{initial\_guess}, the initial guess used in a forward solve.
+  \item \texttt{cache\_jacobian}, whether to cache the Jacobian matrix and
+    linear solver used, if the equation is not assumed non-linear, in solving
+    the forward equation (see section \ref{sect:EquationSolver_caching}). If
+    not supplied and
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["EquationSolver"]}\texttt{["enable\_jacobian\_caching"]}
+    is true (which is the default) then Jacobian matrix caching is
+    autodetected. If not supplied and
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["EquationSolver"]}\texttt{["enable\_jacobian\_caching"]}
+    is false then Jacobian matrix caching is disabled.
+  \item \texttt{cache\_adjoint\_jacobian}, whether to cache the Jacobian matrix
+    and linear solver used in the solution of an associated adjoint equation.
+    Takes the value of \texttt{cache\_jacobian} if not supplied.
+  \item \texttt{cache\_tlm\_jacobian}, whether to cache the Jacobian matrices
+    and linear solvers used in the solution of associated tangent-linear
+    equations. Takes the value of \texttt{cache\_jacobian} if not supplied.
+  \item \texttt{cache\_rhs\_assembly}, whether to enable right-hand-side
+    assembly caching in the forward (if the equation is not assumed non-linear)
+    or adjoint equations (see section \ref{sect:EquationSolver_caching}).
+    Defaults to
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["EquationSolver"]}\texttt{["cache\_rhs\_assembly"]},
+    which by default is true.
+  \item \texttt{match\_quadrature}, whether to use the same quadrature degree
+    in all finite element assembly. May be required for discrete consistency if
+    incomplete quadrature is used. Defaults to
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["EquationSolver"]}\texttt{["match\_quadrature"]},
+    which by default is false.
+  \item \texttt{defer\_adjoint\_assembly}. If false, assemble adjoint terms as
+    soon as they are computed. If true, gather multiple terms from different
+    equations prior to assembly. In this latter case default form compiler
+    parameters are used for the assembly. Has no effect for adjoint terms for
+    which assembly caching is used. Defaults to
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["EquationSolver"]}\texttt{["defer\_adjoint\_assembly"]},
+    which by default is false.
+\end{itemize}
+The \texttt{eq}, \texttt{x}, \texttt{bcs}, \texttt{J},
+\texttt{form\_compiler\_parameters} and \texttt{solver\_parameters} arguments
+are based on the interface for the FEniCS \texttt{solve} function.
+
+Note that the \texttt{EquationSolver} preserves matrix symmetry when strong
+Dirichlet boundary conditions are supplied in the solution of forward equations
+which are not assumed non-linear, and in the solution of adjoint equations.
+Symmetry preservation for forward equations which are assumed non-linear is
+determined by the behaviour of the FEniCS or Firedrake \texttt{solve} function.
+
+With the Firedrake backend additional solver parameters may be defined
+\begin{itemize}
+  \item \texttt{solver\_parameters["tlm\_adjoint"]["options\_prefix"]}, passed
+    as the \texttt{options\_prefix} argument to \texttt{LinearSolver}.
+  \item \texttt{solver\_parameters["tlm\_adjoint"]["nullspace"]},
+    passed as the \texttt{nullspace} argument to \texttt{LinearSolver}. 
+  \item \texttt{solver\_parameters["tlm\_adjoint"]["transpose\_nullspace"]},
+    passed as the \texttt{transpose\_nullspace} argument to
+    \texttt{LinearSolver}. 
+  \item \texttt{solver\_parameters["tlm\_adjoint"]["near\_nullspace"]}, passed
+    as the \texttt{near\_nullspace} argument to \texttt{LinearSolver}. 
+\end{itemize}
+If the \texttt{adjoint\_solver\_parameters} argument is not passed to the
+\texttt{EquationSolver} constructor then the null space and transpose null
+space are swapped in the adjoint solver parameters.
+
+\subsubsection{\texttt{ProjectionSolver}}
+
+A \texttt{ProjectionSolver} is a subclass of the \texttt{EquationSolver} class,
+and represents either the equation
+\begin{equation*}
+  \int_\Omega \phi \psi = b \left( \phi \right) \quad \forall \phi \in V,
+\end{equation*}
+where $\psi \in V$ and $b$ is a linear form, or
+\begin{equation*}
+  \int_\Omega \phi \psi = \int_\Omega \phi \xi \quad \forall \phi \in V,
+\end{equation*}
+where $\xi$ is a given expression.
+
+The \texttt{ProjectionSolver} constructor has the form
+\begin{lstlisting}
+def __init__(self, rhs, x, *args, **kwargs):
+\end{lstlisting}
+where \texttt{rhs} is a \texttt{ufl.classes.Form} (for the first case above) or
+expression (for the second), and \texttt{x} is the \texttt{Function} being
+solved for. Remaining constructor arguments are as for the
+\texttt{EquationSolver} class.
+
+\subsubsection{\texttt{ExprEvaluationSolver}}
+
+An \texttt{ExprEvaluationSolver} represents an equation
+\begin{equation*}
+  \tilde{\psi}_i = F \left( \tilde{\xi}_i \right)
+    \quad \forall i \in \left\{ 1, \ldots, N \right\},
+\end{equation*}
+where the $\tilde{\psi}_i$ and $\tilde{\xi}_i$ are respectively the discrete
+degrees of freedom associated with scalar functions $\psi, \xi \in V$, and $F$
+is a given function.
+
+The \texttt{ExprEvaluationSolver} constructor has the form
+\begin{lstlisting}
+def __init__(self, rhs, x):
+\end{lstlisting}
+where \texttt{rhs} is a \texttt{ufl.classes.Expr} and \texttt{x} is the
+function being solved for.
+
+\subsubsection{\texttt{DirichletBCSolver}}
+
+A \texttt{DirichletBCSolver} represents the application of a strong Dirichlet
+boundary condition, represented in the form of an equation
+\begin{equation*}
+  \tilde{\psi} = P \tilde{\xi},
+\end{equation*}
+where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
+discrete degrees of freedom for functions $\psi, \xi \in V$, and $P$ is a
+$\left( 0, 1 \right)$-matrix. A \texttt{DirichletBCSolver} can be instantiated
+via
+\begin{lstlisting}
+eq = DirichletBCSolver(xi, psi, *args, **kwargs)
+\end{lstlisting}
+where \texttt{xi} and \texttt{psi} are \texttt{Function} objects corresponding
+to $\xi$ and $\psi$ in the equation above. Remaining arguments are passed
+directly to the \texttt{DirichletBC} constructor.
+
+\subsubsection{\texttt{AssembleSolver}}\label{sect:AssembleSolver}
+
+An \texttt{AssembleSolver} represents the assembly of a rank zero or rank one
+form. The \texttt{AssembleSolver} constructor has the form
+\begin{lstlisting}
+def __init__(self, rhs, x, form_compiler_parameters={},
+             match_quadrature=None):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{rhs}, a \texttt{ufl.classes.Form}, defining a form of rank zero
+    or rank one.
+  \item \texttt{x}, a function, the solution to the equation.
+  \item \texttt{form\_compiler\_parameters}, a dictionary of parameters passed
+    to the form compiler.
+  \item \texttt{match\_quadrature}, whether to use the same quadrature degree
+    in all finite element assembly. May be required for discrete consistency if
+    incomplete quadrature is used. Defaults to
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["AssembleSolver"]}\texttt{["match\_quadrature"]},
+    which by default is false.
+\end{itemize}
+
+If the form is rank zero then the solution \texttt{x} must be a real function,
+for example as returned by the \texttt{new\_real\_function} function
+\begin{lstlisting}
+x = new_real_function(comm=comm)
+\end{lstlisting}
+where here the optional argument \texttt{comm} defines the MPI communicator
+associated with the function.
+
+\subsection{Built-in \texttt{Equation} classes: FEniCS}
+
+\subsubsection{\texttt{InterpolationSolver}}\label{sect:InterpolationSolver}
+
+An \texttt{InterpolationSolver} represents consistent interpolation of a given
+scalar function $\xi \in W$ onto a function space $V$, represented in the form
+of an equation
+\begin{equation*}
+  \tilde{\psi} = P \tilde{\xi},
+\end{equation*}
+where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
+discrete degrees of freedom for scalar functions $\psi \in V, \xi \in W$, and
+$P$ is a matrix. $V$ and $W$ must be defined using the same mesh. An
+\texttt{InterpolationSolver} can be instantiated via
+\begin{lstlisting}
+eq = InterpolationSolver(y, x)
+\end{lstlisting}
+where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
+\texttt{Function} being interpolated.
+
+In parallel the node-node graph associated with the discrete function space for
+\texttt{y} must have no edges between nodes owned by different processes. This
+is, for example, satified by discontinuous Galerkin function spaces. In
+parallel the \texttt{InterpolationSolver} can be combined with the
+\texttt{LocalProjectionSolver} in order to project functions in more general
+function spaces onto an appropriate discontinuous Galerkin function space,
+prior to interpolation.
+
+\subsubsection{\texttt{PointInterpolationSolver}}
+
+With the FEniCS backend, a \texttt{PointInterpolationSolver} represents
+consistent interpolation of a given scalar function $\xi \in W$ onto a given
+set of points,
+\begin{equation*}
+  \tilde{\psi} = P \tilde{\xi},
+\end{equation*}
+where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
+is a vector whose elements are the discrete degrees of freedom for a scalar
+function $\xi \in W$, and where $P$ is a matrix. A
+\texttt{PointInterpolationSolver} can be instantiated via
+\begin{lstlisting}
+eq = PointInterpolationSolver(y, X, X_coords=X_coords)
+\end{lstlisting}
+where \texttt{X} is a list or tuple of real functions being solved for (for
+example each as returned by the \texttt{new\_real\_function} function -- see
+section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
+defining the coordinates at which to interpolate the \texttt{Function}
+\texttt{y}.
+
+In parallel there are similar node-node graph restrictions for the discrete
+function space for \texttt{y} to those for the \texttt{InterpolationSolver}
+class (section \ref{sect:InterpolationSolver}).
+
+\subsubsection{\texttt{LocalProjectionSolver}}
+
+A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
+class, and represents the solution of a projection problem, of the same type as
+represented using the \texttt{ProjectionSolver}, but using a local mass matrix
+solver.
+
+The \texttt{LocalProjectionSolver} constuctor has the form
+\begin{lstlisting}
+def __init__(self, rhs, x, form_compiler_parameters={},
+             cache_jacobian=None, cache_rhs_assembly=None,
+             match_quadrature=None, defer_adjoint_assembly=None):
+\end{lstlisting}
+where \texttt{rhs} is a \texttt{ufl.classes.Form} or expression defining the
+right-hand-side, and \texttt{x} is the \texttt{Function} being solved for.
+Remaining constructor arguments are as for the \texttt{EquationSolver} class.
+
+\subsection{Built-in \texttt{Equation} classes: Firedrake}
+
+\subsubsection{\texttt{PointInterpolationSolver}}
+
+With the Firedrake backend, a \texttt{PointInterpolationSolver} represents
+consistent interpolation of a given continuous scalar function $\xi \in W$ onto
+a given set of points,
+\begin{equation*}
+  \tilde{\psi} = P \tilde{\xi},
+\end{equation*}
+where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
+is a vector whose elements are the discrete degrees of freedom for a continuous
+scalar function $\xi \in W$, and where $P$ is a matrix. A
+\texttt{PointInterpolationSolver} can be instantiated via
+\begin{lstlisting}
+eq = PointInterpolationSolver(y, X, X_coords=X_coords)
+\end{lstlisting}
+where \texttt{X} is a list or tuple of real functions being solved for (for
+example each as returned by the \texttt{new\_real\_function} function -- see
+section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
+defining the coordinates at which to interpolate the \texttt{Function}
+\texttt{y}.
+
+\subsubsection{\texttt{LocalProjectionSolver}}
+
+A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
+class, and represents the solution of a projection problem, of the same type as
+represented using the \texttt{ProjectionSolver}, but using a local mass matrix
+solver.
+
+The \texttt{LocalProjectionSolver} constuctor has the form
+\begin{lstlisting}
+def __init__(self, rhs, x, form_compiler_parameters={},
+             cache_jacobian=None, cache_rhs_assembly=None,
+             match_quadrature=None, defer_adjoint_assembly=None):
+\end{lstlisting}
+where \texttt{rhs} is a \texttt{ufl.classes.Form} or expression defining
+the right-hand-side, and \texttt{x} is the \texttt{Function} being solved for.
+Remaining constructor arguments are as for the \texttt{EquationSolver} class.
+
+\section{Custom \texttt{Equation} classes}\label{sect:custom}
+
+Custom equations can be defined by inheriting from the \texttt{Equation} class,
+and overriding key methods.
+
+\subsection{Dependencies}
+
+There are four important sets of forward equation dependencies
+\begin{enumerate}
+  \item Symbolic dependencies. Dependencies of a forward equation for which the
+    Jacobian of the forward residual is non-zero, and for which associated
+    terms appear in first order tangent-linear and first order adjoint
+    equations.
+  \item Non-linear dependencies. A subset of the symbolic dependencies.
+    Dependencies of a forward equation which appear as dependencies of
+    associated first order tangent-linear and first order adjoint calculations.
+  \item Non-symbolic dependencies. Dependencies of a forward equation whose
+    value is required in order to solve the equation, but for which the
+    Jacobian of the forward residual is zero. Can include, for example, an
+    initial guess supplied to an iterative solver used to solve the forward
+    equation.
+  \item Initial condition dependencies. Symbolic dependencies of a forward
+    equation whose value prior to solving the equation is required in order to
+    solve the equation. Can include, for example, the variable subsequently
+    used to store the forward equation solution, if its value prior to solving
+    the equation is used as an initial guess for an iterative solver used to
+    solve the equation.
+\end{enumerate}
+The values of symbolic dependendencies, non-symbolic dependencies, and initial
+condition dependencies are required to solve the forward equation. The symbolic
+dependencies are required in order to derive associated first order
+tangent-linear and first order adjoint equations. The values of non-linear
+dependencies are required in order to solve associated first order
+tangent-linear and first order adjoint equations.
+
+\subsection{Constructor}
+
+A subclass of \texttt{Equation} must call the \texttt{Equation} constructor to
+define dependencies. \texttt{tlm\_adjoint} does not distinguish between
+symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
+the form
+\begin{lstlisting}
+def __init__(self, x, deps, nl_deps=None, ic_deps=None):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{x}, a function, defining the solution to the equation.
+  \item \texttt{deps}, a list or tuple of functions, defining the union of the
+    symbolic and non-symbolic dependencies. Must include the solution to the
+    equation.
+  \item \texttt{nl\_deps}, a list or tuple of functions, defining the
+    non-linear dependencies. If not supplied then set equal to \texttt{deps}.
+  \item \texttt{ic\_deps}, a list or tuple of functions, defining the initial
+    condition dependencies of the equation. If not supplied then set equal to a
+    list containing \texttt{x} if it is in
+    \texttt{nl\_deps}, or an empty list otherwise.
+\end{itemize}
+
+\subsection{Forward}
+
+Given a forward residual function $F \left( x, y_0, y_1, \ldots \right)$, the
+solution to the equation is defined via the root finding problem
+\begin{equation*}
+  F \left( \hat{x} \left( y_0, y_1, \ldots \right), y_0, y_1, \ldots \right)
+    = 0
+\end{equation*}
+for all values of the dependencies $y_0$, $y_1$, $\ldots$ of interest.
+
+The solution of the forward equation is defined by the \texttt{forward\_solve}
+method. The \texttt{forward\_solve} method has the form
+\begin{lstlisting}
+def forward_solve(self, x, deps=None):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{x}, a function, whose value should be set equal to the solution
+    to the equation. If \texttt{deps} is supplied then \texttt{x} is contained
+    in \texttt{deps}.
+  \item \texttt{deps}, a list or tuple of functions containing values for the
+    dependencies defined by \texttt{self.dependencies()}. If not supplied then
+    the values contained in \texttt{self.dependencies()} should be used. If
+    supplied, only the entry corresponding to \texttt{x} may be modified.
+\end{itemize}
+
+Equation processing by the currently active the \texttt{EquationManager} is
+disabled (see section \ref{sect:EquationManager}) when the
+\texttt{forward\_solve} method is called. If \texttt{deps} is not supplied,
+then \texttt{self.replace} (section \ref{sect:replace}) has not previously been
+called prior to a call to the \texttt{forward\_solve} method.
+
+\subsection{Adjoint derivative action}\label{sect:adjoint_derivative_action}
+
+Given the forward residual function $F \left( x, y_0, y_1, \ldots \right)$, an
+adjoint model requires the ability to compute an adjoint derivative action,
+e.g.
+\begin{equation*}
+  \frac{\partial F}{\partial y_i}^T \lambda_x,
+\end{equation*}
+for a given $\lambda_x$.
+
+The action of the adjoint of the derivative of the forward residual is defined
+by the \texttt{adjoint\_derivative\_action} method. The
+\texttt{adjoint\_derivative\_action} method has the form
+\begin{lstlisting}
+def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
+    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+    dependencies must not be modified.
+  \item \texttt{dep\_index}, an integer, defining the dependency with respect
+    to which as derivative should be taken. The dependency is defined by
+    \texttt{self.dependencies()[dep\_index]}.
+  \item \texttt{adj\_x}, a function, equal to the value of the adjoint variable
+    associated with the solution to the equation ($\lambda_x$ above). Must not
+    be modified.
+\end{itemize}
+This method returns one of
+\begin{itemize}
+  \item \texttt{None}, if the adjoint derivative action is zero.
+  \item A function containing the value of the adjoint derivative action.
+  \item A vector (e.g. as returned by \texttt{Function.vector()}) containing
+    the value of the adjoint derivative action.
+  \item A tuple whose first element is an integer or float, and whose second
+    element is a function or vector as defined above. The adjoint derivative
+    action is equal to the product of the two elements.
+  \item A \texttt{ufl.classes.Form}. Note that assembly with default form
+    compiler parameters will later be used to assemble the form (possibly after
+    addition to, or the addition of, other forms).
+\end{itemize}
+The return value will not be modified by calling code.
+
+Equation processing by the currently active the \texttt{EquationManager} is
+disabled (see section \ref{sect:EquationManager}) when the
+\texttt{adjoint\_derivative\_action} method is called. \texttt{self.replace}
+(section \ref{sect:replace}) may have been called prior to a call to the
+\texttt{adjoint\_derivative\_action} method.
+
+\subsection{Adjoint Jacobian solve}
+
+Given the forward residual function $F \left( x, y_0, y_1, \ldots \right)$, an
+adjoint model requires the ability to solve an equation involving the adjoint
+Jacobian, i.e. to solve for $\lambda_x$ in
+\begin{equation*}
+  \frac{\partial F}{\partial x}^T \lambda_x = b,
+\end{equation*}
+for a given $b$.
+
+The action of the inverse of the adjoint of the forward Jacobian is defined by
+the \texttt{adjoint\_jacobian\_solve} method. The
+\texttt{adjoint\_jacobian\_solve} method has the form
+\begin{lstlisting}
+def adjoint_jacobian_solve(self, nl_deps, b):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
+    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+    dependencies must not be modified.
+  \item \texttt{b}, a function, defining the right-hand-side of the linear
+    system ($b$ above). May be modified.
+\end{itemize}
+This method returns a function defining the solution of the linear system
+($\lambda_x$ above), or may return \texttt{None} if this is zero. The return
+value will not be modified by calling code.
+
+Equation processing by the currently active the \texttt{EquationManager} is
+disabled (see section \ref{sect:EquationManager}) when the
+\texttt{adjoint\_derivative\_action} method is called. \texttt{self.replace}
+(section \ref{sect:replace}) may have been called prior to a call to the
+\texttt{adjoint\_jacobian\_solve} method.
+
+\subsection{Adjoint optimization}
+
+The first time an \texttt{Equation} is used in an adjoint calculation (the
+first time an \texttt{Equation} is used in a call to
+\texttt{compute\_gradient}) the \texttt{reset\_adjoint} method of the
+\texttt{Equation} is called. This methods takes no arguments
+\begin{lstlisting}
+def reset_adjoint(self):
+\end{lstlisting}
+
+A set of one or more calls to the \texttt{adjoint\_jacobian\_solve} or
+\texttt{adjoint\_derivative\_action} methods are preceded by a call to the
+\texttt{initialize\_adjoint} method, and are followed by a call to the
+\texttt{finalize\_adjoint} method. These methods can be used to cache, and then
+clear, data used by the \texttt{adjoint\_jacobian\_solve} or 
+\texttt{adjoint\_derivative\_action} methods.
+
+These methods have the form
+\begin{lstlisting}
+def initialize_adjoint(self, J, nl_deps):
+\end{lstlisting}
+\begin{lstlisting}
+def finalize_adjoint(self, J):
+\end{lstlisting}
+with
+\begin{itemize}
+    \item \texttt{J}, a \texttt{Functional}, defining the functional
+      associated with the adjoint model.
+    \item \texttt{nl\_deps}, as passed to the \texttt{adjoint\_jacobian\_solve}
+      and \texttt{adjoint\_derivative\_action} methods. The dependencies must
+      not be modified.
+\end{itemize}
+
+\subsection{Tangent-linear}\label{sect:tangent_linear}
+
+Given the forward residual function $F \left( x, y_0, y_1, \ldots, m \right)$,
+a control $m$, and a direction $\zeta$, a corresponding tangent-linear equation
+is defined
+\begin{equation*}
+  \frac{\partial F}{\partial x} \tau_x
+    + \frac{\partial F}{\partial y_0} \tau_{y_0}
+    + \frac{\partial F}{\partial y_1} \tau_{y_1}
+    + \ldots = -\frac{\partial F}{\partial m} \zeta,
+\end{equation*}
+where $\tau_x$, $\tau_{y_0}$, $\tau_{y_1}$, \ldots are tangent-linear
+variables.
+
+Tangent-linear equations are derived using the \texttt{tangent\_linear} method.
+The \texttt{tangent\_linear} method has the form
+\begin{lstlisting}
+def tangent_linear(self, M, dM, tlm_map):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{M}, a list or tuple of functions, defining the
+    control ($m$ above).
+  \item \texttt{dM}, a list or tuple of functions, defining the direction
+    ($\zeta$ above).
+  \item \texttt{tlm\_map}, a \texttt{TangentLinearMap}, allowing tangent-linear
+    variables to be accessed.
+\end{itemize}
+This method returns an \texttt{Equation} object defining the tangent-linear
+equation
+
+Given a dependency of the \texttt{Equation} \texttt{dep}, a corresponding
+tangent-linear variable can be accessed using the \texttt{get\_tangent\_linear}
+function, e.g.
+\begin{lstlisting}
+tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+\end{lstlisting}
+This returns a control direction (an element of \texttt{dM}), a tangent-linear
+solution variable, or \texttt{None} if the tangent-linear variable is known to
+be identically zero.
+
+\texttt{self.replace} (section \ref{sect:replace}) will not previously been
+called prior to a call to the \texttt{tangent\_linear} method.
+
+\subsection{Solving for multiple functions}
+
+An \texttt{Equation} may solve for two or more functions. In this case the
+arguments \texttt{x}, \texttt{adj\_x}, and \texttt{b} in the above should be
+capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
+list or tuple of functions. The return value of
+\texttt{adjoint\_jacobian\_solve} should also be a list or tuple of functions
+(or \texttt{None}).
+
+\subsection{Dropping references}\label{sect:replace}
+
+If a subclassed \texttt{Equation} keeps references to any functions, then it
+should be possible to drop these references with the \texttt{replace} method.
+This method takes the form
+\begin{lstlisting}
+def replace(self, replace_map):
+\end{lstlisting}
+where \texttt{replace\_map} is a dictionary mapping from dependencies to
+objects with which they should be replaced. The \texttt{replace} method must
+always call the base class \texttt{replace} method.
+
+\section{Linear algebra}
+
+\subsection{\texttt{LinearEquation}}
+
+A \texttt{LinearEquation} is an \texttt{Equation} representing
+\begin{equation*}
+  A x = \sum_{i = 1}^N b_i,
+\end{equation*}
+where $A$ is a matrix and the $b_i$ are independent of $x$.
+
+The \texttt{LinearEquation} constructor has the form
+\begin{lstlisting}
+def __init__(self, B, X, A=None):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{B}, a \texttt{RHS}, or a list or tuple of \texttt{RHS} objects,
+    defining the $b_i$.
+  \item \texttt{X}, a function, or a list or tuple of functions, defining $x$.
+  \item \texttt{A}, a \texttt{Matrix}. If not provided $A$ is an identity
+    matrix.
+\end{itemize}
+
+\subsection{\texttt{Matrix}}
+
+The \texttt{Matrix} class is an abstract base class, and can be used to define
+matrices as used by a \texttt{LinearEquation}.
+
+\subsubsection{Constructor}
+
+A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
+define dependencies. The \texttt{Matrix} constructor has the form
+\begin{lstlisting}
+def __init__(self, nl_deps=None, has_ic_dep=False):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, a list or tuple of functions, defining the
+    dependencies of the matrix. If not supplied then treated as empty.
+  \item \texttt{has\_ic\_dep}. If true then, in solving a linear equation
+    involving the matrix, the initial value of the solution variable is an
+    initial condition dependency of the equation.
+\end{itemize}
+
+\subsubsection{Matrix action}
+
+The value of a matrix action $A x$ is defined by the \texttt{forward\_action}
+method. The \texttt{forward\_action} method has the form
+\begin{lstlisting}
+def forward_action(self, nl_deps, x, b, method="assign"):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
+    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+    dependencies must not be modified.
+  \item \texttt{x}, a function, defining $x$. Must not be modified.
+  \item \texttt{b}, a function, defining the result of the matrix action. Set
+    or modified by this method.
+  \item \texttt{method}, a string. One of
+  \begin{itemize}
+    \item ``assign'', \texttt{b} is set equal to the result of the matrix
+      action.
+    \item ``add'', the result of the matrix action is added to \texttt{b}.
+    \item ``sub'', the result of the matrix action is subtracted from
+      \texttt{b}.
+  \end{itemize}
+\end{itemize}
+
+\subsubsection{Adjoint matrix action}
+
+The value of a matrix action $A^T x$ is defined by the \texttt{adjoint\_action}
+method. The \texttt{adjoint\_action} method has the form
+\begin{lstlisting}
+def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, as in the \texttt{forward\_action} method.
+  \item \texttt{adj\_x}, a function, defining $x$. Must not be modified.
+  \item \texttt{b}, a function, defining the result of the matrix action. Set
+    or modified by this method.
+  \item \texttt{b\_index}, see section \ref{sect:Matrix_multiple}
+  \item \texttt{method}, as in the \texttt{forward\_action} method.
+\end{itemize}
+
+\subsubsection{Matrix solve}
+
+The value of an inverse matrix action $A^{-1} b$ is defined by the
+\texttt{forward\_solve} method. The \texttt{forward\_solve} method has the
+form
+\begin{lstlisting}
+def forward_solve(self, x, nl_deps, b):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{x}, the result of the inverse matrix action, set by this
+    method.
+  \item \texttt{nl\_deps}, as in the \texttt{forward\_action} method.
+  \item \texttt{b}, the right-hand-side of the linear system to be solved. May
+    be modified.
+\end{itemize}
+
+\subsubsection{Adjoint matrix solve}
+
+The value of an inverse adjoint matrix action $A^{-T} b$ is defined by the
+\texttt{adjoint\_solve} method. The \texttt{adjoint\_solve} method has the
+form
+\begin{lstlisting}
+def adjoint_solve(self, nl_deps, b):
+\end{lstlisting}
+where the \texttt{nl\_deps} and \texttt{b} arguments are as in the
+\texttt{forward\_solve} method. Returns the result as a function. The return
+value will not be modified by calling code.
+
+\subsubsection{Adjoint derivative action}
+
+The action of the adjoint of the derivative of $A x$ is defined by the
+\texttt{adjoint\_derivative\_action} method. The
+\texttt{adjoint\_derivative\_action} method has the form
+\begin{lstlisting}
+def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
+                              method="assign"):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, as in the \texttt{forward\_action} method.
+  \item \texttt{nl\_dep\_index}, an integer defining the dependency in
+    \texttt{self.nonlinear\_dependencies()} with respect to which a derivative
+    should be taken.
+  \item \texttt{x}, a function, defining $x$ in the matrix action $A x$. Must
+    not be modified.
+  \item \texttt{adj\_x}, a function, defining the adjoint action direction.
+    Must not not be modified.
+  \item \texttt{b}, a function defining the result. Set or modified by this
+    method.
+  \item \texttt{method}, as in the \texttt{forward\_action} method.
+\end{itemize}
+
+\subsection{Adjoint optimization}
+
+A \texttt{Matrix} may define the methods
+\begin{lstlisting}
+def reset_adjoint(self):
+\end{lstlisting}
+\begin{lstlisting}
+def initialize_adjoint(self, J, nl_deps):
+\end{lstlisting}
+\begin{lstlisting}
+def finalize_adjoint(self, J):
+\end{lstlisting}
+These are called by the respective methods of a \texttt{LinearEquation} using
+the \texttt{Matrix}.
+
+\subsubsection{Tangent-linear}
+
+Tangent-linear information is defined by the \texttt{tangent\_linear\_rhs}
+method. The \texttt{tangent\_linear\_rhs} method has the form
+\begin{lstlisting}
+def tangent_linear_rhs(self, M, dM, tlm_map, x):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{M}, a list or tuple of functions, defining the control.
+  \item \texttt{dM}, a list or tuple of functions, defining the direction.
+  \item \texttt{tlm\_map}, a \texttt{TangentLinearMap}, allowing tangent-linear
+    variables to be accessed.
+  \item \texttt{x}, a function.
+\end{itemize}
+This method should return tangent-linear terms associated with a forward term
+of the form $A x$, where the \texttt{Matrix} defines $A$ and the argument
+\texttt{x} defines $x$. This method may return \texttt{None} (if there are no
+terms), a \texttt{RHS}, or a list or tuple of \texttt{RHS} objects.
+
+\subsubsection{Matrices acting on multiple functions}\label{sect:Matrix_multiple}
+
+A \texttt{Matrix} may act on multiple functions. In this case methods have the
+form
+\begin{lstlisting}
+def forward_action(self, nl_deps, X, B, method="assign"):
+\end{lstlisting}
+\begin{lstlisting}
+def adjoint_action(self, nl_deps, adj_X, b, b_index=0, method="assign"):
+\end{lstlisting}
+\begin{lstlisting}
+def forward_solve(self, X, nl_deps, B):
+\end{lstlisting}
+\begin{lstlisting}
+def adjoint_solve(self, nl_deps, B):
+\end{lstlisting}
+\begin{lstlisting}
+def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
+                              method="assign"):
+\end{lstlisting}
+\begin{lstlisting}
+def tangent_linear_rhs(self, M, dM, tlm_map, X):
+\end{lstlisting}
+where \texttt{X}, \texttt{adj\_X}, and \texttt{B} are now each a list or tuple
+functions. The return value of \texttt{forward\_solve} and
+\texttt{adjoint\_solve} should also be list or tuple of functions. The
+\texttt{b} argument of \texttt{adjoint\_action} is equal to
+\texttt{B[b\_index]}.
+
+\subsubsection{Dropping references}
+
+If a subclassed \texttt{Matrix} keeps references to any functions, then it
+should be possible to drop these references with the \texttt{replace} method.
+This method takes the form
+\begin{lstlisting}
+def replace(self, replace_map):
+\end{lstlisting}
+where \texttt{replace\_map} is a dictionary mapping from dependencies to
+objects with which they should be replaced. The \texttt{replace} method must
+always call the base class \texttt{replace} method.
+
+\subsection{\texttt{RHS}}
+
+The \texttt{RHS} class is an abstract base class, and can be used to define
+right-hand-side terms as used by a \texttt{LinearEquation}.
+
+\subsubsection{Constructor}
+
+A subclass of \texttt{RHS} must call the \texttt{RHS} constructor to define
+dependencies. The \texttt{RHS} constructor has the form
+\begin{lstlisting}
+def __init__(self, deps, nl_deps=None):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{deps}, a list or tuple of functions, defining the union of the
+    symbolic and non-symbolic dependencies of the right-hand-side.
+  \item \texttt{nl\_deps}, a list or tuple of functions, defining the
+    non-linear dependencies of the right-hand-side. If not supplied then set
+    equal to \texttt{deps}.
+\end{itemize}
+
+\subsubsection{Forward}
+
+The \texttt{add\_forward} method adds the right-hand-side term. The
+\texttt{add\_forward} method has the form
+\begin{lstlisting}
+def add_forward(self, b, deps):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{b}, a function. The function to which the right-hand-side
+    should be added. Should be modified by this method.
+  \item \texttt{deps}, a list or tuple of functions containing values for the
+    dependencies defined by \texttt{self.dependencies()}. The dependencies must
+    not be modified.
+\end{itemize}
+
+\subsubsection{Adjoint derivative action}
+
+The action of the adjoint of the derivative of the right-hand-side term is
+subtracted by the \texttt{subtract\_adjoint\_derivative\_action} method. The
+\texttt{subtract\_adjoint\_derivative\_action} method has the form
+\begin{lstlisting}
+def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
+    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+    dependencies must not be modified.
+  \item \texttt{dep\_index}, an integer, defining the dependency with respect
+    to which as derivative should be taken. The dependency is defined by
+    \texttt{self.dependencies()[dep\_index]}.
+  \item \texttt{adj\_x}, a function, defining the adjoint action direction.
+    Must not not be modified.
+  \item \texttt{b}, a function, from which the adjoint derivative action should
+    be subtracted.
+\end{itemize}
+
+\subsubsection{Tangent-linear}
+
+The \texttt{tangent\_linear\_rhs} method constructs tangent-linear
+right-hand-side terms. The \texttt{tangent\_linear\_rhs} method has the form
+\begin{lstlisting}
+def tangent_linear_rhs(self, M, dM, tlm_map):
+\end{lstlisting}
+with arguments as in the \texttt{Equation.tangent\_linear} method. This method
+may return \texttt{None} (if there are no terms), a \texttt{RHS}, or a list or
+tuple of \texttt{RHS} objects.
+
+\subsubsection{Multiple functions}
+
+A \texttt{RHS} may be defined using multiple functions. In this case methods
+have the form
+\begin{lstlisting}
+def add_forward(self, B, deps):
+\end{lstlisting}
+\begin{lstlisting}
+def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
+\end{lstlisting}
+where \texttt{adj\_X} and \texttt{B} are now each a list or tuple of functions. 
+
+\subsubsection{Dropping references}
+
+If a subclassed \texttt{RHS} keeps references to any functions, then it should
+be possible to drop these references with the \texttt{replace} method. This
+method takes the form
+\begin{lstlisting}
+def replace(self, replace_map):
+\end{lstlisting}
+where \texttt{replace\_map} is a dictionary mapping from dependencies to
+objects with which they should be replaced. The \texttt{replace} method must
+always call the base class \texttt{replace} method.
+
+\subsection{Built-in linear algebra classes}
+
+\subsubsection{\texttt{InnerProductRHS} and \texttt{InnerProductSolver}}
+
+An \texttt{InnerProductRHS} is a \texttt{RHS} representing a right-hand-side
+term of the form
+\begin{equation*}
+  b_i = \alpha \sum_{j,k} y_j M_{j,k} z_k.
+\end{equation*}
+Here the $y_j$ and $z_k$ are the degrees of freedom for two functions, which
+should be in the same discrete function space, and which may be the same
+function. $b_i$ are the degrees of freedom for the resulting right-hand-side
+term. The $M_{j,k}$ are the elements of some given matrix, assumed symmetric
+(and which should typically be positive definite), and $\alpha$ is some real
+constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
+representing
+\begin{equation*}
+  x_i = \alpha \sum_{j,k} y_j M_{j,k} z_k,
+\end{equation*}
+solving for $x$, whose degrees of freedom are the $x_i$.
+
+An \texttt{InnerProductRHS} can be instantiated via
+\begin{lstlisting}
+b = InnerProductRHS(y, z, alpha=alpha, M=M)
+\end{lstlisting}
+where \texttt{y} and \texttt{z} are each functions whose degrees of freedom are
+the $y_j$ and $z_k$, \texttt{alpha} is a given floating point value defining
+$\alpha$ (set equal to $1.0$ if not supplied), and \texttt{M} is a
+\texttt{Matrix} whose elements are the $M_{j,k}$ (set equal to an identity
+matrix if not supplied). An \texttt{InnerProductSolver} can be instantiated via
+\begin{lstlisting}
+eq = InnerProductSolver(y, z, x, alpha=alpha, M=M)
+\end{lstlisting}
+where \texttt{x} is the function being solved for.
+
+\subsubsection{\texttt{NormSqRHS} and \texttt{NormSqSolver}}
+
+A \texttt{NormSqRHS} is an \texttt{InnerProductRHS}, and a
+\texttt{NormSqSolver} is an \texttt{InnerProductSolver}, each for the case
+where the $y_j$ and $z_k$ correspond to the degrees of freedom for the same
+function.
+
+A \texttt{NormSqRHS} can be instantiated via
+\begin{lstlisting}
+b = NormSqRHS(y, alpha=alpha, M=M)
+\end{lstlisting}
+where \texttt{y} is a function whose degrees of freedom are the $y_j$,
+\texttt{alpha} is a given floating point value defining $\alpha$ (set equal to
+$1.0$ if not supplied), and \texttt{M} is a \texttt{Matrix} whose elements are
+the $M_{j,k}$ (set equal to an identity matrix if not supplied). A
+\texttt{NormSqSolver} can be instantiated via
+\begin{lstlisting}
+eq = NormSqSolver(y, x, alpha=alpha, M=M)
+\end{lstlisting}
+where \texttt{x} is the function being solved for.
+
+\subsubsection{\texttt{SumRHS} and \texttt{SumSolver}}
+
+A \texttt{SumRHS} is a \texttt{RHS} representing a right-hand-side term of the
+form
+\begin{equation*}
+  b_i = \sum_j y_j,
+\end{equation*}
+where the $y_j$ are the degrees of freedom for a function, and the $b_i$ are
+the degrees of freedom for the resulting right-hand-side term. A
+\texttt{SumSolver} is a \texttt{LinearEquation} representing
+\begin{equation*}
+  x_i = \sum_j y_j,
+\end{equation*}
+solving for $x$, whose degrees of freedom are the $x_i$.
+
+A \texttt{SumRHS} can be instantiated via
+\begin{lstlisting}
+b = SumRHS(y)
+\end{lstlisting}
+where \texttt{y} is the function whose degrees of freedom are the $y_j$. A
+\texttt{SumSolver} can be instantiated via
+\begin{lstlisting}
+eq = SumSolver(y, x)
+\end{lstlisting}
+where \texttt{x} is the function being solved for.
+
+\subsubsection{\texttt{MatrixActionRHS} and \texttt{MatrixActionSolver}}
+
+A \texttt{MatrixActionRHS} is a \texttt{RHS} representing a right-hand-side
+term resulting from a matrix action,
+\begin{equation*}
+  b = A y.
+\end{equation*}
+A \texttt{MatrixActionSolver} is a \texttt{LinearEquation} respresenting
+\begin{equation*}
+  x = A y,
+\end{equation*}
+solving for $x$.
+
+A \texttt{MatrixActionRHS} can be instantiated via
+\begin{lstlisting}
+b = MatrixActionRHS(A, Y)
+\end{lstlisting}
+where \texttt{A} is a \texttt{Matrix} defining the matrix $A$, and \texttt{Y}
+is a function, or a list or tuple of functions, defining $y$. A
+\texttt{MatrixActionSolver} can be instantiated via
+\begin{lstlisting}
+eq = MatrixActionSolver(Y, A, X)
+\end{lstlisting}
+where \texttt{X} is a function, or a list or tuple of functions, being solved
+for.
+
+\section{Custom storage}
+
+Custom loading or saving of data is facilitated by \texttt{Storage} classes.
+These can, for example, be used to load observational data from disk, for use
+in defining mis-match functionals.
+
+\subsection{\texttt{Storage}}
+
+The \texttt{Storage} class is an abstract subclass of \texttt{Equation}, used
+to load or save data associated with a function.
+
+The data associated with a given function is associated with a string key. In
+a \texttt{forward\_solve} call, if the key is present in the storage then
+\texttt{x} is set equal to the data stored with this key. If the key is not
+present in the storage then, if saving of data is enabled, data associated with
+\texttt{x} is stored with this key. This latter behaviour may be useful for the
+case where a forward calculation is used to define reference data.
+
+\subsection{Built-in \texttt{Storage} classes}
+
+\subsubsection{\texttt{MemoryStorage}}
+
+Memory storage. A \texttt{MemoryStorage} can be instantiated via
+\begin{lstlisting}
+eq = MemoryStorage(x, d, key, save=save)
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{x}, the function being loaded or saved ($x$ in the above).
+  \item \texttt{d}, a dictionary, in which data is stored.
+  \item \texttt{key}, the string key discussed above.
+  \item \texttt{save}, whether saving is enabled, default false.
+\end{itemize}
+
+\subsubsection{\texttt{HDF5Storage}}
+
+Storage using the HDF5 format \citep{hdf5} using the \texttt{h5py} library. An
+\texttt{HDF5Storage} can be instantiated via
+\begin{lstlisting}
+eq = HDF5Storage(x, h, key, save=save)
+\end{lstlisting}
+where \texttt{h} is an \texttt{h5py} \texttt{File}, and other arguments are as
+for the \texttt{MemoryStorage} class.
+
+\subsection{Custom \texttt{Storage} classes}
+
+Custom \texttt{Storage} can be defined by interiting from the \texttt{Storage}
+class, and overriding key methods.
+
+\subsubsection{Constructor}
+
+A subclass of \texttt{Storage} must call the \texttt{Storage} constructor. The
+\texttt{Storage} constructor has the form
+\begin{lstlisting}
+def __init__(self, x, key, save=False):
+\end{lstlisting}
+with constructor arguments
+\begin{itemize}
+  \item \texttt{x}, a function, defining the solution to the equation.
+  \item \texttt{key}, a string, defining the key.
+  \item \texttt{save}, a logical, whether to enable saving.
+\end{itemize}
+
+\subsubsection{Storing and loading data}
+
+The \texttt{is\_saved} method indicates if data is stored with the given key.
+The \texttt{is\_saved} method has the form
+\begin{lstlisting}
+def is_saved(self):
+\end{lstlisting}
+returning true if data is stored with the key \texttt{self.key()}, and false
+otherwise.
+
+The \texttt{save} method stores data with the given key. The \texttt{save}
+method has the form
+\begin{lstlisting}
+def save(self, x):
+\end{lstlisting}
+where \texttt{x} is a function defining the data to be stored with the
+key \texttt{self.key()}.
+
+The \texttt{load} method loads data associated with the given key. The
+\texttt{load} method has the form
+\begin{lstlisting}
+def load(self, x):
+\end{lstlisting}
+where \texttt{x} is a function. \texttt{x} should be set by this method, using
+data stored with the key \texttt{self.key()}.
+
+\section{Functionals}\label{sect:Functional} 
+
+\subsection{Instantiation}
+
+Functionals are defined using a \texttt{Functional} object. A
+\texttt{Functional} can be instantiated via
+\begin{lstlisting}
+J = Functional(name=name)
+\end{lstlisting}
+where \texttt{name} is a descriptive name for the \texttt{Functional}. The name
+defaults to \texttt{fn.name()} if an optional \texttt{fn} argument is provided
+(see section \ref{sect:Functional_internals}), and ``Functional'' otherwise. On
+instantiation the value of the \texttt{Functional} is zero.
+
+\subsection{Adding terms}
+
+The value of the \texttt{Functional} can be set by calling its \texttt{assign}
+method
+\begin{lstlisting}
+J.assign(term)
+\end{lstlisting}
+where \texttt{term} is either an appropriate function (see section
+\ref{sect:Functional_internals}) or a \texttt{ufl.classes.Form} representing a
+term in the functional.
+
+Further terms can be added to the \texttt{Functional} by calling its
+\texttt{addto} method
+\begin{lstlisting}
+J.addto(term)
+\end{lstlisting}
+where \texttt{term} is again either an appropriate function (see section
+\ref{sect:Functional_internals}) or a \texttt{ufl.classes.Form} representing a
+term in the functional.
+
+The \texttt{Functional.addto} method, when supplied with no arguments
+\begin{lstlisting}
+J.addto()
+\end{lstlisting}
+defines an equation which copies the current value of the \texttt{Functional}
+(stored in the internal function -- see section
+\ref{sect:Functional_internals}) into a new function.
+
+The value of the functional can be accessed using its \texttt{value} method,
+which returns a float
+\begin{lstlisting}
+J_val = J.value()
+\end{lstlisting}
+
+\subsection{Internal function}\label{sect:Functional_internals}
+
+Internally a \texttt{Functional} object stores the value of the
+\texttt{Functional} in an appropriate function. By default this internal
+function is defined to be a function as returned by
+\texttt{new\_real\_function()} (see section \ref{sect:AssembleSolver}).
+
+In advanced usage the function space for the internal function may be specified
+\begin{lstlisting}
+J = Functional(name=name, space=space)
+\end{lstlisting}
+or the function itself may be supplied
+\begin{lstlisting}
+J = Functional(name=name, fn=fn)
+\end{lstlisting}
+The internal function may be accessed via
+\begin{lstlisting}
+J_fn = J.fn()
+\end{lstlisting}
+and then the function may, for example, be defined to be the solution of an
+\texttt{Equation}. Note that new internal functions are generated by calls to
+the \texttt{Functional.assign} or \texttt{Functional.addto} methods.
+
+\section{First order adjoint}\label{sect:first_order_adjoint}
+
+When the \texttt{solve} method of an \texttt{Equation} object is called, the
+\texttt{Equation} is processed by an internal \texttt{EquationManager} (see
+section \ref{sect:EquationManager}). This records information about the
+dependencies of the equation, for use in checkpointing (section
+\ref{sect:checkpointing}) or for use in adjoint calculations, and further
+derives tangent-linear equations as required (section \ref{sect:higher_order}).
+
+After all forward equations have been solved the derivative of a functional
+with respect to a control variable can be computed using the
+\texttt{compute\_gradient} function. This constructs and solves adjoint
+equations and, depending on the checkpointing configuration, may solve forward
+equations so as to regenerate required forward solution data.
+
+The basic syntax of the \texttt{compute\_gradient} function is
+\begin{lstlisting}
+dJ = compute_gradient(J, m)
+\end{lstlisting}
+where \texttt{J} is a \texttt{Functional} and \texttt{m} a function. This
+returns a function storing the values of the derivative, where specifically the
+$i$th degree of freedom in \texttt{dJ} corresponds to the derivative of the
+functional defined by \texttt{J} with respect to the $i$th degree of freedom of
+\texttt{m}.
+
+The derivative with respect to multiple controls can be computed via for
+example
+\begin{lstlisting}
+dJ_m_0, dJ_m_1, dJ_m_2 = compute_gradient(J, (m_0, m_1, m_2))
+\end{lstlisting}
+The derivative of multiple functionals can be computed via for example
+\begin{lstlisting}
+dJ_0, dJ_1, dJ_2 = compute_gradient((J_0, J_1, J_2), m)
+\end{lstlisting}
+although note that this requires the solution of multiple sets of adjoint
+equations. The derivative of multiple functionals with respect to multiple
+controls can be computed via for example
+\begin{lstlisting}
+((dJ_0_m_0, dJ_0_m_1, dJ_0_m_2),
+ (dJ_1_m_0, dJ_1_m_1, dJ_1_m_2),
+ (dJ_2_m_0, dJ_2_m_1, dJ_2_m_2)) = \
+    compute_gradient((J_0, J_1, J_2), (m_0, m_1, m_2))
+\end{lstlisting}
+
+Note that the \texttt{compute\_gradient} method finalizes the internal
+\texttt{EquationManager} (see section \ref{sect:EquationManager_state}).
+
+\section{Tangent-linear and higher order adjoint}\label{sect:higher_order}
+
+\subsection{First order tangent-linear}
+
+The derivation and solution of tangent-linear equations is enabled by calling
+the \texttt{add\_tlm} function before forward equations are solved. The basic
+syntax is
+\begin{lstlisting}
+add_tlm(m_0, zeta_0)
+\end{lstlisting}
+for a tangent-linear defined by differentiation with respect to the function
+\texttt{m\_0} in the direction defined by the function \texttt{zeta\_0}.
+\texttt{m\_0} and \texttt{zeta\_0} may more generally each be a list or tuple
+of functions, in which case the tangent-linear is defined by differentiation
+with respect to a function in the appropriate Cartesian product space of which
+\texttt{m\_0} is a member, in a direction defined by \texttt{zeta\_0}.
+
+\subsection{Higher order tangent-linear}
+
+The derivation and solution of higher-order tangent-linear equations is enabled
+by using multiple calls to \texttt{add\_tlm}, for example
+\begin{lstlisting}
+add_tlm(m_0, zeta_0)
+add_tlm(m_1, zeta_1)
+add_tlm(m_2, zeta_2)
+\end{lstlisting}
+Here the second call to \texttt{add\_tlm} enables the derivation and solution
+of second order tangent-linear equations defined by differentiation of the
+first order tangent-linear with respect to \texttt{m\_1} in the direction
+\texttt{zeta\_1}. The third call to \texttt{add\_tlm} enables the derivation
+and solution of third order tangent-linear equations defined by differentiation
+of the second order tangent-linear with respect to \texttt{m\_2} in the
+direction \texttt{zeta\_2}.
+
+The derivation and solution of a higher-order tangent-linear equations defined
+by repeated differentiation with respect to a single function in a single
+direction is enabled using the optional \texttt{max\_depth} argument, for
+example
+\begin{lstlisting}
+add_tlm(m, zeta, max_depth=5)
+\end{lstlisting}
+to enable the derivation and solution of tangent-linear equations up to and
+including degree $5$, defined by repeated differentiation with respect to
+\texttt{m} in the direction \texttt{zeta}.
+
+\subsection{Higher order adjoint}\label{sect:higher_order_adjoint}
+
+If a first order tangent-linear calculation is performed, defined by
+differentiation with respect to $m$ in a direction $\zeta$, then the
+tangent-linear variable associated with a functional $J$ is the forward model
+constrained derivative of $J$ with respect to $m$ in the direction $\zeta$.
+
+Given a \texttt{Functional} object \texttt{J}, a new \texttt{Functional} object
+associated with such a first order sensitivity can be obtained via its
+\texttt{tlm} method
+\begin{lstlisting}
+add_tlm(m, zeta)
+
+[... forward model ...]
+
+J = Functional(name="J")
+J.assign([...])
+J_tlm = J.tlm(m, zeta)
+\end{lstlisting}
+The action of the second derivative of \texttt{J} in the direction
+\texttt{zeta} can now be computed by an adjoint calculation associated with the
+\texttt{Functional} \texttt{J\_tlm}
+\begin{lstlisting}
+ddJ = compute_gradient(J_tlm, m)
+\end{lstlisting}
+
+This generalizes to higher order in the natural way, for example for a fourth
+order derivative calculation
+\begin{lstlisting}
+add_tlm(m_0, zeta_0)
+add_tlm(m_1, zeta_1, max_depth=2)
+
+[... forward model ...]
+
+J = Functional(name="J")
+J.assign([...])
+J_tlm_3 = J.tlm(m_0, zeta_0).tlm(m_1, zeta_1, max_depth=2)
+
+ddddJ = compute_gradient(J_tlm_3, m)
+\end{lstlisting}
+
+\subsection{Hessian actions}\label{sect:Hessian}
+
+The \texttt{Hessian} class facilitates the calculation of forward model
+constrained Hessian actions. A \texttt{Hessian} can be instantiated via
+\begin{lstlisting}
+H = Hessian(forward)
+\end{lstlisting}
+where \texttt{forward} is a callable which takes as input one or more functions
+defining the control and its value, and which returns the \texttt{Functional}.
+
+A first order derivative can subsequently be computed using the
+\texttt{Hessian.compute\_gradient} method
+\begin{lstlisting}
+dJ = H.compute_gradient(m)
+\end{lstlisting}
+where \texttt{m} is a function or a list or tuple of functions defining the
+value of the control. The forward model is first rerun using the
+\texttt{forward} callable prior to the first order adjoint calculation.
+
+The action of the Hessian can be computed using the \texttt{Hessian.action}
+method
+\begin{lstlisting}
+J_val, dJ_val, ddJ = H.action(m, dm)
+\end{lstlisting}
+where \texttt{m} and \texttt{dm} are each a function or a list or tuple of
+functions defining the control and Hessian action direction. The forward model
+is first rerun using the \texttt{forward} callable prior to the second order
+adjoint calculation. This method returns the value of the functional, the first
+derivative of the functional in the direction defined by \texttt{dm}, and the
+action of the Hessian in the direction defined by \texttt{dm}.
+
+\subsection{Hessian actions with forward caching}
+
+For small problems it may be possible to store the entire forward solution in
+memory without the use of checkpointing and rerunning (section
+\ref{sect:checkpointing}). The \texttt{SingleBlockHessian} class is an
+optimized subclass of the \texttt{Hessian} class for this case. This requires
+the additional import
+\begin{lstlisting}
+from tlm_adjoint_fenics.hessian_optimization import *
+\end{lstlisting}
+\begin{lstlisting}
+from tlm_adjoint_firedrake.hessian_optimization import *
+\end{lstlisting}
+\begin{lstlisting}
+from tlm_adjoint_numpy.hessian_optimization import *
+\end{lstlisting}
+depending on the backend used.
+
+A \texttt{SingleBlockHessian} can be instantiated via
+\begin{lstlisting}
+H = SingleBlockHessian(J)
+\end{lstlisting}
+where \texttt{J} is the functional of interest. Its \texttt{compute\_gradient}
+and \texttt{action} methods have the same interface as those of the
+\texttt{Hessian} class. The usage of these latter methods requires the use of
+the ``memory'' checkpointing method, for weak referencing of \texttt{Equation}
+objects to be disabled (section \ref{sect:configure_checkpointing_memory}), and
+for the model to be defined using a single block (section \ref{sect:blocks}).
+
+\section{Verification}\label{sect:verification}
+
+\subsection{Functional Taylor remainder}
+
+A Taylor verification of a first or second order adjoint calculation, using the
+approach described in \citet{farrell2013}, can be performed using the
+\texttt{taylor\_test} function. The interface for this function (which is based
+upon the interface for the \texttt{taylor\_test} function in dolfin-adjoint
+2017.1.0) is
+\begin{lstlisting}
+def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
+                M0=None, size=5, manager=None):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{forward}, a callable, which takes as input one or more
+    functions defining the control, and returns the functional.
+  \item \texttt{M}, a function, or a list or tuple of functions, defining the
+    control.
+  \item \texttt{J\_val}, a float, defining the value of the functional at the
+    unperturbed reference value for the control.
+  \item \texttt{dJ}, a function, or a list or tuple of functions, defining the
+    value of the forward model constrained derivative. Required if \texttt{ddJ}
+    is not supplied.
+  \item \texttt{ddJ}, a \texttt{Hessian}, used for second order adjoint
+    verification.
+  \item \texttt{seed}, a \texttt{float}, controlling the magnitude of control
+    perturbations.
+  \item \texttt{dM}, a function, or a list or tuple of functions, defining the
+    direction of control perturbations. If not supplied then a perturbation
+    direction whose degrees of freedom are uniform random values in $\left[ 0,
+    1 \right)$ (generated using the NumPy \texttt{numpy.random.random}
+    function) is used.
+  \item \texttt{M0}, a function, or a list or tuple of functions, defining the
+    value of the unperturbed reference value for the control. Extracted from
+    internal storage associated with the first block of the model (see section
+    \ref{sect:blocks}) if not supplied.
+  \item \texttt{size}, an integer, the number of control perturbations.
+    Perturbations whose degrees of freedom are $\alpha 2^{-p}$ times
+    \texttt{seed} times the values of the degrees of freedom of \texttt{dM} are
+    used, where $p$ ranges from $0$ to \texttt{size - 1}, and where $\alpha =
+    \max \left( 1, \max_i \left| \tilde{m}_i \right| \right)$, where the
+    $\tilde{m}_i$ are the discrete degrees of freedom associated with the
+    \texttt{M0}. The forward model is rerun using the \texttt{forward} callable
+    for each perturbation.
+\end{itemize}
+
+The verification performed by \texttt{taylor\_test} is based upon the
+calculation of the magnitude of Taylor corrected functional changes
+\citep{farrell2013}
+\begin{align*}
+  e_{0,1} \left( \varepsilon \right) & = \left|
+    \hat{J} \left( m_0 + \varepsilon \zeta \right)
+    - \hat{J} \left( m_0 \right)
+    - \varepsilon \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \zeta
+    \right| = {\cal O} \left( \varepsilon^2 \right), \\
+  e_{0,2} \left( \varepsilon \right) & = \left|
+    \hat{J} \left( m_0 + \varepsilon \zeta \right) - \hat{J} \left( m_0 \right)
+    - \varepsilon \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \zeta
+    - \frac{1}{2} \varepsilon^2 \left. \frac{\mathrm{d}}{\mathrm{d} m} \left( \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \zeta \right) \right|_{m = m_0} \zeta
+    \right| = {\cal O} \left( \varepsilon^3 \right),
+\end{align*}
+where $\hat{J} \left( m \right)$ defines the value of the functional, evaluated
+after solving the forward model with a given value for the control.
+
+When called the \texttt{taylor\_test} function displays the magnitudes of the
+changes of the functional value for each perturbed control, and the implied
+orders of convergence between subsequent pairs of these, first for the case
+where no derivative information is used, and then for the case where first
+order (if \texttt{ddJ} is not supplied) or the case where first and second
+order (if \texttt{ddJ} is supplied) derivative information is used. The
+function returns the minimum order of convergence computed in the latter case,
+where derivative information is used.
+
+In a valid verification, for sufficiently small perturbation magnitude the
+order of convergence when no derivative information is used should be
+approximately one. If only first derivative information is used then for
+sufficiently small perturbation magnitude the order of convergence should be
+approximately two. If first and second derivative information is used then for
+sufficiently small perturbation magnitude the order of convergence should be
+approximately three. Numerical roundoff issues, or encountering a special case
+where the first or second order derivatives are zero, may prevent these
+asymptotic convergence orders from being observable.
+
+\subsection{Functional derivative Taylor remainder}
+
+The \texttt{taylor\_test\_tlm} and \texttt{taylor\_test\_tlm\_adjoint}
+functions can be used for further testing of tangent-linear models, and higher
+order adjoint adjoint models. These are based upon the calculation of the
+magnitude of Taylor corrected functional gradient changes.
+
+For example a second order test is based on
+\begin{equation*}
+  e_{1,1} \left( \varepsilon \right) = \left|
+    \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0 + \zeta} \chi
+    - \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \chi
+    - \varepsilon \left. \frac{\mathrm{d}}{\mathrm{d} m} \left( \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \chi \right) \right|_{m = m_0} \zeta
+    \right| = {\cal O} \left( \varepsilon^2 \right).
+\end{equation*}
+In such a test the first order derivative information is computed using a first
+order tangent-linear calculation, and the second order derivative information
+is computed using either a second order tangent-linear calculation (if using
+the \texttt{taylor\_test\_tlm} function) or a second order adjoint calculation
+(if using the \texttt{taylor\_test\_tlm\_adjoint} function).
+
+The \texttt{taylor\_test\_tlm} function has interface
+\begin{lstlisting}
+def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
+                    manager=None):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{tlm\_order}, a positive integer, the order of tangent-linear
+    model to test.
+  \item \texttt{dMs}, a function, or a tuple containing functions (or further
+    such tuples), defining the tangent-linear directions (in \texttt{dMs[:-1]}
+    if \texttt{dMs} is a tuple) and perturbation direction (\texttt{dMs} if
+    \texttt{dMs} is a function, or \texttt{dMs[:-1]} if \texttt{dMs} is a
+    tuple).
+  \item \texttt{manager}, defaulting to the currently active equation manager.
+    A new equation manager is generated using the \texttt{manager.new} method.
+\end{itemize}
+Other arguments are as for the \texttt{taylor\_test} function.
+\texttt{taylor\_test\_tlm} computes the Taylor remainder associated with the
+(\texttt{tlm\_order - 1})th derivative of the functional, contracted against
+(\texttt{tlm\_order - 1}) directions, and corrects this using the
+(\texttt{tlm\_order})th order derivative in the perturbation direction,
+evaluated using a (\texttt{tlm\_order})th order tangent-linear calculation.
+
+The \texttt{taylor\_test\_tlm\_adjoint} function has interface
+\begin{lstlisting}
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
+                            size=5, manager=None):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{adjoint\_order}, a positive integer, the order of adjoint model
+    to test.
+  \item \texttt{manager}, defaulting to the currently active equation manager.
+    A new equation manager is generated using the \texttt{manager.new} method.
+\end{itemize}
+Other arguments are as for the \texttt{taylor\_test} function.
+\texttt{taylor\_test\_tlm\_adjoint} computes the Taylor remainder associated
+with the (\texttt{adjoint\_order - 1})th derivative of the functional,
+contracted against (\texttt{adjoint\_order - 1}) directions, and corrects this
+using the (\texttt{adjoint\_order})th order derivative evaluated using an
+(\texttt{adjoint\_order})th order adjoint calculation.
+
+If \texttt{dMs} is not supplied then all tangent-linear contraction directions
+and the perturbation direction used by the \texttt{taylor\_test\_tlm} and
+\texttt{taylor\_test\_tlm\_adjoint} functions are constructed with degrees of
+freedom taking uniform random values in $\left[ 0, 1 \right)$ (generated using
+the NumPy \texttt{numpy.random.random} function).
+
+When called the \texttt{taylor\_test\_tlm} and
+\texttt{taylor\_test\_tlm\_adjoint} functions display the magnitudes of the
+changes of the functional derivative value for each perturbed control, and the
+implied orders of convergence between subsequent pairs of these, first for the
+case where the highest order derivative information (at order
+\texttt{tlm\_order}/\texttt{adjoint\_order}) is not used, and then for the case
+where the highest order derivative information is used. The function returns
+the minimum order of convergence computed in the latter case, where the highest
+order derivative information is used.
+
+In a valid verification, for sufficiently small perturbation magnitude the
+order of convergence when the highest order derivative information is not used
+should be approximately one, and the order of convergence when the highest
+order derivative information is used should be approximately two. Numerical
+roundoff issues, or encountering a special case where the highest order
+derivative is zero, may prevent these asymptotic convergence orders from being
+observable.
+
+\section{Checkpointing}\label{sect:checkpointing}
+
+\subsection{Configuration}\label{sect:configure_checkpointing}
+
+Storage, checkpointing, and rerunning is configured using the
+\texttt{configure\_checkpointing} function
+\begin{lstlisting}
+configure_checkpointing(cp_method, cp_parameters)
+\end{lstlisting}
+which should be called prior to solving forward equations. \texttt{cp\_method}
+controls the checkpointing method, and selects between ``none'', ``memory'',
+``periodic\_disk'', and ``multistage''. \texttt{cp\_parameters} is a dictionary
+of parameters controlling the detailed checkpointing configuration options.
+
+\subsubsection{``memory'' method}\label{sect:configure_checkpointing_memory}
+
+All dependencies of all equations are fully stored in memory. The default
+method. Keys for \texttt{cp\_parameters} for this method are
+\begin{itemize}
+  \item \texttt{replace}, a logical, default false. If true then weak
+    references to \texttt{Equation} objects are kept by the
+    \texttt{EquationManager}, and their \texttt{replace} methods will be called
+    when the \texttt{Equation} objects are garbage collected. If false then
+    strong references to \texttt{Equation} objects are kept by the
+    \texttt{EquationManager}.
+\end{itemize}
+
+When using this method checkpoint data are \emph{retained} during an adjoint
+calculation, permitting multiple calls to \texttt{compute\_gradient} for a
+single run of a forward model.
+
+\subsubsection{``periodic\_disk'' method}
+
+Checkpoints are stored to disk at regular intervals. Keys for
+\texttt{cp\_parameters} for this method are
+\begin{itemize}
+  \item \texttt{path}, a string, directory in which checkpoint data should be
+    stored (default ``checkpoints\textasciitilde'').
+  \item \texttt{format}, one of ``pickle'' or ``hdf5'' (default ``hdf5''). The
+    data storage format. If ``pickle'' is used then the data are stored using
+    the Python \texttt{pickle} module. If ``hdf5'' is used then the data are
+    stored using the HDF5 format \citep{hdf5} using the \texttt{h5py} library.
+  \item \texttt{period}, positive integer, the interval (in blocks -- see
+    section \ref{sect:blocks}) between disk checkpoints.
+\end{itemize}
+
+When using this method checkpoint data are \emph{retained} during an adjoint
+calculation, permitting multiple calls to \texttt{compute\_gradient} for a
+single run of a forward model.
+
+\subsubsection{``multistage'' method}
+
+Checkpoints are stored using the binomial checkpointing approach of
+\citet{griewank2000} (following the maximal trajectory of their Fig. 4), with
+multistage offline checkpointing using allocation strategy described in
+\citet{stumm2009} (with a brute-force approach used to determine the
+allocation). Keys for \texttt{cp\_parameters} for this method are
+\begin{itemize}
+  \item \texttt{path}, as for the ``periodic\_disk'' method.
+  \item \texttt{format}, as for the ``periodic\_disk'' method.
+  \item \texttt{blocks}, positive integer, the total number of blocks (see
+    section \ref{sect:blocks}).
+  \item \texttt{snaps\_in\_ram}, non-negative integer, the number of
+    checkpoints to store in memory (default $0$).
+  \item \texttt{snaps\_on\_disk}, non-negative integer, the number of
+    checkpoints to store on disk (default $0$).
+  \item \texttt{verbose}, logical, whether to enable increased verbosity
+    (default false).
+\end{itemize}
+The method name, and the latter three keys for \texttt{cp\_parameters}, are
+based upon the configuration of multistage checkpointing in dolfin-adjoint
+2017.1.0.
+
+When using this method checkpoint data are \emph{deleted} during an adjoint
+calculation, permitting only a single call to \texttt{compute\_gradient} for a
+single run of a forward model.
+
+\subsection{Blocks}\label{sect:blocks}
+
+The ``periodic\_disk'' and ``multistage'' checkpointing methods each rely on
+the concept of forward model ``blocks''. These are sets of equations whose
+solution depends only upon control parameters, the solutions of other equations
+in the block, and the solutions of other equations in preceding blocks. The
+forward model blocks may, for example, correspond to the timesteps in a time
+dependent forward model.
+
+During the solution of forward equations, the start of a new block is indicated
+using the \texttt{new\_block} function
+\begin{lstlisting}
+new_block()
+\end{lstlisting}
+
+The ``multistage'' method requires the number of blocks to be defined prior to
+solving forward equations. If \texttt{new\_block} is subsequently called too
+many times (i.e. attempts to define more blocks than are defined in the
+checkpointing configuration) then the surplus calls are ignored.
+
+\section{Caching}\label{sect:caching}
+
+Many numerical models repeatedly solve the same equations multiple times. For
+example it is common for a time-dependent numerical model to solve equations
+repeatedly, once for each timestep of the model. If an equation is solved
+multiple times then optimizations can be applied, with data cached for reuse in
+the later solution of the same equation \citep{maddison2014}.
+
+\subsection{\texttt{EquationSolver} caching}\label{sect:EquationSolver_caching}
+
+The \texttt{EquationSolver} class (see section \ref{sect:EquationSolver}) can
+implement a number of caching optimizations automatically. Specifically
+\begin{itemize}
+  \item If Jacobian caching is autodetected, the equation is linear, and the
+    forward Jacobian matrix does not depend on any non-cached objects, or if
+    Jacobian caching is unconditionally enabled through the
+    \texttt{cache\_jacobian} option, then the forward Jacobian matrix and
+    associated linear solver are cached. 
+  \item If adjoint Jacobian caching is autodetected and the adjoint Jacobian
+    matrix does not depend on any non-cached objects, or if adjoint Jacobian
+    caching is unconditionally enabled through the
+    \texttt{cache\_adjoint\_jacobian} option, then the adjoint Jacobian matrix
+    and associated linear solver are cached.
+  \item If the \texttt{cache\_rhs\_assembly} option is enabled and the equation
+    is linear, then right-hand-side terms in the forward equation which do not
+    depend on non-cached objects are cached. If a right-hand-side term in the
+    forward equation can be represented as the action of a matrix which does
+    not depend on any non-cached objects, then assembly of the term is
+    converted to a matrix action, with the matrix cached.
+  \item If the \texttt{cache\_rhs\_assembly} option is enabled, then for
+    adjoint Jacobian derivative actions (see section
+    \ref{sect:adjoint_derivative_action}) which can be represented as the
+    action of a matrix which does not depend on any non-cached objects,
+    assembly of the term is converted to a matrix action, with the matrix
+    cached.
+\end{itemize}
+
+\subsection{Controlling caching}\label{sect:static}
+
+As described in \citet{maddison2014}, caching can be facilitated by declaring
+data which are known to be ``static''. Caching of \texttt{Function},
+\texttt{Constant}, and \texttt{DirichletBC} may enabled with additional
+constructor arguments (see section \ref{sect:flags}). All other
+\texttt{ufl.classes.Coefficient} objects are assumed non-cachable.
+
+\subsection{Clearing caches}\label{sect:clear_caches}
+
+Caches may be cleared via
+\begin{lstlisting}
+clear_caches()
+\end{lstlisting}
+Cached data associated with one or more functions may be cleared via
+\begin{lstlisting}
+clear_caches(F_0, F_1, [...])
+\end{lstlisting}
+
+The clearing of caches is automatically detected by \texttt{EquationSolver}
+objects, and existing \texttt{EquationSolver} objects do not need to be
+regenerated.
+
+\section{Object flags}\label{sect:flags}
+
+\subsection{\texttt{Function}}\label{sect:Function_flags}
+
+\texttt{Function} objects may be supplied with optional arguments on
+instantiation, e.g.
+\begin{lstlisting}
+F = Function(space, static=static, cache=cache, checkpoint=checkpoint)
+\end{lstlisting}
+where the additional arguments are optional logicals
+\begin{itemize}
+  \item \texttt{static}, default false. If true, declares the \texttt{Function}
+    to be static for the duration of the calculation. A
+    \texttt{TangentLinearMap} (see section \ref{sect:tangent_linear}) will
+    return \texttt{None} when supplied with a static \texttt{Function}.
+  \item \texttt{cache}, default \texttt{static}. If true, results of
+    calculations using the \texttt{Function} may be cached.
+  \item \texttt{checkpoint}, default \texttt{not static}. If false then the
+    \texttt{EquationManager} will keep a strong reference to the
+    \texttt{Function}, and it will not be considered when applying
+    checkpointing strategies. \texttt{Function} objects with
+    \texttt{checkpoint=False} may not appear as the solution of any
+    \texttt{Equation}.
+\end{itemize}
+
+\subsection{\texttt{Constant}}
+
+\texttt{Constant} objects may be supplied with optional arguments on
+instantiation, e.g.
+\begin{lstlisting}
+F = Constant(1.0, static=static, cache=cache, checkpoint=checkpoint)
+\end{lstlisting}
+where the additional arguments are optional logicals, and are as for the
+\texttt{Function} constructor.
+
+\subsection{\texttt{DirichletBC}}
+
+\texttt{DirichletBC} objects may be supplied with optional arguments on
+instantiation, e.g.
+\begin{lstlisting}
+bc = DirichletBC(space, 0.0, "on_boundary", static=static, cache=cache)
+\end{lstlisting}
+where the additional arguments are optional logicals
+\begin{itemize}
+  \item \texttt{static}, default autodetected. If true, declares the
+    \texttt{DirichletBC} to be static for the duration of the calculation.
+  \item \texttt{cache}, default \texttt{static}. If true, results of
+    calculations using the \texttt{DirichletBC} may be cached. Note that
+    \texttt{tlm\_adjoint} currently cannot handle the case where the values of
+    a cached \texttt{DirichletBC} are modified after their use in an
+    \texttt{Equation}.
+\end{itemize}
+
+A homogeneous Dirichlet boundary condition is defined using e.g.
+\begin{lstlisting}
+hbc = HomogeneousDirichletBC(space, "on_boundary")
+\end{lstlisting}
+
+\section{\texttt{EquationManager} objects}\label{sect:EquationManager}
+
+Internally, when the \texttt{solve} method of an \texttt{Equation} is called,
+the equation is processed by an internal \texttt{EquationManager}.
+
+\subsection{The active \texttt{EquationManager}}\label{sect:active_EquationManager}
+
+The currently active \texttt{EquationManager} can be accessed using the
+\texttt{manager} function. A new \texttt{EquationManager} can be created using
+the \texttt{new} method of an \texttt{EquationManager}. In the following
+\begin{lstlisting}
+current_manager = manager()
+new_manager = current_manager.new()
+\end{lstlisting}
+\texttt{new\_manager} is a new \texttt{EquationManager}, with no equations
+processed and no tangent-linear models defined, and shares the checkpointing
+configuration of \texttt{current\_manager}.
+
+The active \texttt{EquationManager} can be set using
+\texttt{set\_manager}
+\begin{lstlisting}
+set_mananger(new_manager)
+\end{lstlisting}
+
+\subsection{Interacting with an \texttt{EquationManager}}
+
+There are a number of functions which can be used to call methods of the
+currently active \texttt{EquationManager}. In the following the
+\texttt{manager} argument is optional, and defaults to the currently active
+\texttt{EquationManager}.
+\begin{lstlisting}
+def configure_checkpointing(cp_method, cp_parameters={}, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.configure\_checkpointing}. See section
+\ref{sect:configure_checkpointing}.
+\begin{lstlisting}
+def manager_info(info=info, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.info}. Displays information about the currently
+active equation manager, using the function \texttt{info} to display strings.
+\begin{lstlisting}
+def reset_manager(cp_method=None, cp_parameters=None, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.reset}. Resets the \texttt{EquationManager}, and
+optionally defines a new checkpointing configuration.
+\begin{lstlisting}
+def start_manager(annotation=True, tlm=True, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.start}. Enables the \texttt{EquationManager}. If
+\texttt{annotation} is true then enables recording of solved equations. If
+\texttt{tlm} is true then enables derivation and solution of tangent-linear
+equations.
+\begin{lstlisting}
+def stop_manager(annotation=True, tlm=True, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.stop}. Disables the \texttt{EquationManager}. If
+\texttt{annotation} is true then disables recording of solved equations. If
+\texttt{tlm} is true then disables derivation and solution of tangent-linear
+equations.
+\begin{lstlisting}
+def add_tlm(M, dM, max_depth=1, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.add\_tlm}. Requests the derivation and solution
+of tangent-linear equations (see section \ref{sect:higher_order}).
+\begin{lstlisting}
+def tlm(M, dM, x, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.tlm}. Accesses a tangent-linear variable.
+\begin{lstlisting}
+def reset_adjoint(manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.reset\_adjoint}. Calls the
+\texttt{reset\_adjoint} method of all annotated \texttt{Equation} objects.
+\begin{lstlisting}
+def compute_gradient(Js, M, callback=None, manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
+constrained derivative (see sections \ref{sect:first_order_adjoint} and
+\ref{sect:higher_order_adjoint}). The optional \texttt{callback} argument takes
+the form
+\begin{lstlisting}
+def callback(J_i, n, i, eq, adj_X)
+\end{lstlisting}
+where \texttt{adj\_X} is \texttt{None}, a function, or a list or tuple of
+functions, corresponding to the adjoint solution for the equation \texttt{eq},
+which is equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
+\texttt{Functional}.
+\begin{lstlisting}
+def new_block(manager=None):
+\end{lstlisting}
+Calls \texttt{EquationManager.new\_block}. Indicates the start of a new block
+of equations (see section \ref{sect:blocks}).
+
+\subsection{\texttt{EquationManager} state}\label{sect:EquationManager_state}
+
+\subsubsection{Annotation state}
+
+The annotation state of an \texttt{EquationManager} controls the annotation of
+equations -- that is, this controls the recording of which equations are
+solved. The annotation information is later used in adjoint calculations.
+
+The different annotation states of an \texttt{EquationManager} are
+\begin{itemize}
+  \item ``initial''. Annotation of equations is enabled, no equations have been
+    solved, and the manager is not yet finalized.
+  \item ``stopped\_initial''. Annotation of equations is disabled, no equations
+    have been solved, and the manager is not yet finalized.
+  \item ``annotating''. Annotation of equations is enabled, one or more
+    equations has been solved, and the manager is not yet finalized.
+  \item ``stopped\_annotating''. Annotation of equations is disabled, one or
+    more equations has been solved, and the manager is not yet finalized.
+  \item ``final''. The manager has been finalized. Occurs when
+    \texttt{compute\_gradient} is called.
+\end{itemize}
+The checkpointing configuration (see section
+\ref{sect:configure_checkpointing}) can only be changed when in the ``initial''
+or ``stopped\_initial'' annotation state. No new equations can be annotated
+when in the ``final'' annotation state.
+
+\subsubsection{Tangent-linear state}
+
+The tangent-linear state of an \texttt{EquationManager} controls the derivation
+and solution of tangent-linear equations.
+
+The different tangent-linear states of an \texttt{EquationManager} are
+\begin{itemize}
+  \item ``initial''. Derivation and solution of tangent-linear equations is
+    enabled, and \texttt{add\_tlm} has not yet been called (see section
+    \ref{sect:higher_order}).
+  \item ``stopped\_initial''. Derivation and solution of tangent-linear
+    equations is disabled, and  \texttt{add\_tlm} has not yet been called.
+  \item ``deriving''. Derivation and solution of tangent-linear equations is
+    enabled, and \texttt{add\_tlm} has been called at least once.
+  \item ``stopped\_deriving''. Derivation and solution of tangent-linear
+    equations is disabled, and \texttt{add\_tlm} has been called at least once.
+  \item ``final''. The manager has been finalized. Occurs when
+    \texttt{compute\_gradient} is called.
+\end{itemize}
+\texttt{add\_tlm} cannot be called when in the ``final'' tangent-linear state.
+
+\section{\texttt{timestepping}}
+
+The \texttt{timestepping} module defines a syntax which is similar to that
+defined by the \texttt{timestepping} library \citep[see][]{maddison2014}. For
+example, the diffusion equation example described in section
+\ref{sect:diffusion} may be implemented via
+\begin{lstlisting}
+from fenics import *
+from tlm_adjoint_fenics import *
+from tlm_adjoint_fenics.timestepping import *
+stop_manager()
+
+t_N = 100
+configure_checkpointing("multistage", {"blocks": t_N, "snaps_in_ram": 5})
+
+mesh = UnitSquareMesh(100, 100)
+space = FunctionSpace(mesh, "Lagrange", 1)
+test, trial = TestFunction(space), TrialFunction(space)
+
+psi_0 = Function(space, name="psi_0", static=True)
+psi_0.interpolate(Expression(
+    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
+    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
+    element=space.ufl_element()))
+
+kappa = Constant(0.001, static=True)
+dt = Constant(0.2, static=True)
+bc = HomogeneousDirichletBC(space, "on_boundary")
+levels = TimeLevels(levels=[n, n + 1], cycle_map={n: n + 1})
+
+
+def forward(psi_0, psi_n_file=None):
+    clear_caches()
+
+    system = TimeSystem()
+    psi = TimeFunction(levels, space, name="psi")
+
+    class InteriorAssignmentSolver(Equation):
+        def __init__(self, y, x):
+            Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
+            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+
+        def forward_solve(self, x, deps=None):
+            _, y = self.dependencies() if deps is None else deps
+            function_assign(x, y)
+            self._bc.apply(x.vector())
+
+        def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+            if dep_index == 0:
+                return b
+            elif dep_index == 1:
+                b = function_copy(adj_x)
+                self._bc.apply(b.vector())
+                return (-1.0, b)
+            else:
+                return None
+
+        def adjoint_jacobian_solve(self, nl_deps, b):
+            return b
+
+        def tangent_linear(self, M, dM, tlm_map):
+            x, y = self.dependencies()
+            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+            if tlm_y is None:
+                return NullSolver(tlm_map[x])
+            else:
+                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+
+    system.add_solve(InteriorAssignmentSolver(psi_0, psi[0]))
+
+    system.add_solve(inner(test, trial / dt) * dx
+                     + inner(grad(test), kappa * grad(trial)) * dx
+                     == inner(test, psi[n] / dt) * dx,
+                     psi[n + 1], bc,
+                     solver_parameters={"linear_solver": "direct"})
+
+    system.assemble()
+
+    if psi_n_file is not None:
+        psi_n_file << (psi[n], 0.0)
+
+    for t_n in range(t_N):
+        system.timestep()
+
+        if psi_n_file is not None:
+            psi_n_file << (psi[n], (t_n + 1) * float(dt))
+        if t_n < t_N - 1:
+            new_block()
+
+    system.finalize()
+
+    J = Functional(name="J")
+    J.assign(inner(psi[N], psi[N]) * dx)
+    return J
+
+
+start_manager()
+J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+stop_manager()
+
+dJ = compute_gradient(J, psi_0)
+\end{lstlisting}
+
+\section{Applications}
+
+\subsection{Functional minimization}\label{sect:minimization}
+
+\subsubsection{SciPy}
+
+The \texttt{minimize\_scipy} function can be used for functional minimization
+using the \texttt{scipy.optimize.minimize} function supplied with SciPy
+\citep{scipy}. This has the interface
+\begin{lstlisting}
+def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{forward}, a callable, which takes as input one or more
+    functions defining the control and its value, and which returns the
+    \texttt{Functional} to be minimized.
+  \item \texttt{J0}, an optional \texttt{Functional}. Used to determine the
+    initial value for the functional, and the functional to be differentiated
+    in the initial derivative calculation.
+  \item \texttt{manager}, an optional \texttt{EquationManager}. If not supplied
+    then the currently active \texttt{EquationManager} is used (see section
+    \ref{sect:active_EquationManager}).
+\end{itemize}
+Remaining keyword arguments are passed directly to the
+\texttt{scipy.optimize.minimize} function -- see
+\url{https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html}.
+
+\texttt{minimize\_scipy} returns a tuple
+\begin{lstlisting}
+M, return_value = minimize_scipy([...])
+\end{lstlisting}
+where \texttt{M} is the result of the minimization, and \texttt{return\_value}
+is the return value of \texttt{scipy.optimize.minimize}.
+
+Note that \texttt{minimize\_scipy} does not raise an error if the minimization
+fails -- instead you should check \texttt{return\_value.success} -- see
+\url{https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.OptimizeResult.html}.
+
+When used in parallel \texttt{scipy.optimize.minimize} is called separately on
+each process, with global communication used to gather the degrees of freedom
+for the control.
+
+\subsection{Hessian eigendecomposition}
+
+\subsubsection{SLEPc}
+
+The \texttt{eigendecompose} function can be used for matrix-free
+eigendecomposition, using SLEPc via slepc4py
+\citep{hernandez2005,dalcin2011,slepc-user-3.9}. This seeks eigenvalues $\mu$
+and associated eigenvectors $v$ where
+\begin{equation*}
+  A v = \mu B v.
+\end{equation*}
+This has the interface
+\begin{lstlisting}
+def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
+                   solver_type=None, problem_type=None, which=None,
+                   tolerance=1.0e-12, configure=None):
+\end{lstlisting}
+with arguments
+\begin{itemize}
+  \item \texttt{space}, a function space. Eigenvector discrete function space.
+  \item \texttt{A\_action}, a callable which accepts a single input
+    \texttt{Function}, and computes the action of the matrix $A$. The result
+    must be returned as a real NumPy vector.
+  \item \texttt{B\_action}, an optional callable which accepts a single input
+    \texttt{Function}, and computes the action of the matrix $B$. The result
+    must be returned as a real NumPy vector. If not provided then $B$ is
+    considered an identity matrix.
+  \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
+    passed as the \texttt{nev} argument to \texttt{slepc4py.EPS.setDimensions}.
+    If not provided then performs a full spectrum eigendecomposition.
+  \item \texttt{solver\_type}. Sets the SLEPc solver type, passed to
+    \texttt{slepc4py.EPS.setType}.
+  \item \texttt{problem\_type}, the eigendecomposition problem type, passed to
+    \texttt{slepc4py.EPS.setWhichEigenpairs}. If not provided then
+    \texttt{slepc4py.EPS.ProblemType.GNHEP} is used if \texttt{B\_action} is
+    provided, and \texttt{slepc4py.EPS.ProblemType.NHEP} is used otherwise.
+  \item \texttt{which}, which eigenvalues to find, passed to
+    \texttt{slepc4py.EPS.setWhichEigenpairs}. If not provided then
+    \texttt{slepc4py.EPS.Which.LARGEST\_MAGNITUDE} is used.
+  \item \texttt{tolerance}, solver tolerance. Passed as the \texttt{tol}
+   argument to \texttt{slepc4py.EPS.setTolerances}.
+  \item \texttt{configure}, a callable. If provided the \texttt{EPS} is passed
+    as a single argument to this function, after all preceding configuration
+    options have been applied. Can be used for detailed configuration.
+\end{itemize}
+
+Returns a tuple \texttt{(lam, V)} where \texttt{lam} is a NumPy vector of
+eigenvalues. For Hermitian eigendecomposition problems \texttt{V} is a tuple of
+\texttt{Function} objects containing corresponding eigenvectors. Otherwise
+\texttt{V} is a tuple of two tuples of \texttt{Function} objects, the first
+corresponding to real components of eigenvectors, and the second to imaginary
+components.
+
+The \texttt{action\_fn} method of \texttt{Hessian} objects (see section
+\ref{sect:Hessian}) returns a callable suitable for use as the
+\texttt{A\_action} argument of this function. The \texttt{action\_fn} method is
+used via
+\begin{lstlisting}
+A_action = ddJ.action_fn(m)
+\end{lstlisting}
+where \texttt{m} is a \texttt{Function} defining the control.
+
+\section{Copyright and acknowledgements}
+
+For copyright information and acknowledgements see the
+\texttt{ACKNOWLEDGEMENTS} file in the \texttt{tlm\_adjoint} top level
+directory.
+
+\texttt{tlm\_adjoint} is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, version 3 of the License.
+
+\texttt{tlm\_adjoint} is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with \texttt{tlm\_adjoint}.  If not, see {\textless}https://www.gnu.org/licenses/{\textgreater}.
+
+\bibliographystyle{apalike}
+\bibliography{bibliography}
+
+\end{document}
