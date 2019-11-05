@@ -1,5 +1,5 @@
-# Copyright(c) 2018-2019 The University of Edinburgh
-#
+For a list of authors see AUTHORS in the tlm_adjoint root directory.
+
 # tlm_adjoint is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, version 3 of the License.
@@ -12,7 +12,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-================================================================================
+===============================================================================
+
+tlm_adjoint is described in
+
+  J. R. Maddison, D. N. Goldberg, and B. D. Goddard, SIAM Journal on
+  Scientific Computing, 41(5), pp. C417--C445, 2019
 
 tlm_adjoint was developed out of a custom extension to dolfin-adjoint, and
 previously made use of code derived from dolfin-adjoint, particularly in an
@@ -24,7 +29,7 @@ Natural Environment Research Council funded project (NE/L005166/1). Further
 development has been conducted as part of a U.K. Engineering and Physical
 Sciences Research Council funded project (EP/R021600/1).
 
-================================================================================
+===============================================================================
 
 The file python/tlm_adjoint/backend.py previously included a 'vector' function,
 which followed Function::init_vector in dolfin/function/Function.cpp, DOLFIN
@@ -52,7 +57,7 @@ notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0, follows.
 // Modified by Martin Sandve Alnes 2008-2014
 // Modified by Andre Massing 2009
 
-================================================================================
+===============================================================================
 
 The 'eigendecompose' function in python/tlm_adjoint/eigendecomposition.py
 loosely follows the slepc4py 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license
@@ -92,7 +97,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-================================================================================
+===============================================================================
 
 The configuration in examples/basal_sliding/basal.py and
 examples/basal_sliding/basal_fp.py is based upon experiment 3 in [1] (see also
@@ -101,14 +106,14 @@ examples/basal_sliding/basal_fp.py is based upon experiment 3 in [1] (see also
 [1]  D. N. Golberg and P. Heimbach, "Parameter and state estimation with a
      time-dependent adjoint marine ice sheet model", The Cyrosphere, 7(6), pp.
      1659--1678, 2013
-[2]  D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and ice
-     shelf buttressing in marine ice sheets", Journal of Geophysical Research:
-     Earth Surface, 114(F4), F04026, 2009
-[3]  D. N. Goldberg, "A variationally derived, depth-integrated approximation to
-     a higher-order glaciological flow model", Journal of Glaciology, 57(201),
-     pp. 157--170, 2011
+[2]  D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and
+     ice shelf buttressing in marine ice sheets", Journal of Geophysical
+     Research: Earth Surface, 114(F4), F04026, 2009
+[3]  D. N. Goldberg, "A variationally derived, depth-integrated approximation
+     to a higher-order glaciological flow model", Journal of Glaciology,
+     57(201), pp. 157--170, 2011
 
-================================================================================
+===============================================================================
 
 The FixedPointSolver class in python/tlm_adjoint/base_equations.py derives
 tangent-linear and adjoint information using the approach described in [4, 5].
@@ -118,7 +123,7 @@ tangent-linear and adjoint information using the approach described in [4, 5].
 [5]  B. Christianson, "Reverse accumulation and attractive fixed points",
      Optimization Methods and Software, 3(4), pp. 311--326, 1994
 
-================================================================================
+===============================================================================
 
 tlm_adjoint implements the binomial checkpointing strategy described in [6],
 choosing the maximum step size permitted when choosing the next snapshot block.
@@ -133,4 +138,4 @@ force approach to yield behaviour described in [7].
      checkpointing", SIAM Journal on Scientific Computing, 31(3),
      pp. 1946--1967, 2009
 
-================================================================================
+===============================================================================
