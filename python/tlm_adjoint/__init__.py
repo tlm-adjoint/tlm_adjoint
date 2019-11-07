@@ -21,4 +21,4 @@
 import sys
 if "tlm_adjoint.backend" not in sys.modules:
     from tlm_adjoint_fenics import *  # noqa: F401
-del(sys)
+del sys

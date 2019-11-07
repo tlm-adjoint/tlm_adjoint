@@ -245,8 +245,8 @@ class TangentLinearMap:
             def callback(self_ref, x_id):
                 self = self_ref()
                 if self is not None:
-                    del(self._map[x_id])
-                    del(self._finalizes[x_id])
+                    del self._map[x_id]
+                    del self._finalizes[x_id]
             self._finalizes[x_id] = weakref.finalize(
                 x, callback, weakref.ref(self), x_id)
             self._map[x_id] = function_tangent_linear(
@@ -275,7 +275,7 @@ class ReplayStorage:
                 eq_last_d[(n, i)] = dep_ids
         for dep_id, (n, i) in last_eq.items():
             eq_last_d[(n, i)].add(dep_id)
-        del(eq_last_d)
+        del eq_last_d
 
         self._eq_last = eq_last_q
         self._map = {dep_id: None for dep_id in last_eq.keys()}
@@ -318,7 +318,7 @@ class ReplayStorage:
 
     def pop(self):
         for dep_id in self._eq_last.popleft():
-            del(self._map[dep_id])
+            del self._map[dep_id]
 
 
 class DependencyTransposer:
@@ -382,7 +382,7 @@ class DependencyTransposer:
         for x_id in self._eq_X_ids.pop():
             self._dep_map[x_id].pop()
             if len(self._dep_map[x_id]) == 0:
-                del(self._dep_map[x_id])
+                del self._dep_map[x_id]
 
     def is_empty(self):
         return len(self._dep_map) == 0 and len(self._eq_X_ids) == 0
@@ -970,7 +970,7 @@ class EquationManager:
                 d = g.create_dataset("value", shape=(function_global_size(F),),
                                      dtype=values.dtype)
                 d[function_local_indices(F)] = values
-                del(values)
+                del values
 
                 d = g.create_dataset("space_id", shape=(self._comm.size,),
                                      dtype=np.int64)
@@ -1009,7 +1009,7 @@ class EquationManager:
                     F = space_new(self._cp_spaces[space_id])
                     function_set_values(F, values)
                     storage[key] = F
-                del(space_id, values)
+                del space_id, values
         elif cp_format == "hdf5":
             cp_filename = os.path.join(
                 cp_path,
@@ -1031,7 +1031,7 @@ class EquationManager:
                     d = g["value"]
                     function_set_values(F, d[function_local_indices(F)])
                     storage[key] = F
-                del(g, d)
+                del g, d
 
             h.close()
             if delete:

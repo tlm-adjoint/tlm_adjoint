@@ -208,7 +208,7 @@ def bind_form(form, deps):
 
 def unbind_form(form):
     if "_tlm_adjoint__bindings" in form._cache:
-        del(form._cache["_tlm_adjoint__bindings"])
+        del form._cache["_tlm_adjoint__bindings"]
 
 
 def homogenized_bc(bc):
@@ -252,7 +252,7 @@ class EquationSolver(Equation):
             raise EquationException("Cannot both match quadrature and defer adjoint assembly")  # noqa: E501
 
         lhs, rhs = eq.lhs, eq.rhs
-        del(eq)
+        del eq
         lhs = ufl.classes.Form(lhs.integrals())
         linear = isinstance(rhs, ufl.classes.Form)
         if linear:
@@ -411,7 +411,7 @@ class EquationSolver(Equation):
                 dep_id = function_id(dep)
                 if dep_id in mat_forms_:
                     mat_forms[dep_index] = [mat_forms_[dep_id], CacheRef()]
-            del(mat_forms_)
+            del mat_forms_
 
             if non_cached_form.empty():
                 non_cached_form = None
@@ -856,7 +856,7 @@ for ufl_name, op_name in [("Division", "truediv"),
                           ("Sum", "add")]:
     evaluate_expr_types[getattr(ufl.classes, ufl_name)] \
         = evaluate_expr_binary_operator(getattr(operator, op_name))
-del(ufl_name, op_name)
+del ufl_name, op_name
 
 for ufl_name, numpy_name in [("Abs", "abs"),
                              ("Acos", "arccos"),
@@ -876,7 +876,7 @@ for ufl_name, numpy_name in [("Abs", "abs"),
                              ("Tanh", "tanh")]:
     evaluate_expr_types[getattr(ufl.classes, ufl_name)] \
         = evaluate_expr_function(getattr(np, numpy_name))
-del(ufl_name, numpy_name)
+del ufl_name, numpy_name
 
 
 def evaluate_expr(x):

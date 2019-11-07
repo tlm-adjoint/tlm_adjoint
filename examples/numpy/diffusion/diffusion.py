@@ -175,7 +175,7 @@ def forward(psi_0, kappa):
             self._x_0_adjoint = self._x_0_adjoint_cache[J_id]
 
         def finalize_adjoint(self, J):
-            del(self._x_0_adjoint)
+            del self._x_0_adjoint
 
         def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                            method="assign"):
@@ -273,7 +273,7 @@ info(f"Error norm = {abs(J_ref.value() - J.value()):.16e}")
 assert abs(J_ref.value() - J.value()) < 1.0e-14
 
 dJ_dpsi_0, dJ_dkappa = compute_gradient(J, [psi_0, kappa])
-del(J)
+del J
 
 
 def forward_J(psi_0):

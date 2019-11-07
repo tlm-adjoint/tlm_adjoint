@@ -286,13 +286,13 @@ for i in range(H.shape[0]):
     dm.vector()[i] = 1.0
     H[i, :] = function_get_values(ddJ.action(T_inflow, dm)[2])
     clear_caches(dm)
-    del(dm)
+    del dm
 
 # Solve the optimization problem
 _, dJ = ddJ.compute_gradient(T_inflow)
 function_set_values(T_inflow, np.linalg.solve(H, -function_get_values(dJ)))
 # File("T_inflow_inv.pvd", "compressed") << T_inflow
-del(ddJ)
+del ddJ
 
 # Re-run the forward at the inverted state
 reset_manager()
@@ -382,8 +382,8 @@ if verify:
             dm.vector()[i] = 1.0
             H[i, :] = function_get_values(ddJ.action(T_inflow, dm)[2])
             clear_caches(dm)
-            del(dm)
-        del(ddJ)
+            del dm
+        del ddJ
 
         dJ = compute_gradient(J, T_inflow)
         function_set_values(T_inflow,

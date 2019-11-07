@@ -79,7 +79,7 @@ if "jacobian_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("jacobian_tolerance", np.inf)
 if "rhs_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
-del(_parameters)
+del _parameters
 
 
 def copy_parameters_dict(parameters):
@@ -318,9 +318,9 @@ def dolfin_form(form, form_compiler_parameters):
     if "_tlm_adjoint__form" in form._cache and \
        parameters_key(form_compiler_parameters) != \
        form._cache["_tlm_adjoint__form_compiler_parameters_key"]:
-        del(form._cache["_tlm_adjoint__form"])
-        del(form._cache["_tlm_adjoint__deps_map"])
-        del(form._cache["_tlm_adjoint__form_compiler_parameters_key"])
+        del form._cache["_tlm_adjoint__form"]
+        del form._cache["_tlm_adjoint__deps_map"]
+        del form._cache["_tlm_adjoint__form_compiler_parameters_key"]
 
     if "_tlm_adjoint__form" in form._cache:
         dolfin_form = form._cache["_tlm_adjoint__form"]
@@ -361,12 +361,12 @@ def dolfin_form(form, form_compiler_parameters):
             for dep, (cls, this) in dep_this.items():
                 dep.__class__ = cls
                 if this is None:
-                    del(dep.this)
+                    del dep.this
                 else:
                     dep.this = this
             for dep, cpp_object in dep_cpp_object.items():
                 if cpp_object is None:
-                    del(dep._cpp_object)
+                    del dep._cpp_object
                 else:
                     dep._cpp_object = cpp_object
         if not hasattr(dolfin_form, "_compiled_form"):

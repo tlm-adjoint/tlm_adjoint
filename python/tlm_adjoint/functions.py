@@ -71,7 +71,7 @@ class Caches:
             self._caches[cache_id] = cache
 
     def remove(self, cache):
-        del(self._caches[cache.id()])
+        del self._caches[cache.id()]
 
     def update(self, x):
         state = (function_id(x), function_state(x))

@@ -85,7 +85,7 @@ def forward(kappa, manager=None, output_filename=None):
         else:
             Psi_n = Psi_np1
             Psi_n.rename("Psi_n", "a Function")
-            del(Psi_np1)
+            del Psi_np1
         if output_filename is not None:
             f << (Psi_n, (n + 1) * float(dt))
 

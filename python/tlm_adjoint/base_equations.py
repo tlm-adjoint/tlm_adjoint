@@ -524,7 +524,7 @@ class EquationAlias(Equation):
         return value
 
     def __delattr__(self, key):
-        del(self._tlm_adjoint__alias__dict__[key])
+        del self._tlm_adjoint__alias__dict__[key]
 
     def __dir__(self):
         return list(self._tlm_adjoint__alias__dict__.keys())
@@ -767,7 +767,7 @@ class FixedPointSolver(Equation):
 
         previous_x_ids = set()
         remaining_x_ids = X_ids
-        del(X_ids)
+        del X_ids
 
         for i, eq in enumerate(eqs):
             for x in eq.X():
@@ -803,7 +803,7 @@ class FixedPointSolver(Equation):
                     remaining_x_ids.remove(x_id)
                 previous_x_ids.add(x_id)
 
-        del(previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids)
+        del previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids
         ic_deps = tuple(ic_deps.values())
 
         eq_dep_ids = tuple({function_id(eq_dep): i
@@ -822,7 +822,7 @@ class FixedPointSolver(Equation):
                 if dep_id not in X_ids and dep_id in dep_map:
                     i, m = dep_map[dep_id]
                     tdeps[i].append((j, k, m))
-        del(dep_map)
+        del dep_map
 
         Equation.__init__(self, X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._eqs = tuple(eqs)
@@ -874,7 +874,7 @@ class FixedPointSolver(Equation):
                 eq.forward(eq_X[i], deps=eq_deps[i])
 
             R = X_0
-            del(X_0)
+            del X_0
             R_norm_sq = 0.0
             for r, x in zip(R, eq_X[-1]):
                 function_axpy(r, -1.0, x)
@@ -903,7 +903,7 @@ class FixedPointSolver(Equation):
                     f"failed to converge")
 
             X_0 = R
-            del(R)
+            del R
             for x_0, x in zip(X_0, eq_X[-1]):
                 function_assign(x_0, x)
 
@@ -932,9 +932,9 @@ class FixedPointSolver(Equation):
                           for i in range(len(self._eqs))]
 
     def finalize_adjoint(self, J):
-        del(self._eq_nl_deps)
-        del(self._adj_X)
-        del(self._eq_adj_X)
+        del self._eq_nl_deps
+        del self._adj_X
+        del self._eq_adj_X
 
     def adjoint_jacobian_solve(self, nl_deps, B):
         if is_function(B):
@@ -967,7 +967,7 @@ class FixedPointSolver(Equation):
                         sb = self._eqs[k].adjoint_derivative_action(
                             self._eq_nl_deps[k], j, eq_adj_X[k])
                     subtract_adjoint_derivative_action(eq_B[m], sb)
-                    del(sb)
+                    del sb
                 for b in eq_B:
                     finalize_adjoint_derivative_action(b)
 
@@ -981,7 +981,7 @@ class FixedPointSolver(Equation):
                     adj_X[j] = x
 
             R = X_0
-            del(X_0)
+            del X_0
             R_norm_sq = 0.0
             for r, x in zip(R, eq_adj_X[-1]):
                 function_axpy(r, -1.0, x)
@@ -1010,7 +1010,7 @@ class FixedPointSolver(Equation):
                     f"failed to converge")
 
             X_0 = R
-            del(R)
+            del R
             for x_0, x in zip(X_0, eq_adj_X[-1]):
                 function_assign(x_0, x)
 
@@ -1032,7 +1032,7 @@ class FixedPointSolver(Equation):
                     eq_nl_deps, eq_dep_ids[dep_id],
                     eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X)
                 subtract_adjoint_derivative_action(F, sb)
-                del(sb)
+                del sb
         finalize_adjoint_derivative_action(F)
 
         return (-1.0, F)
@@ -1124,7 +1124,7 @@ class LinearEquation(Equation):
 
             ic_deps = X if A.has_initial_condition_dependency() else []
 
-        del(x_ids, dep_ids, nl_dep_ids)
+        del x_ids, dep_ids, nl_dep_ids
 
         Equation.__init__(self, X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._B = tuple(B)

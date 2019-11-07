@@ -77,7 +77,7 @@ if "jacobian_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"]["jacobian_tolerance"] = np.inf
 if "rhs_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"]["rhs_tolerance"] = np.inf
-del(_parameters)
+del _parameters
 
 
 def copy_parameters_dict(parameters):

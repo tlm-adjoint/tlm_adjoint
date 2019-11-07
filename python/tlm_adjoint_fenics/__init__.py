@@ -56,12 +56,12 @@ for module_name, package in modules:
                                       package="tlm_adjoint_fenics")
 
 for module_name, package in modules:
-    del(sys.modules[f"tlm_adjoint.{module_name:s}"])
+    del sys.modules[f"tlm_adjoint.{module_name:s}"]
 
 if not tlm_adjoint_module:
-    del(sys.modules["tlm_adjoint"])
+    del sys.modules["tlm_adjoint"]
 
-del(importlib, sys, modules, tlm_adjoint_module, module_name, package)
+del importlib, sys, modules, tlm_adjoint_module, module_name, package
 
 from .backend import backend       # noqa: F401
 from .backend_interface import *   # noqa: F401

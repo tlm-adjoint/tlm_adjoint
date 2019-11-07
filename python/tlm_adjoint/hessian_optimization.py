@@ -90,7 +90,7 @@ class SingleBlockHessian(Hessian):
         for x_id, value in ics:
             manager._cp._add_initial_condition(x_id=x_id, value=value,
                                                copy=False)
-        del(ics)
+        del ics
 
         for i, eq in enumerate(block):
             eq_X = eq.X()

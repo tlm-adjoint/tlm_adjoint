@@ -304,7 +304,7 @@ class Cache:
         else:
             for dep in deps:
                 dep_id = dep if isinstance(dep, int) else function_id(dep)
-                del(dep)
+                del dep
                 if dep_id in self._deps_map:
                     # Steps in removing cached data associated with dep:
                     #   1. Delete cached items associated with dep -- these are
@@ -320,25 +320,25 @@ class Cache:
                     for key, dep_ids in self._deps_map[dep_id].items():
                         # Step 1.
                         self._cache[key]._clear()
-                        del(self._cache[key])
+                        del self._cache[key]
                         for dep_id2 in dep_ids:
                             if dep_id2 != dep_id:
                                 # Step 2.
-                                del(self._deps_map[dep_id2][key])
+                                del self._deps_map[dep_id2][key]
                                 if len(self._deps_map[dep_id2]) == 0:
-                                    del(self._deps_map[dep_id2])
+                                    del self._deps_map[dep_id2]
                                     dep_caches = self._dep_caches[dep_id2]()
                                     if dep_caches is not None:
                                         # Step 3.
                                         dep_caches.remove(self)
-                                    del(self._dep_caches[dep_id2])
+                                    del self._dep_caches[dep_id2]
                     # Step 2.
-                    del(self._deps_map[dep_id])
+                    del self._deps_map[dep_id]
                     dep_caches = self._dep_caches[dep_id]()
                     if dep_caches is not None:
                         # Step 3.
                         dep_caches.remove(self)
-                    del(self._dep_caches[dep_id])
+                    del self._dep_caches[dep_id]
 
     def add(self, key, value, deps=[]):
         if key in self._cache:

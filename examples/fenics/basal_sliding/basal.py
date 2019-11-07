@@ -407,7 +407,7 @@ lam, (V, V_i) = eigendecompose(space, A_action,
 assert abs(lam.imag).max() == 0.0
 for v_i in V_i:
     assert function_linf_norm(v_i) == 0.0
-del(v_i, V_i)
+del v_i, V_i
 
 lam = lam.real
 pack = sorted(zip(lam, V), key=lambda p: p[0], reverse=True)
@@ -431,7 +431,7 @@ for i, lam_val in enumerate(lam):
 #     v_file << (v, float(i + 1))
 
 if debug:
-    del(beta_sq_ref, A_action)
+    del beta_sq_ref, A_action
     beta_sq = Function(space, name="beta_sq", static=True)
     function_assign(beta_sq, 400.0)  # As in GH13 experiment 3
 

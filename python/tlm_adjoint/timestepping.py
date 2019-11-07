@@ -287,7 +287,7 @@ class TimeSystem:
                     if x_id in x_ids:
                         raise TimesteppingException("Duplicate solve")
                     x_ids.add(x_id)
-            del(x_ids)
+            del x_ids
 
         # Dependency resolution
         def add_eq_deps(eq, eq_xs, eqs, parent_ids=None):
@@ -309,7 +309,7 @@ class TimeSystem:
                         add_eq_deps(eq_xs[dep], eq_xs, eqs, parent_ids)
             eqs.append(eq)
             for x in X:
-                del(eq_xs[x])
+                del eq_xs[x]
                 parent_ids.remove(function_id(x))
 
         self._sorted_eqs = [[], [], []]
