@@ -48,6 +48,7 @@ Psi_0.interpolate(exp(X[0]) * sin(pi * X[0])
 
 zeta_1 = Function(space, name="zeta_1", static=True)
 zeta_2 = Function(space, name="zeta_2", static=True)
+zeta_3 = Function(space, name="zeta_3", static=True)
 function_set_values(zeta_1,
                     2.0 * np.random.random(function_local_size(zeta_1)) - 1.0)
 function_set_values(zeta_2,
@@ -107,16 +108,16 @@ def tlm(kappa, zeta):
 
 
 add_tlm(kappa, zeta_1)
-add_tlm(kappa, zeta_2)
+add_tlm((kappa, zeta_1), (zeta_2, zeta_3))
 start_manager()
 # J = forward(kappa, output_filename="forward.pvd")
 J = forward(kappa)
 dJ_tlm_1 = J.tlm(kappa, zeta_1)
-dJ_tlm_2 = J.tlm(kappa, zeta_2)
-ddJ_tlm = dJ_tlm_1.tlm(kappa, zeta_2)
+dJ_tlm_2 = J.tlm((kappa, zeta_1), (zeta_2, zeta_3))
+ddJ_tlm = dJ_tlm_1.tlm((kappa, zeta_1), (zeta_2, zeta_3))
 stop_manager()
 
-dJ_adj, ddJ_adj, dddJ_adj = compute_gradient((J, dJ_tlm_1, ddJ_tlm), kappa)
+dJ_adj, ddJ_adj, dddJ_adj = compute_gradient(ddJ_tlm, (zeta_3, zeta_2, kappa))
 
 
 def info_compare(x, y, tol):
