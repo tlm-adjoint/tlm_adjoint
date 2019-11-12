@@ -115,6 +115,9 @@ def default_comm():
 
 
 class FunctionSpaceInterface(SpaceInterface):
+    def _comm(self):
+        return _comm
+
     def _id(self):
         return self.dim()
 

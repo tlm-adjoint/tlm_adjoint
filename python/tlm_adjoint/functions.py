@@ -36,6 +36,8 @@ __all__ = \
         "Function",
         "HomogeneousDirichletBC",
         "Replacement",
+        "ZeroConstant",
+        "ZeroFunction",
         "bcs_is_cached",
         "bcs_is_homogeneous",
         "bcs_is_static",
@@ -81,6 +83,9 @@ class Caches:
 
 
 class ConstantSpaceInterface(SpaceInterface):
+    def _comm(self):
+        return self._tlm_adjoint__space_interface_attrs["comm"]
+
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
@@ -97,11 +102,10 @@ class ConstantSpaceInterface(SpaceInterface):
 
 class ConstantInterface(_FunctionInterface):
     def _comm(self):
-        space = self.ufl_function_space()
-        return space._tlm_adjoint__space_interface_attrs["comm"]
+        return space_comm(self._tlm_adjoint__function_interface_attrs["space"])
 
     def _space(self):
-        return self.ufl_function_space()
+        return self._tlm_adjoint__function_interface_attrs["space"]
 
     def _id(self):
         return self.count()
@@ -267,33 +271,53 @@ class ConstantInterface(_FunctionInterface):
 _orig_Constant__init__ = backend_Constant.__init__
 
 
-def _Constant__init__(self, *args, comm=None, **kwargs):
-    if comm is None:
-        comm = MPI.COMM_WORLD
-
+def _Constant__init__(self, *args, space=None, comm=MPI.COMM_WORLD, **kwargs):
     _orig_Constant__init__(self, *args, **kwargs)
 
-    add_interface(self, ConstantInterface)
-    add_interface(self.ufl_function_space(), ConstantSpaceInterface,
-                  {"comm": comm, "id": new_count()})
+    if space is None:
+        space = self.ufl_function_space()
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm, "id": new_count()})
+    add_interface(self, ConstantInterface,
+                  {"space": space})
 
 
 backend_Constant.__init__ = _Constant__init__
 
 
 class Constant(backend_Constant):
-    def __init__(self, value=None, *args, comm=None, shape=None, static=False,
-                 cache=None, checkpoint=None, **kwargs):
+    def __init__(self, value=None, *args, space=None, shape=None, comm=None,
+                 static=False, cache=None, checkpoint=None, **kwargs):
         if value is None:
-            if shape is None:
+            if space is None:
+                if shape is None:
+                    shape = tuple()
+            elif shape is not None:
+                raise InterfaceException("Cannot supply both space and shape "
+                                         "arguments")
+            else:
+                shape = space.ufl_element().value_shape()
+
+            if len(shape) == 0:
                 value = 0.0
             else:
                 value = np.zeros(shape, dtype=np.float64)
+        elif space is not None:
+            raise InterfaceException("Cannot specify both value and space "
+                                     "arguments")
         elif shape is not None:
-            raise InterfaceException("Cannot specify both value and shape")
+            raise InterfaceException("Cannot specify both value and shape "
+                                     "arguments")
 
         if comm is None:
-            comm = MPI.COMM_WORLD
+            if space is None:
+                comm = MPI.COMM_WORLD
+            else:
+                comm = space_comm(space)
+        elif space is not None:
+            raise InterfaceException("Cannot specify both comm and space "
+                                     "arguments")
+
         if cache is None:
             cache = static
         if checkpoint is None:
@@ -304,7 +328,8 @@ class Constant(backend_Constant):
             kwargs = copy.copy(kwargs)
             name = kwargs.pop("name", None)
 
-        backend_Constant.__init__(self, value, *args, comm=comm, **kwargs)
+        backend_Constant.__init__(self, value, *args, space=space, comm=comm,
+                                  **kwargs)
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
@@ -335,6 +360,25 @@ class Constant(backend_Constant):
             return Constant(value, comm=function_comm(self), name=name,
                             static=False, cache=self.is_cached(),
                             checkpoint=self.is_checkpointed())
+
+
+class Zero(Constant):
+    def __init__(self, space=None, shape=None, comm=None):
+        Constant.__init__(self, space=space, shape=shape, comm=comm,
+                          static=True)
+
+    def assign(self, *args, **kwargs):
+        raise InterfaceException("Cannot call assign method of Zero")
+
+
+class ZeroConstant(Zero):
+    def __init__(self, shape=None, name=None, comm=MPI.COMM_WORLD):
+        Zero.__init__(self, shape=shape, name=name, comm=comm)
+
+
+class ZeroFunction(Zero):
+    def __init__(self, space, name=None):
+        Zero.__init__(self, space=space, name=name)
 
 
 class Function(backend_Function):

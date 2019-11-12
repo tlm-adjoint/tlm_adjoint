@@ -90,6 +90,13 @@ def default_comm():
 
 
 class FunctionSpaceInterface(SpaceInterface):
+    def _comm(self):
+        comm = self.mesh().mpi_comm()
+        # FEniCS backwards compatibility
+        if hasattr(comm, "tompi4py"):
+            comm = comm.tompi4py()
+        return comm
+
     def _id(self):
         return self.id()
 

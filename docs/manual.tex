@@ -2300,6 +2300,13 @@ where the additional arguments are optional logicals
     \texttt{Equation}.
 \end{itemize}
 
+A \texttt{ZeroFunction} may be used in place of a \texttt{Function} whose value
+is zero throughout a calculation. A \texttt{ZeroFunction} can be instantiated
+via
+\begin{lstlisting}
+F = ZeroFunction(space, name=name)
+\end{lstlisting}
+
 \subsection{\texttt{Constant}}
 
 \texttt{Constant} objects may be supplied with optional arguments on
@@ -2309,6 +2316,14 @@ F = Constant(1.0, static=static, cache=cache, checkpoint=checkpoint)
 \end{lstlisting}
 where the additional arguments are optional logicals, and are as for the
 \texttt{Function} constructor.
+
+A \texttt{ZeroConstant} may be used in place of a \texttt{Constant} whose value
+is zero throughout a calculation. A \texttt{ZeroConstant} can be instantiated
+via
+\begin{lstlisting}
+c = ZeroConstant(shape=shape, name=name, comm=comm)
+\end{lstlisting}
+where the shape is specified by the optional \texttt{shape} argument.
 
 \subsection{\texttt{DirichletBC}}
 

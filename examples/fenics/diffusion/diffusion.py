@@ -48,7 +48,7 @@ Psi_0.interpolate(Expression("exp(x[0]) * sin(pi * x[0])"
 
 zeta_1 = Function(space, name="zeta_1", static=True)
 zeta_2 = Function(space, name="zeta_2", static=True)
-zeta_3 = Function(space, name="zeta_3", static=True)
+zeta_3 = ZeroFunction(space, name="zeta_3")
 function_set_values(zeta_1,
                     2.0 * np.random.random(function_local_size(zeta_1)) - 1.0)
 function_set_values(zeta_2,

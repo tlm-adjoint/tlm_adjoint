@@ -93,6 +93,9 @@ def default_comm():
 
 
 class FunctionSpaceInterface(SpaceInterface):
+    def _comm(self):
+        return self.comm
+
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
