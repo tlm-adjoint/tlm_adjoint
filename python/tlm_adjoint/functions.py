@@ -363,8 +363,8 @@ class Constant(backend_Constant):
 
 
 class Zero(Constant):
-    def __init__(self, space=None, shape=None, comm=None):
-        Constant.__init__(self, space=space, shape=shape, comm=comm,
+    def __init__(self, space=None, shape=None, name=None, comm=None):
+        Constant.__init__(self, space=space, shape=shape, name=name, comm=comm,
                           static=True)
 
     def assign(self, *args, **kwargs):
