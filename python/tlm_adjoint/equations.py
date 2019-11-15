@@ -80,6 +80,11 @@ def apply_rhs_bcs(b, hbcs, b_bc=None):
         rhs_addto(b, b_bc)
 
 
+def is_real_function(x):
+    e = x.ufl_element()
+    return e.family() == "Real" and e.degree() == 0 and len(x.ufl_shape) == 0
+
+
 class AssembleSolver(Equation):
     def __init__(self, rhs, x, form_compiler_parameters={},
                  match_quadrature=None):
@@ -902,9 +907,6 @@ class ExprEvaluationSolver(Equation):
         for dep in deps:
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
-            elif function_local_size(dep) != function_local_size(x) \
-                    and not is_real_function(dep):
-                raise EquationException("Invalid function space")
         deps.insert(0, x)
 
         Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=[])

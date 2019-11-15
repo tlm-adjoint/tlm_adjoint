@@ -37,7 +37,6 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
-        "is_real_function",
         "linear_solver",
         "matrix_multiply",
         "parameters_key",
@@ -330,11 +329,6 @@ def matrix_multiply(A, x, tensor=None, addto=False):
     return tensor
 
 
-def is_real_function(x):
-    e = x.ufl_element()
-    return e.family() == "Real" and e.degree() == 0
-
-
 def function_vector(x):
     return x
 
@@ -344,12 +338,8 @@ def rhs_copy(x):
 
 
 def rhs_addto(x, y):
-    if is_real_function(x):
-        # Work around Firedrake bug (related to issue #1459?)
-        x.dat.data[:] += y.dat.data_ro
-    else:
-        with x.dat.vec as x_v, y.dat.vec_ro as y_v:
-            x_v.axpy(1.0, y_v)
+    with x.dat.vec as x_v, y.dat.vec_ro as y_v:
+        x_v.axpy(1.0, y_v)
 
 
 def parameters_key(parameters):

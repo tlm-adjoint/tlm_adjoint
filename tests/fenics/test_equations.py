@@ -794,3 +794,49 @@ def test_initial_guess(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
     assert min_order > 1.99
+
+
+@pytest.mark.fenics
+def test_ZeroFunction(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(m):
+        X = [Function(space, name=f"x_{i:d}") for i in range(3)]
+
+        AssignmentSolver(m, X[0]).solve()
+        ScaleSolver(1.0, X[0], X[1]).solve()
+        ExprEvaluationSolver(m + X[1], X[2]).solve()
+
+        J = Functional(name="J")
+        J.assign(inner(dot(X[-1] + 1.0, X[-1] + 1.0),
+                       dot(X[-1] + 1.0, X[-1] + 1.0)) * dx
+                 + inner(dot(m + 2.0, m + 2.0),
+                         dot(m + 2.0, m + 2.0)) * dx)
+        return J
+
+    m = ZeroFunction(space, name="m")
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    dJ = compute_gradient(J, m)
+
+    J_val = J.value()
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 2.00

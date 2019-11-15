@@ -19,13 +19,12 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend_code_generator_interface import copy_parameters_dict, \
-    is_real_function
+from .backend_code_generator_interface import copy_parameters_dict
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
 from .caches import clear_caches, form_neg
-from .functions import Caches, Constant, Function, Replacement
+from .functions import Caches, Constant, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import petsc4py.PETSc as PETSc
@@ -172,33 +171,58 @@ class FunctionInterface(_FunctionInterface):
             x_v.zeroEntries()
 
     def _assign(self, y):
-        if isinstance(y, (int, float)):
-            if is_real_function(self):
-                # Work around Firedrake issue #1459
-                self.dat.data[:] = y
-            else:
+        if isinstance(y, backend_Function):
+            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                y_v.copy(result=x_v)
+        elif isinstance(y, (int, float)):
+            with self.dat.vec_wo as x_v:
+                x_v.set(float(y))
+        elif isinstance(y, Zero):
+            with self.dat.vec_wo as x_v:
+                x_v.zeroEntries()
+        else:
+            assert isinstance(y, backend_Constant)
+            if len(y.ufl_shape) == 0:
                 with self.dat.vec_wo as x_v:
                     x_v.set(float(y))
-        else:
-            if is_real_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                self.dat.data[:] = y.dat.data_ro
             else:
-                with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
-                    y_v.copy(result=x_v)
+                self.assign(y, annotate=False, tlm=False)
 
     def _axpy(self, alpha, y):
-        if is_real_function(self):
-            # Work around Firedrake bug (related to issue #1459?)
-            self.dat.data[:] += alpha * y.dat.data_ro
-        else:
+        if isinstance(y, backend_Function):
             with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
                 x_v.axpy(alpha, y_v)
+        elif isinstance(y, Zero):
+            pass
+        else:
+            assert isinstance(y, backend_Constant)
+            self += alpha * y  # annotate=False, tlm=False
 
     def _inner(self, y):
-        with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
-            inner = x_v.dot(y_v)
-        return inner
+        if isinstance(y, backend_Function):
+            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                inner = x_v.dot(y_v)
+            return inner
+        elif isinstance(y, Zero):
+            return 0.0
+        else:
+            assert isinstance(y, backend_Constant)
+            if len(y.ufl_shape) == 0:
+                with self.dat.vec_ro as x_v:
+                    sum = x_v.sum()
+                return sum * float(y)
+            else:
+                y_ = backend_Function(self.function_space())
+                y_.assign(y, annotate=False, tlm=False)
+                with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
+                    inner = x_v.dot(y_v)
+                return inner
 
     def _max_value(self):
         with self.dat.vec_ro as x_v:
@@ -237,6 +261,8 @@ class FunctionInterface(_FunctionInterface):
 
     def _set_values(self, values):
         with self.dat.vec_wo as x_v:
+            if (x_v.getLocalSize(),) != values.shape:
+                raise InterfaceException("Invalid function space")
             x_v.setArray(values)
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
@@ -296,16 +322,17 @@ def info(message):
 def subtract_adjoint_derivative_action(x, y):
     if y is None:
         pass
-    elif isinstance(y, tuple):
-        alpha, y = y
-        function_axpy(x, -alpha, y)
     elif isinstance(y, ufl.classes.Form):
         if hasattr(x, "_tlm_adjoint__adj_b"):
             x._tlm_adjoint__adj_b += form_neg(y)
         else:
             x._tlm_adjoint__adj_b = form_neg(y)
     else:
-        function_axpy(x, -1.0, y)
+        if isinstance(y, tuple):
+            alpha, y = y
+        else:
+            alpha = 1.0
+        function_axpy(x, -alpha, y)
 
 
 def finalize_adjoint_derivative_action(x):

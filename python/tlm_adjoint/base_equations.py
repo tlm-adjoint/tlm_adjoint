@@ -615,8 +615,6 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
-        if function_local_size(x) != function_local_size(y):
-            raise EquationException("Invalid function space")
         Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
 
     def forward_solve(self, x, deps=None):
@@ -647,9 +645,6 @@ class LinearCombinationSolver(Equation):
     def __init__(self, x, *args):
         alpha = tuple(float(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
-        for y in Y:
-            if function_local_size(x) != function_local_size(y):
-                raise EquationException("Invalid function space")
 
         Equation.__init__(self, x, [x] + Y, nl_deps=[], ic_deps=[])
         self._alpha = alpha

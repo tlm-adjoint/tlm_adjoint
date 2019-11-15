@@ -75,9 +75,9 @@ def add_interface(obj, interface_cls, attrs={}):
 
     for name in interface_cls.names:
         attr_name = f"{interface_cls.prefix:s}{name:s}"
-        assert not hasattr(obj, attr_name)
-        setattr(obj, attr_name,
-                types.MethodType(getattr(interface_cls, name), obj))
+        if not hasattr(obj, attr_name):
+            setattr(obj, attr_name,
+                    types.MethodType(getattr(interface_cls, name), obj))
 
     attrs_name = f"{interface_cls.prefix:s}_attrs"
     assert not hasattr(obj, attrs_name)

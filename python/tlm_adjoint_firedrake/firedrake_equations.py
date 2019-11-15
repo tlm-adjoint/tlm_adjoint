@@ -25,7 +25,8 @@ from .backend_interface import *
 from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
 from .caches import Cache, form_dependencies, form_key, parameters_key
-from .equations import EquationSolver, bind_form, unbind_form, unbound_form
+from .equations import EquationSolver, bind_form, is_real_function, \
+    unbind_form, unbound_form
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -243,7 +244,7 @@ class PointInterpolationSolver(Equation):
         else:
             if len(X) != X_coords.shape[0]:
                 raise EquationException("Invalid number of functions")
-        if len(y.function_space().ufl_element().value_shape()) > 0:
+        if len(y.ufl_shape) > 0:
             raise EquationException("y must be a scalar function")
 
         if P is None:

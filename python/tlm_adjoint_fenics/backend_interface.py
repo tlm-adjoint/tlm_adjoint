@@ -24,7 +24,7 @@ from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
 from .caches import clear_caches, form_neg
-from .functions import Caches, Constant, Function, Replacement
+from .functions import Caches, Constant, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import ufl
@@ -171,17 +171,50 @@ class FunctionInterface(_FunctionInterface):
         self.vector().zero()
 
     def _assign(self, y):
-        if isinstance(y, (int, float)):
-            self.vector()[:] = float(y)
-        else:
+        if isinstance(y, backend_Function):
+            if self.vector().local_size() != y.vector().local_size():
+                raise InterfaceException("Invalid function space")
             self.vector().zero()
             self.vector().axpy(1.0, y.vector())
+        elif isinstance(y, (int, float)):
+            self.vector()[:] = float(y)
+        elif isinstance(y, Zero):
+            self.vector().zero()
+        else:
+            assert isinstance(y, backend_Constant)
+            self.assign(y, annotate=False, tlm=False)
 
     def _axpy(self, alpha, y):
-        self.vector().axpy(alpha, y.vector())
+        if isinstance(y, backend_Function):
+            if self.vector().local_size() != y.vector().local_size():
+                raise InterfaceException("Invalid function space")
+            self.vector().axpy(alpha, y.vector())
+        elif isinstance(y, Zero):
+            pass
+        else:
+            assert isinstance(y, backend_Constant)
+            if len(y.ufl_shape) == 0:
+                self.vector()[:] += alpha * float(y)
+            else:
+                y_ = backend_Function(self.function_space())
+                y_.assign(y, annotate=False, tlm=False)
+                self.vector().axpy(alpha, y_.vector())
 
     def _inner(self, y):
-        return self.vector().inner(y.vector())
+        if isinstance(y, backend_Function):
+            if self.vector().local_size() != y.vector().local_size():
+                raise InterfaceException("Invalid function space")
+            return self.vector().inner(y.vector())
+        elif isinstance(y, Zero):
+            return 0.0
+        else:
+            assert isinstance(y, backend_Constant)
+            if len(y.ufl_shape) == 0:
+                return self.vector().sum() * float(y)
+            else:
+                y_ = backend_Function(self.function_space())
+                y_.assign(y, annotate=False, tlm=False)
+                return self.vector().inner(y_.vector())
 
     def _max_value(self):
         return self.vector().max()
@@ -207,6 +240,8 @@ class FunctionInterface(_FunctionInterface):
         return values
 
     def _set_values(self, values):
+        if (self.vector().local_size(),) != values.shape:
+            raise InterfaceException("Invalid function space")
         self.vector().set_local(values)
         self.vector().apply("insert")
 
@@ -274,26 +309,24 @@ def new_real_function(name=None, comm=None, static=False, cache=None,
 def subtract_adjoint_derivative_action(x, y):
     if y is None:
         pass
-    elif isinstance(y, tuple):
-        alpha, y = y
-        if isinstance(x, backend_Function):
-            if isinstance(y, backend_Function):
-                y = y.vector()
-            x.vector().axpy(-alpha, y)
-        else:
-            function_axpy(x, -alpha, y)
     elif isinstance(y, ufl.classes.Form):
         if hasattr(x, "_tlm_adjoint__adj_b"):
             x._tlm_adjoint__adj_b += form_neg(y)
         else:
             x._tlm_adjoint__adj_b = form_neg(y)
     else:
-        if isinstance(x, backend_Function):
-            if isinstance(y, backend_Function):
-                y = y.vector()
-            x.vector().axpy(-1.0, y)
+        if isinstance(y, tuple):
+            alpha, y = y
         else:
-            function_axpy(x, -1.0, y)
+            alpha = 1.0
+        if isinstance(y, backend_Function):
+            y = y.vector()
+        if isinstance(y, backend_Vector):
+            if x.vector().local_size() != y.local_size():
+                raise InterfaceException("Invalid function space")
+            x.vector().axpy(-alpha, y)
+        else:
+            function_axpy(x, -alpha, y)
 
 
 def finalize_adjoint_derivative_action(x):

@@ -61,6 +61,7 @@ backend_LinearVariationalSolver = LinearVariationalSolver
 backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_NonlinearVariationalProblem = NonlinearVariationalProblem
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
+backend_Vector = fenics.cpp.la.GenericVector
 backend_assemble = assemble
 backend_assemble_system = assemble_system
 backend_project = project
@@ -84,6 +85,7 @@ __all__ = \
         "backend_NonlinearVariationalProblem",
         "backend_NonlinearVariationalSolver",
         "backend_Matrix",
+        "backend_Vector",
         "backend_assemble",
         "backend_assemble_system",
         "backend_project",

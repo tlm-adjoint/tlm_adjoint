@@ -36,7 +36,6 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
-        "is_real_function",
         "linear_solver",
         "matrix_multiply",
         "parameters_key",
@@ -167,7 +166,7 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={},
 
     if len(bcs) > 0:
         test = TestFunction(form.arguments()[0].function_space())
-        test_shape = test.ufl_element().value_shape()
+        test_shape = test.ufl_shape
         if len(test_shape) == 0:
             zero = backend_Constant(0.0)
         else:
@@ -263,11 +262,6 @@ def matrix_multiply(A, x, tensor=None, addto=False):
         else:
             as_backend_type(A).mat().mult(x_v, tensor_v)
         return tensor
-
-
-def is_real_function(x):
-    e = x.ufl_element()
-    return e.family() == "Real" and e.degree() == 0
 
 
 def function_vector(x):

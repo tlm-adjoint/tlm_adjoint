@@ -90,14 +90,8 @@ class ConstantSpaceInterface(SpaceInterface):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        shape = self.ufl_element().value_shape()
-        if len(shape) == 0:
-            value = 0.0
-        else:
-            value = np.zeros(shape, dtype=np.float64)
-        comm = self._tlm_adjoint__space_interface_attrs["comm"]
-        return Constant(value, comm=comm, name=name, static=static,
-                        cache=cache, checkpoint=checkpoint)
+        return Constant(space=self, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint)
 
 
 class ConstantInterface(_FunctionInterface):
@@ -157,10 +151,10 @@ class ConstantInterface(_FunctionInterface):
         else:
             value = np.zeros(self.ufl_shape, dtype=np.float64)
             value = backend_Constant(value)
-        self.assign(value)
+        self.assign(value)  # annotate=False, tlm=False
 
     def _assign(self, y):
-        self.assign(y)
+        self.assign(y)  # annotate=False, tlm=False
 
     def _axpy(self, alpha, y):
         if len(self.ufl_shape) == 0:
@@ -168,7 +162,7 @@ class ConstantInterface(_FunctionInterface):
         else:
             value = self.values() + alpha * y.values()
             value = backend_Constant(value)
-        self.assign(value)
+        self.assign(value)  # annotate=False, tlm=False
 
     def _inner(self, y):
         return (self.values() * y.values()).sum()
@@ -226,24 +220,24 @@ class ConstantInterface(_FunctionInterface):
                 values = np.zeros(self.ufl_shape, dtype=np.float64)
         values = comm.bcast(values, root=0)
         if len(self.ufl_shape) == 0:
-            self.assign(values[0])
+            self.assign(values[0])  # annotate=False, tlm=False
         else:
-            self.assign(backend_Constant(values))
+            self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        if len(self.ufl_shape) == 0:
-            value = 0.0
-        else:
-            value = np.zeros(self.ufl_shape, dtype=np.float64)
-        return Constant(value, comm=function_comm(self), name=name,
-                        static=static, cache=cache, checkpoint=checkpoint)
+        space = self._tlm_adjoint__function_interface_attrs["space"]
+        comm = function_comm(self)
+        return Constant(space=space, comm=comm, name=name, static=static,
+                        cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
             value = float(self)
         else:
             value = self.values()
-        return Constant(value, comm=function_comm(self), name=name,
+        space = self._tlm_adjoint__function_interface_attrs["space"]
+        comm = function_comm(self)
+        return Constant(value, space=space, comm=comm, name=name,
                         static=static, cache=cache, checkpoint=checkpoint)
 
     def _tangent_linear(self, name=None):
@@ -252,12 +246,10 @@ class ConstantInterface(_FunctionInterface):
         elif function_is_static(self):
             return None
         else:
-            if len(self.ufl_shape) == 0:
-                value = 0.0
-            else:
-                value = np.zeros(self.ufl_shape, dtype=np.float64)
-            return Constant(value, comm=funtion_comm(self), name=name,
-                            static=False, cache=function_is_cached(self),
+            space = self._tlm_adjoint__function_interface_attrs["space"]
+            comm = function_comm(self)
+            return Constant(space=space, comm=comm, name=name, static=False,
+                            cache=function_is_cached(self),
                             checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
@@ -288,35 +280,36 @@ backend_Constant.__init__ = _Constant__init__
 class Constant(backend_Constant):
     def __init__(self, value=None, *args, space=None, shape=None, comm=None,
                  static=False, cache=None, checkpoint=None, **kwargs):
-        if value is None:
-            if space is None:
-                if shape is None:
-                    shape = tuple()
-            elif shape is not None:
-                raise InterfaceException("Cannot supply both space and shape "
-                                         "arguments")
-            else:
+        # Shape initialization / checking
+        if space is not None:
+            if shape is None:
                 shape = space.ufl_element().value_shape()
+            elif shape != space.ufl_element().value_shape():
+                raise InterfaceException("Invalid shape")
+        if value is None:
+            if shape is None:
+                shape = tuple()
+        elif shape is not None:
+            value_ = value
+            if not isinstance(value_, np.ndarray):
+                value_ = np.array(value_)
+            if value_.shape != shape:
+                raise InterfaceException("Invalid shape")
+            del value_
 
+        # Default value
+        if value is None:
             if len(shape) == 0:
                 value = 0.0
             else:
                 value = np.zeros(shape, dtype=np.float64)
-        elif space is not None:
-            raise InterfaceException("Cannot specify both value and space "
-                                     "arguments")
-        elif shape is not None:
-            raise InterfaceException("Cannot specify both value and shape "
-                                     "arguments")
 
+        # Default comm
         if comm is None:
             if space is None:
                 comm = MPI.COMM_WORLD
             else:
                 comm = space_comm(space)
-        elif space is not None:
-            raise InterfaceException("Cannot specify both comm and space "
-                                     "arguments")
 
         if cache is None:
             cache = static
@@ -353,13 +346,16 @@ class Constant(backend_Constant):
         if self.is_static():
             return None
         else:
-            if len(self.ufl_shape) == 0:
-                value = 0.0
-            else:
-                value = np.zeros(self.ufl_shape, dtype=np.float64)
-            return Constant(value, comm=function_comm(self), name=name,
-                            static=False, cache=self.is_cached(),
+            return Constant(space=function_space(self),
+                            comm=function_comm(self), name=name, static=False,
+                            cache=self.is_cached(),
                             checkpoint=self.is_checkpointed())
+
+    def ufl_domain(self):
+        return function_space(self).ufl_domain()
+
+    def ufl_domains(self):
+        return function_space(self).ufl_domains()
 
 
 class Zero(Constant):
@@ -369,6 +365,15 @@ class Zero(Constant):
 
     def assign(self, *args, **kwargs):
         raise InterfaceException("Cannot call assign method of Zero")
+
+    def _tlm_adjoint__function_interface_assign(self, y):
+        raise InterfaceException("Cannot call _assign interface of Zero")
+
+    def _tlm_adjoint__function_interface_axpy(self, alpha, y):
+        raise InterfaceException("Cannot call _axpy interface of Zero")
+
+    def _tlm_adjoint__function_interface_set_values(self, values):
+        raise InterfaceException("Cannot call _set_values interface of Zero")
 
 
 class ZeroConstant(Zero):
