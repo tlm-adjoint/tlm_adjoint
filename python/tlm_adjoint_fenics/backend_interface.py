@@ -24,7 +24,8 @@ from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
 from .caches import clear_caches, form_neg
-from .functions import Caches, Constant, Function, Replacement, Zero
+from .functions import Caches, Constant, Function, Replacement, Zero, \
+    is_r0_function
 
 import mpi4py.MPI as MPI
 import ufl
@@ -66,12 +67,15 @@ __all__ = \
         "function_update_state",
         "function_zero",
 
+        "is_real_function",
+        "new_real_function",
+        "real_function_value",
+
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
         "finalize_adjoint_derivative_action",
         "info",
-        "new_real_function",
         "subtract_adjoint_derivative_action",
 
         "Constant",
@@ -291,10 +295,18 @@ def _Function__init__(self, *args, **kwargs):
 backend_Function.__init__ = _Function__init__
 
 
+def is_real_function(x):
+    return is_r0_function(x) and len(x.ufl_shape) == 0
+
+
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
+
+
+def real_function_value(x):
+    return function_max_value(x)
 
 
 # def clear_caches(*deps):

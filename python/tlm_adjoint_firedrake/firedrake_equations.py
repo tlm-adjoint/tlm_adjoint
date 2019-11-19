@@ -25,8 +25,7 @@ from .backend_interface import *
 from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
 from .caches import Cache, form_dependencies, form_key, parameters_key
-from .equations import EquationSolver, bind_form, is_real_function, \
-    unbind_form, unbound_form
+from .equations import EquationSolver, bind_form, unbind_form, unbound_form
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -302,7 +301,7 @@ class PointInterpolationSolver(Equation):
         elif dep_index == len(adj_X):
             adj_x_v = np.empty(len(adj_X), dtype=np.float64)
             for i, adj_x in enumerate(adj_X):
-                adj_x_v[i] = function_max_value(adj_x)
+                adj_x_v[i] = real_function_value(adj_x)
             F = function_new(self.dependencies()[-1])
             function_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)

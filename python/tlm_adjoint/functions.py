@@ -41,6 +41,7 @@ __all__ = \
         "bcs_is_cached",
         "bcs_is_homogeneous",
         "bcs_is_static",
+        "is_r0_function",
         "new_count"
     ]
 
@@ -49,6 +50,13 @@ def new_count():
     c = backend_Constant.__new__(backend_Constant, 0.0)
     _orig_Constant__init__(c, 0.0)
     return c.count()
+
+
+def is_r0_function(x):
+    if not is_function(x):
+        return False
+    e = x.ufl_element()
+    return e.family() == "Real" and e.degree() == 0
 
 
 class Caches:
@@ -161,6 +169,7 @@ class ConstantInterface(_FunctionInterface):
             value = float(self) + alpha * float(y)
         else:
             value = self.values() + alpha * y.values()
+            value.shape = self.ufl_shape
             value = backend_Constant(value)
         self.assign(value)  # annotate=False, tlm=False
 
@@ -217,11 +226,12 @@ class ConstantInterface(_FunctionInterface):
             if len(self.ufl_shape) == 0:
                 values = np.array([0.0], dtype=np.float64)
             else:
-                values = np.zeros(self.ufl_shape, dtype=np.float64)
+                values = np.zeros(np.prod(self.ufl_shape), dtype=np.float64)
         values = comm.bcast(values, root=0)
         if len(self.ufl_shape) == 0:
             self.assign(values[0])  # annotate=False, tlm=False
         else:
+            values.shape = self.ufl_shape
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
@@ -234,7 +244,8 @@ class ConstantInterface(_FunctionInterface):
         if len(self.ufl_shape) == 0:
             value = float(self)
         else:
-            value = self.values()
+            value = self.values().view()
+            value.shape = self.ufl_shape
         space = self._tlm_adjoint__function_interface_attrs["space"]
         comm = function_comm(self)
         return Constant(value, space=space, comm=comm, name=name,

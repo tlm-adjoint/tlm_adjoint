@@ -62,12 +62,15 @@ __all__ = \
         "function_update_state",
         "function_zero",
 
+        "is_real_function",
+        "new_real_function",
+        "real_function_value",
+
         "clear_caches",
         "copy_parameters_dict",
         "default_comm",
         "finalize_adjoint_derivative_action",
         "info",
-        "new_real_function",
         "subtract_adjoint_derivative_action",
 
         "Function",
@@ -348,10 +351,19 @@ class Replacement:
         return self._checkpoint
 
 
+def is_real_function(x):
+    return is_function(x) and x.space().dim() == 1
+
+
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
+
+
+def real_function_value(x):
+    value, = x.vector()
+    return value
 
 
 def clear_caches(*deps):

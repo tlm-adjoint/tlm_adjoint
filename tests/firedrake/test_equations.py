@@ -304,7 +304,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks):
     x_error_norm = 0.0
     for x, x_coord in zip(X_vals, X_coords):
         x_error_norm = max(x_error_norm,
-                           abs(function_max_value(x) - x_ref(x_coord)))
+                           abs(real_function_value(x) - x_ref(x_coord)))
     info(f"Error norm = {x_error_norm:.16e}")
     assert x_error_norm < 1.0e-13
 

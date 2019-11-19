@@ -67,6 +67,8 @@ class Functional:
             if space is not None \
                     and space_id(space) != space_id(function_space(fn)):
                 raise FunctionalException("Invalid function space")
+        if not is_real_function(fn):
+            raise FunctionalException("fn must be a real function")
 
         self._name = name
         self._fn = fn
@@ -153,7 +155,7 @@ class Functional:
         Return the value of the functional.
         """
 
-        return function_max_value(self._fn)
+        return real_function_value(self._fn)
 
     def tlm(self, M, dM, max_depth=1, manager=None):
         """

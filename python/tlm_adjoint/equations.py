@@ -80,11 +80,6 @@ def apply_rhs_bcs(b, hbcs, b_bc=None):
         rhs_addto(b, b_bc)
 
 
-def is_real_function(x):
-    e = x.ufl_element()
-    return e.family() == "Real" and e.degree() == 0 and len(x.ufl_shape) == 0
-
-
 class AssembleSolver(Equation):
     def __init__(self, rhs, x, form_compiler_parameters={},
                  match_quadrature=None):
@@ -169,7 +164,7 @@ class AssembleSolver(Equation):
         if self._rank == 0:
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-function_max_value(adj_x), dF)
+            return (-real_function_value(adj_x), dF)
         else:
             assert self._rank == 1
             dF = assemble(
@@ -887,7 +882,7 @@ del ufl_name, numpy_name
 def evaluate_expr(x):
     if is_function(x):
         if is_real_function(x):
-            return function_max_value(x)
+            return real_function_value(x)
         else:
             return function_get_values(x)
     else:
