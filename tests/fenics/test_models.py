@@ -234,7 +234,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     controls = [Control("T_0"), Control("kappa")]
     dJs = compute_gradient(J, controls)
 
-    one = Function(space_r0, name="dm", static=True)
+    one = Function(space_r0, name="one", static=True)
     function_assign(one, 1.0)
 
     for m, m0, forward_J, dJ, dm in \
