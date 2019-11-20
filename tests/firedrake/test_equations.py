@@ -775,7 +775,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
-def test_ZeroFunction(setup_test, test_leaks):
+def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
 

@@ -797,7 +797,7 @@ def test_initial_guess(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-def test_ZeroFunction(setup_test, test_leaks):
+def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
 

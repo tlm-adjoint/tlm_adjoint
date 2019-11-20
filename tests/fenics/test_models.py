@@ -234,14 +234,11 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     controls = [Control("T_0"), Control("kappa")]
     dJs = compute_gradient(J, controls)
 
-    one = Function(space_r0, name="one", static=True)
-    function_assign(one, 1.0)
-
     for m, m0, forward_J, dJ, dm in \
             [(controls[0], T_0, lambda T_0: forward(T_0, kappa), dJs[0],
               None),
              (controls[1], kappa, lambda kappa: forward(T_0, kappa), dJs[1],
-              one)]:
+              Constant(1.0, name="dm", static=True))]:
         min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, dM=dm)
         assert min_order > 1.99
 
