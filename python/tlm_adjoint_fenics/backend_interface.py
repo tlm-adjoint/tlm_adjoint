@@ -28,6 +28,7 @@ from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
 import mpi4py.MPI as MPI
+import numpy as np
 import ufl
 import warnings
 
@@ -181,7 +182,14 @@ class FunctionInterface(_FunctionInterface):
             self.vector().zero()
             self.vector().axpy(1.0, y.vector())
         elif isinstance(y, (int, float)):
-            self.vector()[:] = float(y)
+            if len(self.ufl_shape) == 0:
+                self.assign(backend_Constant(float(y)),
+                            annotate=False, tlm=False)
+            else:
+                y_ = np.empty(self.ufl_shape, dtype=np.float64)
+                y_[:] = y
+                self.assign(backend_Constant(y_),
+                            annotate=False, tlm=False)
         elif isinstance(y, Zero):
             self.vector().zero()
         else:
@@ -198,7 +206,9 @@ class FunctionInterface(_FunctionInterface):
         else:
             assert isinstance(y, backend_Constant)
             if len(y.ufl_shape) == 0:
-                self.vector()[:] += alpha * float(y)
+                self.assign(backend_Constant(self.vector().max()
+                                             + alpha * float(y)),
+                            annotate=False, tlm=False)
             else:
                 y_ = backend_Function(self.function_space())
                 y_.assign(y, annotate=False, tlm=False)
