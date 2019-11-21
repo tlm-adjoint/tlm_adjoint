@@ -152,7 +152,7 @@ def test_oscillator(setup_test, test_leaks,
     dJ = compute_gradient(J, T_0)
 
     dm = Function(space, name="dm", static=True)
-    function_assign(dm, 1.0)
+    dm.assign(Constant((1.0, 0.0)))
 
     min_order = taylor_test(forward, T_0, J_val=J_val, dJ=dJ, dM=dm)
     assert min_order > 2.00
