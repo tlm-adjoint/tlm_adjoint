@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
+from .functions import eliminate_zeros
 from .interface import InterfaceException
 
 import ffc
@@ -308,7 +309,10 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 # Form objects are cached on UFL form objects
 
 
-def dolfin_form(form, form_compiler_parameters):
+def dolfin_form(form, form_compiler_parameters=None):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = parameters["form_compiler"]
+
     if "_tlm_adjoint__form" in form._cache and \
        parameters_key(form_compiler_parameters) != \
        form._cache["_tlm_adjoint__form_compiler_parameters_key"]:
@@ -348,8 +352,13 @@ def dolfin_form(form, form_compiler_parameters):
                     else:
                         dep_cpp_object[dep] = getattr(dep, "_cpp_object", None)
                         dep._cpp_object = dep_binding._cpp_object
-        dolfin_form = form._cache["_tlm_adjoint__form"] = \
-            Form(form, form_compiler_parameters=form_compiler_parameters)
+
+        simplified_form = eliminate_zeros(form, non_empty_form=True)
+        dolfin_form = Form(
+            simplified_form, form_compiler_parameters=form_compiler_parameters)
+        if not hasattr(dolfin_form, "_compiled_form"):
+            dolfin_form._compiled_form = None
+
         if bindings is not None:
             # FEniCS backwards compatibility
             for dep, (cls, this) in dep_this.items():
@@ -363,8 +372,8 @@ def dolfin_form(form, form_compiler_parameters):
                     del dep._cpp_object
                 else:
                     dep._cpp_object = cpp_object
-        if not hasattr(dolfin_form, "_compiled_form"):
-            dolfin_form._compiled_form = None
+
+        form._cache["_tlm_adjoint__form"] = dolfin_form
         form._cache["_tlm_adjoint__deps_map"] = \
             tuple(map(dolfin_form.original_coefficient_position,
                       range(dolfin_form.num_coefficients())))

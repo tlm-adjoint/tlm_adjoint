@@ -41,6 +41,8 @@ __all__ = \
         "bcs_is_cached",
         "bcs_is_homogeneous",
         "bcs_is_static",
+        "eliminate_zeros",
+        "extract_coefficients",
         "is_r0_function",
         "new_count"
     ]
@@ -388,13 +390,50 @@ class Zero(Constant):
 
 
 class ZeroConstant(Zero):
-    def __init__(self, shape=None, name=None, comm=MPI.COMM_WORLD):
-        Zero.__init__(self, shape=shape, name=name, comm=comm)
+    def __init__(self, shape=None, name=None):
+        Zero.__init__(self, shape=shape, name=name, comm=MPI.COMM_NULL)
 
 
 class ZeroFunction(Zero):
     def __init__(self, space, name=None):
         Zero.__init__(self, space=space, name=name)
+
+
+def extract_coefficients(expr):
+    if isinstance(expr, ufl.classes.Form):
+        return expr.coefficients()
+    else:
+        return ufl.algorithms.extract_coefficients(expr)
+
+
+def eliminate_zeros(expr, non_empty_form=False):
+    replace_map = {}
+    for c in extract_coefficients(expr):
+        if isinstance(c, Zero):
+            replace_map[c] = ufl.classes.Zero(shape=c.ufl_shape)
+
+    if len(replace_map) == 0:
+        return expr
+    else:
+        simplified_expr = ufl.replace(expr, replace_map)
+
+        if non_empty_form and isinstance(simplified_expr, ufl.classes.Form) \
+                and simplified_expr.empty():
+            # Inefficient, but it is very difficult to generate a non-empty but
+            # zero valued form
+            arguments = expr.arguments()
+            zero = ZeroConstant()
+            if len(arguments) == 0:
+                domain, = expr.ufl_domains()
+                simplified_expr = zero * ufl.ds(domain)
+            elif len(arguments) == 1:
+                test, = arguments
+                simplified_expr = zero * test * ufl.ds
+            else:
+                test, trial = arguments
+                simplified_expr = zero * ufl.inner(test, trial) * ufl.ds
+
+        return simplified_expr
 
 
 class Function(backend_Function):

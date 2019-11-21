@@ -26,6 +26,7 @@ from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
 from .caches import Cache, form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, unbind_form, unbound_form
+from .functions import eliminate_zeros
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -49,6 +50,9 @@ def local_solver_key(form, form_compiler_parameters):
 
 
 def LocalSolver(form, form_compiler_parameters={}):
+    # Perform zero elimination here, rather than in overridden assemble, as
+    # Tensor(form).inv is not a Form
+    form = eliminate_zeros(form)
     local_solver = backend_assemble(
         Tensor(form).inv,
         form_compiler_parameters=form_compiler_parameters)

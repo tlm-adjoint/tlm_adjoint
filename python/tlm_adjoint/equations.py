@@ -26,7 +26,8 @@ from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear
 from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
     linear_solver_cache, split_form, update_caches, verify_assembly
-from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static
+from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
+    eliminate_zeros, extract_coefficients
 
 import copy
 import operator
@@ -48,13 +49,13 @@ __all__ = \
 def derivative_dependencies(expr, dep):
     dexpr = ufl.derivative(expr, dep)
     dexpr = ufl.algorithms.expand_derivatives(dexpr)
-    return ufl.algorithms.extract_coefficients(dexpr)
+    return extract_coefficients(dexpr)
 
 
 def extract_dependencies(expr):
     deps = {}
     nl_deps = {}
-    for dep in ufl.algorithms.extract_coefficients(expr):
+    for dep in extract_coefficients(expr):
         if is_function(dep):
             dep_id = function_id(dep)
             if dep_id not in deps:
@@ -155,8 +156,9 @@ class AssembleSolver(Equation):
         else:
             assert self._rank == 1
             argument = TrialFunction(function_space(dep))
-        dF = ufl.algorithms.expand_derivatives(
-            ufl.derivative(self._rhs, dep, argument=argument))
+        dF = ufl.derivative(self._rhs, dep, argument=argument)
+        dF = ufl.algorithms.expand_derivatives(dF)
+        dF = eliminate_zeros(dF)
         if dF.empty():
             return None
 
@@ -653,8 +655,10 @@ class EquationSolver(Equation):
                 return return_value
 
         dep = eq_deps[dep_index]
-        dF = ufl.algorithms.expand_derivatives(ufl.derivative(
-            self._F, dep, argument=TrialFunction(function_space(dep))))
+        dF = ufl.derivative(
+            self._F, dep, argument=TrialFunction(function_space(dep)))
+        dF = ufl.algorithms.expand_derivatives(dF)
+        dF = eliminate_zeros(dF)
         if dF.empty():
             self._derivative_mats[dep_index] = None
             return None
@@ -929,10 +933,11 @@ class ExprEvaluationSolver(Equation):
             return adj_x
         else:
             dep = self.dependencies()[dep_index]
+            dF = ufl.derivative(self._rhs, dep, argument=adj_x)
+            dF = ufl.algorithms.expand_derivatives(dF)
+            dF = eliminate_zeros(dF)
             dF = ufl.replace(
-                ufl.algorithms.expand_derivatives(
-                    ufl.derivative(self._rhs, dep, argument=adj_x)),
-                dict(zip(self.nonlinear_dependencies(), nl_deps)))
+                dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
             dF_val = evaluate_expr(dF)
             F = function_new(dep)
             if isinstance(dF_val, float):

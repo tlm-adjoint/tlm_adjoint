@@ -41,7 +41,6 @@ __all__ = \
         "is_cached",
         "linear_solver",
         "linear_solver_cache",
-        "replaced_form",
         "set_assembly_cache",
         "set_linear_solver_cache",
         "split_form",

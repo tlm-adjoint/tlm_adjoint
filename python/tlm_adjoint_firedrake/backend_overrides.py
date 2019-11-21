@@ -115,17 +115,18 @@ def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
     if tensor is None:
         tensor = b
 
-    rank = len(f.arguments())
-    if rank != 0 and not inverse:
-        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-        if form_compiler_parameters is not None:
-            update_parameters_dict(form_compiler_parameters_,
-                                   form_compiler_parameters)
-        form_compiler_parameters = form_compiler_parameters_
+    if isinstance(f, ufl.classes.Form):
+        rank = len(f.arguments())
+        if rank != 0 and not inverse:
+            form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
+            if form_compiler_parameters is not None:
+                update_parameters_dict(form_compiler_parameters_,
+                                       form_compiler_parameters)
+            form_compiler_parameters = form_compiler_parameters_
 
-        if rank != 2:
-            tensor._tlm_adjoint__form = f
-        tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+            if rank != 2:
+                tensor._tlm_adjoint__form = f
+            tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return tensor
 

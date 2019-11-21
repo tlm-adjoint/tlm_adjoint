@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
+from .functions import eliminate_zeros
 from .interface import InterfaceException
 
 import copy
@@ -186,6 +187,19 @@ def unbind_forms(*forms):
             delattr(dep, name)
 
 
+def _assemble(form, bcs=[], form_compiler_parameters={}, *args, **kwargs):
+    if "_tlm_adjoint__simplified_form" in form._cache:
+        simplified_form = form._cache["_tlm_adjoint__simplified_form"]
+    else:
+        simplified_form = form._cache["_tlm_adjoint__simplified_form"] = \
+            eliminate_zeros(form, non_empty_form=True)
+
+    return backend_assemble(
+        simplified_form, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters,
+        *args, **kwargs)
+
+
 def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
                      *args, **kwargs):
     if isinstance(bcs, backend_DirichletBC):
@@ -195,7 +209,7 @@ def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
     else:
         bind_forms(A_form, b_form)
 
-    A = backend_assemble(
+    A = _assemble(
         A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
 
@@ -205,7 +219,7 @@ def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
             bc.apply(F)
 
         if b_form is None:
-            b = backend_assemble(
+            b = _assemble(
                 -ufl.action(A_form, F), bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,
                 *args, **kwargs)
@@ -214,7 +228,7 @@ def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
                 if b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) == 0.0:
                     b = None
         else:
-            b = backend_assemble(
+            b = _assemble(
                 b_form - ufl.action(A_form, F), bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,
                 *args, **kwargs)
@@ -222,7 +236,7 @@ def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
         if b_form is None:
             b = None
         else:
-            b = backend_assemble(
+            b = _assemble(
                 b_form,
                 form_compiler_parameters=form_compiler_parameters,
                 *args, **kwargs)
@@ -260,7 +274,7 @@ def assemble(form, tensor=None, form_compiler_parameters={}, *args,
              **kwargs):
     # Similar interface to assemble in FEniCS 2019.1.0
     bind_forms(form)
-    tensor = backend_assemble(
+    tensor = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
     unbind_forms(form)

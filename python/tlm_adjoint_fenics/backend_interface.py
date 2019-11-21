@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend_code_generator_interface import copy_parameters_dict
+from .backend_code_generator_interface import assemble, copy_parameters_dict
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
@@ -353,8 +353,8 @@ def subtract_adjoint_derivative_action(x, y):
 
 def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-        backend_assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
-                         add_values=True)
+        assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
+                 add_values=True)
         delattr(x, "_tlm_adjoint__adj_b")
 
 
