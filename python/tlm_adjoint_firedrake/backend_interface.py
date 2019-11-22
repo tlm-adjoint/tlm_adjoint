@@ -176,13 +176,21 @@ class FunctionInterface(_FunctionInterface):
 
     def _assign(self, y):
         if isinstance(y, backend_Function):
-            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise InterfaceException("Invalid function space")
-                y_v.copy(result=x_v)
+            if is_r0_function(self):
+                # Work around Firedrake bug (related to issue #1459?)
+                self.dat.data[:] = y.dat.data_ro
+            else:
+                with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                    if x_v.getLocalSize() != y_v.getLocalSize():
+                        raise InterfaceException("Invalid function space")
+                    y_v.copy(result=x_v)
         elif isinstance(y, (int, float)):
-            with self.dat.vec_wo as x_v:
-                x_v.set(float(y))
+            if is_r0_function(self):
+                # Work around Firedrake issue #1459
+                self.dat.data[:] = float(y)
+            else:
+                with self.dat.vec_wo as x_v:
+                    x_v.set(float(y))
         elif isinstance(y, Zero):
             with self.dat.vec_wo as x_v:
                 x_v.zeroEntries()
@@ -196,15 +204,28 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, alpha, y):
         if isinstance(y, backend_Function):
-            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise InterfaceException("Invalid function space")
-                x_v.axpy(alpha, y_v)
+            if is_r0_function(self):
+                # Work around Firedrake bug (related to issue #1459?)
+                self.dat.data[:] += alpha * y.dat.data_ro
+            else:
+                with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                    if x_v.getLocalSize() != y_v.getLocalSize():
+                        raise InterfaceException("Invalid function space")
+                    x_v.axpy(alpha, y_v)
         elif isinstance(y, Zero):
             pass
         else:
             assert isinstance(y, backend_Constant)
-            self += alpha * y  # annotate=False, tlm=False
+            if is_r0_function(self):
+                # Work around Firedrake bug (related to issue #1459?)
+                if len(self.ufl_shape) == 0:
+                    self.dat.data[:] += alpha * float(y)
+                else:
+                    x = function_new(self)
+                    x.assign(y, annotate=False, tlm=False)
+                    self.dat.data[:] = x.dat.data_ro + alpha * y.dat.data_ro
+            else:
+                self += alpha * y  # annotate=False, tlm=False
 
     def _inner(self, y):
         if isinstance(y, backend_Function):

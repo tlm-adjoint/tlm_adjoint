@@ -20,7 +20,7 @@
 
 from .backend import *
 from .functions import eliminate_zeros
-from .interface import InterfaceException
+from .interface import InterfaceException, function_axpy, function_copy
 
 import copy
 import numpy as np
@@ -348,12 +348,11 @@ def function_vector(x):
 
 
 def rhs_copy(x):
-    return x.copy(deepcopy=True)
+    return function_copy(x)
 
 
 def rhs_addto(x, y):
-    with x.dat.vec as x_v, y.dat.vec_ro as y_v:
-        x_v.axpy(1.0, y_v)
+    function_axpy(x, 1.0, y)
 
 
 def parameters_key(parameters):
