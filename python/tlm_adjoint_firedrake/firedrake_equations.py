@@ -52,7 +52,7 @@ def local_solver_key(form, form_compiler_parameters):
 def LocalSolver(form, form_compiler_parameters={}):
     # Perform zero elimination here, rather than in overridden assemble, as
     # Tensor(form).inv is not a Form
-    form = eliminate_zeros(form)
+    form = eliminate_zeros(form, non_empty_form=True)
     local_solver = backend_assemble(
         Tensor(form).inv,
         form_compiler_parameters=form_compiler_parameters)
@@ -67,6 +67,7 @@ def LocalSolver(form, form_compiler_parameters={}):
 class LocalSolverCache(Cache):
     def local_solver(self, form, form_compiler_parameters={},
                      replace_map=None):
+        form = eliminate_zeros(form, non_empty_form=True)
         key = local_solver_key(form, form_compiler_parameters)
 
         def value():

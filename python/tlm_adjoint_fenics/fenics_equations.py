@@ -26,6 +26,7 @@ from .base_equations import Equation, EquationException, LinearEquation, \
     Matrix, MatrixActionRHS, NullSolver, get_tangent_linear
 from .caches import Cache, form_dependencies, form_key
 from .equations import EquationSolver, bind_form, unbind_form, unbound_form
+from .functions import eliminate_zeros
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -112,6 +113,7 @@ def local_solver_key(form, solver_type):
 
 class LocalSolverCache(Cache):
     def local_solver(self, form, solver_type, replace_map=None):
+        form = eliminate_zeros(form, non_empty_form=True)
         key = local_solver_key(form, solver_type)
 
         def value():

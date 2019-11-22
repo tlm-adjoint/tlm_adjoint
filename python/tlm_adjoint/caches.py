@@ -22,7 +22,7 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .interface import *
 
-from .functions import function_caches
+from .functions import eliminate_zeros, function_caches
 
 from collections import defaultdict
 import ufl
@@ -403,6 +403,7 @@ def assemble_key(form, bcs, assemble_kwargs):
 class AssemblyCache(Cache):
     def assemble(self, form, bcs=[], form_compiler_parameters={},
                  solver_parameters={}, replace_map=None):
+        form = eliminate_zeros(form, non_empty_form=True)
         rank = len(form.arguments())
         assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
                                              solver_parameters)
@@ -441,6 +442,7 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 class LinearSolverCache(Cache):
     def linear_solver(self, form, A, bcs=[], form_compiler_parameters={},
                       linear_solver_parameters={}):
+        form = eliminate_zeros(form, non_empty_form=True)
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 
