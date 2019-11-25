@@ -22,7 +22,6 @@ from .backend import *
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
-import copy
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
@@ -50,7 +49,7 @@ __all__ = \
 
 def new_count():
     c = backend_Constant.__new__(backend_Constant, 0.0)
-    _Constant__init__._tlm_adjoint__orig(c, 0.0)
+    backend_Constant.__init__._tlm_adjoint__orig(c, 0.0)
     return c.count()
 
 
@@ -100,8 +99,9 @@ class ConstantSpaceInterface(SpaceInterface):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Constant(space=self, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint)
+        domain = self._tlm_adjoint__space_interface_attrs["domain"]
+        return Constant(name=name, domain=domain, space=self, static=static,
+                        cache=cache, checkpoint=checkpoint)
 
 
 class ConstantInterface(_FunctionInterface):
@@ -237,10 +237,15 @@ class ConstantInterface(_FunctionInterface):
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
+        domains = self.ufl_domains()
+        if len(domains) == 0:
+            domain = None
+        else:
+            domain, = domains
         space = self._tlm_adjoint__function_interface_attrs["space"]
         comm = function_comm(self)
-        return Constant(space=space, comm=comm, name=name, static=static,
-                        cache=cache, checkpoint=checkpoint)
+        return Constant(name=name, domain=domain, space=space, comm=comm,
+                        static=static, cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
@@ -248,10 +253,16 @@ class ConstantInterface(_FunctionInterface):
         else:
             value = self.values().view()
             value.shape = self.ufl_shape
+        domains = self.ufl_domains()
+        if len(domains) == 0:
+            domain = None
+        else:
+            domain, = domains
         space = self._tlm_adjoint__function_interface_attrs["space"]
         comm = function_comm(self)
-        return Constant(value, space=space, comm=comm, name=name,
-                        static=static, cache=cache, checkpoint=checkpoint)
+        return Constant(value, name=name, domain=domain, space=space,
+                        comm=comm, static=static, cache=cache,
+                        checkpoint=checkpoint)
 
     def _tangent_linear(self, name=None):
         if hasattr(self, "tangent_linear"):
@@ -259,10 +270,15 @@ class ConstantInterface(_FunctionInterface):
         elif function_is_static(self):
             return None
         else:
+            domains = self.ufl_domains()
+            if len(domains) == 0:
+                domain = None
+            else:
+                domain, = domains
             space = self._tlm_adjoint__function_interface_attrs["space"]
             comm = function_comm(self)
-            return Constant(space=space, comm=comm, name=name, static=False,
-                            cache=function_is_cached(self),
+            return Constant(name=name, domain=domain, space=space, comm=comm,
+                            static=False, cache=function_is_cached(self),
                             checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
@@ -273,24 +289,15 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__replacement
 
 
-def _Constant__init__(self, *args, space=None, comm=MPI.COMM_WORLD, **kwargs):
-    _Constant__init__._tlm_adjoint__orig(self, *args, **kwargs)
-
-    if space is None:
-        space = self.ufl_function_space()
-        add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "id": new_count()})
-    add_interface(self, ConstantInterface,
-                  {"space": space})
-
-
-_Constant__init__._tlm_adjoint__orig = backend_Constant.__init__
-backend_Constant.__init__ = _Constant__init__
-
-
 class Constant(backend_Constant):
-    def __init__(self, value=None, *args, space=None, shape=None, comm=None,
-                 static=False, cache=None, checkpoint=None, **kwargs):
+    def __init__(self, value=None, *args, name=None, domain=None, space=None,
+                 shape=None, comm=None, static=False, cache=None,
+                 checkpoint=None, **kwargs):
+        if domain is None and space is not None:
+            domains = space.ufl_domains()
+            if len(domains) > 0:
+                domain, = domains
+
         # Shape initialization / checking
         if space is not None:
             if shape is None:
@@ -327,22 +334,11 @@ class Constant(backend_Constant):
         if checkpoint is None:
             checkpoint = not static
 
-        # "name" constructor argument not supported by Firedrake
-        if not hasattr(backend_Constant, "name"):
-            kwargs = copy.copy(kwargs)
-            name = kwargs.pop("name", None)
-
-        backend_Constant.__init__(self, value, *args, space=space, comm=comm,
-                                  **kwargs)
+        backend_Constant.__init__(self, value, *args, name=name, domain=domain,
+                                  space=space, comm=comm, **kwargs)
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
-
-        if not hasattr(backend_Constant, "name"):
-            if name is None:
-                # Following FEniCS 2019.1.0 behaviour
-                name = f"f_{self.count():d}"
-            self.name = lambda: name
 
     def is_static(self):
         return self.__static
@@ -357,22 +353,23 @@ class Constant(backend_Constant):
         if self.is_static():
             return None
         else:
-            return Constant(space=function_space(self),
-                            comm=function_comm(self), name=name, static=False,
+            domains = self.ufl_domains()
+            if len(domains) == 0:
+                domain = None
+            else:
+                domain, = domains
+            return Constant(name=name, domain=domain,
+                            space=function_space(self),
+                            comm=function_comm(self), static=False,
                             cache=self.is_cached(),
                             checkpoint=self.is_checkpointed())
 
-    def ufl_domain(self):
-        return function_space(self).ufl_domain()
-
-    def ufl_domains(self):
-        return function_space(self).ufl_domains()
-
 
 class Zero(Constant):
-    def __init__(self, space=None, shape=None, name=None, comm=None):
-        Constant.__init__(self, space=space, shape=shape, name=name, comm=comm,
-                          static=True)
+    def __init__(self, name=None, domain=None, space=None, shape=None,
+                 comm=None):
+        Constant.__init__(self, name=name, domain=domain, space=space,
+                          shape=shape, comm=comm, static=True)
 
     def assign(self, *args, **kwargs):
         raise InterfaceException("Cannot call assign method of Zero")
@@ -388,8 +385,9 @@ class Zero(Constant):
 
 
 class ZeroConstant(Zero):
-    def __init__(self, shape=None, name=None):
-        Zero.__init__(self, shape=shape, name=name, comm=MPI.COMM_NULL)
+    def __init__(self, name=None, domain=None, shape=None):
+        Zero.__init__(self, name=name, domain=domain, shape=shape,
+                      comm=MPI.COMM_NULL)
 
 
 class ZeroFunction(Zero):
@@ -420,10 +418,10 @@ def eliminate_zeros(expr, non_empty_form=False):
             # Inefficient, but it is very difficult to generate a non-empty but
             # zero valued form
             arguments = expr.arguments()
-            zero = ZeroConstant()
+            domain, = expr.ufl_domains()
+            zero = ZeroConstant(domain=domain)
             if len(arguments) == 0:
-                domain, = expr.ufl_domains()
-                simplified_expr = zero * ufl.ds(domain)
+                simplified_expr = zero * ufl.ds
             elif len(arguments) == 1:
                 test, = arguments
                 simplified_expr = zero * test * ufl.ds
@@ -602,7 +600,14 @@ class Replacement(ufl.classes.Coefficient):
             space = function_space(x)
             x_space = space
 
+        x_domains = x.ufl_domains()
+        if len(x_domains) == 0:
+            domain = None
+        else:
+            domain, = x_domains
+
         ufl.classes.Coefficient.__init__(self, x_space, count=new_count())
+        self.__domain = domain
         self.__space = space
         self.__id = function_id(x)
         self.__name = function_name(x)
@@ -632,3 +637,12 @@ class Replacement(ufl.classes.Coefficient):
 
     def caches(self):
         return self.__caches
+
+    def ufl_domain(self):
+        return self.__domain
+
+    def ufl_domains(self):
+        if self.__domain is None:
+            return ()
+        else:
+            return (self.__domain,)

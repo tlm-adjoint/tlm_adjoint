@@ -19,10 +19,12 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .functions import eliminate_zeros
-from .interface import InterfaceException
+from .functions import ConstantInterface, ConstantSpaceInterface, \
+    eliminate_zeros, new_count
+from .interface import InterfaceException, add_interface
 
 import ffc
+import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 
@@ -263,6 +265,31 @@ def matrix_multiply(A, x, tensor=None, addto=False):
         else:
             as_backend_type(A).mat().mult(x_v, tensor_v)
         return tensor
+
+
+def _Constant__init__(self, *args, name=None, domain=None, space=None,
+                      comm=MPI.COMM_WORLD, **kwargs):
+    if domain is not None and hasattr(domain, "ufl_domain"):
+        domain = domain.ufl_domain()
+
+    _Constant__init__._tlm_adjoint__orig(self, *args, name=name, **kwargs)
+
+    self.ufl_domain = lambda: domain
+    if domain is None:
+        self.ufl_domains = lambda: ()
+    else:
+        self.ufl_domains = lambda: (domain,)
+
+    if space is None:
+        space = self.ufl_function_space()
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm, "domain": domain, "id": new_count()})
+    add_interface(self, ConstantInterface,
+                  {"space": space})
+
+
+_Constant__init__._tlm_adjoint__orig = backend_Constant.__init__
+backend_Constant.__init__ = _Constant__init__
 
 
 def function_vector(x):

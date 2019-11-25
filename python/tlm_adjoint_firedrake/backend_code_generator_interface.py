@@ -19,10 +19,13 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .functions import eliminate_zeros
-from .interface import InterfaceException, function_axpy, function_copy
+from .functions import ConstantInterface, ConstantSpaceInterface, \
+    eliminate_zeros, new_count
+from .interface import InterfaceException, add_interface, function_axpy, \
+    function_copy
 
 import copy
+import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
@@ -339,6 +342,27 @@ def matrix_multiply(A, x, tensor=None, addto=False):
         with x.dat.vec_ro as x_v, tensor.dat.vec_wo as tensor_v:
             A.petscmat.mult(x_v, tensor_v)
     return tensor
+
+
+def _Constant__init__(self, *args, name=None, domain=None, space=None,
+                      comm=MPI.COMM_WORLD, **kwargs):
+    _Constant__init__._tlm_adjoint__orig(self, *args, domain=domain, **kwargs)
+
+    if name is None:
+        # Following FEniCS 2019.1.0 behaviour
+        name = f"f_{self.count():d}"
+    self.name = lambda: name
+
+    if space is None:
+        space = self.ufl_function_space()
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm, "domain": domain, "id": new_count()})
+    add_interface(self, ConstantInterface,
+                  {"space": space})
+
+
+_Constant__init__._tlm_adjoint__orig = backend_Constant.__init__
+backend_Constant.__init__ = _Constant__init__
 
 
 def function_vector(x):

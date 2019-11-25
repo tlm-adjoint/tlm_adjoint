@@ -326,10 +326,10 @@ def is_real_function(x):
     return is_r0_function(x) and len(x.ufl_shape) == 0
 
 
-def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None):
-    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
-                    checkpoint=checkpoint)
+def new_real_function(name=None, domain=None, comm=None, static=False,
+                      cache=None, checkpoint=None):
+    return Constant(0.0, name=name, domain=domain, comm=comm, static=static,
+                    cache=cache, checkpoint=checkpoint)
 
 
 def real_function_value(x):
