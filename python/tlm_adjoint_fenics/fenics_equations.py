@@ -25,7 +25,8 @@ from .backend_interface import *
 from .base_equations import Equation, EquationException, LinearEquation, \
     Matrix, MatrixActionRHS, NullSolver, get_tangent_linear
 from .caches import Cache, form_dependencies, form_key
-from .equations import EquationSolver, bind_form, unbind_form, unbound_form
+from .equations import EquationSolver, bind_form, derivative, unbind_form, \
+    unbound_form
 from .functions import eliminate_zeros
 
 import mpi4py.MPI as MPI
@@ -98,7 +99,7 @@ def greedy_coloring(space):
 
 
 def function_coords(x):
-    space = x.function_space()
+    space = function_space(x)
     coords = np.empty((function_local_size(x), space.mesh().geometry().dim()),
                       dtype=np.float64)
     for i in range(coords.shape[1]):
@@ -144,7 +145,7 @@ class LocalProjectionSolver(EquationSolver):
     def __init__(self, rhs, x, form_compiler_parameters={},
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
-        space = x.function_space()
+        space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(test, trial) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
@@ -196,7 +197,7 @@ class LocalProjectionSolver(EquationSolver):
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)
 
-        local_solver.solve_local(x.vector(), b, x.function_space().dofmap())
+        local_solver.solve_local(x.vector(), b, function_space(x).dofmap())
 
     def adjoint_jacobian_solve(self, nl_deps, b):
         if self._cache_jacobian:
@@ -211,7 +212,7 @@ class LocalProjectionSolver(EquationSolver):
 
         adj_x = function_new(b)
         local_solver.solve_local(adj_x.vector(), b.vector(),
-                                 adj_x.function_space().dofmap())
+                                 function_space(adj_x).dofmap())
         return adj_x
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -226,7 +227,7 @@ class LocalProjectionSolver(EquationSolver):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += ufl.derivative(self._rhs, dep, argument=tau_dep)
+                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
@@ -241,7 +242,7 @@ class LocalProjectionSolver(EquationSolver):
 
 
 def interpolation_matrix(x_coords, y, y_cells, y_colors):
-    y_space = y.function_space()
+    y_space = function_space(y)
     y_mesh = y_space.mesh()
     y_dofmap = y_space.dofmap()
 
@@ -323,7 +324,7 @@ class InterpolationSolver(LinearEquation):
             raise EquationException("y must be a scalar function")
 
         if P is None:
-            y_space = y.function_space()
+            y_space = function_space(y)
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
             y_tree = y_space.mesh().bounding_box_tree()
@@ -421,7 +422,7 @@ class PointInterpolationSolver(Equation):
             raise EquationException("y must be a scalar function")
 
         if P is None:
-            y_space = y.function_space()
+            y_space = function_space(y)
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
 

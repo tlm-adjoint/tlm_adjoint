@@ -25,7 +25,8 @@ from .backend_interface import *
 from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
 from .caches import Cache, form_dependencies, form_key, parameters_key
-from .equations import EquationSolver, bind_form, unbind_form, unbound_form
+from .equations import EquationSolver, bind_form, derivative, unbind_form, \
+    unbound_form
 from .functions import eliminate_zeros
 
 import mpi4py.MPI as MPI
@@ -98,7 +99,7 @@ class LocalProjectionSolver(EquationSolver):
     def __init__(self, rhs, x, form_compiler_parameters={},
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
-        space = x.function_space()
+        space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(test, trial) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
@@ -176,7 +177,7 @@ class LocalProjectionSolver(EquationSolver):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += ufl.derivative(self._rhs, dep, argument=tau_dep)
+                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
@@ -192,7 +193,7 @@ class LocalProjectionSolver(EquationSolver):
 
 def interpolation_matrix(x_coords, y, y_nodes):
     N = function_local_size(y)
-    lg_map = y.function_space().local_to_global_map([]).indices
+    lg_map = function_space(y).local_to_global_map([]).indices
     gl_map = {g: l for l, g in enumerate(lg_map)}
 
     from scipy.sparse import dok_matrix
@@ -252,7 +253,7 @@ class PointInterpolationSolver(Equation):
             raise EquationException("y must be a scalar function")
 
         if P is None:
-            y_space = y.function_space()
+            y_space = function_space(y)
             y_cell_node_graph = y_space.cell_node_map().values
             y_mesh = y_space.mesh()
             lg_map = y_space.local_to_global_map([]).indices

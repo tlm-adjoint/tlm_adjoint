@@ -46,6 +46,16 @@ __all__ = \
     ]
 
 
+def derivative(form, x, argument=None):
+    if argument is None:
+        space = function_space(x)
+        rank = len(form.arguments())
+        Argument = {0: TestFunction, 1: TrialFunction}[rank]
+        argument = Argument(space)
+
+    return ufl.derivative(form, x, argument=argument)
+
+
 def derivative_dependencies(expr, dep):
     dexpr = ufl.derivative(expr, dep)
     dexpr = ufl.algorithms.expand_derivatives(dexpr)
@@ -151,12 +161,7 @@ class AssembleSolver(Equation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        if self._rank == 0:
-            argument = TestFunction(function_space(dep))
-        else:
-            assert self._rank == 1
-            argument = TrialFunction(function_space(dep))
-        dF = ufl.derivative(self._rhs, dep, argument=argument)
+        dF = derivative(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         if dF.empty():
@@ -185,7 +190,7 @@ class AssembleSolver(Equation):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += ufl.derivative(self._rhs, dep, argument=tau_dep)
+                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
@@ -273,8 +278,8 @@ class EquationSolver(Equation):
             if rhs != 0:
                 raise EquationException("Invalid right-hand-side")
             nl_solve_J = J
-            J = ufl.algorithms.expand_derivatives(ufl.derivative(
-                F, x, argument=TrialFunction(function_space(x))))
+            J = derivative(F, x)
+            J = ufl.algorithms.expand_derivatives(J)
 
         deps, nl_deps = extract_dependencies(F)
 
@@ -656,8 +661,7 @@ class EquationSolver(Equation):
                 return return_value
 
         dep = eq_deps[dep_index]
-        dF = ufl.derivative(
-            self._F, dep, argument=TrialFunction(function_space(dep)))
+        dF = derivative(self._F, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         if dF.empty():
@@ -737,8 +741,8 @@ class EquationSolver(Equation):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += form_neg(ufl.derivative(self._F, dep,
-                                                       argument=tau_dep))
+                    tlm_rhs += form_neg(derivative(self._F, dep,
+                                                   argument=tau_dep))
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
@@ -934,7 +938,7 @@ class ExprEvaluationSolver(Equation):
             return adj_x
         else:
             dep = self.dependencies()[dep_index]
-            dF = ufl.derivative(self._rhs, dep, argument=adj_x)
+            dF = derivative(self._rhs, dep, argument=adj_x)
             dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = ufl.replace(
@@ -966,7 +970,7 @@ class ExprEvaluationSolver(Equation):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += ufl.derivative(self._rhs, dep, argument=tau_dep)
+                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return NullSolver(tlm_map[x])
