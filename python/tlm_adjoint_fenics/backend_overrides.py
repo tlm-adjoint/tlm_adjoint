@@ -272,11 +272,8 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
             form_compiler_parameters=form_compiler_parameters)
 
 
-_orig_DirichletBC_apply = backend_DirichletBC.apply
-
-
 def _DirichletBC_apply(self, *args):
-    _orig_DirichletBC_apply(self, *args)
+    _DirichletBC_apply._tlm_adjoint__orig(self, *args)
     if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) \
        or len(args) > 2:
         return
@@ -299,13 +296,12 @@ def _DirichletBC_apply(self, *args):
         b._tlm_adjoint__bcs.append(self)
 
 
+_DirichletBC_apply._tlm_adjoint__orig = backend_DirichletBC.apply
 backend_DirichletBC.apply = _DirichletBC_apply
-
-_orig_Function_assign = backend_Function.assign
 
 
 def _Function_assign(self, rhs, annotate=None, tlm=None):
-    return_value = _orig_Function_assign(self, rhs)
+    return_value = _Function_assign._tlm_adjoint__orig(self, rhs)
     if not isinstance(rhs, backend_Function):
         return return_value
 
@@ -318,24 +314,22 @@ def _Function_assign(self, rhs, annotate=None, tlm=None):
     return return_value
 
 
+_Function_assign._tlm_adjoint__orig = backend_Function.assign
 backend_Function.assign = _Function_assign
-
-_orig_Function_vector = backend_Function.vector
 
 
 def _Function_vector(self):
-    return_value = _orig_Function_vector(self)
+    return_value = _Function_vector._tlm_adjoint__orig(self)
     return_value._tlm_adjoint__function = self
     return return_value
 
 
+_Function_vector._tlm_adjoint__orig = backend_Function.vector
 backend_Function.vector = _Function_vector
-
-_orig_Matrix_mul = backend_Matrix.__mul__
 
 
 def _Matrix_mul(self, other):
-    return_value = _orig_Matrix_mul(self, other)
+    return_value = _Matrix_mul._tlm_adjoint__orig(self, other)
     if hasattr(self, "_tlm_adjoint__form") \
        and hasattr(other, "_tlm_adjoint__function") \
        and len(self._tlm_adjoint__bcs) == 0:
@@ -348,6 +342,7 @@ def _Matrix_mul(self, other):
     return return_value
 
 
+_Matrix_mul._tlm_adjoint__orig = backend_Matrix.__mul__
 backend_Matrix.__mul__ = _Matrix_mul
 
 

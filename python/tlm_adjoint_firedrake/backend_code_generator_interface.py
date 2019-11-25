@@ -250,16 +250,14 @@ def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
     return A, b
 
 
-_orig_LinearSolver_lifted = backend_LinearSolver._lifted
-
-
 def _LinearSolver_lifted(self, b):
     if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
-        return _orig_LinearSolver_lifted(self, b)
+        return _LinearSolver_lifted._tlm_adjoint__orig(self, b)
     else:
         return b
 
 
+_LinearSolver_lifted._tlm_adjoint__orig = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
 

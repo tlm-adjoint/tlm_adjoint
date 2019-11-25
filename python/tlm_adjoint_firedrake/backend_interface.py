@@ -107,19 +107,16 @@ class FunctionSpaceInterface(SpaceInterface):
                         checkpoint=checkpoint)
 
 
-_space_id_counter = [0]
-
-_orig_WithGeometry__init__ = backend_WithGeometry.__init__
-
-
 def _WithGeometry__init__(self, *args, **kwargs):
-    _orig_WithGeometry__init__(self, *args, **kwargs)
+    _WithGeometry__init__._tlm_adjoint__orig(self, *args, **kwargs)
     id = _space_id_counter[0]
     _space_id_counter[0] += 1
     add_interface(self, FunctionSpaceInterface,
                   {"id": id})
 
 
+_space_id_counter = [0]
+_WithGeometry__init__._tlm_adjoint__orig = backend_WithGeometry.__init__
 backend_WithGeometry.__init__ = _WithGeometry__init__
 
 
@@ -316,14 +313,12 @@ class FunctionInterface(_FunctionInterface):
         return self._tlm_adjoint__replacement
 
 
-_orig_Function__init__ = backend_Function.__init__
-
-
 def _Function__init__(self, *args, **kwargs):
-    _orig_Function__init__(self, *args, **kwargs)
+    _Function__init__._tlm_adjoint__orig(self, *args, **kwargs)
     add_interface(self, FunctionInterface)
 
 
+_Function__init__._tlm_adjoint__orig = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 

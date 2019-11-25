@@ -110,14 +110,12 @@ class FunctionSpaceInterface(SpaceInterface):
                         checkpoint=checkpoint)
 
 
-_orig_FunctionSpace__init__ = FunctionSpace.__init__
-
-
 def _FunctionSpace__init__(self, *args, **kwargs):
-    _orig_FunctionSpace__init__(self, *args, **kwargs)
+    _FunctionSpace__init__._tlm_adjoint__orig(self, *args, **kwargs)
     add_interface(self, FunctionSpaceInterface)
 
 
+_FunctionSpace__init__._tlm_adjoint__orig = FunctionSpace.__init__
 FunctionSpace.__init__ = _FunctionSpace__init__
 
 
@@ -294,14 +292,12 @@ class FunctionInterface(_FunctionInterface):
         return self._tlm_adjoint__replacement
 
 
-_orig_Function__init__ = backend_Function.__init__
-
-
 def _Function__init__(self, *args, **kwargs):
-    _orig_Function__init__(self, *args, **kwargs)
+    _Function__init__._tlm_adjoint__orig(self, *args, **kwargs)
     add_interface(self, FunctionInterface)
 
 
+_Function__init__._tlm_adjoint__orig = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 

@@ -45,15 +45,13 @@ def setup_test():
     np.random.seed(14012313)
 
 
-Function_ids = {}
-_orig_Function_init = Function.__init__
-
-
 def _Function__init__(self, *args, **kwargs):
-    _orig_Function_init(self, *args, **kwargs)
+    _Function__init__._tlm_adjoint__orig(self, *args, **kwargs)
     Function_ids[self.id()] = weakref.ref(self)
 
 
+Function_ids = {}
+_Function__init__._tlm_adjoint__orig = Function.__init__
 Function.__init__ = _Function__init__
 
 

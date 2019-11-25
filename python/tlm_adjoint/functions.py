@@ -50,7 +50,7 @@ __all__ = \
 
 def new_count():
     c = backend_Constant.__new__(backend_Constant, 0.0)
-    _orig_Constant__init__(c, 0.0)
+    _Constant__init__._tlm_adjoint__orig(c, 0.0)
     return c.count()
 
 
@@ -273,11 +273,8 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__replacement
 
 
-_orig_Constant__init__ = backend_Constant.__init__
-
-
 def _Constant__init__(self, *args, space=None, comm=MPI.COMM_WORLD, **kwargs):
-    _orig_Constant__init__(self, *args, **kwargs)
+    _Constant__init__._tlm_adjoint__orig(self, *args, **kwargs)
 
     if space is None:
         space = self.ufl_function_space()
@@ -287,6 +284,7 @@ def _Constant__init__(self, *args, space=None, comm=MPI.COMM_WORLD, **kwargs):
                   {"space": space})
 
 
+_Constant__init__._tlm_adjoint__orig = backend_Constant.__init__
 backend_Constant.__init__ = _Constant__init__
 
 

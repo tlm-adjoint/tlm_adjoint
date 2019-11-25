@@ -247,11 +247,9 @@ def project(v, V, bcs=None, solver_parameters=None,
             use_slate_for_inverse=use_slate_for_inverse, name=name)
 
 
-_orig_Function_assign = backend_Function.assign
-
-
 def _Function_assign(self, expr, subset=None, annotate=None, tlm=None):
-    return_value = _orig_Function_assign(self, expr, subset=subset)
+    return_value = _Function_assign.__tlm_adjoint__orig(self, expr,
+                                                        subset=subset)
     if not isinstance(expr, backend_Function) or subset is not None:
         return return_value
 
@@ -264,15 +262,15 @@ def _Function_assign(self, expr, subset=None, annotate=None, tlm=None):
     return return_value
 
 
+_Function_assign.__tlm_adjoint__orig = backend_Function.assign
 backend_Function.assign = _Function_assign
-
-_orig_Function_project = backend_Function.project
 
 
 def _Function_project(self, b, *args, **kwargs):
     return project(b, self, *args, **kwargs)
 
 
+_Function_project._tlm_adjoint__orig = backend_Function.project
 backend_Function.project = _Function_project
 
 
