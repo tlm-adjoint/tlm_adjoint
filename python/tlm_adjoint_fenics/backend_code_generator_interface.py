@@ -169,11 +169,10 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={},
 
     if len(bcs) > 0:
         test = TestFunction(form.arguments()[0].function_space())
-        test_shape = test.ufl_shape
-        if len(test_shape) == 0:
+        if len(test.ufl_shape) == 0:
             zero = backend_Constant(0.0)
         else:
-            zero = backend_Constant(np.zeros(test_shape, dtype=np.float64))
+            zero = backend_Constant(np.zeros(test.ufl_shape, dtype=np.float64))
         dummy_rhs = ufl.inner(test, zero) * ufl.dx
         A, b_bc = assemble_system(
             form, dummy_rhs, bcs,
