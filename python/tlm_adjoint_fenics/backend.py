@@ -55,6 +55,7 @@ extract_args = fenics.fem.solving._extract_args
 backend_Constant = Constant
 backend_DirichletBC = DirichletBC
 backend_Function = Function
+backend_FunctionSpace = FunctionSpace
 backend_KrylovSolver = KrylovSolver
 backend_LUSolver = LUSolver
 backend_LinearVariationalSolver = LinearVariationalSolver
@@ -79,6 +80,7 @@ __all__ = \
         "backend_Constant",
         "backend_DirichletBC",
         "backend_Function",
+        "backend_FunctionSpace",
         "backend_KrylovSolver",
         "backend_LUSolver",
         "backend_LinearVariationalSolver",
@@ -101,6 +103,7 @@ __all__ = \
         "LocalSolver",
         "Parameters",
         "Point",
+        "TensorFunctionSpace",
         "TestFunction",
         "TrialFunction",
         "UnitIntervalMesh",

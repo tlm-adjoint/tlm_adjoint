@@ -780,11 +780,13 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def forward(m):
-        X = [Function(space, name=f"x_{i:d}") for i in range(3)]
+        X = [Function(space, name=f"x_{i:d}") for i in range(4)]
 
         AssignmentSolver(m, X[0]).solve()
         ScaleSolver(1.0, X[0], X[1]).solve()
         ExprEvaluationSolver(m + X[1], X[2]).solve()
+        ProjectionSolver(m + X[2], X[3],
+                         solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
         J.assign(inner(dot(X[-1] + 1.0, X[-1] + 1.0),

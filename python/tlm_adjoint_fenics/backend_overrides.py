@@ -79,6 +79,9 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
         tensor = b
 
     if not isinstance(tensor, float):
+        if not isinstance(form, ufl.classes.Form):
+            raise OverrideException("form must be a UFL form")
+
         form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         if form_compiler_parameters is not None:
             update_parameters_dict(form_compiler_parameters_,
@@ -105,6 +108,10 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
                     form_compiler_parameters=None, add_values=False,
                     finalize_tensor=True, keep_diagonal=False, A_tensor=None,
                     b_tensor=None, *args, **kwargs):
+    if not isinstance(A_form, ufl.classes.Form):
+        raise OverrideException("A_form must be a UFL form")
+    if not isinstance(b_form, ufl.classes.Form):
+        raise OverrideException("b_form must be a UFL form")
     if x0 is not None:
         raise OverrideException("Non-linear boundary condition case not supported")  # noqa: E501
 

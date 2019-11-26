@@ -46,6 +46,7 @@ __all__ = \
         "parameters_key",
         "process_adjoint_solver_parameters",
         "process_solver_parameters",
+        "r0_space",
         "rhs_addto",
         "rhs_copy",
         "update_parameters_dict",
@@ -342,6 +343,21 @@ def matrix_multiply(A, x, tensor=None, addto=False):
         with x.dat.vec_ro as x_v, tensor.dat.vec_wo as tensor_v:
             A.petscmat.mult(x_v, tensor_v)
     return tensor
+
+
+def r0_space(x):
+    if not hasattr(x, "_tlm_adjoint__r0_space"):
+        x_domains = x.ufl_domains()
+        if len(x_domains) == 0:
+            raise InterfaceException("Domain not defined")
+        domain, = x_domains
+        if len(x.ufl_shape) == 0:
+            space = FunctionSpace(domain, "R", 0)
+        else:
+            # See Firedrake issue #1456
+            raise InterfaceException("Rank >= 2 Constant not implemented")
+        x._tlm_adjoint__r0_space = space
+    return x._tlm_adjoint__r0_space
 
 
 def _Constant__init__(self, *args, name=None, domain=None, space=None,

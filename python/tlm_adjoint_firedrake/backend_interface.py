@@ -107,8 +107,8 @@ class FunctionSpaceInterface(SpaceInterface):
                         checkpoint=checkpoint)
 
 
-def _WithGeometry__init__(self, *args, **kwargs):
-    _WithGeometry__init__._tlm_adjoint__orig(self, *args, **kwargs)
+def _FunctionSpace__init__(self, *args, **kwargs):
+    _FunctionSpace__init__._tlm_adjoint__orig(self, *args, **kwargs)
     id = _space_id_counter[0]
     _space_id_counter[0] += 1
     add_interface(self, FunctionSpaceInterface,
@@ -116,8 +116,8 @@ def _WithGeometry__init__(self, *args, **kwargs):
 
 
 _space_id_counter = [0]
-_WithGeometry__init__._tlm_adjoint__orig = backend_WithGeometry.__init__
-backend_WithGeometry.__init__ = _WithGeometry__init__
+_FunctionSpace__init__._tlm_adjoint__orig = backend_FunctionSpace.__init__
+backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 class FunctionInterface(_FunctionInterface):
@@ -360,12 +360,22 @@ def subtract_adjoint_derivative_action(x, y):
             alpha, y = y
         else:
             alpha = 1.0
-        function_axpy(x, -alpha, y)
+        if isinstance(x, backend_Constant):
+            if len(x.ufl_shape) == 0:
+                y_value, = y.dat.data
+                # annotate=False, tlm=False
+                x.assign(float(x) - alpha * y_value)
+            else:
+                # See Firedrake issue #1456
+                raise InterfaceException("Rank >= 2 Constant not implemented")
+        else:
+            function_axpy(x, -alpha, y)
 
 
 def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-        function_axpy(x, 1.0, assemble(x._tlm_adjoint__adj_b))
+        y = assemble(x._tlm_adjoint__adj_b)
+        subtract_adjoint_derivative_action(x, (-1.0, y))
         delattr(x, "_tlm_adjoint__adj_b")
 
 

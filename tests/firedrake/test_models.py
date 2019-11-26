@@ -185,9 +185,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     T_0 = Function(space, name="T_0", static=True)
     interpolate_expression(T_0, sin(pi * X[0]) + sin(10.0 * pi * X[0]))
     dt = Constant(0.01, static=True)
-    space_r0 = FunctionSpace(mesh, "R", 0)
-    kappa = Function(space_r0, name="kappa", static=True)
-    function_assign(kappa, 1.0)
+    kappa = Constant(1.0, domain=mesh, name="kappa", static=True)
 
     def forward(T_0, kappa):
         from tlm_adjoint_firedrake.timestepping import N, TimeFunction, \
@@ -271,12 +269,16 @@ def test_diffusion_2d(setup_test, test_leaks):
     T_0 = Function(space, name="T_0", static=True)
     interpolate_expression(T_0, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
     dt = Constant(0.01, static=True)
-    kappa = Function(space, name="kappa", static=True)
-    function_assign(kappa, 1.0)
+    kappa = [Constant(1.0, domain=mesh, name="kappa_00", static=True),
+             Constant(0.0, domain=mesh, name="kappa_10", static=True),
+             Constant(0.0, domain=mesh, name="kappa_01", static=True),
+             Constant(1.0, domain=mesh, name="kappa_11", static=True)]
     bc = HomogeneousDirichletBC(space, "on_boundary")
 
-    def forward(kappa):
+    def forward(kappa_00, kappa_01, kappa_10, kappa_11):
         clear_caches()
+        kappa = as_tensor([[kappa_00, kappa_01],
+                           [kappa_10, kappa_11]])
 
         T_n = Function(space, name="T_n")
         T_np1 = Function(space, name="T_np1")
@@ -284,7 +286,7 @@ def test_diffusion_2d(setup_test, test_leaks):
         AssignmentSolver(T_0, T_n).solve()
 
         eq = (inner(test, trial / dt) * dx
-              + inner(grad(test), kappa * grad(trial)) * dx
+              + inner(grad(test), dot(kappa, grad(trial))) * dx
               == inner(test, T_n / dt) * dx)
         eqs = [EquationSolver(eq, T_np1, bc,
                               solver_parameters=ls_parameters_cg),

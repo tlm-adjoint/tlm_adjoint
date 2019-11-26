@@ -19,7 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import *
-from .backend_code_generator_interface import assemble, copy_parameters_dict
+from .backend_code_generator_interface import assemble, \
+    copy_parameters_dict, r0_space
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
@@ -115,8 +116,8 @@ def _FunctionSpace__init__(self, *args, **kwargs):
     add_interface(self, FunctionSpaceInterface)
 
 
-_FunctionSpace__init__._tlm_adjoint__orig = FunctionSpace.__init__
-FunctionSpace.__init__ = _FunctionSpace__init__
+_FunctionSpace__init__._tlm_adjoint__orig = backend_FunctionSpace.__init__
+backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 class FunctionInterface(_FunctionInterface):
@@ -337,20 +338,46 @@ def subtract_adjoint_derivative_action(x, y):
             alpha, y = y
         else:
             alpha = 1.0
-        if isinstance(y, backend_Function):
-            y = y.vector()
         if isinstance(y, backend_Vector):
-            if x.vector().local_size() != y.local_size():
-                raise InterfaceException("Invalid function space")
-            x.vector().axpy(-alpha, y)
+            if isinstance(x, backend_Constant):
+                if len(x.ufl_shape) == 0:
+                    # annotate=False, tlm=False
+                    x.assign(float(x) - alpha * y.max())
+                else:
+                    y_fn = Function(r0_space(x))
+
+                    # Ordering check
+                    check_values = np.arange(np.prod(x.ufl_shape),
+                                             dtype=np.float64)
+                    # annotate=False, tlm=False
+                    y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
+                    for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+                        assert y_fn_c.vector().max() == check_values[i]
+                    y_fn.vector().zero()
+
+                    value = x.values()
+                    y_fn.vector().axpy(1.0, y)
+                    for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+                        value[i] -= alpha * y_fn_c.vector().max()
+                    value.shape = x.ufl_shape
+                    # annotate=False, tlm=False
+                    x.assign(backend_Constant(value))
+            else:
+                if x.vector().local_size() != y.local_size():
+                    raise InterfaceException("Invalid function space")
+                x.vector().axpy(-alpha, y)
         else:
             function_axpy(x, -alpha, y)
 
 
 def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
-        assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
-                 add_values=True)
+        if isinstance(x, backend_Constant):
+            y = backend_assemble(x._tlm_adjoint__adj_b)
+            subtract_adjoint_derivative_action(x, (-1.0, y))
+        else:
+            assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
+                     add_values=True)
         delattr(x, "_tlm_adjoint__adj_b")
 
 

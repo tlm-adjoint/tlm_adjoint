@@ -27,7 +27,7 @@ from .base_equations import AssignmentSolver, Equation, EquationException, \
 from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
     linear_solver_cache, split_form, update_caches, verify_assembly
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
-    eliminate_zeros, extract_coefficients
+    eliminate_zeros, extract_coefficients, is_r0_function
 
 import copy
 import operator
@@ -46,9 +46,17 @@ __all__ = \
     ]
 
 
+def derivative_space(x):
+    space = function_space(x)
+    if not isinstance(space, backend_FunctionSpace):
+        assert is_r0_function(x)
+        space = r0_space(x)
+    return space
+
+
 def derivative(form, x, argument=None):
     if argument is None:
-        space = function_space(x)
+        space = derivative_space(x)
         rank = len(form.arguments())
         Argument = {0: TestFunction, 1: TrialFunction}[rank]
         argument = Argument(space)
@@ -669,7 +677,8 @@ class EquationSolver(Equation):
             return None
         dF = adjoint(dF)
 
-        if self._cache_rhs_assembly and is_cached(dF):
+        if self._cache_rhs_assembly and is_cached(dF) \
+                and isinstance(adj_x, backend_Function):
             self._derivative_mats[dep_index], (mat, _) = \
                 assembly_cache().assemble(
                     dF,
