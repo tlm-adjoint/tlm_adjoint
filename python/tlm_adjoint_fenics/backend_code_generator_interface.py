@@ -398,7 +398,8 @@ def dolfin_form(form, form_compiler_parameters=None):
 
         simplified_form = eliminate_zeros(form, non_empty_form=True)
         dolfin_form = Form(
-            simplified_form, form_compiler_parameters=form_compiler_parameters)
+            simplified_form,
+            form_compiler_parameters=copy_parameters_dict(form_compiler_parameters))  # noqa: E501
         if not hasattr(dolfin_form, "_compiled_form"):
             dolfin_form._compiled_form = None
 
