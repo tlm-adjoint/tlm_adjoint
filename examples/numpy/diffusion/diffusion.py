@@ -26,7 +26,7 @@ import scipy.sparse.linalg
 
 # SciPy backwards compatibility
 import inspect
-cg_atol = "atol" in inspect.getargspec(scipy.sparse.linalg.cg).args
+cg_atol = "atol" in inspect.signature(scipy.sparse.linalg.cg).parameters
 
 
 def cg(A, b, x0):
