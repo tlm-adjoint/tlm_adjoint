@@ -367,7 +367,7 @@ def subtract_adjoint_derivative_action(x, y):
                 x.assign(float(x) - alpha * y_value)
             else:
                 # See Firedrake issue #1456
-                raise InterfaceException("Rank >= 2 Constant not implemented")
+                raise InterfaceException("Rank >= 1 Constant not implemented")
         else:
             function_axpy(x, -alpha, y)
 

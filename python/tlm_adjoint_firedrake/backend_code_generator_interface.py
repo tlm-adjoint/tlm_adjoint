@@ -355,7 +355,7 @@ def r0_space(x):
             space = FunctionSpace(domain, "R", 0)
         else:
             # See Firedrake issue #1456
-            raise InterfaceException("Rank >= 2 Constant not implemented")
+            raise InterfaceException("Rank >= 1 Constant not implemented")
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
 
