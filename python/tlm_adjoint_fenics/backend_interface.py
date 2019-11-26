@@ -373,7 +373,7 @@ def subtract_adjoint_derivative_action(x, y):
 def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__adj_b"):
         if isinstance(x, backend_Constant):
-            y = backend_assemble(x._tlm_adjoint__adj_b)
+            y = assemble(x._tlm_adjoint__adj_b)
             subtract_adjoint_derivative_action(x, (-1.0, y))
         else:
             assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
