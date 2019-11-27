@@ -280,7 +280,7 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
 
 
 def _DirichletBC_apply(self, *args):
-    _DirichletBC_apply._tlm_adjoint__orig(self, *args)
+    backend_DirichletBC._tlm_adjoint__orig_apply(self, *args)
     if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) \
        or len(args) > 2:
         return
@@ -303,12 +303,12 @@ def _DirichletBC_apply(self, *args):
         b._tlm_adjoint__bcs.append(self)
 
 
-_DirichletBC_apply._tlm_adjoint__orig = backend_DirichletBC.apply
+backend_DirichletBC._tlm_adjoint__orig_apply = backend_DirichletBC.apply
 backend_DirichletBC.apply = _DirichletBC_apply
 
 
 def _Function_assign(self, rhs, annotate=None, tlm=None):
-    return_value = _Function_assign._tlm_adjoint__orig(self, rhs)
+    return_value = backend_Function._tlm_adjoint__orig_assign(self, rhs)
     if not isinstance(rhs, backend_Function):
         return return_value
 
@@ -321,22 +321,22 @@ def _Function_assign(self, rhs, annotate=None, tlm=None):
     return return_value
 
 
-_Function_assign._tlm_adjoint__orig = backend_Function.assign
+backend_Function._tlm_adjoint__orig_assign = backend_Function.assign
 backend_Function.assign = _Function_assign
 
 
 def _Function_vector(self):
-    return_value = _Function_vector._tlm_adjoint__orig(self)
+    return_value = backend_Function._tlm_adjoint__orig_vector(self)
     return_value._tlm_adjoint__function = self
     return return_value
 
 
-_Function_vector._tlm_adjoint__orig = backend_Function.vector
+backend_Function._tlm_adjoint__orig_vector = backend_Function.vector
 backend_Function.vector = _Function_vector
 
 
 def _Matrix_mul(self, other):
-    return_value = _Matrix_mul._tlm_adjoint__orig(self, other)
+    return_value = backend_Matrix._tlm_adjoint__orig___mul__(self, other)
     if hasattr(self, "_tlm_adjoint__form") \
        and hasattr(other, "_tlm_adjoint__function") \
        and len(self._tlm_adjoint__bcs) == 0:
@@ -349,7 +349,7 @@ def _Matrix_mul(self, other):
     return return_value
 
 
-_Matrix_mul._tlm_adjoint__orig = backend_Matrix.__mul__
+backend_Matrix._tlm_adjoint__orig___mul__ = backend_Matrix.__mul__
 backend_Matrix.__mul__ = _Matrix_mul
 
 

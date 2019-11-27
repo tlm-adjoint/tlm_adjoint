@@ -108,7 +108,7 @@ class FunctionSpaceInterface(SpaceInterface):
 
 
 def _FunctionSpace__init__(self, *args, **kwargs):
-    _FunctionSpace__init__._tlm_adjoint__orig(self, *args, **kwargs)
+    backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
     id = _space_id_counter[0]
     _space_id_counter[0] += 1
     add_interface(self, FunctionSpaceInterface,
@@ -116,7 +116,7 @@ def _FunctionSpace__init__(self, *args, **kwargs):
 
 
 _space_id_counter = [0]
-_FunctionSpace__init__._tlm_adjoint__orig = backend_FunctionSpace.__init__
+backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
 backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
@@ -314,11 +314,11 @@ class FunctionInterface(_FunctionInterface):
 
 
 def _Function__init__(self, *args, **kwargs):
-    _Function__init__._tlm_adjoint__orig(self, *args, **kwargs)
+    backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionInterface)
 
 
-_Function__init__._tlm_adjoint__orig = backend_Function.__init__
+backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 

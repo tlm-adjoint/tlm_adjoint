@@ -21,7 +21,7 @@
 from firedrake import *
 from tlm_adjoint_firedrake import *
 from tlm_adjoint_firedrake import manager as _manager
-from tlm_adjoint_firedrake.backend import backend_Function
+from tlm_adjoint_firedrake.backend import backend_Constant, backend_Function
 
 import copy
 import gc
@@ -93,19 +93,30 @@ def test_configurations(request):
         = request.param["defer_adjoint_assembly"]
 
 
+function_ids = {}
+
+
+def _Constant__init__(self, *args, **kwargs):
+    _Constant__init__orig(self, *args, **kwargs)
+    function_ids[function_id(self)] = weakref.ref(self)
+
+
+_Constant__init__orig = backend_Constant.__init__
+backend_Constant.__init__ = _Constant__init__
+
+
 def _Function__init__(self, *args, **kwargs):
-    _Function__init__._tlm_adjoint__orig(self, *args, **kwargs)
-    Function_ids[self.count()] = weakref.ref(self)
+    _Function__init__orig(self, *args, **kwargs)
+    function_ids[function_id(self)] = weakref.ref(self)
 
 
-Function_ids = {}
-_Function__init__._tlm_adjoint__orig = backend_Function.__init__
+_Function__init__orig = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
 @pytest.fixture
 def test_leaks():
-    Function_ids.clear()
+    function_ids.clear()
 
     yield
 
@@ -123,7 +134,7 @@ def test_leaks():
     gc.collect()
 
     refs = 0
-    for F in Function_ids.values():
+    for F in function_ids.values():
         F = F()
         if F is not None and F.name() != "Coordinates":
             info(f"{F.name():s} referenced")
@@ -131,7 +142,7 @@ def test_leaks():
     if refs == 0:
         info("No references")
 
-    Function_ids.clear()
+    function_ids.clear()
     assert refs == 0
 
 

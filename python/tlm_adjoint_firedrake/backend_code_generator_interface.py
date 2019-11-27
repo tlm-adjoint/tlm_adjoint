@@ -256,12 +256,12 @@ def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
 
 def _LinearSolver_lifted(self, b):
     if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
-        return _LinearSolver_lifted._tlm_adjoint__orig(self, b)
+        return backend_LinearSolver._tlm_adjoint__orig__lifted(self, b)
     else:
         return b
 
 
-_LinearSolver_lifted._tlm_adjoint__orig = backend_LinearSolver._lifted
+backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
 
@@ -362,7 +362,8 @@ def r0_space(x):
 
 def _Constant__init__(self, *args, name=None, domain=None, space=None,
                       comm=MPI.COMM_WORLD, **kwargs):
-    _Constant__init__._tlm_adjoint__orig(self, *args, domain=domain, **kwargs)
+    backend_Constant._tlm_adjoint__orig___init__(self, *args, domain=domain,
+                                                 **kwargs)
 
     if name is None:
         # Following FEniCS 2019.1.0 behaviour
@@ -377,7 +378,7 @@ def _Constant__init__(self, *args, name=None, domain=None, space=None,
                   {"space": space})
 
 
-_Constant__init__._tlm_adjoint__orig = backend_Constant.__init__
+backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
 backend_Constant.__init__ = _Constant__init__
 
 

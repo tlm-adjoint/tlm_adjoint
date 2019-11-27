@@ -288,7 +288,8 @@ def _Constant__init__(self, *args, name=None, domain=None, space=None,
     if domain is not None and hasattr(domain, "ufl_domain"):
         domain = domain.ufl_domain()
 
-    _Constant__init__._tlm_adjoint__orig(self, *args, name=name, **kwargs)
+    backend_Constant._tlm_adjoint__orig___init__(self, *args, name=name,
+                                                 **kwargs)
 
     self.ufl_domain = lambda: domain
     if domain is None:
@@ -304,7 +305,7 @@ def _Constant__init__(self, *args, name=None, domain=None, space=None,
                   {"space": space})
 
 
-_Constant__init__._tlm_adjoint__orig = backend_Constant.__init__
+backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
 backend_Constant.__init__ = _Constant__init__
 
 

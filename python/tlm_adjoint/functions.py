@@ -49,7 +49,7 @@ __all__ = \
 
 def new_count():
     c = backend_Constant.__new__(backend_Constant, 0.0)
-    backend_Constant.__init__._tlm_adjoint__orig(c, 0.0)
+    backend_Constant._tlm_adjoint__orig___init__(c, 0.0)
     return c.count()
 
 
@@ -527,9 +527,9 @@ class HomogeneousDirichletBC(DirichletBC):
     def __init__(self, V, sub_domain, *args, **kwargs):
         shape = V.ufl_element().value_shape()
         if len(shape) == 0:
-            g = backend_Constant(0.0)
+            g = 0.0
         else:
-            g = backend_Constant(np.zeros(shape, dtype=np.float64))
+            g = np.zeros(shape, dtype=np.float64)
         DirichletBC.__init__(self, V, g, sub_domain, *args, static=True,
                              _homogeneous=True, **kwargs)
 
