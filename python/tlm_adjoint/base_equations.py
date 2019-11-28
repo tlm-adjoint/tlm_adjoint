@@ -136,7 +136,7 @@ class AdjointBlockRHS:
             return self._B[k][m]
 
     def pop(self):
-        return self._B.pop()
+        return len(self._B) - 1, self._B.pop()
 
     def finalize(self):
         for B in self._B:
@@ -162,9 +162,10 @@ class AdjointModelRHS:
             return self._B[p][k][m]
 
     def pop(self):
-        B = self._B[-1].pop()
+        i, B = self._B[-1].pop()
+        n = len(self._B) - 1
         self._pop_empty()
-        return B
+        return (n, i), B
 
     def _pop_empty(self):
         while len(self._B) > 0 and self._B[-1].is_empty():

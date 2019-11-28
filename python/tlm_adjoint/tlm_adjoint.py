@@ -271,7 +271,7 @@ class ReplayStorage:
         for n in range(N0, N1):
             for i in range(len(blocks[n])):
                 dep_ids = set()
-                eq_last_q.append(dep_ids)
+                eq_last_q.append((n, i, dep_ids))
                 eq_last_d[(n, i)] = dep_ids
         for dep_id, (n, i) in last_eq.items():
             eq_last_d[(n, i)].add(dep_id)
@@ -317,8 +317,10 @@ class ReplayStorage:
                 self[key] = function_copy(value) if copy else value
 
     def pop(self):
-        for dep_id in self._eq_last.popleft():
+        n, i, dep_ids = self._eq_last.popleft()
+        for dep_id in dep_ids:
             del self._map[dep_id]
+        return (n, i)
 
 
 class DependencyTransposer:
@@ -345,7 +347,7 @@ class DependencyTransposer:
                             dep_map[x_id].append((p, k, m))
                         else:
                             dep_map[x_id] = [(p, k, m)]
-                    eq_X_ids.append(X_ids)
+                    eq_X_ids.append((p, k, X_ids))
                 else:
                     eq_X_active_ids = []
                     for m, x_id in enumerate(X_ids):
@@ -359,7 +361,7 @@ class DependencyTransposer:
                             eq_X_active_ids.append(x_id)
                         elif x_id in active_ids:
                             active_ids.remove(x_id)
-                    eq_X_ids.append(tuple(eq_X_active_ids))
+                    eq_X_ids.append((p, k, tuple(eq_X_active_ids)))
 
         self._dep_map = dep_map
         self._eq_X_ids = eq_X_ids
@@ -379,10 +381,12 @@ class DependencyTransposer:
         return self._dep_map[dep_id][-1]
 
     def pop(self):
-        for x_id in self._eq_X_ids.pop():
+        p, k, X_ids = self._eq_X_ids.pop()
+        for x_id in X_ids:
             self._dep_map[x_id].pop()
             if len(self._dep_map[x_id]) == 0:
                 del self._dep_map[x_id]
+        return p, k
 
     def is_empty(self):
         return len(self._dep_map) == 0 and len(self._eq_X_ids) == 0
@@ -1145,7 +1149,8 @@ class EquationManager:
                         eq.forward(X, deps=deps)
                         self._cp.add_equation((n1, i), eq, deps=deps)
 
-                        storage.pop()
+                        storage_state = storage.pop()
+                        assert storage_state == (n1, i)
 
                     self._cp_manager.add(n1)
                 assert len(storage) == 0
@@ -1210,7 +1215,8 @@ class EquationManager:
                         eq.forward(X, deps=deps)
                         self._cp.add_equation((n1, i), eq, deps=deps)
 
-                        storage.pop()
+                        storage_state = storage.pop()
+                        assert storage_state == (n1, i)
                 snapshot_n = self._cp_manager.n()
                 if snapshot_n > n:
                     break
@@ -1390,13 +1396,15 @@ class EquationManager:
                         assert p != n or k != i
                         B_indices[j] = (p, k, m)
                 # Clear dependency information for this equation
-                tdeps.pop()
+                tdeps_state = tdeps.pop()
+                assert tdeps_state == (n, i)
 
                 for J_i, J in enumerate(Js):
                     # Adjoint model right-hand-sides
                     B = Bs[J_i]
                     # Adjoint right-hand-side associated with this equation
-                    eq_B = B.pop()
+                    B_state, eq_B = B.pop()
+                    assert B_state == (n, i)
 
                     # Zero right-hand-side, adjoint solution is zero, or the
                     # sensitivity does not depend on the adjoint solution
