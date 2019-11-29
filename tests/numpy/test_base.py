@@ -30,6 +30,8 @@ import weakref
 
 __all__ = \
     [
+        "Constant",
+
         "run_example",
         "setup_test",
         "test_leaks"
@@ -96,3 +98,18 @@ def run_example(example):
     # Clear objects created by the script. Requires the script to define a
     # 'forward' function.
     gl["forward"].__globals__.clear()
+
+
+class Constant(Function):
+    def __init__(self, value=0.0, name=None, static=False, cache=None,
+                 checkpoint=None, _data=None):
+        Function.__init__(self, FunctionSpace(1), name=name, static=static,
+                          cache=cache, checkpoint=checkpoint, _data=_data)
+        self.assign(value)
+
+    def assign(self, y):
+        if isinstance(y, Constant):
+            self.vector()[:] = y.vector()
+        else:
+            assert isinstance(y, (int, float))
+            self.vector()[:] = float(y),
