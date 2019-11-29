@@ -23,6 +23,7 @@ from .backend_interface import *
 from .manager import manager as _manager
 
 import numpy as np
+import warnings
 
 __all__ = \
     [
@@ -722,7 +723,7 @@ class FixedPointSolver(Equation):
                     Whether to use a non-zero initial guess for the forward
                     solve (for the final equation in eqs). Logical, optional,
                     default True.
-                nonzero_adjoint_initial_guess
+                adjoint_nonzero_initial_guess
                     Whether to use a non-zero initial guess for the adjoint
                     solve. If True, the solution on the previous
                     adjoint_jacobian_solve call is retained and used as an
@@ -742,10 +743,22 @@ class FixedPointSolver(Equation):
                 X_ids.add(x_id)
 
         solver_parameters = copy_parameters_dict(solver_parameters)
+        if "nonzero_adjoint_initial_guess" in solver_parameters:
+            warnings.warn("'nonzero_adjoint_initial_guess' parameter is "
+                          "deprecated -- use 'adjoint_nonzero_initial_guess' "
+                          "instead",
+                          DeprecationWarning, stacklevel=2)
+            if "adjoint_nonzero_initial_guess" in solver_parameters:
+                raise EquationException("Cannot supply both "
+                                        "'nonzero_adjoint_initial_guess' and "
+                                        "'adjoint_nonzero_initial_guess' "
+                                        "parameters")
+            solver_parameters["adjoint_nonzero_initial_guess"] = \
+                solver_parameters.pop("nonzero_adjoint_initial_guess")
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         for key, default_value in [("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
-                                   ("nonzero_adjoint_initial_guess", False),
+                                   ("adjoint_nonzero_initial_guess", False),
                                    ("report", False)]:
             if key not in solver_parameters:
                 solver_parameters[key] = default_value
@@ -917,7 +930,7 @@ class FixedPointSolver(Equation):
         for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
             eq.initialize_adjoint(J, eq_nl_deps)
 
-        if self._solver_parameters["nonzero_adjoint_initial_guess"]:
+        if self._solver_parameters["adjoint_nonzero_initial_guess"]:
             J_id = J.id()
             if J_id not in self._adj_X_cache:
                 self._adj_X_cache[J_id] = [function_new(x) for x in self.X()]
