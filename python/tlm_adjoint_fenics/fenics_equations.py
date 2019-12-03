@@ -157,8 +157,8 @@ class LocalProjectionSolver(EquationSolver):
             # FEniCS backwards compatibility
             local_solver_type = LocalSolver.SolverType_Cholesky
 
-        EquationSolver.__init__(
-            self, lhs == rhs, x,
+        super().__init__(
+            lhs == rhs, x,
             form_compiler_parameters=form_compiler_parameters,
             solver_parameters={"linear_solver": "direct"},
             cache_jacobian=cache_jacobian,
@@ -337,7 +337,7 @@ class InterpolationSolver(LinearEquation):
 
         class InterpolationMatrix(Matrix):
             def __init__(self, P, P_T=None):
-                Matrix.__init__(self, nl_deps=[], has_ic_dep=False)
+                super().__init__(nl_deps=[], has_ic_dep=False)
                 self._P = P
                 self._P_T = P.T if P_T is None else P_T
 
@@ -366,11 +366,8 @@ class InterpolationSolver(LinearEquation):
                 else:
                     raise EquationException(f"Invalid method: '{method:s}'")
 
-        LinearEquation.__init__(self,
-                                MatrixActionRHS(InterpolationMatrix(P,
-                                                                    P_T=P_T),
-                                                y),
-                                x)
+        super().__init__(
+            MatrixActionRHS(InterpolationMatrix(P, P_T=P_T), y), x)
 
 
 class PointInterpolationSolver(Equation):
@@ -462,7 +459,7 @@ class PointInterpolationSolver(Equation):
         if P_T is None:
             P_T = P.T
 
-        Equation.__init__(self, X, list(X) + [y], nl_deps=[], ic_deps=[])
+        super().__init__(X, list(X) + [y], nl_deps=[], ic_deps=[])
         self._P = P
         self._P_T = P_T
 

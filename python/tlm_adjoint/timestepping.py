@@ -107,7 +107,7 @@ class BaseTimeLevel:
 
 class InitialTimeLevel(BaseTimeLevel):
     def __init__(self, i=0):
-        BaseTimeLevel.__init__(self, order=-1, i=i)
+        super().__init__(order=-1, i=i)
 
     def __add__(self, other):
         return InitialTimeLevel(self._i + other)
@@ -118,7 +118,7 @@ class InitialTimeLevel(BaseTimeLevel):
 
 class TimeLevel(BaseTimeLevel):
     def __init__(self, i=0):
-        BaseTimeLevel.__init__(self, order=0, i=i)
+        super().__init__(order=0, i=i)
 
     def __add__(self, other):
         return TimeLevel(self._i + other)
@@ -129,7 +129,7 @@ class TimeLevel(BaseTimeLevel):
 
 class FinalTimeLevel(BaseTimeLevel):
     def __init__(self, i=0):
-        BaseTimeLevel.__init__(self, order=1, i=i)
+        super().__init__(order=1, i=i)
 
     def __add__(self, other):
         return FinalTimeLevel(self._i + other)
@@ -161,7 +161,7 @@ class TimeLevels:
 
 class Alias:
     def __init__(self, obj):
-        object.__setattr__(self, "_tlm_adjoint__alias", obj)
+        super().__setattr__("_tlm_adjoint__alias", obj)
 
     def __new__(cls, obj):
         obj_cls = type(obj)
@@ -172,7 +172,7 @@ class Alias:
                 obj.__init__(*args, **kwargs)
                 return obj
 
-        return object.__new__(Alias)
+        return super().__new__(Alias)
 
     def __getattr__(self, key):
         return getattr(self._tlm_adjoint__alias, key)
@@ -199,14 +199,15 @@ class TimeFunction:
 
             initial_level = InitialTimeLevel(level.i())
             initial_fn = self._fns[initial_level] = Alias(fn)
-            object.__setattr__(initial_fn, "_tlm_adjoint__tfn", self)
-            object.__setattr__(initial_fn, "_tlm_adjoint__level",
-                               initial_level)
+            super(Alias, initial_fn).__setattr__("_tlm_adjoint__tfn", self)
+            super(Alias, initial_fn).__setattr__("_tlm_adjoint__level",
+                                                 initial_level)
 
             final_level = FinalTimeLevel(level.i())
             final_fn = self._fns[final_level] = Alias(fn)
-            object.__setattr__(final_fn, "_tlm_adjoint__tfn", self)
-            object.__setattr__(final_fn, "_tlm_adjoint__level", final_level)
+            super(Alias, final_fn).__setattr__("_tlm_adjoint__tfn", self)
+            super(Alias, final_fn).__setattr__("_tlm_adjoint__level",
+                                               final_level)
 
         self._levels = levels
         self._cycle_eqs = None

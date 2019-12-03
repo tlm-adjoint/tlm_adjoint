@@ -103,8 +103,8 @@ def run_example(example):
 class Constant(Function):
     def __init__(self, value=0.0, name=None, static=False, cache=None,
                  checkpoint=None, _data=None):
-        Function.__init__(self, FunctionSpace(1), name=name, static=static,
-                          cache=cache, checkpoint=checkpoint, _data=_data)
+        super().__init__(FunctionSpace(1), name=name, static=static,
+                         cache=cache, checkpoint=checkpoint, _data=_data)
         self.assign(value)
 
     def assign(self, y):

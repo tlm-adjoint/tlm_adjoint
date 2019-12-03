@@ -355,7 +355,7 @@ backend_Matrix.__mul__ = _Matrix_mul
 
 class LUSolver(backend_LUSolver):
     def __init__(self, *args):
-        backend_LUSolver.__init__(self, *args)
+        super().__init__(*args)
         if len(args) >= 1 and isinstance(args[0], backend_Matrix):
             self.__A = args[0]
             self.__linear_solver = args[1] if len(args) >= 2 else "default"
@@ -369,11 +369,11 @@ class LUSolver(backend_LUSolver):
             self.__linear_solver = args[1] if len(args) >= 2 else "default"
 
     def set_operator(self, A):
-        backend_LUSolver.set_operator(self, A)
+        super().set_operator(A)
         self.__A = A
 
     def solve(self, *args, annotate=None, tlm=None):
-        return_value = backend_LUSolver.solve(self, *args)
+        return_value = super().solve(*args)
 
         if annotate is None:
             annotate = annotation_enabled()
@@ -419,7 +419,7 @@ class LUSolver(backend_LUSolver):
 
 class KrylovSolver(backend_KrylovSolver):
     def __init__(self, *args):
-        backend_KrylovSolver.__init__(self, *args)
+        super().__init__(*args)
         if len(args) >= 1 and isinstance(args[0], backend_Matrix):
             self.__A = args[0]
             self.__linear_solver = args[1] if len(args) >= 2 else "default"
@@ -437,7 +437,7 @@ class KrylovSolver(backend_KrylovSolver):
             self.__preconditioner = args[2] if len(args) >= 3 else "default"
 
     def set_operator(self, A):
-        backend_KrylovSolver.set_operator(self, A)
+        super().set_operator(A)
         self.__A = A
 
     def set_operators(self, *args, **kwargs):
@@ -480,10 +480,10 @@ class KrylovSolver(backend_KrylovSolver):
                 cache_jacobian=False, cache_rhs_assembly=False)
 
             eq._pre_process(annotate=annotate)
-            return_value = backend_KrylovSolver.solve(self, *args)
+            return_value = super().solve(*args)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
-            return_value = backend_KrylovSolver.solve(self, *args)
+            return_value = super().solve(*args)
             if isinstance(args[0], backend_Matrix):
                 self.__A = None
 
@@ -492,7 +492,7 @@ class KrylovSolver(backend_KrylovSolver):
 
 class LinearVariationalSolver(backend_LinearVariationalSolver):
     def __init__(self, problem):
-        backend_LinearVariationalSolver.__init__(self, problem)
+        super().__init__(problem)
         self.__problem = problem
 
     def solve(self, annotate=None, tlm=None):
@@ -512,14 +512,13 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
-            backend_LinearVariationalSolver.solve(self)
+            super().solve()
 
 
 class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
     def __init__(self, F, u, bcs=None, J=None, form_compiler_parameters=None):
-        backend_NonlinearVariationalProblem.__init__(
-            self, F, u, bcs=bcs, J=J,
-            form_compiler_parameters=form_compiler_parameters)
+        super().__init__(F, u, bcs=bcs, J=J,
+                         form_compiler_parameters=form_compiler_parameters)
         if bcs is None:
             self._tlm_adjoint__bcs = []
         elif isinstance(bcs, backend_DirichletBC):
@@ -533,7 +532,7 @@ class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
 
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
     def __init__(self, problem):
-        backend_NonlinearVariationalSolver.__init__(self, problem)
+        super().__init__(problem)
         self.__problem = problem
 
     def solve(self, annotate=None, tlm=None):
@@ -550,9 +549,9 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
                 cache_jacobian=False, cache_rhs_assembly=False)
 
             eq._pre_process(annotate=annotate)
-            return_value = backend_NonlinearVariationalSolver.solve(self)
+            return_value = super().solve()
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
-            return_value = backend_NonlinearVariationalSolver.solve(self)
+            return_value = super().solve()
 
         return return_value

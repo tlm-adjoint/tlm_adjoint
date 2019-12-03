@@ -34,7 +34,7 @@ __all__ = \
 
 class ConstantMatrix(Matrix):
     def __init__(self, A, A_T=None, has_ic_dep=False):
-        Matrix.__init__(self, nl_deps=[], has_ic_dep=has_ic_dep)
+        super().__init__(nl_deps=[], has_ic_dep=has_ic_dep)
         self._A = A
         self._A_T = A_T
 
@@ -135,7 +135,7 @@ class ContractionRHS(RHS):
         assert len(j) == 1
         j = j.pop()
 
-        RHS.__init__(self, X, nl_deps=[] if len(X) == 1 else X)
+        super().__init__(X, nl_deps=[] if len(X) == 1 else X)
         self._A_T = A_T
         self._c = ContractionArray(A, I, A_T=A_T, alpha=alpha)
         self._j = j
@@ -186,6 +186,4 @@ class ContractionRHS(RHS):
 
 class ContractionSolver(LinearEquation):
     def __init__(self, A, I, Y, x, A_T=None, alpha=1.0):
-        LinearEquation.__init__(self, ContractionRHS(A, I, Y, A_T=A_T,
-                                                     alpha=alpha),
-                                x)
+        super().__init__(ContractionRHS(A, I, Y, A_T=A_T, alpha=alpha), x)

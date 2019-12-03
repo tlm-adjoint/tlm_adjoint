@@ -501,17 +501,14 @@ class Equation:
 
 class EquationAlias(Equation):
     def __init__(self, eq):
-        Equation.__setattr__(
-            self, "_tlm_adjoint__alias__dict__",
-            eq.__dict__)
-        Equation.__setattr__(
-            self, "_tlm_adjoint__alias__str__",
-            f"{type(eq).__name__:s} (aliased)")
+        super().__setattr__("_tlm_adjoint__alias__dict__", eq.__dict__)
+        super().__setattr__("_tlm_adjoint__alias__str__",
+                            f"{type(eq).__name__:s} (aliased)")
 
     def __new__(cls, obj):
         class EquationAlias(cls, type(obj)):
             pass
-        return object.__new__(EquationAlias)
+        return super().__new__(EquationAlias)
 
     def __str__(self):
         return self._tlm_adjoint__alias__str__
@@ -519,7 +516,7 @@ class EquationAlias(Equation):
     def __getattribute__(self, key):
         if key == "_tlm_adjoint__alias__dict__" \
                 or key not in self._tlm_adjoint__alias__dict__:
-            return Equation.__getattribute__(self, key)
+            return super().__getattribute__(key)
         else:
             return self._tlm_adjoint__alias__dict__[key]
 
@@ -572,7 +569,7 @@ class FunctionalMarker(Equation):
         J = J.fn()
         # Extra function allocation could be avoided
         J_ = function_new(J)
-        Equation.__init__(self, [J_], [J_, J], nl_deps=[], ic_deps=[])
+        super().__init__([J_], [J_, J], nl_deps=[], ic_deps=[])
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:
@@ -594,7 +591,7 @@ class NullSolver(Equation):
     def __init__(self, X):
         if is_function(X):
             X = (X,)
-        Equation.__init__(self, X, X, nl_deps=[], ic_deps=[])
+        super().__init__(X, X, nl_deps=[], ic_deps=[])
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -619,7 +616,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
-        Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
+        super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
 
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
@@ -650,7 +647,7 @@ class LinearCombinationSolver(Equation):
         alpha = tuple(float(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
 
-        Equation.__init__(self, x, [x] + Y, nl_deps=[], ic_deps=[])
+        super().__init__(x, [x] + Y, nl_deps=[], ic_deps=[])
         self._alpha = alpha
 
     def forward_solve(self, x, deps=None):
@@ -683,13 +680,12 @@ class LinearCombinationSolver(Equation):
 
 class ScaleSolver(LinearCombinationSolver):
     def __init__(self, alpha, y, x):
-        LinearCombinationSolver.__init__(self, x, (alpha, y))
+        super().__init__(x, (alpha, y))
 
 
 class AxpySolver(LinearCombinationSolver):
     def __init__(self, x_old, alpha, y, x_new):
-        LinearCombinationSolver.__init__(self, x_new, (1.0, x_old),
-                                         (alpha, y))
+        super().__init__(x_new, (1.0, x_old), (alpha, y))
 
 
 class FixedPointSolver(Equation):
@@ -835,7 +831,7 @@ class FixedPointSolver(Equation):
                     tdeps[i].append((j, k, m))
         del dep_map
 
-        Equation.__init__(self, X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
+        super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._eqs = tuple(eqs)
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices
@@ -848,7 +844,7 @@ class FixedPointSolver(Equation):
         self._adj_X_cache = {}
 
     def replace(self, replace_map):
-        Equation.replace(self, replace_map)
+        super().replace(replace_map)
         for eq in self._eqs:
             eq.replace(replace_map)
 
@@ -1137,7 +1133,7 @@ class LinearEquation(Equation):
 
         del x_ids, dep_ids, nl_dep_ids
 
-        Equation.__init__(self, X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
+        super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._B = tuple(B)
         self._b_dep_indices = b_dep_indices
         self._b_nl_dep_indices = b_nl_dep_indices
@@ -1151,7 +1147,7 @@ class LinearEquation(Equation):
                 self._A_x_indices = A_x_indices
 
     def replace(self, replace_map):
-        Equation.replace(self, replace_map)
+        super().replace(replace_map)
         for b in self._B:
             b.replace(replace_map)
         if self._A is not None:
@@ -1409,23 +1405,22 @@ class RHS:
 
 class MatrixActionSolver(LinearEquation):
     def __init__(self, Y, A, X):
-        LinearEquation.__init__(self, MatrixActionRHS(A, Y), X)
+        super().__init__(MatrixActionRHS(A, Y), X)
 
 
 class InnerProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0, M=None):
-        LinearEquation.__init__(self, InnerProductRHS(y, z, alpha=alpha, M=M),
-                                x)
+        super().__init__(InnerProductRHS(y, z, alpha=alpha, M=M), x)
 
 
 class NormSqSolver(InnerProductSolver):
     def __init__(self, y, x, alpha=1.0, M=None):
-        InnerProductSolver.__init__(self, y, y, x, alpha=alpha, M=M)
+        super().__init__(y, y, x, alpha=alpha, M=M)
 
 
 class SumSolver(LinearEquation):
     def __init__(self, y, x):
-        LinearEquation.__init__(self, SumRHS(y), x)
+        super().__init__(SumRHS(y), x)
 
 
 class MatrixActionRHS(RHS):
@@ -1438,7 +1433,7 @@ class MatrixActionRHS(RHS):
         A_nl_deps = A.nonlinear_dependencies()
         if len(A_nl_deps) == 0:
             x_indices = {i: i for i in range(len(X))}
-            RHS.__init__(self, X, nl_deps=[])
+            super().__init__(X, nl_deps=[])
         else:
             nl_deps = list(A_nl_deps)
             nl_dep_ids = {function_id(dep): i for i, dep in enumerate(nl_deps)}
@@ -1449,13 +1444,13 @@ class MatrixActionRHS(RHS):
                     nl_deps.append(x)
                     nl_dep_ids[x_id] = len(nl_deps) - 1
                 x_indices[nl_dep_ids[x_id]] = i
-            RHS.__init__(self, nl_deps, nl_deps=nl_deps)
+            super().__init__(nl_deps, nl_deps=nl_deps)
 
         self._A = A
         self._x_indices = x_indices
 
     def replace(self, replace_map):
-        RHS.replace(self, replace_map)
+        super().replace(replace_map)
         self._A.replace(replace_map)
 
     def add_forward(self, B, deps):
@@ -1527,7 +1522,7 @@ class InnerProductRHS(RHS):
         else:
             deps = [x, y]
 
-        RHS.__init__(self, deps, nl_deps=deps)
+        super().__init__(deps, nl_deps=deps)
         self._x = x
         self._y = y
         self._norm_sq = norm_sq
@@ -1535,7 +1530,7 @@ class InnerProductRHS(RHS):
         self._M = M
 
     def replace(self, replace_map):
-        RHS.replace(self, replace_map)
+        super().replace(replace_map)
         self._x = replace_map.get(self._x, self._x)
         self._y = replace_map.get(self._y, self._y)
         if self._M is not None:
@@ -1622,12 +1617,12 @@ class InnerProductRHS(RHS):
 
 class NormSqRHS(InnerProductRHS):
     def __init__(self, x, alpha=1.0, M=None):
-        InnerProductRHS.__init__(self, x, x, alpha=alpha, M=M)
+        super().__init__(x, x, alpha=alpha, M=M)
 
 
 class SumRHS(RHS):
     def __init__(self, x):
-        RHS.__init__(self, [x], nl_deps=[])
+        super().__init__([x], nl_deps=[])
 
     def add_forward(self, b, deps):
         y, = deps
@@ -1649,7 +1644,7 @@ class SumRHS(RHS):
 
 class Storage(Equation):
     def __init__(self, x, key, save=False):
-        Equation.__init__(self, x, [x], nl_deps=[], ic_deps=[])
+        super().__init__(x, [x], nl_deps=[], ic_deps=[])
         self._key = key
         self._save = save
 
@@ -1686,7 +1681,7 @@ class Storage(Equation):
 
 class MemoryStorage(Storage):
     def __init__(self, x, d, key, save=False):
-        Storage.__init__(self, x, key, save=save)
+        super().__init__(x, key, save=save)
         self._d = d
 
     def is_saved(self):
@@ -1701,7 +1696,7 @@ class MemoryStorage(Storage):
 
 class HDF5Storage(Storage):
     def __init__(self, x, h, key, save=False):
-        Storage.__init__(self, x, key, save=save)
+        super().__init__(x, key, save=save)
         self._h = h
 
     def is_saved(self):

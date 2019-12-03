@@ -99,8 +99,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
     class VectorNormSolver(Equation):
         def __init__(self, U, U_norm):
             # Assumes compatible spaces
-            Equation.__init__(self, U_norm, [U_norm, U], nl_deps=[U],
-                              ic_deps=[])
+            super().__init__(U_norm, [U_norm, U], nl_deps=[U], ic_deps=[])
 
         def forward_solve(self, x, deps=None):
             _, U = self.dependencies() if deps is None else deps
@@ -147,8 +146,8 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             J_1 = ufl.replace(derivative(F, U, du=trials), {marker: U})
             F = ufl.replace(F, {marker: U})
 
-            EquationSolver.__init__(
-                self, F == 0, U,
+            super().__init__(
+                F == 0, U,
                 initial_guess=initial_guess,
                 solver_parameters={"ksp_type": "cg",
                                    "pc_type": "hypre",
@@ -161,7 +160,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             self._J_1 = J_1
 
         def replace(self, replace_map):
-            EquationSolver.replace(self, replace_map)
+            super().replace(replace_map)
             self._J_1 = ufl.replace(self._J_1, replace_map)
 
         def forward_solve(self, x, deps=None):

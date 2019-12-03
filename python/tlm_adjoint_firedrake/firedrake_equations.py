@@ -105,8 +105,8 @@ class LocalProjectionSolver(EquationSolver):
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(test, rhs) * ufl.dx
 
-        EquationSolver.__init__(
-            self, lhs == rhs, x,
+        super().__init__(
+            lhs == rhs, x,
             form_compiler_parameters=form_compiler_parameters,
             solver_parameters={},
             cache_jacobian=cache_jacobian,
@@ -277,7 +277,7 @@ class PointInterpolationSolver(Equation):
         if P_T is None:
             P_T = P.T
 
-        Equation.__init__(self, X, list(X) + [y], nl_deps=[], ic_deps=[])
+        super().__init__(X, list(X) + [y], nl_deps=[], ic_deps=[])
         self._P = P
         self._P_T = P_T
 

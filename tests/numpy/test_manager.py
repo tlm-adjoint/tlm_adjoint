@@ -31,7 +31,7 @@ import pytest
 def test_EmptySolver(setup_test, test_leaks):
     class EmptySolver(Equation):
         def __init__(self):
-            Equation.__init__(self, [], [], nl_deps=[], ic_deps=[])
+            super().__init__([], [], nl_deps=[], ic_deps=[])
 
         def forward_solve(self, X, deps=None):
             pass

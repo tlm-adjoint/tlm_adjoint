@@ -130,13 +130,13 @@ class AssembleSolver(Equation):
                 form_compiler_parameters,
                 form_form_compiler_parameters(rhs, form_compiler_parameters))
 
-        Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=[])
+        super().__init__(x, deps, nl_deps=nl_deps, ic_deps=[])
         self._rank = rank
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
 
     def replace(self, replace_map):
-        Equation.replace(self, replace_map)
+        super().replace(replace_map)
         self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):
@@ -356,7 +356,7 @@ class EquationSolver(Equation):
                 form_compiler_parameters,
                 form_form_compiler_parameters(F, form_compiler_parameters))
 
-        Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=ic_deps)
+        super().__init__(x, deps, nl_deps=nl_deps, ic_deps=ic_deps)
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = bcs
@@ -391,7 +391,7 @@ class EquationSolver(Equation):
         self._adjoint_J = None
 
     def replace(self, replace_map):
-        Equation.replace(self, replace_map)
+        super().replace(replace_map)
 
         self._F = ufl.replace(self._F, replace_map)
         self._lhs = ufl.replace(self._lhs, replace_map)
@@ -803,13 +803,13 @@ class ProjectionSolver(EquationSolver):
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(test, rhs) * ufl.dx
-        EquationSolver.__init__(self, ufl.inner(test, trial) * ufl.dx == rhs,
-                                x, *args, **kwargs)
+        super().__init__(ufl.inner(test, trial) * ufl.dx == rhs, x,
+                         *args, **kwargs)
 
 
 class DirichletBCSolver(Equation):
     def __init__(self, y, x, *args, **kwargs):
-        Equation.__init__(self, x, [x, y], nl_deps=[], ic_deps=[])
+        super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
         self._bc_args = copy.copy(args)
         self._bc_kwargs = copy.copy(kwargs)
 
@@ -922,11 +922,11 @@ class ExprEvaluationSolver(Equation):
                 raise EquationException("Invalid non-linear dependency")
         deps.insert(0, x)
 
-        Equation.__init__(self, x, deps, nl_deps=nl_deps, ic_deps=[])
+        super().__init__(x, deps, nl_deps=nl_deps, ic_deps=[])
         self._rhs = rhs
 
     def replace(self, replace_map):
-        Equation.replace(self, replace_map)
+        super().replace(replace_map)
         self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):

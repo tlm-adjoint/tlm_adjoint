@@ -281,8 +281,8 @@ class LinearSolver(backend_LinearSolver):
         if P is not None:
             raise OverrideException("Preconditioners not supported")
 
-        backend_LinearSolver.__init__(
-            self, A, P=P, solver_parameters=solver_parameters,
+        super().__init__(
+            A, P=P, solver_parameters=solver_parameters,
             nullspace=nullspace, transpose_nullspace=transpose_nullspace,
             near_nullspace=near_nullspace, options_prefix=options_prefix)
 
@@ -317,15 +317,15 @@ class LinearSolver(backend_LinearSolver):
                 cache_jacobian=False, cache_rhs_assembly=False)
 
             eq._pre_process(annotate=annotate)
-            backend_LinearSolver.solve(self, x, b)
+            super().solve(x, b)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
-            backend_LinearSolver.solve(self, x, b)
+            super().solve(x, b)
 
 
 class LinearVariationalProblem(backend_LinearVariationalProblem):
     def __init__(self, a, L, *args, **kwargs):
-        backend_LinearVariationalProblem.__init__(self, a, L, *args, **kwargs)
+        super().__init__(a, L, *args, **kwargs)
         self._tlm_adjoint__b = L
 
 
@@ -335,7 +335,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
         if "appctx" in kwargs:
             raise OverrideException("Preconditioners not supported")
 
-        backend_LinearVariationalSolver.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def set_transfer_operators(self, *args, **kwargs):
         raise OverrideException("Transfer operators not supported")
@@ -373,7 +373,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
                 cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
-            backend_LinearVariationalSolver.solve(self, bounds=bounds)
+            super().solve(bounds=bounds)
 
 
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
@@ -385,7 +385,7 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
            or "pre_function_callback" in kwargs:
             raise OverrideException("Callbacks not supported")
 
-        backend_NonlinearVariationalSolver.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def set_transfer_operators(self, *args, **kwargs):
         raise OverrideException("Transfer operators not supported")
@@ -417,4 +417,4 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
-            backend_NonlinearVariationalSolver.solve(self, bounds=bounds)
+            super().solve(bounds=bounds)

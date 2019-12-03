@@ -334,8 +334,8 @@ class Constant(backend_Constant):
         if checkpoint is None:
             checkpoint = not static
 
-        backend_Constant.__init__(self, value, *args, name=name, domain=domain,
-                                  space=space, comm=comm, **kwargs)
+        super().__init__(value, *args, name=name, domain=domain, space=space,
+                         comm=comm, **kwargs)
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
@@ -368,8 +368,8 @@ class Constant(backend_Constant):
 class Zero(Constant):
     def __init__(self, name=None, domain=None, space=None, shape=None,
                  comm=None):
-        Constant.__init__(self, name=name, domain=domain, space=space,
-                          shape=shape, comm=comm, static=True)
+        super().__init__(name=name, domain=domain, space=space, shape=shape,
+                         comm=comm, static=True)
 
     def assign(self, *args, **kwargs):
         raise InterfaceException("Cannot call assign method of Zero")
@@ -386,13 +386,13 @@ class Zero(Constant):
 
 class ZeroConstant(Zero):
     def __init__(self, name=None, domain=None, shape=None):
-        Zero.__init__(self, name=name, domain=domain, shape=shape,
-                      comm=MPI.COMM_NULL)
+        super().__init__(name=name, domain=domain, shape=shape,
+                         comm=MPI.COMM_NULL)
 
 
 class ZeroFunction(Zero):
     def __init__(self, space, name=None):
-        Zero.__init__(self, space=space, name=name)
+        super().__init__(space=space, name=name)
 
 
 def extract_coefficients(expr):
@@ -443,7 +443,7 @@ class Function(backend_Function):
         self.__static = static
         self.__cache = cache
         self.__checkpoint = checkpoint
-        backend_Function.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def is_static(self):
         return self.__static
@@ -467,7 +467,7 @@ class DirichletBC(backend_DirichletBC):
     # Based on FEniCS 2019.1.0 DirichletBC API
     def __init__(self, V, g, sub_domain, *args, static=None, cache=None,
                  homogeneous=None, _homogeneous=None, **kwargs):
-        backend_DirichletBC.__init__(self, V, g, sub_domain, *args, **kwargs)
+        super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
             static = True
@@ -512,14 +512,14 @@ class DirichletBC(backend_DirichletBC):
             raise InterfaceException("Cannot call homogenize method for "
                                      "static DirichletBC")
         if not self.__homogeneous:
-            backend_DirichletBC.homogenize(self)
+            super().homogenize()
             self.__homogeneous = True
 
     def set_value(self, *args, **kwargs):
         if self.is_static():
             raise InterfaceException("Cannot call set_value method for "
                                      "static DirichletBC")
-        backend_DirichletBC.set_value(self, *args, **kwargs)
+        super().set_value(*args, **kwargs)
 
 
 class HomogeneousDirichletBC(DirichletBC):
@@ -530,8 +530,8 @@ class HomogeneousDirichletBC(DirichletBC):
             g = 0.0
         else:
             g = np.zeros(shape, dtype=np.float64)
-        DirichletBC.__init__(self, V, g, sub_domain, *args, static=True,
-                             _homogeneous=True, **kwargs)
+        super().__init__(V, g, sub_domain, *args, static=True,
+                         _homogeneous=True, **kwargs)
 
 
 def bcs_is_static(bcs):
@@ -606,7 +606,7 @@ class Replacement(ufl.classes.Coefficient):
         else:
             domain, = x_domains
 
-        ufl.classes.Coefficient.__init__(self, x_space, count=new_count())
+        super().__init__(x_space, count=new_count())
         self.__domain = domain
         self.__space = space
         self.__id = function_id(x)

@@ -718,8 +718,8 @@ def test_initial_guess(setup_test, test_leaks):
         class TestSolver(ProjectionSolver):
             def __init__(self, y, x, form_compiler_parameters={},
                          solver_parameters={}):
-                ProjectionSolver.__init__(
-                    self, inner(TestFunction(x.function_space()), y) * dx, x,
+                super().__init__(
+                    inner(TestFunction(x.function_space()), y) * dx, x,
                     form_compiler_parameters=form_compiler_parameters,
                     solver_parameters=solver_parameters,
                     cache_jacobian=False, cache_rhs_assembly=False)
