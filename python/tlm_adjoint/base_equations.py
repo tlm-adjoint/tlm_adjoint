@@ -499,7 +499,7 @@ class Equation:
         raise EquationException("Method not overridden")
 
 
-class EquationAlias(Equation):
+class EquationAlias:
     def __init__(self, eq):
         super().__setattr__("_tlm_adjoint__alias__dict__", eq.__dict__)
         super().__setattr__("_tlm_adjoint__alias__str__",
