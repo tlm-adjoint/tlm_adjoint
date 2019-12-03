@@ -513,12 +513,10 @@ class EquationAlias(Equation):
     def __str__(self):
         return self._tlm_adjoint__alias__str__
 
-    def __getattribute__(self, key):
-        if key == "_tlm_adjoint__alias__dict__" \
-                or key not in self._tlm_adjoint__alias__dict__:
-            return super().__getattribute__(key)
-        else:
-            return self._tlm_adjoint__alias__dict__[key]
+    def __getattr__(self, key):
+        if key not in self._tlm_adjoint__alias__dict__:
+            raise AttributeError(f"No attribute '{key:s}'")
+        return self._tlm_adjoint__alias__dict__[key]
 
     def __setattr__(self, key, value):
         self._tlm_adjoint__alias__dict__[key] = value
