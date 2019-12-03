@@ -372,30 +372,17 @@ def dolfin_form(form, form_compiler_parameters=None):
         else:
             deps = tuple(bindings.get(c, c) for c in form.coefficients())
         for i, j in enumerate(form._cache["_tlm_adjoint__deps_map"]):
-            # FEniCS backwards compatibility
-            if hasattr(deps[j], "this"):
-                cpp_object = deps[j].this
-            else:
-                cpp_object = deps[j]._cpp_object
+            cpp_object = deps[j]._cpp_object
             dolfin_form.set_coefficient(i, cpp_object)
     else:
         bindings = form._cache.get("_tlm_adjoint__bindings", None)
         if bindings is not None:
-            # FEniCS backwards compatibility
-            dep_this = {}
             dep_cpp_object = {}
             for dep in form.coefficients():
                 if dep in bindings:
                     dep_binding = bindings[dep]
-                    # FEniCS backwards compatibility
-                    if hasattr(dep_binding, "this"):
-                        dep_this[dep] = (dep.__class__,
-                                         getattr(dep, "this", None))
-                        dep.__class__ = dep_binding.__class__
-                        dep.this = dep_binding.this
-                    else:
-                        dep_cpp_object[dep] = getattr(dep, "_cpp_object", None)
-                        dep._cpp_object = dep_binding._cpp_object
+                    dep_cpp_object[dep] = getattr(dep, "_cpp_object", None)
+                    dep._cpp_object = dep_binding._cpp_object
 
         simplified_form = eliminate_zeros(form, non_empty_form=True)
         dolfin_form = Form(
@@ -405,13 +392,6 @@ def dolfin_form(form, form_compiler_parameters=None):
             dolfin_form._compiled_form = None
 
         if bindings is not None:
-            # FEniCS backwards compatibility
-            for dep, (cls, this) in dep_this.items():
-                dep.__class__ = cls
-                if this is None:
-                    del dep.this
-                else:
-                    dep.this = this
             for dep, cpp_object in dep_cpp_object.items():
                 if cpp_object is None:
                     del dep._cpp_object
@@ -468,8 +448,6 @@ def solve(*args, **kwargs):
 
     eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
         = extract_args(*args, **kwargs)
-    # FEniCS backwards compatibility
-    bcs = list(bcs)
     if tol is not None or M is not None:
         return backend_solve(*args, **kwargs)
 
@@ -478,11 +456,7 @@ def solve(*args, **kwargs):
     if linear:
         lhs = dolfin_form(lhs, form_compiler_parameters)
         rhs = dolfin_form(rhs, form_compiler_parameters)
-        # FEniCS backwards compatibility
-        if hasattr(x, "this"):
-            cpp_object = x.this
-        else:
-            cpp_object = x._cpp_object
+        cpp_object = x._cpp_object
         problem = cpp_LinearVariationalProblem(lhs, rhs, cpp_object, bcs)
         solver = backend_LinearVariationalSolver(problem)
         solver.parameters.update(solver_parameters)
@@ -504,11 +478,7 @@ def solve(*args, **kwargs):
 
         F = dolfin_form(F, form_compiler_parameters)
         J = dolfin_form(J, form_compiler_parameters)
-        # FEniCS backwards compatibility
-        if hasattr(x, "this"):
-            cpp_object = x.this
-        else:
-            cpp_object = x._cpp_object
+        cpp_object = x._cpp_object
         problem = cpp_NonlinearVariationalProblem(F, cpp_object, bcs, J)
         solver = backend_NonlinearVariationalSolver(problem)
         solver.parameters.update(solver_parameters)

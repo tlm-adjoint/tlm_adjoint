@@ -140,9 +140,7 @@ def split_terms(terms, base_integral,
     for term in terms:
         if is_cached(term):
             cached_terms.append(term)
-        # FEniCS backwards compatibility
-        elif hasattr(ufl.classes, "Conj") \
-                and isinstance(term, ufl.classes.Conj):
+        elif isinstance(term, ufl.classes.Conj):
             x, = term.ufl_operands
             cached_sub, mat_sub, non_cached_sub = split_terms(
                 [x], base_integral)

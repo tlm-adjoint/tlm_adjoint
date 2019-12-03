@@ -151,11 +151,7 @@ class LocalProjectionSolver(EquationSolver):
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(test, rhs) * ufl.dx
 
-        if hasattr(LocalSolver, "SolverType"):
-            local_solver_type = LocalSolver.SolverType.Cholesky
-        else:
-            # FEniCS backwards compatibility
-            local_solver_type = LocalSolver.SolverType_Cholesky
+        local_solver_type = LocalSolver.SolverType.Cholesky
 
         super().__init__(
             lhs == rhs, x,
@@ -284,7 +280,6 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             except ValueError:
                 continue
             y_node = y_cell_nodes[i]
-            # Broken in parallel with FEniCS 2017.2.0
             y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))
             P[x_node, y_node] = x_v[0]
         y_v.vector()[y_color_nodes] = 0.0

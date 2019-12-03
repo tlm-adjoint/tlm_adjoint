@@ -362,11 +362,8 @@ class LUSolver(backend_LUSolver):
         elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
             self.__A = args[1]
             self.__linear_solver = args[2] if len(args) >= 3 else "default"
-        elif len(args) == 1 and isinstance(args[0], str):
-            self.__linear_solver = args[0]
-        # FEniCS backwards compatibility
         else:
-            self.__linear_solver = args[1] if len(args) >= 2 else "default"
+            self.__linear_solver = args[0] if len(args) >= 1 else "default"
 
     def set_operator(self, A):
         super().set_operator(A)
@@ -428,13 +425,9 @@ class KrylovSolver(backend_KrylovSolver):
             self.__A = args[1]
             self.__linear_solver = args[2] if len(args) >= 3 else "default"
             self.__preconditioner = args[3] if len(args) >= 4 else "default"
-        elif len(args) >= 1 and isinstance(args[0], str):
-            self.__linear_solver = args[0]
-            self.__preconditioner = args[1] if len(args) >= 2 else "default"
-        # FEniCS backwards compatibility
         else:
-            self.__linear_solver = args[1] if len(args) >= 2 else "default"
-            self.__preconditioner = args[2] if len(args) >= 3 else "default"
+            self.__linear_solver = args[0] if len(args) >= 1 else "default"
+            self.__preconditioner = args[1] if len(args) >= 2 else "default"
 
     def set_operator(self, A):
         super().set_operator(A)

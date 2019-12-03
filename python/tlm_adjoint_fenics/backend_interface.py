@@ -97,11 +97,7 @@ def default_comm():
 
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        comm = self.mesh().mpi_comm()
-        # FEniCS backwards compatibility
-        if hasattr(comm, "tompi4py"):
-            comm = comm.tompi4py()
-        return comm
+        return self.mesh().mpi_comm()
 
     def _id(self):
         return self.id()
@@ -122,11 +118,7 @@ backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 class FunctionInterface(_FunctionInterface):
     def _comm(self):
-        comm = self.function_space().mesh().mpi_comm()
-        # FEniCS backwards compatibility
-        if hasattr(comm, "tompi4py"):
-            comm = comm.tompi4py()
-        return comm
+        return self.function_space().mesh().mpi_comm()
 
     def _space(self):
         return self.function_space()
@@ -381,16 +373,10 @@ def finalize_adjoint_derivative_action(x):
         delattr(x, "_tlm_adjoint__adj_b")
 
 
-def RealFunctionSpace(comm=None):
+def RealFunctionSpace(comm=MPI.COMM_WORLD):
     warnings.warn("RealFunctionSpace is deprecated -- "
                   "use new_real_function instead",
                   DeprecationWarning, stacklevel=2)
-    import fenics
-    # FEniCS backwards compatibility
-    if hasattr(fenics.MPI, "comm_world"):
-        comm = fenics.MPI.comm_world
-    else:
-        comm = fenics.mpi_comm_world()
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
