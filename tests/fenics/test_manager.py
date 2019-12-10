@@ -164,3 +164,53 @@ def test_empty(setup_test, test_leaks):
 
     dJ = compute_gradient(J, m)
     assert float(dJ) == 0.0
+
+
+@pytest.mark.fenics
+def test_reverse_mode_pruning(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(y):
+        x = Function(space, name="x")
+
+        AssignmentSolver(y, x).solve()
+
+        J = Functional(name="J")
+        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+
+        J_val = J.value()
+        NullSolver(x).solve()
+        assert function_linf_norm(x) == 0.0
+        J.addto(inner(x, y) * dx)
+        assert J.value() == J_val
+
+        return J
+
+    y = Function(space, name="y", static=True)
+    interpolate_expression(y, exp(X[0]))
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    dJ = compute_gradient(J, y)
+
+    J_val = J.value()
+
+    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, y, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2)
+    assert min_order > 2.00

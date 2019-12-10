@@ -347,9 +347,7 @@ class DependencyTransposer:
                             dep_map[x_id].append((p, k, m))
                         else:
                             dep_map[x_id] = [(p, k, m)]
-                    eq_X_ids.append((p, k, X_ids))
                 else:
-                    eq_X_active_ids = []
                     for m, x_id in enumerate(X_ids):
                         if x_id in M_ids:
                             # Control
@@ -358,10 +356,14 @@ class DependencyTransposer:
                             active_ids.add(x_id)
                             assert x_id not in dep_map
                             dep_map[x_id] = [(p, k, m)]
-                            eq_X_active_ids.append(x_id)
-                        elif x_id in active_ids:
-                            active_ids.remove(x_id)
-                    eq_X_ids.append((p, k, tuple(eq_X_active_ids)))
+                        else:
+                            if x_id in active_ids:
+                                active_ids.remove(x_id)
+                            if x_id in dep_map:
+                                dep_map[x_id].append(None)
+                            else:
+                                dep_map[x_id] = [None]
+                eq_X_ids.append((p, k, X_ids))
 
         self._dep_map = dep_map
         self._eq_X_ids = eq_X_ids
@@ -1392,9 +1394,11 @@ class EquationManager:
                 eq_X_ids = {function_id(x) for x in eq.X()}
                 for j, dep in enumerate(eq.dependencies()):
                     if function_id(dep) not in eq_X_ids and dep in tdeps:
-                        p, k, m = tdeps[dep]
-                        assert p != n or k != i
-                        B_indices[j] = (p, k, m)
+                        tdeps_indices = tdeps[dep]
+                        if tdeps_indices is not None:
+                            p, k, m = tdeps_indices
+                            assert p != n or k != i
+                            B_indices[j] = (p, k, m)
                 # Clear dependency information for this equation
                 tdeps_state = tdeps.pop()
                 assert tdeps_state == (n, i)
