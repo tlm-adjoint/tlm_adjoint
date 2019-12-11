@@ -167,7 +167,7 @@ def test_empty(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-def test_reverse_mode_pruning(setup_test, test_leaks):
+def test_adjoint_graph_pruning(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -175,18 +175,26 @@ def test_reverse_mode_pruning(setup_test, test_leaks):
     def forward(y):
         x = Function(space, name="x")
 
+        NullSolver(x).solve()
+
         AssignmentSolver(y, x).solve()
 
-        J = Functional(name="J")
-        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+        J_0 = Functional(name="J_0")
+        J_0.assign(inner(dot(x, x), dot(x, x)) * dx)
 
-        J_val = J.value()
+        J_1 = Functional(name="J_1")
+        J_1.assign(x * dx)
+
+        J_0_val = J_0.value()
         NullSolver(x).solve()
         assert function_linf_norm(x) == 0.0
-        J.addto(inner(x, y) * dx)
-        assert J.value() == J_val
+        J_0.addto(inner(x, y) * dx)
+        assert J_0.value() == J_0_val
 
-        return J
+        J_2 = Functional(name="J_2")
+        J_2.assign(x * dx)
+
+        return J_0
 
     y = Function(space, name="y", static=True)
     interpolate_expression(y, exp(X[0]))
@@ -195,7 +203,15 @@ def test_reverse_mode_pruning(setup_test, test_leaks):
     J = forward(y)
     stop_manager()
 
-    dJ = compute_gradient(J, y)
+    eqs = {(0, 0, i) for i in range(8)}
+    active_eqs = {(0, 0, 1), (0, 0, 2), (0, 0, 5), (0, 0, 6)}
+
+    def callback(J_i, n, i, eq, adj_X):
+        eqs.remove((J_i, n, i))
+        assert adj_X is None or (J_i, n, i) in active_eqs
+
+    dJ = compute_gradient(J, y, callback=callback)
+    assert len(eqs) == 0
 
     J_val = J.value()
 
