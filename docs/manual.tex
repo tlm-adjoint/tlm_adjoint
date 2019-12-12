@@ -2422,12 +2422,15 @@ def reset_adjoint(manager=None):
 Calls \texttt{EquationManager.reset\_adjoint}. Calls the
 \texttt{reset\_adjoint} method of all annotated \texttt{Equation} objects.
 \begin{lstlisting}
-def compute_gradient(Js, M, callback=None, manager=None):
+def compute_gradient(Js, M, callback=None, prune_forward=True,
+                     prune_adjoint=True, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
 constrained derivative (see sections \ref{sect:first_order_adjoint} and
-\ref{sect:higher_order_adjoint}). The optional \texttt{callback} argument takes
-the form
+\ref{sect:higher_order_adjoint}). \texttt{prune\_forward} and
+\texttt{prune\_adjoint} control pruning of the transpose dependency graph via
+forward and reverse traversal respectively. The optional \texttt{callback}
+argument takes the form
 \begin{lstlisting}
 def callback(J_i, n, i, eq, adj_X)
 \end{lstlisting}

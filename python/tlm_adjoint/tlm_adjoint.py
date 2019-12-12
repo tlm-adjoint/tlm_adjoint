@@ -323,75 +323,94 @@ class ReplayStorage:
         return (n, i)
 
 
-class DependencyTransposer:
-    def __init__(self, blocks, M):
-        dep_map = {}
-        eq_X_ids = []
-        M_ids = {function_id(m) for m in M}
-        active_ids = set()
-        for p, block in enumerate(blocks):
-            for k, eq in enumerate(block):
-                eq_active = False
-                X_ids = {function_id(x) for x in eq.X()}
-                for dep in eq.dependencies():
+class DependencyGraphTranspose:
+    def __init__(self, blocks, M, Js, prune_forward=True, prune_adjoint=True):
+        # Transpose dependency graph
+        last_eq = {}
+        transpose_deps = tuple(tuple([None for dep in eq.dependencies()]
+                                     for eq in block)
+                               for block in blocks)
+        for n, block in enumerate(blocks):
+            for i, eq in enumerate(block):
+                for m, x in enumerate(eq.X()):
+                    last_eq[function_id(x)] = (n, i, m)
+                for j, dep in enumerate(eq.dependencies()):
                     dep_id = function_id(dep)
-                    if dep_id not in X_ids and dep_id in active_ids:
-                        eq_active = True
-                        break
-                X_ids = tuple(function_id(x) for x in eq.X())
-                if eq_active:
-                    # A solution component depends on the control(s)
-                    for m, x_id in enumerate(X_ids):
-                        active_ids.add(x_id)
-                        if x_id in dep_map:
-                            dep_map[x_id].append((p, k, m))
-                        else:
-                            dep_map[x_id] = [(p, k, m)]
-                else:
-                    for m, x_id in enumerate(X_ids):
-                        if x_id in M_ids:
-                            # Control
-                            M_ids.remove(x_id)
-                            assert x_id not in active_ids
-                            active_ids.add(x_id)
-                            assert x_id not in dep_map
-                            dep_map[x_id] = [(p, k, m)]
-                        else:
-                            if x_id in active_ids:
-                                active_ids.remove(x_id)
-                            if x_id in dep_map:
-                                dep_map[x_id].append(None)
-                            else:
-                                dep_map[x_id] = [None]
-                eq_X_ids.append((p, k, X_ids))
+                    if dep_id in last_eq:
+                        p, k, m = last_eq[dep_id]
+                        if p < n or k < i:
+                            transpose_deps[n][i][j] = (p, k, m)
 
-        self._dep_map = dep_map
-        self._eq_X_ids = eq_X_ids
-
-    def __contains__(self, dep):
-        if isinstance(dep, int):
-            dep_id = dep
+        if prune_forward:
+            # Pruning, forward traversal
+            active_M = {function_id(dep) for dep in M}
+            active_forward = tuple(np.full(len(block), False, dtype=np.bool)
+                                   for block in blocks)
+            for n, block in enumerate(blocks):
+                for i, eq in enumerate(block):
+                    if len(active_M) > 0:
+                        X_ids = {function_id(x) for x in eq.X()}
+                        for x_id in X_ids:
+                            if x_id in active_M:
+                                active_M.difference_update(X_ids)
+                                active_forward[n][i] = True
+                                break
+                    if not active_forward[n][i]:
+                        for j, dep in enumerate(eq.dependencies()):
+                            if transpose_deps[n][i][j] is not None:
+                                p, k, m = transpose_deps[n][i][j]
+                                if active_forward[p][k]:
+                                    active_forward[n][i] = True
+                                    break
         else:
-            dep_id = function_id(dep)
-        return dep_id in self._dep_map
+            active_forward = tuple(np.full(len(block), True, dtype=np.bool)
+                                   for block in blocks)
 
-    def __getitem__(self, dep):
-        if isinstance(dep, int):
-            dep_id = dep
+        active = {function_id(J): copy.deepcopy(active_forward) for J in Js}
+
+        if prune_adjoint:
+            # Pruning, reverse traversal
+            for J_id in active:
+                active_J = True
+                active_adjoint = tuple(np.full(len(block), False,
+                                               dtype=np.bool)
+                                       for block in blocks)
+                for n in range(len(blocks) - 1, -1, -1):
+                    block = blocks[n]
+                    for i in range(len(block) - 1, -1, -1):
+                        eq = block[i]
+                        if active_J:
+                            for x in eq.X():
+                                if function_id(x) == J_id:
+                                    active_J = False
+                                    active_adjoint[n][i] = True
+                                    break
+                        if active_adjoint[n][i]:
+                            for j, dep in enumerate(eq.dependencies()):
+                                if transpose_deps[n][i][j] is not None:
+                                    p, k, m = transpose_deps[n][i][j]
+                                    active_adjoint[p][k] = True
+                        else:
+                            active[J_id][n][i] = False
+
+        self._transpose_deps = transpose_deps
+        self._active = active
+
+    def __contains__(self, key):
+        n, i, j = key
+        return self._transpose_deps[n][i][j] is not None
+
+    def __getitem__(self, key):
+        n, i, j = key
+        p, k, m = self._transpose_deps[n][i][j]
+        return p, k, m
+
+    def is_active(self, J, n, i):
+        if isinstance(J, int):
+            J_id = J
         else:
-            dep_id = function_id(dep)
-        return self._dep_map[dep_id][-1]
-
-    def pop(self):
-        p, k, X_ids = self._eq_X_ids.pop()
-        for x_id in X_ids:
-            self._dep_map[x_id].pop()
-            if len(self._dep_map[x_id]) == 0:
-                del self._dep_map[x_id]
-        return p, k
-
-    def is_empty(self):
-        return len(self._dep_map) == 0 and len(self._eq_X_ids) == 0
+            J_id = function_id(J)
+        return self._active[J_id][n][i]
 
 
 class EquationManager:
@@ -1315,7 +1334,8 @@ class EquationManager:
         for eq in self._eqs.values():
             eq.reset_adjoint()
 
-    def compute_gradient(self, Js, M, callback=None):
+    def compute_gradient(self, Js, M, callback=None, prune_forward=True,
+                         prune_adjoint=True):
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
@@ -1333,17 +1353,27 @@ class EquationManager:
                   functions, corresponding to the adjoint solution for the
                   equation eq, which is equation i in block n for the J_i th
                   Functional.
+        prune_forward  (Optional) Whether forward traversal graph pruning
+                       should be applied.
+        prune_adjoint  (Optional) Whether reverse traversal graph pruning
+                       should be applied.
         """
 
         if not isinstance(M, (list, tuple)):
             if not isinstance(Js, (list, tuple)):
-                ((dJ,),) = self.compute_gradient([Js], [M], callback=callback)
+                ((dJ,),) = self.compute_gradient([Js], [M], callback=callback,
+                                                 prune_forward=prune_forward,
+                                                 prune_adjoint=prune_adjoint)
                 return dJ
             else:
-                dJs = self.compute_gradient(Js, [M], callback=callback)
+                dJs = self.compute_gradient(Js, [M], callback=callback,
+                                            prune_forward=prune_forward,
+                                            prune_adjoint=prune_adjoint)
                 return tuple(dJ for (dJ,) in dJs)
         elif not isinstance(Js, (list, tuple)):
-            dJ, = self.compute_gradient([Js], M, callback=callback)
+            dJ, = self.compute_gradient([Js], M, callback=callback,
+                                        prune_forward=prune_forward,
+                                        prune_adjoint=prune_adjoint)
             return dJ
 
         self.finalize()
@@ -1365,6 +1395,7 @@ class EquationManager:
         blocks = ([[ControlsMarker(M)]]
                   + self._blocks
                   + [[FunctionalMarker(J) for J in Js]])
+        J_markers = tuple(eq.x() for eq in blocks[-1])
 
         # Adjoint equation right-hand-sides
         Bs = tuple(AdjointModelRHS(blocks) for J in Js)
@@ -1372,8 +1403,10 @@ class EquationManager:
         for J_i in range(len(Js)):
             function_assign(Bs[J_i][-1][J_i].b(), 1.0)
 
-        # Transposed dependency graph information
-        tdeps = DependencyTransposer(blocks, M)
+        # Transpose dependency graph
+        transpose_deps = DependencyGraphTranspose(blocks, M, J_markers,
+                                                  prune_forward=prune_forward,
+                                                  prune_adjoint=prune_adjoint)
 
         # Reverse (blocks)
         for n in range(len(blocks) - 1, -1, -1):
@@ -1389,36 +1422,28 @@ class EquationManager:
                 # Non-linear dependency data
                 nl_deps = self._cp[(cp_n, i)] if cp_block else ()
 
-                # Transposed dependency graph information for this equation
-                B_indices = {}
-                eq_X_ids = {function_id(x) for x in eq.X()}
-                for j, dep in enumerate(eq.dependencies()):
-                    if function_id(dep) not in eq_X_ids and dep in tdeps:
-                        tdeps_indices = tdeps[dep]
-                        if tdeps_indices is not None:
-                            p, k, m = tdeps_indices
-                            assert p != n or k != i
-                            B_indices[j] = (p, k, m)
-                # Clear dependency information for this equation
-                tdeps_state = tdeps.pop()
-                assert tdeps_state == (n, i)
-
-                for J_i, J in enumerate(Js):
+                for J_i, (J, J_marker) in enumerate(zip(Js, J_markers)):
                     # Adjoint model right-hand-sides
                     B = Bs[J_i]
                     # Adjoint right-hand-side associated with this equation
                     B_state, eq_B = B.pop()
                     assert B_state == (n, i)
 
-                    # Zero right-hand-side, adjoint solution is zero, or the
-                    # sensitivity does not depend on the adjoint solution
-                    # associated with this equation
-                    if eq_B.is_empty():
-                        adj_X = None
-                    else:
+                    if transpose_deps.is_active(J_marker, n, i):
+                        # Transpose dependency graph edges
+                        B_indices = {}
+                        for j, dep in enumerate(eq.dependencies()):
+                            if (n, i, j) in transpose_deps:
+                                p, k, m = transpose_deps[(n, i, j)]
+                                if transpose_deps.is_active(J_marker, p, k):
+                                    B_indices[j] = (p, k, m)
                         # Solve adjoint equation, add terms to adjoint
                         # equations
                         adj_X = eq.adjoint(J, nl_deps, eq_B.B(), B_indices, B)
+                    else:
+                        # Adjoint solution has no effect on sensitivity
+                        adj_X = None
+
                     if callback is not None and cp_block:
                         if adj_X is None or len(adj_X) > 1:
                             callback(J_i, cp_n, i, eq, adj_X)
@@ -1440,7 +1465,6 @@ class EquationManager:
 
         for B in Bs:
             assert B.is_empty()
-        assert tdeps.is_empty()
 
         if self._cp_method == "multistage":
             self._cp.clear(clear_cp=False, clear_data=True, clear_refs=False)
@@ -1559,10 +1583,13 @@ def reset_adjoint(manager=None):
     manager.reset_adjoint()
 
 
-def compute_gradient(Js, M, callback=None, manager=None):
+def compute_gradient(Js, M, callback=None, prune_forward=True,
+                     prune_adjoint=True, manager=None):
     if manager is None:
         manager = _manager()
-    return manager.compute_gradient(Js, M, callback=callback)
+    return manager.compute_gradient(Js, M, callback=callback,
+                                    prune_forward=prune_forward,
+                                    prune_adjoint=prune_adjoint)
 
 
 def new_block(manager=None):
