@@ -153,7 +153,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
+            super().__init__(x, [x, y], nl_deps=[], ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
@@ -288,7 +288,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
+            super().__init__(x, [x, y], nl_deps=[], ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
@@ -947,7 +947,7 @@ define dependencies. \texttt{tlm\_adjoint} does not distinguish between
 symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
 the form
 \begin{lstlisting}
-def __init__(self, x, deps, nl_deps=None, ic_deps=None):
+def __init__(self, x, deps, nl_deps=None, ic_deps=[], ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -958,9 +958,10 @@ with constructor arguments
   \item \texttt{nl\_deps}, a list or tuple of functions, defining the
     non-linear dependencies. If not supplied then set equal to \texttt{deps}.
   \item \texttt{ic\_deps}, a list or tuple of functions, defining the initial
-    condition dependencies of the equation. If not supplied then set equal to a
-    list containing \texttt{x} if it is in
-    \texttt{nl\_deps}, or an empty list otherwise.
+    condition dependencies.
+  \item \texttt{ic}, whether \texttt{x} is an initial condition dependency. If
+    true then \texttt{x} is added to the initial condition dependencies defined
+    by \texttt{ic\_deps}.
 \end{itemize}
 
 \subsection{Forward}
@@ -2530,7 +2531,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
+            super().__init__(x, [x, y], nl_deps=[], ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):

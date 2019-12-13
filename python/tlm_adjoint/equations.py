@@ -130,7 +130,7 @@ class AssembleSolver(Equation):
                 form_compiler_parameters,
                 form_form_compiler_parameters(rhs, form_compiler_parameters))
 
-        super().__init__(x, deps, nl_deps=nl_deps, ic_deps=[])
+        super().__init__(x, deps, nl_deps=nl_deps, ic=False)
         self._rank = rank
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
@@ -323,12 +323,12 @@ class EquationSolver(Equation):
         if nl_solve_J is None:
             (solver_parameters,
              linear_solver_parameters,
-             checkpoint_ic) = process_solver_parameters(
+             forward_ic) = process_solver_parameters(
                 solver_parameters, J, linear)
         else:
             _, linear_solver_parameters, _ = process_solver_parameters(
                 solver_parameters, J, linear)
-            solver_parameters, _, checkpoint_ic = process_solver_parameters(
+            solver_parameters, _, forward_ic = process_solver_parameters(
                 solver_parameters, nl_solve_J, linear)
 
         if adjoint_solver_parameters is None:
@@ -342,11 +342,6 @@ class EquationSolver(Equation):
             _, tlm_solver_parameters, _ = process_solver_parameters(
                 tlm_solver_parameters, J, linear=True)
 
-        if initial_guess is None and checkpoint_ic:
-            ic_deps = [x]
-        else:
-            ic_deps = []
-
         form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         update_parameters_dict(form_compiler_parameters_,
                                form_compiler_parameters)
@@ -356,7 +351,8 @@ class EquationSolver(Equation):
                 form_compiler_parameters,
                 form_form_compiler_parameters(F, form_compiler_parameters))
 
-        super().__init__(x, deps, nl_deps=nl_deps, ic_deps=ic_deps)
+        super().__init__(x, deps, nl_deps=nl_deps,
+                         ic=initial_guess is None and forward_ic)
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = bcs
@@ -809,7 +805,7 @@ class ProjectionSolver(EquationSolver):
 
 class DirichletBCSolver(Equation):
     def __init__(self, y, x, *args, **kwargs):
-        super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
+        super().__init__(x, [x, y], nl_deps=[], ic=False)
         self._bc_args = copy.copy(args)
         self._bc_kwargs = copy.copy(kwargs)
 
@@ -922,7 +918,7 @@ class ExprEvaluationSolver(Equation):
                 raise EquationException("Invalid non-linear dependency")
         deps.insert(0, x)
 
-        super().__init__(x, deps, nl_deps=nl_deps, ic_deps=[])
+        super().__init__(x, deps, nl_deps=nl_deps, ic=False)
         self._rhs = rhs
 
     def replace(self, replace_map):

@@ -277,7 +277,7 @@ class PointInterpolationSolver(Equation):
         if P_T is None:
             P_T = P.T
 
-        super().__init__(X, list(X) + [y], nl_deps=[], ic_deps=[])
+        super().__init__(X, list(X) + [y], nl_deps=[], ic=False)
         self._P = P
         self._P_T = P_T
 

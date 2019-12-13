@@ -137,7 +137,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
             nodes_adj = tuple(bc_adj.keys())
             y_adj = tuple(bc_adj.values())
 
-            super().__init__(T, [T, T_bc], nl_deps=[], ic_deps=[])
+            super().__init__(T, [T, T_bc], nl_deps=[], ic=False)
             self._nodes = nodes
             self._y = y
             self._nodes_adj = nodes_adj

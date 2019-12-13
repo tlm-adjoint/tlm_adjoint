@@ -179,7 +179,7 @@ class AdjointModelRHS:
 class Equation:
     _id_counter = [0]
 
-    def __init__(self, X, deps, nl_deps=None, ic_deps=None):
+    def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True):
         """
         An equation. The equation is expressed in the form:
             F ( X, y_0, y_1, ... ) = 0,
@@ -197,8 +197,11 @@ class Equation:
                  a subset of deps. Defaults to deps.
         ic_deps  (Optional) A list or tuple of dependencies whose initial value
                  should be available prior to solving the forward equation.
-                 Must be a subset of deps. Defaults to the elements of X which
-                 are in nl_deps.
+                 Must be a subset of deps.
+        ic       (Optional) Whether the forward solution is an initial
+                 condition dependency of the equation. If true then the forward
+                 solution is added to the initial condition dependencies
+                 defined by ic_deps.
         """
 
         if is_function(X):
@@ -210,32 +213,37 @@ class Equation:
                 raise EquationException("Solution must be checkpointed")
             if x not in deps:
                 raise EquationException("Solution must be a dependency")
+
         dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
+
+        nl_dep_ids = {function_id(dep) for dep in nl_deps}
         if nl_deps is None:
             nl_deps_map = tuple(range(len(deps)))
         else:
-            if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
+            if len(nl_dep_ids) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
             for dep in nl_deps:
                 if function_id(dep) not in dep_ids:
-                    raise EquationException("Non-linear dependency is not a dependency")  # noqa: E501
+                    raise EquationException("Non-linear dependency is not a "
+                                            "dependency")
             nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
-        if ic_deps is None:
-            if nl_deps is None:
-                ic_deps = list(X)
-            else:
-                ic_deps = []
-                for x in X:
-                    if x in nl_deps:
-                        ic_deps.append(x)
-        else:
-            if len({function_id(dep) for dep in ic_deps}) != len(ic_deps):
-                raise EquationException("Duplicate initial condition dependency")  # noqa: E501
-            for dep in ic_deps:
-                if function_id(dep) not in dep_ids:
-                    raise EquationException("Initial condition dependency is not a dependency")  # noqa: E501
+
+        ic_deps = list(ic_deps)
+        ic_dep_ids = {function_id(dep) for dep in ic_deps}
+        if len(ic_dep_ids) != len(ic_deps):
+            raise EquationException("Duplicate initial condition dependency")
+        for dep in ic_deps:
+            if function_id(dep) not in dep_ids:
+                raise EquationException("Initial condition dependency is not "
+                                        "a dependency")
+        if ic:
+            for x in X:
+                x_id = function_id(x)
+                if x_id not in ic_dep_ids:
+                    ic_deps.append(x)
+                    ic_dep_ids.add(x_id)
 
         self._X = tuple(X)
         self._deps = tuple(deps)
@@ -567,7 +575,7 @@ class FunctionalMarker(Equation):
         J = J.fn()
         # Extra function allocation could be avoided
         J_ = function_new(J)
-        super().__init__([J_], [J_, J], nl_deps=[], ic_deps=[])
+        super().__init__([J_], [J_, J], nl_deps=[], ic=False)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:
@@ -589,7 +597,7 @@ class NullSolver(Equation):
     def __init__(self, X):
         if is_function(X):
             X = (X,)
-        super().__init__(X, X, nl_deps=[], ic_deps=[])
+        super().__init__(X, X, nl_deps=[], ic=False)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -614,7 +622,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
-        super().__init__(x, [x, y], nl_deps=[], ic_deps=[])
+        super().__init__(x, [x, y], nl_deps=[], ic=False)
 
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
@@ -645,7 +653,7 @@ class LinearCombinationSolver(Equation):
         alpha = tuple(float(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
 
-        super().__init__(x, [x] + Y, nl_deps=[], ic_deps=[])
+        super().__init__(x, [x] + Y, nl_deps=[], ic=False)
         self._alpha = alpha
 
     def forward_solve(self, x, deps=None):
@@ -778,6 +786,7 @@ class FixedPointSolver(Equation):
             for x in eq.X():
                 X.append(x)
                 eq_X_indices[i].append(len(X) - 1)
+                remaining_x_ids.remove(function_id(x))
 
             for dep in eq.dependencies():
                 dep_id = function_id(dep)
@@ -803,10 +812,7 @@ class FixedPointSolver(Equation):
                     ic_deps[dep_id] = dep
 
             for x in eq.X():
-                x_id = function_id(x)
-                if x_id in remaining_x_ids:
-                    remaining_x_ids.remove(x_id)
-                previous_x_ids.add(x_id)
+                previous_x_ids.add(function_id(x))
 
         del previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids
         ic_deps = tuple(ic_deps.values())
@@ -1098,9 +1104,7 @@ class LinearEquation(Equation):
                            for i, b_dep in enumerate(b.dependencies())}
                           for b in B)
 
-        if A is None:
-            ic_deps = []
-        else:
+        if A is not None:
             A_dep_indices = []
             A_nl_dep_indices = []
             for dep in A.nonlinear_dependencies():
@@ -1127,11 +1131,11 @@ class LinearEquation(Equation):
                         nl_dep_ids[x_id] = len(nl_deps) - 1
                     A_x_indices.append(nl_dep_ids[x_id])
 
-            ic_deps = X if A.has_initial_condition_dependency() else []
-
         del x_ids, dep_ids, nl_dep_ids
 
-        super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
+        super().__init__(
+            X, deps, nl_deps=nl_deps,
+            ic=A is not None and A.has_initial_condition_dependency())
         self._B = tuple(B)
         self._b_dep_indices = b_dep_indices
         self._b_nl_dep_indices = b_nl_dep_indices
@@ -1642,7 +1646,7 @@ class SumRHS(RHS):
 
 class Storage(Equation):
     def __init__(self, x, key, save=False):
-        super().__init__(x, [x], nl_deps=[], ic_deps=[])
+        super().__init__(x, [x], nl_deps=[], ic=False)
         self._key = key
         self._save = save
 
