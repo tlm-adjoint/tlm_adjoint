@@ -1295,11 +1295,19 @@ The value of an inverse adjoint matrix action $A^{-T} b$ is defined by the
 \texttt{adjoint\_solve} method. The \texttt{adjoint\_solve} method has the
 form
 \begin{lstlisting}
-def adjoint_solve(self, nl_deps, b):
+def adjoint_solve(self, adj_x, nl_deps, b):
 \end{lstlisting}
-where the \texttt{nl\_deps} and \texttt{b} arguments are as in the
-\texttt{forward\_solve} method. Returns the result as a function. The return
-value will not be modified by calling code.
+with arguments
+\begin{itemize}
+  \item \texttt{adj\_x}, an initial guess, or \texttt{None} if the
+    \texttt{Matrix} does not accept an adjoint initial guess. May be modified
+    or returned.
+  \item \texttt{nl\_deps}, as in the \texttt{forward\_action} method.
+  \item \texttt{b}, the right-hand-side of the linear system to be solved. May
+    be modified or returned.
+\end{itemize}
+The method returns the result as a function. The return value will not be
+modified by calling code.
 
 \subsubsection{Adjoint derivative action}
 
@@ -1324,21 +1332,6 @@ with arguments
     method.
   \item \texttt{method}, as in the \texttt{forward\_action} method.
 \end{itemize}
-
-\subsection{Adjoint optimization}
-
-A \texttt{Matrix} may define the methods
-\begin{lstlisting}
-def reset_adjoint(self):
-\end{lstlisting}
-\begin{lstlisting}
-def initialize_adjoint(self, J, nl_deps):
-\end{lstlisting}
-\begin{lstlisting}
-def finalize_adjoint(self, J):
-\end{lstlisting}
-These are called by the respective methods of a \texttt{LinearEquation} using
-the \texttt{Matrix}.
 
 \subsubsection{Tangent-linear}
 
@@ -1374,7 +1367,7 @@ def adjoint_action(self, nl_deps, adj_X, b, b_index=0, method="assign"):
 def forward_solve(self, X, nl_deps, B):
 \end{lstlisting}
 \begin{lstlisting}
-def adjoint_solve(self, nl_deps, B):
+def adjoint_solve(self, adj_X, nl_deps, B):
 \end{lstlisting}
 \begin{lstlisting}
 def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
@@ -1384,10 +1377,11 @@ def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
 def tangent_linear_rhs(self, M, dM, tlm_map, X):
 \end{lstlisting}
 where \texttt{X}, \texttt{adj\_X}, and \texttt{B} are now each a list or tuple
-functions. The return value of \texttt{forward\_solve} and
-\texttt{adjoint\_solve} should also be list or tuple of functions. The
-\texttt{b} argument of \texttt{adjoint\_action} is equal to
-\texttt{B[b\_index]}.
+functions (except in the case of \texttt{adjoint\_solve}, where \texttt{adj\_X}
+may be \texttt{None} if no adjoint initial guess is provided). The return value
+of \texttt{forward\_solve} and \texttt{adjoint\_solve} should also be list or
+tuple of functions. The \texttt{b} argument of \texttt{adjoint\_action} is
+equal to \texttt{B[b\_index]}.
 
 \subsubsection{Dropping references}
 

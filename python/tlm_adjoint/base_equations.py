@@ -22,6 +22,7 @@ from .backend_interface import *
 
 from .manager import manager as _manager
 
+import inspect
 import numpy as np
 import warnings
 
@@ -1252,9 +1253,13 @@ class LinearEquation(Equation):
         if self._A is None:
             return B
         else:
-            return self._A.adjoint_solve([nl_deps[j]
-                                          for j in self._A_nl_dep_indices],
-                                         B)
+            # FIXME
+            if is_function(B):
+                adj_X = function_new(B)
+            else:
+                adj_X = tuple(function_new(b) for b in B)
+            return self._A.adjoint_solve(
+                adj_X, [nl_deps[j] for j in self._A_nl_dep_indices], B)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_function(adj_X):
@@ -1344,6 +1349,46 @@ class Matrix:
         self._ic = ic
         self._adj_ic = adj_ic
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if hasattr(cls, "reset_adjoint"):
+            if getattr(cls, "_reset_adjoint_warning", True):
+                warnings.warn("Matrix.reset_adjoint method is deprecated",
+                              DeprecationWarning, stacklevel=2)
+        else:
+            cls._reset_adjoint_warning = False
+            cls.reset_adjoint = lambda self: None
+
+        if hasattr(cls, "initialize_adjoint"):
+            if getattr(cls, "_initialize_adjoint_warning", True):
+                warnings.warn("Matrix.initialize_adjoint method is "
+                              "deprecated",
+                              DeprecationWarning, stacklevel=2)
+        else:
+            cls._initialize_adjoint_warning = False
+            cls.initialize_adjoint = lambda self, J, nl_deps: None
+
+        if hasattr(cls, "finalize_adjoint"):
+            if getattr(cls, "_finalize_adjoint_warning", True):
+                warnings.warn("Matrix.finalize_adjoint method is deprecated",
+                              DeprecationWarning, stacklevel=2)
+        else:
+            cls._finalize_adjoint_warning = False
+            cls.finalize_adjoint = lambda self, J: None
+
+        adj_solve_sig = inspect.signature(cls.adjoint_solve)
+        if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
+                                                      ("self", "nl_deps", "B")]:  # noqa: E501
+            warnings.warn("Matrix.adjoint_solve(self, nl_deps, b/B) method "
+                          "signature deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def adjoint_solve(self, adj_X, nl_deps, B):
+                return adjoint_solve_orig(self, nl_deps, B)
+            adjoint_solve_orig = cls.adjoint_solve
+            cls.adjoint_solve = adjoint_solve
+
     def replace(self, replace_map):
         self._nl_deps = tuple(replace_map.get(dep, dep)
                               for dep in self._nl_deps)
@@ -1352,8 +1397,8 @@ class Matrix:
         return self._nl_deps
 
     def has_initial_condition_dependency(self):
-        warnings.warn("Matrix.has_initial_condition_dependency is deprecated "
-                      "-- use Matrix.has_initial_condition instead",
+        warnings.warn("Matrix.has_initial_condition_dependency method is "
+                      "deprecated -- use Matrix.has_initial_condition instead",
                       DeprecationWarning, stacklevel=2)
         return self._ic
 
@@ -1405,15 +1450,6 @@ class Matrix:
     def forward_solve(self, X, nl_deps, B):
         raise EquationException("Method not overridden")
 
-    def reset_adjoint(self):
-        pass
-
-    def initialize_adjoint(self, J, nl_deps):
-        pass
-
-    def finalize_adjoint(self, J):
-        pass
-
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
                                   method="assign"):
         """
@@ -1440,7 +1476,7 @@ class Matrix:
 
         raise EquationException("Method not overridden")
 
-    def adjoint_solve(self, nl_deps, B):
+    def adjoint_solve(self, adj_X, nl_deps, B):
         raise EquationException("Method not overridden")
 
     def tangent_linear_rhs(self, M, dM, tlm_map, X):

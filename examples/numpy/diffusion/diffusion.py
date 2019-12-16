@@ -165,18 +165,6 @@ def forward(psi_0, kappa):
             else:
                 raise EquationException(f"Invalid method: '{method:s}'")
 
-        def reset_adjoint(self):
-            self._x_0_adjoint_cache = {}
-
-        def initialize_adjoint(self, J, nl_deps):
-            J_id = J.id()
-            if J_id not in self._x_0_adjoint_cache:
-                self._x_0_adjoint_cache[J_id] = space_new(space)
-            self._x_0_adjoint = self._x_0_adjoint_cache[J_id]
-
-        def finalize_adjoint(self, J):
-            del self._x_0_adjoint
-
         def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                            method="assign"):
             if b_index != 0:
@@ -210,15 +198,13 @@ def forward(psi_0, kappa):
             else:
                 raise EquationException("Invalid index")
 
-        def adjoint_solve(self, nl_deps, b):
+        def adjoint_solve(self, adj_x, nl_deps, b):
             kappa, = nl_deps
             self._assemble_A(kappa)
-            x = function_new(self._x_0_adjoint)
-            x.vector()[:], fail = cg(self._A, b.vector(),
-                                     x0=self._x_0_adjoint.vector())
+            adj_x.vector()[:], fail = cg(self._A, b.vector(),
+                                         x0=adj_x.vector())
             assert fail == 0
-            function_assign(self._x_0_adjoint, x)
-            return x
+            return adj_x
 
         def tangent_linear_rhs(self, M, dM, tlm_map, x):
             kappa, = self.nonlinear_dependencies()

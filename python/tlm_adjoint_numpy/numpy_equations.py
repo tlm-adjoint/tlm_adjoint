@@ -75,7 +75,7 @@ class ConstantMatrix(Matrix):
                                   method="assign"):
         raise EquationException("Unexpected call to adjoint_derivative_action")
 
-    def adjoint_solve(self, nl_deps, b):
+    def adjoint_solve(self, adj_x, nl_deps, b):
         return space_new(b.space(),
                          _data=np.linalg.solve(self.A_T(), b.vector()))
 
