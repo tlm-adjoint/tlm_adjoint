@@ -332,7 +332,7 @@ class InterpolationSolver(LinearEquation):
 
         class InterpolationMatrix(Matrix):
             def __init__(self, P, P_T=None):
-                super().__init__(nl_deps=[], has_ic_dep=False)
+                super().__init__(nl_deps=[], ic=False, adj_ic=False)
                 self._P = P
                 self._P_T = P.T if P_T is None else P_T
 
@@ -454,7 +454,7 @@ class PointInterpolationSolver(Equation):
         if P_T is None:
             P_T = P.T
 
-        super().__init__(X, list(X) + [y], nl_deps=[], ic=False)
+        super().__init__(X, list(X) + [y], nl_deps=[], ic=False, adj_ic=False)
         self._P = P
         self._P_T = P_T
 

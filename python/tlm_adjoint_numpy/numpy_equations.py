@@ -33,8 +33,8 @@ __all__ = \
 
 
 class ConstantMatrix(Matrix):
-    def __init__(self, A, A_T=None, has_ic_dep=False):
-        super().__init__(nl_deps=[], has_ic_dep=has_ic_dep)
+    def __init__(self, A, A_T=None, ic=False, adj_ic=False):
+        super().__init__(nl_deps=[], ic=ic, adj_ic=adj_ic)
         self._A = A
         self._A_T = A_T
 

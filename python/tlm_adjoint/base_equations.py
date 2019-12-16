@@ -179,7 +179,8 @@ class AdjointModelRHS:
 class Equation:
     _id_counter = [0]
 
-    def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True):
+    def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True,
+                 adj_ic_deps=[], adj_ic=True):
         """
         An equation. The equation is expressed in the form:
             F ( X, y_0, y_1, ... ) = 0,
@@ -197,15 +198,17 @@ class Equation:
                  a subset of deps. Defaults to deps.
         ic_deps  (Optional) A list or tuple of dependencies whose initial value
                  should be available prior to solving the forward equation.
-                 Must be a subset of deps.
-        ic       (Optional) Whether the forward solution is an initial
-                 condition dependency of the equation. If true then the forward
-                 solution is added to the initial condition dependencies
-                 defined by ic_deps.
+                 Must be a subset of X.
+        ic       (Optional) If true then ic_deps is set equal to X.
+        adj_ic_deps  (Optional) A list or tuple of dependencies whose adjoint
+                     value should be available prior to solving the adjoint
+                     equation. Must be a subset of X.
+        adj_ic       (Optional) If true then ic_deps is set equal to X.
         """
 
         if is_function(X):
             X = (X,)
+        X_ids = {function_id(x) for x in X}
         for x in X:
             if not is_function(x):
                 raise EquationException("Solution must be a function")
@@ -230,26 +233,33 @@ class Equation:
                                             "dependency")
             nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
 
-        ic_deps = list(ic_deps)
         ic_dep_ids = {function_id(dep) for dep in ic_deps}
         if len(ic_dep_ids) != len(ic_deps):
             raise EquationException("Duplicate initial condition dependency")
         for dep in ic_deps:
-            if function_id(dep) not in dep_ids:
+            if function_id(dep) not in X_ids:
                 raise EquationException("Initial condition dependency is not "
-                                        "a dependency")
+                                        "a solution")
         if ic:
-            for x in X:
-                x_id = function_id(x)
-                if x_id not in ic_dep_ids:
-                    ic_deps.append(x)
-                    ic_dep_ids.add(x_id)
+            ic_deps = list(X)
+
+        adj_ic_dep_ids = {function_id(dep) for dep in adj_ic_deps}
+        if len(adj_ic_dep_ids) != len(adj_ic_deps):
+            raise EquationException("Duplicate adjoint initial condition "
+                                    "dependency")
+        for dep in adj_ic_deps:
+            if function_id(dep) not in X_ids:
+                raise EquationException("Adjoint initial condition "
+                                        "dependency is not a solution")
+        if adj_ic:
+            adj_ic_deps = list(X)
 
         self._X = tuple(X)
         self._deps = tuple(deps)
         self._nl_deps = None if nl_deps is None else tuple(nl_deps)
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
+        self._adj_ic_deps = tuple(adj_ic_deps)
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
@@ -267,9 +277,10 @@ class Equation:
         if self._nl_deps is not None:
             self._nl_deps = tuple(replace_map.get(dep, dep)
                                   for dep in self._nl_deps)
-        if self._ic_deps is not None:
-            self._ic_deps = tuple(replace_map.get(dep, dep)
-                                  for dep in self._ic_deps)
+        self._ic_deps = tuple(replace_map.get(dep, dep)
+                              for dep in self._ic_deps)
+        self._adj_ic_deps = tuple(replace_map.get(dep, dep)
+                                  for dep in self._adj_ic_deps)
 
     def x(self):
         """
@@ -303,6 +314,9 @@ class Equation:
 
     def initial_condition_dependencies(self):
         return self._ic_deps
+
+    def adjoint_initial_condition_dependencies(self):
+        return self._adj_ic_deps
 
     def _pre_process(self, manager=None, annotate=None):
         if manager is None:
@@ -555,6 +569,7 @@ class ControlsMarker(Equation):
         self._nl_deps = ()
         self._nl_deps_map = ()
         self._ic_deps = ()
+        self._adj_ic_deps = ()
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
@@ -575,7 +590,7 @@ class FunctionalMarker(Equation):
         J = J.fn()
         # Extra function allocation could be avoided
         J_ = function_new(J)
-        super().__init__([J_], [J_, J], nl_deps=[], ic=False)
+        super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:
@@ -597,7 +612,7 @@ class NullSolver(Equation):
     def __init__(self, X):
         if is_function(X):
             X = (X,)
-        super().__init__(X, X, nl_deps=[], ic=False)
+        super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -622,7 +637,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
-        super().__init__(x, [x, y], nl_deps=[], ic=False)
+        super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
@@ -653,7 +668,7 @@ class LinearCombinationSolver(Equation):
         alpha = tuple(float(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
 
-        super().__init__(x, [x] + Y, nl_deps=[], ic=False)
+        super().__init__(x, [x] + Y, nl_deps=[], ic=False, adj_ic=False)
         self._alpha = alpha
 
     def forward_solve(self, x, deps=None):
@@ -725,15 +740,10 @@ class FixedPointSolver(Equation):
                     default 1000.
                 nonzero_initial_guess
                     Whether to use a non-zero initial guess for the forward
-                    solve (for the final equation in eqs). Logical, optional,
-                    default True.
+                    solve. Logical, optional, default True.
                 adjoint_nonzero_initial_guess
                     Whether to use a non-zero initial guess for the adjoint
-                    solve. If True, the solution on the previous
-                    adjoint_jacobian_solve call is retained and used as an
-                    initial guess for a later call. If False, or on the first
-                    call, a zero initial guess is used. Logical, optional,
-                    default False.
+                    solve. Logical, optional, default True.
                 report
                     Whether to display output. Optional, default False.
         """
@@ -762,31 +772,29 @@ class FixedPointSolver(Equation):
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         for key, default_value in [("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
-                                   ("adjoint_nonzero_initial_guess", False),
+                                   ("adjoint_nonzero_initial_guess", True),
                                    ("report", False)]:
             if key not in solver_parameters:
                 solver_parameters[key] = default_value
+
+        nonzero_initial_guess = solver_parameters["nonzero_initial_guess"]
+        adjoint_nonzero_initial_guess = \
+            solver_parameters["adjoint_nonzero_initial_guess"]
 
         X = []
         deps = []
         dep_ids = {}
         nl_deps = []
         nl_dep_ids = {}
-        ic_deps = {}
 
         eq_X_indices = tuple([] for eq in eqs)
         eq_dep_indices = tuple([] for eq in eqs)
         eq_nl_dep_indices = tuple([] for eq in eqs)
 
-        previous_x_ids = set()
-        remaining_x_ids = X_ids
-        del X_ids
-
         for i, eq in enumerate(eqs):
             for x in eq.X():
                 X.append(x)
                 eq_X_indices[i].append(len(X) - 1)
-                remaining_x_ids.remove(function_id(x))
 
             for dep in eq.dependencies():
                 dep_id = function_id(dep)
@@ -794,8 +802,6 @@ class FixedPointSolver(Equation):
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
                 eq_dep_indices[i].append(dep_ids[dep_id])
-                if dep_id in remaining_x_ids and dep_id not in ic_deps:
-                    ic_deps[dep_id] = dep
 
             for dep in eq.nonlinear_dependencies():
                 dep_id = function_id(dep)
@@ -804,18 +810,71 @@ class FixedPointSolver(Equation):
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 eq_nl_dep_indices[i].append(nl_dep_ids[dep_id])
 
-            for dep in eq.initial_condition_dependencies():
-                dep_id = function_id(dep)
-                # Could exclude eqs[-1].X() here if nonzero_initial_guess is
-                # False
-                if dep_id not in previous_x_ids and dep_id not in ic_deps:
-                    ic_deps[dep_id] = dep
+        del dep_ids, nl_dep_ids
 
-            for x in eq.X():
-                previous_x_ids.add(function_id(x))
+        if nonzero_initial_guess:
+            ic_dep_ids = set()
+            ic_deps = []
+            previous_x_ids = set()
+            remaining_x_ids = X_ids.copy()
 
-        del previous_x_ids, remaining_x_ids, dep_ids, nl_dep_ids
-        ic_deps = tuple(ic_deps.values())
+            for i, eq in enumerate(eqs):
+                for x in eq.X():
+                    remaining_x_ids.remove(function_id(x))
+
+                for dep in eq.dependencies():
+                    dep_id = function_id(dep)
+                    if dep_id in remaining_x_ids and dep_id not in ic_dep_ids:
+                        ic_deps.append(dep)
+                        ic_dep_ids.add(dep_id)
+
+                for dep in eq.initial_condition_dependencies():
+                    dep_id = function_id(dep)
+                    assert dep_id not in previous_x_ids
+                    assert dep_id not in ic_dep_ids
+                    ic_deps.append(dep)
+                    ic_dep_ids.add(dep_id)
+
+                for x in eq.X():
+                    previous_x_ids.add(function_id(x))
+
+            del ic_dep_ids, previous_x_ids, remaining_x_ids
+        else:
+            ic_deps = []
+
+        if adjoint_nonzero_initial_guess:
+            adj_ic_dep_ids = set()
+            adj_ic_deps = []
+            previous_x_ids = set()
+            remaining_x_ids = X_ids.copy()
+
+            for i in range(len(eqs) - 1, -1, -1):
+                i = (i - 1) % len(eqs)
+                eq = eqs[i]
+
+                for x in eq.X():
+                    remaining_x_ids.remove(function_id(x))
+
+                for dep in eq.dependencies():
+                    dep_id = function_id(dep)
+                    if dep_id in remaining_x_ids \
+                            and dep_id not in adj_ic_dep_ids:
+                        adj_ic_deps.append(dep)
+                        adj_ic_dep_ids.add(dep_id)
+
+                for dep in eq.adjoint_initial_condition_dependencies():
+                    dep_id = function_id(dep)
+                    assert dep_id not in previous_x_ids
+                    assert dep_id not in adj_ic_dep_ids
+                    adj_ic_deps.append(dep)
+                    adj_ic_dep_ids.add(dep_id)
+
+                for x in eq.X():
+                    previous_x_ids.add(function_id(x))
+
+            del adj_ic_dep_ids, previous_x_ids, remaining_x_ids
+        else:
+            adj_ic_deps = []
 
         eq_dep_ids = tuple({function_id(eq_dep): i
                             for i, eq_dep in enumerate(eq.dependencies())}
@@ -835,7 +894,8 @@ class FixedPointSolver(Equation):
                     tdeps[i].append((j, k, m))
         del dep_map
 
-        super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps)
+        super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps, ic=False,
+                         adj_ic_deps=adj_ic_deps, adj_ic=False)
         self._eqs = tuple(eqs)
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices
@@ -873,7 +933,7 @@ class FixedPointSolver(Equation):
                             for i in range(len(self._eqs)))
 
         if not nonzero_initial_guess:
-            for x in eq_X[-1]:
+            for x in X:
                 function_zero(x)
 
         it = 0
@@ -1135,7 +1195,8 @@ class LinearEquation(Equation):
 
         super().__init__(
             X, deps, nl_deps=nl_deps,
-            ic=A is not None and A.has_initial_condition_dependency())
+            ic=A is not None and A.has_initial_condition(),
+            adj_ic=A is not None and A.adjoint_has_initial_condition())
         self._B = tuple(B)
         self._b_dep_indices = b_dep_indices
         self._b_nl_dep_indices = b_nl_dep_indices
@@ -1263,13 +1324,25 @@ class LinearEquation(Equation):
 
 
 class Matrix:
-    def __init__(self, nl_deps=None, has_ic_dep=False):
+    def __init__(self, nl_deps=None, has_ic_dep=None, ic=None, adj_ic=True):
         if nl_deps is not None:
             if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
                 raise EquationException("Duplicate non-linear dependency")
 
+        if has_ic_dep is not None:
+            warnings.warn("'has_ic_dep' argument is deprecated -- use 'ic' "
+                          "instead",
+                          DeprecationWarning, stacklevel=2)
+            if ic is not None:
+                raise EquationException("Cannot pass both 'has_ic_dep' and "
+                                        "'ic' arguments")
+            ic = has_ic_dep
+        elif ic is None:
+            ic = True
+
         self._nl_deps = () if nl_deps is None else tuple(nl_deps)
-        self._has_ic_dep = has_ic_dep
+        self._ic = ic
+        self._adj_ic = adj_ic
 
     def replace(self, replace_map):
         self._nl_deps = tuple(replace_map.get(dep, dep)
@@ -1279,7 +1352,16 @@ class Matrix:
         return self._nl_deps
 
     def has_initial_condition_dependency(self):
-        return self._has_ic_dep
+        warnings.warn("Matrix.has_initial_condition_dependency is deprecated "
+                      "-- use Matrix.has_initial_condition instead",
+                      DeprecationWarning, stacklevel=2)
+        return self._ic
+
+    def has_initial_condition(self):
+        return self._ic
+
+    def adjoint_has_initial_condition(self):
+        return self._adj_ic
 
     def forward_action(self, nl_deps, X, B, method="assign"):
         """
@@ -1646,7 +1728,7 @@ class SumRHS(RHS):
 
 class Storage(Equation):
     def __init__(self, x, key, save=False):
-        super().__init__(x, [x], nl_deps=[], ic=False)
+        super().__init__(x, [x], nl_deps=[], ic=False, adj_ic=False)
         self._key = key
         self._save = save
 

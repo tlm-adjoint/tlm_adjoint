@@ -31,7 +31,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic=False)
+            super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):

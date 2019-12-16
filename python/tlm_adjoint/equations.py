@@ -34,6 +34,7 @@ import operator
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -130,7 +131,7 @@ class AssembleSolver(Equation):
                 form_compiler_parameters,
                 form_form_compiler_parameters(rhs, form_compiler_parameters))
 
-        super().__init__(x, deps, nl_deps=nl_deps, ic=False)
+        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
         self._rank = rank
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
@@ -298,12 +299,15 @@ class EquationSolver(Equation):
                     if dep_id not in deps:
                         deps[dep_id] = dep
 
-        if initial_guess == x:
-            initial_guess = None
         if initial_guess is not None:
-            initial_guess_id = function_id(initial_guess)
-            if initial_guess_id not in deps:
-                deps[initial_guess_id] = initial_guess
+            warnings.warn("'initial_guess' argument is deprecated",
+                          DeprecationWarning, stacklevel=2)
+            if initial_guess == x:
+                initial_guess = None
+            else:
+                initial_guess_id = function_id(initial_guess)
+                if initial_guess_id not in deps:
+                    deps[initial_guess_id] = initial_guess
 
         deps = list(deps.values())
         if x in deps:
@@ -321,26 +325,24 @@ class EquationSolver(Equation):
             cache_tlm_jacobian = cache_jacobian
 
         if nl_solve_J is None:
-            (solver_parameters,
-             linear_solver_parameters,
-             forward_ic) = process_solver_parameters(
-                solver_parameters, J, linear)
+            (solver_parameters, linear_solver_parameters,
+             ic, J_ic) = process_solver_parameters(solver_parameters, J, linear)  # noqa: E501
         else:
-            _, linear_solver_parameters, _ = process_solver_parameters(
-                solver_parameters, J, linear)
-            solver_parameters, _, forward_ic = process_solver_parameters(
-                solver_parameters, nl_solve_J, linear)
+            (solver_parameters, _,
+             ic, _) = process_solver_parameters(solver_parameters, nl_solve_J, linear)  # noqa: E501
+            (_, linear_solver_parameters,
+             _, J_ic) = process_solver_parameters(solver_parameters, J, linear)  # noqa: E501
 
         if adjoint_solver_parameters is None:
-            adjoint_solver_parameters = process_adjoint_solver_parameters(
-                linear_solver_parameters)
+            adjoint_solver_parameters = process_adjoint_solver_parameters(linear_solver_parameters)  # noqa: E501
+            adj_ic = J_ic
         else:
-            _, adjoint_solver_parameters, _ = process_solver_parameters(
-                adjoint_solver_parameters, J, linear=True)
+            (_, adjoint_solver_parameters,
+             adj_ic, _) = process_solver_parameters(adjoint_solver_parameters, adjoint(J), linear=True)  # noqa: E501
 
         if tlm_solver_parameters is not None:
-            _, tlm_solver_parameters, _ = process_solver_parameters(
-                tlm_solver_parameters, J, linear=True)
+            (_, tlm_solver_parameters,
+             _, _) = process_solver_parameters(tlm_solver_parameters, J, linear=True)  # noqa: E501
 
         form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         update_parameters_dict(form_compiler_parameters_,
@@ -352,7 +354,8 @@ class EquationSolver(Equation):
                 form_form_compiler_parameters(F, form_compiler_parameters))
 
         super().__init__(x, deps, nl_deps=nl_deps,
-                         ic=initial_guess is None and forward_ic)
+                         ic=initial_guess is None and ic,
+                         adj_ic=adj_ic)
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = bcs
@@ -805,7 +808,7 @@ class ProjectionSolver(EquationSolver):
 
 class DirichletBCSolver(Equation):
     def __init__(self, y, x, *args, **kwargs):
-        super().__init__(x, [x, y], nl_deps=[], ic=False)
+        super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
         self._bc_args = copy.copy(args)
         self._bc_kwargs = copy.copy(kwargs)
 
@@ -918,7 +921,7 @@ class ExprEvaluationSolver(Equation):
                 raise EquationException("Invalid non-linear dependency")
         deps.insert(0, x)
 
-        super().__init__(x, deps, nl_deps=nl_deps, ic=False)
+        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
         self._rhs = rhs
 
     def replace(self, replace_map):

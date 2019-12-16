@@ -153,7 +153,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic=False)
+            super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
@@ -288,7 +288,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic=False)
+            super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
@@ -599,8 +599,9 @@ Keys for the \texttt{solver\_parameters} argument are based on the
   \item \texttt{maximum\_iterations}, a positive integer, maximum permitted
     iterations (default $1000$).
   \item \texttt{nonzero\_initial\_guess}, a logical, whether to use a non-zero
-    initial guess for the solution to the final \texttt{Equation} in
-    \texttt{eqs} (default true).
+    initial guess (default true).
+  \item \texttt{adjoint\_nonzero\_initial\_guess}, a logical, whether to use a
+    non-zero initial guess for an adjoint solve (default true).
   \item \texttt{report}, a logical, whether to display output during fixed
     point iteration (default false).
 \end{itemize}
@@ -619,10 +620,10 @@ differential equation. The \texttt{EquationSolver} constructor has the form
 \begin{lstlisting}
 def __init__(self, eq, x, bcs=[], J=None, form_compiler_parameters={},
              solver_parameters={}, adjoint_solver_parameters=None,
-             tlm_solver_parameters=None, initial_guess=None,
-             cache_jacobian=None, cache_adjoint_jacobian=None,
-             cache_tlm_jacobian=None, cache_rhs_assembly=None,
-             match_quadrature=None, defer_adjoint_assembly=None):
+             tlm_solver_parameters=None, cache_jacobian=None,
+             cache_adjoint_jacobian=None, cache_tlm_jacobian=None,
+             cache_rhs_assembly=None, match_quadrature=None,
+             defer_adjoint_assembly=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -646,7 +647,6 @@ with constructor arguments
   \item \texttt{tlm\_solver\_parameters}, a dictionary of solver parameters
     used to solve associated tangent-linear equations. Linear solver parameters
     as defined by \texttt{solver\_parameters} are used if this is not supplied.
-  \item \texttt{initial\_guess}, the initial guess used in a forward solve.
   \item \texttt{cache\_jacobian}, whether to cache the Jacobian matrix and
     linear solver used, if the equation is not assumed non-linear, in solving
     the forward equation (see section \ref{sect:EquationSolver_caching}). If
@@ -947,7 +947,8 @@ define dependencies. \texttt{tlm\_adjoint} does not distinguish between
 symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
 the form
 \begin{lstlisting}
-def __init__(self, x, deps, nl_deps=None, ic_deps=[], ic=True):
+def __init__(self, x, deps, nl_deps=None, ic_deps=[], ic=True, adj_ic_deps=[],
+             adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -958,10 +959,15 @@ with constructor arguments
   \item \texttt{nl\_deps}, a list or tuple of functions, defining the
     non-linear dependencies. If not supplied then set equal to \texttt{deps}.
   \item \texttt{ic\_deps}, a list or tuple of functions, defining the initial
-    condition dependencies.
-  \item \texttt{ic}, whether \texttt{x} is an initial condition dependency. If
-    true then \texttt{x} is added to the initial condition dependencies defined
-    by \texttt{ic\_deps}.
+    condition dependencies. Can contain only dependencies which are solutions
+    to the equation.
+  \item \texttt{ic}, if true sets \texttt{ic\_deps} to be the solution to the
+    equation.
+  \item \texttt{adj\_ic\_deps}, a list or tuple of functions, defining adjoint
+    initial condition dependencies. Can contain only dependencies which are
+    solutions to the equation.
+  \item \texttt{adj\_ic}, if true sets \texttt{adj\_ic\_deps} to be the
+    solution to the equation.
 \end{itemize}
 
 \subsection{Forward}
@@ -1210,15 +1216,18 @@ matrices as used by a \texttt{LinearEquation}.
 A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
 define dependencies. The \texttt{Matrix} constructor has the form
 \begin{lstlisting}
-def __init__(self, nl_deps=None, has_ic_dep=False):
+def __init__(self, nl_deps=None, ic=True, adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
   \item \texttt{nl\_deps}, a list or tuple of functions, defining the
     dependencies of the matrix. If not supplied then treated as empty.
-  \item \texttt{has\_ic\_dep}. If true then, in solving a linear equation
-    involving the matrix, the initial value of the solution variable is an
-    initial condition dependency of the equation.
+  \item \texttt{ic}. If true then in solving a linear equation involving the
+    matrix the solution variable is an initial condition dependency of the
+    equation.
+  \item \texttt{adj\_ic}. If true then in solving an adjoint equation
+    involving the matrix the solution variable is an adjoint initial
+    condition dependency of the equation.
 \end{itemize}
 
 \subsubsection{Matrix action}
@@ -2531,7 +2540,7 @@ def forward(psi_0, psi_n_file=None):
 
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
-            super().__init__(x, [x, y], nl_deps=[], ic=False)
+            super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):

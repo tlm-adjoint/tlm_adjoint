@@ -99,7 +99,8 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
     class VectorNormSolver(Equation):
         def __init__(self, U, U_norm):
             # Assumes compatible spaces
-            super().__init__(U_norm, [U_norm, U], nl_deps=[U], ic=False)
+            super().__init__(U_norm, [U_norm, U], nl_deps=[U], ic=False,
+                             adj_ic=False)
 
         def forward_solve(self, x, deps=None):
             _, U = self.dependencies() if deps is None else deps
@@ -111,7 +112,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             function_set_values(x, np.sqrt(U_norm_arr))
 
     class MomentumEquation(EquationSolver):
-        def __init__(self, U, h, initial_guess=None):
+        def __init__(self, U, h):
             spaces = U.function_space()
             tests, trials = TestFunction(spaces), TrialFunction(spaces)
             test_u, test_v = split(tests)
@@ -148,7 +149,6 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
 
             super().__init__(
                 F == 0, U,
-                initial_guess=initial_guess,
                 solver_parameters={"ksp_type": "cg",
                                    "pc_type": "hypre",
                                    "pc_hypre_type": "boomeramg",
@@ -181,12 +181,6 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             r = assemble(
                 F, form_compiler_parameters=self._form_compiler_parameters)
             r_norm = np.sqrt(function_inner(r, r))
-            if self._initial_guess_index is not None:
-                if deps is None:
-                    initial_guess = self.dependencies()[self._initial_guess_index]  # noqa: E501
-                else:
-                    initial_guess = deps[self._initial_guess_index]
-                function_assign(U, initial_guess)
             solve(F == 0, U, J=J_1,
                   solver_parameters={"snes_type": "newtonls",
                                      "ksp_type": "cg",
@@ -227,11 +221,16 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
     U = [Function(space_U, name="U_n"),
          Function(space_U, name="U_np1")]
 
-    def momentum(U, h, initial_guess=None):
-        return MomentumEquation(U, h + H_0, initial_guess=initial_guess)
+    def momentum(U, h):
+        return MomentumEquation(U, h + H_0)
+
+    def assignment(y, x):
+        return AssignmentSolver(y, x)
 
     def solve_momentum(U, h, initial_guess=None):
-        momentum(U, h, initial_guess=initial_guess).solve()
+        if initial_guess is not None:
+            assignment(initial_guess, U).solve()
+        momentum(U, h).solve()
 
     def elevation_rhs(U, h, F_h):
         # GHS09 eqn (11) right-hand-side (times timestep size)
@@ -309,7 +308,8 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 (23.0 / 12.0, F_h[2]),
                 (-4.0 / 3.0, F_h[1]),
                 (5.0 / 12.0, F_h[0])),
-           momentum(U[1], h[1], initial_guess=U[0]),
+           assignment(U[0], U[1]),
+           momentum(U[1], h[1]),
            cycle(F_h[1], F_h[0]),
            cycle(F_h[2], F_h[1]),
            cycle(h[1], h[0]),

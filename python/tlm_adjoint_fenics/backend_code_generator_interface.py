@@ -141,7 +141,7 @@ def process_solver_parameters(solver_parameters, J, linear):
         lu_parameters = linear_solver_parameters["lu_solver"]
         if "symmetric" not in lu_parameters and J == adjoint(J):
             lu_parameters["symmetric"] = True
-        ic = not linear
+        linear_solver_ic = False
     else:
         if "krylov_solver" not in linear_solver_parameters:
             linear_solver_parameters["krylov_solver"] = {}
@@ -149,9 +149,10 @@ def process_solver_parameters(solver_parameters, J, linear):
         if "nonzero_initial_guess" not in ks_parameters:
             ks_parameters["nonzero_initial_guess"] = False
         nonzero_initial_guess = ks_parameters["nonzero_initial_guess"]
-        ic = not linear or nonzero_initial_guess
+        linear_solver_ic = nonzero_initial_guess
 
-    return solver_parameters, linear_solver_parameters, ic
+    return (solver_parameters, linear_solver_parameters,
+            not linear or linear_solver_ic, linear_solver_ic)
 
 
 def process_adjoint_solver_parameters(linear_solver_parameters):
