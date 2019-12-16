@@ -445,16 +445,21 @@ class Equation:
             adj_X = adj_X[0]
         adj_X = self.adjoint_jacobian_solve(
             adj_X, nl_deps, B[0] if len(B) == 1 else B)
-        if adj_X is not None:
-            for dep_index, dep_B in dep_Bs.items():
-                dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index,
-                                                         adj_X))
-            if is_function(adj_X):
-                adj_X = (adj_X,)
+        if adj_X is None:
+            warnings.warn("None return from Equation.adjoint_jacobian_solve "
+                          "is deprecated",
+                          DeprecationWarning, stacklevel=2)
+            if len(B) == 1:
+                adj_X = function_new(B[0])
+            else:
+                adj_X = tuple(function_new(b) for b in B)
+        for dep_index, dep_B in dep_Bs.items():
+            dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index,
+                                                     adj_X))
 
         self.finalize_adjoint(J)
 
-        return adj_X
+        return (adj_X,) if is_function(adj_X) else tuple(adj_X)
 
     def initialize_adjoint(self, J, nl_deps):
         """
@@ -1060,6 +1065,10 @@ class FixedPointSolver(Equation):
                     eq_adj_X[i], self._eq_nl_deps[i],
                     eq_B[0] if len(eq_B) == 1 else eq_B)
                 if eq_adj_X[i] is None:
+                    warnings.warn("None return from "
+                                  "Equation.adjoint_jacobian_solve is "
+                                  "deprecated",
+                                  DeprecationWarning, stacklevel=2)
                     eq_adj_X[i] = tuple(function_new(b) for b in eq_B)
                 elif is_function(eq_adj_X[i]):
                     eq_adj_X[i] = (eq_adj_X[i],)

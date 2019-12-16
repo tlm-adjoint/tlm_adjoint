@@ -1525,10 +1525,11 @@ class EquationManager:
 
                         adj_X = eq.adjoint(J, adj_X, nl_deps, eq_B, eq_dep_Bs)
 
-                        if adj_X is not None:
-                            for m, (x, adj_x) in enumerate(zip(eq.X(), adj_X)):
-                                if transpose_deps.is_stored_adj_ic(J_marker, n, i, m):  # noqa: E501
-                                    adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
+                        for m, (x, adj_x) in enumerate(zip(eq.X(), adj_X)):
+                            if transpose_deps.is_stored_adj_ic(J_marker,
+                                                               n, i, m):
+                                adj_Xs[J_i][function_id(x)] \
+                                    = function_copy(adj_x)
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None

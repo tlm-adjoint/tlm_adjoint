@@ -1079,8 +1079,7 @@ with arguments
     system ($b$ above). May be modified or returned.
 \end{itemize}
 This method returns a function defining the solution of the linear system
-($\lambda_x$ above), or may return \texttt{None} if this is zero. The return
-value will not be modified by calling code.
+($\lambda_x$ above). The return value will not be modified by calling code.
 
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
@@ -1171,8 +1170,7 @@ An \texttt{Equation} may solve for two or more functions. In this case the
 arguments \texttt{x}, \texttt{adj\_x}, and \texttt{b} in the above should be
 capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
 list or tuple of functions. The return value of
-\texttt{adjoint\_jacobian\_solve} should also be a list or tuple of functions
-(or \texttt{None}).
+\texttt{adjoint\_jacobian\_solve} should also be a list or tuple of functions.
 
 \subsection{Dropping references}\label{sect:replace}
 
