@@ -264,6 +264,21 @@ class Equation:
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        adj_solve_sig = inspect.signature(cls.adjoint_jacobian_solve)
+        if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
+                                                      ("self", "nl_deps", "B")]:  # noqa: E501
+            warnings.warn("Equation.adjoint_jacobian_solve(self, nl_deps, b/B) "  # noqa: E501
+                          "method signature deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
+                return adjoint_jacobian_solve_orig(self, nl_deps, B)
+            adjoint_jacobian_solve_orig = cls.adjoint_jacobian_solve
+            cls.adjoint_jacobian_solve = adjoint_jacobian_solve
+
     def id(self):
         return self._id
 
@@ -410,8 +425,7 @@ class Equation:
         nl_deps    A list or tuple of functions defining the values of
                    non-linear dependencies.
         B          A list or tuple of functions defining the right-hand-side.
-                   May be modified by this method. May not have previously have
-                   had boundary conditions applied.
+                   May be modified or returned by this method.
         b_indices  A dictionary of j:(p, k, m) pairs. Bs[p][k][m] has an
                    adjoint term arising from a derivative action,
                    differentiating with respect to the dependency for this
@@ -419,14 +433,22 @@ class Equation:
         Bs         An AdjointModelRHS, storing adjoint RHS data.
 
         Returns the solution of the adjoint equation as a tuple of functions.
-        The result must have relevant boundary conditions applied, and should
-        never be modified by calling code.
+        The result will not be modified by calling code.
         """
 
         self.initialize_adjoint(J, nl_deps)
 
-        adj_X = self.adjoint_jacobian_solve(nl_deps,
-                                            B[0] if len(B) == 1 else B)
+        # FIXME
+        if len(self.adjoint_initial_condition_dependencies()) == 0:
+            adj_X = None
+        elif len(B) == 1:
+            adj_X = function_new(B[0])
+        else:
+            adj_X = tuple(function_new(b) for b in B)
+
+        adj_X = self.adjoint_jacobian_solve(
+            adj_X, nl_deps,
+            B[0] if len(B) == 1 else B)
         if adj_X is not None:
             for j, (p, k, m) in B_indices.items():
                 Bs[p][k][m].sub(self.adjoint_derivative_action(nl_deps, j,
@@ -468,8 +490,7 @@ class Equation:
         """
         Return the action of the adjoint of a derivative of the RHS.
 
-        Boundary conditions need not be applied in the returned result. The
-        return value should never be modified by calling code.
+        The return value will not be modified by calling code.
 
         The form:
             adjoint_derivative_action(self, nl_deps, dep_index, adj_x)
@@ -486,22 +507,24 @@ class Equation:
 
         raise EquationException("Method not overridden")
 
-    def adjoint_jacobian_solve(self, nl_deps, B):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         """
-        Solve an adjoint equation, returning the result. The result must have
-        relevant boundary conditions applied, and should never be modified by
-        calling code.
+        Solve an adjoint equation, returning the result. The result will not
+        be modified by calling code.
 
         The form:
-            adjoint_jacobian_solve(self, nl_deps, b)
+            adjoint_jacobian_solve(self, adj_x, nl_deps, b)
         should be used for equations which solve for a single function.
 
         Arguments:
 
-        nl_deps    A list or tuple of functions defining the values of
-                   non-linear dependencies.
-        b/B        The right-hand-side. May be modified by this method. May not
-                   have previously have had boundary conditions applied.
+        adj_x/adj_X    Initial guess for the adjoint solve, or None if the
+                       Equation does not accept an initial guess. May be
+                       modified or returned by this method.
+        nl_deps        A list or tuple of functions defining the values of
+                       non-linear dependencies.
+        b/B            The right-hand-side. May be modified or returned by this
+                       method.
         """
 
         raise EquationException("Method not overridden")
@@ -574,7 +597,7 @@ class ControlsMarker(Equation):
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
-    def adjoint_jacobian_solve(self, nl_deps, B):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
 
 
@@ -598,7 +621,7 @@ class FunctionalMarker(Equation):
             raise EquationException("Unexpected dep_index")
         return (-1.0, adj_x)
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
 
@@ -629,7 +652,7 @@ class NullSolver(Equation):
         else:
             return None
 
-    def adjoint_jacobian_solve(self, nl_deps, B):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -652,7 +675,7 @@ class AssignmentSolver(Equation):
         else:
             return None
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -686,7 +709,7 @@ class LinearCombinationSolver(Equation):
         else:
             return None
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -906,8 +929,6 @@ class FixedPointSolver(Equation):
 
         self._tdeps = tdeps
 
-        self._adj_X_cache = {}
-
     def replace(self, replace_map):
         super().replace(replace_map)
         for eq in self._eqs:
@@ -983,8 +1004,6 @@ class FixedPointSolver(Equation):
         for eq in self._eqs:
             eq.reset_adjoint()
 
-        self._adj_X_cache.clear()
-
     def initialize_adjoint(self, J, nl_deps):
         self._eq_nl_deps = tuple(tuple(nl_deps[j]
                                        for j in self._eq_nl_dep_indices[i])
@@ -993,24 +1012,18 @@ class FixedPointSolver(Equation):
         for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
             eq.initialize_adjoint(J, eq_nl_deps)
 
-        if self._solver_parameters["adjoint_nonzero_initial_guess"]:
-            J_id = J.id()
-            if J_id not in self._adj_X_cache:
-                self._adj_X_cache[J_id] = [function_new(x) for x in self.X()]
-            self._adj_X = self._adj_X_cache[J_id]
-        else:
-            self._adj_X = [function_new(x) for x in self.X()]
-        self._eq_adj_X = [tuple(self._adj_X[j] for j in self._eq_X_indices[i])
-                          for i in range(len(self._eqs))]
-
     def finalize_adjoint(self, J):
         del self._eq_nl_deps
-        del self._adj_X
-        del self._eq_adj_X
 
-    def adjoint_jacobian_solve(self, nl_deps, B):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if is_function(B):
             B = (B,)
+        if adj_X is None:
+            adj_X = [function_new(b) for b in B]
+        elif is_function(adj_X):
+            adj_X = [adj_X]
+        else:
+            adj_X = list(adj_X)
 
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         absolute_tolerance = self._solver_parameters["absolute_tolerance"]
@@ -1018,8 +1031,8 @@ class FixedPointSolver(Equation):
         maximum_iterations = self._solver_parameters["maximum_iterations"]
         report = self._solver_parameters["report"]
 
-        adj_X = self._adj_X
-        eq_adj_X = self._eq_adj_X
+        eq_adj_X = [tuple(adj_X[j] for j in self._eq_X_indices[i])
+                    for i in range(len(self._eqs))]
 
         it = 0
         X_0 = tuple(function_copy(x) for x in eq_adj_X[-1])
@@ -1043,8 +1056,13 @@ class FixedPointSolver(Equation):
                 for b in eq_B:
                     finalize_adjoint_derivative_action(b)
 
+                if len(self._eqs[i].adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
+                    eq_adj_X[i] = None
+                elif len(eq_adj_X[i]) == 1:
+                    eq_adj_X[i] = eq_adj_X[i][0]
                 eq_adj_X[i] = self._eqs[i].adjoint_jacobian_solve(
-                    self._eq_nl_deps[i], eq_B[0] if len(eq_B) == 1 else eq_B)
+                    eq_adj_X[i], self._eq_nl_deps[i],
+                    eq_B[0] if len(eq_B) == 1 else eq_B)
                 if eq_adj_X[i] is None:
                     eq_adj_X[i] = tuple(function_new(b) for b in eq_B)
                 elif is_function(eq_adj_X[i]):
@@ -1092,13 +1110,16 @@ class FixedPointSolver(Equation):
         if is_function(adj_X):
             adj_X = (adj_X,)
 
+        eq_adj_X = [tuple(adj_X[j] for j in self._eq_X_indices[i])
+                    for i in range(len(self._eqs))]
+
         dep = self.dependencies()[dep_index]
         dep_id = function_id(dep)
         F = function_new(dep)
         for eq, eq_nl_deps, eq_dep_ids, eq_adj_X in zip(self._eqs,
                                                         self._eq_nl_deps,
                                                         self._eq_dep_ids,
-                                                        self._eq_adj_X):
+                                                        eq_adj_X):
             if dep_id in eq_dep_ids:
                 sb = eq.adjoint_derivative_action(
                     eq_nl_deps, eq_dep_ids[dep_id],
@@ -1249,15 +1270,10 @@ class LinearEquation(Equation):
         if self._A is not None:
             self._A.finalize_adjoint(J)
 
-    def adjoint_jacobian_solve(self, nl_deps, B):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if self._A is None:
             return B
         else:
-            # FIXME
-            if is_function(B):
-                adj_X = function_new(B)
-            else:
-                adj_X = tuple(function_new(b) for b in B)
             return self._A.adjoint_solve(
                 adj_X, [nl_deps[j] for j in self._A_nl_dep_indices], B)
 
@@ -1786,7 +1802,7 @@ class Storage(Equation):
         else:
             self.save(x)
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):

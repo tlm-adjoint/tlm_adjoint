@@ -171,7 +171,7 @@ def forward(psi_0, psi_n_file=None):
             else:
                 return None
 
-        def adjoint_jacobian_solve(self, nl_deps, b):
+        def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b
 
         def tangent_linear(self, M, dM, tlm_map):
@@ -306,7 +306,7 @@ def forward(psi_0, psi_n_file=None):
             else:
                 return None
 
-        def adjoint_jacobian_solve(self, nl_deps, b):
+        def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b
 
         def tangent_linear(self, M, dM, tlm_map):
@@ -1065,15 +1065,18 @@ The action of the inverse of the adjoint of the forward Jacobian is defined by
 the \texttt{adjoint\_jacobian\_solve} method. The
 \texttt{adjoint\_jacobian\_solve} method has the form
 \begin{lstlisting}
-def adjoint_jacobian_solve(self, nl_deps, b):
+def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
 \end{lstlisting}
 with arguments
 \begin{itemize}
+  \item \texttt{adj\_x}, an initial guess for the adjoint solve, or
+    \texttt{None} if the \texttt{Equation} does not accept an initial guess.
+    May be modified or returned.
   \item \texttt{nl\_deps}, a list or tuple of functions containing values for
     the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
     dependencies must not be modified.
   \item \texttt{b}, a function, defining the right-hand-side of the linear
-    system ($b$ above). May be modified.
+    system ($b$ above). May be modified or returned.
 \end{itemize}
 This method returns a function defining the solution of the linear system
 ($\lambda_x$ above), or may return \texttt{None} if this is zero. The return
@@ -1181,7 +1184,7 @@ def replace(self, replace_map):
 \end{lstlisting}
 where \texttt{replace\_map} is a dictionary mapping from dependencies to
 objects with which they should be replaced. The \texttt{replace} method must
-always call the base class \texttt{replace} method.
+call the base class \texttt{replace} method.
 
 \section{Linear algebra}
 
@@ -1393,7 +1396,7 @@ def replace(self, replace_map):
 \end{lstlisting}
 where \texttt{replace\_map} is a dictionary mapping from dependencies to
 objects with which they should be replaced. The \texttt{replace} method must
-always call the base class \texttt{replace} method.
+call the base class \texttt{replace} method.
 
 \subsection{\texttt{RHS}}
 
@@ -1487,7 +1490,7 @@ def replace(self, replace_map):
 \end{lstlisting}
 where \texttt{replace\_map} is a dictionary mapping from dependencies to
 objects with which they should be replaced. The \texttt{replace} method must
-always call the base class \texttt{replace} method.
+call the base class \texttt{replace} method.
 
 \subsection{Built-in linear algebra classes}
 
@@ -2552,7 +2555,7 @@ def forward(psi_0, psi_n_file=None):
             else:
                 return None
 
-        def adjoint_jacobian_solve(self, nl_deps, b):
+        def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b
 
         def tangent_linear(self, M, dM, tlm_map):

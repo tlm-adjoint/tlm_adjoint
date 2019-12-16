@@ -49,7 +49,7 @@ def forward(psi_0, psi_n_file=None):
             else:
                 return None
 
-        def adjoint_jacobian_solve(self, nl_deps, b):
+        def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b
 
         def tangent_linear(self, M, dM, tlm_map):

@@ -148,7 +148,7 @@ class LocalProjectionSolver(EquationSolver):
 
         local_solver.solve_local(x, b)
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
             if local_solver is None:
@@ -314,7 +314,7 @@ class PointInterpolationSolver(Equation):
         else:
             return None
 
-    def adjoint_jacobian_solve(self, nl_deps, B):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
 
     def tangent_linear(self, M, dM, tlm_map):

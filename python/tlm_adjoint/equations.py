@@ -188,7 +188,7 @@ class AssembleSolver(Equation):
                 form_compiler_parameters=self._form_compiler_parameters)
             return (-1.0, dF)
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -701,7 +701,10 @@ class EquationSolver(Equation):
             unbind_form(dF)
             return return_value
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        if adj_x is None:
+            adj_x = function_new(b)
+
         if self._cache_adjoint_jacobian:
             J_solver = self._adjoint_J_solver()
             if J_solver is None:
@@ -719,7 +722,6 @@ class EquationSolver(Equation):
                         linear_solver_parameters=self._adjoint_solver_parameters)  # noqa: E501
 
             apply_rhs_bcs(function_vector(b), self._hbcs)
-            adj_x = function_new(b)
             J_solver.solve(function_vector(adj_x), function_vector(b))
 
             return adj_x
@@ -735,9 +737,7 @@ class EquationSolver(Equation):
             unbind_form(self._adjoint_J)
 
             apply_rhs_bcs(function_vector(b), self._hbcs)
-            adj_x = function_new(b)
-            J_solver.solve(function_vector(adj_x),
-                           function_vector(b))
+            J_solver.solve(function_vector(adj_x), function_vector(b))
 
             return adj_x
 
@@ -832,7 +832,7 @@ class DirichletBCSolver(Equation):
         else:
             return None
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -967,7 +967,7 @@ class ExprEvaluationSolver(Equation):
                 function_set_values(F, dF_val)
             return (-1.0, F)
 
-    def adjoint_jacobian_solve(self, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def tangent_linear(self, M, dM, tlm_map):

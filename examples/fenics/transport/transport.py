@@ -165,7 +165,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
             else:
                 return None
 
-        def adjoint_jacobian_solve(self, nl_deps, b):
+        def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b
 
         def tangent_linear(self, M, dM, tlm_map):
