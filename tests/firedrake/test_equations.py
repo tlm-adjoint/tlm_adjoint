@@ -641,6 +641,7 @@ def test_initial_guess(setup_test, test_leaks):
         class TestSolver(ProjectionSolver):
             def __init__(self, y, x, form_compiler_parameters={},
                          solver_parameters={}):
+                assert is_function(y)
                 super().__init__(
                     inner(TestFunction(x.function_space()), y) * dx, x,
                     form_compiler_parameters=form_compiler_parameters,
@@ -648,12 +649,27 @@ def test_initial_guess(setup_test, test_leaks):
                     cache_jacobian=False, cache_rhs_assembly=False)
 
             def forward_solve(self, x, deps=None):
+                rhs = self._rhs
+                if deps is not None:
+                    rhs = ufl.replace(rhs,
+                                      dict(zip(self.dependencies(), deps)))
                 J, b = assemble_system(
-                    self._J, self._rhs,
+                    self._J, rhs,
                     form_compiler_parameters=self._form_compiler_parameters)
                 solver = linear_solver(J, self._linear_solver_parameters)
                 solver.solve(x, b)
                 assert solver.ksp.getIterationNumber() == 0
+
+            def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+                assert adj_x is not None
+                J = assemble(
+                    self._J,
+                    form_compiler_parameters=self._form_compiler_parameters)
+                solver = linear_solver(J, self._linear_solver_parameters)
+                solver.solve(adj_x, b)
+                # test_adj_ic defined in test scope below
+                assert not test_adj_ic or solver.ksp.getIterationNumber() == 0
+                return adj_x
 
             def tangent_linear(self, M, dM, tlm_map):
                 x, y = self.dependencies()
@@ -694,7 +710,12 @@ def test_initial_guess(setup_test, test_leaks):
     assert tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
                                                  (function_id(x), 2))
 
-    dJdx_0, dJdy = compute_gradient(J, [x_0, y])
+    adj_x_0 = project(derivative(inner(dot(x, x), dot(x, x)) * dx, x), space_1,
+                      name="adj_x_0", solver_parameters=ls_parameters_cg)
+
+    test_adj_ic = True
+    dJdx_0, dJdy = compute_gradient(J, [x_0, y], adj_ics={x: adj_x_0})
+    test_adj_ic = False
     assert function_linf_norm(dJdx_0) == 0.0
 
     J_val = J.value()

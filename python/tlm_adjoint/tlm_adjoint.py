@@ -340,12 +340,15 @@ class DependencyGraphTranspose:
                         p, k, m = last_eq[dep_id]
                         if p < n or k < i:
                             transpose_deps[n][i][j] = (p, k, m)
+        final_eq = {dep_id: (n, i) for dep_id, (n, i, m) in last_eq.items()}
+        del last_eq
 
         if prune_forward:
             # Pruning, forward traversal
             active_M = {function_id(dep) for dep in M}
             active_forward = tuple(np.full(len(block), False, dtype=np.bool)
                                    for block in blocks)
+            last_eq = {}
             for n, block in enumerate(blocks):
                 for i, eq in enumerate(block):
                     if len(active_M) > 0:
@@ -362,6 +365,17 @@ class DependencyGraphTranspose:
                                 if active_forward[p][k]:
                                     active_forward[n][i] = True
                                     break
+                    if not active_forward[n][i]:
+                        for dep in eq.adjoint_initial_condition_dependencies():  # noqa: E501
+                            dep_id = function_id(dep)
+                            if dep_id in last_eq:
+                                p, k = last_eq[dep_id]
+                                if active_forward[p][k]:
+                                    active_forward[n][i] = True
+                                    break
+                    for x in eq.X():
+                        last_eq[function_id(x)] = (n, i)
+            del last_eq
         else:
             active_forward = tuple(np.full(len(block), True, dtype=np.bool)
                                    for block in blocks)
@@ -393,8 +407,29 @@ class DependencyGraphTranspose:
                         else:
                             active[J_id][n][i] = False
 
+        stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=np.bool)  # noqa: E501
+                          for eq in block) for block in blocks) for J in Js}
+        for J_id in stored_adj_ics:
+            stored = {}
+            for n, block in enumerate(blocks):
+                for i, eq in enumerate(block):
+                    if active[J_id][n][i]:
+                        for m, x in enumerate(eq.X()):
+                            stored_adj_ics[J_id][n][i][m] = \
+                                stored.get(function_id(x), False)
+
+                        adj_ic_ids = {function_id(dep) for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
+                        for dep_id in adj_ic_ids:
+                            stored[dep_id] = True
+                        for x in eq.X():
+                            x_id = function_id(x)
+                            if x_id not in adj_ic_ids:
+                                stored[x_id] = False
+
         self._transpose_deps = transpose_deps
         self._active = active
+        self._final_eq = final_eq
+        self._stored_adj_ics = stored_adj_ics
 
     def __contains__(self, key):
         n, i, j = key
@@ -411,6 +446,23 @@ class DependencyGraphTranspose:
         else:
             J_id = function_id(J)
         return self._active[J_id][n][i]
+
+    def has_adjoint_initial_condition(self, J, x):
+        if isinstance(x, int):
+            x_id = x
+        else:
+            x_id = function_id(x)
+        if x_id not in self._final_eq:
+            return False
+        n, i = self._final_eq[x_id]
+        return self.is_active(J, n, i)
+
+    def is_stored_adj_ic(self, J, n, i, m):
+        if isinstance(J, int):
+            J_id = J
+        else:
+            J_id = function_id(J)
+        return self._stored_adj_ics[J_id][n][i][m]
 
 
 class EquationManager:
@@ -1335,7 +1387,7 @@ class EquationManager:
             eq.reset_adjoint()
 
     def compute_gradient(self, Js, M, callback=None, prune_forward=True,
-                         prune_adjoint=True):
+                         prune_adjoint=True, adj_ics=None):
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
@@ -1357,23 +1409,32 @@ class EquationManager:
                        should be applied.
         prune_adjoint  (Optional) Whether reverse traversal graph pruning
                        should be applied.
+        adj_ics   (Optional) Map, or a list of tuple of maps, from forward
+                  functions or function IDs to adjoint initial conditions.
         """
 
         if not isinstance(M, (list, tuple)):
             if not isinstance(Js, (list, tuple)):
+                if adj_ics is not None:
+                    adj_ics = [adj_ics]
                 ((dJ,),) = self.compute_gradient([Js], [M], callback=callback,
                                                  prune_forward=prune_forward,
-                                                 prune_adjoint=prune_adjoint)
+                                                 prune_adjoint=prune_adjoint,
+                                                 adj_ics=adj_ics)
                 return dJ
             else:
                 dJs = self.compute_gradient(Js, [M], callback=callback,
                                             prune_forward=prune_forward,
-                                            prune_adjoint=prune_adjoint)
+                                            prune_adjoint=prune_adjoint,
+                                            adj_ics=adj_ics)
                 return tuple(dJ for (dJ,) in dJs)
         elif not isinstance(Js, (list, tuple)):
+            if adj_ics is not None:
+                adj_ics = [adj_ics]
             dJ, = self.compute_gradient([Js], M, callback=callback,
                                         prune_forward=prune_forward,
-                                        prune_adjoint=prune_adjoint)
+                                        prune_adjoint=prune_adjoint,
+                                        adj_ics=adj_ics)
             return dJ
 
         self.finalize()
@@ -1408,6 +1469,17 @@ class EquationManager:
                                                   prune_forward=prune_forward,
                                                   prune_adjoint=prune_adjoint)
 
+        # Adjoint variables
+        adj_Xs = tuple({} for J in Js)
+        if adj_ics is not None:
+            for J_i, J_marker in enumerate(J_markers):
+                for x_id, adj_x in adj_ics[J_i].items():
+                    if not isinstance(x_id, int):
+                        x_id = function_id(x_id)
+                    if transpose_deps.has_adjoint_initial_condition(J_marker,
+                                                                    x_id):
+                        adj_Xs[J_i][x_id] = function_copy(adj_x)
+
         # Reverse (blocks)
         for n in range(len(blocks) - 1, -1, -1):
             cp_n = n - 1  # Forward model block, ignoring the control block
@@ -1432,19 +1504,31 @@ class EquationManager:
                     if transpose_deps.is_active(J_marker, n, i):
                         # Solve adjoint equation, add terms to adjoint
                         # equations
-                        # FIXME
-                        eq_B = eq_B.B()
                         if len(eq.adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
                             adj_X = None
                         else:
-                            adj_X = tuple(function_new(eq_b) for eq_b in eq_B)
+                            adj_X = []
+                            for x in eq.X():
+                                adj_x = adj_Xs[J_i].pop(function_id(x), None)
+                                if adj_x is None:
+                                    adj_x = function_new(x)
+                                adj_X.append(adj_x)
+
+                        eq_B = eq_B.B()
+
                         eq_dep_Bs = {}
                         for j, dep in enumerate(eq.dependencies()):
                             if (n, i, j) in transpose_deps:
                                 p, k, m = transpose_deps[(n, i, j)]
                                 if transpose_deps.is_active(J_marker, p, k):
                                     eq_dep_Bs[j] = Bs[J_i][p][k][m]
+
                         adj_X = eq.adjoint(J, adj_X, nl_deps, eq_B, eq_dep_Bs)
+
+                        if adj_X is not None:
+                            for m, (x, adj_x) in enumerate(zip(eq.X(), adj_X)):
+                                if transpose_deps.is_stored_adj_ic(J_marker, n, i, m):  # noqa: E501
+                                    adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
@@ -1470,6 +1554,8 @@ class EquationManager:
 
         for B in Bs:
             assert B.is_empty()
+        for J_i in range(len(Js)):
+            assert len(adj_Xs[J_i]) == 0
 
         if self._cp_method == "multistage":
             self._cp.clear(clear_cp=False, clear_data=True, clear_refs=False)
@@ -1589,12 +1675,13 @@ def reset_adjoint(manager=None):
 
 
 def compute_gradient(Js, M, callback=None, prune_forward=True,
-                     prune_adjoint=True, manager=None):
+                     prune_adjoint=True, adj_ics=None, manager=None):
     if manager is None:
         manager = _manager()
     return manager.compute_gradient(Js, M, callback=callback,
                                     prune_forward=prune_forward,
-                                    prune_adjoint=prune_adjoint)
+                                    prune_adjoint=prune_adjoint,
+                                    adj_ics=adj_ics)
 
 
 def new_block(manager=None):
