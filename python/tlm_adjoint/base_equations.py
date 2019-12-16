@@ -270,6 +270,31 @@ class Equation:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
+        if hasattr(cls, "reset_adjoint"):
+            if getattr(cls, "_reset_adjoint_warning", True):
+                warnings.warn("Equation.reset_adjoint method is deprecated",
+                              DeprecationWarning, stacklevel=2)
+        else:
+            cls._reset_adjoint_warning = False
+            cls.reset_adjoint = lambda self: None
+
+        if hasattr(cls, "initialize_adjoint"):
+            if getattr(cls, "_initialize_adjoint_warning", True):
+                warnings.warn("Equation.initialize_adjoint method is "
+                              "deprecated",
+                              DeprecationWarning, stacklevel=2)
+        else:
+            cls._initialize_adjoint_warning = False
+            cls.initialize_adjoint = lambda self, J, nl_deps: None
+
+        if hasattr(cls, "finalize_adjoint"):
+            if getattr(cls, "_finalize_adjoint_warning", True):
+                warnings.warn("Equation.finalize_adjoint method is deprecated",
+                              DeprecationWarning, stacklevel=2)
+        else:
+            cls._finalize_adjoint_warning = False
+            cls.finalize_adjoint = lambda self, J: None
+
         adj_solve_sig = inspect.signature(cls.adjoint_jacobian_solve)
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
                                                       ("self", "nl_deps", "B")]:  # noqa: E501
@@ -409,14 +434,6 @@ class Equation:
 
         raise EquationException("Method not overridden")
 
-    def reset_adjoint(self):
-        """
-        Can be used to clear adjoint model caches. Called at the start of an
-        adjoint calculation.
-        """
-
-        pass
-
     def adjoint(self, J, adj_X, nl_deps, B, dep_Bs):
         """
         Solve the adjoint equation with the given right-hand-side, and subtract
@@ -461,32 +478,6 @@ class Equation:
         self.finalize_adjoint(J)
 
         return (adj_X,) if is_function(adj_X) else tuple(adj_X)
-
-    def initialize_adjoint(self, J, nl_deps):
-        """
-        Adjoint initialization. Called prior to calling adjoint_jacobian_solve
-        or adjoint_derivative_action methods.
-
-        Arguments:
-
-        J        Adjoint model functional.
-        nl_deps  A list or tuple of functions defining the values of non-linear
-                 dependencies.
-        """
-
-        pass
-
-    def finalize_adjoint(self, J):
-        """
-        Adjoint finalization. Called after calling adjoint_jacobian_solve or
-        adjoint_derivative_action methods.
-
-        Arguments:
-
-        J          Adjoint model functional.
-        """
-
-        pass
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """
@@ -1037,14 +1028,20 @@ class FixedPointSolver(Equation):
             for x_0, x in zip(X_0, eq_X[-1]):
                 function_assign(x_0, x)
 
+    _reset_adjoint_warning = False
+
     def reset_adjoint(self):
         for eq in self._eqs:
             eq.reset_adjoint()
+
+    _initialize_adjoint_warning = False
 
     def initialize_adjoint(self, J, nl_deps):
         for i, eq in enumerate(self._eqs):
             eq_nl_deps = tuple(nl_deps[j] for j in self._eq_nl_dep_indices[i])
             eq.initialize_adjoint(J, eq_nl_deps)
+
+    _finalize_adjoint_warning = False
 
     def finalize_adjoint(self, J):
         for eq in self._eqs:
@@ -1307,13 +1304,19 @@ class LinearEquation(Equation):
                                   [deps[j] for j in self._A_dep_indices],
                                   B[0] if len(B) == 1 else B)
 
+    _reset_adjoint_warning = False
+
     def reset_adjoint(self):
         if self._A is not None:
             self._A.reset_adjoint()
 
+    _initialize_adjoint_warning = False
+
     def initialize_adjoint(self, J, nl_deps):
         if self._A is not None:
             self._A.initialize_adjoint(J, nl_deps)
+
+    _finalize_adjoint_warning = False
 
     def finalize_adjoint(self, J):
         if self._A is not None:

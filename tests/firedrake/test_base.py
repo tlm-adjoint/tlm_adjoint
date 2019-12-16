@@ -123,7 +123,6 @@ def test_leaks():
     # Clear some internal storage that is allowed to keep references
     clear_caches()
     manager = _manager()
-    manager.reset_adjoint()
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
     tlm_values = manager._tlm.values()  # noqa: F841

@@ -1089,37 +1089,6 @@ disabled (see section \ref{sect:EquationManager}) when the
 
 \subsection{Adjoint optimization}
 
-The first time an \texttt{Equation} is used in an adjoint calculation (the
-first time an \texttt{Equation} is used in a call to
-\texttt{compute\_gradient}) the \texttt{reset\_adjoint} method of the
-\texttt{Equation} is called. This methods takes no arguments
-\begin{lstlisting}
-def reset_adjoint(self):
-\end{lstlisting}
-
-A set of one or more calls to the \texttt{adjoint\_jacobian\_solve} or
-\texttt{adjoint\_derivative\_action} methods are preceded by a call to the
-\texttt{initialize\_adjoint} method, and are followed by a call to the
-\texttt{finalize\_adjoint} method. These methods can be used to cache, and then
-clear, data used by the \texttt{adjoint\_jacobian\_solve} or 
-\texttt{adjoint\_derivative\_action} methods.
-
-These methods have the form
-\begin{lstlisting}
-def initialize_adjoint(self, J, nl_deps):
-\end{lstlisting}
-\begin{lstlisting}
-def finalize_adjoint(self, J):
-\end{lstlisting}
-with
-\begin{itemize}
-    \item \texttt{J}, a \texttt{Functional}, defining the functional
-      associated with the adjoint model.
-    \item \texttt{nl\_deps}, as passed to the \texttt{adjoint\_jacobian\_solve}
-      and \texttt{adjoint\_derivative\_action} methods. The dependencies must
-      not be modified.
-\end{itemize}
-
 The \texttt{subtract\_adjoint\_derivative\_actions} method may be defined to
 compute multiple adjoint derivative actions, and to subtract them from
 associated adjoint equation right-hand-sides. An \texttt{Equation} which
@@ -2445,11 +2414,6 @@ of tangent-linear equations (see section \ref{sect:higher_order}).
 def tlm(M, dM, x, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.tlm}. Accesses a tangent-linear variable.
-\begin{lstlisting}
-def reset_adjoint(manager=None):
-\end{lstlisting}
-Calls \texttt{EquationManager.reset\_adjoint}. Calls the
-\texttt{reset\_adjoint} method of all annotated \texttt{Equation} objects.
 \begin{lstlisting}
 def compute_gradient(Js, M, callback=None, prune_forward=True,
                      prune_adjoint=True, adj_ics=None, manager=None):

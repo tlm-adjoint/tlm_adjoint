@@ -1378,11 +1378,14 @@ class EquationManager:
         import png
         return png.from_array(pixels, "RGB")
 
-    def reset_adjoint(self):
+    def reset_adjoint(self, _warning=True):
         """
         Call the reset_adjoint methods of all annotated Equation objects.
         """
 
+        if _warning:
+            warnings.warn("EquationManager.reset_adjoint method is deprecated",
+                          DeprecationWarning, stacklevel=2)
         for eq in self._eqs.values():
             eq.reset_adjoint()
 
@@ -1438,7 +1441,7 @@ class EquationManager:
             return dJ
 
         self.finalize()
-        self.reset_adjoint()
+        self.reset_adjoint(_warning=False)
 
         # Functionals
         Js = tuple(Functional(fn=J) if is_function(J) else J for J in Js)
@@ -1670,9 +1673,11 @@ def tlm(M, dM, x, manager=None):
 
 
 def reset_adjoint(manager=None):
+    warnings.warn("reset_adjoint is deprecated",
+                  DeprecationWarning, stacklevel=2)
     if manager is None:
         manager = _manager()
-    manager.reset_adjoint()
+    manager.reset_adjoint(_warning=False)
 
 
 def compute_gradient(Js, M, callback=None, prune_forward=True,
