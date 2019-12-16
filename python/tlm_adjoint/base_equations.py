@@ -79,9 +79,12 @@ class AdjointRHS:
         self._space = space
         self._b = None
 
-    def b(self):
+    def b(self, copy=False):
         self.finalize()
-        return self._b
+        if copy:
+            return function_copy(self._b)
+        else:
+            return self._b
 
     def initialize(self):
         if self._b is None:
@@ -107,13 +110,13 @@ class AdjointEquationRHS:
     def __getitem__(self, key):
         return self._B[key]
 
-    def b(self):
+    def b(self, copy=False):
         if len(self._B) != 1:
             raise EquationException("Right-hand-side does not consist of exactly one function")  # noqa: E501
-        return self._B[0].b()
+        return self._B[0].b(copy=copy)
 
-    def B(self):
-        return tuple(B.b() for B in self._B)
+    def B(self, copy=False):
+        return tuple(B.b(copy=copy) for B in self._B)
 
     def finalize(self):
         for b in self._B:
@@ -453,9 +456,7 @@ class Equation:
                 adj_X = function_new(B[0])
             else:
                 adj_X = tuple(function_new(b) for b in B)
-        for dep_index, dep_B in dep_Bs.items():
-            dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index,
-                                                     adj_X))
+        self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
 
         self.finalize_adjoint(J)
 
@@ -507,6 +508,32 @@ class Equation:
         """
 
         raise EquationException("Method not overridden")
+
+    def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
+        """
+        Subtract adjoint derivative actions from adjoint right-hand-sides.
+        Lower level than adjoint_derivative_action, but can be overridden for
+        optimization, and can be defined in place of defining an
+        adjoint_derivative_action method.
+
+        The form:
+            subtract_adjoint_derivative_actions(self, adj_x, nl_deps, Bs)
+        should be used for equations which solve for a single function.
+
+        Arguments:
+
+        adj_x/adj_X  The direction of the adjoint derivative actions.
+        nl_deps      A list or tuple of functions defining the values of
+                     non-linear dependencies.
+        dep_Bs       Dictionary of dep_index: dep_B pairs, where each dep_B is
+                     an AdjointRHS which should be updated by subtracting
+                     derivative information computed by differentiating with
+                     respect to self.dependencies()[dep_index].
+        """
+
+        for dep_index, dep_B in dep_Bs.items():
+            dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index,
+                                                     adj_X))
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         """
@@ -901,22 +928,31 @@ class FixedPointSolver(Equation):
         else:
             adj_ic_deps = []
 
-        eq_dep_ids = tuple({function_id(eq_dep): i
-                            for i, eq_dep in enumerate(eq.dependencies())}
-                           for eq in eqs)
+        eq_dep_index_map = tuple(
+            {function_id(dep): i for i, dep in enumerate(eq.dependencies())}
+            for eq in eqs)
+
+        dep_eq_index_map = {}
+        for i, eq in enumerate(eqs):
+            for dep in eq.dependencies():
+                dep_id = function_id(dep)
+                if dep_id in dep_eq_index_map:
+                    dep_eq_index_map[dep_id].append(i)
+                else:
+                    dep_eq_index_map[dep_id] = [i]
 
         dep_map = {}
-        for i, eq in enumerate(eqs):
-            for m, x in enumerate(eq.X()):
-                dep_map[function_id(x)] = (i, m)
-        tdeps = tuple([] for eq in eqs)
         for k, eq in enumerate(eqs):
-            X_ids = {function_id(x) for x in eq.X()}
+            for m, x in enumerate(eq.X()):
+                dep_map[function_id(x)] = (k, m)
+        dep_B_indices = tuple({} for eq in eqs)
+        for i, eq in enumerate(eqs):
             for j, dep in enumerate(eq.dependencies()):
                 dep_id = function_id(dep)
-                if dep_id not in X_ids and dep_id in dep_map:
-                    i, m = dep_map[dep_id]
-                    tdeps[i].append((j, k, m))
+                if dep_id in dep_map:
+                    k, m = dep_map[dep_id]
+                    if k != i:
+                        dep_B_indices[i][j] = (k, m)
         del dep_map
 
         super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps, ic=False,
@@ -925,10 +961,10 @@ class FixedPointSolver(Equation):
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices
         self._eq_nl_dep_indices = eq_nl_dep_indices
-        self._eq_dep_ids = eq_dep_ids
+        self._eq_dep_index_map = eq_dep_index_map
+        self._dep_eq_index_map = dep_eq_index_map
+        self._dep_B_indices = dep_B_indices
         self._solver_parameters = solver_parameters
-
-        self._tdeps = tdeps
 
     def replace(self, replace_map):
         super().replace(replace_map)
@@ -1006,15 +1042,13 @@ class FixedPointSolver(Equation):
             eq.reset_adjoint()
 
     def initialize_adjoint(self, J, nl_deps):
-        self._eq_nl_deps = tuple(tuple(nl_deps[j]
-                                       for j in self._eq_nl_dep_indices[i])
-                                 for i in range(len(self._eqs)))
-
-        for eq, eq_nl_deps in zip(self._eqs, self._eq_nl_deps):
+        for i, eq in enumerate(self._eqs):
+            eq_nl_deps = tuple(nl_deps[j] for j in self._eq_nl_dep_indices[i])
             eq.initialize_adjoint(J, eq_nl_deps)
 
     def finalize_adjoint(self, J):
-        del self._eq_nl_deps
+        for eq in self._eqs:
+            eq.finalize_adjoint(J)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if is_function(B):
@@ -1030,10 +1064,31 @@ class FixedPointSolver(Equation):
         absolute_tolerance = self._solver_parameters["absolute_tolerance"]
         relative_tolerance = self._solver_parameters["relative_tolerance"]
         maximum_iterations = self._solver_parameters["maximum_iterations"]
+        nonzero_initial_guess = self._solver_parameters["adjoint_nonzero_initial_guess"]  # noqa: E501
         report = self._solver_parameters["report"]
 
         eq_adj_X = [tuple(adj_X[j] for j in self._eq_X_indices[i])
                     for i in range(len(self._eqs))]
+        eq_nl_deps = tuple(tuple(nl_deps[j] for j in nl_dep_indices)
+                           for nl_dep_indices in self._eq_nl_dep_indices)
+        adj_B = AdjointModelRHS([self._eqs])
+
+        dep_Bs = tuple({} for eq in self._eqs)
+        for i, eq in enumerate(self._eqs):
+            eq_B = adj_B[0][i].B()
+            for j, k in enumerate(self._eq_X_indices[i]):
+                function_assign(eq_B[j], B[k])
+            for j, (k, m) in self._dep_B_indices[i].items():
+                dep_Bs[i][j] = adj_B[0][k][m]
+
+        if nonzero_initial_guess:
+            for i, eq in enumerate(self._eqs):
+                eq.subtract_adjoint_derivative_actions(
+                    eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],
+                    eq_nl_deps[i], dep_Bs[i])
+        else:
+            for adj_x in adj_X:
+                function_zero(adj_x)
 
         it = 0
         X_0 = tuple(function_copy(x) for x in eq_adj_X[-1])
@@ -1042,28 +1097,15 @@ class FixedPointSolver(Equation):
 
             for i in range(len(self._eqs) - 1, - 1, -1):
                 i = (i - 1) % len(self._eqs)
-                eq_B = tuple(function_copy(B[j])
-                             for j in self._eq_X_indices[i])
+                # Copy required here, as adjoint_jacobian_solve may return the
+                # RHS function itself
+                eq_B = adj_B[0][i].B(copy=True)
 
-                for j, k, m in self._tdeps[i]:
-                    if len(eq_adj_X[k]) == 1:
-                        sb = self._eqs[k].adjoint_derivative_action(
-                            self._eq_nl_deps[k], j, eq_adj_X[k][0])
-                    else:
-                        sb = self._eqs[k].adjoint_derivative_action(
-                            self._eq_nl_deps[k], j, eq_adj_X[k])
-                    subtract_adjoint_derivative_action(eq_B[m], sb)
-                    del sb
-                for b in eq_B:
-                    finalize_adjoint_derivative_action(b)
-
-                if len(self._eqs[i].adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
-                    eq_adj_X[i] = None
-                elif len(eq_adj_X[i]) == 1:
-                    eq_adj_X[i] = eq_adj_X[i][0]
                 eq_adj_X[i] = self._eqs[i].adjoint_jacobian_solve(
-                    eq_adj_X[i], self._eq_nl_deps[i],
+                    eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],
+                    eq_nl_deps[i],
                     eq_B[0] if len(eq_B) == 1 else eq_B)
+
                 if eq_adj_X[i] is None:
                     warnings.warn("None return from "
                                   "Equation.adjoint_jacobian_solve is "
@@ -1074,6 +1116,14 @@ class FixedPointSolver(Equation):
                     eq_adj_X[i] = (eq_adj_X[i],)
                 for j, x in zip(self._eq_X_indices[i], eq_adj_X[i]):
                     adj_X[j] = x
+
+                self._eqs[i].subtract_adjoint_derivative_actions(
+                    eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],
+                    eq_nl_deps[i], dep_Bs[i])
+
+                eq_B = adj_B[0][i].B()
+                for j, k in enumerate(self._eq_X_indices[i]):
+                    function_assign(eq_B[j], B[k])
 
             R = X_0
             del X_0
@@ -1111,29 +1161,23 @@ class FixedPointSolver(Equation):
 
         return adj_X
 
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
+    def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
         if is_function(adj_X):
             adj_X = (adj_X,)
 
-        eq_adj_X = [tuple(adj_X[j] for j in self._eq_X_indices[i])
-                    for i in range(len(self._eqs))]
+        eq_dep_Bs = tuple({} for eq in self._eqs)
+        for dep_index, B in dep_Bs.items():
+            dep = self.dependencies()[dep_index]
+            dep_id = function_id(dep)
+            for i in self._dep_eq_index_map[dep_id]:
+                eq_dep_Bs[i][self._eq_dep_index_map[i][dep_id]] = B
 
-        dep = self.dependencies()[dep_index]
-        dep_id = function_id(dep)
-        F = function_new(dep)
-        for eq, eq_nl_deps, eq_dep_ids, eq_adj_X in zip(self._eqs,
-                                                        self._eq_nl_deps,
-                                                        self._eq_dep_ids,
-                                                        eq_adj_X):
-            if dep_id in eq_dep_ids:
-                sb = eq.adjoint_derivative_action(
-                    eq_nl_deps, eq_dep_ids[dep_id],
-                    eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X)
-                subtract_adjoint_derivative_action(F, sb)
-                del sb
-        finalize_adjoint_derivative_action(F)
-
-        return (-1.0, F)
+        for i, eq in enumerate(self._eqs):
+            eq_adj_X = tuple(adj_X[j] for j in self._eq_X_indices[i])
+            eq_nl_deps = tuple(nl_deps[j] for j in self._eq_nl_dep_indices[i])
+            eq.subtract_adjoint_derivative_actions(
+                eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X,
+                eq_nl_deps, eq_dep_Bs[i])
 
     def tangent_linear(self, M, dM, tlm_map):
         tlm_eqs = []

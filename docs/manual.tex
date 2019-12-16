@@ -1120,6 +1120,30 @@ with
       not be modified.
 \end{itemize}
 
+The \texttt{subtract\_adjoint\_derivative\_actions} method may be defined to
+compute multiple adjoint derivative actions, and to subtract them from
+associated adjoint equation right-hand-sides. An \texttt{Equation} which
+defines a \texttt{subtract\_adjoint\_derivative\_actions} method need not
+define an \texttt{adjoint\_derivative\_action} method.
+
+The \texttt{subtract\_adjoint\_derivative\_actions} method has the form
+\begin{lstlisting}
+def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
+\end{lstlisting}
+\texttt{adj\_x} and \texttt{nl\_deps} are as for the
+\texttt{adjoint\_derivative\_action} method. \texttt{dep\_Bs} is a dictionary
+of \texttt{dep\_index: dep\_B} pairs, where each \texttt{dep\_B} is an
+\texttt{AdjointRHS} which should be updated by subtracting derivative
+information computed by differentiating with respect to
+\texttt{self.dependencies()[dep\_index]}, using the \texttt{dep\_B.sub} method.
+For example, a basic version of \texttt{subtract\_adjoint\_derivative\_actions}
+which makes use of \texttt{adjoint\_derivative\_action} has the form
+\begin{lstlisting}
+def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
+    for dep_index, dep_B in dep_Bs.items():
+        dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index, adj_x))
+\end{lstlisting}
+
 \subsection{Tangent-linear}\label{sect:tangent_linear}
 
 Given the forward residual function $F \left( x, y_0, y_1, \ldots, m \right)$,
