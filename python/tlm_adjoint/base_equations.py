@@ -414,7 +414,7 @@ class Equation:
 
         pass
 
-    def adjoint(self, J, nl_deps, B, B_indices, Bs):
+    def adjoint(self, J, adj_X, nl_deps, B, dep_Bs):
         """
         Solve the adjoint equation with the given right-hand-side, and subtract
         corresponding adjoint terms from other adjoint equations.
@@ -422,15 +422,18 @@ class Equation:
         Arguments:
 
         J          Adjoint model functional.
+        adj_X      A list or tuple of functions defining the initial guess for
+                   the adjoint solve, or None if the Equation does not accept
+                   an initial guess. May be modified or returned by this
+                   method.
         nl_deps    A list or tuple of functions defining the values of
                    non-linear dependencies.
         B          A list or tuple of functions defining the right-hand-side.
                    May be modified or returned by this method.
-        b_indices  A dictionary of j:(p, k, m) pairs. Bs[p][k][m] has an
-                   adjoint term arising from a derivative action,
-                   differentiating with respect to the dependency for this
-                   equation with index j.
-        Bs         An AdjointModelRHS, storing adjoint RHS data.
+        dep_Bs     Dictionary of dep_index: dep_B pairs, where each dep_B is an
+                   AdjointRHS which should be updated by subtracting derivative
+                   information computed by differentiating with respect to
+                   self.dependencies()[dep_index].
 
         Returns the solution of the adjoint equation as a tuple of functions.
         The result will not be modified by calling code.
@@ -438,21 +441,14 @@ class Equation:
 
         self.initialize_adjoint(J, nl_deps)
 
-        # FIXME
-        if len(self.adjoint_initial_condition_dependencies()) == 0:
-            adj_X = None
-        elif len(B) == 1:
-            adj_X = function_new(B[0])
-        else:
-            adj_X = tuple(function_new(b) for b in B)
-
+        if adj_X is not None and len(adj_X) == 1:
+            adj_X = adj_X[0]
         adj_X = self.adjoint_jacobian_solve(
-            adj_X, nl_deps,
-            B[0] if len(B) == 1 else B)
+            adj_X, nl_deps, B[0] if len(B) == 1 else B)
         if adj_X is not None:
-            for j, (p, k, m) in B_indices.items():
-                Bs[p][k][m].sub(self.adjoint_derivative_action(nl_deps, j,
-                                                               adj_X))
+            for dep_index, dep_B in dep_Bs.items():
+                dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index,
+                                                         adj_X))
             if is_function(adj_X):
                 adj_X = (adj_X,)
 

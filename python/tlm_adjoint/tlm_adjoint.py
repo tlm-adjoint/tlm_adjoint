@@ -1430,16 +1430,21 @@ class EquationManager:
                     assert B_state == (n, i)
 
                     if transpose_deps.is_active(J_marker, n, i):
-                        # Transpose dependency graph edges
-                        B_indices = {}
+                        # Solve adjoint equation, add terms to adjoint
+                        # equations
+                        # FIXME
+                        eq_B = eq_B.B()
+                        if len(eq.adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
+                            adj_X = None
+                        else:
+                            adj_X = tuple(function_new(eq_b) for eq_b in eq_B)
+                        eq_dep_Bs = {}
                         for j, dep in enumerate(eq.dependencies()):
                             if (n, i, j) in transpose_deps:
                                 p, k, m = transpose_deps[(n, i, j)]
                                 if transpose_deps.is_active(J_marker, p, k):
-                                    B_indices[j] = (p, k, m)
-                        # Solve adjoint equation, add terms to adjoint
-                        # equations
-                        adj_X = eq.adjoint(J, nl_deps, eq_B.B(), B_indices, B)
+                                    eq_dep_Bs[j] = Bs[J_i][p][k][m]
+                        adj_X = eq.adjoint(J, adj_X, nl_deps, eq_B, eq_dep_Bs)
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
