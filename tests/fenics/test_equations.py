@@ -707,6 +707,7 @@ def test_initial_guess(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Lagrange", 1)
+    test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
     space_2 = FunctionSpace(mesh, "Lagrange", 2)
 
     def forward(y, x_0=None):
@@ -776,7 +777,9 @@ def test_initial_guess(setup_test, test_leaks):
     interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
 
     start_manager()
-    x_0 = project(y, space_1, solver_parameters=ls_parameters_cg)
+    x_0 = Function(space_1, name="x_0")
+    solve(inner(test_1, trial_1) * dx == inner(test_1, y) * dx,
+          x_0, solver_parameters=ls_parameters_cg)
     x, J = forward(y, x_0=x_0)
     stop_manager()
 
@@ -787,8 +790,10 @@ def test_initial_guess(setup_test, test_leaks):
     assert tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
                                                  (function_id(x), 2))
 
-    adj_x_0 = project(derivative(inner(dot(x, x), dot(x, x)) * dx, x), space_1,
-                      solver_parameters=ls_parameters_cg)
+    adj_x_0 = Function(space_1, name="adj_x_0")
+    solve(inner(test_1, trial_1) * dx
+          == derivative(inner(dot(x, x), dot(x, x)) * dx, x, du=test_1),
+          adj_x_0, solver_parameters=ls_parameters_cg)
 
     test_adj_ic = True
     dJdx_0, dJdy = compute_gradient(J, [x_0, y], adj_ics={x: adj_x_0})
