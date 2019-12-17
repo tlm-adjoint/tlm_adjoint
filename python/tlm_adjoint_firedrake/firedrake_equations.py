@@ -165,10 +165,6 @@ class LocalProjectionSolver(EquationSolver):
         local_solver.solve_local(adj_x, b)
         return adj_x
 
-    # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    # A consistent diagonal block adjoint derivative action requires an
-    # appropriate quadrature degree to have been selected
-
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 

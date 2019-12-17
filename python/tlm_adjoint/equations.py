@@ -384,7 +384,8 @@ class EquationSolver(Equation):
         self._forward_J_solver = CacheRef()
         self._forward_b_pa = None
 
-        self._derivative_mats = {}
+        self._adjoint_dF_cache = {}
+        self._adjoint_action_cache = {}
 
         self._adjoint_J_solver = CacheRef()
         self._adjoint_J = None
@@ -409,11 +410,10 @@ class EquationSolver(Equation):
                 self._forward_b_pa[1][dep_index][0] = \
                     ufl.replace(mat_form, replace_map)
 
-        if self._defer_adjoint_assembly:
-            for dep_index, mat_cache in self._derivative_mats.items():
-                if isinstance(mat_cache, ufl.classes.Form):
-                    self._derivative_mats[dep_index] = \
-                        ufl.replace(mat_cache, replace_map)
+        for dep_index, dF in self._adjoint_dF_cache:
+            if dF is not None:
+                self._adjoint_dF_cache[dep_index] = ufl.replace(dF,
+                                                                replace_map)
 
     def _cached_rhs(self, deps, b_bc=None):
         eq_deps = self.dependencies()
@@ -624,84 +624,78 @@ class EquationSolver(Equation):
                   form_compiler_parameters=self._form_compiler_parameters,
                   solver_parameters=self._solver_parameters)
 
-    def initialize_adjoint(self, J, nl_deps):
+    def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
         update_caches(self.nonlinear_dependencies(), deps=nl_deps)
 
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        # Similar to 'RHS.derivative_action' and 'RHS.second_derivative_action'
-        # in dolfin-adjoint file dolfin_adjoint/adjrhs.py (see e.g.
-        # dolfin-adjoint version 2017.1.0)
-        # Code first added to JRM personal repository 2016-05-22
-        # Code first added to dolfin_adjoint_custom repository 2016-06-02
-        # Re-written 2018-01-28
+        for dep_index, dep_B in dep_Bs.items():
+            if dep_index not in self._adjoint_dF_cache:
+                dep = self.dependencies()[dep_index]
+                dF = derivative(self._F, dep)
+                dF = ufl.algorithms.expand_derivatives(dF)
+                dF = eliminate_zeros(dF)
+                if dF.empty():
+                    dF = None
+                else:
+                    dF = adjoint(dF)
+                self._adjoint_dF_cache[dep_index] = dF
+            dF = self._adjoint_dF_cache[dep_index]
 
-        eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            return None
+            if dF is not None:
+                if dep_index not in self._adjoint_action_cache:
+                    if self._cache_rhs_assembly \
+                            and isinstance(adj_x, backend_Function) \
+                            and is_cached(dF):
+                        # Cached matrix action
+                        self._adjoint_action_cache[dep_index] = CacheRef()
+                    elif self._defer_adjoint_assembly:
+                        # Cached form, deferred assembly
+                        self._adjoint_action_cache[dep_index] = None
+                    else:
+                        # Cached form, immediate assembly
+                        self._adjoint_action_cache[dep_index] = unbound_form(
+                            ufl.action(dF, coefficient=adj_x),
+                            list(self.nonlinear_dependencies()) + [adj_x])
+                cache = self._adjoint_action_cache[dep_index]
 
-        if dep_index in self._derivative_mats:
-            mat_cache = self._derivative_mats[dep_index]
-            if mat_cache is None:
-                return None
-            elif isinstance(mat_cache, CacheRef):
-                mat_bc = mat_cache()
-                if mat_bc is not None:
-                    mat, _ = mat_bc
-                    return matrix_multiply(mat, function_vector(adj_x))
-                # else:
-                #   # Cache entry cleared
-                #   pass
-            elif self._defer_adjoint_assembly:
-                assert isinstance(mat_cache, ufl.classes.Form)
-                return ufl.action(
-                    ufl.replace(
-                        mat_cache,
-                        dict(zip(self.nonlinear_dependencies(), nl_deps))),
-                    coefficient=adj_x)
-            else:
-                assert isinstance(mat_cache, ufl.classes.Form)
-                bind_form(mat_cache, list(nl_deps) + [adj_x])
-                return_value = assemble(
-                    mat_cache,
-                    form_compiler_parameters=self._form_compiler_parameters)
-                unbind_form(mat_cache)
-                return return_value
+                if cache is None:
+                    # Cached form, deferred assembly
+                    replace_map = dict(zip(self.nonlinear_dependencies(),
+                                       nl_deps))
+                    dep_B.sub(ufl.action(ufl.replace(dF, replace_map),
+                                         coefficient=adj_x))
+                elif isinstance(cache, CacheRef):
+                    # Cached matrix action
+                    mat_bc = cache()
+                    if mat_bc is None:
+                        replace_map = dict(zip(self.nonlinear_dependencies(),
+                                               nl_deps))
+                        self._adjoint_action_cache[dep_index], (mat, _) = \
+                            assembly_cache().assemble(
+                                dF,
+                                form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                                replace_map=replace_map)
+                    else:
+                        mat, _ = mat_bc
+                    dep_B.sub(matrix_multiply(mat, function_vector(adj_x)))
+                else:
+                    # Cached form, immediate assembly
+                    assert isinstance(cache, ufl.classes.Form)
+                    bind_form(cache, list(nl_deps) + [adj_x])
+                    dep_B.sub(assemble(
+                        cache,
+                        form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
+                    unbind_form(cache)
 
-        dep = eq_deps[dep_index]
-        dF = derivative(self._F, dep)
-        dF = ufl.algorithms.expand_derivatives(dF)
-        dF = eliminate_zeros(dF)
-        if dF.empty():
-            self._derivative_mats[dep_index] = None
-            return None
-        dF = adjoint(dF)
-
-        if self._cache_rhs_assembly and is_cached(dF) \
-                and isinstance(adj_x, backend_Function):
-            self._derivative_mats[dep_index], (mat, _) = \
-                assembly_cache().assemble(
-                    dF,
-                    form_compiler_parameters=self._form_compiler_parameters,
-                    replace_map=dict(zip(self.nonlinear_dependencies(),
-                                         nl_deps)))
-            return matrix_multiply(mat, function_vector(adj_x))
-        elif self._defer_adjoint_assembly:
-            self._derivative_mats[dep_index] = dF
-            dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(),
-                                          nl_deps)))
-            return ufl.action(dF, coefficient=adj_x)
-        else:
-            dF = unbound_form(
-                ufl.action(dF, coefficient=adj_x),
-                list(self.nonlinear_dependencies()) + [adj_x])
-            self._derivative_mats[dep_index] = dF
-            bind_form(dF, list(nl_deps) + [adj_x])
-            return_value = assemble(
-                dF, form_compiler_parameters=self._form_compiler_parameters)
-            unbind_form(dF)
-            return return_value
+    # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    #     # Similar to 'RHS.derivative_action' and
+    #     # 'RHS.second_derivative_action' in dolfin-adjoint file
+    #     # dolfin_adjoint/adjrhs.py (see e.g. dolfin-adjoint version 2017.1.0)
+    #     # Code first added to JRM personal repository 2016-05-22
+    #     # Code first added to dolfin_adjoint_custom repository 2016-06-02
+    #     # Re-written 2018-01-28
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        update_caches(self.nonlinear_dependencies(), deps=nl_deps)
         if adj_x is None:
             adj_x = function_new(b)
 
