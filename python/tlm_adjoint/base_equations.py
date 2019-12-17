@@ -908,9 +908,9 @@ class FixedPointSolver(Equation):
                 for dep in eq.adjoint_initial_condition_dependencies():
                     dep_id = function_id(dep)
                     assert dep_id not in previous_x_ids
-                    assert dep_id not in adj_ic_dep_ids
-                    adj_ic_deps.append(dep)
-                    adj_ic_dep_ids.add(dep_id)
+                    if dep_id not in adj_ic_dep_ids:
+                        adj_ic_deps.append(dep)
+                        adj_ic_dep_ids.add(dep_id)
 
                 for x in eq.X():
                     previous_x_ids.add(function_id(x))
