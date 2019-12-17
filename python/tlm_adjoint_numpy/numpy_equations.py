@@ -158,6 +158,8 @@ class ContractionRHS(RHS):
                                    + list(range(k + 1, len(A.shape))),
                                    A_T=self._A_T, alpha=alpha)
             b.vector()[:] -= A_c.value(X[:k] + X[k + 1:])
+        else:
+            raise EquationException("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         X = list(self.dependencies())

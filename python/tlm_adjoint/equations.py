@@ -165,7 +165,7 @@ class AssembleSolver(Equation):
 
         eq_deps = self.dependencies()
         if dep_index < 0 or dep_index >= len(eq_deps):
-            return None
+            raise EquationException("dep_index out of bounds")
         elif dep_index == 0:
             return adj_x
 
@@ -824,7 +824,7 @@ class DirichletBCSolver(Equation):
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
             return (-1.0, F)
         else:
-            return None
+            raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -936,30 +936,33 @@ class ExprEvaluationSolver(Equation):
             function_set_values(x, rhs_val)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
+        eq_deps = self.dependencies()
+        if dep_index < 0 or dep_index >= len(eq_deps):
+            raise EquationException("dep_index out of bounds")
+        elif dep_index == 0:
             return adj_x
+
+        dep = eq_deps[dep_index]
+        dF = derivative(self._rhs, dep, argument=adj_x)
+        dF = ufl.algorithms.expand_derivatives(dF)
+        dF = eliminate_zeros(dF)
+        dF = ufl.replace(
+            dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
+        dF_val = evaluate_expr(dF)
+        F = function_new(dep)
+        if isinstance(dF_val, float):
+            function_assign(F, dF_val)
+        elif is_real_function(F):
+            dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
+            dF_val = np.empty((1,), dtype=np.float64)
+            comm = function_comm(F)
+            comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
+            dF_val = dF_val[0]
+            function_assign(F, dF_val)
         else:
-            dep = self.dependencies()[dep_index]
-            dF = derivative(self._rhs, dep, argument=adj_x)
-            dF = ufl.algorithms.expand_derivatives(dF)
-            dF = eliminate_zeros(dF)
-            dF = ufl.replace(
-                dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
-            dF_val = evaluate_expr(dF)
-            F = function_new(dep)
-            if isinstance(dF_val, float):
-                function_assign(F, dF_val)
-            elif is_real_function(F):
-                dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
-                dF_val = np.empty((1,), dtype=np.float64)
-                comm = function_comm(F)
-                comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
-                dF_val = dF_val[0]
-                function_assign(F, dF_val)
-            else:
-                assert function_local_size(F) == len(dF_val)
-                function_set_values(F, dF_val)
-            return (-1.0, F)
+            assert function_local_size(F) == len(dF_val)
+            function_set_values(F, dF_val)
+        return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b

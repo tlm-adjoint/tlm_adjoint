@@ -163,7 +163,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
                 function_set_values(F, F_arr)
                 return F
             else:
-                return None
+                raise EquationException("dep_index out of bounds")
 
         def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b

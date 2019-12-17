@@ -196,7 +196,7 @@ def forward(psi_0, kappa):
                 else:
                     raise EquationException(f"Invalid method: '{method:s}'")
             else:
-                raise EquationException("Invalid index")
+                raise EquationException("nl_dep_index out of bounds")
 
         def adjoint_solve(self, adj_x, nl_deps, b):
             kappa, = nl_deps

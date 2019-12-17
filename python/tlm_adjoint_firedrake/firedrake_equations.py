@@ -308,7 +308,7 @@ class PointInterpolationSolver(Equation):
             function_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)
         else:
-            return None
+            raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B

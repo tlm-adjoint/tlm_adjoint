@@ -669,7 +669,7 @@ class NullSolver(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         else:
-            return None
+            raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -692,7 +692,7 @@ class AssignmentSolver(Equation):
         elif dep_index == 1:
             return (-1.0, adj_x)
         else:
-            return None
+            raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -726,7 +726,7 @@ class LinearCombinationSolver(Equation):
         elif dep_index <= len(self._alpha):
             return (-self._alpha[dep_index - 1], adj_x)
         else:
-            return None
+            raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -1332,11 +1332,15 @@ class LinearEquation(Equation):
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_function(adj_X):
             adj_X = (adj_X,)
-        if dep_index < len(self.X()):
+
+        eq_deps = self.dependencies()
+        if dep_index < 0 or dep_index >= len(eq_deps):
+            raise EquationException("dep_index out of bounds")
+        elif dep_index < len(self.X()):
             if self._A is None:
                 return adj_X[dep_index]
             else:
-                dep = self.dependencies()[dep_index]
+                dep = eq_deps[dep_index]
                 F = function_new(dep)
                 self._A.adjoint_action([nl_deps[j]
                                         for j in self._A_nl_dep_indices],
@@ -1344,7 +1348,7 @@ class LinearEquation(Equation):
                                        F, b_index=dep_index, method="assign")
                 return F
         else:
-            dep = self.dependencies()[dep_index]
+            dep = eq_deps[dep_index]
             dep_id = function_id(dep)
             F = function_new(dep)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
@@ -1653,6 +1657,8 @@ class MatrixActionRHS(RHS):
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
         if is_function(adj_X):
             adj_X = (adj_X,)
+        if dep_index < 0 or dep_index >= len(self.dependencies()):
+            raise EquationException("dep_index out of bounds")
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
         if dep_index < N_A_nl_deps:
             X = [nl_deps[j] for j in self._x_indices]
@@ -1755,6 +1761,8 @@ class InnerProductRHS(RHS):
                     self._M.forward_action(M_deps, x, X, method="assign")
 
                 function_axpy(b, -2.0 * self._alpha * function_sum(adj_x), X)
+            else:
+                raise EquationException("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps[:2]
             M_deps = nl_deps[2:]
@@ -1777,6 +1785,8 @@ class InnerProductRHS(RHS):
                 self._M.forward_action(M_deps, x, X, method="assign")
 
             function_axpy(b, -self._alpha * function_sum(adj_x), X)
+        else:
+            raise EquationException("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         tlm_B = []
@@ -1820,6 +1830,8 @@ class SumRHS(RHS):
         if dep_index == 0:
             function_set_values(b,
                                 function_get_values(b) - function_sum(adj_x))
+        else:
+            raise EquationException("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         y, = self.dependencies()
@@ -1861,7 +1873,7 @@ class Storage(Equation):
         if dep_index == 0:
             return adj_x
         else:
-            return None
+            raise EquationException("dep_index out of bounds")
 
     def tangent_linear(self, M, dM, tlm_map):
         return NullSolver(tlm_map[self.x()])
