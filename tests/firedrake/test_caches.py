@@ -164,3 +164,60 @@ def test_cached_rhs(setup_test, test_leaks,
     error_norm = function_linf_norm(error)
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-13
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("static_control", [True, False])
+def test_cached_adjoint(setup_test, test_leaks,
+                        static_control):
+    mesh = UnitIntervalMesh(100)
+    X = SpatialCoordinate(mesh)
+
+    space_1 = FunctionSpace(mesh, "Lagrange", 1)
+    test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
+    space_2 = FunctionSpace(mesh, "Lagrange", 2)
+
+    alpha = Constant(1.0, name="alpha", static=True)
+    beta = Function(space_2, name="beta", static=True)
+    function_assign(beta, 1.0)
+    bc = DirichletBC(space_1, 1.0, "on_boundary")
+
+    def forward(G):
+        F = Function(space_1, name="F")
+        eq = EquationSolver(
+            inner(test_1, trial_1) * dx
+            == inner(test_1, alpha * beta * G) * dx, F, bc,
+            solver_parameters=ls_parameters_cg)
+        eq.solve()
+
+        J = Functional(name="J")
+        J.assign(inner(F, F) * dx)
+        return J
+
+    G = Function(space_2, name="G", static=static_control)
+    interpolate_expression(G, exp(X[0]))
+
+    caches = (assembly_cache(), linear_solver_cache(), local_solver_cache())
+
+    assert tuple(len(cache) for cache in caches) == (0, 0, 0)
+
+    start_manager()
+    J = forward(G)
+    stop_manager()
+
+    assert tuple(len(cache) for cache in caches) == (2, 1, 0)
+
+    dJ = compute_gradient(J, G)
+
+    assert tuple(len(cache) for cache in caches) == (4, 2, 0)
+
+    assert len(manager()._block) == 0
+    ((eq, _),) = manager()._blocks
+    adjoint_action, = tuple(eq._adjoint_action_cache.values())
+    assert isinstance(adjoint_action, CacheRef)
+    assert adjoint_action() is not None
+    assert isinstance(eq._adjoint_J_solver, CacheRef)
+    assert eq._adjoint_J_solver() is not None
+
+    min_order = taylor_test(forward, G, J_val=J.value(), dJ=dJ)
+    assert min_order > 2.00
