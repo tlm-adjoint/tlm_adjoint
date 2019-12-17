@@ -410,7 +410,7 @@ class EquationSolver(Equation):
                 self._forward_b_pa[1][dep_index][0] = \
                     ufl.replace(mat_form, replace_map)
 
-        for dep_index, dF in self._adjoint_dF_cache:
+        for dep_index, dF in self._adjoint_dF_cache.items():
             if dF is not None:
                 self._adjoint_dF_cache[dep_index] = ufl.replace(dF,
                                                                 replace_map)
