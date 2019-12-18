@@ -66,6 +66,19 @@ def setup_test():
 
     np.random.seed(14012313 + MPI.COMM_WORLD.rank)
 
+    if MPI.COMM_WORLD.size > 1:
+        # See Firedrake issue #1569
+        gc_enabled = gc.isenabled()
+        gc.disable()
+
+    yield
+
+    if MPI.COMM_WORLD.size > 1:
+        if gc_enabled:
+            gc.enable()
+        gc.collect()
+        gc.collect()
+
 
 def params_set(names, *values):
     if len(values) > 1:
