@@ -75,6 +75,7 @@ def test_leaks():
     manager._tlm_eqs.clear()
 
     gc.collect()
+    gc.collect()
 
     refs = 0
     for F in function_ids.values():
