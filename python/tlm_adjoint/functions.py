@@ -392,7 +392,7 @@ class ZeroConstant(Zero):
 
 class ZeroFunction(Zero):
     def __init__(self, space, name=None):
-        super().__init__(space=space, name=name)
+        super().__init__(name=name, space=space)
 
 
 def extract_coefficients(expr):
