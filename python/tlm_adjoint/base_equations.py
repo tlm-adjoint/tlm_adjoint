@@ -601,7 +601,8 @@ class ControlsMarker(Equation):
 
         Arguments:
 
-        M  A function, or a list or tuple of functions. May be static.
+        M  A function, or a list or tuple of functions. May be
+           non-checkpointed.
         """
 
         if is_function(M):
