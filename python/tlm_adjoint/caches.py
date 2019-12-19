@@ -26,6 +26,7 @@ from .functions import eliminate_zeros, function_caches
 
 from collections import defaultdict
 import ufl
+import warnings
 import weakref
 
 __all__ = \
@@ -400,11 +401,24 @@ def assemble_key(form, bcs, assemble_kwargs):
 
 class AssemblyCache(Cache):
     def assemble(self, form, bcs=[], form_compiler_parameters={},
-                 solver_parameters={}, replace_map=None):
+                 solver_parameters=None, linear_solver_parameters=None,
+                 replace_map=None):
+        if solver_parameters is not None:
+            warnings.warn("'solver_parameters' argument is deprecated -- use "
+                          "'linear_solver_parameters' instead",
+                          DeprecationWarning, stacklevel=2)
+            if linear_solver_parameters is not None:
+                raise CacheException("Cannot pass both 'solver_parameters' "
+                                     "and 'linear_solver_parameters' "
+                                     "arguments")
+            linear_solver_parameters = solver_parameters
+        elif linear_solver_parameters is None:
+            linear_solver_parameters = {}
+
         form = eliminate_zeros(form, non_empty_form=True)
         rank = len(form.arguments())
         assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
-                                             solver_parameters)
+                                             linear_solver_parameters)
         key = assemble_key(form, bcs, assemble_kwargs)
 
         def value():

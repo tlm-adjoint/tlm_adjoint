@@ -457,7 +457,7 @@ class EquationSolver(Equation):
                 mat_forms[dep_index][1], mat_bc = assembly_cache().assemble(
                     mat_form,
                     form_compiler_parameters=self._form_compiler_parameters,
-                    solver_parameters=self._linear_solver_parameters,
+                    linear_solver_parameters=self._linear_solver_parameters,
                     replace_map=None if deps is None else dict(zip(eq_deps,
                                                                    deps)))
             mat, _ = mat_bc
@@ -509,7 +509,7 @@ class EquationSolver(Equation):
                     self._forward_J_mat, J_mat_bc = assembly_cache().assemble(
                         self._J, bcs=self._bcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                        solver_parameters=self._linear_solver_parameters,
+                        linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
                         replace_map=None if deps is None
                                          else dict(zip(eq_deps, deps)))
                 J_mat, b_bc = J_mat_bc
@@ -706,7 +706,7 @@ class EquationSolver(Equation):
                 _, (J_mat, _) = assembly_cache().assemble(
                     J, bcs=self._hbcs,
                     form_compiler_parameters=self._form_compiler_parameters,
-                    solver_parameters=self._adjoint_solver_parameters,
+                    linear_solver_parameters=self._adjoint_solver_parameters,
                     replace_map=dict(zip(self.nonlinear_dependencies(),
                                          nl_deps)))
                 self._adjoint_J_solver, J_solver = \
