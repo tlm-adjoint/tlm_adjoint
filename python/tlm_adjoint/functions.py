@@ -418,7 +418,7 @@ def eliminate_zeros(expr, non_empty_form=False):
             # Inefficient, but it is very difficult to generate a non-empty but
             # zero valued form
             arguments = expr.arguments()
-            domain, = expr.ufl_domains()
+            domain = expr.ufl_domains()[0]
             zero = ZeroConstant(domain=domain)
             if len(arguments) == 0:
                 simplified_expr = zero * ufl.ds
