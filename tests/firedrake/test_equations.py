@@ -698,6 +698,21 @@ def test_initial_guess(setup_test, test_leaks):
         J.assign(inner(dot(x, x), dot(x, x)) * dx)
         J_val = J.value()
 
+        # test_adj_ic defined in test scope below
+        if test_adj_ic:
+            adj_x_0 = Function(space_1, name="adj_x_0", static=True)
+            solve(
+                inner(test_1, trial_1) * dx
+                == derivative(inner(dot(x, x), dot(x, x)) * dx, x, du=test_1),
+                adj_x_0, solver_parameters=ls_parameters_cg,
+                annotate=False, tlm=False)
+            NullSolver(x).solve()
+            J_term = space_new(J.space())
+            InnerProductSolver(x, adj_x_0, J_term).solve()
+            J.addto(J_term)
+        else:
+            adj_x_0 = None
+
         # Active equation which requires no adjoint initial condition, but
         # for which one will be supplied
         z = Function(space_1, name="z")
@@ -708,43 +723,41 @@ def test_initial_guess(setup_test, test_leaks):
 
         assert abs(J.value() - J_val) == 0.0
 
-        return x, z, J
+        return x, adj_x_0, z, J
 
     y = Function(space_2, name="y", static=True)
     interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
 
+    test_adj_ic = True
     start_manager()
     x_0 = Function(space_1, name="x_0")
     solve(inner(test_1, trial_1) * dx == inner(test_1, y) * dx,
           x_0, solver_parameters=ls_parameters_cg)
-    x, z, J = forward(y, x_0=x_0)
+    x, adj_x_0, z, J = forward(y, x_0=x_0)
     stop_manager()
 
-    assert len(manager()._cp._refs) == 2
+    assert len(manager()._cp._refs) == 3
     assert tuple(manager()._cp._refs.keys()) == (function_id(y),
+                                                 function_id(adj_x_0),
                                                  function_id(zero))
     assert len(manager()._cp._cp) == 0
-    assert len(manager()._cp._data) == 4
+    assert len(manager()._cp._data) == 6
     assert tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
                                                  (function_id(x), 2),
+                                                 (function_id(adj_x_0), 0),
+                                                 (function_id(x), 3),
                                                  (function_id(zero), 0),
                                                  (function_id(z), 1))
 
-    adj_x_0 = Function(space_1, name="adj_x_0")
-    solve(inner(test_1, trial_1) * dx
-          == derivative(inner(dot(x, x), dot(x, x)) * dx, x, du=test_1),
-          adj_x_0, solver_parameters=ls_parameters_cg)
-
-    test_adj_ic = True
     dJdx_0, dJdy = compute_gradient(
-        J, [x_0, y], adj_ics={x: adj_x_0, z: ZeroFunction(space_1)})
+        J, [x_0, y], adj_ics={z: ZeroFunction(space_1)})
     test_adj_ic = False
     assert function_linf_norm(dJdx_0) == 0.0
 
     J_val = J.value()
 
     def forward_J(y):
-        return forward(y)[2]
+        return forward(y)[3]
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJdy)
     assert min_order > 2.00

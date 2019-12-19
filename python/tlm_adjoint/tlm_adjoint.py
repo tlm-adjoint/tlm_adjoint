@@ -343,11 +343,33 @@ class DependencyGraphTranspose:
         del last_eq
 
         if prune_forward:
+            # Extra reverse traversal to add edges associated with adjoint
+            # initial conditions
+            last_eq = {}
+            transpose_deps_ics = copy.deepcopy(transpose_deps)
+            for p in range(len(blocks) - 1, -1, -1):
+                block = blocks[p]
+                for k in range(len(block) - 1, -1, -1):
+                    eq = block[k]
+                    X_map = {function_id(x): m for m, x in enumerate(eq.X())}
+                    dep_map = {function_id(dep): j
+                               for j, dep in enumerate(eq.dependencies())}
+                    for dep in eq.adjoint_initial_condition_dependencies():
+                        dep_id = dep.id()
+                        if dep_id in last_eq:
+                            n, i, m = last_eq[dep_id]
+                            assert n > p or (n == p and i > k)
+                            transpose_deps_ics[n][i][m] \
+                                = (p, k, dep_map[dep_id])
+                    for m, x in enumerate(eq.X()):
+                        x_id = function_id(x)
+                        last_eq[x_id] = (p, k, X_map[x_id])
+            del last_eq
+
             # Pruning, forward traversal
             active_M = {function_id(dep) for dep in M}
             active_forward = tuple(np.full(len(block), False, dtype=np.bool)
                                    for block in blocks)
-            last_eq = {}
             for n, block in enumerate(blocks):
                 for i, eq in enumerate(block):
                     if len(active_M) > 0:
@@ -359,22 +381,11 @@ class DependencyGraphTranspose:
                                 break
                     if not active_forward[n][i]:
                         for j, dep in enumerate(eq.dependencies()):
-                            if transpose_deps[n][i][j] is not None:
-                                p, k, m = transpose_deps[n][i][j]
+                            if transpose_deps_ics[n][i][j] is not None:
+                                p, k, m = transpose_deps_ics[n][i][j]
                                 if active_forward[p][k]:
                                     active_forward[n][i] = True
                                     break
-                    if not active_forward[n][i]:
-                        for dep in eq.adjoint_initial_condition_dependencies():  # noqa: E501
-                            dep_id = function_id(dep)
-                            if dep_id in last_eq:
-                                p, k = last_eq[dep_id]
-                                if active_forward[p][k]:
-                                    active_forward[n][i] = True
-                                    break
-                    for x in eq.X():
-                        last_eq[function_id(x)] = (n, i)
-            del last_eq
         else:
             active_forward = tuple(np.full(len(block), True, dtype=np.bool)
                                    for block in blocks)
