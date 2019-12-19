@@ -633,6 +633,8 @@ def test_initial_guess(setup_test, test_leaks):
     test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
     space_2 = FunctionSpace(mesh, "Lagrange", 2)
 
+    zero = Constant(0.0, static=True)
+
     def forward(y, x_0=None):
         if x_0 is None:
             x_0 = project(y, space_1, name="x_0",
@@ -694,7 +696,19 @@ def test_initial_guess(setup_test, test_leaks):
 
         J = Functional(name="J")
         J.assign(inner(dot(x, x), dot(x, x)) * dx)
-        return x, J
+        J_val = J.value()
+
+        # Active equation which requires no adjoint initial condition, but
+        # for which one will be supplied
+        z = Function(space_1, name="z")
+        ProjectionSolver(
+            zero * x, z,
+            solver_parameters=ls_parameters_cg).solve()
+        J.addto(inner(z, z) * dx)
+
+        assert abs(J.value() - J_val) == 0.0
+
+        return x, z, J
 
     y = Function(space_2, name="y", static=True)
     interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
@@ -703,15 +717,18 @@ def test_initial_guess(setup_test, test_leaks):
     x_0 = Function(space_1, name="x_0")
     solve(inner(test_1, trial_1) * dx == inner(test_1, y) * dx,
           x_0, solver_parameters=ls_parameters_cg)
-    x, J = forward(y, x_0=x_0)
+    x, z, J = forward(y, x_0=x_0)
     stop_manager()
 
-    assert len(manager()._cp._refs) == 1
-    assert tuple(manager()._cp._refs.keys()) == (function_id(y),)
+    assert len(manager()._cp._refs) == 2
+    assert tuple(manager()._cp._refs.keys()) == (function_id(y),
+                                                 function_id(zero))
     assert len(manager()._cp._cp) == 0
-    assert len(manager()._cp._data) == 2
+    assert len(manager()._cp._data) == 4
     assert tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
-                                                 (function_id(x), 2))
+                                                 (function_id(x), 2),
+                                                 (function_id(zero), 0),
+                                                 (function_id(z), 1))
 
     adj_x_0 = Function(space_1, name="adj_x_0")
     solve(inner(test_1, trial_1) * dx
@@ -719,14 +736,15 @@ def test_initial_guess(setup_test, test_leaks):
           adj_x_0, solver_parameters=ls_parameters_cg)
 
     test_adj_ic = True
-    dJdx_0, dJdy = compute_gradient(J, [x_0, y], adj_ics={x: adj_x_0})
+    dJdx_0, dJdy = compute_gradient(
+        J, [x_0, y], adj_ics={x: adj_x_0, z: ZeroFunction(space_1)})
     test_adj_ic = False
     assert function_linf_norm(dJdx_0) == 0.0
 
     J_val = J.value()
 
     def forward_J(y):
-        return forward(y)[1]
+        return forward(y)[2]
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJdy)
     assert min_order > 2.00

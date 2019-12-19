@@ -340,7 +340,6 @@ class DependencyGraphTranspose:
                         p, k, m = last_eq[dep_id]
                         if p < n or k < i:
                             transpose_deps[n][i][j] = (p, k, m)
-        final_eq = {dep_id: (n, i) for dep_id, (n, i, m) in last_eq.items()}
         del last_eq
 
         if prune_forward:
@@ -409,6 +408,7 @@ class DependencyGraphTranspose:
 
         stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=np.bool)  # noqa: E501
                           for eq in block) for block in blocks) for J in Js}
+        adj_ics = {function_id(J): {} for J in Js}
         for J_id in stored_adj_ics:
             stored = {}
             for n, block in enumerate(blocks):
@@ -421,15 +421,19 @@ class DependencyGraphTranspose:
                         adj_ic_ids = {function_id(dep) for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
                         for dep_id in adj_ic_ids:
                             stored[dep_id] = True
+                            if dep_id not in adj_ics[J_id]:
+                                adj_ics[J_id][dep_id] = True
                         for x in eq.X():
                             x_id = function_id(x)
                             if x_id not in adj_ic_ids:
                                 stored[x_id] = False
+                                if x_id not in adj_ics[J_id]:
+                                    adj_ics[J_id][x_id] = False
 
         self._transpose_deps = transpose_deps
         self._active = active
-        self._final_eq = final_eq
         self._stored_adj_ics = stored_adj_ics
+        self._adj_ics = adj_ics
 
     def __contains__(self, key):
         n, i, j = key
@@ -447,15 +451,16 @@ class DependencyGraphTranspose:
             J_id = function_id(J)
         return self._active[J_id][n][i]
 
-    def has_adjoint_initial_condition(self, J, x):
+    def has_adj_ic(self, J, x):
+        if isinstance(J, int):
+            J_id = J
+        else:
+            J_id = function_id(J)
         if isinstance(x, int):
             x_id = x
         else:
             x_id = function_id(x)
-        if x_id not in self._final_eq:
-            return False
-        n, i = self._final_eq[x_id]
-        return self.is_active(J, n, i)
+        return self._adj_ics[J_id].get(x_id, False)
 
     def is_stored_adj_ic(self, J, n, i, m):
         if isinstance(J, int):
@@ -1479,8 +1484,7 @@ class EquationManager:
                 for x_id, adj_x in adj_ics[J_i].items():
                     if not isinstance(x_id, int):
                         x_id = function_id(x_id)
-                    if transpose_deps.has_adjoint_initial_condition(J_marker,
-                                                                    x_id):
+                    if transpose_deps.has_adj_ic(J_marker, x_id):
                         adj_Xs[J_i][x_id] = function_copy(adj_x)
 
         # Reverse (blocks)
