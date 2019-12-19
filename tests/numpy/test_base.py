@@ -90,14 +90,15 @@ def test_leaks():
     assert refs == 0
 
 
-def run_example(example):
+def run_example(example, clear_forward_globals=True):
     filename = os.path.join(os.path.dirname(__file__),
                             os.path.pardir, os.path.pardir,
                             "examples", "numpy", example)
     gl = runpy.run_path(filename)
-    # Clear objects created by the script. Requires the script to define a
-    # 'forward' function.
-    gl["forward"].__globals__.clear()
+    if clear_forward_globals:
+        # Clear objects created by the script. Requires the script to define a
+        # 'forward' function.
+        gl["forward"].__globals__.clear()
 
 
 class Constant(Function):
