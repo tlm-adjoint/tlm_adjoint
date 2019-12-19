@@ -355,7 +355,7 @@ class DependencyGraphTranspose:
                     dep_map = {function_id(dep): j
                                for j, dep in enumerate(eq.dependencies())}
                     for dep in eq.adjoint_initial_condition_dependencies():
-                        dep_id = dep.id()
+                        dep_id = function_id(dep)
                         if dep_id in last_eq:
                             n, i, m = last_eq[dep_id]
                             assert n > p or (n == p and i > k)
