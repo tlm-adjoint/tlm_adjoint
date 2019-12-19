@@ -856,8 +856,7 @@ class FixedPointSolver(Equation):
         del dep_ids, nl_dep_ids
 
         if nonzero_initial_guess:
-            ic_dep_ids = set()
-            ic_deps = []
+            ic_deps = {}
             previous_x_ids = set()
             remaining_x_ids = X_ids.copy()
 
@@ -867,27 +866,25 @@ class FixedPointSolver(Equation):
 
                 for dep in eq.dependencies():
                     dep_id = function_id(dep)
-                    if dep_id in remaining_x_ids and dep_id not in ic_dep_ids:
-                        ic_deps.append(dep)
-                        ic_dep_ids.add(dep_id)
+                    if dep_id in remaining_x_ids and dep_id not in ic_deps:
+                        ic_deps[dep_id] = dep
 
                 for dep in eq.initial_condition_dependencies():
                     dep_id = function_id(dep)
                     assert dep_id not in previous_x_ids
-                    assert dep_id not in ic_dep_ids
-                    ic_deps.append(dep)
-                    ic_dep_ids.add(dep_id)
+                    if dep_id not in ic_deps:
+                        ic_deps[dep_id] = dep
 
                 for x in eq.X():
                     previous_x_ids.add(function_id(x))
 
-            del ic_dep_ids, previous_x_ids, remaining_x_ids
+            ic_deps = list(ic_deps.values())
+            del previous_x_ids, remaining_x_ids
         else:
             ic_deps = []
 
         if adjoint_nonzero_initial_guess:
-            adj_ic_dep_ids = set()
-            adj_ic_deps = []
+            adj_ic_deps = {}
             previous_x_ids = set()
             remaining_x_ids = X_ids.copy()
 
@@ -901,21 +898,20 @@ class FixedPointSolver(Equation):
                 for dep in eq.dependencies():
                     dep_id = function_id(dep)
                     if dep_id in remaining_x_ids \
-                            and dep_id not in adj_ic_dep_ids:
-                        adj_ic_deps.append(dep)
-                        adj_ic_dep_ids.add(dep_id)
+                            and dep_id not in adj_ic_deps:
+                        adj_ic_deps[dep_id] = dep
 
                 for dep in eq.adjoint_initial_condition_dependencies():
                     dep_id = function_id(dep)
                     assert dep_id not in previous_x_ids
-                    if dep_id not in adj_ic_dep_ids:
-                        adj_ic_deps.append(dep)
-                        adj_ic_dep_ids.add(dep_id)
+                    if dep_id not in adj_ic_deps:
+                        adj_ic_deps[dep_id] = dep
 
                 for x in eq.X():
                     previous_x_ids.add(function_id(x))
 
-            del adj_ic_dep_ids, previous_x_ids, remaining_x_ids
+            adj_ic_deps = list(adj_ic_deps.values())
+            del previous_x_ids, remaining_x_ids
         else:
             adj_ic_deps = []
 
