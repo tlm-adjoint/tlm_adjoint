@@ -28,6 +28,7 @@ from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
 import copy
+import gc
 import numpy as np
 import pickle
 import os
@@ -62,6 +63,19 @@ __all__ = \
 
 class ManagerException(Exception):
     pass
+
+
+def gc_disabled(function):
+    def wrapped_function(*args, **kwargs):
+        gc_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            return_value = function(*args, **kwargs)
+        finally:
+            if gc_enabled:
+                gc.enable()
+        return return_value
+    return wrapped_function
 
 
 class Control:
@@ -234,9 +248,11 @@ class TangentLinearMap:
         for finalize in self._finalizes.values():
             finalize.detach()
 
+    @gc_disabled
     def __contains__(self, x):
         return function_id(x) in self._map
 
+    @gc_disabled
     def __getitem__(self, x):
         if not is_function(x):
             raise ManagerException("x must be a function")
@@ -246,7 +262,7 @@ class TangentLinearMap:
                 self = self_ref()
                 if self is not None:
                     del self._map[x_id]
-                    del self._finalizes[x_id]
+                    # del self._finalizes[x_id]
             self._finalizes[x_id] = weakref.finalize(
                 x, callback, weakref.ref(self), x_id)
             self._map[x_id] = function_tangent_linear(
