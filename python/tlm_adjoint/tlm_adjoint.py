@@ -661,12 +661,13 @@ class EquationManager:
         return EquationManager(comm=self._comm, cp_method=cp_method,
                                cp_parameters=cp_parameters)
 
-    @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
         """
         Reset the equation manager. Optionally a new checkpointing
         configuration can be provided.
         """
+
+        self._replace_deferred()
 
         if cp_method is None:
             cp_method = self._cp_method
@@ -678,7 +679,6 @@ class EquationManager:
         self._eqs = {}
         self._blocks = []
         self._block = []
-        self._eqs_to_replace = []
         if hasattr(self, "_finalizes"):
             for finalize in self._finalizes.values():
                 finalize.detach()
@@ -1021,9 +1021,12 @@ class EquationManager:
 
     @gc_disabled
     def _replace_deferred(self):
-        for eq in self._eqs_to_replace:
-            self.replace(eq)
-        self._eqs_to_replace.clear()
+        if hasattr(self, "_eqs_to_replace"):
+            for eq in self._eqs_to_replace:
+                self.replace(eq)
+            self._eqs_to_replace.clear()
+        else:
+            self._eqs_to_replace = []
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)
