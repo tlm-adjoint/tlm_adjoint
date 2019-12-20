@@ -1478,6 +1478,7 @@ class EquationManager:
                                         adj_ics=adj_ics)
             return dJ
 
+        gc.collect()
         self.finalize()
         self.reset_adjoint(_warning=False)
 

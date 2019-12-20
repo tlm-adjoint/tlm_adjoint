@@ -76,8 +76,6 @@ def setup_test():
     if MPI.COMM_WORLD.size > 1:
         if gc_enabled:
             gc.enable()
-        gc.collect()
-        gc.collect()
 
 
 def params_set(names, *values):
@@ -133,6 +131,8 @@ def test_leaks():
 
     yield
 
+    gc.collect()
+
     # Clear some internal storage that is allowed to keep references
     clear_caches()
     manager = _manager()
@@ -142,8 +142,8 @@ def test_leaks():
     manager._tlm.clear()
     tlm_eqs_values = manager._tlm_eqs.values()  # noqa: F841
     manager._tlm_eqs.clear()
+    manager._replace_deferred()
 
-    gc.collect()
     gc.collect()
 
     refs = 0
