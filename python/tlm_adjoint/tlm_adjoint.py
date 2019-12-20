@@ -258,6 +258,7 @@ class TangentLinearMap:
             raise ManagerException("x must be a function")
         x_id = function_id(x)
         if x_id not in self._map:
+            @gc_disabled
             def callback(self_ref, x_id):
                 self = self_ref()
                 if self is not None:
@@ -578,6 +579,7 @@ class EquationManager:
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
     def __del__(self):
+        self._replace_deferred()
         for finalize in self._finalizes.values():
             finalize.detach()
 
@@ -659,6 +661,7 @@ class EquationManager:
         return EquationManager(comm=self._comm, cp_method=cp_method,
                                cp_parameters=cp_parameters)
 
+    @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
         """
         Reset the equation manager. Optionally a new checkpointing
@@ -675,8 +678,7 @@ class EquationManager:
         self._eqs = {}
         self._blocks = []
         self._block = []
-        self._replaced = set()
-        self._replace_map = {}
+        self._eqs_to_replace = []
         if hasattr(self, "_finalizes"):
             for finalize in self._finalizes.values():
                 finalize.detach()
@@ -930,6 +932,8 @@ class EquationManager:
             Used for the derivation of higher order tangent-linear equations.
         """
 
+        self._replace_deferred()
+
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
@@ -952,11 +956,12 @@ class EquationManager:
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
                 if eq_id not in self._finalizes:
+                    @gc_disabled
                     def callback(self_ref, eq_ref):
                         self = self_ref()
                         eq = eq_ref()
                         if self is not None and eq is not None:
-                            self.replace(eq)
+                            self._eqs_to_replace.append(eq)
                     self._finalizes[eq_id] = weakref.finalize(
                         eq, callback, weakref.ref(self), weakref.ref(eq_alias))
                 self._block.append(eq_alias)
@@ -1001,25 +1006,24 @@ class EquationManager:
         objects.
         """
 
-        eq_id = eq.id()
-        if eq_id in self._replaced:
-            return
-        self._replaced.add(eq_id)
+        replace_map = {}
+        for dep in eq.dependencies():
+            replacement_dep = function_replacement(dep)
+            if replacement_dep is not dep:
+                replace_map[dep] = replacement_dep
+        eq.replace(replace_map)
 
-        deps = eq.dependencies()
-        for dep in deps:
-            dep_id = function_id(dep)
-            if dep_id not in self._replace_map:
-                replaced_dep = function_replacement(dep)
-                self._replace_map[dep_id] = replaced_dep
-        eq.replace({dep: self._replace_map[function_id(dep)] for dep in deps})
+        eq_id = eq.id()
         if eq_id in self._tlm_eqs:
             for tlm_eq in self._tlm_eqs[eq_id].values():
                 if tlm_eq is not None:
                     self.replace(tlm_eq)
 
-    def map(self, x):
-        return self._replace_map.get(function_id(x), x)
+    @gc_disabled
+    def _replace_deferred(self):
+        for eq in self._eqs_to_replace:
+            self.replace(eq)
+        self._eqs_to_replace.clear()
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)
@@ -1362,6 +1366,8 @@ class EquationManager:
         End the final block equation.
         """
 
+        self._replace_deferred()
+
         if self._annotation_state == "final":
             return
         self._annotation_state = "final"
@@ -1603,15 +1609,12 @@ class EquationManager:
         or name.
         """
 
-        if is_function(x):
-            return self.map(x)
-        else:
-            for block in self._blocks + [self._block]:
-                for eq in block:
-                    for dep in eq.dependencies():
-                        if function_name(dep) == x:
-                            return dep
-            raise ManagerException("Initial condition not found")
+        for block in self._blocks + [self._block]:
+            for eq in block:
+                for dep in eq.dependencies():
+                    if function_name(dep) == x:
+                        return dep
+        raise ManagerException("Initial condition not found")
 
 
 set_manager(EquationManager())
