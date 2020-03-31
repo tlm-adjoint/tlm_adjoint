@@ -63,6 +63,8 @@ class SingleBlockHessian(Hessian):
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
+        clear_caches(*dM)
+
         if self._manager._cp_method != "memory" \
            or self._manager._cp_parameters["replace"] \
            or not (len(self._manager._blocks) == 0
