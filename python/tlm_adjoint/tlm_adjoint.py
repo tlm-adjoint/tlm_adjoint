@@ -950,8 +950,8 @@ class EquationManager:
                     self._eqs[eq_id] = eq
                 self._block.append(eq)
             else:
-                if not isinstance(eq, EquationAlias):
-                    eq_alias = EquationAlias(eq)
+                assert not isinstance(eq, EquationAlias)
+                eq_alias = EquationAlias(eq)
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
