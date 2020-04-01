@@ -424,7 +424,7 @@ if debug:
     assert min_order > 1.99
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
-                            seed=1.0e-3)
+                            seed=2.0e-3)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_ref_J, beta_sq,
