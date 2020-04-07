@@ -1417,7 +1417,7 @@ class EquationManager:
             index += 1
 
         import png
-        return png.from_array(pixels, "RGB")
+        return png.from_array(pixels.reshape((M, 3 * M)).copy(), "RGB")
 
     def reset_adjoint(self, _warning=True):
         """
