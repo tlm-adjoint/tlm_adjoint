@@ -284,7 +284,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
 
 class InterpolationSolver(LinearEquation):
-    def __init__(self, y, x, y_colors=None, P=None, P_T=None):
+    def __init__(self, y, x, X_coords=None, y_colors=None, P=None, P_T=None):
         """
         Defines an equation which interpolates the scalar function y. It is
         assumed that x and y are defined on a common mesh.
@@ -320,7 +320,11 @@ class InterpolationSolver(LinearEquation):
                 y_colors = greedy_coloring(y_space)
             y_tree = y_space.mesh().bounding_box_tree()
 
-            x_coords = function_coords(x)
+            if X_coords is None:
+                x_coords = function_coords(x)
+            else:
+                x_coords = X_coords
+
             y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0]
                        for x_coord in x_coords]
 
