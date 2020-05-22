@@ -65,6 +65,8 @@ def test_leaks():
 
     yield
 
+    gc.collect()
+
     # Clear some internal storage that is allowed to keep references
     manager = _manager()
     manager._cp.clear(clear_refs=True)
@@ -73,6 +75,7 @@ def test_leaks():
     manager._tlm.clear()
     tlm_eqs_values = manager._tlm_eqs.values()  # noqa: F841
     manager._tlm_eqs.clear()
+    manager._replace_deferred()
 
     gc.collect()
 
