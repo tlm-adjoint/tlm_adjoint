@@ -160,7 +160,13 @@ class TimeLevels:
 
 
 class Alias:
+    """
+    Alias of obj, holding a reference to obj.
+    """
+
     def __init__(self, obj):
+        if isinstance(obj, Alias):
+            raise TimesteppingException("Cannot alias Alias")
         super().__setattr__("_tlm_adjoint__alias", obj)
 
     def __new__(cls, obj):
@@ -168,10 +174,9 @@ class Alias:
 
         class Alias(cls, obj_cls):
             def __new__(cls, *args, **kwargs):
-                obj = obj_cls.__new__(obj_cls, *args, **kwargs)
-                obj.__init__(*args, **kwargs)
-                return obj
+                return obj_cls(*args, **kwargs)
 
+        Alias.__name__ = f"{obj_cls.__name__:s}Alias"
         return super().__new__(Alias)
 
     def __getattr__(self, key):

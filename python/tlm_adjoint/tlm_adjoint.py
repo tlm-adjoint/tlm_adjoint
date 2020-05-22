@@ -20,8 +20,8 @@
 
 from .backend_interface import *
 
-from .base_equations import AdjointModelRHS, ControlsMarker, EquationAlias, \
-    FunctionalMarker, NullSolver
+from .base_equations import AdjointModelRHS, ControlsMarker, \
+    FunctionalMarker, NullSolver, WeakAlias
 from .binomial_checkpointing import MultistageManager
 from .functional import Functional
 from .manager import manager as _manager, set_manager
@@ -614,12 +614,8 @@ class EquationManager:
                                                 for eq_x in eq_X))
                     X_ids = "ids (%s)" % (",".join(f"{function_id(eq_x):d}"
                                                    for eq_x in eq_X))
-                if isinstance(eq, EquationAlias):
-                    eq_type = f"{eq}"
-                else:
-                    eq_type = type(eq).__name__
                 info("    Equation %i, %s solving for %s (%s)" %
-                     (i, eq_type, X_name, X_ids))
+                     (i, type(eq).__name__, X_name, X_ids))
                 nl_dep_ids = {function_id(dep)
                               for dep in eq.nonlinear_dependencies()}
                 for j, dep in enumerate(eq.dependencies()):
@@ -949,8 +945,8 @@ class EquationManager:
                     self._eqs[eq_id] = eq
                 self._block.append(eq)
             else:
-                assert not isinstance(eq, EquationAlias)
-                eq_alias = EquationAlias(eq)
+                assert not isinstance(eq, WeakAlias)
+                eq_alias = WeakAlias(eq)
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
