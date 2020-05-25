@@ -145,6 +145,7 @@ def test_leaks():
     manager._replace_deferred()
 
     gc.collect()
+    gc.collect()
 
     refs = 0
     for F in function_ids.values():
