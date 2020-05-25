@@ -266,11 +266,15 @@ class Equation:
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
+    _reset_adjoint_warning = True
+    _initialize_adjoint_warning = True
+    _finalize_adjoint_warning = True
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
         if hasattr(cls, "reset_adjoint"):
-            if getattr(cls, "_reset_adjoint_warning", True):
+            if cls._reset_adjoint_warning:
                 warnings.warn("Equation.reset_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -278,7 +282,7 @@ class Equation:
             cls.reset_adjoint = lambda self: None
 
         if hasattr(cls, "initialize_adjoint"):
-            if getattr(cls, "_initialize_adjoint_warning", True):
+            if cls._initialize_adjoint_warning:
                 warnings.warn("Equation.initialize_adjoint method is "
                               "deprecated",
                               DeprecationWarning, stacklevel=2)
@@ -287,7 +291,7 @@ class Equation:
             cls.initialize_adjoint = lambda self, J, nl_deps: None
 
         if hasattr(cls, "finalize_adjoint"):
-            if getattr(cls, "_finalize_adjoint_warning", True):
+            if cls._finalize_adjoint_warning:
                 warnings.warn("Equation.finalize_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -298,7 +302,7 @@ class Equation:
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
                                                       ("self", "nl_deps", "B")]:  # noqa: E501
             warnings.warn("Equation.adjoint_jacobian_solve(self, nl_deps, b/B) "  # noqa: E501
-                          "method signature deprecated",
+                          "method signature is deprecated",
                           DeprecationWarning, stacklevel=2)
 
             def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
@@ -1428,11 +1432,15 @@ class Matrix:
         self._ic = ic
         self._adj_ic = adj_ic
 
+    _reset_adjoint_warning = True
+    _initialize_adjoint_warning = True
+    _finalize_adjoint_warning = True
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
         if hasattr(cls, "reset_adjoint"):
-            if getattr(cls, "_reset_adjoint_warning", True):
+            if cls._reset_adjoint_warning:
                 warnings.warn("Matrix.reset_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -1440,7 +1448,7 @@ class Matrix:
             cls.reset_adjoint = lambda self: None
 
         if hasattr(cls, "initialize_adjoint"):
-            if getattr(cls, "_initialize_adjoint_warning", True):
+            if cls._initialize_adjoint_warning:
                 warnings.warn("Matrix.initialize_adjoint method is "
                               "deprecated",
                               DeprecationWarning, stacklevel=2)
@@ -1449,7 +1457,7 @@ class Matrix:
             cls.initialize_adjoint = lambda self, J, nl_deps: None
 
         if hasattr(cls, "finalize_adjoint"):
-            if getattr(cls, "_finalize_adjoint_warning", True):
+            if cls._finalize_adjoint_warning:
                 warnings.warn("Matrix.finalize_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -1460,7 +1468,7 @@ class Matrix:
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
                                                       ("self", "nl_deps", "B")]:  # noqa: E501
             warnings.warn("Matrix.adjoint_solve(self, nl_deps, b/B) method "
-                          "signature deprecated",
+                          "signature is deprecated",
                           DeprecationWarning, stacklevel=2)
 
             def adjoint_solve(self, adj_X, nl_deps, B):
