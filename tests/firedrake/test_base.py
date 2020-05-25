@@ -138,9 +138,9 @@ def test_leaks():
     manager = _manager()
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
-    tlm_values = manager._tlm.values()  # noqa: F841
+    tlm_values = list(manager._tlm.values())  # noqa: F841
     manager._tlm.clear()
-    tlm_eqs_values = manager._tlm_eqs.values()  # noqa: F841
+    tlm_eqs_values = list(manager._tlm_eqs.values())  # noqa: F841
     manager._tlm_eqs.clear()
     manager._replace_deferred()
 
