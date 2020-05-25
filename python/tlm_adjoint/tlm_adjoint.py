@@ -20,8 +20,9 @@
 
 from .backend_interface import *
 
+from .alias import WeakAlias
 from .base_equations import AdjointModelRHS, ControlsMarker, \
-    FunctionalMarker, NullSolver, WeakAlias
+    FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
 from .functional import Functional
 from .manager import manager as _manager, set_manager
