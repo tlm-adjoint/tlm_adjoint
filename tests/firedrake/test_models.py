@@ -144,7 +144,7 @@ def test_oscillator(setup_test, test_leaks,
 
     J_val = J.value()
     J_val_ref = oscillator_ref() ** 2
-    assert abs(J_val - J_val_ref) < 1.0e-15
+    assert abs(J_val - J_val_ref) < 1.0e-14
 
     dJ = compute_gradient(J, T_0)
 
