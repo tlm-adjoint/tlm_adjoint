@@ -990,31 +990,41 @@ class EquationManager:
             if self._tlm_state == "final":
                 raise ManagerException("Cannot add tangent-linear equations after finalization")  # noqa: E501
 
-            X = eq.X()
             depth = 0 if tlm_skip is None else tlm_skip[1]
             for i, (M, dM) in enumerate(reversed(self._tlm)):
                 if tlm_skip is not None and i >= tlm_skip[0]:
                     break
                 tlm_map, max_depth = self._tlm[(M, dM)]
-                eq_tlm_eqs = self._tlm_eqs.get(eq.id(), None)
-                if eq_tlm_eqs is None:
-                    eq_tlm_eqs = self._tlm_eqs[eq.id()] = {}
-                tlm_eq = eq_tlm_eqs.get((M, dM), None)
-                if tlm_eq is None:
-                    for dep in eq.dependencies():
-                        if dep in M or dep in tlm_map:
-                            if len(set(X).intersection(set(M))) > 0:
-                                raise ManagerException("Invalid tangent-linear parameter")  # noqa: E501
-                            tlm_eq = eq.tangent_linear(M, dM, tlm_map)
-                            if tlm_eq is None:
-                                tlm_eq = NullSolver([tlm_map[x] for x in X])
-                            eq_tlm_eqs[(M, dM)] = tlm_eq
-                            break
+                tlm_eq = self._tangent_linear(eq, M, dM, tlm_map)
                 if tlm_eq is not None:
                     tlm_eq.solve(
                         manager=self, annotate=annotate, tlm=True,
                         _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
                                    else [i, 0]))
+
+    def _tangent_linear(self, eq, M, dM, tlm_map):
+        eq_id = eq.id()
+        X = eq.X()
+
+        eq_tlm_eqs = self._tlm_eqs.get(eq_id, None)
+        if eq_tlm_eqs is None:
+            eq_tlm_eqs = {}
+            self._tlm_eqs[eq_id] = eq_tlm_eqs
+
+        tlm_eq = eq_tlm_eqs.get((M, dM), None)
+        if tlm_eq is None:
+            for dep in eq.dependencies():
+                if dep in M or dep in tlm_map:
+                    if len(set(X).intersection(set(M))) > 0:
+                        raise ManagerException("Invalid tangent-linear "
+                                               "parameter")
+                    tlm_eq = eq.tangent_linear(M, dM, tlm_map)
+                    if tlm_eq is None:
+                        tlm_eq = NullSolver([tlm_map[x] for x in X])
+                    eq_tlm_eqs[(M, dM)] = tlm_eq
+                    break
+
+        return tlm_eq
 
     def replace(self, eq):
         """
