@@ -592,10 +592,17 @@ class EquationManager:
         self._comm_py2f = self._comm.bcast(comm_py2f, root=0)
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
+        self._finalizes = {}
+
+        @gc_disabled
+        def finalize_callback(finalizes):
+            for finalize in finalizes:
+                finalize.detach()
+        finalize = weakref.finalize(self, finalize_callback, self._finalizes)
+        finalize.atexit = False
+
     def __del__(self):
         self._replace_deferred()
-        for finalize in self._finalizes.values():
-            finalize.detach()
 
     def comm(self):
         return self._comm
@@ -688,10 +695,6 @@ class EquationManager:
         self._eqs = {}
         self._blocks = []
         self._block = []
-        if hasattr(self, "_finalizes"):
-            for finalize in self._finalizes.values():
-                finalize.detach()
-        self._finalizes = {}
 
         self._tlm = OrderedDict()
         self._tlm_eqs = {}
@@ -964,15 +967,19 @@ class EquationManager:
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
-                if eq_id not in self._finalizes:
+
                     @gc_disabled
-                    def callback(self_ref, eq_ref):
+                    def finalize_callback(self_ref, eq_alias, eq_id):
                         self = self_ref()
-                        eq = eq_ref()
-                        if self is not None and eq is not None:
-                            self._eqs_to_replace.append(eq)
-                    self._finalizes[eq_id] = weakref.finalize(
-                        eq, callback, weakref.ref(self), weakref.ref(eq_alias))
+                        if self is not None:
+                            self._eqs_to_replace.append(eq_alias)
+                            del self._finalizes[eq_id]
+                    finalize = weakref.finalize(
+                        eq, finalize_callback, weakref.ref(self), eq_alias,
+                        eq_id)
+                    finalize.atexit = False
+                    assert eq_id not in self._finalizes
+                    self._finalizes[eq_id] = finalize
                 self._block.append(eq_alias)
             self._cp.add_equation(
                 (len(self._blocks), len(self._block) - 1), eq)
