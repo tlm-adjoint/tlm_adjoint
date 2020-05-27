@@ -245,9 +245,12 @@ class TangentLinearMap:
         self._map = {}
         self._finalizes = {}
 
-    def __del__(self):
-        for finalize in self._finalizes.values():
-            finalize.detach()
+        @gc_disabled
+        def finalize_callback(finalizes):
+            for finalize in finalizes.values():
+                finalize.detach()
+        finalize = weakref.finalize(self, finalize_callback, self._finalizes)
+        finalize.atexit = False
 
     @gc_disabled
     def __contains__(self, x):
@@ -257,18 +260,28 @@ class TangentLinearMap:
     def __getitem__(self, x):
         if not is_function(x):
             raise ManagerException("x must be a function")
+        assert not isinstance(x, WeakAlias)
+
         x_id = function_id(x)
         if x_id not in self._map:
-            @gc_disabled
-            def callback(self_ref, x_id):
-                self = self_ref()
-                if self is not None:
-                    del self._map[x_id]
-                    # del self._finalizes[x_id]
-            self._finalizes[x_id] = weakref.finalize(
-                x, callback, weakref.ref(self), x_id)
             self._map[x_id] = function_tangent_linear(
                 x, name=f"{function_name(x):s}{self._name_suffix:s}")
+
+            @gc_disabled
+            def finalize_callback(self_ref, x_id):
+                self = self_ref()
+                if self is not None:
+                    # Keep a reference until all finalization is complete
+                    tlm_x = self._map[x_id]  # noqa: F841
+                    del self._map[x_id]
+                    del self._finalizes[x_id]
+                    # Now drop the reference
+                    del tlm_x
+            finalize = weakref.finalize(
+                x, finalize_callback, weakref.ref(self), x_id)
+            finalize.atexit = False
+            self._finalizes[x_id] = finalize
+
         return self._map[x_id]
 
 
