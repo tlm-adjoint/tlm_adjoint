@@ -20,7 +20,7 @@
 
 from .backend_interface import *
 
-from .alias import WeakAlias
+from .alias import WeakAlias, gc_disabled
 from .base_equations import AdjointModelRHS, ControlsMarker, \
     FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
@@ -64,19 +64,6 @@ __all__ = \
 
 class ManagerException(Exception):
     pass
-
-
-def gc_disabled(function):
-    def wrapped_function(*args, **kwargs):
-        gc_enabled = gc.isenabled()
-        gc.disable()
-        try:
-            return_value = function(*args, **kwargs)
-        finally:
-            if gc_enabled:
-                gc.enable()
-        return return_value
-    return wrapped_function
 
 
 class Control:

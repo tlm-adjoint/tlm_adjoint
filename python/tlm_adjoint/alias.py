@@ -18,16 +18,32 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+import gc
+
 __all__ = \
     [
         "Alias",
         "AliasException",
-        "WeakAlias"
+        "WeakAlias",
+        "gc_disabled"
     ]
 
 
 class AliasException(Exception):
     pass
+
+
+def gc_disabled(function):
+    def wrapped_function(*args, **kwargs):
+        gc_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            return_value = function(*args, **kwargs)
+        finally:
+            if gc_enabled:
+                gc.enable()
+        return return_value
+    return wrapped_function
 
 
 class Alias:
