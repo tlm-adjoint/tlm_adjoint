@@ -583,7 +583,7 @@ class EquationManager:
 
         @gc_disabled
         def finalize_callback(finalizes):
-            for finalize in finalizes:
+            for finalize in finalizes.values():
                 finalize.detach()
         finalize = weakref.finalize(self, finalize_callback, self._finalizes)
         finalize.atexit = False
