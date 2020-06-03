@@ -267,6 +267,7 @@ class TangentLinearMap:
             finalize = weakref.finalize(
                 x, finalize_callback, weakref.ref(self), x_id)
             finalize.atexit = False
+            assert x_id not in self._finalizes
             self._finalizes[x_id] = finalize
 
         return self._map[x_id]
@@ -589,7 +590,7 @@ class EquationManager:
         finalize.atexit = False
 
     def __del__(self):
-        self._replace_deferred()
+        self.drop_references()
 
     def comm(self):
         return self._comm
@@ -670,7 +671,7 @@ class EquationManager:
         configuration can be provided.
         """
 
-        self._replace_deferred()
+        self.drop_references()
 
         if cp_method is None:
             cp_method = self._cp_method
@@ -931,7 +932,7 @@ class EquationManager:
             Used for the derivation of higher order tangent-linear equations.
         """
 
-        self._replace_deferred()
+        self.drop_references()
 
         if annotate is None:
             annotate = self.annotation_enabled()
@@ -949,24 +950,11 @@ class EquationManager:
                     self._eqs[eq_id] = eq
                 self._block.append(eq)
             else:
-                assert not isinstance(eq, WeakAlias)
+                self._add_equation_finalizes(eq)
                 eq_alias = WeakAlias(eq)
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
-
-                    @gc_disabled
-                    def finalize_callback(self_ref, eq_alias, eq_id):
-                        self = self_ref()
-                        if self is not None:
-                            self._eqs_to_replace.append(eq_alias)
-                            del self._finalizes[eq_id]
-                    finalize = weakref.finalize(
-                        eq, finalize_callback, weakref.ref(self), eq_alias,
-                        eq_id)
-                    finalize.atexit = False
-                    assert eq_id not in self._finalizes
-                    self._finalizes[eq_id] = finalize
                 self._block.append(eq_alias)
             self._cp.add_equation(
                 (len(self._blocks), len(self._block) - 1), eq)
@@ -1033,13 +1021,31 @@ class EquationManager:
                     self.replace(tlm_eq)
 
     @gc_disabled
-    def _replace_deferred(self):
-        if hasattr(self, "_eqs_to_replace"):
-            for eq in self._eqs_to_replace:
+    def _add_equation_finalizes(self, eq):
+        for referrer in [eq]:
+            assert not isinstance(referrer, WeakAlias)
+            referrer_id = referrer.id()
+            if referrer_id not in self._finalizes:
+                @gc_disabled
+                def finalize_callback(self_ref, referrer_alias, referrer_id):
+                    self = self_ref()
+                    if self is not None:
+                        self._to_drop_references.append(referrer_alias)
+                        del self._finalizes[referrer_id]
+                finalize = weakref.finalize(
+                    referrer, finalize_callback,
+                    weakref.ref(self), WeakAlias(referrer), referrer_id)
+                finalize.atexit = False
+                self._finalizes[referrer_id] = finalize
+
+    @gc_disabled
+    def drop_references(self):
+        if hasattr(self, "_to_drop_references"):
+            for eq in self._to_drop_references:
                 self.replace(eq)
-            self._eqs_to_replace.clear()
+            self._to_drop_references.clear()
         else:
-            self._eqs_to_replace = []
+            self._to_drop_references = []
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)
@@ -1361,6 +1367,8 @@ class EquationManager:
         reached.
         """
 
+        self.drop_references()
+
         if self._annotation_state in ["stopped_initial",
                                       "stopped_annotating",
                                       "final"]:
@@ -1382,7 +1390,7 @@ class EquationManager:
         End the final block equation.
         """
 
-        self._replace_deferred()
+        self.drop_references()
 
         if self._annotation_state == "final":
             return
