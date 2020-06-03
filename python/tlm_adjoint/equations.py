@@ -510,8 +510,7 @@ class EquationSolver(Equation):
                         self._J, bcs=self._bcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
-                        replace_map=None if deps is None
-                                         else dict(zip(eq_deps, deps)))
+                        replace_map=None if deps is None else dict(zip(eq_deps, deps)))  # noqa: E501
                 J_mat, b_bc = J_mat_bc
 
                 if self._cache_rhs_assembly:

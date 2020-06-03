@@ -236,7 +236,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                                                        "absolute_tolerance": max(1.0e-16,  # noqa: E501
                                                                                  min(1.0e3,  # noqa: E501
                                                                                      1.0e-11 * r_norm)),  # noqa: E501
-                                                        "error_on_nonconvergence": True}},  # noqa: E501
+                                                       "error_on_nonconvergence": True}},  # noqa: E501
                   form_compiler_parameters=self._form_compiler_parameters)
 
     h = [Function(space_h, name="h_n"),

@@ -630,8 +630,8 @@ class EquationManager:
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
-                         ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
-                         "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
+                          ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
+                          "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
         info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
