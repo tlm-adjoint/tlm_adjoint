@@ -222,6 +222,13 @@ class Referrer:
         raise EquationException("Method not overridden")
 
 
+def no_replace_compatibility(function):
+    def wrapped_function(*args, **kwargs):
+        return function(*args, **kwargs)
+    wrapped_function._replace_compatibility = False
+    return wrapped_function
+
+
 class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True,
                  adj_ic_deps=[], adj_ic=True):
@@ -376,6 +383,7 @@ class Equation(Referrer):
         self._adj_ic_deps = tuple(function_replacement(dep)
                                   for dep in self._adj_ic_deps)
 
+    @no_replace_compatibility
     def replace(self, replace_map):
         """
         Replace all internal functions using the supplied replace map. Must
