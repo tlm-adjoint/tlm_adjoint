@@ -313,6 +313,21 @@ class Equation(Referrer):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
+        if getattr(cls.replace, "_replace_compatibility", True):
+            warnings.warn("Equation.replace method is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def drop_references(self):
+                replace_map = {}
+                for dep in self.dependencies():
+                    replacement_dep = function_replacement(dep)
+                    if replacement_dep is not dep:
+                        replace_map[dep] = replacement_dep
+                if len(replace_map) > 0:
+                    self.replace(replace_map)
+            cls.drop_references = drop_references
+            cls.replace._replace_compatibility = False
+
         if hasattr(cls, "reset_adjoint"):
             if cls._reset_adjoint_warning:
                 warnings.warn("Equation.reset_adjoint method is deprecated",

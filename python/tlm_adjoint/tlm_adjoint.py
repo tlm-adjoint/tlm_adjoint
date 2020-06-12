@@ -1012,7 +1012,7 @@ class EquationManager:
             replacement_dep = function_replacement(dep)
             if replacement_dep is not dep:
                 replace_map[dep] = replacement_dep
-        eq.replace(replace_map)
+        eq.drop_references()
 
         eq_id = eq.id()
         if eq_id in self._tlm_eqs:
