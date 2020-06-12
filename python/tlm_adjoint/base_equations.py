@@ -20,11 +20,13 @@
 
 from .backend_interface import *
 
+from .alias import gc_disabled
 from .manager import manager as _manager
 
 import inspect
 import numpy as np
 import warnings
+import weakref
 
 __all__ = \
     [
@@ -179,9 +181,48 @@ class AdjointModelRHS:
         return len(self._B) == 0
 
 
-class Equation:
+class Referrer:
     _id_counter = [0]
 
+    def __init__(self, referrers=[]):
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
+        self._referrers = weakref.WeakValueDictionary()
+
+        self.add_referrer(*referrers)
+
+    def id(self):
+        return self._id
+
+    @gc_disabled
+    def add_referrer(self, *referrers):
+        for referrer in referrers:
+            referrer_id = referrer.id()
+            assert self._referrers.get(referrer_id, referrer) is referrer
+            self._referrers[referrer_id] = referrer
+
+    @gc_disabled
+    def referrers(self):
+        referrers = {}
+        remaining_referrers = {self.id(): self}
+        while len(remaining_referrers) > 0:
+            referrer_id, referrer = remaining_referrers.popitem()
+            if referrer_id not in referrers:
+                referrers[referrer_id] = referrer
+                for child in tuple(referrer._referrers.valuerefs()):
+                    child = child()
+                    if child is not None:
+                        child_id = child.id()
+                        if child_id not in referrers and child_id not in remaining_referrers:  # noqa: E501
+                            remaining_referrers[child_id] = child
+        return tuple(e[1] for e in sorted(tuple(referrers.items()),
+                                          key=lambda e: e[0]))
+
+    def drop_references(self):
+        raise EquationException("Method not overridden")
+
+
+class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True,
                  adj_ic_deps=[], adj_ic=True):
         """
@@ -257,14 +298,13 @@ class Equation:
         if adj_ic:
             adj_ic_deps = list(X)
 
+        super().__init__()
         self._X = tuple(X)
         self._deps = tuple(deps)
         self._nl_deps = None if nl_deps is None else tuple(nl_deps)
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
-        self._id = self._id_counter[0]
-        self._id_counter[0] += 1
 
     _reset_adjoint_warning = True
     _initialize_adjoint_warning = True
@@ -310,8 +350,16 @@ class Equation:
             adjoint_jacobian_solve_orig = cls.adjoint_jacobian_solve
             cls.adjoint_jacobian_solve = adjoint_jacobian_solve
 
-    def id(self):
-        return self._id
+    def drop_references(self):
+        self._X = tuple(function_replacement(x) for x in self._X)
+        self._deps = tuple(function_replacement(dep) for dep in self._deps)
+        if self._nl_deps is not None:
+            self._nl_deps = tuple(function_replacement(dep)
+                                  for dep in self._nl_deps)
+        self._ic_deps = tuple(function_replacement(dep)
+                              for dep in self._ic_deps)
+        self._adj_ic_deps = tuple(function_replacement(dep)
+                                  for dep in self._adj_ic_deps)
 
     def replace(self, replace_map):
         """
@@ -581,14 +629,13 @@ class ControlsMarker(Equation):
         if is_function(M):
             M = (M,)
 
+        super(Equation, self).__init__()
         self._X = tuple(M)
         self._deps = tuple(M)
         self._nl_deps = ()
         self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
-        self._id = self._id_counter[0]
-        self._id_counter[0] += 1
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
