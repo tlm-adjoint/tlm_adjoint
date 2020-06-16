@@ -20,7 +20,7 @@
 
 from .backend_interface import *
 
-from .alias import gc_disabled
+from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 
 import inspect
@@ -997,10 +997,12 @@ class FixedPointSolver(Equation):
         self._dep_B_indices = dep_B_indices
         self._solver_parameters = solver_parameters
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        for eq in self._eqs:
-            eq.replace(replace_map)
+        self.add_referrer(*eqs)
+
+    def drop_references(self):
+        super().drop_references()
+        self._eqs = tuple(eq if isinstance(eq, WeakAlias) else WeakAlias(eq)
+                          for eq in self._eqs)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -1317,12 +1319,16 @@ class LinearEquation(Equation):
             if len(A.nonlinear_dependencies()) > 0:
                 self._A_x_indices = A_x_indices
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        for b in self._B:
-            b.replace(replace_map)
-        if self._A is not None:
-            self._A.replace(replace_map)
+        self.add_referrer(*B)
+        if A is not None:
+            self.add_referrer(A)
+
+    def drop_references(self):
+        super().drop_references()
+        self._B = tuple(b if isinstance(b, WeakAlias) else WeakAlias(b)
+                        for b in self._B)
+        if self._A is not None and not isinstance(self._A, WeakAlias):
+            self._A = WeakAlias(self._A)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -1440,7 +1446,7 @@ class LinearEquation(Equation):
                                   A=self._A)
 
 
-class Matrix:
+class Matrix(Referrer):
     def __init__(self, nl_deps=None, has_ic_dep=None, ic=None, adj_ic=True):
         if nl_deps is not None:
             if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
@@ -1457,6 +1463,7 @@ class Matrix:
         elif ic is None:
             ic = True
 
+        super().__init__()
         self._nl_deps = () if nl_deps is None else tuple(nl_deps)
         self._ic = ic
         self._adj_ic = adj_ic
@@ -1467,6 +1474,21 @@ class Matrix:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+
+        if getattr(cls.replace, "_replace_compatibility", True):
+            warnings.warn("Matrix.replace method is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def drop_references(self):
+                replace_map = {}
+                for dep in self.nonlinear_dependencies():
+                    replacement_dep = function_replacement(dep)
+                    if replacement_dep is not dep:
+                        replace_map[dep] = replacement_dep
+                if len(replace_map) > 0:
+                    self.replace(replace_map)
+            cls.drop_references = drop_references
+            cls.replace._replace_compatibility = False
 
         if hasattr(cls, "reset_adjoint"):
             if cls._reset_adjoint_warning:
@@ -1505,6 +1527,11 @@ class Matrix:
             adjoint_solve_orig = cls.adjoint_solve
             cls.adjoint_solve = adjoint_solve
 
+    def drop_references(self):
+        self._nl_deps = tuple(function_replacement(dep)
+                              for dep in self._nl_deps)
+
+    @no_replace_compatibility
     def replace(self, replace_map):
         self._nl_deps = tuple(replace_map.get(dep, dep)
                               for dep in self._nl_deps)
@@ -1599,7 +1626,7 @@ class Matrix:
         raise EquationException("Method not overridden")
 
 
-class RHS:
+class RHS(Referrer):
     def __init__(self, deps, nl_deps=None):
         dep_ids = {function_id(dep) for dep in deps}
         if len(dep_ids) != len(deps):
@@ -1611,9 +1638,35 @@ class RHS:
             if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
                 raise EquationException("Non-linear dependency is not a dependency")  # noqa: E501
 
+        super().__init__()
         self._deps = tuple(deps)
         self._nl_deps = None if nl_deps is None else tuple(nl_deps)
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if getattr(cls.replace, "_replace_compatibility", True):
+            warnings.warn("RHS.replace method is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def drop_references(self):
+                replace_map = {}
+                for dep in self.dependencies():
+                    replacement_dep = function_replacement(dep)
+                    if replacement_dep is not dep:
+                        replace_map[dep] = replacement_dep
+                if len(replace_map) > 0:
+                    self.replace(replace_map)
+            cls.drop_references = drop_references
+            cls.replace._replace_compatibility = False
+
+    def drop_references(self):
+        self._deps = tuple(function_replacement(dep) for dep in self._deps)
+        if self._nl_deps is not None:
+            self._nl_deps = tuple(function_replacement(dep)
+                                  for dep in self._nl_deps)
+
+    @no_replace_compatibility
     def replace(self, replace_map):
         self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
         if self._nl_deps is not None:
@@ -1685,9 +1738,12 @@ class MatrixActionRHS(RHS):
         self._A = A
         self._x_indices = x_indices
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        self._A.replace(replace_map)
+        self.add_referrer(A)
+
+    def drop_references(self):
+        super().drop_references()
+        if not isinstance(self._A, WeakAlias):
+            self._A = WeakAlias(self._A)
 
     def add_forward(self, B, deps):
         if is_function(B):
@@ -1767,12 +1823,15 @@ class InnerProductRHS(RHS):
         self._alpha = alpha
         self._M = M
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        self._x = replace_map.get(self._x, self._x)
-        self._y = replace_map.get(self._y, self._y)
-        if self._M is not None:
-            self._M.replace(replace_map)
+        if M is not None:
+            self.add_referrer(M)
+
+    def drop_references(self):
+        super().drop_references()
+        self._x = function_replacement(self._x)
+        self._y = function_replacement(self._y)
+        if self._M is not None and not isinstance(self._M, WeakAlias):
+            self._M = WeakAlias(self._M)
 
     def add_forward(self, b, deps):
         if self._norm_sq:
