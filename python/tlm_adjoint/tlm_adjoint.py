@@ -586,7 +586,7 @@ class EquationManager:
         def finalize_callback(to_drop_references, finalizes):
             while len(to_drop_references) > 0:
                 referrer = to_drop_references.pop()
-                referrer.drop_references()
+                referrer._drop_references()
             for finalize in finalizes.values():
                 finalize.detach()
             finalizes.clear()
@@ -1030,7 +1030,7 @@ class EquationManager:
     def drop_references(self):
         while len(self._to_drop_references) > 0:
             referrer = self._to_drop_references.pop()
-            referrer.drop_references()
+            referrer._drop_references()
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)

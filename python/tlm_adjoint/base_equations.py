@@ -188,6 +188,7 @@ class Referrer:
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
         self._referrers = weakref.WeakValueDictionary()
+        self._references_dropped = False
 
         self.add_referrer(*referrers)
 
@@ -196,6 +197,9 @@ class Referrer:
 
     @gc_disabled
     def add_referrer(self, *referrers):
+        if self._references_dropped:
+            raise EquationException("Cannot call add_referrer method after "
+                                    "_drop_references method has been called")
         for referrer in referrers:
             referrer_id = referrer.id()
             assert self._referrers.get(referrer_id, referrer) is referrer
@@ -217,6 +221,11 @@ class Referrer:
                             remaining_referrers[child_id] = child
         return tuple(e[1] for e in sorted(tuple(referrers.items()),
                                           key=lambda e: e[0]))
+
+    def _drop_references(self):
+        if not self._references_dropped:
+            self.drop_references()
+            self._references_dropped = True
 
     def drop_references(self):
         raise EquationException("Method not overridden")
@@ -1001,8 +1010,7 @@ class FixedPointSolver(Equation):
 
     def drop_references(self):
         super().drop_references()
-        self._eqs = tuple(eq if isinstance(eq, WeakAlias) else WeakAlias(eq)
-                          for eq in self._eqs)
+        self._eqs = tuple(WeakAlias(eq) for eq in self._eqs)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -1325,9 +1333,8 @@ class LinearEquation(Equation):
 
     def drop_references(self):
         super().drop_references()
-        self._B = tuple(b if isinstance(b, WeakAlias) else WeakAlias(b)
-                        for b in self._B)
-        if self._A is not None and not isinstance(self._A, WeakAlias):
+        self._B = tuple(WeakAlias(b) for b in self._B)
+        if self._A is not None:
             self._A = WeakAlias(self._A)
 
     def forward_solve(self, X, deps=None):
@@ -1742,8 +1749,7 @@ class MatrixActionRHS(RHS):
 
     def drop_references(self):
         super().drop_references()
-        if not isinstance(self._A, WeakAlias):
-            self._A = WeakAlias(self._A)
+        self._A = WeakAlias(self._A)
 
     def add_forward(self, B, deps):
         if is_function(B):
@@ -1830,7 +1836,7 @@ class InnerProductRHS(RHS):
         super().drop_references()
         self._x = function_replacement(self._x)
         self._y = function_replacement(self._y)
-        if self._M is not None and not isinstance(self._M, WeakAlias):
+        if self._M is not None:
             self._M = WeakAlias(self._M)
 
     def add_forward(self, b, deps):
