@@ -191,9 +191,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 defer_adjoint_assembly=False)
             self._J_1 = J_1
 
-        def replace(self, replace_map):
-            super().replace(replace_map)
-            self._J_1 = ufl.replace(self._J_1, replace_map)
+        def drop_references(self):
+            super().drop_references()
+            self._J_1 = replaced_form(self._J_1)
 
         def forward_solve(self, x, deps=None):
             U = x

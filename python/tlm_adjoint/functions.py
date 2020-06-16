@@ -45,7 +45,9 @@ __all__ = \
         "eliminate_zeros",
         "extract_coefficients",
         "is_r0_function",
-        "new_count"
+        "new_count",
+        "replaced_expr",
+        "replaced_form"
     ]
 
 
@@ -649,3 +651,19 @@ class Replacement(ufl.classes.Coefficient):
             return ()
         else:
             return (self.__domain,)
+
+
+def replaced_expr(expr):
+    replace_map = {}
+    for c in ufl.algorithms.extract_coefficients(expr):
+        if is_function(c):
+            replace_map[c] = function_replacement(c)
+    return ufl.replace(expr, replace_map)
+
+
+def replaced_form(form):
+    replace_map = {}
+    for c in form.coefficients():
+        if is_function(c):
+            replace_map[c] = function_replacement(c)
+    return ufl.replace(form, replace_map)
