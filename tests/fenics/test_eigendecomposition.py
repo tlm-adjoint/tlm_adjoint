@@ -74,7 +74,7 @@ def test_NHEP(setup_test, test_leaks):
 
 @pytest.mark.fenics
 def test_SingleBlockHessian(setup_test):
-    configure_checkpointing("memory", {"replace": False})
+    configure_checkpointing("memory", {"drop_references": False})
 
     mesh = UnitIntervalMesh(5)
     space = FunctionSpace(mesh, "Lagrange", 1)

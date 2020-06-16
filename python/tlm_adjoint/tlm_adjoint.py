@@ -722,7 +722,18 @@ class EquationManager:
 
         if cp_method == "memory":
             cp_manager = None
-            cp_parameters["replace"] = cp_parameters.get("replace", False)
+            if "replace" in cp_parameters:
+                warnings.warn("'replace' cp_parameters key is deprecated",
+                              DeprecationWarning, stacklevel=2)
+                if "drop_references" in cp_parameters:
+                    if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
+                        raise ManagerException("Conflicting cp_parameters "
+                                               "values")
+                else:
+                    cp_parameters["drop_references"] = cp_parameters["replace"]
+                del cp_parameters["replace"]
+            else:
+                cp_parameters["drop_references"] = cp_parameters.get("drop_references", False)  # noqa: E501
         elif cp_method == "periodic_disk":
             cp_manager = set()
         elif cp_method == "multistage":
@@ -947,7 +958,7 @@ class EquationManager:
             elif self._annotation_state == "final":
                 raise ManagerException("Cannot add equations after finalization")  # noqa: E501
 
-            if self._cp_method == "memory" and not self._cp_parameters["replace"]:  # noqa: E501
+            if self._cp_method == "memory" and not self._cp_parameters["drop_references"]:  # noqa: E501
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq

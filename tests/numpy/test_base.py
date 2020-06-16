@@ -40,7 +40,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    reset_manager("memory", {"replace": True})
+    reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
 

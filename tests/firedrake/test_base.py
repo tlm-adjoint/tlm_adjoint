@@ -60,7 +60,7 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
-    reset_manager("memory", {"replace": True})
+    reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
 

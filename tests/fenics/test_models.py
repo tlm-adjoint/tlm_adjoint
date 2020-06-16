@@ -91,7 +91,7 @@ def diffusion_ref():
 @pytest.mark.fenics
 @pytest.mark.parametrize(
     "cp_method, cp_parameters",
-    [("memory", {"replace": True}),
+    [("memory", {"drop_references": True}),
      ("periodic_disk", {"period": 3, "format": "pickle"}),
      ("periodic_disk", {"period": 3, "format": "hdf5"}),
      ("multistage", {"format": "pickle", "snaps_on_disk": 1, "snaps_in_ram": 2,

@@ -65,7 +65,7 @@ class SingleBlockHessian(Hessian):
         clear_caches(*dM)
 
         if self._manager._cp_method != "memory" \
-           or self._manager._cp_parameters["replace"] \
+           or self._manager._cp_parameters["drop_references"] \
            or not (len(self._manager._blocks) == 0
                    or (len(self._manager._blocks) == 1
                        and len(self._manager._block) == 0)):
