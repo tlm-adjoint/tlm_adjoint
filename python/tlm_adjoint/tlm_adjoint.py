@@ -21,7 +21,7 @@
 from .backend_interface import *
 
 from .alias import WeakAlias, gc_disabled
-from .base_equations import AdjointModelRHS, ControlsMarker, \
+from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
 from .functional import Functional
@@ -236,6 +236,7 @@ class TangentLinearMap:
         def finalize_callback(finalizes):
             for finalize in finalizes.values():
                 finalize.detach()
+            finalizes.clear()
         finalize = weakref.finalize(self, finalize_callback, self._finalizes)
         finalize.atexit = False
 
@@ -258,12 +259,8 @@ class TangentLinearMap:
             def finalize_callback(self_ref, x_id):
                 self = self_ref()
                 if self is not None:
-                    # Keep a reference until all finalization is complete
-                    tlm_x = self._map[x_id]  # noqa: F841
-                    del self._map[x_id]
                     del self._finalizes[x_id]
-                    # Now drop the reference
-                    del tlm_x
+                    del self._map[x_id]
             finalize = weakref.finalize(
                 x, finalize_callback, weakref.ref(self), x_id)
             finalize.atexit = False
@@ -578,19 +575,24 @@ class EquationManager:
             comm_py2f = -1
         self._id = self._comm.bcast(id, root=0)
         self._comm_py2f = self._comm.bcast(comm_py2f, root=0)
-        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
+        self._tlm_eqs = {}
+        self._to_drop_references = []
         self._finalizes = {}
 
+        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
+
         @gc_disabled
-        def finalize_callback(finalizes):
+        def finalize_callback(to_drop_references, finalizes):
+            while len(to_drop_references) > 0:
+                referrer = to_drop_references.pop()
+                referrer.drop_references()
             for finalize in finalizes.values():
                 finalize.detach()
-        finalize = weakref.finalize(self, finalize_callback, self._finalizes)
+            finalizes.clear()
+        finalize = weakref.finalize(self, finalize_callback,
+                                    self._to_drop_references, self._finalizes)
         finalize.atexit = False
-
-    def __del__(self):
-        self.drop_references()
 
     def comm(self):
         return self._comm
@@ -665,6 +667,7 @@ class EquationManager:
         return EquationManager(comm=self._comm, cp_method=cp_method,
                                cp_parameters=cp_parameters)
 
+    @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
         """
         Reset the equation manager. Optionally a new checkpointing
@@ -685,7 +688,7 @@ class EquationManager:
         self._block = []
 
         self._tlm = OrderedDict()
-        self._tlm_eqs = {}
+        self._tlm_eqs.clear()
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
@@ -977,6 +980,7 @@ class EquationManager:
                         _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
                                    else [i, 0]))
 
+    @gc_disabled
     def _tangent_linear(self, eq, M, dM, tlm_map):
         eq_id = eq.id()
         X = eq.X()
@@ -1001,28 +1005,9 @@ class EquationManager:
 
         return tlm_eq
 
-    def replace(self, eq):
-        """
-        Replace internal functions in the provided equation with Replacement
-        objects.
-        """
-
-        replace_map = {}
-        for dep in eq.dependencies():
-            replacement_dep = function_replacement(dep)
-            if replacement_dep is not dep:
-                replace_map[dep] = replacement_dep
-        eq.drop_references()
-
-        eq_id = eq.id()
-        if eq_id in self._tlm_eqs:
-            for tlm_eq in self._tlm_eqs[eq_id].values():
-                if tlm_eq is not None:
-                    self.replace(tlm_eq)
-
     @gc_disabled
     def _add_equation_finalizes(self, eq):
-        for referrer in [eq]:
+        for referrer in eq.referrers():
             assert not isinstance(referrer, WeakAlias)
             referrer_id = referrer.id()
             if referrer_id not in self._finalizes:
@@ -1032,6 +1017,9 @@ class EquationManager:
                     if self is not None:
                         self._to_drop_references.append(referrer_alias)
                         del self._finalizes[referrer_id]
+                        if referrer_id in self._tlm_eqs:
+                            assert isinstance(referrer_alias, Equation)
+                            del self._tlm_eqs[referrer_id]
                 finalize = weakref.finalize(
                     referrer, finalize_callback,
                     weakref.ref(self), WeakAlias(referrer), referrer_id)
@@ -1040,12 +1028,9 @@ class EquationManager:
 
     @gc_disabled
     def drop_references(self):
-        if hasattr(self, "_to_drop_references"):
-            for eq in self._to_drop_references:
-                self.replace(eq)
-            self._to_drop_references.clear()
-        else:
-            self._to_drop_references = []
+        while len(self._to_drop_references) > 0:
+            referrer = self._to_drop_references.pop()
+            referrer.drop_references()
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)

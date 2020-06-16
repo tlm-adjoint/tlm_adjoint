@@ -22,6 +22,7 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .interface import *
 
+from .alias import gc_disabled
 from .functions import eliminate_zeros, function_caches
 
 from collections import defaultdict
@@ -245,6 +246,7 @@ class CacheRef:
         self._value = None
 
 
+@gc_disabled
 def clear_caches(*deps):
     if len(deps) == 0:
         for cache in tuple(Cache._caches.valuerefs()):

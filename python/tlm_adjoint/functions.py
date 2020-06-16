@@ -22,6 +22,8 @@ from .backend import *
 from .interface import *
 from .interface import FunctionInterface as _FunctionInterface
 
+from .alias import gc_disabled
+
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
@@ -69,6 +71,7 @@ class Caches:
     def __len__(self):
         return len(self._caches)
 
+    @gc_disabled
     def clear(self):
         for cache in tuple(self._caches.valuerefs()):
             cache = cache()
