@@ -606,11 +606,6 @@ Keys for the \texttt{solver\_parameters} argument are based on the
     point iteration (default false).
 \end{itemize}
 
-\texttt{Equation} objects used to define a \texttt{FixedPointSolver} may not be
-used to define further equations -- for example you should not call their
-\texttt{solve} method, and should not use a single \texttt{Equation} to
-instantiate two or more \texttt{FixedPointSolver} objects.
-
 \subsection{Built-in \texttt{Equation} classes: FEniCS and Firedrake}
 
 \subsubsection{\texttt{EquationSolver}}\label{sect:EquationSolver}
@@ -999,8 +994,9 @@ with arguments
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
 \texttt{forward\_solve} method is called. If \texttt{deps} is not supplied,
-then \texttt{self.replace} (section \ref{sect:replace}) has not previously been
-called prior to a call to the \texttt{forward\_solve} method.
+then \texttt{self.drop\_references} (section \ref{sect:drop_references}) has
+not previously been called prior to a call to the \texttt{forward\_solve}
+method.
 
 \subsection{Adjoint derivative action}\label{sect:adjoint_derivative_action}
 
@@ -1047,9 +1043,9 @@ The return value will not be modified by calling code.
 
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
-\texttt{adjoint\_derivative\_action} method is called. \texttt{self.replace}
-(section \ref{sect:replace}) may have been called prior to a call to the
-\texttt{adjoint\_derivative\_action} method.
+\texttt{adjoint\_derivative\_action} method is called.
+\texttt{self.drop\_references} (section \ref{sect:drop_references}) may have
+been called prior to a call to the \texttt{adjoint\_derivative\_action} method.
 
 \subsection{Adjoint Jacobian solve}
 
@@ -1083,9 +1079,9 @@ This method returns a function defining the solution of the linear system
 
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
-\texttt{adjoint\_derivative\_action} method is called. \texttt{self.replace}
-(section \ref{sect:replace}) may have been called prior to a call to the
-\texttt{adjoint\_jacobian\_solve} method.
+\texttt{adjoint\_derivative\_action} method is called.
+\texttt{self.drop\_references} (section \ref{sect:drop_references}) may have
+been called prior to a call to the \texttt{adjoint\_jacobian\_solve} method.
 
 \subsection{Adjoint optimization}
 
@@ -1154,8 +1150,8 @@ This returns a control direction (an element of \texttt{dM}), a tangent-linear
 solution variable, or \texttt{None} if the tangent-linear variable is known to
 be identically zero.
 
-\texttt{self.replace} (section \ref{sect:replace}) will not previously been
-called prior to a call to the \texttt{tangent\_linear} method.
+\texttt{self.drop\_references} (section \ref{sect:drop_references}) will not
+previously been called prior to a call to the \texttt{tangent\_linear} method.
 
 \subsection{Solving for multiple functions}
 
@@ -1165,17 +1161,16 @@ capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
 list or tuple of functions. The return value of
 \texttt{adjoint\_jacobian\_solve} should also be a list or tuple of functions.
 
-\subsection{Dropping references}\label{sect:replace}
+\subsection{Dropping references}\label{sect:drop_references}
 
 If a subclassed \texttt{Equation} keeps references to any functions, then it
-should be possible to drop these references with the \texttt{replace} method.
-This method takes the form
+should be possible to drop these references with the \texttt{drop\_references}
+method. This method takes the form
 \begin{lstlisting}
-def replace(self, replace_map):
+def drop_references(self):
 \end{lstlisting}
-where \texttt{replace\_map} is a dictionary mapping from dependencies to
-objects with which they should be replaced. The \texttt{replace} method must
-call the base class \texttt{replace} method.
+The \texttt{drop\_references} method must call the base class
+\texttt{drop\_references} method.
 
 \section{Linear algebra}
 
@@ -1380,14 +1375,13 @@ equal to \texttt{B[b\_index]}.
 \subsubsection{Dropping references}
 
 If a subclassed \texttt{Matrix} keeps references to any functions, then it
-should be possible to drop these references with the \texttt{replace} method.
-This method takes the form
+should be possible to drop these references with the \texttt{drop\_references}
+method. This method takes the form
 \begin{lstlisting}
-def replace(self, replace_map):
+def drop_references(self):
 \end{lstlisting}
-where \texttt{replace\_map} is a dictionary mapping from dependencies to
-objects with which they should be replaced. The \texttt{replace} method must
-call the base class \texttt{replace} method.
+The \texttt{drop\_references} method must call the base class
+\texttt{drop\_references} method.
 
 \subsection{\texttt{RHS}}
 
@@ -1474,14 +1468,13 @@ where \texttt{adj\_X} and \texttt{B} are now each a list or tuple of functions.
 \subsubsection{Dropping references}
 
 If a subclassed \texttt{RHS} keeps references to any functions, then it should
-be possible to drop these references with the \texttt{replace} method. This
-method takes the form
+be possible to drop these references with the \texttt{drop\_references} method.
+This method takes the form
 \begin{lstlisting}
-def replace(self, replace_map):
+def drop_references(self):
 \end{lstlisting}
-where \texttt{replace\_map} is a dictionary mapping from dependencies to
-objects with which they should be replaced. The \texttt{replace} method must
-call the base class \texttt{replace} method.
+The \texttt{drop\_references} method must call the base class
+\texttt{drop\_references} method.
 
 \subsection{Built-in linear algebra classes}
 
@@ -2134,11 +2127,11 @@ of parameters controlling the detailed checkpointing configuration options.
 All dependencies of all equations are fully stored in memory. The default
 method. Keys for \texttt{cp\_parameters} for this method are
 \begin{itemize}
-  \item \texttt{replace}, a logical, default false. If true then weak
+  \item \texttt{drop\_references}, a logical, default false. If true then weak
     references to \texttt{Equation} objects are kept by the
-    \texttt{EquationManager}, and their \texttt{replace} methods will be called
-    when the \texttt{Equation} objects are destroyed. If false then strong
-    references to \texttt{Equation} objects are kept by the
+    \texttt{EquationManager}, and their \texttt{drop\_reference} methods will
+    be called when the \texttt{Equation} objects are destroyed. If false then
+    strong references to \texttt{Equation} objects are kept by the
     \texttt{EquationManager}.
 \end{itemize}
 
