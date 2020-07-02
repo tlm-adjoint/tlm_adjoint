@@ -23,12 +23,11 @@ from .backend_code_generator_interface import *
 from .backend_interface import *
 
 from .base_equations import AssignmentSolver, Equation, EquationException, \
-    NullSolver, get_tangent_linear
+    NullSolver, get_tangent_linear, no_replace_compatibility
 from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
     linear_solver_cache, split_form, update_caches, verify_assembly
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
-    eliminate_zeros, extract_coefficients, is_r0_function, replaced_expr, \
-    replaced_form
+    eliminate_zeros, extract_coefficients, is_r0_function
 
 import copy
 import operator
@@ -138,8 +137,14 @@ class AssembleSolver(Equation):
         self._form_compiler_parameters = form_compiler_parameters
 
     def drop_references(self):
-        super().drop_references()
-        self._rhs = replaced_form(self._rhs)
+        replace_map = {dep: function_replacement(dep)
+                       for dep in self.dependencies()}
+        self.replace(replace_map)
+
+    @no_replace_compatibility
+    def replace(self, replace_map):
+        super().replace(replace_map)
+        self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):
         if deps is None:
@@ -392,25 +397,31 @@ class EquationSolver(Equation):
         self._adjoint_J = None
 
     def drop_references(self):
-        super().drop_references()
+        replace_map = {dep: function_replacement(dep)
+                       for dep in self.dependencies()}
+        self.replace(replace_map)
 
-        self._F = replaced_form(self._F)
-        self._lhs = replaced_form(self._lhs)
+    @no_replace_compatibility
+    def replace(self, replace_map):
+        super().replace(replace_map)
+
+        self._F = ufl.replace(self._F, replace_map)
+        self._lhs = ufl.replace(self._lhs, replace_map)
         if self._rhs != 0:
-            self._rhs = replaced_form(self._rhs)
-        self._J = replaced_form(self._J)
+            self._rhs = ufl.replace(self._rhs, replace_map)
+        self._J = ufl.replace(self._J, replace_map)
         if self._nl_solve_J is not None:
-            self._nl_solve_J = replaced_form(self._nl_solve_J)
+            self._nl_solve_J = ufl.replace(self._nl_solve_J, replace_map)
 
         if self._forward_b_pa is not None:
             if self._forward_b_pa[0] is not None:
-                self._forward_b_pa[0][0] = replaced_form(self._forward_b_pa[0][0])  # noqa: E501
+                self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)  # noqa: E501
             for dep_index, (mat_form, mat_cache) in self._forward_b_pa[1].items():  # noqa: E501
-                self._forward_b_pa[1][dep_index][0] = replaced_form(mat_form)
+                self._forward_b_pa[1][dep_index][0] = ufl.replace(mat_form, replace_map)  # noqa: E501
 
         for dep_index, dF in self._adjoint_dF_cache.items():
             if dF is not None:
-                self._adjoint_dF_cache[dep_index] = replaced_form(dF)
+                self._adjoint_dF_cache[dep_index] = ufl.replace(dF, replace_map)  # noqa: E501
 
     def _cached_rhs(self, deps, b_bc=None):
         eq_deps = self.dependencies()
@@ -915,8 +926,14 @@ class ExprEvaluationSolver(Equation):
         self._rhs = rhs
 
     def drop_references(self):
-        super().drop_references()
-        self._rhs = replaced_expr(self._rhs)
+        replace_map = {dep: function_replacement(dep)
+                       for dep in self.dependencies()}
+        self.replace(replace_map)
+
+    @no_replace_compatibility
+    def replace(self, replace_map):
+        super().replace(replace_map)
+        self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):
         if deps is None:
