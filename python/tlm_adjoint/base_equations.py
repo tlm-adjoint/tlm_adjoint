@@ -334,13 +334,9 @@ class Equation(Referrer):
                           DeprecationWarning, stacklevel=2)
 
             def drop_references(self):
-                replace_map = {}
-                for dep in self.dependencies():
-                    replacement_dep = function_replacement(dep)
-                    if replacement_dep is not dep:
-                        replace_map[dep] = replacement_dep
-                if len(replace_map) > 0:
-                    self.replace(replace_map)
+                replace_map = {dep: function_replacement(dep)
+                               for dep in self.dependencies()}
+                self.replace(replace_map)
             cls.drop_references = drop_references
             cls.replace._replace_compatibility = False
 
@@ -1487,13 +1483,9 @@ class Matrix(Referrer):
                           DeprecationWarning, stacklevel=2)
 
             def drop_references(self):
-                replace_map = {}
-                for dep in self.nonlinear_dependencies():
-                    replacement_dep = function_replacement(dep)
-                    if replacement_dep is not dep:
-                        replace_map[dep] = replacement_dep
-                if len(replace_map) > 0:
-                    self.replace(replace_map)
+                replace_map = {dep: function_replacement(dep)
+                               for dep in self.nonlinear_dependencies()}
+                self.replace(replace_map)
             cls.drop_references = drop_references
             cls.replace._replace_compatibility = False
 
@@ -1657,13 +1649,9 @@ class RHS(Referrer):
                           DeprecationWarning, stacklevel=2)
 
             def drop_references(self):
-                replace_map = {}
-                for dep in self.dependencies():
-                    replacement_dep = function_replacement(dep)
-                    if replacement_dep is not dep:
-                        replace_map[dep] = replacement_dep
-                if len(replace_map) > 0:
-                    self.replace(replace_map)
+                replace_map = {dep: function_replacement(dep)
+                               for dep in self.dependencies()}
+                self.replace(replace_map)
             cls.drop_references = drop_references
             cls.replace._replace_compatibility = False
 
