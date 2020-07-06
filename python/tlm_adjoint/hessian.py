@@ -77,6 +77,11 @@ class Hessian:
         self._manager.stop()
         clear_caches()
 
+        M = [function_copy(m, name=function_name(m),
+                           static=function_is_static(m),
+                           cache=function_is_cached(m),
+                           checkpoint=function_is_checkpointed(m)) for m in M]
+
         self._manager.start()
         J = self._forward(*M)
         self._manager.stop()
@@ -115,6 +120,11 @@ class Hessian:
         self._manager.reset()
         self._manager.stop()
         clear_caches()
+
+        M = [function_copy(m, name=function_name(m),
+                           static=function_is_static(m),
+                           cache=function_is_cached(m),
+                           checkpoint=function_is_checkpointed(m)) for m in M]
 
         self._manager.add_tlm(M, dM)
         self._manager.start()
