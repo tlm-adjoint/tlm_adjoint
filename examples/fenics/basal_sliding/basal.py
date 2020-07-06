@@ -191,9 +191,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 defer_adjoint_assembly=False)
             self._J_1 = J_1
 
-        def replace(self, replace_map):
-            super().replace(replace_map)
-            self._J_1 = ufl.replace(self._J_1, replace_map)
+        def drop_references(self):
+            super().drop_references()
+            self._J_1 = replaced_form(self._J_1)
 
         def forward_solve(self, x, deps=None):
             U = x
@@ -236,7 +236,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                                                        "absolute_tolerance": max(1.0e-16,  # noqa: E501
                                                                                  min(1.0e3,  # noqa: E501
                                                                                      1.0e-11 * r_norm)),  # noqa: E501
-                                                        "error_on_nonconvergence": True}},  # noqa: E501
+                                                       "error_on_nonconvergence": True}},  # noqa: E501
                   form_compiler_parameters=self._form_compiler_parameters)
 
     h = [Function(space_h, name="h_n"),

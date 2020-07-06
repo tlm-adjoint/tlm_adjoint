@@ -20,6 +20,7 @@
 
 from tlm_adjoint_numpy import *
 from tlm_adjoint_numpy import manager as _manager
+from tlm_adjoint_numpy.alias import WeakAlias
 
 from test_base import *
 
@@ -100,3 +101,271 @@ def test_empty(setup_test, test_leaks):
 
     dJ = compute_gradient(J, m)
     assert dJ.vector()[0] == 0.0
+
+
+@pytest.mark.numpy
+def test_Referrers_LinearEquation(setup_test, test_leaks):
+    def forward(m, forward_run=False):
+        class IdentityMatrix(Matrix):
+            def __init__(self):
+                super().__init__(nl_deps=[], ic=False, adj_ic=False)
+
+            def forward_action(self, nl_deps, x, b, method="assign"):
+                if method == "assign":
+                    function_assign(b, x)
+                else:
+                    raise EquationException(f"Unexpected method '{method:s}'")
+
+            def forward_solve(self, x, nl_deps, b):
+                function_assign(x, b)
+
+            def adjoint_solve(self, adj_x, nl_deps, b):
+                return b
+
+            def tangent_linear_rhs(self, M, dM, tlm_map, x):
+                return None
+
+        x = Constant(0.0, name="x")
+
+        M = IdentityMatrix()
+        b = NormSqRHS(m, M=M)
+        linear_eq = LinearEquation([b, b], x, A=M)
+        linear_eq.solve()
+
+        if forward_run:
+            manager = _manager()
+
+            assert len(manager._to_drop_references) == 0
+            assert not linear_eq._references_dropped
+            assert not b._references_dropped
+            assert not M._references_dropped
+            for dep in linear_eq.dependencies():
+                assert not isinstance(dep, Replacement)
+            for dep in b.dependencies():
+                assert not isinstance(dep, Replacement)
+
+            linear_eq = WeakAlias(linear_eq)
+
+            assert len(manager._to_drop_references) == 1
+            assert not linear_eq._references_dropped
+            assert not b._references_dropped
+            assert not M._references_dropped
+            for dep in linear_eq.dependencies():
+                assert not isinstance(dep, Replacement)
+            for dep in b.dependencies():
+                assert not isinstance(dep, Replacement)
+
+            manager.drop_references()
+
+            assert len(manager._to_drop_references) == 0
+            assert linear_eq._references_dropped
+            assert not b._references_dropped
+            assert not M._references_dropped
+            for dep in linear_eq.dependencies():
+                assert isinstance(dep, Replacement)
+            for dep in b.dependencies():
+                assert not isinstance(dep, Replacement)
+
+        y = Constant(0.0, name="y")
+        LinearEquation(b, y, A=M).solve()
+
+        z = Constant(0.0, name="z")
+        AxpySolver(x, 1.0, y, z).solve()
+
+        if forward_run:
+            manager.drop_references()
+
+            assert len(manager._to_drop_references) == 0
+            assert not b._references_dropped
+            assert not M._references_dropped
+            for dep in b.dependencies():
+                assert not isinstance(dep, Replacement)
+
+            M = WeakAlias(M)
+            b = WeakAlias(b)
+
+            assert len(manager._to_drop_references) == 1
+            assert not b._references_dropped
+            assert not M._references_dropped
+            for dep in b.dependencies():
+                assert not isinstance(dep, Replacement)
+
+            manager.drop_references()
+
+            assert len(manager._to_drop_references) == 0
+            assert b._references_dropped
+            assert M._references_dropped
+            for dep in b.dependencies():
+                assert isinstance(dep, Replacement)
+
+        J = Functional(name="J")
+        NormSqSolver(z, J.fn()).solve()
+        return J
+
+    m = Constant(np.sqrt(2.0), name="m")
+
+    start_manager()
+    J = forward(m, forward_run=True)
+    stop_manager()
+
+    J_val = J.value()
+    print(f"J = {J_val:.16e}")
+    assert abs(J_val - 36.0) < 1.0e-13
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, dM=Constant(1.0), J_val=J_val, dJ=dJ,
+                            seed=5.0e-4)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, dM=Constant(1.0), J_val=J_val, ddJ=ddJ,
+                            seed=5.0e-4)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(Constant(1.0),),
+                                seed=5.0e-4)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
+                                        dMs=(Constant(1.0),), seed=5.0e-4)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
+                                        dMs=(Constant(1.0), Constant(1.0)),
+                                        seed=5.0e-4)
+    assert min_order > 2.00
+
+
+@pytest.mark.numpy
+def test_Referrers_FixedPointEquation(setup_test, test_leaks):
+    def forward(m, forward_run=False):
+        class NewtonIterationSolver(Equation):
+            def __init__(self, m, x0, x):
+                super().__init__(x, deps=[x, x0, m], nl_deps=[x0, m],
+                                 ic_deps=[], adj_ic_deps=[])
+
+            def forward_solve(self, x, deps=None):
+                _, x0, m = self.dependencies() if deps is None else deps
+                function_set_values(
+                    x,
+                    0.5 * (function_get_values(x0) ** 2
+                           + function_get_values(m))
+                    / function_get_values(x0))
+
+            def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+                return b
+
+            def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+                if dep_index == 1:
+                    x0, m = nl_deps
+                    F = function_new(x0)
+                    function_set_values(
+                        F,
+                        0.5 * function_get_values(adj_x)
+                        * (function_get_values(m)
+                           / (function_get_values(x0) ** 2) - 1.0))
+                    return F
+                elif dep_index == 2:
+                    x0, m = nl_deps
+                    F = function_new(x0)
+                    function_set_values(
+                        F,
+                        -0.5 * function_get_values(adj_x)
+                        / function_get_values(x0))
+                    return F
+                else:
+                    raise EquationException("Unexpected dep_index")
+
+        x0 = Constant(1.0, name="x0")
+        x1 = Constant(0.0, name="x1")
+
+        eq0 = NewtonIterationSolver(m, x0, x1)
+        eq1 = AssignmentSolver(x1, x0)
+
+        fp_eq = FixedPointSolver(
+            [eq0, eq1],
+            solver_parameters={"absolute_tolerance": 0.0,
+                               "relative_tolerance": 1.0e-14,
+                               "report": False})
+        fp_eq.solve()
+
+        if forward_run:
+            manager = _manager()
+
+            assert len(manager._to_drop_references) == 0
+            for eq in [fp_eq, eq0, eq1]:
+                assert not eq._references_dropped
+                for dep in eq.dependencies():
+                    assert not isinstance(dep, Replacement)
+            del eq
+
+            fp_eq = WeakAlias(fp_eq)
+
+            assert len(manager._to_drop_references) == 1
+            for eq in [fp_eq, eq0, eq1]:
+                assert not eq._references_dropped
+                for dep in eq.dependencies():
+                    assert not isinstance(dep, Replacement)
+            del eq
+
+            manager.drop_references()
+
+            assert len(manager._to_drop_references) == 0
+            assert fp_eq._references_dropped
+            for dep in fp_eq.dependencies():
+                assert isinstance(dep, Replacement)
+            for eq in [eq0, eq1]:
+                assert not eq._references_dropped
+                for dep in eq.dependencies():
+                    assert not isinstance(dep, Replacement)
+            del eq
+
+        eq0.solve()
+        eq1.solve()
+
+        if forward_run:
+            assert len(manager._to_drop_references) == 0
+            for eq in [eq0, eq1]:
+                assert not eq._references_dropped
+                for dep in eq.dependencies():
+                    assert not isinstance(dep, Replacement)
+            del eq
+
+            eq0 = WeakAlias(eq0)
+            eq1 = WeakAlias(eq1)
+
+            assert len(manager._to_drop_references) == 2
+            for eq in [eq0, eq1]:
+                assert not eq._references_dropped
+                for dep in eq.dependencies():
+                    assert not isinstance(dep, Replacement)
+            del eq
+
+            manager.drop_references()
+
+            assert len(manager._to_drop_references) == 0
+            for eq in [eq0, eq1]:
+                assert eq._references_dropped
+                for dep in eq.dependencies():
+                    assert isinstance(dep, Replacement)
+            del eq
+
+        J = Functional(name="J")
+        J.assign(x1)
+        return J
+
+    m = Constant(2.0, name="m")
+
+    start_manager()
+    J = forward(m, forward_run=True)
+    stop_manager()
+
+    J_val = J.value()
+    print(f"J = {J_val:.16e}")
+    assert abs(J_val - np.sqrt(2.0)) < 1.0e-15
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, dM=Constant(1.0), J_val=J_val, dJ=dJ)
+    assert min_order > 1.99

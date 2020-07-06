@@ -88,7 +88,7 @@ def test_overrides(setup_test, test_leaks):
             J.assign(inner(G, G * (1 + G)) * dx)
             return G, J
 
-        reset_manager("memory", {"replace": True})
+        reset_manager("memory", {"drop_references": True})
         start_manager()
         G, J = forward(F)
         stop_manager()

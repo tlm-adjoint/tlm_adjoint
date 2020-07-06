@@ -22,7 +22,8 @@ from .backend import *
 from .backend_code_generator_interface import *
 from .interface import *
 
-from .functions import eliminate_zeros, function_caches
+from .alias import gc_disabled
+from .functions import eliminate_zeros, function_caches, replaced_form
 
 from collections import defaultdict
 import ufl
@@ -245,6 +246,7 @@ class CacheRef:
         self._value = None
 
 
+@gc_disabled
 def clear_caches(*deps):
     if len(deps) == 0:
         for cache in tuple(Cache._caches.valuerefs()):
@@ -367,14 +369,6 @@ class Cache:
 
     def get(self, key, default=None):
         return self._cache.get(key, default)
-
-
-def replaced_form(form):
-    replace_map = {}
-    for c in form.coefficients():
-        if is_function(c):
-            replace_map[c] = function_replacement(c)
-    return ufl.replace(form, replace_map)
 
 
 def form_dependencies(form):

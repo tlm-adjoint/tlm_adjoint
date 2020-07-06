@@ -84,7 +84,7 @@ class ConstantMatrix(Matrix):
 
 
 class ContractionArray:
-    def __init__(self, A, I, A_T=None, alpha=1.0):
+    def __init__(self, A, I, A_T=None, alpha=1.0):  # noqa: E741
         for i in range(len(I) - 1):
             if I[i + 1] <= I[i]:
                 raise EquationException("Axes must be in ascending order")
@@ -99,7 +99,7 @@ class ContractionArray:
     def A_T(self):
         return self._A.T if self._A_T is None else self._A_T
 
-    def I(self):  # noqa: E743
+    def I(self):  # noqa: E741,E743
         return self._I
 
     def alpha(self):
@@ -125,7 +125,7 @@ class ContractionArray:
 
 
 class ContractionRHS(RHS):
-    def __init__(self, A, I, X, A_T=None, alpha=1.0):
+    def __init__(self, A, I, X, A_T=None, alpha=1.0):  # noqa: E741
         if len(X) != len(A.shape) - 1:
             raise EquationException("Contraction does not result in a vector")
         j = set(range(len(A.shape)))
@@ -187,5 +187,5 @@ class ContractionRHS(RHS):
 
 
 class ContractionSolver(LinearEquation):
-    def __init__(self, A, I, Y, x, A_T=None, alpha=1.0):
+    def __init__(self, A, I, Y, x, A_T=None, alpha=1.0):  # noqa: E741
         super().__init__(ContractionRHS(A, I, Y, A_T=A_T, alpha=alpha), x)

@@ -20,6 +20,7 @@
 
 from .backend_interface import *
 
+from .alias import Alias
 from .base_equations import AssignmentSolver, Equation
 try:
     from .equations import EquationSolver
@@ -157,34 +158,6 @@ class TimeLevels:
 
     def __len__(self):
         return len(self._levels)
-
-
-class Alias:
-    def __init__(self, obj):
-        super().__setattr__("_tlm_adjoint__alias", obj)
-
-    def __new__(cls, obj):
-        obj_cls = type(obj)
-
-        class Alias(cls, obj_cls):
-            def __new__(cls, *args, **kwargs):
-                obj = obj_cls.__new__(obj_cls, *args, **kwargs)
-                obj.__init__(*args, **kwargs)
-                return obj
-
-        return super().__new__(Alias)
-
-    def __getattr__(self, key):
-        return getattr(self._tlm_adjoint__alias, key)
-
-    def __setattr__(self, key, value):
-        return setattr(self._tlm_adjoint__alias, key, value)
-
-    def __delattr__(self, key):
-        delattr(self._tlm_adjoint__alias, key)
-
-    def __dir__(self):
-        return dir(self._tlm_adjoint__alias)
 
 
 class TimeFunction:

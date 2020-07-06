@@ -20,7 +20,8 @@
 
 from .backend_interface import *
 
-from .base_equations import AdjointModelRHS, ControlsMarker, EquationAlias, \
+from .alias import WeakAlias, gc_disabled
+from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
 from .functional import Functional
@@ -63,19 +64,6 @@ __all__ = \
 
 class ManagerException(Exception):
     pass
-
-
-def gc_disabled(function):
-    def wrapped_function(*args, **kwargs):
-        gc_enabled = gc.isenabled()
-        gc.disable()
-        try:
-            return_value = function(*args, **kwargs)
-        finally:
-            if gc_enabled:
-                gc.enable()
-        return return_value
-    return wrapped_function
 
 
 class Control:
@@ -244,9 +232,13 @@ class TangentLinearMap:
         self._map = {}
         self._finalizes = {}
 
-    def __del__(self):
-        for finalize in self._finalizes.values():
-            finalize.detach()
+        @gc_disabled
+        def finalize_callback(finalizes):
+            for finalize in finalizes.values():
+                finalize.detach()
+            finalizes.clear()
+        finalize = weakref.finalize(self, finalize_callback, self._finalizes)
+        finalize.atexit = False
 
     @gc_disabled
     def __contains__(self, x):
@@ -256,18 +248,25 @@ class TangentLinearMap:
     def __getitem__(self, x):
         if not is_function(x):
             raise ManagerException("x must be a function")
+        assert not isinstance(x, WeakAlias)
+
         x_id = function_id(x)
         if x_id not in self._map:
-            @gc_disabled
-            def callback(self_ref, x_id):
-                self = self_ref()
-                if self is not None:
-                    del self._map[x_id]
-                    # del self._finalizes[x_id]
-            self._finalizes[x_id] = weakref.finalize(
-                x, callback, weakref.ref(self), x_id)
             self._map[x_id] = function_tangent_linear(
                 x, name=f"{function_name(x):s}{self._name_suffix:s}")
+
+            @gc_disabled
+            def finalize_callback(self_ref, x_id):
+                self = self_ref()
+                if self is not None:
+                    del self._finalizes[x_id]
+                    del self._map[x_id]
+            finalize = weakref.finalize(
+                x, finalize_callback, weakref.ref(self), x_id)
+            finalize.atexit = False
+            assert x_id not in self._finalizes
+            self._finalizes[x_id] = finalize
+
         return self._map[x_id]
 
 
@@ -576,12 +575,24 @@ class EquationManager:
             comm_py2f = -1
         self._id = self._comm.bcast(id, root=0)
         self._comm_py2f = self._comm.bcast(comm_py2f, root=0)
+
+        self._tlm_eqs = {}
+        self._to_drop_references = []
+        self._finalizes = {}
+
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
-    def __del__(self):
-        self._replace_deferred()
-        for finalize in self._finalizes.values():
-            finalize.detach()
+        @gc_disabled
+        def finalize_callback(to_drop_references, finalizes):
+            while len(to_drop_references) > 0:
+                referrer = to_drop_references.pop()
+                referrer._drop_references()
+            for finalize in finalizes.values():
+                finalize.detach()
+            finalizes.clear()
+        finalize = weakref.finalize(self, finalize_callback,
+                                    self._to_drop_references, self._finalizes)
+        finalize.atexit = False
 
     def comm(self):
         return self._comm
@@ -614,19 +625,15 @@ class EquationManager:
                                                 for eq_x in eq_X))
                     X_ids = "ids (%s)" % (",".join(f"{function_id(eq_x):d}"
                                                    for eq_x in eq_X))
-                if isinstance(eq, EquationAlias):
-                    eq_type = f"{eq}"
-                else:
-                    eq_type = type(eq).__name__
                 info("    Equation %i, %s solving for %s (%s)" %
-                     (i, eq_type, X_name, X_ids))
+                     (i, type(eq).__name__, X_name, X_ids))
                 nl_dep_ids = {function_id(dep)
                               for dep in eq.nonlinear_dependencies()}
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
-                         ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
-                         "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
+                          ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
+                          "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
         info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
@@ -660,13 +667,14 @@ class EquationManager:
         return EquationManager(comm=self._comm, cp_method=cp_method,
                                cp_parameters=cp_parameters)
 
+    @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
         """
         Reset the equation manager. Optionally a new checkpointing
         configuration can be provided.
         """
 
-        self._replace_deferred()
+        self.drop_references()
 
         if cp_method is None:
             cp_method = self._cp_method
@@ -678,13 +686,9 @@ class EquationManager:
         self._eqs = {}
         self._blocks = []
         self._block = []
-        if hasattr(self, "_finalizes"):
-            for finalize in self._finalizes.values():
-                finalize.detach()
-        self._finalizes = {}
 
         self._tlm = OrderedDict()
-        self._tlm_eqs = {}
+        self._tlm_eqs.clear()
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
@@ -718,7 +722,18 @@ class EquationManager:
 
         if cp_method == "memory":
             cp_manager = None
-            cp_parameters["replace"] = cp_parameters.get("replace", False)
+            if "replace" in cp_parameters:
+                warnings.warn("'replace' cp_parameters key is deprecated",
+                              DeprecationWarning, stacklevel=2)
+                if "drop_references" in cp_parameters:
+                    if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
+                        raise ManagerException("Conflicting cp_parameters "
+                                               "values")
+                else:
+                    cp_parameters["drop_references"] = cp_parameters["replace"]
+                del cp_parameters["replace"]
+            else:
+                cp_parameters["drop_references"] = cp_parameters.get("drop_references", False)  # noqa: E501
         elif cp_method == "periodic_disk":
             cp_manager = set()
         elif cp_method == "multistage":
@@ -931,7 +946,7 @@ class EquationManager:
             Used for the derivation of higher order tangent-linear equations.
         """
 
-        self._replace_deferred()
+        self.drop_references()
 
         if annotate is None:
             annotate = self.annotation_enabled()
@@ -943,26 +958,17 @@ class EquationManager:
             elif self._annotation_state == "final":
                 raise ManagerException("Cannot add equations after finalization")  # noqa: E501
 
-            if self._cp_method == "memory" and not self._cp_parameters["replace"]:  # noqa: E501
+            if self._cp_method == "memory" and not self._cp_parameters["drop_references"]:  # noqa: E501
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq
                 self._block.append(eq)
             else:
-                assert not isinstance(eq, EquationAlias)
-                eq_alias = EquationAlias(eq)
+                self._add_equation_finalizes(eq)
+                eq_alias = WeakAlias(eq)
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
-                if eq_id not in self._finalizes:
-                    @gc_disabled
-                    def callback(self_ref, eq_ref):
-                        self = self_ref()
-                        eq = eq_ref()
-                        if self is not None and eq is not None:
-                            self._eqs_to_replace.append(eq)
-                    self._finalizes[eq_id] = weakref.finalize(
-                        eq, callback, weakref.ref(self), weakref.ref(eq_alias))
                 self._block.append(eq_alias)
             self._cp.add_equation(
                 (len(self._blocks), len(self._block) - 1), eq)
@@ -973,59 +979,69 @@ class EquationManager:
             if self._tlm_state == "final":
                 raise ManagerException("Cannot add tangent-linear equations after finalization")  # noqa: E501
 
-            X = eq.X()
             depth = 0 if tlm_skip is None else tlm_skip[1]
             for i, (M, dM) in enumerate(reversed(self._tlm)):
                 if tlm_skip is not None and i >= tlm_skip[0]:
                     break
                 tlm_map, max_depth = self._tlm[(M, dM)]
-                eq_tlm_eqs = self._tlm_eqs.get(eq.id(), None)
-                if eq_tlm_eqs is None:
-                    eq_tlm_eqs = self._tlm_eqs[eq.id()] = {}
-                tlm_eq = eq_tlm_eqs.get((M, dM), None)
-                if tlm_eq is None:
-                    for dep in eq.dependencies():
-                        if dep in M or dep in tlm_map:
-                            if len(set(X).intersection(set(M))) > 0:
-                                raise ManagerException("Invalid tangent-linear parameter")  # noqa: E501
-                            tlm_eq = eq.tangent_linear(M, dM, tlm_map)
-                            if tlm_eq is None:
-                                tlm_eq = NullSolver([tlm_map[x] for x in X])
-                            eq_tlm_eqs[(M, dM)] = tlm_eq
-                            break
+                tlm_eq = self._tangent_linear(eq, M, dM, tlm_map)
                 if tlm_eq is not None:
                     tlm_eq.solve(
                         manager=self, annotate=annotate, tlm=True,
                         _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
                                    else [i, 0]))
 
-    def replace(self, eq):
-        """
-        Replace internal functions in the provided equation with Replacement
-        objects.
-        """
-
-        replace_map = {}
-        for dep in eq.dependencies():
-            replacement_dep = function_replacement(dep)
-            if replacement_dep is not dep:
-                replace_map[dep] = replacement_dep
-        eq.replace(replace_map)
-
+    @gc_disabled
+    def _tangent_linear(self, eq, M, dM, tlm_map):
         eq_id = eq.id()
-        if eq_id in self._tlm_eqs:
-            for tlm_eq in self._tlm_eqs[eq_id].values():
-                if tlm_eq is not None:
-                    self.replace(tlm_eq)
+        X = eq.X()
+
+        eq_tlm_eqs = self._tlm_eqs.get(eq_id, None)
+        if eq_tlm_eqs is None:
+            eq_tlm_eqs = {}
+            self._tlm_eqs[eq_id] = eq_tlm_eqs
+
+        tlm_eq = eq_tlm_eqs.get((M, dM), None)
+        if tlm_eq is None:
+            for dep in eq.dependencies():
+                if dep in M or dep in tlm_map:
+                    if len(set(X).intersection(set(M))) > 0:
+                        raise ManagerException("Invalid tangent-linear "
+                                               "parameter")
+                    tlm_eq = eq.tangent_linear(M, dM, tlm_map)
+                    if tlm_eq is None:
+                        tlm_eq = NullSolver([tlm_map[x] for x in X])
+                    eq_tlm_eqs[(M, dM)] = tlm_eq
+                    break
+
+        return tlm_eq
 
     @gc_disabled
-    def _replace_deferred(self):
-        if hasattr(self, "_eqs_to_replace"):
-            for eq in self._eqs_to_replace:
-                self.replace(eq)
-            self._eqs_to_replace.clear()
-        else:
-            self._eqs_to_replace = []
+    def _add_equation_finalizes(self, eq):
+        for referrer in eq.referrers():
+            assert not isinstance(referrer, WeakAlias)
+            referrer_id = referrer.id()
+            if referrer_id not in self._finalizes:
+                @gc_disabled
+                def finalize_callback(self_ref, referrer_alias, referrer_id):
+                    self = self_ref()
+                    if self is not None:
+                        self._to_drop_references.append(referrer_alias)
+                        del self._finalizes[referrer_id]
+                        if referrer_id in self._tlm_eqs:
+                            assert isinstance(referrer_alias, Equation)
+                            del self._tlm_eqs[referrer_id]
+                finalize = weakref.finalize(
+                    referrer, finalize_callback,
+                    weakref.ref(self), WeakAlias(referrer), referrer_id)
+                finalize.atexit = False
+                self._finalizes[referrer_id] = finalize
+
+    @gc_disabled
+    def drop_references(self):
+        while len(self._to_drop_references) > 0:
+            referrer = self._to_drop_references.pop()
+            referrer._drop_references()
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)
@@ -1347,6 +1363,8 @@ class EquationManager:
         reached.
         """
 
+        self.drop_references()
+
         if self._annotation_state in ["stopped_initial",
                                       "stopped_annotating",
                                       "final"]:
@@ -1368,7 +1386,7 @@ class EquationManager:
         End the final block equation.
         """
 
-        self._replace_deferred()
+        self.drop_references()
 
         if self._annotation_state == "final":
             return

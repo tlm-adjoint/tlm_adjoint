@@ -32,6 +32,7 @@ modules = [("backend", "tlm_adjoint_fenics"),
            ("fenics_equations", "tlm_adjoint_fenics"),
            ("tlm_adjoint", "tlm_adjoint"),
            ("backend_overrides", "tlm_adjoint_fenics"),
+           ("alias", "tlm_adjoint"),
            ("binomial_checkpointing", "tlm_adjoint"),
            ("eigendecomposition", "tlm_adjoint"),
            ("functional", "tlm_adjoint"),
@@ -63,18 +64,18 @@ if not tlm_adjoint_module:
 
 del importlib, sys, modules, tlm_adjoint_module, module_name, package
 
-from .backend import backend       # noqa: F401
-from .backend_interface import *   # noqa: F401
-from .backend_overrides import *   # noqa: F401
-from .base_equations import *      # noqa: F401
-from .caches import *              # noqa: F401
-from .eigendecomposition import *  # noqa: F401
-from .equations import *           # noqa: F401
-from .fenics_equations import *    # noqa: F401
-from .functions import *           # noqa: F401
-from .functional import *          # noqa: F401
-from .hessian import *             # noqa: F401
-from .manager import *             # noqa: F401
-from .optimization import *        # noqa: F401
-from .tlm_adjoint import *         # noqa: F401
-from .verification import *        # noqa: F401
+from .backend import backend       # noqa: E402,F401
+from .backend_interface import *   # noqa: E402,F401
+from .backend_overrides import *   # noqa: E402,F401
+from .base_equations import *      # noqa: E402,F401
+from .caches import *              # noqa: E402,F401
+from .eigendecomposition import *  # noqa: E402,F401
+from .equations import *           # noqa: E402,F401
+from .fenics_equations import *    # noqa: E402,F401
+from .functions import *           # noqa: E402,F401
+from .functional import *          # noqa: E402,F401
+from .hessian import *             # noqa: E402,F401
+from .manager import *             # noqa: E402,F401
+from .optimization import *        # noqa: E402,F401
+from .tlm_adjoint import *         # noqa: E402,F401
+from .verification import *        # noqa: E402,F401

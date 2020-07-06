@@ -103,21 +103,21 @@ def packed_solver_parameters(solver_parameters, options_prefix=None,
 
 
 # Aim for compatibility with Firedrake API, git master revision
-# cf7b18cddacae582fd1e92e6d2148d9a538d131a
+# 2a8aea3ffe3d0868fa218cb5c70f555d239e23e9, Jun 26 2020
 
 
-def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
-             inverse=False, *args, **kwargs):
+def assemble(expr, tensor=None, bcs=None, form_compiler_parameters=None,
+             *args, **kwargs):
     b = backend_assemble(
-        f, tensor=tensor, bcs=bcs,
-        form_compiler_parameters=form_compiler_parameters, inverse=inverse,
+        expr, tensor=tensor, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
     if tensor is None:
         tensor = b
 
-    if isinstance(f, ufl.classes.Form):
-        rank = len(f.arguments())
-        if rank != 0 and not inverse:
+    if isinstance(expr, ufl.classes.Form):
+        rank = len(expr.arguments())
+        if rank != 0:
             form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
             if form_compiler_parameters is not None:
                 update_parameters_dict(form_compiler_parameters_,
@@ -125,10 +125,14 @@ def assemble(f, tensor=None, bcs=None, form_compiler_parameters=None,
             form_compiler_parameters = form_compiler_parameters_
 
             if rank != 2:
-                tensor._tlm_adjoint__form = f
+                tensor._tlm_adjoint__form = expr
             tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return tensor
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# cf7b18cddacae582fd1e92e6d2148d9a538d131a, Jul 25 2019
 
 
 def extract_args_linear_solve(A, x, b, bcs=None, solver_parameters={}):

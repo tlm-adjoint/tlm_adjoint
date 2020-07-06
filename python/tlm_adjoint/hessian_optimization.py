@@ -20,7 +20,6 @@
 
 from .backend_interface import *
 
-from .base_equations import NullSolver
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import CheckpointStorage
@@ -66,7 +65,7 @@ class SingleBlockHessian(Hessian):
         clear_caches(*dM)
 
         if self._manager._cp_method != "memory" \
-           or self._manager._cp_parameters["replace"] \
+           or self._manager._cp_parameters["drop_references"] \
            or not (len(self._manager._blocks) == 0
                    or (len(self._manager._blocks) == 1
                        and len(self._manager._block) == 0)):
@@ -95,7 +94,6 @@ class SingleBlockHessian(Hessian):
         del ics
 
         for i, eq in enumerate(block):
-            eq_X = eq.X()
             # Copy annotation of the equation
             manager._eqs[eq.id()] = eq
             manager._block.append(eq)
@@ -106,21 +104,7 @@ class SingleBlockHessian(Hessian):
             for (M, dM), (tlm_map, max_depth) in manager._tlm.items():
                 # Generate the associated tangent-linear equation (or extract
                 # it from the cache)
-                eq_tlm_eqs = manager._tlm_eqs.get(eq, None)
-                if eq_tlm_eqs is None:
-                    eq_tlm_eqs = manager._tlm_eqs[eq] = {}
-                tlm_eq = eq_tlm_eqs.get((M, dM), None)
-                if tlm_eq is None:
-                    for dep in eq.dependencies():
-                        if dep in M or dep in tlm_map:
-                            if len(set(eq_X).intersection(set(M))) > 0:
-                                raise ManagerException("Invalid tangent-linear parameter")  # noqa: E501
-                            tlm_eq = eq.tangent_linear(M, dM, tlm_map)
-                            if tlm_eq is None:
-                                tlm_eq = NullSolver([tlm_map[eq_x]
-                                                     for eq_x in eq_X])
-                            eq_tlm_eqs[(M, dM)] = tlm_eq
-                            break
+                tlm_eq = manager._tangent_linear(eq, M, dM, tlm_map)
                 if tlm_eq is not None:
                     # Extract the dependency values from storage for use in the
                     # solution of the tangent-linear equation

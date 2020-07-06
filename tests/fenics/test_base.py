@@ -62,7 +62,7 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
-    reset_manager("memory", {"replace": True})
+    reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
 
@@ -132,7 +132,7 @@ def test_leaks():
     manager._tlm.clear()
     tlm_eqs_values = [list(eq_tlm_eqs.values()) for eq_tlm_eqs in manager._tlm_eqs.values()]  # noqa: E501,F841
     manager._tlm_eqs.clear()
-    manager._replace_deferred()
+    manager.drop_references()
 
     gc.collect()
     gc.collect()
