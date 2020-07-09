@@ -115,6 +115,8 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
             return J[0].value()
 
         set(M, x)
+        clear_caches(*M)
+
         old_manager = _manager()
         set_manager(manager)
         manager.reset()
@@ -138,6 +140,8 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
     from scipy.optimize import minimize
     return_value = minimize(fun, get(M0), jac=jac, **kwargs)
+
     set(M, return_value.x)
+    clear_caches(*M)
 
     return M, return_value
