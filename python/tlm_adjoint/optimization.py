@@ -80,12 +80,12 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         N_global.append(N_global[-1] + size)
 
     def get(F):
-        x = np.empty(N[-1], dtype=np.float64)
+        x = np.full(N[-1], np.NAN, dtype=np.float64)
         for i, f in enumerate(F):
             x[N[i]:N[i + 1]] = function_get_values(f)
 
         x_global = comm.allgather(x)
-        X = np.empty(N_global[-1], dtype=np.float64)
+        X = np.full(N_global[-1], np.NAN, dtype=np.float64)
         for i, x_p in enumerate(x_global):
             X[N_global[i]:N_global[i + 1]] = x_p
         return X
