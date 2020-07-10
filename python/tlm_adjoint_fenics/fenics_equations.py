@@ -302,6 +302,8 @@ class InterpolationSolver(LinearEquation):
 
         y         A scalar function. The function to be interpolated.
         x         A scalar function. The solution to the equation.
+        X_coords  (Optional) A real NumPy array. Coordinates at which to 
+                  interpolate the function.
         y_colors  (Optional) An integer NumPy vector. Node-node graph coloring
                   for the space for y. Ignored if P is supplied. Generated
                   using greedy_coloring if not supplied.
@@ -313,6 +315,8 @@ class InterpolationSolver(LinearEquation):
             raise EquationException("Solution must be a scalar function")
         if len(y.ufl_shape) > 0:
             raise EquationException("y must be a scalar function")
+        if (X_coords is not None) and (function_comm(x).size > 1):
+            raise EquationException("Cannot prescribe X_coords in parallel")
 
         if P is None:
             y_space = function_space(y)

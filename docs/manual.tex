@@ -606,6 +606,11 @@ Keys for the \texttt{solver\_parameters} argument are based on the
     point iteration (default false).
 \end{itemize}
 
+\texttt{Equation} objects used to define a \texttt{FixedPointSolver} may not be
+used to define further equations -- for example you should not call their
+\texttt{solve} method, and should not use a single \texttt{Equation} to
+instantiate two or more \texttt{FixedPointSolver} objects.
+
 \subsection{Built-in \texttt{Equation} classes: FEniCS and Firedrake}
 
 \subsubsection{\texttt{EquationSolver}}\label{sect:EquationSolver}
@@ -808,7 +813,7 @@ $P$ is a matrix. $V$ and $W$ must be defined using the same mesh. An
 eq = InterpolationSolver(y, x)
 \end{lstlisting}
 where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
-\texttt{Function} being interpolated.
+\texttt{Function} being interpolated. Optionally, coordinates \texttt{X_coords} may be supplied, in which case \texttt{X_coords} are taken to be the coordinates of the DOFs of $V$.
 
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. This
@@ -994,9 +999,8 @@ with arguments
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
 \texttt{forward\_solve} method is called. If \texttt{deps} is not supplied,
-then \texttt{self.drop\_references} (section \ref{sect:drop_references}) has
-not previously been called prior to a call to the \texttt{forward\_solve}
-method.
+then \texttt{self.replace} (section \ref{sect:replace}) has not previously been
+called prior to a call to the \texttt{forward\_solve} method.
 
 \subsection{Adjoint derivative action}\label{sect:adjoint_derivative_action}
 
@@ -1043,9 +1047,9 @@ The return value will not be modified by calling code.
 
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
-\texttt{adjoint\_derivative\_action} method is called.
-\texttt{self.drop\_references} (section \ref{sect:drop_references}) may have
-been called prior to a call to the \texttt{adjoint\_derivative\_action} method.
+\texttt{adjoint\_derivative\_action} method is called. \texttt{self.replace}
+(section \ref{sect:replace}) may have been called prior to a call to the
+\texttt{adjoint\_derivative\_action} method.
 
 \subsection{Adjoint Jacobian solve}
 
@@ -1079,9 +1083,9 @@ This method returns a function defining the solution of the linear system
 
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
-\texttt{adjoint\_derivative\_action} method is called.
-\texttt{self.drop\_references} (section \ref{sect:drop_references}) may have
-been called prior to a call to the \texttt{adjoint\_jacobian\_solve} method.
+\texttt{adjoint\_derivative\_action} method is called. \texttt{self.replace}
+(section \ref{sect:replace}) may have been called prior to a call to the
+\texttt{adjoint\_jacobian\_solve} method.
 
 \subsection{Adjoint optimization}
 
@@ -1150,8 +1154,8 @@ This returns a control direction (an element of \texttt{dM}), a tangent-linear
 solution variable, or \texttt{None} if the tangent-linear variable is known to
 be identically zero.
 
-\texttt{self.drop\_references} (section \ref{sect:drop_references}) will not
-previously been called prior to a call to the \texttt{tangent\_linear} method.
+\texttt{self.replace} (section \ref{sect:replace}) will not previously been
+called prior to a call to the \texttt{tangent\_linear} method.
 
 \subsection{Solving for multiple functions}
 
@@ -1161,16 +1165,17 @@ capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
 list or tuple of functions. The return value of
 \texttt{adjoint\_jacobian\_solve} should also be a list or tuple of functions.
 
-\subsection{Dropping references}\label{sect:drop_references}
+\subsection{Dropping references}\label{sect:replace}
 
 If a subclassed \texttt{Equation} keeps references to any functions, then it
-should be possible to drop these references with the \texttt{drop\_references}
-method. This method takes the form
+should be possible to drop these references with the \texttt{replace} method.
+This method takes the form
 \begin{lstlisting}
-def drop_references(self):
+def replace(self, replace_map):
 \end{lstlisting}
-The \texttt{drop\_references} method must call the base class
-\texttt{drop\_references} method.
+where \texttt{replace\_map} is a dictionary mapping from dependencies to
+objects with which they should be replaced. The \texttt{replace} method must
+call the base class \texttt{replace} method.
 
 \section{Linear algebra}
 
@@ -1375,13 +1380,14 @@ equal to \texttt{B[b\_index]}.
 \subsubsection{Dropping references}
 
 If a subclassed \texttt{Matrix} keeps references to any functions, then it
-should be possible to drop these references with the \texttt{drop\_references}
-method. This method takes the form
+should be possible to drop these references with the \texttt{replace} method.
+This method takes the form
 \begin{lstlisting}
-def drop_references(self):
+def replace(self, replace_map):
 \end{lstlisting}
-The \texttt{drop\_references} method must call the base class
-\texttt{drop\_references} method.
+where \texttt{replace\_map} is a dictionary mapping from dependencies to
+objects with which they should be replaced. The \texttt{replace} method must
+call the base class \texttt{replace} method.
 
 \subsection{\texttt{RHS}}
 
@@ -1468,13 +1474,14 @@ where \texttt{adj\_X} and \texttt{B} are now each a list or tuple of functions.
 \subsubsection{Dropping references}
 
 If a subclassed \texttt{RHS} keeps references to any functions, then it should
-be possible to drop these references with the \texttt{drop\_references} method.
-This method takes the form
+be possible to drop these references with the \texttt{replace} method. This
+method takes the form
 \begin{lstlisting}
-def drop_references(self):
+def replace(self, replace_map):
 \end{lstlisting}
-The \texttt{drop\_references} method must call the base class
-\texttt{drop\_references} method.
+where \texttt{replace\_map} is a dictionary mapping from dependencies to
+objects with which they should be replaced. The \texttt{replace} method must
+call the base class \texttt{replace} method.
 
 \subsection{Built-in linear algebra classes}
 
@@ -2033,7 +2040,7 @@ For example a second order test is based on
   e_{1,1} \left( \varepsilon \right) = \left|
     \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0 + \zeta} \chi
     - \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \chi
-    - \varepsilon \left. \frac{\mathrm{d}}{\mathrm{d} m} \left( \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \chi \right) \right|_{m = m_0} \zeta
+    - \varepsilon \left. \frac{\mathrm{d}}{\mathrm{d} m} \left( \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \chi \right) \right|_{m = m_0} \zeta
     \right| = {\cal O} \left( \varepsilon^2 \right).
 \end{equation*}
 In such a test the first order derivative information is computed using a first
@@ -2054,7 +2061,7 @@ with arguments
   \item \texttt{dMs}, a function, or a tuple containing functions (or further
     such tuples), defining the tangent-linear directions (in \texttt{dMs[:-1]}
     if \texttt{dMs} is a tuple) and perturbation direction (\texttt{dMs} if
-    \texttt{dMs} is a function, or \texttt{dMs[-1]} if \texttt{dMs} is a
+    \texttt{dMs} is a function, or \texttt{dMs[:-1]} if \texttt{dMs} is a
     tuple).
   \item \texttt{manager}, defaulting to the currently active equation manager.
     A new equation manager is generated using the \texttt{manager.new} method.
@@ -2105,8 +2112,9 @@ In a valid verification, for sufficiently small perturbation magnitude the
 order of convergence when the highest order derivative information is not used
 should be approximately one, and the order of convergence when the highest
 order derivative information is used should be approximately two. Numerical
-roundoff issues, or encountering a special case where derivatives are zero, may
-prevent these asymptotic convergence orders from being observable.
+roundoff issues, or encountering a special case where the highest order
+derivative is zero, may prevent these asymptotic convergence orders from being
+observable.
 
 \section{Checkpointing}\label{sect:checkpointing}
 
@@ -2127,10 +2135,10 @@ of parameters controlling the detailed checkpointing configuration options.
 All dependencies of all equations are fully stored in memory. The default
 method. Keys for \texttt{cp\_parameters} for this method are
 \begin{itemize}
-  \item \texttt{drop\_references}, a logical, default false. If true then weak
+  \item \texttt{replace}, a logical, default false. If true then weak
     references to \texttt{Equation} objects are kept by the
-    \texttt{EquationManager}, and their \texttt{drop\_reference} methods will
-    be called when the \texttt{Equation} objects are destroyed. If false then
+    \texttt{EquationManager}, and their \texttt{replace} methods will be called
+    when the \texttt{Equation} objects are garbage collected. If false then
     strong references to \texttt{Equation} objects are kept by the
     \texttt{EquationManager}.
 \end{itemize}
@@ -2162,7 +2170,7 @@ single run of a forward model.
 
 Checkpoints are stored using the binomial checkpointing approach of
 \citet{griewank2000} (following the maximal trajectory of their Fig. 4), with
-multistage offline checkpointing using the allocation strategy described in
+multistage offline checkpointing using allocation strategy described in
 \citet{stumm2009} (with a brute-force approach used to determine the
 allocation). Keys for \texttt{cp\_parameters} for this method are
 \begin{itemize}
