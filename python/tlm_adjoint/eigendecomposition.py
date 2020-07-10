@@ -167,6 +167,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     if eps_error[0]:
         raise EigendecompositionException("Error encountered in "
                                           "SLEPc.EPS.solve")
+    if esolver.getConverged() < N_ev:
+        raise EigendecompositionException("Not all requested "
+                                          "eigenvectors converged.")
 
     lam = np.empty(N_ev,
                    dtype=np.float64 if esolver.isHermitian() else np.complex64)
