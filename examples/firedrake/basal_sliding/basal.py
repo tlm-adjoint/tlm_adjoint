@@ -159,9 +159,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 defer_adjoint_assembly=False)
             self._J_1 = J_1
 
-        def replace(self, replace_map):
-            super().replace(replace_map)
-            self._J_1 = ufl.replace(self._J_1, replace_map)
+        def drop_references(self):
+            super().drop_references()
+            self._J_1 = replaced_form(self._J_1)
 
         def forward_solve(self, x, deps=None):
             U = x
@@ -424,7 +424,7 @@ if debug:
     assert min_order > 1.99
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
-                            seed=1.0e-3)
+                            seed=2.0e-3)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_ref_J, beta_sq,

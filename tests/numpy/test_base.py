@@ -40,7 +40,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    reset_manager("memory", {"replace": True})
+    reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
 
@@ -65,15 +65,19 @@ def test_leaks():
 
     yield
 
+    gc.collect()
+
     # Clear some internal storage that is allowed to keep references
     manager = _manager()
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
-    tlm_values = manager._tlm.values()  # noqa: F841
+    tlm_values = list(manager._tlm.values())  # noqa: F841
     manager._tlm.clear()
-    tlm_eqs_values = manager._tlm_eqs.values()  # noqa: F841
+    tlm_eqs_values = [list(eq_tlm_eqs.values()) for eq_tlm_eqs in manager._tlm_eqs.values()]  # noqa: E501,F841
     manager._tlm_eqs.clear()
+    manager.drop_references()
 
+    gc.collect()
     gc.collect()
 
     refs = 0

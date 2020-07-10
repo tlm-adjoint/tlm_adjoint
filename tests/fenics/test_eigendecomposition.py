@@ -23,6 +23,7 @@ from tlm_adjoint_fenics import *
 
 from test_base import *
 
+import numpy as np
 import pytest
 
 
@@ -69,3 +70,57 @@ def test_NHEP(setup_test, test_leaks):
         function_axpy(diff, -float(lam_val.real), v_i)
         function_axpy(diff, -float(lam_val.imag), v_r)
         assert function_linf_norm(diff) < 1.0e-8
+
+
+@pytest.mark.fenics
+def test_SingleBlockHessian(setup_test):
+    configure_checkpointing("memory", {"drop_references": False})
+
+    mesh = UnitIntervalMesh(5)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(F):
+        y = Function(space, name="y")
+        EquationSolver(inner(test, trial) * dx == inner(test, F) * dx,
+                       y, solver_parameters=ls_parameters_cg).solve()
+
+        J = Functional(name="J")
+        J.addto(inner(dot(y, y), dot(y, y)) * dx)
+        return J
+
+    F = Function(space, name="F", static=True)
+    function_assign(F, 1.0)
+
+    start_manager()
+    J = forward(F)
+    stop_manager()
+
+    H = Hessian(forward)
+    from tlm_adjoint_fenics.hessian_optimization import SingleBlockHessian
+    H_opt = SingleBlockHessian(J)
+
+    # Test consistency of matrix action for static direction
+
+    zeta = Function(space, name="zeta", static=True)
+    for i in range(5):
+        function_set_values(zeta, np.random.random(function_local_size(zeta)))
+        _, _, ddJ_opt = H_opt.action(F, zeta)
+        _, _, ddJ = H.action(F, zeta)
+
+        error = Function(space, name="error")
+        function_assign(error, ddJ)
+        function_axpy(error, -1.0, ddJ_opt)
+        assert function_linf_norm(error) == 0.0
+
+    # Test consistency of eigenvalues
+
+    lam, _ = eigendecompose(space, H.action_fn(F))
+    assert max(abs(lam.imag)) == 0.0
+
+    lam_opt, _ = eigendecompose(space, H_opt.action_fn(F))
+    assert max(abs(lam_opt.imag)) == 0.0
+
+    error = (np.array(sorted(lam.real), dtype=np.float64)
+             - np.array(sorted(lam_opt.real), dtype=np.float64))
+    assert abs(error).max() == 0.0

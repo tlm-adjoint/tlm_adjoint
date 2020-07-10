@@ -20,11 +20,13 @@
 
 from .backend_interface import *
 
+from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 
 import inspect
 import numpy as np
 import warnings
+import weakref
 
 __all__ = \
     [
@@ -36,7 +38,6 @@ __all__ = \
         "AdjointRHS",
 
         "Equation",
-        "EquationAlias",
 
         "ControlsMarker",
         "FunctionalMarker",
@@ -180,9 +181,64 @@ class AdjointModelRHS:
         return len(self._B) == 0
 
 
-class Equation:
+class Referrer:
     _id_counter = [0]
 
+    def __init__(self, referrers=[]):
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
+        self._referrers = weakref.WeakValueDictionary()
+        self._references_dropped = False
+
+        self.add_referrer(*referrers)
+
+    def id(self):
+        return self._id
+
+    @gc_disabled
+    def add_referrer(self, *referrers):
+        if self._references_dropped:
+            raise EquationException("Cannot call add_referrer method after "
+                                    "_drop_references method has been called")
+        for referrer in referrers:
+            referrer_id = referrer.id()
+            assert self._referrers.get(referrer_id, referrer) is referrer
+            self._referrers[referrer_id] = referrer
+
+    @gc_disabled
+    def referrers(self):
+        referrers = {}
+        remaining_referrers = {self.id(): self}
+        while len(remaining_referrers) > 0:
+            referrer_id, referrer = remaining_referrers.popitem()
+            if referrer_id not in referrers:
+                referrers[referrer_id] = referrer
+                for child in tuple(referrer._referrers.valuerefs()):
+                    child = child()
+                    if child is not None:
+                        child_id = child.id()
+                        if child_id not in referrers and child_id not in remaining_referrers:  # noqa: E501
+                            remaining_referrers[child_id] = child
+        return tuple(e[1] for e in sorted(tuple(referrers.items()),
+                                          key=lambda e: e[0]))
+
+    def _drop_references(self):
+        if not self._references_dropped:
+            self.drop_references()
+            self._references_dropped = True
+
+    def drop_references(self):
+        raise EquationException("Method not overridden")
+
+
+def no_replace_compatibility(function):
+    def wrapped_function(*args, **kwargs):
+        return function(*args, **kwargs)
+    wrapped_function._replace_compatibility = False
+    return wrapped_function
+
+
+class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True,
                  adj_ic_deps=[], adj_ic=True):
         """
@@ -258,20 +314,34 @@ class Equation:
         if adj_ic:
             adj_ic_deps = list(X)
 
+        super().__init__()
         self._X = tuple(X)
         self._deps = tuple(deps)
         self._nl_deps = None if nl_deps is None else tuple(nl_deps)
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
-        self._id = self._id_counter[0]
-        self._id_counter[0] += 1
+
+    _reset_adjoint_warning = True
+    _initialize_adjoint_warning = True
+    _finalize_adjoint_warning = True
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
+        if getattr(cls.replace, "_replace_compatibility", True):
+            warnings.warn("Equation.replace method is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def drop_references(self):
+                replace_map = {dep: function_replacement(dep)
+                               for dep in self.dependencies()}
+                self.replace(replace_map)
+            cls.drop_references = drop_references
+            cls.replace._replace_compatibility = False
+
         if hasattr(cls, "reset_adjoint"):
-            if getattr(cls, "_reset_adjoint_warning", True):
+            if cls._reset_adjoint_warning:
                 warnings.warn("Equation.reset_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -279,7 +349,7 @@ class Equation:
             cls.reset_adjoint = lambda self: None
 
         if hasattr(cls, "initialize_adjoint"):
-            if getattr(cls, "_initialize_adjoint_warning", True):
+            if cls._initialize_adjoint_warning:
                 warnings.warn("Equation.initialize_adjoint method is "
                               "deprecated",
                               DeprecationWarning, stacklevel=2)
@@ -288,7 +358,7 @@ class Equation:
             cls.initialize_adjoint = lambda self, J, nl_deps: None
 
         if hasattr(cls, "finalize_adjoint"):
-            if getattr(cls, "_finalize_adjoint_warning", True):
+            if cls._finalize_adjoint_warning:
                 warnings.warn("Equation.finalize_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -299,7 +369,7 @@ class Equation:
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
                                                       ("self", "nl_deps", "B")]:  # noqa: E501
             warnings.warn("Equation.adjoint_jacobian_solve(self, nl_deps, b/B) "  # noqa: E501
-                          "method signature deprecated",
+                          "method signature is deprecated",
                           DeprecationWarning, stacklevel=2)
 
             def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
@@ -307,9 +377,18 @@ class Equation:
             adjoint_jacobian_solve_orig = cls.adjoint_jacobian_solve
             cls.adjoint_jacobian_solve = adjoint_jacobian_solve
 
-    def id(self):
-        return self._id
+    def drop_references(self):
+        self._X = tuple(function_replacement(x) for x in self._X)
+        self._deps = tuple(function_replacement(dep) for dep in self._deps)
+        if self._nl_deps is not None:
+            self._nl_deps = tuple(function_replacement(dep)
+                                  for dep in self._nl_deps)
+        self._ic_deps = tuple(function_replacement(dep)
+                              for dep in self._ic_deps)
+        self._adj_ic_deps = tuple(function_replacement(dep)
+                                  for dep in self._adj_ic_deps)
 
+    @no_replace_compatibility
     def replace(self, replace_map):
         """
         Replace all internal functions using the supplied replace map. Must
@@ -564,36 +643,6 @@ class Equation:
         raise EquationException("Method not overridden")
 
 
-class EquationAlias:
-    def __init__(self, eq):
-        super().__setattr__("_tlm_adjoint__alias__dict__", eq.__dict__)
-        super().__setattr__("_tlm_adjoint__alias__str__",
-                            f"{type(eq).__name__:s} (aliased)")
-
-    def __new__(cls, obj):
-        class EquationAlias(cls, type(obj)):
-            pass
-        return super().__new__(EquationAlias)
-
-    def __str__(self):
-        return self._tlm_adjoint__alias__str__
-
-    def __getattr__(self, key):
-        if key not in self._tlm_adjoint__alias__dict__:
-            raise AttributeError(f"No attribute '{key:s}'")
-        return self._tlm_adjoint__alias__dict__[key]
-
-    def __setattr__(self, key, value):
-        self._tlm_adjoint__alias__dict__[key] = value
-        return value
-
-    def __delattr__(self, key):
-        del self._tlm_adjoint__alias__dict__[key]
-
-    def __dir__(self):
-        return list(self._tlm_adjoint__alias__dict__.keys())
-
-
 class ControlsMarker(Equation):
     def __init__(self, M):
         """
@@ -608,14 +657,13 @@ class ControlsMarker(Equation):
         if is_function(M):
             M = (M,)
 
+        super(Equation, self).__init__()
         self._X = tuple(M)
         self._deps = tuple(M)
         self._nl_deps = ()
         self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
-        self._id = self._id_counter[0]
-        self._id_counter[0] += 1
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -954,10 +1002,11 @@ class FixedPointSolver(Equation):
         self._dep_B_indices = dep_B_indices
         self._solver_parameters = solver_parameters
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        for eq in self._eqs:
-            eq.replace(replace_map)
+        self.add_referrer(*eqs)
+
+    def drop_references(self):
+        super().drop_references()
+        self._eqs = tuple(WeakAlias(eq) for eq in self._eqs)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -1274,12 +1323,15 @@ class LinearEquation(Equation):
             if len(A.nonlinear_dependencies()) > 0:
                 self._A_x_indices = A_x_indices
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        for b in self._B:
-            b.replace(replace_map)
+        self.add_referrer(*B)
+        if A is not None:
+            self.add_referrer(A)
+
+    def drop_references(self):
+        super().drop_references()
+        self._B = tuple(WeakAlias(b) for b in self._B)
         if self._A is not None:
-            self._A.replace(replace_map)
+            self._A = WeakAlias(self._A)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -1397,7 +1449,7 @@ class LinearEquation(Equation):
                                   A=self._A)
 
 
-class Matrix:
+class Matrix(Referrer):
     def __init__(self, nl_deps=None, has_ic_dep=None, ic=None, adj_ic=True):
         if nl_deps is not None:
             if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
@@ -1414,15 +1466,31 @@ class Matrix:
         elif ic is None:
             ic = True
 
+        super().__init__()
         self._nl_deps = () if nl_deps is None else tuple(nl_deps)
         self._ic = ic
         self._adj_ic = adj_ic
 
+    _reset_adjoint_warning = True
+    _initialize_adjoint_warning = True
+    _finalize_adjoint_warning = True
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
+        if getattr(cls.replace, "_replace_compatibility", True):
+            warnings.warn("Matrix.replace method is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def drop_references(self):
+                replace_map = {dep: function_replacement(dep)
+                               for dep in self.nonlinear_dependencies()}
+                self.replace(replace_map)
+            cls.drop_references = drop_references
+            cls.replace._replace_compatibility = False
+
         if hasattr(cls, "reset_adjoint"):
-            if getattr(cls, "_reset_adjoint_warning", True):
+            if cls._reset_adjoint_warning:
                 warnings.warn("Matrix.reset_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -1430,7 +1498,7 @@ class Matrix:
             cls.reset_adjoint = lambda self: None
 
         if hasattr(cls, "initialize_adjoint"):
-            if getattr(cls, "_initialize_adjoint_warning", True):
+            if cls._initialize_adjoint_warning:
                 warnings.warn("Matrix.initialize_adjoint method is "
                               "deprecated",
                               DeprecationWarning, stacklevel=2)
@@ -1439,7 +1507,7 @@ class Matrix:
             cls.initialize_adjoint = lambda self, J, nl_deps: None
 
         if hasattr(cls, "finalize_adjoint"):
-            if getattr(cls, "_finalize_adjoint_warning", True):
+            if cls._finalize_adjoint_warning:
                 warnings.warn("Matrix.finalize_adjoint method is deprecated",
                               DeprecationWarning, stacklevel=2)
         else:
@@ -1450,7 +1518,7 @@ class Matrix:
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
                                                       ("self", "nl_deps", "B")]:  # noqa: E501
             warnings.warn("Matrix.adjoint_solve(self, nl_deps, b/B) method "
-                          "signature deprecated",
+                          "signature is deprecated",
                           DeprecationWarning, stacklevel=2)
 
             def adjoint_solve(self, adj_X, nl_deps, B):
@@ -1458,6 +1526,11 @@ class Matrix:
             adjoint_solve_orig = cls.adjoint_solve
             cls.adjoint_solve = adjoint_solve
 
+    def drop_references(self):
+        self._nl_deps = tuple(function_replacement(dep)
+                              for dep in self._nl_deps)
+
+    @no_replace_compatibility
     def replace(self, replace_map):
         self._nl_deps = tuple(replace_map.get(dep, dep)
                               for dep in self._nl_deps)
@@ -1552,7 +1625,7 @@ class Matrix:
         raise EquationException("Method not overridden")
 
 
-class RHS:
+class RHS(Referrer):
     def __init__(self, deps, nl_deps=None):
         dep_ids = {function_id(dep) for dep in deps}
         if len(dep_ids) != len(deps):
@@ -1564,9 +1637,31 @@ class RHS:
             if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
                 raise EquationException("Non-linear dependency is not a dependency")  # noqa: E501
 
+        super().__init__()
         self._deps = tuple(deps)
         self._nl_deps = None if nl_deps is None else tuple(nl_deps)
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if getattr(cls.replace, "_replace_compatibility", True):
+            warnings.warn("RHS.replace method is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def drop_references(self):
+                replace_map = {dep: function_replacement(dep)
+                               for dep in self.dependencies()}
+                self.replace(replace_map)
+            cls.drop_references = drop_references
+            cls.replace._replace_compatibility = False
+
+    def drop_references(self):
+        self._deps = tuple(function_replacement(dep) for dep in self._deps)
+        if self._nl_deps is not None:
+            self._nl_deps = tuple(function_replacement(dep)
+                                  for dep in self._nl_deps)
+
+    @no_replace_compatibility
     def replace(self, replace_map):
         self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
         if self._nl_deps is not None:
@@ -1638,9 +1733,11 @@ class MatrixActionRHS(RHS):
         self._A = A
         self._x_indices = x_indices
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        self._A.replace(replace_map)
+        self.add_referrer(A)
+
+    def drop_references(self):
+        super().drop_references()
+        self._A = WeakAlias(self._A)
 
     def add_forward(self, B, deps):
         if is_function(B):
@@ -1720,12 +1817,15 @@ class InnerProductRHS(RHS):
         self._alpha = alpha
         self._M = M
 
-    def replace(self, replace_map):
-        super().replace(replace_map)
-        self._x = replace_map.get(self._x, self._x)
-        self._y = replace_map.get(self._y, self._y)
+        if M is not None:
+            self.add_referrer(M)
+
+    def drop_references(self):
+        super().drop_references()
+        self._x = function_replacement(self._x)
+        self._y = function_replacement(self._y)
         if self._M is not None:
-            self._M.replace(replace_map)
+            self._M = WeakAlias(self._M)
 
     def add_forward(self, b, deps):
         if self._norm_sq:

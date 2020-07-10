@@ -190,7 +190,7 @@ class LocalProjectionSolver(EquationSolver):
 def interpolation_matrix(x_coords, y, y_nodes):
     N = function_local_size(y)
     lg_map = function_space(y).local_to_global_map([]).indices
-    gl_map = {g: l for l, g in enumerate(lg_map)}
+    gl_map = {g: l for l, g in enumerate(lg_map)}  # noqa: E741
 
     from scipy.sparse import dok_matrix
     P = dok_matrix((x_coords.shape[0], N), dtype=np.float64)

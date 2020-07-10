@@ -90,7 +90,7 @@ def diffusion_ref():
 @pytest.mark.firedrake
 @pytest.mark.parametrize(
     "cp_method, cp_parameters",
-    [("memory", {"replace": True}),
+    [("memory", {"drop_references": True}),
      ("periodic_disk", {"period": 3, "format": "pickle"}),
      ("periodic_disk", {"period": 3, "format": "hdf5"}),
      ("multistage", {"format": "pickle", "snaps_on_disk": 1, "snaps_in_ram": 2,
@@ -144,7 +144,7 @@ def test_oscillator(setup_test, test_leaks,
 
     J_val = J.value()
     J_val_ref = oscillator_ref() ** 2
-    assert abs(J_val - J_val_ref) < 1.0e-15
+    assert abs(J_val - J_val_ref) < 1.0e-14
 
     dJ = compute_gradient(J, T_0)
 
