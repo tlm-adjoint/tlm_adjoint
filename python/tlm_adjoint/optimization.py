@@ -23,7 +23,6 @@ from .backend_interface import *
 from .manager import manager as _manager, set_manager
 
 import numpy as np
-import zlib
 
 __all__ = \
     [
@@ -69,7 +68,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     M0 = [m0 if is_function(m0) else m0.m() for m0 in M0]
     if manager is None:
         manager = _manager()
-    comm = manager.comm()
+    comm = manager.comm().Dup()
 
     N = [0]
     for m in M0:
@@ -80,26 +79,27 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         N_global.append(N_global[-1] + size)
 
     def get(F):
-        x = np.empty(N[-1], dtype=np.float64)
+        x = np.full(N[-1], np.NAN, dtype=np.float64)
         for i, f in enumerate(F):
             x[N[i]:N[i + 1]] = function_get_values(f)
 
-        x_global = comm.allgather(x)
-        X = np.empty(N_global[-1], dtype=np.float64)
-        for i, x_p in enumerate(x_global):
-            X[N_global[i]:N_global[i + 1]] = x_p
-        return X
+        if comm.rank == 0:
+            x_global = comm.gather(x, root=0)
+            X = np.full(N_global[-1], np.NAN, dtype=np.float64)
+            for i, x_p in enumerate(x_global):
+                X[N_global[i]:N_global[i + 1]] = x_p
+            return X
+        else:
+            comm.gather(x, root=0)
+            return None
 
     def set(F, x):
-        # Basic cross-process synchonization check
-        check1 = np.array(zlib.adler32(x.data), dtype=np.uint32)
-        check_global = comm.allgather(check1)
-        for check2 in check_global:
-            if check1 != check2:
-                raise OptimizationException("Parallel desynchronization "
-                                            "detected")
-
-        x = x[N_global[comm.rank]:N_global[comm.rank + 1]]
+        if comm.rank == 0:
+            x = comm.scatter([x[N_global[rank]:N_global[rank + 1]]
+                              for rank in range(comm.size)], root=0)
+        else:
+            assert x is None
+            x = comm.scatter(None, root=0)
         for i, f in enumerate(F):
             function_set_values(f, x[N[i]:N[i + 1]])
 
@@ -111,10 +111,22 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     J_M = [M0]
 
     def fun(x):
-        if not J[0] is None:
-            return J[0].value()
+        if J[0] is not None:
+            M0 = [function_copy(m0) for m0 in J_M[0]]
 
         set(M, x)
+        clear_caches(*M)
+
+        if J[0] is not None:
+            change_norm = 0.0
+            for m, m0 in zip(M, M0):
+                change = function_copy(m)
+                function_axpy(change, -1.0, m0)
+                change_norm = max(change_norm, function_linf_norm(change))
+            if change_norm == 0.0:
+                return J[0].value()
+            del M0
+
         old_manager = _manager()
         set_manager(manager)
         manager.reset()
@@ -130,14 +142,46 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         J_M[0] = M
         return J[0].value()
 
+    def fun_bcast(x):
+        if comm.rank == 0:
+            comm.bcast(("fun", None), root=0)
+        return fun(x)
+
     def jac(x):
         fun(x)
         dJ = manager.compute_gradient(J[0], J_M[0])
         J[0] = None
         return get(dJ)
 
+    def jac_bcast(x):
+        if comm.rank == 0:
+            comm.bcast(("jac", None), root=0)
+        return jac(x)
+
     from scipy.optimize import minimize
-    return_value = minimize(fun, get(M0), jac=jac, **kwargs)
-    set(M, return_value.x)
+    if comm.rank == 0:
+        x0 = get(M0)
+        return_value = minimize(fun_bcast, x0, jac=jac_bcast, **kwargs)
+        comm.bcast(("return", return_value), root=0)
+        set(M, return_value.x)
+    else:
+        get(M0)
+        while True:
+            action, data = comm.bcast(None, root=0)
+            if action == "fun":
+                assert data is None
+                fun(None)
+            elif action == "jac":
+                assert data is None
+                jac(None)
+            elif action == "return":
+                assert data is not None
+                return_value = data
+                break
+            else:
+                raise OptimizationException(f"Unexpected action '{action:s}'")
+        set(M, None)
+
+    clear_caches(*M)
 
     return M, return_value
