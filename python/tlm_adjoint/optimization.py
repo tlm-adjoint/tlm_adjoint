@@ -110,11 +110,11 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     J = [J0]
     J_M = [tuple(function_copy(m0) for m0 in M0), M0]
 
-    def fun(x):
+    def fun(x, force=False):
         set(M, x)
         clear_caches(*M)
 
-        if J[0] is not None:
+        if not force and J[0] is not None:
             change_norm = 0.0
             for m, m0 in zip(M, J_M[0]):
                 change = function_copy(m)
@@ -147,11 +147,11 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         return fun(x)
 
     def jac(x):
-        fun(x)
+        if J_M[1] is None:
+            fun(x, force=True)
         dJ = manager.compute_gradient(J[0], J_M[1])
-        J[0] = None
-        J_M[0] = None
-        J_M[1] = None
+        if manager._cp_method not in ["memory", "periodic_disk"]:
+            J_M[1] = None
         return get(dJ)
 
     def jac_bcast(x):
