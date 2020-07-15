@@ -108,24 +108,22 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
                       checkpoint=function_is_checkpointed(m0))
          for m0 in M0]
     J = [J0]
-    J_M = [M0]
+    J_M = [tuple(function_copy(m0) for m0 in M0), M0]
 
-    def fun(x):
-        if J[0] is not None:
-            M0 = [function_copy(m0) for m0 in J_M[0]]
-
+    def fun(x, force=False):
         set(M, x)
         clear_caches(*M)
 
-        if J[0] is not None:
+        if not force and J[0] is not None:
             change_norm = 0.0
-            for m, m0 in zip(M, M0):
+            for m, m0 in zip(M, J_M[0]):
                 change = function_copy(m)
                 function_axpy(change, -1.0, m0)
                 change_norm = max(change_norm, function_linf_norm(change))
             if change_norm == 0.0:
                 return J[0].value()
-            del M0
+
+        J_M[0] = tuple(function_copy(m) for m in M)
 
         old_manager = _manager()
         set_manager(manager)
@@ -139,7 +137,8 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         set_manager(old_manager)
 
-        J_M[0] = M
+        J_M[1] = M
+
         return J[0].value()
 
     def fun_bcast(x):
@@ -148,9 +147,11 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         return fun(x)
 
     def jac(x):
-        fun(x)
-        dJ = manager.compute_gradient(J[0], J_M[0])
-        J[0] = None
+        if J_M[1] is None:
+            fun(x, force=True)
+        dJ = manager.compute_gradient(J[0], J_M[1])
+        if manager._cp_method not in ["memory", "periodic_disk"]:
+            J_M[1] = None
         return get(dJ)
 
     def jac_bcast(x):
