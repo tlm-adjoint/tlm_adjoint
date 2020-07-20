@@ -31,9 +31,6 @@
 \setlength{\parskip}{5.5pt}
 
 \title{\texttt{tlm\_adjoint} manual}
-\author{Dr. James R. Maddison \\
-  School of Mathematics and Maxwell Institute for Mathematical Sciences \\
-  The University of Edinburgh}
 
 \begin{document}
 
@@ -808,7 +805,7 @@ $P$ is a matrix. $V$ and $W$ must be defined using the same mesh. An
 eq = InterpolationSolver(y, x)
 \end{lstlisting}
 where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
-\texttt{Function} being interpolated.
+\texttt{Function} being interpolated. Optionally, coordinates \texttt{x\_coords} may be supplied, in which case \texttt{x\_coords} are taken to be the coordinates of the DOFs of $V$.
 
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. This
@@ -2690,7 +2687,8 @@ where \texttt{m} is a \texttt{Function} defining the control.
 
 For copyright information and acknowledgements see the
 \texttt{ACKNOWLEDGEMENTS} file in the \texttt{tlm\_adjoint} top level
-directory.
+directory. For authors see the \texttt{AUTHORS} file in the
+\texttt{tlm\_adjoint} top level directory.
 
 \texttt{tlm\_adjoint} is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by

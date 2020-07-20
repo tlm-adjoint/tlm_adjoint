@@ -284,7 +284,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
 
 class InterpolationSolver(LinearEquation):
-    def __init__(self, y, x, y_colors=None, P=None, P_T=None):
+    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None):
         """
         Defines an equation which interpolates the scalar function y. It is
         assumed that x and y are defined on a common mesh.
@@ -302,6 +302,8 @@ class InterpolationSolver(LinearEquation):
 
         y         A scalar function. The function to be interpolated.
         x         A scalar function. The solution to the equation.
+        x_coords  (Optional) A real NumPy array. Coordinates at which to
+                  interpolate the function.
         y_colors  (Optional) An integer NumPy vector. Node-node graph coloring
                   for the space for y. Ignored if P is supplied. Generated
                   using greedy_coloring if not supplied.
@@ -313,6 +315,8 @@ class InterpolationSolver(LinearEquation):
             raise EquationException("Solution must be a scalar function")
         if len(y.ufl_shape) > 0:
             raise EquationException("y must be a scalar function")
+        if (x_coords is not None) and (function_comm(x).size > 1):
+            raise EquationException("Cannot prescribe x_coords in parallel")
 
         if P is None:
             y_space = function_space(y)
@@ -320,7 +324,9 @@ class InterpolationSolver(LinearEquation):
                 y_colors = greedy_coloring(y_space)
             y_tree = y_space.mesh().bounding_box_tree()
 
-            x_coords = function_coords(x)
+            if x_coords is None:
+                x_coords = function_coords(x)
+
             y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0]
                        for x_coord in x_coords]
 
