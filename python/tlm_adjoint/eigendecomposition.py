@@ -139,6 +139,8 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
 
     X = space_new(space)
     n, N = function_local_size(X), function_global_size(X)
+    N_ev = N if N_eigenvalues is None else N_eigenvalues
+
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action, X),
                                         comm=function_comm(X))
@@ -153,7 +155,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     else:
         esolver.setOperators(A_matrix, B_matrix)
     esolver.setWhichEigenpairs(which)
-    esolver.setDimensions(nev=N if N_eigenvalues is None else N_eigenvalues,
+    esolver.setDimensions(nev=N_ev,
                           ncv=SLEPc.DECIDE, mpd=SLEPc.DECIDE)
     esolver.setConvergenceTest(SLEPc.EPS.Conv.REL)
     esolver.setTolerances(tol=tolerance, max_it=SLEPc.DECIDE)
@@ -165,12 +167,15 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     if eps_error[0]:
         raise EigendecompositionException("Error encountered in "
                                           "SLEPc.EPS.solve")
+    if esolver.getConverged() < N_ev:
+        raise EigendecompositionException("Not all requested eigenpairs "
+                                          "converged")
 
-    lam = np.empty(esolver.getConverged(),
+    lam = np.empty(N_ev,
                    dtype=np.float64 if esolver.isHermitian() else np.complex64)
-    V_r = tuple(function_new(X) for n in range(N))
+    V_r = tuple(function_new(X) for n in range(N_ev))
     if not esolver.isHermitian():
-        V_i = tuple(function_new(X) for n in range(N))
+        V_i = tuple(function_new(X) for n in range(N_ev))
     v_r, v_i = A_matrix.getVecRight(), A_matrix.getVecRight()
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)
