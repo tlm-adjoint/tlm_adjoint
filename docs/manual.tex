@@ -2033,7 +2033,7 @@ For example a second order test is based on
   e_{1,1} \left( \varepsilon \right) = \left|
     \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0 + \zeta} \chi
     - \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \chi
-    - \varepsilon \left. \frac{\mathrm{d}}{\mathrm{d} m} \left( \left. \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \right|_{m = m_0} \chi \right) \right|_{m = m_0} \zeta
+    - \varepsilon \left. \frac{\mathrm{d}}{\mathrm{d} m} \left( \frac{\mathrm{d} \hat{J}}{\mathrm{d} m} \chi \right) \right|_{m = m_0} \zeta
     \right| = {\cal O} \left( \varepsilon^2 \right).
 \end{equation*}
 In such a test the first order derivative information is computed using a first
@@ -2054,7 +2054,7 @@ with arguments
   \item \texttt{dMs}, a function, or a tuple containing functions (or further
     such tuples), defining the tangent-linear directions (in \texttt{dMs[:-1]}
     if \texttt{dMs} is a tuple) and perturbation direction (\texttt{dMs} if
-    \texttt{dMs} is a function, or \texttt{dMs[:-1]} if \texttt{dMs} is a
+    \texttt{dMs} is a function, or \texttt{dMs[-1]} if \texttt{dMs} is a
     tuple).
   \item \texttt{manager}, defaulting to the currently active equation manager.
     A new equation manager is generated using the \texttt{manager.new} method.
@@ -2105,9 +2105,8 @@ In a valid verification, for sufficiently small perturbation magnitude the
 order of convergence when the highest order derivative information is not used
 should be approximately one, and the order of convergence when the highest
 order derivative information is used should be approximately two. Numerical
-roundoff issues, or encountering a special case where the highest order
-derivative is zero, may prevent these asymptotic convergence orders from being
-observable.
+roundoff issues, or encountering a special case where derivatives are zero, may
+prevent these asymptotic convergence orders from being observable.
 
 \section{Checkpointing}\label{sect:checkpointing}
 
@@ -2163,7 +2162,7 @@ single run of a forward model.
 
 Checkpoints are stored using the binomial checkpointing approach of
 \citet{griewank2000} (following the maximal trajectory of their Fig. 4), with
-multistage offline checkpointing using allocation strategy described in
+multistage offline checkpointing using the allocation strategy described in
 \citet{stumm2009} (with a brute-force approach used to determine the
 allocation). Keys for \texttt{cp\_parameters} for this method are
 \begin{itemize}
