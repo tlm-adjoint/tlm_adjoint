@@ -813,7 +813,7 @@ $P$ is a matrix. $V$ and $W$ must be defined using the same mesh. An
 eq = InterpolationSolver(y, x)
 \end{lstlisting}
 where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
-\texttt{Function} being interpolated. Optionally, coordinates \texttt{X\_coords} may be supplied, in which case \texttt{X\_coords} are taken to be the coordinates of the DOFs of $V$.
+\texttt{Function} being interpolated. Optionally, coordinates \texttt{x\_coords} may be supplied, in which case \texttt{x\_coords} are taken to be the coordinates of the DOFs of $V$.
 
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. This
