@@ -564,6 +564,7 @@ class EquationManager:
 
         if comm is None:
             comm = default_comm()
+        comm = comm.Dup()
 
         self._comm = comm
         if self._comm.rank == 0:
@@ -583,7 +584,10 @@ class EquationManager:
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
         @gc_disabled
-        def finalize_callback(to_drop_references, finalizes):
+        def finalize_callback(comm,
+                              to_drop_references, finalizes):
+            comm.Free()
+
             while len(to_drop_references) > 0:
                 referrer = to_drop_references.pop()
                 referrer._drop_references()
@@ -591,6 +595,7 @@ class EquationManager:
                 finalize.detach()
             finalizes.clear()
         finalize = weakref.finalize(self, finalize_callback,
+                                    self._comm,
                                     self._to_drop_references, self._finalizes)
         finalize.atexit = False
 
