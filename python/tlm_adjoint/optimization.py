@@ -184,5 +184,6 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         set(M, None)
 
     clear_caches(*M)
+    comm.Free()
 
     return M, return_value
