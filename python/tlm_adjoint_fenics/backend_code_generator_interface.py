@@ -111,7 +111,7 @@ def update_parameters_dict(parameters, new_parameters):
             parameters[key] = value
 
 
-def process_solver_parameters(solver_parameters, J, linear):
+def process_solver_parameters(solver_parameters, linear):
     solver_parameters = copy_parameters_dict(solver_parameters)
     if linear:
         linear_solver_parameters = solver_parameters
@@ -138,9 +138,6 @@ def process_solver_parameters(solver_parameters, J, linear):
     if is_lu_linear_solver:
         if "lu_solver" not in linear_solver_parameters:
             linear_solver_parameters["lu_solver"] = {}
-        lu_parameters = linear_solver_parameters["lu_solver"]
-        if "symmetric" not in lu_parameters and J == adjoint(J):
-            lu_parameters["symmetric"] = True
         linear_solver_ic = False
     else:
         if "krylov_solver" not in linear_solver_parameters:

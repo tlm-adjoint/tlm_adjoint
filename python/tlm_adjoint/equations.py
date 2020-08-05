@@ -332,23 +332,23 @@ class EquationSolver(Equation):
 
         if nl_solve_J is None:
             (solver_parameters, linear_solver_parameters,
-             ic, J_ic) = process_solver_parameters(solver_parameters, J, linear)  # noqa: E501
+             ic, J_ic) = process_solver_parameters(solver_parameters, linear)
         else:
             (solver_parameters, _,
-             ic, _) = process_solver_parameters(solver_parameters, nl_solve_J, linear)  # noqa: E501
+             ic, _) = process_solver_parameters(solver_parameters, linear)
             (_, linear_solver_parameters,
-             _, J_ic) = process_solver_parameters(solver_parameters, J, linear)  # noqa: E501
+             _, J_ic) = process_solver_parameters(solver_parameters, linear)
 
         if adjoint_solver_parameters is None:
             adjoint_solver_parameters = process_adjoint_solver_parameters(linear_solver_parameters)  # noqa: E501
             adj_ic = J_ic
         else:
             (_, adjoint_solver_parameters,
-             adj_ic, _) = process_solver_parameters(adjoint_solver_parameters, adjoint(J), linear=True)  # noqa: E501
+             adj_ic, _) = process_solver_parameters(adjoint_solver_parameters, linear=True)  # noqa: E501
 
         if tlm_solver_parameters is not None:
             (_, tlm_solver_parameters,
-             _, _) = process_solver_parameters(tlm_solver_parameters, J, linear=True)  # noqa: E501
+             _, _) = process_solver_parameters(tlm_solver_parameters, linear=True)  # noqa: E501
 
         form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         update_parameters_dict(form_compiler_parameters_,
