@@ -106,7 +106,7 @@ def update_parameters_dict(parameters, new_parameters):
             parameters[key] = value
 
 
-def process_solver_parameters(solver_parameters, J, linear):
+def process_solver_parameters(solver_parameters, linear):
     solver_parameters = copy_parameters_dict(solver_parameters)
     if "tlm_adjoint" in solver_parameters:
         tlm_adjoint_parameters = solver_parameters["tlm_adjoint"]
