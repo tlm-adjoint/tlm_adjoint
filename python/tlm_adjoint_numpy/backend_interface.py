@@ -85,6 +85,12 @@ __all__ = \
 
 
 class SerialComm:
+    def Dup(self):
+        return SerialComm()
+
+    def Free():
+        pass
+
     # Interface as in mpi4py 3.0.1
     def allgather(self, sendobj):
         v = sendobj.view()

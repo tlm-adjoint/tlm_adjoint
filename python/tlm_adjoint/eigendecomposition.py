@@ -141,12 +141,14 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     n, N = function_local_size(X), function_global_size(X)
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
+    comm = function_comm(X)  # .Dup()
+
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action, X),
-                                        comm=function_comm(X))
+                                        comm=comm)
     A_matrix.setUp()
 
-    esolver = SLEPc.EPS().create(comm=function_comm(X))
+    esolver = SLEPc.EPS().create(comm=comm)
     if solver_type is not None:
         esolver.setType(solver_type)
     esolver.setProblemType(problem_type)
@@ -188,5 +190,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
             lam[i] = lam_i
             function_set_values(V_r[i], v_r.getArray())
             function_set_values(V_i[i], v_i.getArray())
+
+    # comm.Free()
 
     return lam, (V_r if esolver.isHermitian() else (V_r, V_i))
