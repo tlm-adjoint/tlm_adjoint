@@ -1000,6 +1000,10 @@ class EquationManager:
     def _tangent_linear(self, eq, M, dM, tlm_map):
         eq_id = eq.id()
         X = eq.X()
+        if len(set(X).intersection(set(M))) > 0:
+            raise ManagerException("Invalid tangent-linear parameter")
+        if len(set(X).intersection(set(dM))) > 0:
+            raise ManagerException("Invalid tangent-linear direction")
 
         eq_tlm_eqs = self._tlm_eqs.get(eq_id, None)
         if eq_tlm_eqs is None:
@@ -1010,9 +1014,6 @@ class EquationManager:
         if tlm_eq is None:
             for dep in eq.dependencies():
                 if dep in M or dep in tlm_map:
-                    if len(set(X).intersection(set(M))) > 0:
-                        raise ManagerException("Invalid tangent-linear "
-                                               "parameter")
                     tlm_eq = eq.tangent_linear(M, dM, tlm_map)
                     if tlm_eq is None:
                         tlm_eq = NullSolver([tlm_map[x] for x in X])
