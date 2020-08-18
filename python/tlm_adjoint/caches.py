@@ -409,7 +409,7 @@ class AssemblyCache(Cache):
         elif linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, non_empty_form=True)
+        form = eliminate_zeros(form, force_non_empty_form=True)
         rank = len(form.arguments())
         assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
                                              linear_solver_parameters)
@@ -448,7 +448,7 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 class LinearSolverCache(Cache):
     def linear_solver(self, form, A, bcs=[], form_compiler_parameters={},
                       linear_solver_parameters={}):
-        form = eliminate_zeros(form, non_empty_form=True)
+        form = eliminate_zeros(form, force_non_empty_form=True)
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 

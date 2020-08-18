@@ -427,7 +427,7 @@ class EquationSolver(Equation):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
-            rhs = eliminate_zeros(self._rhs, non_empty_form=True)
+            rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
             mat_forms = {}
             for dep_index, dep in enumerate(eq_deps):

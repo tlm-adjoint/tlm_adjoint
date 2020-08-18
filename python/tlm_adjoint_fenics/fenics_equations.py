@@ -114,7 +114,7 @@ def local_solver_key(form, solver_type):
 
 class LocalSolverCache(Cache):
     def local_solver(self, form, solver_type, replace_map=None):
-        form = eliminate_zeros(form, non_empty_form=True)
+        form = eliminate_zeros(form, force_non_empty_form=True)
         key = local_solver_key(form, solver_type)
 
         def value():
