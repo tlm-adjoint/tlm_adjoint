@@ -407,7 +407,7 @@ def extract_coefficients(expr):
         return ufl.algorithms.extract_coefficients(expr)
 
 
-def eliminate_zeros(expr, non_empty_form=False):
+def eliminate_zeros(expr, force_non_empty_form=False):
     replace_map = {}
     for c in extract_coefficients(expr):
         if isinstance(c, Zero):
@@ -418,7 +418,8 @@ def eliminate_zeros(expr, non_empty_form=False):
     else:
         simplified_expr = ufl.replace(expr, replace_map)
 
-        if non_empty_form and isinstance(simplified_expr, ufl.classes.Form) \
+        if force_non_empty_form \
+                and isinstance(simplified_expr, ufl.classes.Form) \
                 and simplified_expr.empty():
             # Inefficient, but it is very difficult to generate a non-empty but
             # zero valued form

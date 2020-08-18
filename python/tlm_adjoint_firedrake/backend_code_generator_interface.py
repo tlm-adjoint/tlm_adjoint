@@ -194,7 +194,7 @@ def _assemble(form, bcs=[], form_compiler_parameters={}, *args, **kwargs):
         simplified_form = form._cache["_tlm_adjoint__simplified_form"]
     else:
         simplified_form = form._cache["_tlm_adjoint__simplified_form"] = \
-            eliminate_zeros(form, non_empty_form=True)
+            eliminate_zeros(form, force_non_empty_form=True)
 
     return backend_assemble(
         simplified_form, bcs=bcs,

@@ -382,7 +382,7 @@ def dolfin_form(form, form_compiler_parameters=None):
                     dep_cpp_object[dep] = getattr(dep, "_cpp_object", None)
                     dep._cpp_object = dep_binding._cpp_object
 
-        simplified_form = eliminate_zeros(form, non_empty_form=True)
+        simplified_form = eliminate_zeros(form, force_non_empty_form=True)
         dolfin_form = Form(
             simplified_form,
             form_compiler_parameters=copy_parameters_dict(form_compiler_parameters))  # noqa: E501
