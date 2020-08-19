@@ -56,10 +56,9 @@ def test_overrides(setup_test, test_leaks):
                                A_tensor=A, b_tensor=b, add_values=True)
         bc.apply(A, b)
 
-        solver = KrylovSolver("gmres", "sor")
+        solver = KrylovSolver(A, "gmres", "sor")
         solver.parameters.update({"relative_tolerance": 1.0e-14,
                                   "absolute_tolerance": 1.0e-16})
-        solver.set_operator(A)
         solver.solve(G.vector(), b)
 
         return G
@@ -71,10 +70,9 @@ def test_overrides(setup_test, test_leaks):
         b = assemble(inner(test, F) * dx)
         bc.apply(A, b)
 
-        solver = KrylovSolver("gmres", "sor")
+        solver = KrylovSolver(A, "gmres", "sor")
         solver.parameters.update({"relative_tolerance": 1.0e-14,
                                   "absolute_tolerance": 1.0e-16})
-        solver.set_operator(A)
         solver.solve(G.vector(), b)
 
         return G
@@ -86,10 +84,9 @@ def test_overrides(setup_test, test_leaks):
         b = A * F.vector()
         bc.apply(A, b)
 
-        solver = KrylovSolver("gmres", "sor")
+        solver = KrylovSolver(A, "gmres", "sor")
         solver.parameters.update({"relative_tolerance": 1.0e-14,
                                   "absolute_tolerance": 1.0e-16})
-        solver.set_operator(A)
         solver.solve(G.vector(), b)
 
         return G
