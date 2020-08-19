@@ -375,10 +375,9 @@ ref, J = forward(beta_sq_ref)
 stop_manager()
 
 ddJ = SingleBlockHessian(J)
-M_solver = KrylovSolver("cg", "sor")
+M_solver = KrylovSolver(assemble(inner(test, trial) * dx), "cg", "sor")
 M_solver.parameters.update({"relative_tolerance": 1.0e-12,
                             "absolute_tolerance": 1.0e-16})
-M_solver.set_operator(assemble(inner(test, trial) * dx))
 A_action_calls = [0]
 
 

@@ -40,6 +40,7 @@ __all__ = \
         "function_vector",
         "homogenize",
         "linear_solver",
+        "matrix_copy",
         "matrix_multiply",
         "parameters_key",
         "process_adjoint_solver_parameters",
@@ -206,12 +207,12 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
     if b_form is None:
         A, b = assemble_matrix(
             A_form, bcs, form_compiler_parameters=form_compiler_parameters)
-        solver = linear_solver(A, linear_solver_parameters)
     else:
         A, b = assemble_system(
             A_form, b_form, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters)
-        solver = linear_solver(A, linear_solver_parameters)
+
+    solver = linear_solver(A.copy(), linear_solver_parameters)
 
     return solver, A, b
 
@@ -250,6 +251,10 @@ def homogenize(bc):
     hbc = backend_DirichletBC(bc)
     hbc.homogenize()
     return hbc
+
+
+def matrix_copy(A):
+    return A.copy()
 
 
 def matrix_multiply(A, x, tensor=None, addto=False):
