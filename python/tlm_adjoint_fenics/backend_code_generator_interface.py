@@ -206,12 +206,12 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
     if b_form is None:
         A, b = assemble_matrix(
             A_form, bcs, form_compiler_parameters=form_compiler_parameters)
-        solver = linear_solver(A, linear_solver_parameters)
     else:
         A, b = assemble_system(
             A_form, b_form, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters)
-        solver = linear_solver(A, linear_solver_parameters)
+
+    solver = linear_solver(A.copy(), linear_solver_parameters)
 
     return solver, A, b
 

@@ -297,7 +297,7 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
         **assemble_arguments(2, form_compiler_parameters,
                              linear_solver_parameters))
 
-    solver = linear_solver(A, linear_solver_parameters)
+    solver = linear_solver(A.copy(), linear_solver_parameters)
 
     return solver, A, b
 

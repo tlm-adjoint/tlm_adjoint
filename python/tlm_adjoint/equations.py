@@ -550,7 +550,7 @@ class EquationSolver(Equation):
                     # Construct and cache the linear solver
                     self._forward_J_solver, J_solver = \
                         linear_solver_cache().linear_solver(
-                            self._J, J_mat, bcs=self._bcs,
+                            self._J, J_mat.copy(), bcs=self._bcs,
                             form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                             linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
             else:
@@ -718,7 +718,7 @@ class EquationSolver(Equation):
                                          nl_deps)))
                 self._adjoint_J_solver, J_solver = \
                     linear_solver_cache().linear_solver(
-                        J, J_mat, bcs=self._hbcs,
+                        J, J_mat.copy(), bcs=self._hbcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         linear_solver_parameters=self._adjoint_solver_parameters)  # noqa: E501
 

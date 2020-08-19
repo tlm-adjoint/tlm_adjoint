@@ -333,7 +333,7 @@ def project(b, space, name):
     x = Function(space, name=name)
     test, trial = TestFunction(space), TrialFunction(space)
     M = assemble(inner(test, trial) * dx)
-    LUSolver(M, "umfpack").solve(x.vector(), b.vector())
+    LUSolver(M, "umfpack").solve(x.vector(), b.vector().copy())
     return x
 
 
