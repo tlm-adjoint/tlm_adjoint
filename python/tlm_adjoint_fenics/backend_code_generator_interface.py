@@ -40,6 +40,7 @@ __all__ = \
         "function_vector",
         "homogenize",
         "linear_solver",
+        "matrix_copy",
         "matrix_multiply",
         "parameters_key",
         "process_adjoint_solver_parameters",
@@ -250,6 +251,10 @@ def homogenize(bc):
     hbc = backend_DirichletBC(bc)
     hbc.homogenize()
     return hbc
+
+
+def matrix_copy(A):
+    return A.copy()
 
 
 def matrix_multiply(A, x, tensor=None, addto=False):

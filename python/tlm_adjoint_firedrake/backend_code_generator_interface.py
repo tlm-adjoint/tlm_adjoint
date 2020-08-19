@@ -42,6 +42,7 @@ __all__ = \
         "function_vector",
         "homogenize",
         "linear_solver",
+        "matrix_copy",
         "matrix_multiply",
         "parameters_key",
         "process_adjoint_solver_parameters",
@@ -297,7 +298,7 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
         **assemble_arguments(2, form_compiler_parameters,
                              linear_solver_parameters))
 
-    solver = linear_solver(A.copy(), linear_solver_parameters)
+    solver = linear_solver(matrix_copy(A), linear_solver_parameters)
 
     return solver, A, b
 
@@ -329,6 +330,28 @@ def form_form_compiler_parameters(form, form_compiler_parameters):
 
 
 # def homogenize(bc):
+
+
+def matrix_copy(A):
+    if not isinstance(A, backend_Matrix):
+        raise InterfaceException("Unexpected matrix type")
+
+    options_prefix = A.petscmat.getOptionsPrefix()
+    A_copy = backend_Matrix(A.a, A.bcs, A.mat_type,
+                            A.M.sparsity, backend_ScalarType,
+                            options_prefix=options_prefix)
+
+    assert A.petscmat.assembled
+    A_copy.petscmat.axpy(1.0, A.petscmat)
+    assert A_copy.petscmat.assembled
+
+    # MatAXPY does not propagate the options prefix
+    A_copy.petscmat.setOptionsPrefix(options_prefix)
+
+    if hasattr(A, "_tlm_adjoint__lift_bcs"):
+        A_copy._tlm_adjoint__lift_bcs = A._tlm_adjoint__lift_bcs
+
+    return A_copy
 
 
 def matrix_multiply(A, x, tensor=None, addto=False):
@@ -412,8 +435,10 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
             J, bcs=bcs, **assemble_arguments(2,
                                              form_compiler_parameters,
                                              linear_solver_parameters))
+        assert J_mat.petscmat.assembled
         J_error = J_mat.petscmat.copy()
         J_error.axpy(-1.0, J_mat_debug.petscmat)
+        assert J_error.assembled
         assert J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
             <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
