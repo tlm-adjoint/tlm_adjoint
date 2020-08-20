@@ -212,9 +212,9 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
             A_form, b_form, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters)
 
-    solver = linear_solver(A.copy(), linear_solver_parameters)
+    solver = linear_solver(A, linear_solver_parameters)
 
-    return solver, A, b
+    return solver, b
 
 
 def linear_solver(A, linear_solver_parameters):
@@ -345,11 +345,11 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
     J_mat_debug, b_debug = backend_assemble_system(
         J, rhs, bcs, form_compiler_parameters=form_compiler_parameters)
 
-    if not np.isposinf(J_tolerance):
+    if J_mat is not None and not np.isposinf(J_tolerance):
         assert (J_mat - J_mat_debug).norm("linf") \
             <= J_tolerance * J_mat.norm("linf")
 
-    if not np.isposinf(b_tolerance):
+    if b is not None and not np.isposinf(b_tolerance):
         assert (b - b_debug).norm("linf") <= b_tolerance * b.norm("linf")
 
 # The following override assemble, assemble_system, and solve so that DOLFIN

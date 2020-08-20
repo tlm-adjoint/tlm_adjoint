@@ -298,9 +298,9 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
         **assemble_arguments(2, form_compiler_parameters,
                              linear_solver_parameters))
 
-    solver = linear_solver(matrix_copy(A), linear_solver_parameters)
+    solver = linear_solver(A, linear_solver_parameters)
 
-    return solver, A, b
+    return solver, b
 
 
 def linear_solver(A, linear_solver_parameters):
@@ -430,7 +430,7 @@ def parameters_key(parameters):
 
 def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                     linear_solver_parameters, J_tolerance, b_tolerance):
-    if not np.isposinf(J_tolerance):
+    if J_mat is not None and not np.isposinf(J_tolerance):
         J_mat_debug = backend_assemble(
             J, bcs=bcs, **assemble_arguments(2,
                                              form_compiler_parameters,
@@ -442,7 +442,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         assert J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
             <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
-    if not np.isposinf(b_tolerance):
+    if b is not None and not np.isposinf(b_tolerance):
         F = backend_Function(rhs.arguments()[0].function_space())
         for bc in bcs:
             bc.apply(F)
