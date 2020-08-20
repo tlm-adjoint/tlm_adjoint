@@ -569,10 +569,11 @@ class EquationSolver(Equation):
                                  None)
                         _, J, _ = self._forward_eq
                         bind_form(J, deps)
-                    J_solver, J_mat, b_bc = assemble_linear_solver(
+                    J_solver, b_bc = assemble_linear_solver(
                         J, bcs=self._bcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
+                    J_mat = None
                     if deps is not None:
                         unbind_form(J)
 
@@ -595,10 +596,11 @@ class EquationSolver(Equation):
                         _, J, rhs = self._forward_eq
                         bind_form(J, deps)
                         bind_form(rhs, deps)
-                    J_solver, J_mat, b = assemble_linear_solver(
+                    J_solver, b = assemble_linear_solver(
                         J, b_form=rhs, bcs=self._bcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
+                    J_mat = None
                     if deps is not None:
                         unbind_form(J)
                         unbind_form(rhs)
@@ -731,7 +733,7 @@ class EquationSolver(Equation):
                 self._adjoint_J = unbound_form(
                     adjoint(self._J), self.nonlinear_dependencies())
             bind_form(self._adjoint_J, nl_deps)
-            J_solver, J_mat, _ = assemble_linear_solver(
+            J_solver, _ = assemble_linear_solver(
                 self._adjoint_J, bcs=self._hbcs,
                 form_compiler_parameters=self._form_compiler_parameters,
                 linear_solver_parameters=self._adjoint_solver_parameters)
