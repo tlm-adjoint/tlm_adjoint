@@ -287,6 +287,7 @@ for i in range(H.shape[1]):
     H[:, i] = function_get_values(ddJ.action(T_inflow, dm)[2])
     clear_caches(dm)
     del dm
+assert abs(H - H.T).max() < 1.0e-16
 
 # Solve the optimization problem
 _, dJ = ddJ.compute_gradient(T_inflow)
@@ -384,6 +385,7 @@ if verify:
             clear_caches(dm)
             del dm
         del ddJ
+        assert abs(H - H.T).max() < 1.0e-16
 
         dJ = compute_gradient(J, T_inflow)
         function_set_values(T_inflow,
