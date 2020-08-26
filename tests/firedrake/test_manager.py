@@ -343,7 +343,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
-    print(f"J = {J_val:.16e}")
+    info(f"J = {J_val:.16e}")
     assert abs(J_val - 36.0) < 1.0e-13
 
     dJ = compute_gradient(J, m)
@@ -496,7 +496,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
-    print(f"J = {J_val:.16e}")
+    info(f"J = {J_val:.16e}")
     assert abs(J_val - np.sqrt(2.0)) < 1.0e-15
 
     dJ = compute_gradient(J, m)
