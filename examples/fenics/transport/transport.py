@@ -280,13 +280,14 @@ def forward_kappa_ref_K(kappa):
 
 H = np.empty((function_local_size(T_inflow), function_local_size(T_inflow)),
              dtype=np.float64)
-for i in range(H.shape[0]):
-    info(f"Building Hessian row {i + 1:d} of {H.shape[0]:d}")
+for i in range(H.shape[1]):
+    info(f"Building Hessian column {i + 1:d} of {H.shape[1]:d}")
     dm = Function(inflow_space, static=True)
     dm.vector()[i] = 1.0
-    H[i, :] = function_get_values(ddJ.action(T_inflow, dm)[2])
+    H[:, i] = function_get_values(ddJ.action(T_inflow, dm)[2])
     clear_caches(dm)
     del dm
+assert abs(H - H.T).max() < 1.0e-16
 
 # Solve the optimization problem
 _, dJ = ddJ.compute_gradient(T_inflow)
@@ -376,14 +377,15 @@ if verify:
         H = np.empty((function_local_size(T_inflow),
                       function_local_size(T_inflow)),
                      dtype=np.float64)
-        for i in range(H.shape[0]):
-            info(f"Building Hessian row {i + 1:d} of {H.shape[0]:d}")
+        for i in range(H.shape[1]):
+            info(f"Building Hessian column {i + 1:d} of {H.shape[1]:d}")
             dm = Function(inflow_space, static=True)
             dm.vector()[i] = 1.0
-            H[i, :] = function_get_values(ddJ.action(T_inflow, dm)[2])
+            H[:, i] = function_get_values(ddJ.action(T_inflow, dm)[2])
             clear_caches(dm)
             del dm
         del ddJ
+        assert abs(H - H.T).max() < 1.0e-16
 
         dJ = compute_gradient(J, T_inflow)
         function_set_values(T_inflow,
