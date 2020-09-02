@@ -374,7 +374,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
         class NewtonIterationSolver(Equation):
             def __init__(self, m, x0, x):
                 super().__init__(x, deps=[x, x0, m], nl_deps=[x0, m],
-                                 ic_deps=[], adj_ic_deps=[])
+                                 ic=False, adj_ic=False)
 
             def forward_solve(self, x, deps=None):
                 _, x0, m = self.dependencies() if deps is None else deps
