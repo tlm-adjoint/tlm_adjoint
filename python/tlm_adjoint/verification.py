@@ -110,7 +110,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         for dm in dM:
             function_set_values(dm, np.random.random(function_local_size(dm)))
 
-    J_vals = np.empty(eps.shape, dtype=np.float64)
+    J_vals = np.full(eps.shape, np.NAN, dtype=np.float64)
     for i in range(eps.shape[0]):
         for m0, m1, dm in zip(M0, M1, dM):
             function_assign(m1, m0)
@@ -207,7 +207,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
     J_val = forward_tlm(dMs[:-1], *M).value()
     dJ = forward_tlm(dMs, *M).value()
 
-    J_vals = np.empty(eps.shape, dtype=np.float64)
+    J_vals = np.full(eps.shape, np.NAN, dtype=np.float64)
     for i in range(eps.shape[0]):
         for m0, m1, dm in zip(M, M1, dMs[-1]):
             function_assign(m1, m0)

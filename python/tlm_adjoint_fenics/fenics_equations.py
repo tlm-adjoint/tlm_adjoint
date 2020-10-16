@@ -65,10 +65,8 @@ def greedy_coloring(space):
     node_node_graph = tuple(sorted(nodes, reverse=True)
                             for nodes in node_node_graph)
 
-    seen = np.empty(N, dtype=np.bool)
-    seen[:] = False
-    colors = np.empty(N, dtype=np.int64)
-    colors[:] = -1
+    seen = np.full(N, False, dtype=np.bool)
+    colors = np.full(N, -1, dtype=np.int64)
     i = 0
     while True:
         # Initialize the advancing front
@@ -100,8 +98,8 @@ def greedy_coloring(space):
 
 def function_coords(x):
     space = function_space(x)
-    coords = np.empty((function_local_size(x), space.mesh().geometry().dim()),
-                      dtype=np.float64)
+    coords = np.full((function_local_size(x), space.mesh().geometry().dim()),
+                     np.NAN, dtype=np.float64)
     for i in range(coords.shape[1]):
         coord_ex = Expression(f"x[{i:d}]", element=space.ufl_element())
         coords[:, i] = function_get_values(interpolate(coord_ex, space))
@@ -249,11 +247,12 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
         if owned.any() and not owned.all():
             raise EquationException("Non-process-local node-node graph")
 
-    y_colors_N = np.empty((1,), dtype=y_colors.dtype)
+    y_colors_N = np.full((1,), -1, dtype=y_colors.dtype)
     comm = function_comm(y)
     comm.Allreduce(np.array([y_colors.max() + 1], dtype=y_colors.dtype),
                    y_colors_N, op=MPI.MAX)
     y_colors_N = y_colors_N[0]
+    assert y_colors_N >= 0
     y_nodes = tuple([] for i in range(y_colors_N))
     for y_node, color in enumerate(y_colors):
         y_nodes[color].append(y_node)
@@ -263,7 +262,6 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
                    dtype=np.float64)
 
     y_v = function_new(y)
-    x_v = np.empty((1,), dtype=np.float64)
     for color, y_color_nodes in enumerate(y_nodes):
         y_v.vector()[y_color_nodes] = 1.0
         for x_node, y_cell in enumerate(y_cells):
@@ -276,6 +274,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             except ValueError:
                 continue
             y_node = y_cell_nodes[i]
+            x_v = np.full((1,), np.NAN, dtype=np.float64)
             y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))
             P[x_node, y_node] = x_v[0]
         y_v.vector()[y_color_nodes] = 0.0
@@ -426,15 +425,15 @@ class PointInterpolationSolver(Equation):
                 comm = function_comm(y)
                 rank = comm.rank
 
-                y_cells = np.empty(len(X), dtype=np.int64)
-                distances_local = np.empty(len(X), dtype=np.float64)
+                y_cells = np.full(len(X), -1, dtype=np.int64)
+                distances_local = np.full(len(X), np.NAN, dtype=np.float64)
                 for i, x_coord in enumerate(X_coords):
                     y_cells[i], distances_local[i] = \
                         y_tree.compute_closest_entity(Point(*x_coord))
-                distances = np.empty(len(X), dtype=np.float64)
+                distances = np.full(len(X), np.NAN, dtype=np.float64)
                 comm.Allreduce(distances_local, distances, op=MPI.MIN)
 
-                owner_local = np.empty(len(X), dtype=np.int64)
+                owner_local = np.full(len(X), -1, dtype=np.int64)
                 owner_local[:] = rank
                 for i, (distance_local,
                         distance) in enumerate(zip(distances_local,
@@ -442,7 +441,7 @@ class PointInterpolationSolver(Equation):
                     if distance_local != distance:
                         y_cells[i] = -1
                         owner_local[i] = -1
-                owner = np.empty(len(X), dtype=np.int64)
+                owner = np.full(len(X), -1, dtype=np.int64)
                 comm.Allreduce(owner_local, owner, op=MPI.MAX)
 
                 for i in range(len(X)):
@@ -466,12 +465,12 @@ class PointInterpolationSolver(Equation):
         y = (self.dependencies() if deps is None else deps)[-1]
 
         y_v = function_get_values(y)
-        x_v_local = np.empty(len(X), dtype=np.float64)
+        x_v_local = np.full(len(X), np.NAN, dtype=np.float64)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = function_comm(y)
-        x_v = np.empty(len(X), dtype=np.float64)
+        x_v = np.full(len(X), np.NAN, dtype=np.float64)
         comm.Allreduce(x_v_local, x_v, op=MPI.MAX)
 
         for i, x in enumerate(X):
@@ -484,7 +483,7 @@ class PointInterpolationSolver(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_x_v = np.empty(len(adj_X), dtype=np.float64)
+            adj_x_v = np.full(len(adj_X), np.NAN, dtype=np.float64)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = real_function_value(adj_x)
             F = function_new(self.dependencies()[-1])

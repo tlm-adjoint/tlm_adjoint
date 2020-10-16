@@ -969,7 +969,7 @@ class ExprEvaluationSolver(Equation):
             function_assign(F, dF_val)
         elif is_real_function(F):
             dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
-            dF_val = np.empty((1,), dtype=np.float64)
+            dF_val = np.full((1,), np.NAN, dtype=np.float64)
             comm = function_comm(F)
             comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
             dF_val = dF_val[0]
