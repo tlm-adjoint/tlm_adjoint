@@ -239,8 +239,9 @@ def no_replace_compatibility(function):
 
 
 class Equation(Referrer):
-    def __init__(self, X, deps, nl_deps=None, ic_deps=[], ic=True,
-                 adj_ic_deps=[], adj_ic=True):
+    def __init__(self, X, deps, nl_deps=None,
+                 ic_deps=None, ic=None,
+                 adj_ic_deps=None, adj_ic=None):
         """
         An equation. The equation is expressed in the form:
             F ( X, y_0, y_1, ... ) = 0,
@@ -259,11 +260,14 @@ class Equation(Referrer):
         ic_deps  (Optional) A list or tuple of dependencies whose initial value
                  should be available prior to solving the forward equation.
                  Must be a subset of X.
-        ic       (Optional) If true then ic_deps is set equal to X.
+        ic       (Optional) If true then ic_deps is set equal to X. Defaults to
+                 true if ic_deps is None, and false otherwise.
         adj_ic_deps  (Optional) A list or tuple of dependencies whose adjoint
                      value should be available prior to solving the adjoint
                      equation. Must be a subset of X.
-        adj_ic       (Optional) If true then ic_deps is set equal to X.
+        adj_ic       (Optional) If true then adj_ic_deps is set equal to X.
+                     Defaults to true if adj_ic_deps is None, and false
+                     otherwise.
         """
 
         if is_function(X):
@@ -292,6 +296,13 @@ class Equation(Referrer):
                                         "dependency")
         nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
 
+        if ic_deps is None:
+            ic_deps = []
+            if ic is None:
+                ic = True
+        else:
+            if ic is None:
+                ic = False
         ic_dep_ids = {function_id(dep) for dep in ic_deps}
         if len(ic_dep_ids) != len(ic_deps):
             raise EquationException("Duplicate initial condition dependency")
@@ -302,6 +313,13 @@ class Equation(Referrer):
         if ic:
             ic_deps = list(X)
 
+        if adj_ic_deps is None:
+            adj_ic_deps = []
+            if adj_ic is None:
+                adj_ic = True
+        else:
+            if adj_ic is None:
+                adj_ic = False
         adj_ic_dep_ids = {function_id(dep) for dep in adj_ic_deps}
         if len(adj_ic_dep_ids) != len(adj_ic_deps):
             raise EquationException("Duplicate adjoint initial condition "
@@ -985,8 +1003,8 @@ class FixedPointSolver(Equation):
                         dep_B_indices[i][j] = (k, m)
         del dep_map
 
-        super().__init__(X, deps, nl_deps=nl_deps, ic_deps=ic_deps, ic=False,
-                         adj_ic_deps=adj_ic_deps, adj_ic=False)
+        super().__init__(X, deps, nl_deps=nl_deps,
+                         ic_deps=ic_deps, adj_ic_deps=adj_ic_deps)
         self._eqs = tuple(eqs)
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices

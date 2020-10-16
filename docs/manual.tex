@@ -939,8 +939,9 @@ define dependencies. \texttt{tlm\_adjoint} does not distinguish between
 symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
 the form
 \begin{lstlisting}
-def __init__(self, x, deps, nl_deps=None, ic_deps=[], ic=True, adj_ic_deps=[],
-             adj_ic=True):
+def __init__(self, x, deps, nl_deps=None,
+             ic_deps=None, ic=None,
+             adj_ic_deps=None, adj_ic=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -954,12 +955,14 @@ with constructor arguments
     condition dependencies. Can contain only dependencies which are solutions
     to the equation.
   \item \texttt{ic}, if true sets \texttt{ic\_deps} to be the solution to the
-    equation.
+    equation. Defaults to true if \texttt{ic\_deps} is \texttt{None}, and false
+    otherwise.
   \item \texttt{adj\_ic\_deps}, a list or tuple of functions, defining adjoint
     initial condition dependencies. Can contain only dependencies which are
     solutions to the equation.
   \item \texttt{adj\_ic}, if true sets \texttt{adj\_ic\_deps} to be the
-    solution to the equation.
+    solution to the equation. Defaults to true if \texttt{adj\_ic\_deps} is
+    \texttt{None}, and false otherwise.
 \end{itemize}
 
 \subsection{Forward}
