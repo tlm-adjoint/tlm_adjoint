@@ -28,6 +28,7 @@ from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
 import mpi4py.MPI as MPI
+import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
 import sys
@@ -280,12 +281,16 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         with self.dat.vec_ro as x_v:
             values = x_v.getArray(readonly=True)
+        if not np.can_cast(values, np.float64):
+            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
+        if not np.can_cast(values, backend_ScalarType):
+            raise InterfaceException("Invalid dtype")
         with self.dat.vec_wo as x_v:
-            if (x_v.getLocalSize(),) != values.shape:
-                raise InterfaceException("Invalid function space")
+            if values.shape != (x_v.getLocalSize(),):
+                raise InterfaceException("Invalid shape")
             x_v.setArray(values)
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):

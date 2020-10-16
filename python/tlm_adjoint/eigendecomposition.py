@@ -97,7 +97,10 @@ class PythonMatrix:
         y_a = self._action(X)
         if is_function(y_a):
             y_a = function_get_values(y_a)
-        assert np.can_cast(y_a, PETSc.ScalarType)
+        if not np.can_cast(y_a, PETSc.ScalarType):
+            raise EigendecompositionException("Invalid dtype")
+        if y_a.shape != (y.getLocalSize(),):
+            raise EigendecompositionException("Invalid shape")
         y.setArray(y_a)
 
 
