@@ -129,23 +129,25 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         return wrapped_fn
 
     class PythonMatrix:
-        def __init__(self, action, X):
+        def __init__(self, action, space):
             self._action = action
-            self._X = X
+            self._space = space
 
         @flag_errors
         def mult(self, A, x, y):
-            function_set_values(self._X, x.getArray(readonly=True))
-            y.setArray(self._action(self._X))
+            X = space_new(self._space)
+            function_set_values(X, x.getArray(readonly=True))
+            y.setArray(self._action(X))
 
     X = space_new(space)
     n, N = function_local_size(X), function_global_size(X)
+    del X
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
-    comm = function_comm(X)  # .Dup()
+    comm = space_comm(space)  # .Dup()
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                        PythonMatrix(A_action, X),
+                                        PythonMatrix(A_action, space),
                                         comm=comm)
     A_matrix.setUp()
 
@@ -176,9 +178,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
 
     lam = np.full(N_ev, np.NAN,
                   dtype=np.float64 if esolver.isHermitian() else np.complex64)
-    V_r = tuple(function_new(X) for n in range(N_ev))
+    V_r = tuple(space_new(space) for n in range(N_ev))
     if not esolver.isHermitian():
-        V_i = tuple(function_new(X) for n in range(N_ev))
+        V_i = tuple(space_new(space) for n in range(N_ev))
     v_r, v_i = A_matrix.getVecRight(), A_matrix.getVecRight()
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)
