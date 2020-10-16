@@ -83,8 +83,10 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     Arguments:
 
     space          Eigenspace.
-    A_action       Function handle accepting a function and returning an array,
-                   defining the action of the left-hand-side matrix.
+    A_action       Function handle accepting a function and returning a
+                   function or NumPy array, defining the action of the
+                   left-hand-side matrix, e.g. as returned by
+                   Hessian.action_fn.
     B_matrix       (Optional) Right-hand-side matrix in a generalized
                    eigendecomposition.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
@@ -136,8 +138,13 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         @flag_errors
         def mult(self, A, x, y):
             X = space_new(self._space)
-            function_set_values(X, x.getArray(readonly=True))
-            y.setArray(self._action(X))
+            x_a = x.getArray(readonly=True)
+            function_set_values(X, x_a)
+            y_a = self._action(X)
+            if is_function(y_a):
+                y_a = function_get_values(y_a)
+            assert np.can_cast(y_a, PETSc.ScalarType)
+            y.setArray(y_a)
 
     X = space_new(space)
     n, N = function_local_size(X), function_global_size(X)

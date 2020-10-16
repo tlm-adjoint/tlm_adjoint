@@ -2646,11 +2646,9 @@ with arguments
   \item \texttt{space}, a function space. Eigenvector discrete function space.
   \item \texttt{A\_action}, a callable which accepts a single input
     \texttt{Function}, and computes the action of the matrix $A$. The result
-    must be returned as a real NumPy vector.
-  \item \texttt{B\_action}, an optional callable which accepts a single input
-    \texttt{Function}, and computes the action of the matrix $B$. The result
-    must be returned as a real NumPy vector. If not provided then $B$ is
-    considered an identity matrix.
+    must be returned as a \texttt{Function} or a NumPy array.
+  \item \texttt{B\_matrix}, a PETSc matrix defining the matrix $B$. If not
+    provided then $B$ is considered an identity matrix.
   \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
     passed as the \texttt{nev} argument to \texttt{slepc4py.EPS.setDimensions}.
     If not provided then performs a full spectrum eigendecomposition.
