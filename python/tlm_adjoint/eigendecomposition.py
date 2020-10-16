@@ -71,6 +71,36 @@ class EigendecompositionException(Exception):
     pass
 
 
+_flagged_error = [False]
+
+
+def flag_errors(fn):
+    def wrapped_fn(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except:  # noqa: E722
+            _flagged_error[0] = True
+            raise
+    return wrapped_fn
+
+
+class PythonMatrix:
+    def __init__(self, action, space):
+        self._action = action
+        self._space = space
+
+    @flag_errors
+    def mult(self, A, x, y):
+        X = space_new(self._space)
+        x_a = x.getArray(readonly=True)
+        function_set_values(X, x_a)
+        y_a = self._action(X)
+        if is_function(y_a):
+            y_a = function_get_values(y_a)
+        assert np.can_cast(y_a, PETSc.ScalarType)
+        y.setArray(y_a)
+
+
 def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
                    solver_type=None, problem_type=None, which=None,
                    tolerance=1.0e-12, configure=None):
@@ -119,33 +149,6 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     if which is None:
         which = SLEPc.EPS.Which.LARGEST_MAGNITUDE
 
-    eps_error = [False]
-
-    def flag_errors(fn):
-        def wrapped_fn(*args, **kwargs):
-            try:
-                return fn(*args, **kwargs)
-            except:  # noqa: E722
-                eps_error[0] = True
-                raise
-        return wrapped_fn
-
-    class PythonMatrix:
-        def __init__(self, action, space):
-            self._action = action
-            self._space = space
-
-        @flag_errors
-        def mult(self, A, x, y):
-            X = space_new(self._space)
-            x_a = x.getArray(readonly=True)
-            function_set_values(X, x_a)
-            y_a = self._action(X)
-            if is_function(y_a):
-                y_a = function_get_values(y_a)
-            assert np.can_cast(y_a, PETSc.ScalarType)
-            y.setArray(y_a)
-
     X = space_new(space)
     n, N = function_local_size(X), function_global_size(X)
     del X
@@ -175,8 +178,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         configure(esolver)
     esolver.setUp()
 
+    assert not _flagged_error[0]
     esolver.solve()
-    if eps_error[0]:
+    if _flagged_error[0]:
         raise EigendecompositionException("Error encountered in "
                                           "SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
