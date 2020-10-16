@@ -1202,12 +1202,12 @@ matrices as used by a \texttt{LinearEquation}.
 A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
 define dependencies. The \texttt{Matrix} constructor has the form
 \begin{lstlisting}
-def __init__(self, nl_deps=None, ic=True, adj_ic=True):
+def __init__(self, nl_deps=[], ic=True, adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
   \item \texttt{nl\_deps}, a list or tuple of functions, defining the
-    dependencies of the matrix. If not supplied then treated as empty.
+    dependencies of the matrix.
   \item \texttt{ic}. If true then in solving a linear equation involving the
     matrix the solution variable is an initial condition dependency of the
     equation.

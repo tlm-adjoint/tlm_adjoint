@@ -281,17 +281,16 @@ class Equation(Referrer):
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
 
-        nl_dep_ids = {function_id(dep) for dep in nl_deps}
         if nl_deps is None:
-            nl_deps_map = tuple(range(len(deps)))
-        else:
-            if len(nl_dep_ids) != len(nl_deps):
-                raise EquationException("Duplicate non-linear dependency")
-            for dep in nl_deps:
-                if function_id(dep) not in dep_ids:
-                    raise EquationException("Non-linear dependency is not a "
-                                            "dependency")
-            nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
+            nl_deps = tuple(deps)
+        nl_dep_ids = {function_id(dep) for dep in nl_deps}
+        if len(nl_dep_ids) != len(nl_deps):
+            raise EquationException("Duplicate non-linear dependency")
+        for dep in nl_deps:
+            if function_id(dep) not in dep_ids:
+                raise EquationException("Non-linear dependency is not a "
+                                        "dependency")
+        nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
 
         ic_dep_ids = {function_id(dep) for dep in ic_deps}
         if len(ic_dep_ids) != len(ic_deps):
@@ -317,7 +316,7 @@ class Equation(Referrer):
         super().__init__()
         self._X = tuple(X)
         self._deps = tuple(deps)
-        self._nl_deps = None if nl_deps is None else tuple(nl_deps)
+        self._nl_deps = tuple(nl_deps)
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
@@ -380,9 +379,8 @@ class Equation(Referrer):
     def drop_references(self):
         self._X = tuple(function_replacement(x) for x in self._X)
         self._deps = tuple(function_replacement(dep) for dep in self._deps)
-        if self._nl_deps is not None:
-            self._nl_deps = tuple(function_replacement(dep)
-                                  for dep in self._nl_deps)
+        self._nl_deps = tuple(function_replacement(dep)
+                              for dep in self._nl_deps)
         self._ic_deps = tuple(function_replacement(dep)
                               for dep in self._ic_deps)
         self._adj_ic_deps = tuple(function_replacement(dep)
@@ -397,9 +395,8 @@ class Equation(Referrer):
 
         self._X = tuple(replace_map.get(x, x) for x in self._X)
         self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
-        if self._nl_deps is not None:
-            self._nl_deps = tuple(replace_map.get(dep, dep)
-                                  for dep in self._nl_deps)
+        self._nl_deps = tuple(replace_map.get(dep, dep)
+                              for dep in self._nl_deps)
         self._ic_deps = tuple(replace_map.get(dep, dep)
                               for dep in self._ic_deps)
         self._adj_ic_deps = tuple(replace_map.get(dep, dep)
@@ -427,10 +424,7 @@ class Equation(Referrer):
         return self._deps
 
     def nonlinear_dependencies(self):
-        if self._nl_deps is None:
-            return self.dependencies()
-        else:
-            return self._nl_deps
+        return self._nl_deps
 
     def nonlinear_dependencies_map(self):
         return self._nl_deps_map
@@ -1450,10 +1444,14 @@ class LinearEquation(Equation):
 
 
 class Matrix(Referrer):
-    def __init__(self, nl_deps=None, has_ic_dep=None, ic=None, adj_ic=True):
-        if nl_deps is not None:
-            if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
-                raise EquationException("Duplicate non-linear dependency")
+    def __init__(self, nl_deps=[], has_ic_dep=None, ic=None, adj_ic=True):
+        if nl_deps is None:
+            warnings.warn("'nl_deps=None' is deprecated -- use 'nl_deps=[]' "
+                          "instead",
+                          DeprecationWarning, stacklevel=2)
+            nl_deps = []
+        if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
+            raise EquationException("Duplicate non-linear dependency")
 
         if has_ic_dep is not None:
             warnings.warn("'has_ic_dep' argument is deprecated -- use 'ic' "
@@ -1467,7 +1465,7 @@ class Matrix(Referrer):
             ic = True
 
         super().__init__()
-        self._nl_deps = () if nl_deps is None else tuple(nl_deps)
+        self._nl_deps = tuple(nl_deps)
         self._ic = ic
         self._adj_ic = adj_ic
 
@@ -1630,16 +1628,19 @@ class RHS(Referrer):
         dep_ids = {function_id(dep) for dep in deps}
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
-        if nl_deps is not None:
-            nl_dep_ids = {function_id(dep) for dep in nl_deps}
-            if len(nl_dep_ids) != len(nl_deps):
-                raise EquationException("Duplicate non-linear dependency")
-            if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
-                raise EquationException("Non-linear dependency is not a dependency")  # noqa: E501
+
+        if nl_deps is None:
+            nl_deps = tuple(deps)
+        nl_dep_ids = {function_id(dep) for dep in nl_deps}
+        if len(nl_dep_ids) != len(nl_deps):
+            raise EquationException("Duplicate non-linear dependency")
+        if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
+            raise EquationException("Non-linear dependency is not a "
+                                    "dependency")
 
         super().__init__()
         self._deps = tuple(deps)
-        self._nl_deps = None if nl_deps is None else tuple(nl_deps)
+        self._nl_deps = tuple(nl_deps)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -1657,25 +1658,20 @@ class RHS(Referrer):
 
     def drop_references(self):
         self._deps = tuple(function_replacement(dep) for dep in self._deps)
-        if self._nl_deps is not None:
-            self._nl_deps = tuple(function_replacement(dep)
-                                  for dep in self._nl_deps)
+        self._nl_deps = tuple(function_replacement(dep)
+                              for dep in self._nl_deps)
 
     @no_replace_compatibility
     def replace(self, replace_map):
         self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
-        if self._nl_deps is not None:
-            self._nl_deps = tuple(replace_map.get(dep, dep)
-                                  for dep in self._nl_deps)
+        self._nl_deps = tuple(replace_map.get(dep, dep)
+                              for dep in self._nl_deps)
 
     def dependencies(self):
         return self._deps
 
     def nonlinear_dependencies(self):
-        if self._nl_deps is None:
-            return self.dependencies()
-        else:
-            return self._nl_deps
+        return self._nl_deps
 
     def add_forward(self, B, deps):
         raise EquationException("Method not overridden")
