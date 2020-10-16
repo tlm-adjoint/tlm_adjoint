@@ -177,8 +177,7 @@ class FunctionInterface(_FunctionInterface):
                 self.assign(backend_Constant(float(y)),
                             annotate=False, tlm=False)
             else:
-                y_ = np.empty(self.ufl_shape, dtype=np.float64)
-                y_[:] = y
+                y_ = np.full(self.ufl_shape, float(y), dtype=np.float64)
                 self.assign(backend_Constant(y_),
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):

@@ -278,8 +278,8 @@ def forward_kappa_ref_K(kappa):
     return forward(T_inflow, kappa, T_N_ref=T_N_ref)[2]
 
 
-H = np.empty((function_local_size(T_inflow), function_local_size(T_inflow)),
-             dtype=np.float64)
+H = np.full((function_local_size(T_inflow), function_local_size(T_inflow)),
+            np.NAN, dtype=np.float64)
 for i in range(H.shape[1]):
     info(f"Building Hessian column {i + 1:d} of {H.shape[1]:d}")
     dm = Function(inflow_space, static=True)
@@ -287,6 +287,7 @@ for i in range(H.shape[1]):
     H[:, i] = function_get_values(ddJ.action(T_inflow, dm)[2])
     clear_caches(dm)
     del dm
+assert not np.isnan(H).any()
 assert abs(H - H.T).max() < 1.0e-16
 
 # Solve the optimization problem
@@ -374,9 +375,9 @@ if verify:
         stop_manager()
 
         ddJ = SingleBlockHessian(J)
-        H = np.empty((function_local_size(T_inflow),
-                      function_local_size(T_inflow)),
-                     dtype=np.float64)
+        H = np.full((function_local_size(T_inflow),
+                     function_local_size(T_inflow)),
+                    np.NAN, dtype=np.float64)
         for i in range(H.shape[1]):
             info(f"Building Hessian column {i + 1:d} of {H.shape[1]:d}")
             dm = Function(inflow_space, static=True)
@@ -385,6 +386,7 @@ if verify:
             clear_caches(dm)
             del dm
         del ddJ
+        assert not np.isnan(H).any()
         assert abs(H - H.T).max() < 1.0e-16
 
         dJ = compute_gradient(J, T_inflow)

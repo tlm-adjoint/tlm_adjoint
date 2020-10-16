@@ -254,8 +254,8 @@ class PointInterpolationSolver(Equation):
             y_mesh = y_space.mesh()
             lg_map = y_space.local_to_global_map([]).indices
 
-            y_nodes_local = np.empty((len(X), y_cell_node_graph.shape[1]),
-                                     dtype=np.int64)
+            y_nodes_local = np.full((len(X), y_cell_node_graph.shape[1]),
+                                    -1, dtype=np.int64)
             for i, x_coord in enumerate(X_coords):
                 y_cell = y_mesh.locate_cell(x_coord)
                 if y_cell is None or y_cell >= y_cell_node_graph.shape[0]:
@@ -264,7 +264,7 @@ class PointInterpolationSolver(Equation):
                     for j, y_node in enumerate(y_cell_node_graph[y_cell, :]):
                         y_nodes_local[i, j] = lg_map[y_node]
 
-            y_nodes = np.empty(y_nodes_local.shape, dtype=np.int64)
+            y_nodes = np.full(y_nodes_local.shape, -1, dtype=np.int64)
             comm = function_comm(y)
             comm.Allreduce(y_nodes_local, y_nodes, op=MPI.MAX)
 
@@ -283,12 +283,12 @@ class PointInterpolationSolver(Equation):
         y = (self.dependencies() if deps is None else deps)[-1]
 
         y_v = function_get_values(y)
-        x_v_local = np.empty(len(X), dtype=np.float64)
+        x_v_local = np.full(len(X), np.NAN, dtype=np.float64)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = function_comm(y)
-        x_v = np.empty(len(X), dtype=np.float64)
+        x_v = np.full(len(X), np.NAN, dtype=np.float64)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):
@@ -301,7 +301,7 @@ class PointInterpolationSolver(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_x_v = np.empty(len(adj_X), dtype=np.float64)
+            adj_x_v = np.full(len(adj_X), np.NAN, dtype=np.float64)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = real_function_value(adj_x)
             F = function_new(self.dependencies()[-1])

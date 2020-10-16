@@ -1414,8 +1414,7 @@ class EquationManager:
         for block in blocks:
             M += len(block) * P
         M += len(blocks) + 1
-        pixels = np.empty((M, M, 3), dtype=np.uint8)
-        pixels[:] = 255
+        pixels = np.full((M, M, 3), 255, dtype=np.uint8)
 
         pixels[0, :, :] = divider
         pixels[:, 0, :] = divider
