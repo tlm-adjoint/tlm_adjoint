@@ -76,8 +76,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
                    tolerance=1.0e-12, configure=None):
     # First written 2018-03-01
     """
-    Matrix-free eigendecomposition using SLEPc via slepc4py, loosely following
-    the slepc4py 3.6.0 demo demo/ex3.py.
+    Matrix-free interface with SLEPc via slepc4py, loosely following
+    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of Hessian
+    eigendecompositions.
 
     Arguments:
 
