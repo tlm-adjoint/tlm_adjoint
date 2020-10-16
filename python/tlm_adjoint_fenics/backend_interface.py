@@ -38,6 +38,7 @@ __all__ = \
         "InterfaceException",
 
         "is_space",
+        "space_comm",
         "space_id",
         "space_new",
 
