@@ -47,6 +47,7 @@
 
 from fenics import *
 import fenics
+import petsc4py.PETSc as PETSc
 
 backend = "FEniCS"
 
@@ -62,6 +63,7 @@ backend_LinearVariationalSolver = LinearVariationalSolver
 backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_NonlinearVariationalProblem = NonlinearVariationalProblem
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
+backend_ScalarType = PETSc.ScalarType
 backend_Vector = fenics.cpp.la.GenericVector
 backend_assemble = assemble
 backend_assemble_system = assemble_system
@@ -87,6 +89,7 @@ __all__ = \
         "backend_NonlinearVariationalProblem",
         "backend_NonlinearVariationalSolver",
         "backend_Matrix",
+        "backend_ScalarType",
         "backend_Vector",
         "backend_assemble",
         "backend_assemble_system",

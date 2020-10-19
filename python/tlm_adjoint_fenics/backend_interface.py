@@ -38,6 +38,7 @@ __all__ = \
         "InterfaceException",
 
         "is_space",
+        "space_comm",
         "space_id",
         "space_new",
 
@@ -241,11 +242,15 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().get_local().view()
         values.setflags(write=False)
+        if not np.can_cast(values, np.float64):
+            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
-        if (self.vector().local_size(),) != values.shape:
-            raise InterfaceException("Invalid function space")
+        if not np.can_cast(values, backend_ScalarType):
+            raise InterfaceException("Invalid dtype")
+        if values.shape != (self.vector().local_size(),):
+            raise InterfaceException("Invalid shape")
         self.vector().set_local(values)
         self.vector().apply("insert")
 

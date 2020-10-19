@@ -31,6 +31,7 @@ __all__ = \
         "InterfaceException",
 
         "is_space",
+        "space_comm",
         "space_id",
         "space_new",
 
@@ -208,9 +209,15 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().view()
         values.setflags(write=False)
+        if not np.can_cast(values, np.float64):
+            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
+        if not np.can_cast(values, np.float64):
+            raise InterfaceException("Invalid dtype")
+        if values.shape != self.vector().shape:
+            raise InterfaceException("Invalid shape")
         self.vector()[:] = values
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
@@ -254,6 +261,8 @@ class Function:
         if _data is None:
             self._data = np.zeros(space.dim(), dtype=np.float64)
         else:
+            if not np.can_cast(_data, np.float64):
+                raise InterfaceException("Invalid dtype")
             self._data = _data
         add_interface(self, FunctionInterface)
 

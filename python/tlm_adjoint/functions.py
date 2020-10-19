@@ -225,9 +225,13 @@ class ConstantInterface(_FunctionInterface):
         else:
             values = np.array([], dtype=np.float64)
         values.setflags(write=False)
+        if not np.can_cast(values, np.float64):
+            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
+        if not np.can_cast(values, backend_ScalarType):
+            raise InterfaceException("Invalid dtype")
         comm = function_comm(self)
         if comm.rank != 0:
             if len(self.ufl_shape) == 0:
@@ -236,6 +240,7 @@ class ConstantInterface(_FunctionInterface):
                 values = np.zeros(np.prod(self.ufl_shape), dtype=np.float64)
         values = comm.bcast(values, root=0)
         if len(self.ufl_shape) == 0:
+            values.shape = (1,)
             self.assign(values[0])  # annotate=False, tlm=False
         else:
             values.shape = self.ufl_shape

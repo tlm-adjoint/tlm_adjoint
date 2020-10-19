@@ -71,19 +71,55 @@ class EigendecompositionException(Exception):
     pass
 
 
+_flagged_error = [False]
+
+
+def flag_errors(fn):
+    def wrapped_fn(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except:  # noqa: E722
+            _flagged_error[0] = True
+            raise
+    return wrapped_fn
+
+
+class PythonMatrix:
+    def __init__(self, action, space):
+        self._action = action
+        self._space = space
+
+    @flag_errors
+    def mult(self, A, x, y):
+        X = space_new(self._space)
+        x_a = x.getArray(readonly=True)
+        function_set_values(X, x_a)
+        y_a = self._action(X)
+        if is_function(y_a):
+            y_a = function_get_values(y_a)
+        if not np.can_cast(y_a, PETSc.ScalarType):
+            raise EigendecompositionException("Invalid dtype")
+        if y_a.shape != (y.getLocalSize(),):
+            raise EigendecompositionException("Invalid shape")
+        y.setArray(y_a)
+
+
 def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
                    solver_type=None, problem_type=None, which=None,
                    tolerance=1.0e-12, configure=None):
     # First written 2018-03-01
     """
-    Matrix-free eigendecomposition using SLEPc via slepc4py, loosely following
-    the slepc4py 3.6.0 demo demo/ex3.py.
+    Matrix-free interface with SLEPc via slepc4py, loosely following
+    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of Hessian
+    eigendecompositions.
 
     Arguments:
 
     space          Eigenspace.
-    A_action       Function handle accepting a function and returning an array,
-                   defining the action of the left-hand-side matrix.
+    A_action       Function handle accepting a function and returning a
+                   function or NumPy array, defining the action of the
+                   left-hand-side matrix, e.g. as returned by
+                   Hessian.action_fn.
     B_matrix       (Optional) Right-hand-side matrix in a generalized
                    eigendecomposition.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
@@ -116,35 +152,15 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     if which is None:
         which = SLEPc.EPS.Which.LARGEST_MAGNITUDE
 
-    eps_error = [False]
-
-    def flag_errors(fn):
-        def wrapped_fn(*args, **kwargs):
-            try:
-                return fn(*args, **kwargs)
-            except:  # noqa: E722
-                eps_error[0] = True
-                raise
-        return wrapped_fn
-
-    class PythonMatrix:
-        def __init__(self, action, X):
-            self._action = action
-            self._X = X
-
-        @flag_errors
-        def mult(self, A, x, y):
-            function_set_values(self._X, x.getArray(readonly=True))
-            y.setArray(self._action(self._X))
-
     X = space_new(space)
     n, N = function_local_size(X), function_global_size(X)
+    del X
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
-    comm = function_comm(X)  # .Dup()
+    comm = space_comm(space)  # .Dup()
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                        PythonMatrix(A_action, X),
+                                        PythonMatrix(A_action, space),
                                         comm=comm)
     A_matrix.setUp()
 
@@ -165,8 +181,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         configure(esolver)
     esolver.setUp()
 
+    assert not _flagged_error[0]
     esolver.solve()
-    if eps_error[0]:
+    if _flagged_error[0]:
         raise EigendecompositionException("Error encountered in "
                                           "SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
@@ -175,9 +192,9 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
 
     lam = np.full(N_ev, np.NAN,
                   dtype=np.float64 if esolver.isHermitian() else np.complex64)
-    V_r = tuple(function_new(X) for n in range(N_ev))
+    V_r = tuple(space_new(space) for n in range(N_ev))
     if not esolver.isHermitian():
-        V_i = tuple(function_new(X) for n in range(N_ev))
+        V_i = tuple(space_new(space) for n in range(N_ev))
     v_r, v_i = A_matrix.getVecRight(), A_matrix.getVecRight()
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)
