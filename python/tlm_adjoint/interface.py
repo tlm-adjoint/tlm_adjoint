@@ -166,7 +166,7 @@ class FunctionInterface:
     def _assign(self, y):
         raise InterfaceException("Method not overridden")
 
-    def _axpy(self, alpha, y):
+    def _axpy(self, *args):  # self, alpha, x
         raise InterfaceException("Method not overridden")
 
     def _inner(self, y):
@@ -262,8 +262,9 @@ def function_assign(x, y):
     x._tlm_adjoint__function_interface_assign(y)
 
 
-def function_axpy(x, alpha, y):
-    x._tlm_adjoint__function_interface_axpy(alpha, y)
+def function_axpy(*args):  # y, alpha, x
+    y, alpha, x = args
+    y._tlm_adjoint__function_interface_axpy(alpha, x)
 
 
 def function_inner(x, y):

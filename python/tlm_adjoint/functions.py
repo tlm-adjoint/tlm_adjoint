@@ -171,11 +171,12 @@ class ConstantInterface(_FunctionInterface):
     def _assign(self, y):
         self.assign(y)  # annotate=False, tlm=False
 
-    def _axpy(self, alpha, y):
+    def _axpy(self, *args):  # self, alpha, x
+        alpha, x = args
         if len(self.ufl_shape) == 0:
-            value = float(self) + alpha * float(y)
+            value = float(self) + alpha * float(x)
         else:
-            value = self.values() + alpha * y.values()
+            value = self.values() + alpha * x.values()
             value.shape = self.ufl_shape
             value = backend_Constant(value)
         self.assign(value)  # annotate=False, tlm=False
@@ -387,7 +388,7 @@ class Zero(Constant):
     def _tlm_adjoint__function_interface_assign(self, y):
         raise InterfaceException("Cannot call _assign interface of Zero")
 
-    def _tlm_adjoint__function_interface_axpy(self, alpha, y):
+    def _tlm_adjoint__function_interface_axpy(self, *args):  # self, alpha, x
         raise InterfaceException("Cannot call _axpy interface of Zero")
 
     def _tlm_adjoint__function_interface_set_values(self, values):

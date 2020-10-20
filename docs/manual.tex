@@ -546,14 +546,14 @@ where \texttt{x} is the function being solved for.
 
 An \texttt{AxpySolver} represents the equation
 \begin{equation*}
-  x = y_1 + \alpha y_2,
+  z = y + \alpha x,
 \end{equation*}
 where $\alpha$ is a real constant. An \texttt{AxpySolver} can be instantiated
 via
 \begin{lstlisting}
-eq = AxpySolver(y_1, alpha, y_2, x)
+eq = AxpySolver(y, alpha, x, z)
 \end{lstlisting}
-where \texttt{x} is the function being solved for.
+where \texttt{z} is the function being solved for.
 
 \subsubsection{\texttt{LinearCombinationSolver}}
 

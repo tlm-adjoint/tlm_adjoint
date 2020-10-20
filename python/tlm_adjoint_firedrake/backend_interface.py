@@ -201,30 +201,31 @@ class FunctionInterface(_FunctionInterface):
             else:
                 self.assign(y, annotate=False, tlm=False)
 
-    def _axpy(self, alpha, y):
-        if isinstance(y, backend_Function):
+    def _axpy(self, *args):  # self, alpha, x
+        alpha, x = args
+        if isinstance(x, backend_Function):
             if is_r0_function(self):
                 # Work around Firedrake bug (related to issue #1459?)
-                self.dat.data[:] += alpha * y.dat.data_ro
+                self.dat.data[:] += alpha * x.dat.data_ro
             else:
-                with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                    if x_v.getLocalSize() != y_v.getLocalSize():
+                with self.dat.vec as y_v, x.dat.vec_ro as x_v:
+                    if y_v.getLocalSize() != x_v.getLocalSize():
                         raise InterfaceException("Invalid function space")
-                    x_v.axpy(alpha, y_v)
-        elif isinstance(y, Zero):
+                    y_v.axpy(alpha, x_v)
+        elif isinstance(x, Zero):
             pass
         else:
-            assert isinstance(y, backend_Constant)
+            assert isinstance(x, backend_Constant)
             if is_r0_function(self):
                 # Work around Firedrake bug (related to issue #1459?)
                 if len(self.ufl_shape) == 0:
-                    self.dat.data[:] += alpha * float(y)
+                    self.dat.data[:] += alpha * float(x)
                 else:
-                    x = function_new(self)
-                    x.assign(y, annotate=False, tlm=False)
-                    self.dat.data[:] = x.dat.data_ro + alpha * y.dat.data_ro
+                    x_ = function_new(self)
+                    x_.assign(x, annotate=False, tlm=False)
+                    self.dat.data[:] += alpha * x_.dat.data_ro
             else:
-                self += alpha * y  # annotate=False, tlm=False
+                self += alpha * x  # annotate=False, tlm=False
 
     def _inner(self, y):
         if isinstance(y, backend_Function):

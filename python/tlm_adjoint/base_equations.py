@@ -809,8 +809,9 @@ class ScaleSolver(LinearCombinationSolver):
 
 
 class AxpySolver(LinearCombinationSolver):
-    def __init__(self, x_old, alpha, y, x_new):
-        super().__init__(x_new, (1.0, x_old), (alpha, y))
+    def __init__(self, *args):  # self, y_old, alpha, x, y_new
+        y_old, alpha, x, y_new = args
+        super().__init__(y_new, (1.0, y_old), (alpha, x))
 
 
 class FixedPointSolver(Equation):
