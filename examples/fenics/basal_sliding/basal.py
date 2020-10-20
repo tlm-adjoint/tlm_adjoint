@@ -273,11 +273,11 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
     def solve_elevation_rhs(U, h, F_h):
         elevation_rhs(U, h, F_h).solve()
 
-    def axpy(x, *args):
+    def linear_combination(x, *args):
         return LinearCombinationSolver(x, *args)
 
-    def solve_axpy(x, *args):
-        axpy(x, *args).solve()
+    def solve_linear_combination(x, *args):
+        linear_combination(x, *args).solve()
 
     def cycle(x_np1, x_n):
         return AssignmentSolver(x_np1, x_n)
@@ -307,12 +307,12 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
     # RK2
     # Stage 1
     solve_elevation_rhs(U[0], h[0], F_h[2])
-    solve_axpy(h[1], (1.0, h[0]), (0.5, F_h[2]))
+    solve_linear_combination(h[1], (1.0, h[0]), (0.5, F_h[2]))
     solve_momentum(U[1], h[1], initial_guess=U[0])
     solve_cycle(F_h[2], F_h[1])
     # Stage 2
     solve_elevation_rhs(U[1], h[1], F_h[2])
-    solve_axpy(h[1], (1.0, h[0]), (1.0, F_h[2]))
+    solve_linear_combination(h[1], (1.0, h[0]), (1.0, F_h[2]))
     solve_momentum(U[1], h[1], initial_guess=U[0])
 
     solve_cycle(h[1], h[0])
@@ -321,7 +321,10 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
 
     # AB2
     solve_elevation_rhs(U[0], h[0], F_h[2])
-    solve_axpy(h[1], (1.0, h[0]), (3.0 / 2.0, F_h[2]), (-1.0 / 2.0, F_h[1]))
+    solve_linear_combination(h[1],
+                             (1.0, h[0]),
+                             (3.0 / 2.0, F_h[2]),
+                             (-1.0 / 2.0, F_h[1]))
     solve_momentum(U[1], h[1], initial_guess=U[0])
     solve_cycle(F_h[1], F_h[0])
     solve_cycle(F_h[2], F_h[1])
@@ -331,11 +334,11 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
 
     # AB3
     eqs = [elevation_rhs(U[0], h[0], F_h[2]),
-           axpy(h[1],
-                (1.0, h[0]),
-                (23.0 / 12.0, F_h[2]),
-                (-4.0 / 3.0, F_h[1]),
-                (5.0 / 12.0, F_h[0])),
+           linear_combination(h[1],
+                              (1.0, h[0]),
+                              (23.0 / 12.0, F_h[2]),
+                              (-4.0 / 3.0, F_h[1]),
+                              (5.0 / 12.0, F_h[0])),
            assignment(U[0], U[1]),
            momentum(U[1], h[1]),
            cycle(F_h[1], F_h[0]),
