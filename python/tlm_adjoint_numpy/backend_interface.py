@@ -182,8 +182,9 @@ class FunctionInterface(_FunctionInterface):
         else:
             self.vector()[:] = y.vector()
 
-    def _axpy(self, alpha, y):
-        self.vector()[:] += alpha * y.vector()
+    def _axpy(self, *args):  # self, alpha, x
+        alpha, x = args
+        self.vector()[:] += alpha * x.vector()
 
     def _inner(self, y):
         return self.vector().dot(y.vector())
