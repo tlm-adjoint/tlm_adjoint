@@ -425,6 +425,7 @@ class EquationSolver(Equation):
 
     def _cached_rhs(self, deps, b_bc=None):
         eq_deps = self.dependencies()
+        update_caches(eq_deps, deps=deps)
 
         if self._forward_b_pa is None:
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
