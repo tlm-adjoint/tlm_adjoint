@@ -322,6 +322,7 @@ class LinearSolver(backend_LinearSolver):
 
             eq._pre_process(annotate=annotate)
             super().solve(x, b)
+            function_update_state(x)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             super().solve(x, b)

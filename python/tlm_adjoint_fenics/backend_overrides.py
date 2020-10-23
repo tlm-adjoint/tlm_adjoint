@@ -223,6 +223,7 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
 
             eq._pre_process(annotate=annotate)
             return_value = backend_solve(*args, **kwargs)
+            function_update_state(x)
             eq._post_process(annotate=annotate, tlm=tlm)
 
             return return_value
@@ -405,6 +406,7 @@ class LUSolver(backend_LUSolver):
                                    "lu_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
+            function_update_state(x)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             if isinstance(args[0], backend_Matrix):
@@ -474,6 +476,7 @@ class KrylovSolver(backend_KrylovSolver):
 
             eq._pre_process(annotate=annotate)
             return_value = super().solve(*args)
+            function_update_state(x)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             return_value = super().solve(*args)
@@ -534,8 +537,9 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
+            x = self.__problem.u_ufl
             eq = EquationSolver(
-                self.__problem.F_ufl == 0, self.__problem.u_ufl,
+                self.__problem.F_ufl == 0, x,
                 self.__problem._tlm_adjoint__bcs, J=self.__problem.J_ufl,
                 solver_parameters=self.parameters,
                 form_compiler_parameters=self.__problem.form_compiler_parameters,  # noqa: E501
@@ -543,6 +547,7 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
 
             eq._pre_process(annotate=annotate)
             return_value = super().solve()
+            function_update_state(x)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             return_value = super().solve()
