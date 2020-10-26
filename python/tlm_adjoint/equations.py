@@ -425,7 +425,6 @@ class EquationSolver(Equation):
 
     def _cached_rhs(self, deps, b_bc=None):
         eq_deps = self.dependencies()
-        function_update_caches(*eq_deps, value=deps)
 
         if self._forward_b_pa is None:
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
@@ -498,7 +497,6 @@ class EquationSolver(Equation):
 
     def forward_solve(self, x, deps=None):
         eq_deps = self.dependencies()
-        function_update_caches(*eq_deps, value=deps)
 
         if self._initial_guess_index is not None:
             if deps is None:
@@ -635,8 +633,6 @@ class EquationSolver(Equation):
                   solver_parameters=self._solver_parameters)
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
-        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
-
         for dep_index, dep_B in dep_Bs.items():
             if dep_index not in self._adjoint_dF_cache:
                 dep = self.dependencies()[dep_index]
@@ -705,7 +701,6 @@ class EquationSolver(Equation):
     #     # Re-written 2018-01-28
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
         if adj_x is None:
             adj_x = function_new(b)
 

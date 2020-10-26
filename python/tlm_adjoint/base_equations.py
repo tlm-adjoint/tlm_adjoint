@@ -493,8 +493,6 @@ class Equation(Referrer):
     def forward(self, X, deps=None):
         """
         Solve the equation. The manager is stopped when this method is called.
-        Lower-level version than forward_solve, and need not generally be
-        overridden by custom Equation classes.
 
         Arguments:
 
@@ -504,8 +502,10 @@ class Equation(Referrer):
               dependencies.
         """
 
+        function_update_caches(*self.dependencies(), value=deps)
         self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
         function_update_state(*X)
+        function_update_caches(*self.X(), value=X)
 
     def forward_solve(self, X, deps=None):
         """
@@ -549,6 +549,8 @@ class Equation(Referrer):
         Returns the solution of the adjoint equation as a tuple of functions.
         The result will not be modified by calling code.
         """
+
+        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         self.initialize_adjoint(J, nl_deps)
 
