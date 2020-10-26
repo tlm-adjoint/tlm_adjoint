@@ -386,7 +386,6 @@ class EquationSolver(Equation):
         self._defer_adjoint_assembly = defer_adjoint_assembly
 
         self._forward_eq = None
-        self._forward_J_mat = CacheRef()
         self._forward_J_solver = CacheRef()
         self._forward_b_pa = None
 
@@ -510,15 +509,17 @@ class EquationSolver(Equation):
                 # Cases 1 and 2: Linear, Jacobian cached, with or without RHS
                 # assembly caching
 
-                J_mat_bc = self._forward_J_mat()
-                if J_mat_bc is None:
-                    # Assemble and cache the Jacobian
-                    self._forward_J_mat, J_mat_bc = assembly_cache().assemble(
-                        self._J, bcs=self._bcs,
-                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                        linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
-                        replace_map=None if deps is None else dict(zip(eq_deps, deps)))  # noqa: E501
-                J_mat, b_bc = J_mat_bc
+                J_solver_mat_bc = self._forward_J_solver()
+                if J_solver_mat_bc is None:
+                    # Assemble and cache the Jacobian, construct and cache the
+                    # linear solver
+                    self._forward_J_solver, J_solver_mat_bc = \
+                        linear_solver_cache().linear_solver(
+                            self._J, bcs=self._bcs,
+                            form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                            linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
+                            replace_map=None if deps is None else dict(zip(eq_deps, deps)))  # noqa: E501
+                J_solver, J_mat, b_bc = J_solver_mat_bc
 
                 if self._cache_rhs_assembly:
                     # Assemble the RHS with RHS assembly caching
@@ -543,15 +544,6 @@ class EquationSolver(Equation):
 
                     # Add bc RHS terms
                     apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
-
-                J_solver = self._forward_J_solver()
-                if J_solver is None:
-                    # Construct and cache the linear solver
-                    self._forward_J_solver, J_solver = \
-                        linear_solver_cache().linear_solver(
-                            self._J, matrix_copy(J_mat), bcs=self._bcs,
-                            form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                            linear_solver_parameters=self._linear_solver_parameters)  # noqa: E501
             else:
                 if self._cache_rhs_assembly:
                     # Case 3: Linear, Jacobian not cached, with RHS assembly
@@ -703,20 +695,17 @@ class EquationSolver(Equation):
             adj_x = function_new(b)
 
         if self._cache_adjoint_jacobian:
-            J_solver = self._adjoint_J_solver()
-            if J_solver is None:
+            J_solver_mat_bc = self._adjoint_J_solver()
+            if J_solver_mat_bc is None:
                 J = adjoint(self._J)
-                _, (J_mat, _) = assembly_cache().assemble(
-                    J, bcs=self._hbcs,
-                    form_compiler_parameters=self._form_compiler_parameters,
-                    linear_solver_parameters=self._adjoint_solver_parameters,
-                    replace_map=dict(zip(self.nonlinear_dependencies(),
-                                         nl_deps)))
-                self._adjoint_J_solver, J_solver = \
+                self._adjoint_J_solver, J_solver_mat_bc = \
                     linear_solver_cache().linear_solver(
-                        J, matrix_copy(J_mat), bcs=self._hbcs,
+                        J, bcs=self._hbcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                        linear_solver_parameters=self._adjoint_solver_parameters)  # noqa: E501
+                        linear_solver_parameters=self._adjoint_solver_parameters,  # noqa: E501
+                        replace_map=dict(zip(self.nonlinear_dependencies(),
+                                             nl_deps)))
+            J_solver, _, _ = J_solver_mat_bc
 
             apply_rhs_bcs(function_vector(b), self._hbcs)
             J_solver.solve(function_vector(adj_x), function_vector(b))

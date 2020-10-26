@@ -436,14 +436,34 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 
 
 class LinearSolverCache(Cache):
-    def linear_solver(self, form, A, bcs=[], form_compiler_parameters={},
-                      linear_solver_parameters={}):
+    def linear_solver(self, form, A=None, bcs=[], form_compiler_parameters={},
+                      linear_solver_parameters={}, replace_map=None,
+                      assembly_cache=None):
         form = eliminate_zeros(form, force_non_empty_form=True)
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 
-        def value():
-            return linear_solver(A, linear_solver_parameters)
+        if A is None:
+            if assembly_cache is None:
+                assembly_cache = globals()["assembly_cache"]()
+
+            def value():
+                _, (A, b_bc) = assembly_cache.assemble(
+                    form, bcs=bcs,
+                    form_compiler_parameters=form_compiler_parameters,
+                    linear_solver_parameters=linear_solver_parameters,
+                    replace_map=replace_map)
+                solver = linear_solver(matrix_copy(A),
+                                       linear_solver_parameters)
+                return solver, A, b_bc
+        else:
+            warnings.warn("'A' argument is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            # A = matrix_copy(A)  # Caller's responsibility
+
+            def value():
+                return linear_solver(A, linear_solver_parameters)
 
         return self.add(key, value,
                         deps=tuple(form_dependencies(form).values()))
