@@ -300,7 +300,7 @@ def assemble_linear_solver(A_form, b_form=None, bcs=[],
 
     solver = linear_solver(A, linear_solver_parameters)
 
-    return solver, b
+    return solver, A, b
 
 
 def linear_solver(A, linear_solver_parameters):
