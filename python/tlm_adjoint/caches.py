@@ -45,8 +45,7 @@ __all__ = \
         "linear_solver_cache",
         "set_assembly_cache",
         "set_linear_solver_cache",
-        "split_form",
-        "update_caches"
+        "split_form"
     ]
 
 
@@ -256,15 +255,6 @@ def clear_caches(*deps):
     else:
         for dep in deps:
             function_caches(dep).clear()
-
-
-def update_caches(eq_deps, deps=None):
-    if deps is None:
-        for eq_dep in eq_deps:
-            function_caches(eq_dep).update(eq_dep)
-    else:
-        for eq_dep, dep in zip(eq_deps, deps):
-            function_caches(eq_dep).update(dep)
 
 
 class Cache:

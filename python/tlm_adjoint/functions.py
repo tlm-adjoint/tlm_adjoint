@@ -160,6 +160,11 @@ class ConstantInterface(_FunctionInterface):
             self._tlm_adjoint__caches = Caches(self)
         return self._tlm_adjoint__caches
 
+    def _update_caches(self, value=None):
+        if value is None:
+            value = self
+        function_caches(self).update(value)
+
     def _zero(self):
         if len(self.ufl_shape) == 0:
             value = 0.0
@@ -591,6 +596,11 @@ class ReplacementInterface(_FunctionInterface):
 
     def _caches(self):
         return self.caches()
+
+    def _update_caches(self, value=None):
+        if value is None:
+            raise InterfaceException("value required")
+        self.caches().update(value)
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return space_new(self._tlm_adjoint__function_interface_attrs["space"],

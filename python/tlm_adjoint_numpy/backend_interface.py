@@ -60,6 +60,7 @@ __all__ = \
         "function_state",
         "function_sum",
         "function_tangent_linear",
+        "function_update_caches",
         "function_update_state",
         "function_zero",
 
@@ -172,6 +173,9 @@ class FunctionInterface(_FunctionInterface):
 
     def _is_checkpointed(self):
         return self.is_checkpointed()
+
+    def _update_caches(self, value=None):
+        pass
 
     def _zero(self):
         self.vector()[:] = 0.0
@@ -329,6 +333,10 @@ class ReplacementInterface(_FunctionInterface):
 
     def _is_checkpointed(self):
         return self.is_checkpointed()
+
+    def _update_caches(self, value=None):
+        if value is None:
+            raise InterfaceException("value required")
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.space(), name=name, static=static, cache=cache,

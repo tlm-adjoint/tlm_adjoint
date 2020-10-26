@@ -68,6 +68,7 @@ __all__ = \
         "function_state",
         "function_sum",
         "function_tangent_linear",
+        "function_update_caches",
         "function_update_state",
         "function_zero",
 
@@ -168,6 +169,11 @@ class FunctionInterface(_FunctionInterface):
         if not hasattr(self, "_tlm_adjoint__caches"):
             self._tlm_adjoint__caches = Caches(self)
         return self._tlm_adjoint__caches
+
+    def _update_caches(self, value=None):
+        if value is None:
+            value = self
+        function_caches(self).update(value)
 
     def _zero(self):
         with self.dat.vec_wo as x_v:

@@ -25,7 +25,7 @@ from .backend_interface import *
 from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear, no_replace_compatibility
 from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
-    linear_solver_cache, split_form, update_caches, verify_assembly
+    linear_solver_cache, split_form, verify_assembly
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
     eliminate_zeros, extract_coefficients, is_r0_function
 
@@ -425,7 +425,7 @@ class EquationSolver(Equation):
 
     def _cached_rhs(self, deps, b_bc=None):
         eq_deps = self.dependencies()
-        update_caches(eq_deps, deps=deps)
+        function_update_caches(*eq_deps, value=deps)
 
         if self._forward_b_pa is None:
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
@@ -498,7 +498,7 @@ class EquationSolver(Equation):
 
     def forward_solve(self, x, deps=None):
         eq_deps = self.dependencies()
-        update_caches(eq_deps, deps=deps)
+        function_update_caches(*eq_deps, value=deps)
 
         if self._initial_guess_index is not None:
             if deps is None:
@@ -635,7 +635,7 @@ class EquationSolver(Equation):
                   solver_parameters=self._solver_parameters)
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
-        update_caches(self.nonlinear_dependencies(), deps=nl_deps)
+        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         for dep_index, dep_B in dep_Bs.items():
             if dep_index not in self._adjoint_dF_cache:
@@ -705,7 +705,7 @@ class EquationSolver(Equation):
     #     # Re-written 2018-01-28
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        update_caches(self.nonlinear_dependencies(), deps=nl_deps)
+        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
         if adj_x is None:
             adj_x = function_new(b)
 

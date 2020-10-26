@@ -59,6 +59,7 @@ __all__ = \
         "function_state",
         "function_sum",
         "function_tangent_linear",
+        "function_update_caches",
         "function_update_state",
         "function_zero"
     ]
@@ -122,10 +123,10 @@ class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_id", "_name", "_state", "_update_state",
              "_is_static", "_is_cached", "_is_checkpointed", "_caches",
-             "_zero", "_assign", "_axpy", "_inner", "_max_value", "_sum",
-             "_linf_norm", "_local_size", "_global_size", "_local_indices",
-             "_get_values", "_set_values", "_new", "_copy", "_tangent_linear",
-             "_replacement")
+             "_update_caches", "_zero", "_assign", "_axpy", "_inner",
+             "_max_value", "_sum", "_linf_norm", "_local_size", "_global_size",
+             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
+             "_tangent_linear", "_replacement")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -158,6 +159,9 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _caches(self):
+        raise InterfaceException("Method not overridden")
+
+    def _update_caches(self, value=None):
         raise InterfaceException("Method not overridden")
 
     def _zero(self):
@@ -236,6 +240,7 @@ def function_state(x):
 def function_update_state(*X):
     for x in X:
         x._tlm_adjoint__function_interface_update_state()
+    function_update_caches(*X)
 
 
 def function_is_static(x):
@@ -252,6 +257,17 @@ def function_is_checkpointed(x):
 
 def function_caches(x):
     return x._tlm_adjoint__function_interface_caches()
+
+
+def function_update_caches(*X, value=None):
+    if value is None:
+        for x in X:
+            x._tlm_adjoint__function_interface_update_caches()
+    else:
+        if is_function(value):
+            value = (value,)
+        for x, x_value in zip(X, value):
+            x._tlm_adjoint__function_interface_update_caches(value=x_value)
 
 
 def function_zero(x):
