@@ -111,7 +111,10 @@ def local_solver_key(form, solver_type):
 
 
 class LocalSolverCache(Cache):
-    def local_solver(self, form, solver_type, replace_map=None):
+    def local_solver(self, form, solver_type=None, replace_map=None):
+        if solver_type is None:
+            solver_type = LocalSolver.SolverType.LU
+
         form = eliminate_zeros(form, force_non_empty_form=True)
         key = local_solver_key(form, solver_type)
 

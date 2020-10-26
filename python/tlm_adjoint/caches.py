@@ -45,8 +45,7 @@ __all__ = \
         "linear_solver_cache",
         "set_assembly_cache",
         "set_linear_solver_cache",
-        "split_form",
-        "update_caches"
+        "split_form"
     ]
 
 
@@ -258,15 +257,6 @@ def clear_caches(*deps):
             function_caches(dep).clear()
 
 
-def update_caches(eq_deps, deps=None):
-    if deps is None:
-        for eq_dep in eq_deps:
-            function_caches(eq_dep).update(eq_dep)
-    else:
-        for eq_dep, dep in zip(eq_deps, deps):
-            function_caches(eq_dep).update(dep)
-
-
 class Cache:
     _id_counter = [0]
     _caches = weakref.WeakValueDictionary()
@@ -306,17 +296,29 @@ class Cache:
                 dep_id = dep if isinstance(dep, int) else function_id(dep)
                 del dep
                 if dep_id in self._deps_map:
-                    # Steps in removing cached data associated with dep:
-                    #   1. Delete cached items associated with dep -- these are
-                    #      given by
-                    #        self._cache[key] for key in self._deps_map[dep_id]
-                    #   2. Remove the key, and a reference to its associated
-                    #      dependency ids, from the keys associated with each
-                    #      dependency id associated with each of the keys in 1.
-                    #      -- the latter dependency ids are given by
-                    #        self._deps_map[dep_id][key]
-                    #   3. Remove the (weak) reference to this cache from each
-                    #      dependency with no further associated keys
+                    # We keep a record of:
+                    #   - Cache entries associated with each dependency. The
+                    #     cache keys are in self._deps_map[dep_id].keys(), and
+                    #     the cache entries in self._cache[key].
+                    #   - Dependencies associated with each cache entry. The
+                    #     dependency ids are in self._deps_map[dep_id2][key]
+                    #     for *each* dependency associated with the cache
+                    #     entry.
+                    #   - The caches in which dependencies have an associated
+                    #     cache entry. A (weak) reference to the caches is in
+                    #     self._dep_caches[dep_id2].
+                    # To remove a cache item associated with a dependency with
+                    # dependency id dep_id we
+                    #   1. Clear the cache entries associated with the
+                    #      dependency. These are given by self._cache[key] for
+                    #      each key in self._deps_map[dep_id].keys().
+                    #   2. Remove the dependency ids associated with each cache
+                    #      entry. These are given by
+                    #      self._deps_map[dep_id2][key] for each dep_id2 in
+                    #      self._deps_map[dep_id][key].
+                    #  3.  Remove the (weak) reference to this cache for each
+                    #      dependency with no further associated cache entries
+                    #      in this cache.
                     for key, dep_ids in self._deps_map[dep_id].items():
                         # Step 1.
                         self._cache[key]._clear()
@@ -446,14 +448,34 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 
 
 class LinearSolverCache(Cache):
-    def linear_solver(self, form, A, bcs=[], form_compiler_parameters={},
-                      linear_solver_parameters={}):
+    def linear_solver(self, form, A=None, bcs=[], form_compiler_parameters={},
+                      linear_solver_parameters={}, replace_map=None,
+                      assembly_cache=None):
         form = eliminate_zeros(form, force_non_empty_form=True)
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 
-        def value():
-            return linear_solver(A, linear_solver_parameters)
+        if A is None:
+            if assembly_cache is None:
+                assembly_cache = globals()["assembly_cache"]()
+
+            def value():
+                _, (A, b_bc) = assembly_cache.assemble(
+                    form, bcs=bcs,
+                    form_compiler_parameters=form_compiler_parameters,
+                    linear_solver_parameters=linear_solver_parameters,
+                    replace_map=replace_map)
+                solver = linear_solver(matrix_copy(A),
+                                       linear_solver_parameters)
+                return solver, A, b_bc
+        else:
+            warnings.warn("'A' argument is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            # A = matrix_copy(A)  # Caller's responsibility
+
+            def value():
+                return linear_solver(A, linear_solver_parameters)
 
         return self.add(key, value,
                         deps=tuple(form_dependencies(form).values()))

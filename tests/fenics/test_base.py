@@ -125,6 +125,7 @@ def test_leaks():
     gc.collect()
 
     # Clear some internal storage that is allowed to keep references
+    clear_caches()
     manager = _manager()
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
