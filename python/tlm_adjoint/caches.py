@@ -296,17 +296,29 @@ class Cache:
                 dep_id = dep if isinstance(dep, int) else function_id(dep)
                 del dep
                 if dep_id in self._deps_map:
-                    # Steps in removing cached data associated with dep:
-                    #   1. Delete cached items associated with dep -- these are
-                    #      given by
-                    #        self._cache[key] for key in self._deps_map[dep_id]
-                    #   2. Remove the key, and a reference to its associated
-                    #      dependency ids, from the keys associated with each
-                    #      dependency id associated with each of the keys in 1.
-                    #      -- the latter dependency ids are given by
-                    #        self._deps_map[dep_id][key]
-                    #   3. Remove the (weak) reference to this cache from each
-                    #      dependency with no further associated keys
+                    # We keep a record of:
+                    #   - Cache entries associated with each dependency. The
+                    #     cache keys are in self._deps_map[dep_id].keys(), and
+                    #     the cache entries in self._cache[key].
+                    #   - Dependencies associated with each cache entry. The
+                    #     dependency ids are in self._deps_map[dep_id2][key]
+                    #     for *each* dependency associated with the cache
+                    #     entry.
+                    #   - The caches in which dependencies have an associated
+                    #     cache entry. A (weak) reference to the caches is in
+                    #     self._dep_caches[dep_id2].
+                    # To remove a cache item associated with a dependency with
+                    # dependency id dep_id we
+                    #   1. Clear the cache entries associated with the
+                    #      dependency. These are given by self._cache[key] for
+                    #      each key in self._deps_map[dep_id].keys().
+                    #   2. Remove the dependency ids associated with each cache
+                    #      entry. These are given by
+                    #      self._deps_map[dep_id2][key] for each dep_id2 in
+                    #      self._deps_map[dep_id][key].
+                    #  3.  Remove the (weak) reference to this cache for each
+                    #      dependency with no further associated cache entries
+                    #      in this cache.
                     for key, dep_ids in self._deps_map[dep_id].items():
                         # Step 1.
                         self._cache[key]._clear()
