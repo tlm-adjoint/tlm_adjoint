@@ -503,6 +503,8 @@ class EquationSolver(Equation):
             else:
                 initial_guess = deps[self._initial_guess_index]
             function_assign(x, initial_guess)
+            function_update_state(x)
+            function_update_caches(self.x(), value=x)
 
         if self._linear:
             if self._cache_jacobian:
