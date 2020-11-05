@@ -191,7 +191,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
                                           "converged")
 
     lam = np.full(N_ev, np.NAN,
-                  dtype=np.float64 if esolver.isHermitian() else np.complex64)
+                  dtype=np.float64 if esolver.isHermitian() else np.complex128)
     V_r = tuple(space_new(space) for n in range(N_ev))
     if not esolver.isHermitian():
         V_i = tuple(space_new(space) for n in range(N_ev))
