@@ -346,6 +346,7 @@ def new_real_function(name=None, domain=None, comm=None, static=False,
 
 
 def real_function_value(x):
+    assert is_real_function(x)
     return function_max_value(x)
 
 

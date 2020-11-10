@@ -386,6 +386,7 @@ def new_real_function(name=None, comm=None, static=False, cache=None,
 
 
 def real_function_value(x):
+    assert is_real_function(x)
     value, = x.vector()
     return value
 
