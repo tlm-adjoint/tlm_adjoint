@@ -1294,9 +1294,14 @@ class EquationManager:
 
             if n == 0 and self._cp_manager.max_n() - self._cp_manager.r() == 0:
                 return
-            elif n == self._cp_manager.max_n() - 1:
+            if n != self._cp_manager.max_n() - self._cp_manager.r() - 1:
+                raise ManagerException("Invalid checkpointing state")
+            if n == self._cp_manager.max_n() - 1:
                 debug_info(f"reverse: adjoint step back to {n:d}")
+                assert n + 1 == self._cp_manager.n()
+                assert self._cp_manager.r() == 0
                 self._cp_manager.reverse()
+                assert n == self._cp_manager.max_n() - self._cp_manager.r()
                 return
 
             (snapshot_n,
@@ -1358,7 +1363,9 @@ class EquationManager:
             assert len(storage) == 0
 
             debug_info(f"reverse: adjoint step back to {n:d}")
+            assert n + 1 == self._cp_manager.n()
             self._cp_manager.reverse()
+            assert n == self._cp_manager.max_n() - self._cp_manager.r()
         else:
             raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
 
