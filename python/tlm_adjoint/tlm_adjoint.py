@@ -757,6 +757,7 @@ class EquationManager:
         self._cp_manager = cp_manager
         self._cp_spaces = {}
         self._cp_memory = {}
+        self._cp_disk = {}
 
         if cp_method == "multistage":
             def debug_info(message):
@@ -1057,6 +1058,9 @@ class EquationManager:
         return id
 
     def _save_memory_checkpoint(self, cp, n):
+        if n in self._cp_memory or n in self._cp_disk:
+            raise ManagerException("Duplicate checkpoint")
+
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
                                                          copy=False)
 
@@ -1067,6 +1071,9 @@ class EquationManager:
             storage.update(self._cp_memory[n], copy=True)
 
     def _save_disk_checkpoint(self, cp, n):
+        if n in self._cp_memory or n in self._cp_disk:
+            raise ManagerException("Duplicate checkpoint")
+
         cp_path = self._cp_parameters["path"]
         cp_format = self._cp_parameters["format"]
 
@@ -1079,6 +1086,7 @@ class EquationManager:
                                                    n,
                                                    self._comm_py2f,
                                                    self._comm.rank))
+            self._cp_disk[n] = cp_filename
             h = open(cp_filename, "wb")
 
             pickle.dump({key: (self._checkpoint_space_id(F),
@@ -1093,6 +1101,7 @@ class EquationManager:
                 "checkpoint_%i_%i_%i.hdf5" % (self._id,
                                               n,
                                               self._comm_py2f))
+            self._cp_disk[n] = cp_filename
             import h5py
             if self._comm.size > 1:
                 h = h5py.File(cp_filename, "w", driver="mpio", comm=self._comm)
@@ -1122,16 +1131,13 @@ class EquationManager:
             raise ManagerException(f"Unrecognized checkpointing format: {cp_format:s}")  # noqa: E501
 
     def _load_disk_checkpoint(self, storage, n, delete=False):
-        cp_path = self._cp_parameters["path"]
         cp_format = self._cp_parameters["format"]
 
         if cp_format == "pickle":
-            cp_filename = os.path.join(
-                cp_path,
-                "checkpoint_%i_%i_%i_%i.pickle" % (self._id,
-                                                   n,
-                                                   self._comm_py2f,
-                                                   self._comm.rank))
+            if delete:
+                cp_filename = self._cp_disk.pop(n)
+            else:
+                cp_filename = self._cp_disk[n]
             h = open(cp_filename, "rb")
             cp = pickle.load(h)
             h.close()
@@ -1148,11 +1154,10 @@ class EquationManager:
                     storage[key] = F
                 del space_id, values
         elif cp_format == "hdf5":
-            cp_filename = os.path.join(
-                cp_path,
-                "checkpoint_%i_%i_%i.hdf5" % (self._id,
-                                              n,
-                                              self._comm_py2f))
+            if delete:
+                cp_filename = self._cp_disk.pop(n)
+            else:
+                cp_filename = self._cp_disk[n]
             import h5py
             if self._comm.size > 1:
                 h = h5py.File(cp_filename, "r", driver="mpio", comm=self._comm)
