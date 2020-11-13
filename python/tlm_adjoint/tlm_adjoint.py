@@ -1408,6 +1408,14 @@ class EquationManager:
 
         self._blocks.append(self._block)
         self._block = []
+        if self._cp_method == "multistage" \
+                and len(self._blocks) < self._cp_parameters["blocks"]:
+            warnings.warn(
+                "Insufficient number of blocks -- empty blocks added",
+                RuntimeWarning, stacklevel=2)
+            while len(self._blocks) < self._cp_parameters["blocks"]:
+                self._checkpoint(final=False)
+                self._blocks.append([])
         self._checkpoint(final=True)
 
     def dependency_graph_png(self, divider=[255, 127, 127], p=5):
