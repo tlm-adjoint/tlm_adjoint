@@ -199,15 +199,23 @@ class MultistageManager:
         return deferred_snapshot
 
     def forward(self):
+        if self._n > self._max_n - self._r - 1:
+            raise CheckpointingException("Too many forward steps")
         if self._n == self._max_n - self._r - 1:
             self._n += 1
         else:
             snapshots = self._snapshots_in_ram + self._snapshots_on_disk \
                 - len(self._snapshots) + 1
             self._n += n_advance(self._max_n - self._n - self._r, snapshots)
+        if self._n > self._max_n - self._r:
+            raise CheckpointingException("Too many forward steps")
 
     def reverse(self):
+        if self._n != self._max_n - self._r:
+            raise CheckpointingException("Too few forward steps")
         self._r += 1
+        if self._r > self._max_n:
+            raise CheckpointingException("Too many reverse steps")
 
     def load_snapshot(self):
         self._n, storage = self._last_snapshot()
