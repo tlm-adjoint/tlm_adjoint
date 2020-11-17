@@ -1357,6 +1357,8 @@ class LinearEquation(Equation):
             deps = self.dependencies()
 
         if self._A is None:
+            for x in X:
+                function_zero(x)
             B = X
         else:
             B = tuple(function_new(x) for x in X)

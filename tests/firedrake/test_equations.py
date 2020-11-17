@@ -41,6 +41,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
         AssignmentSolver(x, y[0]).solve()
         for i in range(len(y) - 1):
             AssignmentSolver(y[i], y[i + 1]).solve()
+        NormSqSolver(y[-1], z).solve()  # Should have no effect on sensitivity
         NormSqSolver(y[-1], z).solve()
 
         x_norm_sq = Constant(name="x_norm_sq")
