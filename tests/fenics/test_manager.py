@@ -519,17 +519,19 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (1000, 50)])
 def test_binomial_checkpointing(setup_test, test_leaks,
                                 n_steps, snaps_in_ram):
-    # Implementation of equation (2) in
-    #   A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
-    #   of checkpointing for the reverse or adjoint mode of computational
-    #   differentiation", ACM Transactions on Mathematical Software, 26(1),
-    #   pp. 19--45, 2000
-    # Used in place of their equation (3) to allow verification without reuse
-    # of code used to compute t or evaluate beta.
-
     _minimal_n_extra_steps = {}
 
     def minimal_n_extra_steps(n, s):
+        """
+        Implementation of equation (2) in
+            A. Griewank and A. Walther, "Algorithm 799: Revolve: An
+            implementation of checkpointing for the reverse or adjoint mode of
+            computational differentiation", ACM Transactions on Mathematical
+            Software, 26(1), pp. 19--45, 2000
+        Used in place of their equation (3) to allow verification without reuse
+        of code used to compute t or evaluate beta.
+        """
+
         assert n > 0
         assert s > 0
         if (n, s) not in _minimal_n_extra_steps:
