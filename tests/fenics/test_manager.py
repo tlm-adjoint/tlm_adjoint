@@ -500,3 +500,85 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
 
     min_order = taylor_test(forward, m, dM=Constant(1.0), J_val=J_val, dJ=dJ)
     assert min_order > 1.99
+
+
+@pytest.mark.fenics
+@pytest.mark.parametrize("n_steps, snaps_in_ram", [(1, 1),
+                                                   (10, 1),
+                                                   (10, 2),
+                                                   (10, 3),
+                                                   (10, 5),
+                                                   (100, 3),
+                                                   (100, 5),
+                                                   (100, 10),
+                                                   (100, 20),
+                                                   (200, 5),
+                                                   (200, 10),
+                                                   (200, 20),
+                                                   (200, 50),
+                                                   (1000, 50)])
+def test_binomial_checkpointing(setup_test, test_leaks,
+                                n_steps, snaps_in_ram):
+    # Implementation of equation (2) in
+    #   A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
+    #   of checkpointing for the reverse or adjoint mode of computational
+    #   differentiation", ACM Transactions on Mathematical Software, 26(1),
+    #   pp. 19--45, 2000
+    # Used in place of their equation (3) to allow verification without reuse
+    # of code used to compute t or evaluate beta.
+
+    _minimal_n_extra_steps = {}
+
+    def minimal_n_extra_steps(n, s):
+        assert n > 0
+        assert s > 0
+        if (n, s) not in _minimal_n_extra_steps:
+            m = n * (n - 1) // 2
+            if s > 1:
+                for i in range(1, n):
+                    m = min(m,
+                            i
+                            + minimal_n_extra_steps(i, s)
+                            + minimal_n_extra_steps(n - i, s - 1))
+            _minimal_n_extra_steps[(n, s)] = m
+        return _minimal_n_extra_steps[(n, s)]
+
+    n_forward_solves = [0]
+
+    class EmptySolver(Equation):
+        def __init__(self):
+            super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
+
+        def forward_solve(self, X, deps=None):
+            n_forward_solves[0] += 1
+
+    configure_checkpointing("multistage",
+                            {"blocks": n_steps, "snaps_on_disk": 0,
+                             "snaps_in_ram": snaps_in_ram, "verbose": False})
+
+    def forward(m):
+        for n in range(n_steps):
+            EmptySolver().solve()
+            if n < n_steps - 1:
+                new_block()
+
+        J = Functional(name="J")
+        NormSqSolver(m, J.fn()).solve()
+        return J
+
+    m = Constant(1.0, name="m", static=True)
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    dJ = compute_gradient(J, m)
+
+    n_forward_solves_optimal = (n_steps
+                                + minimal_n_extra_steps(n_steps, snaps_in_ram))
+    info(f"Number of forward steps        : {n_forward_solves[0]:d}")
+    info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
+    assert n_forward_solves[0] == n_forward_solves_optimal
+
+    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ, M0=m)
+    assert min_order > 1.99
