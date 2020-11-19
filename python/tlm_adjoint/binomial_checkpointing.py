@@ -88,7 +88,7 @@ def n_advance(n, snapshots):
         return n - b_s_tm1 + b_s_tm2
     b_sm1_tm1 = (b_s_tm1 * snapshots) // (snapshots + t - 1)
     b_sm2_tm1 = (b_sm1_tm1 * (snapshots - 1)) // (snapshots + t - 2)
-    if n <= b_s_tm1 + b_sm2_tm1:
+    if n <= b_s_tm1 + b_sm2_tm1 + b_sm1_tm2:
         return b_s_tm2 + b_sm1_tm2
     elif n <= b_s_tm1 + b_sm1_tm1 + b_sm2_tm1:
         return n - b_sm1_tm1 - b_sm2_tm1
