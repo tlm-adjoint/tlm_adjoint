@@ -530,21 +530,21 @@ def test_binomial_checkpointing(setup_test, test_leaks,
     # Used in place of their equation (3) to allow verification without reuse
     # of code used to compute t or evaluate beta.
 
-    _minimal_n_steps = {}
+    _minimal_n_extra_steps = {}
 
-    def minimal_n_steps(n, s):
+    def minimal_n_extra_steps(n, s):
         assert n > 0
         assert s > 0
-        if (n, s) not in _minimal_n_steps:
+        if (n, s) not in _minimal_n_extra_steps:
             m = n * (n - 1) // 2
             if s > 1:
                 for i in range(1, n):
                     m = min(m,
                             i
-                            + minimal_n_steps(i, s)
-                            + minimal_n_steps(n - i, s - 1))
-            _minimal_n_steps[(n, s)] = m
-        return _minimal_n_steps[(n, s)]
+                            + minimal_n_extra_steps(i, s)
+                            + minimal_n_extra_steps(n - i, s - 1))
+            _minimal_n_extra_steps[(n, s)] = m
+        return _minimal_n_extra_steps[(n, s)]
 
     n_forward_solves = [0]
 
@@ -577,7 +577,8 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     dJ = compute_gradient(J, m)
 
-    n_forward_solves_optimal = n_steps + minimal_n_steps(n_steps, snaps_in_ram)
+    n_forward_solves_optimal = (n_steps
+                                + minimal_n_extra_steps(n_steps, snaps_in_ram))
     info(f"Number of forward steps        : {n_forward_solves[0]:d}")
     info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
     assert n_forward_solves[0] == n_forward_solves_optimal
