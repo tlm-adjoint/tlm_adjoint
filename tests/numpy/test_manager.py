@@ -391,7 +391,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
     _minimal_n_extra_steps = {}
 
     def minimal_n_extra_steps(n, s):
-        """ 
+        """
         Implementation of equation (2) in
             A. Griewank and A. Walther, "Algorithm 799: Revolve: An
             implementation of checkpointing for the reverse or adjoint mode of
