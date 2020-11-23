@@ -57,6 +57,10 @@ def greedy_coloring(space):
 
     node_node_graph = tuple(set() for i in range(N))
     for i in range(space.mesh().num_cells()):
+
+        if Cell(space.mesh(), i).is_ghost():
+            continue
+
         cell_nodes = dofmap.cell_dofs(i)
         for j in cell_nodes:
             for k in cell_nodes:
