@@ -324,20 +324,22 @@ def test_InterpolationSolver(setup_test, test_leaks,
     def forward_J(z):
         return forward(z)[1]
 
-    min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ, seed=1.0e-4)
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ)
+    min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, z, tlm_order=1, seed=1.0e-4)
     assert min_order > 1.99
 
-    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1)
+    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1,
+                                        seed=1.0e-4)
     assert min_order > 2.00
 
-    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
+    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2,
+                                        seed=1.0e-4)
     assert min_order > 1.99
 
 
