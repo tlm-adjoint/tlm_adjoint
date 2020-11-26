@@ -51,6 +51,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
+    parameters["ghost_mode"] = "none"
     parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
     parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] \
         = True
