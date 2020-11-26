@@ -266,14 +266,17 @@ def test_FixedPointSolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@pytest.mark.parametrize("N_x, N_y, N_z", [(5, 5, 2),
+                                           (5, 5, 5)])
 @pytest.mark.parametrize("ghost_mode", ["none",
                                         "shared_facets",
                                         "shared_vertices"])
 def test_InterpolationSolver(setup_test, test_leaks,
+                             N_x, N_y, N_z,
                              ghost_mode):
     parameters["ghost_mode"] = ghost_mode
 
-    mesh = UnitCubeMesh(5, 5, 5)
+    mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
     if MPI.COMM_WORLD.size > 1:
@@ -336,7 +339,7 @@ def test_InterpolationSolver(setup_test, test_leaks,
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1,
                                         seed=1.0e-4)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2,
                                         seed=1.0e-4)
