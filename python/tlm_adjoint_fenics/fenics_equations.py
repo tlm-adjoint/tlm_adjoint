@@ -273,7 +273,11 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
         y_v.vector()[y_color_nodes] = 1.0
         for x_node, y_cell in enumerate(y_cells):
             if y_cell < 0:
+                # Skip -- x_node is owned by a different process
                 continue
+            # Cannot interpolate within a ghost cell
+            assert not Cell(y_mesh, y_cell).is_ghost()
+
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
             y_cell_colors = y_colors[y_cell_nodes].tolist()
             try:
