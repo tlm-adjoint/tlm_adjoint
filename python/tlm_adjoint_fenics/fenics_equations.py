@@ -321,10 +321,10 @@ class InterpolationSolver(LinearEquation):
         P_T       (Optional) Interpolation matrix transpose.
         """
 
-        if len(x.ufl_shape) > 0:
-            raise EquationException("Solution must be a scalar function")
-        if len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar function")
+        if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
+            raise EquationException("Solution must be a scalar Function")
+        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
+            raise EquationException("y must be a scalar Function")
         if (x_coords is not None) and (function_comm(x).size > 1):
             raise EquationException("Cannot prescribe x_coords in parallel")
 
