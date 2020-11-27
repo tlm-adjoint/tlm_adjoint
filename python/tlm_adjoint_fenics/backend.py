@@ -104,6 +104,8 @@ __all__ = \
         "Form",
         "FunctionSpace",
         "LocalSolver",
+        "Mesh",
+        "MeshEditor",
         "Parameters",
         "Point",
         "TensorFunctionSpace",

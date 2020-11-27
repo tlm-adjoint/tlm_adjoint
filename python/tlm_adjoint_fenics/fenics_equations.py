@@ -45,6 +45,71 @@ __all__ = \
     ]
 
 
+def has_ghost_cells(mesh):
+    for cell in range(mesh.num_cells()):
+        if Cell(mesh, cell).is_ghost():
+            return True
+    return False
+
+
+def reorder_gps_disabled(function):
+    def wrapped_function(*args, **kwargs):
+        reorder_vertices_gps = parameters["reorder_vertices_gps"]
+        reorder_cells_gps = parameters["reorder_cells_gps"]
+        parameters["reorder_vertices_gps"] = False
+        parameters["reorder_cells_gps"] = False
+        try:
+            return_value = function(*args, **kwargs)
+        finally:
+            parameters["reorder_vertices_gps"] = reorder_vertices_gps
+            parameters["reorder_cells_gps"] = reorder_cells_gps
+        return return_value
+    return wrapped_function
+
+
+@reorder_gps_disabled
+def local_mesh(mesh):
+    coordinates = mesh.coordinates()
+    cells = mesh.cells()
+    assert coordinates.shape[0] == mesh.num_vertices()
+    assert cells.shape[0] == mesh.num_cells()
+
+    local_vertex_map = {}
+    full_vertex_map = []
+    full_cell_map = []
+    for full_cell in range(cells.shape[0]):
+        if not Cell(mesh, full_cell).is_ghost():
+            for full_vertex in cells[full_cell, :]:
+                if full_vertex not in local_vertex_map:
+                    local_vertex_map[full_vertex] = len(full_vertex_map)
+                    full_vertex_map.append(full_vertex)
+            full_cell_map.append(full_cell)
+
+    l_mesh = Mesh(MPI.COMM_SELF)
+    ed = MeshEditor()
+    ed.open(mesh=l_mesh, type=mesh.cell_name(), tdim=mesh.topology().dim(),
+            gdim=mesh.geometry().dim(), degree=mesh.geometry().degree())
+
+    N_local_vertices = len(full_vertex_map)
+    ed.init_vertices_global(N_local_vertices, N_local_vertices)
+
+    N_local_cells = len(full_cell_map)
+    ed.init_cells_global(N_local_cells, N_local_cells)
+
+    for local_vertex, full_vertex in enumerate(full_vertex_map):
+        ed.add_vertex(local_vertex, Point(*coordinates[full_vertex, :]))
+
+    for local_cell, full_cell in enumerate(full_cell_map):
+        local_vertices = [local_vertex_map[full_vertex]
+                          for full_vertex in cells[full_cell, :]]
+        ed.add_cell(local_cell, local_vertices)
+
+    ed.close(order=True)
+    l_mesh.init()
+
+    return l_mesh, full_vertex_map, full_cell_map
+
+
 def greedy_coloring(space):
     """
     A basic greedy coloring of the (process local) node-node graph, ordered
@@ -332,13 +397,26 @@ class InterpolationSolver(LinearEquation):
             y_space = function_space(y)
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
-            y_tree = y_space.mesh().bounding_box_tree()
 
             if x_coords is None:
                 x_coords = function_coords(x)
 
-            y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0]
-                       for x_coord in x_coords]
+            y_mesh = y_space.mesh()
+            if function_comm(x).size == 1 or not has_ghost_cells(y_mesh):
+                y_tree = y_mesh.bounding_box_tree()
+                y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0]
+                           for x_coord in x_coords]
+                del y_tree
+            else:
+                y_local_mesh, y_vertex_map, y_cell_map = local_mesh(y_mesh)
+                y_local_tree = y_local_mesh.bounding_box_tree()
+                y_local_cells = [y_local_tree.compute_closest_entity(Point(*x_coord))[0]  # noqa: E501
+                                 for x_coord in x_coords]
+                y_cells = [y_cell_map[y_local_cell]
+                           for y_local_cell in y_local_cells]
+                del y_local_mesh, y_vertex_map, y_cell_map
+                del y_local_tree
+                del y_local_cells
 
             P = interpolation_matrix(x_coords, y, y_cells, y_colors)
 
