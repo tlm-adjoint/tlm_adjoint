@@ -288,7 +288,7 @@ def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
             y = z
 
         x = Function(x_space, name="x")
-        eq = InterpolationSolver(y, x, P=P[0])
+        eq = InterpolationSolver(y, x, P=P[0], tolerance=1.0e-16)
         eq.solve()
         P[0] = eq._B[0]._A._P
 

@@ -120,16 +120,22 @@ def local_mesh(mesh):
     return l_mesh, full_vertex_map, full_cell_map
 
 
-def point_cells(x_coords, mesh):
+def point_cells(coords, mesh, tolerance=0.0):
+    def closest_cell(coord, tree, tolerance=0.0):
+        cell, distance = tree.compute_closest_entity(Point(*coord))
+        if distance > tolerance:
+            raise EquationException("Unable to locate cell")
+        return cell
+
     if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
         full_tree = mesh.bounding_box_tree()
-        full_cells = [full_tree.compute_closest_entity(Point(*x_coord))[0]
-                      for x_coord in x_coords]
+        full_cells = [closest_cell(coord, full_tree, tolerance=tolerance)
+                      for coord in coords]
     else:
         l_mesh, full_vertex_map, full_cell_map = local_mesh(mesh)
         local_tree = l_mesh.bounding_box_tree()
-        local_cells = [local_tree.compute_closest_entity(Point(*x_coord))[0]
-                       for x_coord in x_coords]
+        local_cells = [closest_cell(coord, local_tree, tolerance=tolerance)
+                       for coord in coords]
         full_cells = [full_cell_map[local_cell]
                       for local_cell in local_cells]
     return full_cells
@@ -374,7 +380,8 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
 
 class InterpolationSolver(LinearEquation):
-    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None):
+    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
+                 tolerance=0.0):
         """
         Defines an equation which interpolates the scalar function y. It is
         assumed that x and y are defined on a common mesh.
@@ -390,15 +397,18 @@ class InterpolationSolver(LinearEquation):
 
         Arguments:
 
-        y         A scalar function. The function to be interpolated.
-        x         A scalar function. The solution to the equation.
-        x_coords  (Optional) A real NumPy array. Coordinates at which to
-                  interpolate the function.
-        y_colors  (Optional) An integer NumPy vector. Node-node graph coloring
-                  for the space for y. Ignored if P is supplied. Generated
-                  using greedy_coloring if not supplied.
-        P         (Optional) Interpolation matrix.
-        P_T       (Optional) Interpolation matrix transpose.
+        y          A scalar function. The function to be interpolated.
+        x          A scalar function. The solution to the equation.
+        x_coords   (Optional) A real NumPy array. Coordinates at which to
+                   interpolate the function.
+        y_colors   (Optional) An integer NumPy vector. Node-node graph coloring
+                   for the space for y. Ignored if P is supplied. Generated
+                   using greedy_coloring if not supplied.
+        P          (Optional) Interpolation matrix.
+        P_T        (Optional) Interpolation matrix transpose.
+        tolerance  (Optional) Maximum distance of an interpolation point from
+                   the closest cell in the process local mesh associated with
+                   y.
         """
 
         if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
@@ -413,7 +423,8 @@ class InterpolationSolver(LinearEquation):
 
             if x_coords is None:
                 x_coords = function_coords(x)
-            y_cells = point_cells(x_coords, y_space.mesh())
+            y_cells = point_cells(x_coords, y_space.mesh(),
+                                  tolerance=tolerance)
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
 
