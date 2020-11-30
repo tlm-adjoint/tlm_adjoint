@@ -218,12 +218,12 @@ def interpolation_matrix(x_coords, y, y_nodes):
 class PointInterpolationSolver(Equation):
     def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
         """
-        Defines an equation which interpolates the continuous scalar function y
+        Defines an equation which interpolates the continuous scalar Function y
         at the points X_coords.
 
         Arguments:
 
-        y          A continuous scalar function. The function to be
+        y          A continuous scalar Function. The Function to be
                    interpolated.
         X          A real function, or a list or tuple of real functions. The
                    solution to the equation.

@@ -390,7 +390,7 @@ class InterpolationSolver(LinearEquation):
     def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
                  tolerance=0.0):
         """
-        Defines an equation which interpolates the scalar function y.
+        Defines an equation which interpolates the scalar Function y.
 
         Internally this builds (or uses a supplied) interpolation matrix for
         the *local process only*. This works correctly in parallel if y is in a
@@ -403,10 +403,10 @@ class InterpolationSolver(LinearEquation):
 
         Arguments:
 
-        y          A scalar function. The function to be interpolated.
-        x          A scalar function. The solution to the equation.
+        y          A scalar Function. The Function to be interpolated.
+        x          A scalar Function. The solution to the equation.
         x_coords   (Optional) A real NumPy array. Coordinates at which to
-                   interpolate the function.
+                   interpolate the Function.
         y_colors   (Optional) An integer NumPy vector. Node-node graph coloring
                    for the space for y. Ignored if P is supplied. Generated
                    using greedy_coloring if not supplied.
@@ -478,7 +478,7 @@ class PointInterpolationSolver(Equation):
     def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
                  P=None, P_T=None):
         """
-        Defines an equation which interpolates the scalar function y at the
+        Defines an equation which interpolates the scalar Function y at the
         points X_coords. It is assumed that the given points are all within the
         y mesh.
 
@@ -493,7 +493,7 @@ class PointInterpolationSolver(Equation):
 
         Arguments:
 
-        y         A scalar function. The function to be interpolated.
+        y         A scalar Function. The Function to be interpolated.
         X         A real function, or a list or tuple of real functions. The
                   solution to the equation.
         X_coords  A float NumPy matrix. Points at which to interpolate y.
