@@ -361,8 +361,9 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             if y_cell < 0:
                 # Skip -- x_node is owned by a different process
                 continue
-            # Cannot interpolate within a ghost cell
-            assert not Cell(y_mesh, y_cell).is_ghost()
+            if Cell(y_mesh, y_cell).is_ghost():
+                raise EquationException("Cannot interpolate within a ghost "
+                                        "cell")
 
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
             y_cell_colors = y_colors[y_cell_nodes].tolist()
