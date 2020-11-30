@@ -837,7 +837,10 @@ where \texttt{X} is a list or tuple of real functions being solved for (for
 example each as returned by the \texttt{new\_real\_function} function -- see
 section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
 defining the coordinates at which to interpolate the \texttt{Function}
-\texttt{y}.
+\texttt{y}. An optional \texttt{tolerance} argument may be supplied, and this
+is passed to the Firedrake \texttt{MeshGeometry.locate\_cell} method when
+locating the cells, in the mesh for \textt{y}, containing the coordinates
+\texttt{X\_coords}.
 
 In parallel there are similar node-node graph restrictions for the discrete
 function space for \texttt{y} to those for the \texttt{InterpolationSolver}

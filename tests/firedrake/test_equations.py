@@ -25,6 +25,7 @@ from tlm_adjoint_firedrake.backend_code_generator_interface import \
 
 from test_base import *
 
+import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pytest
@@ -267,8 +268,24 @@ def test_FixedPointSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
-def test_PointInterpolationSolver(setup_test, test_leaks):
-    mesh = UnitCubeMesh(5, 5, 5)
+@pytest.mark.parametrize(
+    "overlap_type", [(firedrake.DistributedMeshOverlapType.NONE, 0),
+                     pytest.param(
+                         (firedrake.DistributedMeshOverlapType.FACET, 1),
+                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                                                  reason="parallel only")),
+                     pytest.param(
+                         (firedrake.DistributedMeshOverlapType.VERTEX, 1),
+                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                                                  reason="parallel only"))])
+@pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
+                                           (5, 5, 5)])
+def test_PointInterpolationSolver(setup_test, test_leaks,
+                                  overlap_type,
+                                  N_x, N_y, N_z):
+    mesh = UnitCubeMesh(N_x, N_y, N_z,
+                        distribution_parameters={"partition": True,
+                                                 "overlap_type": overlap_type})
     X = SpatialCoordinate(mesh)
     y_space = FunctionSpace(mesh, "Lagrange", 3)
     X_coords = np.array([[0.1, 0.1, 0.1],
