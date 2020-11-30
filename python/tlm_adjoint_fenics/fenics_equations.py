@@ -120,25 +120,31 @@ def local_mesh(mesh):
     return l_mesh, full_vertex_map, full_cell_map
 
 
-def point_cells(coords, mesh, tolerance=0.0):
-    def closest_cell(coord, tree, tolerance=0.0):
-        cell, distance = tree.compute_closest_entity(Point(*coord))
-        if distance > tolerance:
-            raise EquationException("Unable to locate cell")
-        return cell
+def point_cells(coords, mesh):
+    full_cells = np.full(coords.shape[0], -1, dtype=np.int64)
+    distances = np.full(coords.shape[0], np.NAN, dtype=np.float64)
 
     if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
         full_tree = mesh.bounding_box_tree()
-        full_cells = [closest_cell(coord, full_tree, tolerance=tolerance)
-                      for coord in coords]
+        for i in range(coords.shape[0]):
+            point = Point(*coords[i, :])
+            full_cell, distance = full_tree.compute_closest_entity(point)
+            full_cells[i] = full_cell
+            distances[i] = distance
     else:
         l_mesh, full_vertex_map, full_cell_map = local_mesh(mesh)
         local_tree = l_mesh.bounding_box_tree()
-        local_cells = [closest_cell(coord, local_tree, tolerance=tolerance)
-                       for coord in coords]
-        full_cells = [full_cell_map[local_cell]
-                      for local_cell in local_cells]
-    return full_cells
+        for i in range(coords.shape[0]):
+            point = Point(*coords[i, :])
+            local_cell, distance = local_tree.compute_closest_entity(point)
+            full_cells[i] = full_cell_map[local_cell]
+            distances[i] = distance
+
+    assert (full_cells[i] >= 0).all()
+    assert (full_cells[i] < mesh.num_cells()).all()
+    assert (distances >= 0.0).all()
+
+    return full_cells, distances
 
 
 def greedy_coloring(space):
@@ -424,8 +430,9 @@ class InterpolationSolver(LinearEquation):
 
             if x_coords is None:
                 x_coords = function_coords(x)
-            y_cells = point_cells(x_coords, y_space.mesh(),
-                                  tolerance=tolerance)
+            y_cells, y_distances = point_cells(x_coords, y_space.mesh())
+            if (y_distances > tolerance).any():
+                raise EquationException("Unable to locate one or more cells")
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
 
