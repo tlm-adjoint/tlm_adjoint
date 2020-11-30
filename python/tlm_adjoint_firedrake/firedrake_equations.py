@@ -232,7 +232,7 @@ class PointInterpolationSolver(Equation):
         P          (Optional) Interpolation matrix.
         P_T        (Optional) Interpolation matrix transpose.
         tolerance  (Optional) Cell containment tolerance, passed to the
-                   MeshGeometry.locate_cell method.
+                   MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
 
         if is_function(X):

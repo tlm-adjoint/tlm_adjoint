@@ -414,7 +414,7 @@ class InterpolationSolver(LinearEquation):
         P_T        (Optional) Interpolation matrix transpose.
         tolerance  (Optional) Maximum distance of an interpolation point from
                    the closest cell in the process local mesh associated with
-                   y.
+                   y. Ignored if P is supplied.
         """
 
         if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
