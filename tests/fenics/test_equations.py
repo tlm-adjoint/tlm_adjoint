@@ -341,8 +341,11 @@ def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
 
 
 @pytest.mark.fenics
-def test_PointInterpolationSolver(setup_test, test_leaks):
-    mesh = UnitCubeMesh(5, 5, 5)
+@pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
+                                           (5, 5, 5)])
+def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
+                                  N_x, N_y, N_z):
+    mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
     if MPI.COMM_WORLD.size > 1:

@@ -430,9 +430,11 @@ class InterpolationSolver(LinearEquation):
 
             if x_coords is None:
                 x_coords = function_coords(x)
+
             y_cells, y_distances = point_cells(x_coords, y_space.mesh())
             if (y_distances > tolerance).any():
                 raise EquationException("Unable to locate one or more cells")
+
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
 
@@ -523,20 +525,13 @@ class PointInterpolationSolver(Equation):
 
         if P is None:
             y_space = function_space(y)
-            if y_colors is None:
-                y_colors = greedy_coloring(y_space)
 
             if y_cells is None:
-                y_tree = y_space.mesh().bounding_box_tree()
-
                 comm = function_comm(y)
                 rank = comm.rank
 
-                y_cells = np.full(len(X), -1, dtype=np.int64)
-                distances_local = np.full(len(X), np.NAN, dtype=np.float64)
-                for i, x_coord in enumerate(X_coords):
-                    y_cells[i], distances_local[i] = \
-                        y_tree.compute_closest_entity(Point(*x_coord))
+                y_cells, distances_local = point_cells(X_coords,
+                                                       y_space.mesh())
                 distances = np.full(len(X), np.NAN, dtype=np.float64)
                 comm.Allreduce(distances_local, distances, op=MPI.MIN)
 
@@ -556,6 +551,9 @@ class PointInterpolationSolver(Equation):
                         raise EquationException("Unable to find owning process for point")  # noqa: E501
                     if owner[i] != rank:
                         y_cells[i] = -1
+
+            if y_colors is None:
+                y_colors = greedy_coloring(y_space)
 
             P = interpolation_matrix(X_coords, y, y_cells, y_colors)
 
