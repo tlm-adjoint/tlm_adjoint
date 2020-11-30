@@ -268,14 +268,8 @@ def test_FixedPointSolver(setup_test, test_leaks):
 @pytest.mark.fenics
 @pytest.mark.parametrize("N_x, N_y, N_z", [(5, 5, 2),
                                            (5, 5, 5)])
-@pytest.mark.parametrize("ghost_mode", ["none",
-                                        "shared_facets",
-                                        "shared_vertices"])
-def test_InterpolationSolver(setup_test, test_leaks,
-                             N_x, N_y, N_z,
-                             ghost_mode):
-    parameters["ghost_mode"] = ghost_mode
-
+def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
+                             N_x, N_y, N_z):
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
