@@ -45,18 +45,124 @@ __all__ = \
     ]
 
 
+def function_coords(x):
+    space = function_space(x)
+    coords = np.full((function_local_size(x), space.mesh().geometry().dim()),
+                     np.NAN, dtype=np.float64)
+    for i in range(coords.shape[1]):
+        coord_ex = Expression(f"x[{i:d}]", element=space.ufl_element())
+        coords[:, i] = function_get_values(interpolate(coord_ex, space))
+    return coords
+
+
+def has_ghost_cells(mesh):
+    for cell in range(mesh.num_cells()):
+        if Cell(mesh, cell).is_ghost():
+            return True
+    return False
+
+
+def reorder_gps_disabled(function):
+    def wrapped_function(*args, **kwargs):
+        reorder_vertices_gps = parameters["reorder_vertices_gps"]
+        reorder_cells_gps = parameters["reorder_cells_gps"]
+        parameters["reorder_vertices_gps"] = False
+        parameters["reorder_cells_gps"] = False
+        try:
+            return_value = function(*args, **kwargs)
+        finally:
+            parameters["reorder_vertices_gps"] = reorder_vertices_gps
+            parameters["reorder_cells_gps"] = reorder_cells_gps
+        return return_value
+    return wrapped_function
+
+
+@reorder_gps_disabled
+def local_mesh(mesh):
+    coordinates = mesh.coordinates()
+    cells = mesh.cells()
+    assert coordinates.shape[0] == mesh.num_vertices()
+    assert cells.shape[0] == mesh.num_cells()
+
+    local_vertex_map = {}
+    full_vertex_map = []
+    full_cell_map = []
+    for full_cell in range(cells.shape[0]):
+        if not Cell(mesh, full_cell).is_ghost():
+            for full_vertex in cells[full_cell, :]:
+                if full_vertex not in local_vertex_map:
+                    local_vertex_map[full_vertex] = len(full_vertex_map)
+                    full_vertex_map.append(full_vertex)
+            full_cell_map.append(full_cell)
+
+    l_mesh = Mesh(MPI.COMM_SELF)
+    ed = MeshEditor()
+    ed.open(mesh=l_mesh, type=mesh.cell_name(), tdim=mesh.topology().dim(),
+            gdim=mesh.geometry().dim(), degree=mesh.geometry().degree())
+
+    N_local_vertices = len(full_vertex_map)
+    ed.init_vertices_global(N_local_vertices, N_local_vertices)
+
+    N_local_cells = len(full_cell_map)
+    ed.init_cells_global(N_local_cells, N_local_cells)
+
+    for local_vertex, full_vertex in enumerate(full_vertex_map):
+        ed.add_vertex(local_vertex, Point(*coordinates[full_vertex, :]))
+
+    for local_cell, full_cell in enumerate(full_cell_map):
+        local_vertices = [local_vertex_map[full_vertex]
+                          for full_vertex in cells[full_cell, :]]
+        ed.add_cell(local_cell, local_vertices)
+
+    ed.close(order=True)
+    l_mesh.init()
+
+    return l_mesh, full_vertex_map, full_cell_map
+
+
+def point_cells(coords, mesh):
+    full_cells = np.full(coords.shape[0], -1, dtype=np.int64)
+    distances = np.full(coords.shape[0], np.NAN, dtype=np.float64)
+
+    if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
+        full_tree = mesh.bounding_box_tree()
+        for i in range(coords.shape[0]):
+            point = Point(*coords[i, :])
+            full_cell, distance = full_tree.compute_closest_entity(point)
+            full_cells[i] = full_cell
+            distances[i] = distance
+    else:
+        l_mesh, full_vertex_map, full_cell_map = local_mesh(mesh)
+        local_tree = l_mesh.bounding_box_tree()
+        for i in range(coords.shape[0]):
+            point = Point(*coords[i, :])
+            local_cell, distance = local_tree.compute_closest_entity(point)
+            full_cells[i] = full_cell_map[local_cell]
+            distances[i] = distance
+
+    assert (full_cells[i] >= 0).all()
+    assert (full_cells[i] < mesh.num_cells()).all()
+    assert (distances >= 0.0).all()
+
+    return full_cells, distances
+
+
 def greedy_coloring(space):
     """
     A basic greedy coloring of the (process local) node-node graph, ordered
     using an advancing front.
     """
 
+    mesh = space.mesh()
     dofmap = space.dofmap()
     ownership_range = dofmap.ownership_range()
     N = ownership_range[1] - ownership_range[0]
 
     node_node_graph = tuple(set() for i in range(N))
-    for i in range(space.mesh().num_cells()):
+    for i in range(mesh.num_cells()):
+        if Cell(mesh, i).is_ghost():
+            continue
+
         cell_nodes = dofmap.cell_dofs(i)
         for j in cell_nodes:
             for k in cell_nodes:
@@ -94,16 +200,6 @@ def greedy_coloring(space):
         # a new starting node
 
     return colors
-
-
-def function_coords(x):
-    space = function_space(x)
-    coords = np.full((function_local_size(x), space.mesh().geometry().dim()),
-                     np.NAN, dtype=np.float64)
-    for i in range(coords.shape[1]):
-        coord_ex = Expression(f"x[{i:d}]", element=space.ufl_element())
-        coords[:, i] = function_get_values(interpolate(coord_ex, space))
-    return coords
 
 
 def local_solver_key(form, solver_type):
@@ -269,7 +365,12 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
         y_v.vector()[y_color_nodes] = 1.0
         for x_node, y_cell in enumerate(y_cells):
             if y_cell < 0:
+                # Skip -- x_node is owned by a different process
                 continue
+            if Cell(y_mesh, y_cell).is_ghost():
+                raise EquationException("Cannot interpolate within a ghost "
+                                        "cell")
+
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
             y_cell_colors = y_colors[y_cell_nodes].tolist()
             try:
@@ -286,10 +387,10 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
 
 class InterpolationSolver(LinearEquation):
-    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None):
+    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
+                 tolerance=0.0):
         """
-        Defines an equation which interpolates the scalar function y. It is
-        assumed that x and y are defined on a common mesh.
+        Defines an equation which interpolates the scalar Function y.
 
         Internally this builds (or uses a supplied) interpolation matrix for
         the *local process only*. This works correctly in parallel if y is in a
@@ -302,35 +403,39 @@ class InterpolationSolver(LinearEquation):
 
         Arguments:
 
-        y         A scalar function. The function to be interpolated.
-        x         A scalar function. The solution to the equation.
-        x_coords  (Optional) A real NumPy array. Coordinates at which to
-                  interpolate the function.
-        y_colors  (Optional) An integer NumPy vector. Node-node graph coloring
-                  for the space for y. Ignored if P is supplied. Generated
-                  using greedy_coloring if not supplied.
-        P         (Optional) Interpolation matrix.
-        P_T       (Optional) Interpolation matrix transpose.
+        y          A scalar Function. The Function to be interpolated.
+        x          A scalar Function. The solution to the equation.
+        x_coords   (Optional) A real NumPy array. Coordinates at which to
+                   interpolate the Function.
+        y_colors   (Optional) An integer NumPy vector. Node-node graph coloring
+                   for the space for y. Ignored if P is supplied. Generated
+                   using greedy_coloring if not supplied.
+        P          (Optional) Interpolation matrix.
+        P_T        (Optional) Interpolation matrix transpose.
+        tolerance  (Optional) Maximum distance of an interpolation point from
+                   the closest cell in the process local mesh associated with
+                   y. Ignored if P is supplied.
         """
 
-        if len(x.ufl_shape) > 0:
-            raise EquationException("Solution must be a scalar function")
-        if len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar function")
+        if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
+            raise EquationException("Solution must be a scalar Function")
+        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
+            raise EquationException("y must be a scalar Function")
         if (x_coords is not None) and (function_comm(x).size > 1):
             raise EquationException("Cannot prescribe x_coords in parallel")
 
         if P is None:
             y_space = function_space(y)
-            if y_colors is None:
-                y_colors = greedy_coloring(y_space)
-            y_tree = y_space.mesh().bounding_box_tree()
 
             if x_coords is None:
                 x_coords = function_coords(x)
 
-            y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0]
-                       for x_coord in x_coords]
+            y_cells, y_distances = point_cells(x_coords, y_space.mesh())
+            if (y_distances > tolerance).any():
+                raise EquationException("Unable to locate one or more cells")
+
+            if y_colors is None:
+                y_colors = greedy_coloring(y_space)
 
             P = interpolation_matrix(x_coords, y, y_cells, y_colors)
 
@@ -373,7 +478,7 @@ class PointInterpolationSolver(Equation):
     def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
                  P=None, P_T=None):
         """
-        Defines an equation which interpolates the scalar function y at the
+        Defines an equation which interpolates the scalar Function y at the
         points X_coords. It is assumed that the given points are all within the
         y mesh.
 
@@ -388,7 +493,7 @@ class PointInterpolationSolver(Equation):
 
         Arguments:
 
-        y         A scalar function. The function to be interpolated.
+        y         A scalar Function. The Function to be interpolated.
         X         A real function, or a list or tuple of real functions. The
                   solution to the equation.
         X_coords  A float NumPy matrix. Points at which to interpolate y.
@@ -414,25 +519,18 @@ class PointInterpolationSolver(Equation):
         else:
             if len(X) != X_coords.shape[0]:
                 raise EquationException("Invalid number of functions")
-        if len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar function")
+        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
+            raise EquationException("y must be a scalar Function")
 
         if P is None:
             y_space = function_space(y)
-            if y_colors is None:
-                y_colors = greedy_coloring(y_space)
 
             if y_cells is None:
-                y_tree = y_space.mesh().bounding_box_tree()
-
                 comm = function_comm(y)
                 rank = comm.rank
 
-                y_cells = np.full(len(X), -1, dtype=np.int64)
-                distances_local = np.full(len(X), np.NAN, dtype=np.float64)
-                for i, x_coord in enumerate(X_coords):
-                    y_cells[i], distances_local[i] = \
-                        y_tree.compute_closest_entity(Point(*x_coord))
+                y_cells, distances_local = point_cells(X_coords,
+                                                       y_space.mesh())
                 distances = np.full(len(X), np.NAN, dtype=np.float64)
                 comm.Allreduce(distances_local, distances, op=MPI.MIN)
 
@@ -452,6 +550,9 @@ class PointInterpolationSolver(Equation):
                         raise EquationException("Unable to find owning process for point")  # noqa: E501
                     if owner[i] != rank:
                         y_cells[i] = -1
+
+            if y_colors is None:
+                y_colors = greedy_coloring(y_space)
 
             P = interpolation_matrix(X_coords, y, y_cells, y_colors)
 

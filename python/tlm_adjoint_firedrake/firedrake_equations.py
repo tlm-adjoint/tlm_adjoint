@@ -216,21 +216,23 @@ def interpolation_matrix(x_coords, y, y_nodes):
 
 
 class PointInterpolationSolver(Equation):
-    def __init__(self, y, X, X_coords=None, P=None, P_T=None):
+    def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
         """
-        Defines an equation which interpolates the continuous scalar function y
+        Defines an equation which interpolates the continuous scalar Function y
         at the points X_coords.
 
         Arguments:
 
-        y         A continuous scalar function. The function to be
-                  interpolated.
-        X         A real function, or a list or tuple of real functions. The
-                  solution to the equation.
-        X_coords  A float NumPy matrix. Points at which to interpolate y.
-                  Ignored if P is supplied, required otherwise.
-        P         (Optional) Interpolation matrix.
-        P_T       (Optional) Interpolation matrix transpose.
+        y          A continuous scalar Function. The Function to be
+                   interpolated.
+        X          A real function, or a list or tuple of real functions. The
+                   solution to the equation.
+        X_coords   A float NumPy matrix. Points at which to interpolate y.
+                   Ignored if P is supplied, required otherwise.
+        P          (Optional) Interpolation matrix.
+        P_T        (Optional) Interpolation matrix transpose.
+        tolerance  (Optional) Cell containment tolerance, passed to the
+                   MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
 
         if is_function(X):
@@ -245,8 +247,8 @@ class PointInterpolationSolver(Equation):
         else:
             if len(X) != X_coords.shape[0]:
                 raise EquationException("Invalid number of functions")
-        if len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar function")
+        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
+            raise EquationException("y must be a scalar Function")
 
         if P is None:
             y_space = function_space(y)
@@ -257,16 +259,19 @@ class PointInterpolationSolver(Equation):
             y_nodes_local = np.full((len(X), y_cell_node_graph.shape[1]),
                                     -1, dtype=np.int64)
             for i, x_coord in enumerate(X_coords):
-                y_cell = y_mesh.locate_cell(x_coord)
+                y_cell = y_mesh.locate_cell(x_coord, tolerance=tolerance)
                 if y_cell is None or y_cell >= y_cell_node_graph.shape[0]:
                     y_nodes_local[i, :] = -1
                 else:
+                    assert y_cell >= 0
                     for j, y_node in enumerate(y_cell_node_graph[y_cell, :]):
                         y_nodes_local[i, j] = lg_map[y_node]
 
             y_nodes = np.full(y_nodes_local.shape, -1, dtype=np.int64)
             comm = function_comm(y)
             comm.Allreduce(y_nodes_local, y_nodes, op=MPI.MAX)
+            if (y_nodes < 0).any():
+                raise EquationException("Unable to locate one or more cells")
 
             P = interpolation_matrix(X_coords, y, y_nodes)
 

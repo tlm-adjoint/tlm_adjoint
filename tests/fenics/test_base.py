@@ -40,6 +40,7 @@ __all__ = \
         "run_example",
         "setup_test",
         "test_configurations",
+        "test_ghost_modes",
         "test_leaks",
 
         "ls_parameters_cg",
@@ -51,6 +52,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
+    parameters["ghost_mode"] = "none"
     parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
     parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] \
         = True
@@ -93,6 +95,18 @@ def test_configurations(request):
         = request.param["enable_caching"]
     parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"] \
         = request.param["defer_adjoint_assembly"]
+
+
+@pytest.fixture(
+    params=["none",
+            pytest.param("shared_facets",
+                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                                                  reason="parallel only")),
+            pytest.param("shared_vertices",
+                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                                                  reason="parallel only"))])
+def test_ghost_modes(request):
+    parameters["ghost_mode"] = request.param
 
 
 function_ids = {}

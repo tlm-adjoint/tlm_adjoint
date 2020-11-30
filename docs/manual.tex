@@ -799,17 +799,20 @@ of an equation
 \end{equation*}
 where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
 discrete degrees of freedom for scalar functions $\psi \in V, \xi \in W$, and
-$P$ is a matrix. $V$ and $W$ must be defined using the same mesh. An
-\texttt{InterpolationSolver} can be instantiated via
+$P$ is a matrix. An \texttt{InterpolationSolver} can be instantiated via
 \begin{lstlisting}
 eq = InterpolationSolver(y, x)
 \end{lstlisting}
 where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
-\texttt{Function} being interpolated. Optionally, coordinates \texttt{x\_coords} may be supplied, in which case \texttt{x\_coords} are taken to be the coordinates of the DOFs of $V$.
+\texttt{Function} being interpolated. An optional \texttt{x\_coords} argument
+may be supplied to define the coordinates associated with the degrees of
+freedom for $\tilde{\psi}$. An optional \texttt{tolerance} argument may be
+supplied to define the maximum permitted distance of a coordinate, associated
+with a degree of freedom for $\tilde{\psi}$, from the closest cell in the
+process local mesh associated with $W$.
 
 In parallel the node-node graph associated with the discrete function space for
-\texttt{y} must have no edges between nodes owned by different processes. This
-is, for example, satified by discontinuous Galerkin function spaces. In
+\texttt{y} must have no edges between nodes owned by different processes. In
 parallel the \texttt{InterpolationSolver} can be combined with the
 \texttt{LocalProjectionSolver} in order to project functions in more general
 function spaces onto an appropriate discontinuous Galerkin function space,
@@ -834,7 +837,10 @@ where \texttt{X} is a list or tuple of real functions being solved for (for
 example each as returned by the \texttt{new\_real\_function} function -- see
 section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
 defining the coordinates at which to interpolate the \texttt{Function}
-\texttt{y}.
+\texttt{y}. An optional \texttt{tolerance} argument may be supplied, and this
+is passed to the Firedrake \texttt{MeshGeometry.locate\_cell} method when
+locating the cells, in the mesh for \textt{y}, containing the coordinates
+\texttt{X\_coords}.
 
 In parallel there are similar node-node graph restrictions for the discrete
 function space for \texttt{y} to those for the \texttt{InterpolationSolver}

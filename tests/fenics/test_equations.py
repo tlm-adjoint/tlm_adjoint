@@ -266,8 +266,11 @@ def test_FixedPointSolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-def test_InterpolationSolver(setup_test, test_leaks):
-    mesh = UnitCubeMesh(5, 5, 5)
+@pytest.mark.parametrize("N_x, N_y, N_z", [(5, 5, 2),
+                                           (5, 5, 5)])
+def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
+                             N_x, N_y, N_z):
+    mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
     if MPI.COMM_WORLD.size > 1:
@@ -285,7 +288,7 @@ def test_InterpolationSolver(setup_test, test_leaks):
             y = z
 
         x = Function(x_space, name="x")
-        eq = InterpolationSolver(y, x, P=P[0])
+        eq = InterpolationSolver(y, x, P=P[0], tolerance=1.0e-16)
         eq.solve()
         P[0] = eq._B[0]._A._P
 
@@ -318,26 +321,31 @@ def test_InterpolationSolver(setup_test, test_leaks):
     def forward_J(z):
         return forward(z)[1]
 
-    min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ, seed=1.0e-4)
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ)
+    min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, z, tlm_order=1, seed=1.0e-4)
     assert min_order > 1.99
 
-    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1)
-    assert min_order > 2.00
+    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
 
-    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2)
+    min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=2,
+                                        seed=1.0e-4)
     assert min_order > 1.99
 
 
 @pytest.mark.fenics
-def test_PointInterpolationSolver(setup_test, test_leaks):
-    mesh = UnitCubeMesh(5, 5, 5)
+@pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
+                                           (5, 5, 5)])
+def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
+                                  N_x, N_y, N_z):
+    mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
     if MPI.COMM_WORLD.size > 1:
