@@ -390,8 +390,7 @@ class InterpolationSolver(LinearEquation):
     def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
                  tolerance=0.0):
         """
-        Defines an equation which interpolates the scalar function y. It is
-        assumed that x and y are defined on a common mesh.
+        Defines an equation which interpolates the scalar function y.
 
         Internally this builds (or uses a supplied) interpolation matrix for
         the *local process only*. This works correctly in parallel if y is in a
