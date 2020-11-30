@@ -153,14 +153,14 @@ def greedy_coloring(space):
     using an advancing front.
     """
 
+    mesh = space.mesh()
     dofmap = space.dofmap()
     ownership_range = dofmap.ownership_range()
     N = ownership_range[1] - ownership_range[0]
 
     node_node_graph = tuple(set() for i in range(N))
-    for i in range(space.mesh().num_cells()):
-
-        if Cell(space.mesh(), i).is_ghost():
+    for i in range(mesh.num_cells()):
+        if Cell(mesh, i).is_ghost():
             continue
 
         cell_nodes = dofmap.cell_dofs(i)
