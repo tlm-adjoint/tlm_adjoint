@@ -45,6 +45,16 @@ __all__ = \
     ]
 
 
+def function_coords(x):
+    space = function_space(x)
+    coords = np.full((function_local_size(x), space.mesh().geometry().dim()),
+                     np.NAN, dtype=np.float64)
+    for i in range(coords.shape[1]):
+        coord_ex = Expression(f"x[{i:d}]", element=space.ufl_element())
+        coords[:, i] = function_get_values(interpolate(coord_ex, space))
+    return coords
+
+
 def has_ghost_cells(mesh):
     for cell in range(mesh.num_cells()):
         if Cell(mesh, cell).is_ghost():
@@ -110,6 +120,21 @@ def local_mesh(mesh):
     return l_mesh, full_vertex_map, full_cell_map
 
 
+def point_cells(x_coords, mesh):
+    if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
+        full_tree = mesh.bounding_box_tree()
+        full_cells = [full_tree.compute_closest_entity(Point(*x_coord))[0]
+                      for x_coord in x_coords]
+    else:
+        l_mesh, full_vertex_map, full_cell_map = local_mesh(mesh)
+        local_tree = l_mesh.bounding_box_tree()
+        local_cells = [local_tree.compute_closest_entity(Point(*x_coord))[0]
+                       for x_coord in x_coords]
+        full_cells = [full_cell_map[local_cell]
+                      for local_cell in local_cells]
+    return full_cells
+
+
 def greedy_coloring(space):
     """
     A basic greedy coloring of the (process local) node-node graph, ordered
@@ -163,16 +188,6 @@ def greedy_coloring(space):
         # a new starting node
 
     return colors
-
-
-def function_coords(x):
-    space = function_space(x)
-    coords = np.full((function_local_size(x), space.mesh().geometry().dim()),
-                     np.NAN, dtype=np.float64)
-    for i in range(coords.shape[1]):
-        coord_ex = Expression(f"x[{i:d}]", element=space.ufl_element())
-        coords[:, i] = function_get_values(interpolate(coord_ex, space))
-    return coords
 
 
 def local_solver_key(form, solver_type):
@@ -395,28 +410,12 @@ class InterpolationSolver(LinearEquation):
 
         if P is None:
             y_space = function_space(y)
-            if y_colors is None:
-                y_colors = greedy_coloring(y_space)
 
             if x_coords is None:
                 x_coords = function_coords(x)
-
-            y_mesh = y_space.mesh()
-            if function_comm(x).size == 1 or not has_ghost_cells(y_mesh):
-                y_tree = y_mesh.bounding_box_tree()
-                y_cells = [y_tree.compute_closest_entity(Point(*x_coord))[0]
-                           for x_coord in x_coords]
-                del y_tree
-            else:
-                y_local_mesh, y_vertex_map, y_cell_map = local_mesh(y_mesh)
-                y_local_tree = y_local_mesh.bounding_box_tree()
-                y_local_cells = [y_local_tree.compute_closest_entity(Point(*x_coord))[0]  # noqa: E501
-                                 for x_coord in x_coords]
-                y_cells = [y_cell_map[y_local_cell]
-                           for y_local_cell in y_local_cells]
-                del y_local_mesh, y_vertex_map, y_cell_map
-                del y_local_tree
-                del y_local_cells
+            y_cells = point_cells(x_coords, y_space.mesh())
+            if y_colors is None:
+                y_colors = greedy_coloring(y_space)
 
             P = interpolation_matrix(x_coords, y, y_cells, y_colors)
 
