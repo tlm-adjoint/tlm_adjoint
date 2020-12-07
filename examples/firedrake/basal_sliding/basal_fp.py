@@ -156,7 +156,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                               solver_parameters={"ksp_type": "cg",
                                                  "pc_type": "hypre",
                                                  "pc_hypre_type": "boomeramg",
-                                                 "ksp_rtol": 1.0e-12,
+                                                 "ksp_rtol": 1.0e-13,
                                                  "ksp_atol": 1.0e-16,
                                                  "mat_type": "aij"},
                               adjoint_solver_parameters={"ksp_type": "preonly",
@@ -188,7 +188,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
             - dt * inner(test_h, div(U * (h + H_0))) * dx,
             F_h, solver_parameters={"ksp_type": "cg",
                                     "pc_type": "sor",
-                                    "ksp_rtol": 1.0e-12,
+                                    "ksp_rtol": 1.0e-13,
                                     "ksp_atol": 1.0e-16})
 
     def solve_elevation_rhs(U, h, F_h):
@@ -302,7 +302,7 @@ ddJ = SingleBlockHessian(J)
 M_solver = LinearSolver(assemble(inner(test, trial) * dx),
                         solver_parameters={"ksp_type": "cg",
                                            "pc_type": "sor",
-                                           "ksp_rtol": 1.0e-12,
+                                           "ksp_rtol": 1.0e-13,
                                            "ksp_atol": 1.0e-16,
                                            "mat_type": "aij"})
 A_action_calls = [0]
@@ -377,7 +377,7 @@ if debug:
 
     min_order = taylor_test(forward_ref_J, beta_sq, J_val=J.value(), ddJ=ddJ,
                             seed=1.0e-3)
-    assert min_order > 2.93
+    assert min_order > 2.98
 
     min_order = taylor_test_tlm(forward_ref_J, beta_sq,
                                 tlm_order=1, seed=1.0e-3)
