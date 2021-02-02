@@ -90,7 +90,7 @@ class SerialComm:
     def Dup(self):
         return SerialComm()
 
-    def Free():
+    def Free(self):
         pass
 
     # Interface as in mpi4py 3.0.1
