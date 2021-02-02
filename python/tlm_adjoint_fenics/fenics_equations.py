@@ -171,7 +171,7 @@ def greedy_coloring(space):
     node_node_graph = tuple(sorted(nodes, reverse=True)
                             for nodes in node_node_graph)
 
-    seen = np.full(N, False, dtype=np.bool)
+    seen = np.full(N, False, dtype=bool)
     colors = np.full(N, -1, dtype=np.int64)
     i = 0
     while True:
@@ -342,7 +342,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
                           and j < y_ownership_range[1]
                           for j in [y_dofmap.local_to_global_index(i)
                                     for i in y_dofmap.cell_dofs(y_cell)]],
-                         dtype=np.bool)
+                         dtype=bool)
         if owned.any() and not owned.all():
             raise EquationException("Non-process-local node-node graph")
 

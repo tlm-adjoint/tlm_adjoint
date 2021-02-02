@@ -384,7 +384,7 @@ class DependencyGraphTranspose:
 
             # Pruning, forward traversal
             active_M = {function_id(dep) for dep in M}
-            active_forward = tuple(np.full(len(block), False, dtype=np.bool)
+            active_forward = tuple(np.full(len(block), False, dtype=bool)
                                    for block in blocks)
             for n, block in enumerate(blocks):
                 for i, eq in enumerate(block):
@@ -403,7 +403,7 @@ class DependencyGraphTranspose:
                                     active_forward[n][i] = True
                                     break
         else:
-            active_forward = tuple(np.full(len(block), True, dtype=np.bool)
+            active_forward = tuple(np.full(len(block), True, dtype=bool)
                                    for block in blocks)
 
         active = {function_id(J): copy.deepcopy(active_forward) for J in Js}
@@ -412,8 +412,7 @@ class DependencyGraphTranspose:
             # Pruning, reverse traversal
             for J_id in active:
                 active_J = True
-                active_adjoint = tuple(np.full(len(block), False,
-                                               dtype=np.bool)
+                active_adjoint = tuple(np.full(len(block), False, dtype=bool)
                                        for block in blocks)
                 for n in range(len(blocks) - 1, -1, -1):
                     block = blocks[n]
@@ -433,7 +432,7 @@ class DependencyGraphTranspose:
                         else:
                             active[J_id][n][i] = False
 
-        stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=np.bool)  # noqa: E501
+        stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
                           for eq in block) for block in blocks) for J in Js}
         adj_ics = {function_id(J): {} for J in Js}
         for J_id in stored_adj_ics:
