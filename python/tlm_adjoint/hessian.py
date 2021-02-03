@@ -18,7 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_copy, function_get_values, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_name
+from .backend_interface import clear_caches
 
 from .manager import manager as _manager, set_manager
 
