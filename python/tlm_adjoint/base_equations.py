@@ -18,7 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_assign, function_axpy, function_copy, \
+    function_get_values, function_global_size, function_id, function_inner, \
+    function_is_checkpointed, function_local_indices, function_new, \
+    function_replacement, function_set_values, function_space, function_sum, \
+    function_update_caches, function_update_state, function_zero, \
+    is_function, space_new
+from .backend_interface import copy_parameters_dict, \
+    finalize_adjoint_derivative_action, info, \
+    subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
