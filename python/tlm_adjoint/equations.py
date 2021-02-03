@@ -18,9 +18,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_code_generator_interface import *
-from .backend_interface import *
+from .backend import TestFunction, TrialFunction, adjoint, \
+    backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
+from .interface import function_assign, function_comm, function_get_values, \
+    function_id, function_local_size, function_new, function_replacement, \
+    function_set_values, function_space, function_update_caches, \
+    function_update_state, function_zero, is_function
+from .backend_interface import is_real_function, real_function_value
+from .backend_code_generator_interface import assemble, \
+    assemble_linear_solver, copy_parameters_dict, \
+    form_form_compiler_parameters, function_vector, homogenize, \
+    matrix_multiply, process_adjoint_solver_parameters, \
+    process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
+    update_parameters_dict
 
 from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear, no_replace_compatibility
