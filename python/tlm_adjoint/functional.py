@@ -18,7 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_name, function_new, function_space, \
+    is_function, space_id, space_new
+from .backend_interface import is_real_function, new_real_function, \
+    real_function_value
 
 from .base_equations import AssignmentSolver, AxpySolver
 try:
