@@ -18,8 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_interface import *
+from .backend import Parameters, Projector, backend_DirichletBC, \
+    backend_Function, backend_LinearSolver, backend_LinearVariationalProblem, \
+    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
+    backend_Vector, backend_assemble, backend_project, backend_solve, \
+    extract_args, parameters
+from .interface import InterfaceException, function_new, \
+    function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
