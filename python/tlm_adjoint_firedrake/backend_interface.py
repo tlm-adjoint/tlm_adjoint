@@ -20,16 +20,10 @@
 
 from .backend import FunctionSpace, UnitIntervalMesh, backend_Constant, \
     backend_Function, backend_FunctionSpace, backend_ScalarType
-from .interface import InterfaceException, SpaceInterface, function_assign, \
-    function_axpy, function_caches, function_comm, function_copy, \
-    function_id, function_is_cached, function_is_checkpointed, \
-    function_is_static, function_get_values, function_global_size, \
-    function_inner, function_local_indices, function_linf_norm, \
-    function_local_size, function_max_value, function_name, function_new, \
-    function_replacement, function_set_values, function_space, \
-    function_state, function_sum, function_tangent_linear, \
-    function_update_caches, function_update_state, function_zero, \
-    add_interface, is_function, is_space, space_comm, space_id, space_new
+from .interface import InterfaceException, SpaceInterface, add_interface, \
+    function_assign, function_axpy, function_caches, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_max_value, \
+    function_new, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, copy_parameters_dict
 
@@ -46,42 +40,6 @@ import warnings
 
 __all__ = \
     [
-        "InterfaceException",
-
-        "is_space",
-        "space_comm",
-        "space_id",
-        "space_new",
-
-        "is_function",
-        "function_assign",
-        "function_axpy",
-        "function_caches",
-        "function_comm",
-        "function_copy",
-        "function_get_values",
-        "function_global_size",
-        "function_id",
-        "function_inner",
-        "function_is_cached",
-        "function_is_checkpointed",
-        "function_is_static",
-        "function_linf_norm",
-        "function_local_indices",
-        "function_local_size",
-        "function_max_value",
-        "function_name",
-        "function_new",
-        "function_replacement",
-        "function_set_values",
-        "function_space",
-        "function_state",
-        "function_sum",
-        "function_tangent_linear",
-        "function_update_caches",
-        "function_update_state",
-        "function_zero",
-
         "is_real_function",
         "new_real_function",
         "real_function_value",

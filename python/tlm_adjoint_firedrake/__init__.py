@@ -75,6 +75,7 @@ from .firedrake_equations import *  # noqa: E402,F401
 from .functions import *            # noqa: E402,F401
 from .functional import *           # noqa: E402,F401
 from .hessian import *              # noqa: E402,F401
+from .interface import *           # noqa: E402,F401
 from .manager import *              # noqa: E402,F401
 from .optimization import *         # noqa: E402,F401
 from .tlm_adjoint import *          # noqa: E402,F401
