@@ -18,10 +18,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
+from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
+    TestFunction, TrialFunction, as_backend_type, backend_Constant, \
+    backend_DirichletBC, backend_KrylovSolver, backend_LUSolver, \
+    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
+    backend_assemble, backend_assemble_system, backend_solve, \
+    cpp_LinearVariationalProblem, cpp_NonlinearVariationalProblem, \
+    extract_args, has_lu_solver_method, parameters
+from .interface import InterfaceException, add_interface
+
 from .functions import ConstantInterface, ConstantSpaceInterface, \
     eliminate_zeros, new_count
-from .interface import InterfaceException, add_interface
 
 import ffc
 import mpi4py.MPI as MPI
