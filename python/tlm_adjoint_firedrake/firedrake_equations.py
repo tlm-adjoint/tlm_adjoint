@@ -18,9 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_code_generator_interface import *
-from .backend_interface import *
+from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
+    backend_assemble
+from .interface import function_assign, function_comm, function_get_values, \
+    function_local_size, function_new, function_set_values, function_space, \
+    is_function
+from .backend_interface import is_real_function, real_function_value
+from .backend_code_generator_interface import assemble, matrix_multiply
 
 from .base_equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
