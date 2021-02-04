@@ -18,9 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_code_generator_interface import *
-from .interface import *
+from .backend import TrialFunction, backend_Function
+from .interface import function_id, function_is_cached, function_space, \
+    is_function
+from .backend_code_generator_interface import assemble, assemble_arguments, \
+    assemble_matrix, linear_solver, matrix_copy, parameters_key
 
 from .alias import gc_disabled
 from .functions import eliminate_zeros, function_caches, replaced_form
