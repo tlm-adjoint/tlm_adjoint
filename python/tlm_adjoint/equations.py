@@ -30,12 +30,12 @@ from .backend_code_generator_interface import assemble, \
     form_form_compiler_parameters, function_vector, homogenize, \
     matrix_multiply, process_adjoint_solver_parameters, \
     process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
-    update_parameters_dict
+    update_parameters_dict, verify_assembly
 
 from .base_equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear, no_replace_compatibility
 from .caches import CacheRef, assembly_cache, form_neg, is_cached, \
-    linear_solver_cache, split_form, verify_assembly
+    linear_solver_cache, split_form
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
     eliminate_zeros, extract_coefficients, is_r0_function
 
