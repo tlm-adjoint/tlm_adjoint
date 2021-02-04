@@ -18,7 +18,16 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import *
+from .interface import InterfaceException, SpaceInterface, function_assign, \
+    function_axpy, function_caches, function_comm, function_copy, \
+    function_id, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_get_values, function_global_size, \
+    function_inner, function_local_indices, function_linf_norm, \
+    function_local_size, function_max_value, function_name, function_new, \
+    function_replacement, function_set_values, function_space, \
+    function_state, function_sum, function_tangent_linear, \
+    function_update_caches, function_update_state, function_zero, \
+    add_interface, is_function, is_space, space_comm, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
