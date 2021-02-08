@@ -30,6 +30,8 @@ from .interface import InterfaceException, add_interface
 from .functions import ConstantInterface, ConstantSpaceInterface, \
     eliminate_zeros, new_count
 
+from collections.abc import Iterable
+import copy
 import ffc
 import mpi4py.MPI as MPI
 import numpy as np
@@ -94,15 +96,16 @@ del _parameters
 
 
 def copy_parameters_dict(parameters):
+    if isinstance(parameters, Parameters):
+        parameters = parameters.copy()
     new_parameters = {}
     for key in parameters:
         value = parameters[key]
         if isinstance(value, (Parameters, dict)):
-            new_parameters[key] = copy_parameters_dict(value)
-        elif isinstance(value, list):
-            new_parameters[key] = list(value)
-        else:
-            new_parameters[key] = value
+            value = copy_parameters_dict(value)
+        elif isinstance(value, Iterable):
+            value = copy.copy(value)  # shallow copy only
+        new_parameters[key] = value
     return new_parameters
 
 

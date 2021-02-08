@@ -24,13 +24,13 @@ from .interface import function_assign, function_axpy, function_copy, \
     function_replacement, function_set_values, function_space, function_sum, \
     function_update_caches, function_update_state, function_zero, \
     is_function, space_new
-from .backend_interface import copy_parameters_dict, \
-    finalize_adjoint_derivative_action, info, \
+from .backend_interface import finalize_adjoint_derivative_action, info, \
     subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 
+import copy
 import inspect
 import numpy as np
 import warnings
@@ -871,7 +871,7 @@ class FixedPointSolver(Equation):
                     raise EquationException("Duplicate solve")
                 X_ids.add(x_id)
 
-        solver_parameters = copy_parameters_dict(solver_parameters)
+        solver_parameters = copy.deepcopy(solver_parameters)
         if "nonzero_adjoint_initial_guess" in solver_parameters:
             warnings.warn("'nonzero_adjoint_initial_guess' parameter is "
                           "deprecated -- use 'adjoint_nonzero_initial_guess' "

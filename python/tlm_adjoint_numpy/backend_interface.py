@@ -31,7 +31,6 @@ import warnings
 __all__ = \
     [
         "clear_caches",
-        "copy_parameters_dict",
         "finalize_adjoint_derivative_action",
         "info",
         "subtract_adjoint_derivative_action",
@@ -41,6 +40,7 @@ __all__ = \
         "Replacement",
 
         "RealFunctionSpace",
+        "copy_parameters_dict",
         "default_comm",
         "function_space_id",
         "function_space_new",
@@ -328,10 +328,6 @@ def info(message):
     sys.stdout.flush()
 
 
-def copy_parameters_dict(parameters):
-    return copy.deepcopy(parameters)
-
-
 def subtract_adjoint_derivative_action(x, y):
     if y is None:
         pass
@@ -383,3 +379,10 @@ def warning(message):
     warnings.warn("warning is deprecated -- use warnings.warn instead",
                   DeprecationWarning, stacklevel=2)
     warnings.warn(message, RuntimeWarning)
+
+
+def copy_parameters_dict(parameters):
+    warnings.warn("copy_parameters_dict is deprecated -- "
+                  "use copy.deepcopy instead",
+                  DeprecationWarning, stacklevel=2)
+    return copy.deepcopy(parameters)

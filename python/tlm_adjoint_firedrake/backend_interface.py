@@ -25,7 +25,7 @@ from .interface import _new_real_function, InterfaceException, \
     function_caches, function_is_cached, function_is_checkpointed, \
     function_is_static, function_new, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble, copy_parameters_dict
+from .backend_code_generator_interface import assemble
 
 from .caches import clear_caches, form_neg
 from .functions import Caches, Constant, Function, Replacement, Zero, \
@@ -41,7 +41,6 @@ import warnings
 __all__ = \
     [
         "clear_caches",
-        "copy_parameters_dict",
         "finalize_adjoint_derivative_action",
         "info",
         "subtract_adjoint_derivative_action",
@@ -314,9 +313,6 @@ if _new_real_function[0] is None:
 def info(message):
     sys.stdout.write(f"{message:s}\n")
     sys.stdout.flush()
-
-
-# def copy_parameters_dict(parameters):
 
 
 def subtract_adjoint_derivative_action(x, y):

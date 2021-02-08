@@ -22,7 +22,7 @@ from .interface import function_assign, function_copy, function_get_values, \
     function_global_size, function_id, function_is_checkpointed, \
     function_local_indices, function_name, function_new, function_set_values, \
     function_space, function_tangent_linear, is_function, space_id, space_new
-from .backend_interface import Replacement, copy_parameters_dict, info
+from .backend_interface import Replacement, info
 
 from .alias import WeakAlias, gc_disabled
 from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
@@ -709,7 +709,7 @@ class EquationManager:
         if self._annotation_state not in ["initial", "stopped_initial"]:
             raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalization")  # noqa: E501
 
-        cp_parameters = copy_parameters_dict(cp_parameters)
+        cp_parameters = copy.deepcopy(cp_parameters)
 
         if cp_method == "memory":
             disk_storage = False

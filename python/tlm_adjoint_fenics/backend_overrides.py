@@ -25,8 +25,8 @@ from .backend import Parameters, backend_DirichletBC, backend_Function, \
     backend_assemble_system, backend_project, backend_solve, extract_args, \
     parameters
 from .interface import function_new, function_update_state, space_new
-from .backend_interface import copy_parameters_dict
-from .backend_code_generator_interface import update_parameters_dict
+from .backend_code_generator_interface import copy_parameters_dict, \
+    update_parameters_dict
 
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
