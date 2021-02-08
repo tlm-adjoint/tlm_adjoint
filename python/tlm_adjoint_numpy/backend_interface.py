@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import InterfaceException, SpaceInterface, add_interface, \
-    is_function, space_id, space_new
+    space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
@@ -200,6 +200,9 @@ class FunctionInterface(_FunctionInterface):
     def _replacement(self):
         return self.replacement()
 
+    def _is_real(self):
+        return self.space().dim() == 1
+
 
 class Function:
     _id_counter = [0]
@@ -306,6 +309,9 @@ class ReplacementInterface(_FunctionInterface):
     def _replacement(self):
         return self
 
+    def _is_real(self):
+        return self.space().dim() == 1
+
 
 class Replacement:
     def __init__(self, x):
@@ -336,20 +342,10 @@ class Replacement:
         return self._checkpoint
 
 
-def is_real_function(x):
-    return is_function(x) and x.space().dim() == 1
-
-
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
-
-
-def real_function_value(x):
-    assert is_real_function(x)
-    value, = x.vector()
-    return value
 
 
 def clear_caches(*deps):

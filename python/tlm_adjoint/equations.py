@@ -23,8 +23,8 @@ from .backend import TestFunction, TrialFunction, adjoint, \
 from .interface import function_assign, function_comm, function_get_values, \
     function_id, function_local_size, function_new, function_replacement, \
     function_set_values, function_space, function_update_caches, \
-    function_update_state, function_zero, is_function
-from .backend_interface import is_real_function, real_function_value
+    function_update_state, function_zero, is_function, is_real_function, \
+    real_function_value
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \

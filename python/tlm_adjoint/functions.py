@@ -309,6 +309,9 @@ class ConstantInterface(_FunctionInterface):
                 Replacement(self, space=None)
         return self._tlm_adjoint__replacement
 
+    def _is_real(self):
+        return is_r0_function(self) and len(self.ufl_shape) == 0
+
 
 class Constant(backend_Constant):
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
@@ -614,6 +617,9 @@ class ReplacementInterface(_FunctionInterface):
 
     def _replacement(self):
         return self
+
+    def _is_real(self):
+        return is_r0_function(self) and len(self.ufl_shape) == 0
 
 
 class Replacement(ufl.classes.Coefficient):

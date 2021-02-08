@@ -22,8 +22,8 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend_Constant, \
     backend_Function, backend_FunctionSpace, backend_ScalarType
 from .interface import InterfaceException, SpaceInterface, add_interface, \
     function_assign, function_axpy, function_caches, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_max_value, \
-    function_new, space_id, space_new
+    function_is_checkpointed, function_is_static, function_new, space_id, \
+    space_new
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, copy_parameters_dict
 
@@ -40,9 +40,7 @@ import warnings
 
 __all__ = \
     [
-        "is_real_function",
         "new_real_function",
-        "real_function_value",
 
         "clear_caches",
         "copy_parameters_dict",
@@ -293,6 +291,9 @@ class FunctionInterface(_FunctionInterface):
             self._tlm_adjoint__replacement = Replacement(self)
         return self._tlm_adjoint__replacement
 
+    def _is_real(self):
+        return is_r0_function(self) and len(self.ufl_shape) == 0
+
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
@@ -303,19 +304,10 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def is_real_function(x):
-    return is_r0_function(x) and len(x.ufl_shape) == 0
-
-
 def new_real_function(name=None, domain=None, comm=None, static=False,
                       cache=None, checkpoint=None):
     return Constant(0.0, name=name, domain=domain, comm=comm, static=static,
                     cache=cache, checkpoint=checkpoint)
-
-
-def real_function_value(x):
-    assert is_real_function(x)
-    return function_max_value(x)
 
 
 # def clear_caches(*deps):
