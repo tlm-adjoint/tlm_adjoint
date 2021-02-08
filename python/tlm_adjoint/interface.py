@@ -64,6 +64,7 @@ __all__ = \
         "function_zero",
 
         "is_real_function",
+        "new_real_function",
         "real_function_value"
     ]
 
@@ -345,6 +346,17 @@ def function_replacement(x):
 
 def is_real_function(x):
     return x._tlm_adjoint__function_interface_is_real()
+
+
+_new_real_function = [None]
+
+
+def new_real_function(name=None, comm=None, static=False, cache=None,
+                      checkpoint=None):
+    if _new_real_function[0] is None:
+        raise InterfaceException("No backend")
+    return _new_real_function[0](name=name, comm=comm, static=static,
+                                 cache=cache, checkpoint=checkpoint)
 
 
 def real_function_value(x):

@@ -21,10 +21,10 @@
 from .backend import FunctionSpace, UnitIntervalMesh, backend_Constant, \
     backend_Function, backend_FunctionSpace, backend_ScalarType, \
     backend_Vector, info
-from .interface import InterfaceException, SpaceInterface, add_interface, \
-    function_axpy, function_caches, function_copy, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, space_id, \
-    space_new
+from .interface import _new_real_function, InterfaceException, \
+    SpaceInterface, add_interface, function_axpy, function_caches, \
+    function_copy, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_new, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, copy_parameters_dict, \
     r0_space
@@ -40,8 +40,6 @@ import warnings
 
 __all__ = \
     [
-        "new_real_function",
-
         "clear_caches",
         "copy_parameters_dict",
         "finalize_adjoint_derivative_action",
@@ -271,10 +269,14 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def new_real_function(name=None, domain=None, comm=None, static=False,
-                      cache=None, checkpoint=None):
-    return Constant(0.0, name=name, domain=domain, comm=comm, static=static,
-                    cache=cache, checkpoint=checkpoint)
+def new_real_function(name=None, comm=None, static=False, cache=None,
+                      checkpoint=None):
+    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
+                    checkpoint=checkpoint)
+
+
+if _new_real_function[0] is None:
+    _new_real_function[0] = new_real_function
 
 
 # def clear_caches(*deps):

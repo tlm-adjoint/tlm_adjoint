@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import InterfaceException, SpaceInterface, add_interface, \
-    space_id, space_new
+from .interface import _new_real_function, InterfaceException, \
+    SpaceInterface, add_interface, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
@@ -313,6 +313,10 @@ def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
+
+
+if _new_real_function[0] is None:
+    _new_real_function[0] = new_real_function
 
 
 def clear_caches(*deps):
