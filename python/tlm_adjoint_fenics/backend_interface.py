@@ -44,7 +44,6 @@ __all__ = \
 
         "clear_caches",
         "copy_parameters_dict",
-        "default_comm",
         "finalize_adjoint_derivative_action",
         "info",
         "subtract_adjoint_derivative_action",
@@ -54,14 +53,11 @@ __all__ = \
         "Replacement",
 
         "RealFunctionSpace",
+        "default_comm",
         "function_space_id",
         "function_space_new",
         "warning"
     ]
-
-
-def default_comm():
-    return MPI.COMM_WORLD
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -344,6 +340,13 @@ def finalize_adjoint_derivative_action(x):
             assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
                      add_values=True)
         delattr(x, "_tlm_adjoint__adj_b")
+
+
+def default_comm():
+    warnings.warn("default_comm is deprecated -- "
+                  "use mpi4py.MPI.COMM_WORLD instead",
+                  DeprecationWarning, stacklevel=2)
+    return MPI.COMM_WORLD
 
 
 def RealFunctionSpace(comm=MPI.COMM_WORLD):

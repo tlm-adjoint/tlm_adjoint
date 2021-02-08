@@ -22,8 +22,7 @@ from .interface import function_assign, function_copy, function_get_values, \
     function_global_size, function_id, function_is_checkpointed, \
     function_local_indices, function_name, function_new, function_set_values, \
     function_space, function_tangent_linear, is_function, space_id, space_new
-from .backend_interface import Replacement, copy_parameters_dict, \
-    default_comm, info
+from .backend_interface import Replacement, copy_parameters_dict, info
 
 from .alias import WeakAlias, gc_disabled
 from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
@@ -35,6 +34,7 @@ from .manager import manager as _manager, set_manager
 from collections import OrderedDict, defaultdict, deque
 import copy
 import gc
+import mpi4py.MPI as MPI
 import numpy as np
 import pickle
 import os
@@ -509,7 +509,7 @@ class EquationManager:
         Manager for tangent-linear and adjoint models.
 
         Arguments:
-        comm  (Optional) Communicator. Default default_comm().
+        comm  (Optional) Communicator. Default mpi4py.MPI.COMM_WORLD.
 
         cp_method  (Optional) Checkpointing method. Default "memory".
             Possible methods
@@ -567,7 +567,7 @@ class EquationManager:
         # dolfin-adjoint 2017.1.0
 
         if comm is None:
-            comm = default_comm()
+            comm = MPI.COMM_WORLD
         comm = comm.Dup()
 
         self._comm = comm

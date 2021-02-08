@@ -23,6 +23,7 @@ from .interface import InterfaceException, SpaceInterface, add_interface, \
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
+import mpi4py.MPI as MPI
 import numpy as np
 import sys
 import warnings
@@ -31,7 +32,6 @@ __all__ = \
     [
         "clear_caches",
         "copy_parameters_dict",
-        "default_comm",
         "finalize_adjoint_derivative_action",
         "info",
         "subtract_adjoint_derivative_action",
@@ -41,54 +41,16 @@ __all__ = \
         "Replacement",
 
         "RealFunctionSpace",
+        "default_comm",
         "function_space_id",
         "function_space_new",
         "warning"
     ]
 
 
-class SerialComm:
-    def Dup(self):
-        return SerialComm()
-
-    def Free(self):
-        pass
-
-    # Interface as in mpi4py 3.0.1
-    def allgather(self, sendobj):
-        v = sendobj.view()
-        v.setflags(write=False)
-        return (v,)
-
-    def barrier(self):
-        pass
-
-    # Interface as in mpi4py 3.0.1
-    def bcast(self, obj, root=0):
-        return copy.deepcopy(obj)
-
-    def py2f(self):
-        return 0
-
-    @property
-    def rank(self):
-        return 0
-
-    @property
-    def size(self):
-        return 1
-
-
-_comm = SerialComm()
-
-
-def default_comm():
-    return _comm
-
-
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        return _comm
+        return self._comm
 
     def _id(self):
         return self.dim()
@@ -100,6 +62,11 @@ class FunctionSpaceInterface(SpaceInterface):
 
 class FunctionSpace:
     def __init__(self, dim):
+        comm = MPI.COMM_WORLD
+        if comm.size > 1:
+            raise InterfaceException("Serial only")
+
+        self._comm = comm
         self._dim = dim
         add_interface(self, FunctionSpaceInterface)
 
@@ -109,7 +76,7 @@ class FunctionSpace:
 
 class FunctionInterface(_FunctionInterface):
     def _comm(self):
-        return _comm
+        return self.space().comm()
 
     def _space(self):
         return self.space()
@@ -380,6 +347,13 @@ def subtract_adjoint_derivative_action(x, y):
 
 def finalize_adjoint_derivative_action(x):
     pass
+
+
+def default_comm():
+    warnings.warn("default_comm is deprecated -- "
+                  "use mpi4py.MPI.COMM_WORLD instead",
+                  DeprecationWarning, stacklevel=2)
+    return MPI.COMM_WORLD
 
 
 def RealFunctionSpace(comm=None):
