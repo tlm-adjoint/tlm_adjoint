@@ -22,8 +22,9 @@ from .interface import function_assign, function_axpy, function_copy, \
     function_inner, function_is_cached, function_is_checkpointed, \
     function_is_static, function_linf_norm, function_local_size, \
     function_name, function_new, function_set_values, is_function
-from .backend_interface import clear_caches, info
+from .backend_interface import info
 
+from .base_caches import clear_caches
 from .manager import manager as _manager, set_manager
 
 import numpy as np

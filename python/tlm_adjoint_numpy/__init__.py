@@ -27,6 +27,7 @@ modules = [("backend", "tlm_adjoint_numpy"),
            ("base_equations", "tlm_adjoint"),
            ("numpy_equations", "tlm_adjoint_numpy"),
            ("alias", "tlm_adjoint"),
+           ("base_caches", "tlm_adjoint"),
            ("binomial_checkpointing", "tlm_adjoint"),
            ("functional", "tlm_adjoint"),
            ("hessian", "tlm_adjoint"),
@@ -59,10 +60,11 @@ del importlib, sys, modules, tlm_adjoint_module, module_name, package
 
 from .backend import backend      # noqa: E402,F401
 from .backend_interface import *  # noqa: E402,F401
+from .base_caches import *        # noqa: E402,F401
 from .base_equations import *     # noqa: E402,F401
 from .functional import *         # noqa: E402,F401
 from .hessian import *            # noqa: E402,F401
-from .interface import *           # noqa: E402,F401
+from .interface import *          # noqa: E402,F401
 from .manager import *            # noqa: E402,F401
 from .numpy_equations import *    # noqa: E402,F401
 from .optimization import *       # noqa: E402,F401

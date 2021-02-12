@@ -25,6 +25,7 @@ modules = [("backend", "tlm_adjoint_fenics"),
            ("functions", "tlm_adjoint"),
            ("interface", "tlm_adjoint"),
            ("backend_code_generator_interface", "tlm_adjoint_fenics"),
+           ("base_caches", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_fenics"),
            ("base_equations", "tlm_adjoint"),
@@ -68,6 +69,7 @@ from .backend import backend       # noqa: E402,F401
 from .backend_code_generator_interface import copy_parameters_dict  # noqa: E402,E501,F401
 from .backend_interface import *   # noqa: E402,F401
 from .backend_overrides import *   # noqa: E402,F401
+from .base_caches import *         # noqa: E402,F401
 from .base_equations import *      # noqa: E402,F401
 from .caches import *              # noqa: E402,F401
 from .eigendecomposition import *  # noqa: E402,F401

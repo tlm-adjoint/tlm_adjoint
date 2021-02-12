@@ -31,7 +31,6 @@ import warnings
 
 __all__ = \
     [
-        "clear_caches",
         "info",
 
         "Function",
@@ -315,10 +314,6 @@ def _new_real_function(name=None, comm=None, static=False, cache=None,
 
 
 add_new_real_function(backend, _new_real_function)
-
-
-def clear_caches(*deps):
-    pass
 
 
 def info(message):

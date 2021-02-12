@@ -30,7 +30,7 @@ from .interface import InterfaceException, SpaceInterface, \
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble
 
-from .caches import clear_caches, form_neg
+from .caches import form_neg
 from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
@@ -43,7 +43,6 @@ import warnings
 
 __all__ = \
     [
-        "clear_caches",
         "info",
 
         "Constant",
@@ -305,9 +304,6 @@ def _new_real_function(name=None, comm=None, static=False, cache=None,
 
 
 add_new_real_function(backend, _new_real_function)
-
-
-# def clear_caches(*deps):
 
 
 def info(message):

@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import function_id
-from .backend_interface import clear_caches
 
+from .base_caches import clear_caches
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import CheckpointStorage

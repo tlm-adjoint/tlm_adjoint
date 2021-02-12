@@ -25,9 +25,10 @@ from .interface import function_assign, function_comm, function_get_values, \
     is_function, is_real_function, real_function_value
 from .backend_code_generator_interface import assemble
 
+from .base_caches import Cache
 from .base_equations import Equation, EquationException, LinearEquation, \
     Matrix, MatrixActionRHS, NullSolver, get_tangent_linear
-from .caches import Cache, form_dependencies, form_key
+from .caches import form_dependencies, form_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
     unbound_form
 from .functions import eliminate_zeros
