@@ -25,6 +25,7 @@ from tlm_adjoint_fenics.backend import backend_Constant, backend_Function
 
 import copy
 import gc
+import logging
 import mpi4py.MPI as MPI
 import numpy as np
 import os
@@ -67,6 +68,8 @@ def setup_test():
     reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
+
+    logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     np.random.seed(14012313 + MPI.COMM_WORLD.rank)
 

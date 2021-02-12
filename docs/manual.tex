@@ -599,8 +599,6 @@ Keys for the \texttt{solver\_parameters} argument are based on the
     initial guess (default true).
   \item \texttt{adjoint\_nonzero\_initial\_guess}, a logical, whether to use a
     non-zero initial guess for an adjoint solve (default true).
-  \item \texttt{report}, a logical, whether to display output during fixed
-    point iteration (default false).
 \end{itemize}
 
 \subsection{Built-in \texttt{Equation} classes: FEniCS and Firedrake}
@@ -2180,8 +2178,6 @@ allocation). Keys for \texttt{cp\_parameters} for this method are
     checkpoints to store in memory (default $0$).
   \item \texttt{snaps\_on\_disk}, non-negative integer, the number of
     checkpoints to store on disk (default $0$).
-  \item \texttt{verbose}, logical, whether to enable increased verbosity
-    (default false).
 \end{itemize}
 The method name, and the latter three keys for \texttt{cp\_parameters}, are
 based upon the configuration of multistage checkpointing in dolfin-adjoint
@@ -2380,7 +2376,7 @@ def configure_checkpointing(cp_method, cp_parameters={}, manager=None):
 Calls \texttt{EquationManager.configure\_checkpointing}. See section
 \ref{sect:configure_checkpointing}.
 \begin{lstlisting}
-def manager_info(info=info, manager=None):
+def manager_info(info=print, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.info}. Displays information about the currently
 active equation manager, using the function \texttt{info} to display strings.

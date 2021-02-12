@@ -34,7 +34,7 @@ def test_long_range(setup_test, test_leaks):
     n_steps = 200
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 0,
-                             "snaps_in_ram": 2, "verbose": True})
+                             "snaps_in_ram": 2})
 
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
@@ -417,8 +417,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
         fp_eq = FixedPointSolver(
             [eq0, eq1],
             solver_parameters={"absolute_tolerance": 0.0,
-                               "relative_tolerance": 1.0e-14,
-                               "report": False})
+                               "relative_tolerance": 1.0e-14})
         fp_eq.solve()
 
         if forward_run:
@@ -556,7 +555,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 0,
-                             "snaps_in_ram": snaps_in_ram, "verbose": False})
+                             "snaps_in_ram": snaps_in_ram})
 
     def forward(m):
         for n in range(n_steps):

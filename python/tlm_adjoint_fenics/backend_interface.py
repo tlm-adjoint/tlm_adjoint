@@ -41,12 +41,11 @@ import warnings
 
 __all__ = \
     [
-        "info",
-
         "RealFunctionSpace",
         "default_comm",
         "function_space_id",
         "function_space_new",
+        "info",
         "warning"
     ]
 
@@ -274,9 +273,6 @@ def _new_real_function(name=None, comm=None, static=False, cache=None,
 add_new_real_function(backend, _new_real_function)
 
 
-# def info(message):
-
-
 def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, backend_Vector):
         y = (1.0, y)
@@ -369,7 +365,10 @@ def function_space_new(*args, **kwargs):
     return space_new(*args, **kwargs)
 
 
+# def info(message):
+
+
 def warning(message):
-    warnings.warn("warning is deprecated -- use warnings.warn instead",
+    warnings.warn("warning is deprecated -- use logging.warning instead",
                   DeprecationWarning, stacklevel=2)
     warnings.warn(message, RuntimeWarning)

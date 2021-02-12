@@ -20,7 +20,7 @@
 
 from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_Constant, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType
+    backend_ScalarType, info
 from .interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_interface, \
     add_new_real_function, add_subtract_adjoint_derivative_action, \
@@ -38,17 +38,15 @@ import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
-import sys
 import warnings
 
 __all__ = \
     [
-        "info",
-
         "RealFunctionSpace",
         "default_comm",
         "function_space_id",
         "function_space_new",
+        "info",
         "warning"
     ]
 
@@ -305,11 +303,6 @@ def _new_real_function(name=None, comm=None, static=False, cache=None,
 add_new_real_function(backend, _new_real_function)
 
 
-def info(message):
-    sys.stdout.write(f"{message:s}\n")
-    sys.stdout.flush()
-
-
 def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, ufl.classes.Form):
         if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
@@ -363,7 +356,10 @@ def function_space_new(*args, **kwargs):
     return space_new(*args, **kwargs)
 
 
+# def info(message):
+
+
 def warning(message):
-    warnings.warn("warning is deprecated -- use warnings.warn instead",
+    warnings.warn("warning is deprecated -- use logging.warning instead",
                   DeprecationWarning, stacklevel=2)
     warnings.warn(message, RuntimeWarning)

@@ -22,7 +22,7 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     LinearSolver, LinearVariationalProblem, LinearVariationalSolver, \
     NonlinearVariationalSolver, Parameters, Projector, Tensor, TestFunction, \
     TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
-    parameters, project, solve
+    info, parameters, project, solve
 import firedrake
 
 backend = "Firedrake"
@@ -74,5 +74,6 @@ __all__ = \
         "UnitIntervalMesh",
         "adjoint",
         "homogenize",
+        "info",
         "parameters"
     ]

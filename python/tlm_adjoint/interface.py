@@ -19,6 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 import copy
+import logging
+import sys
 import types
 
 __all__ = \
@@ -415,3 +417,10 @@ def add_finalize_adjoint_derivative_action(backend, fn):
 def finalize_adjoint_derivative_action(x):
     for fn in _finalize_adjoint_derivative_action.values():
         fn(x)
+
+
+_logger = logging.getLogger("tlm_adjoint")
+_handler = logging.StreamHandler(stream=sys.stdout)
+_handler.setFormatter(logging.Formatter(fmt="%(message)s"))
+_logger.addHandler(_handler)
+_logger.setLevel(logging.INFO)

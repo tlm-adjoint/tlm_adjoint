@@ -26,13 +26,10 @@ from .interface import FunctionInterface as _FunctionInterface
 import copy
 import mpi4py.MPI as MPI
 import numpy as np
-import sys
 import warnings
 
 __all__ = \
     [
-        "info",
-
         "Function",
         "FunctionSpace",
         "Replacement",
@@ -42,6 +39,7 @@ __all__ = \
         "default_comm",
         "function_space_id",
         "function_space_new",
+        "info",
         "warning"
     ]
 
@@ -322,11 +320,6 @@ def _new_real_function(name=None, comm=None, static=False, cache=None,
 add_new_real_function(backend, _new_real_function)
 
 
-def info(message):
-    sys.stdout.write(f"{message:s}\n")
-    sys.stdout.flush()
-
-
 def default_comm():
     warnings.warn("default_comm is deprecated -- "
                   "use mpi4py.MPI.COMM_WORLD instead",
@@ -353,8 +346,14 @@ def function_space_new(*args, **kwargs):
     return space_new(*args, **kwargs)
 
 
+def info(message):
+    warnings.warn("info is deprecated -- use print instead",
+                  DeprecationWarning, stacklevel=2)
+    print(message)
+
+
 def warning(message):
-    warnings.warn("warning is deprecated -- use warnings.warn instead",
+    warnings.warn("warning is deprecated -- use logging.warning instead",
                   DeprecationWarning, stacklevel=2)
     warnings.warn(message, RuntimeWarning)
 

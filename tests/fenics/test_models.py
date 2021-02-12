@@ -94,10 +94,10 @@ def diffusion_ref():
     [("memory", {"drop_references": True}),
      ("periodic_disk", {"period": 3, "format": "pickle"}),
      ("periodic_disk", {"period": 3, "format": "hdf5"}),
-     ("multistage", {"format": "pickle", "snaps_on_disk": 1, "snaps_in_ram": 2,
-                     "verbose": True}),
-     ("multistage", {"format": "hdf5", "snaps_on_disk": 1, "snaps_in_ram": 2,
-                     "verbose": True})])
+     ("multistage", {"format": "pickle", "snaps_on_disk": 1,
+                     "snaps_in_ram": 2}),
+     ("multistage", {"format": "hdf5", "snaps_on_disk": 1,
+                     "snaps_in_ram": 2})])
 def test_oscillator(setup_test, test_leaks,
                     cp_method, cp_parameters):
     n_steps = 20
@@ -179,7 +179,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
                                    n_steps):
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 2,
-                             "snaps_in_ram": 3, "verbose": True})
+                             "snaps_in_ram": 3})
 
     mesh = UnitIntervalMesh(100)
     X = SpatialCoordinate(mesh)
@@ -263,7 +263,7 @@ def test_diffusion_2d(setup_test, test_leaks):
     n_steps = 20
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 2,
-                             "snaps_in_ram": 3, "verbose": True})
+                             "snaps_in_ram": 3})
 
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
