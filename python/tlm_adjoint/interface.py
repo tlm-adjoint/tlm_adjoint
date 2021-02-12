@@ -46,6 +46,7 @@ __all__ = \
         "function_inner",
         "function_is_cached",
         "function_is_checkpointed",
+        "function_is_replacement",
         "function_is_static",
         "function_linf_norm",
         "function_local_indices",
@@ -133,7 +134,7 @@ class FunctionInterface:
              "_update_caches", "_zero", "_assign", "_axpy", "_inner",
              "_max_value", "_sum", "_linf_norm", "_local_size", "_global_size",
              "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_tangent_linear", "_replacement", "_is_real")
+             "_tangent_linear", "_replacement", "_is_replacement", "_is_real")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -217,6 +218,9 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _replacement(self):
+        raise InterfaceException("Method not overridden")
+
+    def _is_replacement(self):
         raise InterfaceException("Method not overridden")
 
     def _is_real(self):
@@ -345,6 +349,10 @@ def function_tangent_linear(x, name=None):
 
 def function_replacement(x):
     return x._tlm_adjoint__function_interface_replacement()
+
+
+def function_is_replacement(x):
+    return x._tlm_adjoint__function_interface_is_replacement()
 
 
 def is_real_function(x):

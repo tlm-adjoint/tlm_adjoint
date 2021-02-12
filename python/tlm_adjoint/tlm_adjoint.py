@@ -20,9 +20,10 @@
 
 from .interface import function_assign, function_copy, function_get_values, \
     function_global_size, function_id, function_is_checkpointed, \
-    function_local_indices, function_name, function_new, function_set_values, \
-    function_space, function_tangent_linear, is_function, space_id, space_new
-from .backend_interface import Replacement, info
+    function_is_replacement, function_local_indices, function_name, \
+    function_new, function_set_values, function_space, \
+    function_tangent_linear, is_function, space_id, space_new
+from .backend_interface import info
 
 from .alias import WeakAlias, gc_disabled
 from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
@@ -534,9 +535,8 @@ class EquationManager:
         cp_parameters  (Optional) Checkpointing parameters dictionary.
             Parameters for "memory" method
                 replace        Whether to automatically replace internal
-                               functions in the provided equations with
-                               Replacement objects. Logical, optional, default
-                               False.
+                               functions in the provided equations. Logical,
+                               optional, default False.
 
             Parameters for "periodic_disk" method
                 path           Directory in which disk checkpoint data should
@@ -641,7 +641,7 @@ class EquationManager:
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
-                          ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
+                          ", replaced" if function_is_replacement(dep) else "",
                           "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501

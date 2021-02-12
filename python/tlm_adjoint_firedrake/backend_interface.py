@@ -45,10 +45,6 @@ __all__ = \
     [
         "info",
 
-        "Constant",
-        "Function",
-        "Replacement",
-
         "RealFunctionSpace",
         "default_comm",
         "function_space_id",
@@ -283,6 +279,9 @@ class FunctionInterface(_FunctionInterface):
         if not hasattr(self, "_tlm_adjoint__replacement"):
             self._tlm_adjoint__replacement = Replacement(self)
         return self._tlm_adjoint__replacement
+
+    def _is_replacement(self):
+        return False
 
     def _is_real(self):
         return is_r0_function(self) and len(self.ufl_shape) == 0
