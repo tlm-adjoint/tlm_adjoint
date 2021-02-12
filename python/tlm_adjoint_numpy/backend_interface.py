@@ -18,8 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import _new_real_function, InterfaceException, \
-    SpaceInterface, add_interface, space_id, space_new
+from .backend import backend
+from .interface import InterfaceException, SpaceInterface, add_interface, \
+    add_new_real_function, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
@@ -31,9 +32,7 @@ import warnings
 __all__ = \
     [
         "clear_caches",
-        "finalize_adjoint_derivative_action",
         "info",
-        "subtract_adjoint_derivative_action",
 
         "Function",
         "FunctionSpace",
@@ -309,14 +308,13 @@ class Replacement:
         return self._checkpoint
 
 
-def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None):
+def _new_real_function(name=None, comm=None, static=False, cache=None,
+                       checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-if _new_real_function[0] is None:
-    _new_real_function[0] = new_real_function
+add_new_real_function(backend, _new_real_function)
 
 
 def clear_caches(*deps):
@@ -326,27 +324,6 @@ def clear_caches(*deps):
 def info(message):
     sys.stdout.write(f"{message:s}\n")
     sys.stdout.flush()
-
-
-def subtract_adjoint_derivative_action(x, y):
-    if y is None:
-        pass
-    elif isinstance(y, tuple):
-        alpha, y = y
-        if isinstance(y, Function):
-            y = y.vector()
-        if alpha == 1.0:
-            x.vector()[:] -= y
-        else:
-            x.vector()[:] -= alpha * y
-    else:
-        if isinstance(y, Function):
-            y = y.vector()
-        x.vector()[:] -= y
-
-
-def finalize_adjoint_derivative_action(x):
-    pass
 
 
 def default_comm():

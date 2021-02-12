@@ -65,7 +65,10 @@ __all__ = \
 
         "is_real_function",
         "new_real_function",
-        "real_function_value"
+        "real_function_value",
+
+        "subtract_adjoint_derivative_action",
+        "finalize_adjoint_derivative_action"
     ]
 
 
@@ -348,18 +351,59 @@ def is_real_function(x):
     return x._tlm_adjoint__function_interface_is_real()
 
 
-_new_real_function = [None]
+_new_real_function = {}
+
+
+def add_new_real_function(backend, fn):
+    _new_real_function[backend] = fn
 
 
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
-    if _new_real_function[0] is None:
-        raise InterfaceException("No backend")
-    return _new_real_function[0](name=name, comm=comm, static=static,
-                                 cache=cache, checkpoint=checkpoint)
+    new_real_function = tuple(_new_real_function.values())[0]
+    return new_real_function(name=name, comm=comm, static=static, cache=cache,
+                             checkpoint=checkpoint)
 
 
 def real_function_value(x):
     if not is_real_function(x):
         raise InterfaceException("Invalid function")
     return function_max_value(x)
+
+
+_subtract_adjoint_derivative_action = {}
+
+
+def add_subtract_adjoint_derivative_action(backend, fn):
+    _subtract_adjoint_derivative_action[backend] = fn
+
+
+def subtract_adjoint_derivative_action(x, y):
+    if y is None:
+        pass
+    elif is_function(y):
+        function_axpy(x, -1.0, y)
+    elif isinstance(y, tuple) \
+            and len(y) == 2 \
+            and isinstance(y[0], (int, float)) \
+            and is_function(y[1]):
+        function_axpy(x, -float(y[0]), y[1])
+    else:
+        for fn in _subtract_adjoint_derivative_action.values():
+            if fn(x, y) != NotImplemented:
+                break
+        else:
+            raise InterfaceException("Unexpected case encountered in "
+                                     "subtract_adjoint_derivative_action")
+
+
+_finalize_adjoint_derivative_action = {}
+
+
+def add_finalize_adjoint_derivative_action(backend, fn):
+    _finalize_adjoint_derivative_action[backend] = fn
+
+
+def finalize_adjoint_derivative_action(x):
+    for fn in _finalize_adjoint_derivative_action.values():
+        fn(x)

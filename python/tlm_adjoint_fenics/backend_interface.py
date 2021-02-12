@@ -18,13 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import FunctionSpace, UnitIntervalMesh, backend_Constant, \
-    backend_Function, backend_FunctionSpace, backend_ScalarType, \
-    backend_Vector, info
-from .interface import _new_real_function, InterfaceException, \
-    SpaceInterface, add_interface, function_axpy, function_caches, \
-    function_copy, function_is_cached, function_is_checkpointed, \
-    function_is_static, function_new, space_id, space_new
+from .backend import FunctionSpace, UnitIntervalMesh, backend, \
+    backend_Constant, backend_Function, backend_FunctionSpace, \
+    backend_ScalarType, backend_Vector, info
+from .interface import InterfaceException, SpaceInterface, \
+    add_finalize_adjoint_derivative_action, add_interface, \
+    add_new_real_function, add_subtract_adjoint_derivative_action, \
+    function_caches, function_copy, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_new, space_id, \
+    space_new, subtract_adjoint_derivative_action
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, r0_space
 
@@ -40,9 +42,7 @@ import warnings
 __all__ = \
     [
         "clear_caches",
-        "finalize_adjoint_derivative_action",
         "info",
-        "subtract_adjoint_derivative_action",
 
         "Constant",
         "Function",
@@ -267,14 +267,13 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None):
+def _new_real_function(name=None, comm=None, static=False, cache=None,
+                       checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-if _new_real_function[0] is None:
-    _new_real_function[0] = new_real_function
+add_new_real_function(backend, _new_real_function)
 
 
 # def clear_caches(*deps):
@@ -283,60 +282,70 @@ if _new_real_function[0] is None:
 # def info(message):
 
 
-def subtract_adjoint_derivative_action(x, y):
-    if y is None:
-        pass
-    elif isinstance(y, ufl.classes.Form):
-        if hasattr(x, "_tlm_adjoint__adj_b"):
-            x._tlm_adjoint__adj_b += form_neg(y)
+def _subtract_adjoint_derivative_action(x, y):
+    if isinstance(y, backend_Vector):
+        y = (1.0, y)
+    if isinstance(y, ufl.classes.Form):
+        if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
+            x._tlm_adjoint__fenics_adj_b += form_neg(y)
         else:
-            x._tlm_adjoint__adj_b = form_neg(y)
-    else:
-        if isinstance(y, tuple):
-            alpha, y = y
-        else:
-            alpha = 1.0
-        if isinstance(y, backend_Vector):
-            if isinstance(x, backend_Constant):
-                if len(x.ufl_shape) == 0:
-                    # annotate=False, tlm=False
-                    x.assign(float(x) - alpha * y.max())
-                else:
-                    y_fn = Function(r0_space(x))
-
-                    # Ordering check
-                    check_values = np.arange(np.prod(x.ufl_shape),
-                                             dtype=np.float64)
-                    # annotate=False, tlm=False
-                    y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
-                    for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                        assert y_fn_c.vector().max() == check_values[i]
-                    y_fn.vector().zero()
-
-                    value = x.values()
-                    y_fn.vector().axpy(1.0, y)
-                    for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                        value[i] -= alpha * y_fn_c.vector().max()
-                    value.shape = x.ufl_shape
-                    # annotate=False, tlm=False
-                    x.assign(backend_Constant(value))
-            else:
-                if x.vector().local_size() != y.local_size():
-                    raise InterfaceException("Invalid function space")
-                x.vector().axpy(-alpha, y)
-        else:
-            function_axpy(x, -alpha, y)
-
-
-def finalize_adjoint_derivative_action(x):
-    if hasattr(x, "_tlm_adjoint__adj_b"):
+            x._tlm_adjoint__fenics_adj_b = form_neg(y)
+    elif isinstance(y, tuple) \
+            and len(y) == 2 \
+            and isinstance(y[0], (int, float)) \
+            and isinstance(y[1], backend_Vector):
+        alpha, y = y
+        alpha = float(alpha)
         if isinstance(x, backend_Constant):
-            y = assemble(x._tlm_adjoint__adj_b)
+            if len(x.ufl_shape) == 0:
+                # annotate=False, tlm=False
+                x.assign(float(x) - alpha * y.max())
+            else:
+                y_fn = Function(r0_space(x))
+
+                # Ordering check
+                check_values = np.arange(np.prod(x.ufl_shape),
+                                         dtype=np.float64)
+                # annotate=False, tlm=False
+                y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
+                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+                    assert y_fn_c.vector().max() == check_values[i]
+                y_fn.vector().zero()
+
+                value = x.values()
+                y_fn.vector().axpy(1.0, y)
+                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+                    value[i] -= alpha * y_fn_c.vector().max()
+                value.shape = x.ufl_shape
+                # annotate=False, tlm=False
+                x.assign(backend_Constant(value))
+        elif isinstance(x, backend_Function):
+            if x.vector().local_size() != y.local_size():
+                raise InterfaceException("Invalid function space")
+            x.vector().axpy(-alpha, y)
+        else:
+            return NotImplemented
+    else:
+        return NotImplemented
+
+
+add_subtract_adjoint_derivative_action(backend,
+                                       _subtract_adjoint_derivative_action)
+
+
+def _finalize_adjoint_derivative_action(x):
+    if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
+        if isinstance(x, backend_Constant):
+            y = assemble(x._tlm_adjoint__fenics_adj_b)
             subtract_adjoint_derivative_action(x, (-1.0, y))
         else:
-            assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
+            assemble(x._tlm_adjoint__fenics_adj_b, tensor=x.vector(),
                      add_values=True)
-        delattr(x, "_tlm_adjoint__adj_b")
+        delattr(x, "_tlm_adjoint__fenics_adj_b")
+
+
+add_finalize_adjoint_derivative_action(backend,
+                                       _finalize_adjoint_derivative_action)
 
 
 def default_comm():
