@@ -18,12 +18,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .functions import ConstantInterface, ConstantSpaceInterface, \
-    eliminate_zeros, new_count
+from .backend import FunctionSpace, Parameters, backend_Constant, \
+    backend_DirichletBC, backend_Function, backend_LinearSolver, \
+    backend_Matrix, backend_ScalarType, backend_assemble, backend_solve, \
+    extract_args, homogenize, parameters
 from .interface import InterfaceException, add_interface, function_axpy, \
     function_copy
 
+from .functions import ConstantInterface, ConstantSpaceInterface, \
+    eliminate_zeros, new_count
+
+from collections.abc import Iterable
 import copy
 import mpi4py.MPI as MPI
 import numpy as np
@@ -86,13 +91,14 @@ del _parameters
 
 
 def copy_parameters_dict(parameters):
-    parameters_copy = parameters.copy()
+    new_parameters = parameters.copy()
     for key, value in parameters.items():
         if isinstance(value, (Parameters, dict)):
-            parameters_copy[key] = copy_parameters_dict(value)
-        elif isinstance(value, list):
-            parameters_copy[key] = list(value)
-    return parameters_copy
+            value = copy_parameters_dict(value)
+        elif isinstance(value, Iterable):
+            value = copy.copy(value)  # shallow copy only
+        new_parameters[key] = value
+    return new_parameters
 
 
 def update_parameters_dict(parameters, new_parameters):

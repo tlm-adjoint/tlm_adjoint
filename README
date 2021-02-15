@@ -22,7 +22,8 @@ master branch.
 Together with the backend libraries, tlm_adjoint requires
 
     NumPy
-    mpi4py and petsc4py (FEniCS or Firedrake backends)
+    mpi4py
+    petsc4py (FEniCS or Firedrake backends)
 
 tlm_adjoint optionally requires
 

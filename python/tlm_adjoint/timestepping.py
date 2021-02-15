@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_id, is_function, space_new
 
 from .alias import Alias
 from .base_equations import AssignmentSolver, Equation
@@ -161,11 +161,11 @@ class TimeLevels:
 
 
 class TimeFunction:
-    def __init__(self, levels, *args, cls=Function, **kwargs):
+    def __init__(self, levels, space, name=None):
         # Note that this keeps references to the functions on each time level
         self._fns = {}
         for level in levels:
-            fn = cls(*args, **kwargs)
+            fn = space_new(space, name=name)
             fn._tlm_adjoint__tfn = self
             fn._tlm_adjoint__level = level
             self._fns[level] = fn

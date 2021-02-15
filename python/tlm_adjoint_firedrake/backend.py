@@ -18,7 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from firedrake import *
+from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
+    LinearSolver, LinearVariationalProblem, LinearVariationalSolver, \
+    NonlinearVariationalSolver, Parameters, Projector, Tensor, TestFunction, \
+    TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
+    info, parameters, project, solve
 import firedrake
 
 backend = "Firedrake"
@@ -70,5 +74,6 @@ __all__ = \
         "UnitIntervalMesh",
         "adjoint",
         "homogenize",
+        "info",
         "parameters"
     ]

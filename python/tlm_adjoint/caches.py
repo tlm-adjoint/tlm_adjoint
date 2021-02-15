@@ -18,24 +18,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_code_generator_interface import *
-from .interface import *
+from .backend import TrialFunction, backend_Function
+from .interface import function_id, function_is_cached, function_space, \
+    is_function
+from .backend_code_generator_interface import assemble, assemble_arguments, \
+    assemble_matrix, linear_solver, matrix_copy, parameters_key
 
-from .alias import gc_disabled
-from .functions import eliminate_zeros, function_caches, replaced_form
+from .base_caches import Cache, CacheException
+from .functions import eliminate_zeros, replaced_form
 
 from collections import defaultdict
 import ufl
 import warnings
-import weakref
 
 __all__ = \
     [
         "AssemblyCache",
-        "Cache",
-        "CacheException",
-        "CacheRef",
         "LinearSolverCache",
         "assembly_cache",
         "form_dependencies",
@@ -47,10 +45,6 @@ __all__ = \
         "set_linear_solver_cache",
         "split_form"
     ]
-
-
-class CacheException(Exception):
-    pass
 
 
 def is_cached(e):
@@ -232,145 +226,6 @@ def split_form(form):
     non_cached_forms = ufl.classes.Form(non_cached_integrals)
 
     return cached_form, mat_forms, non_cached_forms
-
-
-class CacheRef:
-    def __init__(self, value=None):
-        self._value = value
-
-    def __call__(self):
-        return self._value
-
-    def _clear(self):
-        self._value = None
-
-
-@gc_disabled
-def clear_caches(*deps):
-    if len(deps) == 0:
-        for cache in tuple(Cache._caches.valuerefs()):
-            cache = cache()
-            if cache is not None:
-                cache.clear()
-    else:
-        for dep in deps:
-            function_caches(dep).clear()
-
-
-class Cache:
-    _id_counter = [0]
-    _caches = weakref.WeakValueDictionary()
-
-    def __init__(self):
-        self._cache = {}
-        self._deps_map = {}
-        self._dep_caches = {}
-
-        self._id = self._id_counter[0]
-        self._id_counter[0] += 1
-        self._caches[self._id] = self
-
-    def __del__(self):
-        for value in self._cache.values():
-            value._clear()
-
-    def __len__(self):
-        return len(self._cache)
-
-    def id(self):
-        return self._id
-
-    def clear(self, *deps):
-        if len(deps) == 0:
-            for value in self._cache.values():
-                value._clear()
-            self._cache.clear()
-            self._deps_map.clear()
-            for dep_caches in self._dep_caches.values():
-                dep_caches = dep_caches()
-                if dep_caches is not None:
-                    dep_caches.remove(self)
-            self._dep_caches.clear()
-        else:
-            for dep in deps:
-                dep_id = dep if isinstance(dep, int) else function_id(dep)
-                del dep
-                if dep_id in self._deps_map:
-                    # We keep a record of:
-                    #   - Cache entries associated with each dependency. The
-                    #     cache keys are in self._deps_map[dep_id].keys(), and
-                    #     the cache entries in self._cache[key].
-                    #   - Dependencies associated with each cache entry. The
-                    #     dependency ids are in self._deps_map[dep_id2][key]
-                    #     for *each* dependency associated with the cache
-                    #     entry.
-                    #   - The caches in which dependencies have an associated
-                    #     cache entry. A (weak) reference to the caches is in
-                    #     self._dep_caches[dep_id2].
-                    # To remove a cache item associated with a dependency with
-                    # dependency id dep_id we
-                    #   1. Clear the cache entries associated with the
-                    #      dependency. These are given by self._cache[key] for
-                    #      each key in self._deps_map[dep_id].keys().
-                    #   2. Remove the dependency ids associated with each cache
-                    #      entry. These are given by
-                    #      self._deps_map[dep_id2][key] for each dep_id2 in
-                    #      self._deps_map[dep_id][key].
-                    #  3.  Remove the (weak) reference to this cache for each
-                    #      dependency with no further associated cache entries
-                    #      in this cache.
-                    for key, dep_ids in self._deps_map[dep_id].items():
-                        # Step 1.
-                        self._cache[key]._clear()
-                        del self._cache[key]
-                        for dep_id2 in dep_ids:
-                            if dep_id2 != dep_id:
-                                # Step 2.
-                                del self._deps_map[dep_id2][key]
-                                if len(self._deps_map[dep_id2]) == 0:
-                                    del self._deps_map[dep_id2]
-                                    dep_caches = self._dep_caches[dep_id2]()
-                                    if dep_caches is not None:
-                                        # Step 3.
-                                        dep_caches.remove(self)
-                                    del self._dep_caches[dep_id2]
-                    # Step 2.
-                    del self._deps_map[dep_id]
-                    dep_caches = self._dep_caches[dep_id]()
-                    if dep_caches is not None:
-                        # Step 3.
-                        dep_caches.remove(self)
-                    del self._dep_caches[dep_id]
-
-    def add(self, key, value, deps=[]):
-        if key in self._cache:
-            value_ref = self._cache[key]
-            value = value_ref()
-            if value is None:
-                raise CacheException("Unexpected cache value state")
-            return value_ref, value
-
-        value = value()
-        value_ref = CacheRef(value)
-        dep_ids = tuple(function_id(dep) for dep in deps)
-
-        self._cache[key] = value_ref
-
-        for dep, dep_id in zip(deps, dep_ids):
-            dep_caches = function_caches(dep)
-            dep_caches.add(self)
-
-            if dep_id in self._deps_map:
-                self._deps_map[dep_id][key] = dep_ids
-                assert dep_id in self._dep_caches
-            else:
-                self._deps_map[dep_id] = {key: dep_ids}
-                self._dep_caches[dep_id] = weakref.ref(dep_caches)
-
-        return value_ref, value
-
-    def get(self, key, default=None):
-        return self._cache.get(key, default)
 
 
 def form_dependencies(form):

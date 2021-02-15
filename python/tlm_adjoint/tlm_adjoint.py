@@ -18,7 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_assign, function_copy, function_get_values, \
+    function_global_size, function_id, function_is_checkpointed, \
+    function_is_replacement, function_local_indices, function_name, \
+    function_new, function_set_values, function_space, \
+    function_tangent_linear, is_function, space_id, space_new
 
 from .alias import WeakAlias, gc_disabled
 from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
@@ -30,6 +34,8 @@ from .manager import manager as _manager, set_manager
 from collections import OrderedDict, defaultdict, deque
 import copy
 import gc
+import logging
+import mpi4py.MPI as MPI
 import numpy as np
 import pickle
 import os
@@ -504,7 +510,7 @@ class EquationManager:
         Manager for tangent-linear and adjoint models.
 
         Arguments:
-        comm  (Optional) Communicator. Default default_comm().
+        comm  (Optional) Communicator. Default mpi4py.MPI.COMM_WORLD.
 
         cp_method  (Optional) Checkpointing method. Default "memory".
             Possible methods
@@ -529,9 +535,8 @@ class EquationManager:
         cp_parameters  (Optional) Checkpointing parameters dictionary.
             Parameters for "memory" method
                 replace        Whether to automatically replace internal
-                               functions in the provided equations with
-                               Replacement objects. Logical, optional, default
-                               False.
+                               functions in the provided equations. Logical,
+                               optional, default False.
 
             Parameters for "periodic_disk" method
                 path           Directory in which disk checkpoint data should
@@ -554,15 +559,13 @@ class EquationManager:
                                integer, optional, default 0.
                 snaps_on_disk  Number of "snaps" to store on disk. Non-negative
                                integer, optional, default 0.
-                verbose        Whether to enable increased verbosity. Logical,
-                               optional, default False.
         """
-        # "multistage" name, and "snaps_in_ram", "snaps_on_disk" and "verbose"
-        # in "multistage" method, are similar to adj_checkpointing arguments in
+        # "multistage" name, and "snaps_in_ram", and "snaps_on_disk" in
+        # "multistage" method, are similar to adj_checkpointing arguments in
         # dolfin-adjoint 2017.1.0
 
         if comm is None:
-            comm = default_comm()
+            comm = MPI.COMM_WORLD
         comm = comm.Dup()
 
         self._comm = comm
@@ -601,7 +604,7 @@ class EquationManager:
     def comm(self):
         return self._comm
 
-    def info(self, info=info):
+    def info(self, info=print):
         """
         Display information about the equation manager state.
 
@@ -636,7 +639,7 @@ class EquationManager:
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
-                          ", replaced" if isinstance(dep, Replacement) else "",  # noqa: E501
+                          ", replaced" if function_is_replacement(dep) else "",
                           "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
@@ -704,7 +707,7 @@ class EquationManager:
         if self._annotation_state not in ["initial", "stopped_initial"]:
             raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalization")  # noqa: E501
 
-        cp_parameters = copy_parameters_dict(cp_parameters)
+        cp_parameters = copy.deepcopy(cp_parameters)
 
         if cp_method == "memory":
             disk_storage = False
@@ -744,7 +747,6 @@ class EquationManager:
             cp_blocks = cp_parameters["blocks"]
             cp_parameters["snaps_in_ram"] = cp_snaps_in_ram = cp_parameters.get("snaps_in_ram", 0)  # noqa: E501
             cp_parameters["snaps_on_disk"] = cp_snaps_on_disk = cp_parameters.get("snaps_on_disk", 0)  # noqa: E501
-            cp_parameters["verbose"] = cp_parameters.get("verbose", False)
 
             cp_manager = MultistageManager(cp_blocks,
                                            cp_snaps_in_ram, cp_snaps_on_disk)
@@ -759,22 +761,20 @@ class EquationManager:
         self._cp_disk = {}
 
         if cp_method == "multistage":
-            def debug_info(message):
-                if self._cp_parameters["verbose"]:
-                    info(message)
+            logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
             if self._cp_manager.max_n() == 1:
-                debug_info("forward: configuring storage for reverse")
+                logger.debug("forward: configuring storage for reverse")
                 self._cp = CheckpointStorage(store_ics=True,
                                              store_data=True)
             else:
-                debug_info("forward: configuring storage for snapshot")
+                logger.debug("forward: configuring storage for snapshot")
                 self._cp = CheckpointStorage(store_ics=True,
                                              store_data=False)
-                debug_info(f"forward: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
+                logger.debug(f"forward: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
                 self._cp_manager.snapshot()
             self._cp_manager.forward()
-            debug_info(f"forward: forward advance to {self._cp_manager.n():d}")
+            logger.debug(f"forward: forward advance to {self._cp_manager.n():d}")  # noqa: E501
         else:
             self._cp = CheckpointStorage(store_ics=True,
                                          store_data=cp_method == "memory")
@@ -1204,30 +1204,26 @@ class EquationManager:
                                store_data=False)
 
     def _save_multistage_checkpoint(self):
-        def debug_info(message):
-            if self._cp_parameters["verbose"]:
-                info(message)
+        logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
         deferred_snapshot = self._cp_manager.deferred_snapshot()
         if deferred_snapshot is not None:
             snapshot_n, snapshot_storage = deferred_snapshot
             if snapshot_storage == "disk":
                 if self._cp_manager.r() == 0:
-                    debug_info(f"forward: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
+                    logger.debug(f"forward: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
                 else:
-                    debug_info(f"reverse: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
+                    logger.debug(f"reverse: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
                 self._save_disk_checkpoint(self._cp, snapshot_n)
             else:
                 if self._cp_manager.r() == 0:
-                    debug_info(f"forward: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
+                    logger.debug(f"forward: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
                 else:
-                    debug_info(f"reverse: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
+                    logger.debug(f"reverse: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
                 self._save_memory_checkpoint(self._cp, snapshot_n)
 
     def _multistage_checkpoint(self):
-        def debug_info(message):
-            if self._cp_parameters["verbose"]:
-                info(message)
+        logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
         n = len(self._blocks)
         if n < self._cp_manager.n():
@@ -1240,17 +1236,17 @@ class EquationManager:
         self._save_multistage_checkpoint()
         self._cp.clear()
         if n == self._cp_manager.max_n() - 1:
-            debug_info("forward: configuring storage for reverse")
+            logger.debug("forward: configuring storage for reverse")
             self._cp.configure(store_ics=False,
                                store_data=True)
         else:
-            debug_info("forward: configuring storage for snapshot")
+            logger.debug("forward: configuring storage for snapshot")
             self._cp.configure(store_ics=True,
                                store_data=False)
-            debug_info(f"forward: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
+            logger.debug(f"forward: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
             self._cp_manager.snapshot()
         self._cp_manager.forward()
-        debug_info(f"forward: forward advance to {self._cp_manager.n():d}")
+        logger.debug(f"forward: forward advance to {self._cp_manager.n():d}")
 
     def _restore_checkpoint(self, n):
         if self._cp_method == "memory":
@@ -1292,16 +1288,14 @@ class EquationManager:
                     self._cp_manager.add(n1)
                 assert len(storage) == 0
         elif self._cp_method == "multistage":
-            def debug_info(message):
-                if self._cp_parameters["verbose"]:
-                    info(message)
+            logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
             if n == 0 and self._cp_manager.max_n() - self._cp_manager.r() == 0:
                 return
             if n != self._cp_manager.max_n() - self._cp_manager.r() - 1:
                 raise ManagerException("Invalid checkpointing state")
             if n == self._cp_manager.max_n() - 1:
-                debug_info(f"reverse: adjoint step back to {n:d}")
+                logger.debug(f"reverse: adjoint step back to {n:d}")
                 assert n + 1 == self._cp_manager.n()
                 assert self._cp_manager.r() == 0
                 self._cp_manager.reverse()
@@ -1317,33 +1311,33 @@ class EquationManager:
                                                        copy=False),
                            copy=False)
             if snapshot_storage == "disk":
-                debug_info(f'reverse: load snapshot at {snapshot_n:d} from disk and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
+                logger.debug(f'reverse: load snapshot at {snapshot_n:d} from disk and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
                 self._load_disk_checkpoint(storage, snapshot_n,
                                            delete=snapshot_delete)
             else:
-                debug_info(f'reverse: load snapshot at {snapshot_n:d} from RAM and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
+                logger.debug(f'reverse: load snapshot at {snapshot_n:d} from RAM and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
                 self._load_memory_checkpoint(storage, snapshot_n,
                                              delete=snapshot_delete)
 
             if snapshot_n < n:
-                debug_info("reverse: no storage")
+                logger.debug("reverse: no storage")
                 self._cp.configure(store_ics=False,
                                    store_data=False)
 
             snapshot_n_0 = snapshot_n
             while True:
                 if snapshot_n == n:
-                    debug_info("reverse: configuring storage for reverse")
+                    logger.debug("reverse: configuring storage for reverse")
                     self._cp.configure(store_ics=n == 0,
                                        store_data=True)
                 elif snapshot_n > snapshot_n_0:
-                    debug_info("reverse: configuring storage for snapshot")
+                    logger.debug("reverse: configuring storage for snapshot")
                     self._cp .configure(store_ics=True,
                                         store_data=False)
-                    debug_info(f"reverse: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
+                    logger.debug(f"reverse: deferred snapshot at {self._cp_manager.n():d}")  # noqa: E501
                     self._cp_manager.snapshot()
                 self._cp_manager.forward()
-                debug_info(f"reverse: forward advance to {self._cp_manager.n():d}")  # noqa: E501
+                logger.debug(f"reverse: forward advance to {self._cp_manager.n():d}")  # noqa: E501
                 for n1 in range(snapshot_n, self._cp_manager.n()):
                     for i, eq in enumerate(self._blocks[n1]):
                         eq_deps = eq.dependencies()
@@ -1366,7 +1360,7 @@ class EquationManager:
                 self._cp.clear()
             assert len(storage) == 0
 
-            debug_info(f"reverse: adjoint step back to {n:d}")
+            logger.debug(f"reverse: adjoint step back to {n:d}")
             assert n + 1 == self._cp_manager.n()
             self._cp_manager.reverse()
             assert n == self._cp_manager.max_n() - self._cp_manager.r()
@@ -1671,7 +1665,7 @@ def configure_checkpointing(cp_method, cp_parameters={}, manager=None):
     manager.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
 
-def manager_info(info=info, manager=None):
+def manager_info(info=print, manager=None):
     if manager is None:
         manager = _manager()
     manager.info(info=info)

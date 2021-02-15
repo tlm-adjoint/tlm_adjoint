@@ -18,11 +18,20 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .functions import ConstantInterface, ConstantSpaceInterface, \
-    eliminate_zeros, new_count
+from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
+    TestFunction, TrialFunction, as_backend_type, backend_Constant, \
+    backend_DirichletBC, backend_KrylovSolver, backend_LUSolver, \
+    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
+    backend_assemble, backend_assemble_system, backend_solve, \
+    cpp_LinearVariationalProblem, cpp_NonlinearVariationalProblem, \
+    extract_args, has_lu_solver_method, parameters
 from .interface import InterfaceException, add_interface
 
+from .functions import ConstantInterface, ConstantSpaceInterface, \
+    eliminate_zeros, new_count
+
+from collections.abc import Iterable
+import copy
 import ffc
 import mpi4py.MPI as MPI
 import numpy as np
@@ -87,15 +96,16 @@ del _parameters
 
 
 def copy_parameters_dict(parameters):
+    if isinstance(parameters, Parameters):
+        parameters = parameters.copy()
     new_parameters = {}
     for key in parameters:
         value = parameters[key]
         if isinstance(value, (Parameters, dict)):
-            new_parameters[key] = copy_parameters_dict(value)
-        elif isinstance(value, list):
-            new_parameters[key] = list(value)
-        else:
-            new_parameters[key] = value
+            value = copy_parameters_dict(value)
+        elif isinstance(value, Iterable):
+            value = copy.copy(value)  # shallow copy only
+        new_parameters[key] = value
     return new_parameters
 
 

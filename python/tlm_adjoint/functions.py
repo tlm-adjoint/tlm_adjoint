@@ -18,8 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .interface import *
+from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
+    backend_ScalarType
+from .interface import InterfaceException, SpaceInterface, function_caches, \
+    function_comm, function_id, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_name, function_new, function_replacement, \
+    function_space, function_state, add_interface, is_function, space_comm, \
+    space_new
 from .interface import FunctionInterface as _FunctionInterface
 
 from .alias import gc_disabled
@@ -303,6 +308,12 @@ class ConstantInterface(_FunctionInterface):
             self._tlm_adjoint__replacement = \
                 Replacement(self, space=None)
         return self._tlm_adjoint__replacement
+
+    def _is_replacement(self):
+        return False
+
+    def _is_real(self):
+        return is_r0_function(self) and len(self.ufl_shape) == 0
 
 
 class Constant(backend_Constant):
@@ -609,6 +620,12 @@ class ReplacementInterface(_FunctionInterface):
 
     def _replacement(self):
         return self
+
+    def _is_replacement(self):
+        return True
+
+    def _is_real(self):
+        return is_r0_function(self) and len(self.ufl_shape) == 0
 
 
 class Replacement(ufl.classes.Coefficient):

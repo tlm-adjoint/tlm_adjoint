@@ -18,116 +18,35 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import *
+from .backend import backend
+from .interface import InterfaceException, SpaceInterface, add_interface, \
+    add_new_real_function, space_id, space_new
 from .interface import FunctionInterface as _FunctionInterface
 
 import copy
+import mpi4py.MPI as MPI
 import numpy as np
-import sys
 import warnings
 
 __all__ = \
     [
-        "InterfaceException",
-
-        "is_space",
-        "space_comm",
-        "space_id",
-        "space_new",
-
-        "is_function",
-        "function_assign",
-        "function_axpy",
-        "function_caches",
-        "function_comm",
-        "function_copy",
-        "function_get_values",
-        "function_global_size",
-        "function_id",
-        "function_inner",
-        "function_is_cached",
-        "function_is_checkpointed",
-        "function_is_static",
-        "function_linf_norm",
-        "function_local_indices",
-        "function_local_size",
-        "function_max_value",
-        "function_name",
-        "function_new",
-        "function_replacement",
-        "function_set_values",
-        "function_space",
-        "function_state",
-        "function_sum",
-        "function_tangent_linear",
-        "function_update_caches",
-        "function_update_state",
-        "function_zero",
-
-        "is_real_function",
-        "new_real_function",
-        "real_function_value",
-
-        "clear_caches",
-        "copy_parameters_dict",
-        "default_comm",
-        "finalize_adjoint_derivative_action",
-        "info",
-        "subtract_adjoint_derivative_action",
-
         "Function",
         "FunctionSpace",
         "Replacement",
 
         "RealFunctionSpace",
+        "copy_parameters_dict",
+        "default_comm",
         "function_space_id",
         "function_space_new",
+        "info",
         "warning"
     ]
 
 
-class SerialComm:
-    def Dup(self):
-        return SerialComm()
-
-    def Free(self):
-        pass
-
-    # Interface as in mpi4py 3.0.1
-    def allgather(self, sendobj):
-        v = sendobj.view()
-        v.setflags(write=False)
-        return (v,)
-
-    def barrier(self):
-        pass
-
-    # Interface as in mpi4py 3.0.1
-    def bcast(self, obj, root=0):
-        return copy.deepcopy(obj)
-
-    def py2f(self):
-        return 0
-
-    @property
-    def rank(self):
-        return 0
-
-    @property
-    def size(self):
-        return 1
-
-
-_comm = SerialComm()
-
-
-def default_comm():
-    return _comm
-
-
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        return _comm
+        return self._comm
 
     def _id(self):
         return self.dim()
@@ -139,6 +58,11 @@ class FunctionSpaceInterface(SpaceInterface):
 
 class FunctionSpace:
     def __init__(self, dim):
+        comm = MPI.COMM_WORLD
+        if comm.size > 1:
+            raise InterfaceException("Serial only")
+
+        self._comm = comm
         self._dim = dim
         add_interface(self, FunctionSpaceInterface)
 
@@ -148,7 +72,7 @@ class FunctionSpace:
 
 class FunctionInterface(_FunctionInterface):
     def _comm(self):
-        return _comm
+        return self.space().comm()
 
     def _space(self):
         return self.space()
@@ -238,6 +162,12 @@ class FunctionInterface(_FunctionInterface):
 
     def _replacement(self):
         return self.replacement()
+
+    def _is_replacement(self):
+        return False
+
+    def _is_real(self):
+        return self.space().dim() == 1
 
 
 class Function:
@@ -345,6 +275,12 @@ class ReplacementInterface(_FunctionInterface):
     def _replacement(self):
         return self
 
+    def _is_replacement(self):
+        return True
+
+    def _is_real(self):
+        return self.space().dim() == 1
+
 
 class Replacement:
     def __init__(self, x):
@@ -375,54 +311,20 @@ class Replacement:
         return self._checkpoint
 
 
-def is_real_function(x):
-    return is_function(x) and x.space().dim() == 1
-
-
-def new_real_function(name=None, comm=None, static=False, cache=None,
-                      checkpoint=None):
+def _new_real_function(name=None, comm=None, static=False, cache=None,
+                       checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-def real_function_value(x):
-    assert is_real_function(x)
-    value, = x.vector()
-    return value
+add_new_real_function(backend, _new_real_function)
 
 
-def clear_caches(*deps):
-    pass
-
-
-def info(message):
-    sys.stdout.write(f"{message:s}\n")
-    sys.stdout.flush()
-
-
-def copy_parameters_dict(parameters):
-    return copy.deepcopy(parameters)
-
-
-def subtract_adjoint_derivative_action(x, y):
-    if y is None:
-        pass
-    elif isinstance(y, tuple):
-        alpha, y = y
-        if isinstance(y, Function):
-            y = y.vector()
-        if alpha == 1.0:
-            x.vector()[:] -= y
-        else:
-            x.vector()[:] -= alpha * y
-    else:
-        if isinstance(y, Function):
-            y = y.vector()
-        x.vector()[:] -= y
-
-
-def finalize_adjoint_derivative_action(x):
-    pass
+def default_comm():
+    warnings.warn("default_comm is deprecated -- "
+                  "use mpi4py.MPI.COMM_WORLD instead",
+                  DeprecationWarning, stacklevel=2)
+    return MPI.COMM_WORLD
 
 
 def RealFunctionSpace(comm=None):
@@ -444,7 +346,20 @@ def function_space_new(*args, **kwargs):
     return space_new(*args, **kwargs)
 
 
+def info(message):
+    warnings.warn("info is deprecated -- use print instead",
+                  DeprecationWarning, stacklevel=2)
+    print(message)
+
+
 def warning(message):
-    warnings.warn("warning is deprecated -- use warnings.warn instead",
+    warnings.warn("warning is deprecated -- use logging.warning instead",
                   DeprecationWarning, stacklevel=2)
     warnings.warn(message, RuntimeWarning)
+
+
+def copy_parameters_dict(parameters):
+    warnings.warn("copy_parameters_dict is deprecated -- "
+                  "use copy.deepcopy instead",
+                  DeprecationWarning, stacklevel=2)
+    return copy.deepcopy(parameters)

@@ -18,13 +18,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import *
-from .backend_code_generator_interface import assemble, \
-    copy_parameters_dict, r0_space
-from .interface import *
+from .backend import FunctionSpace, UnitIntervalMesh, backend, \
+    backend_Constant, backend_Function, backend_FunctionSpace, \
+    backend_ScalarType, backend_Vector, info
+from .interface import InterfaceException, SpaceInterface, \
+    add_finalize_adjoint_derivative_action, add_interface, \
+    add_new_real_function, add_subtract_adjoint_derivative_action, \
+    function_caches, function_copy, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_new, space_id, \
+    space_new, subtract_adjoint_derivative_action
 from .interface import FunctionInterface as _FunctionInterface
+from .backend_code_generator_interface import assemble, r0_space
 
-from .caches import clear_caches, form_neg
+from .caches import form_neg
 from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
@@ -35,66 +41,13 @@ import warnings
 
 __all__ = \
     [
-        "InterfaceException",
-
-        "is_space",
-        "space_comm",
-        "space_id",
-        "space_new",
-
-        "is_function",
-        "function_assign",
-        "function_axpy",
-        "function_caches",
-        "function_comm",
-        "function_copy",
-        "function_get_values",
-        "function_global_size",
-        "function_id",
-        "function_inner",
-        "function_is_cached",
-        "function_is_checkpointed",
-        "function_is_static",
-        "function_linf_norm",
-        "function_local_indices",
-        "function_local_size",
-        "function_max_value",
-        "function_name",
-        "function_new",
-        "function_replacement",
-        "function_set_values",
-        "function_space",
-        "function_state",
-        "function_sum",
-        "function_tangent_linear",
-        "function_update_caches",
-        "function_update_state",
-        "function_zero",
-
-        "is_real_function",
-        "new_real_function",
-        "real_function_value",
-
-        "clear_caches",
-        "copy_parameters_dict",
-        "default_comm",
-        "finalize_adjoint_derivative_action",
-        "info",
-        "subtract_adjoint_derivative_action",
-
-        "Constant",
-        "Function",
-        "Replacement",
-
         "RealFunctionSpace",
+        "default_comm",
         "function_space_id",
         "function_space_new",
+        "info",
         "warning"
     ]
-
-
-def default_comm():
-    return MPI.COMM_WORLD
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -295,6 +248,12 @@ class FunctionInterface(_FunctionInterface):
             self._tlm_adjoint__replacement = Replacement(self)
         return self._tlm_adjoint__replacement
 
+    def _is_replacement(self):
+        return False
+
+    def _is_real(self):
+        return is_r0_function(self) and len(self.ufl_shape) == 0
+
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
@@ -305,84 +264,86 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def is_real_function(x):
-    return is_r0_function(x) and len(x.ufl_shape) == 0
+def _new_real_function(name=None, comm=None, static=False, cache=None,
+                       checkpoint=None):
+    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
+                    checkpoint=checkpoint)
 
 
-def new_real_function(name=None, domain=None, comm=None, static=False,
-                      cache=None, checkpoint=None):
-    return Constant(0.0, name=name, domain=domain, comm=comm, static=static,
-                    cache=cache, checkpoint=checkpoint)
+add_new_real_function(backend, _new_real_function)
 
 
-def real_function_value(x):
-    assert is_real_function(x)
-    return function_max_value(x)
-
-
-# def clear_caches(*deps):
-
-
-# def info(message):
-
-
-# def copy_parameters_dict(parameters):
-
-
-def subtract_adjoint_derivative_action(x, y):
-    if y is None:
-        pass
-    elif isinstance(y, ufl.classes.Form):
-        if hasattr(x, "_tlm_adjoint__adj_b"):
-            x._tlm_adjoint__adj_b += form_neg(y)
+def _subtract_adjoint_derivative_action(x, y):
+    if isinstance(y, backend_Vector):
+        y = (1.0, y)
+    if isinstance(y, ufl.classes.Form):
+        if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
+            x._tlm_adjoint__fenics_adj_b += form_neg(y)
         else:
-            x._tlm_adjoint__adj_b = form_neg(y)
-    else:
-        if isinstance(y, tuple):
-            alpha, y = y
-        else:
-            alpha = 1.0
-        if isinstance(y, backend_Vector):
-            if isinstance(x, backend_Constant):
-                if len(x.ufl_shape) == 0:
-                    # annotate=False, tlm=False
-                    x.assign(float(x) - alpha * y.max())
-                else:
-                    y_fn = Function(r0_space(x))
-
-                    # Ordering check
-                    check_values = np.arange(np.prod(x.ufl_shape),
-                                             dtype=np.float64)
-                    # annotate=False, tlm=False
-                    y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
-                    for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                        assert y_fn_c.vector().max() == check_values[i]
-                    y_fn.vector().zero()
-
-                    value = x.values()
-                    y_fn.vector().axpy(1.0, y)
-                    for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                        value[i] -= alpha * y_fn_c.vector().max()
-                    value.shape = x.ufl_shape
-                    # annotate=False, tlm=False
-                    x.assign(backend_Constant(value))
-            else:
-                if x.vector().local_size() != y.local_size():
-                    raise InterfaceException("Invalid function space")
-                x.vector().axpy(-alpha, y)
-        else:
-            function_axpy(x, -alpha, y)
-
-
-def finalize_adjoint_derivative_action(x):
-    if hasattr(x, "_tlm_adjoint__adj_b"):
+            x._tlm_adjoint__fenics_adj_b = form_neg(y)
+    elif isinstance(y, tuple) \
+            and len(y) == 2 \
+            and isinstance(y[0], (int, float)) \
+            and isinstance(y[1], backend_Vector):
+        alpha, y = y
+        alpha = float(alpha)
         if isinstance(x, backend_Constant):
-            y = assemble(x._tlm_adjoint__adj_b)
+            if len(x.ufl_shape) == 0:
+                # annotate=False, tlm=False
+                x.assign(float(x) - alpha * y.max())
+            else:
+                y_fn = Function(r0_space(x))
+
+                # Ordering check
+                check_values = np.arange(np.prod(x.ufl_shape),
+                                         dtype=np.float64)
+                # annotate=False, tlm=False
+                y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
+                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+                    assert y_fn_c.vector().max() == check_values[i]
+                y_fn.vector().zero()
+
+                value = x.values()
+                y_fn.vector().axpy(1.0, y)
+                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+                    value[i] -= alpha * y_fn_c.vector().max()
+                value.shape = x.ufl_shape
+                # annotate=False, tlm=False
+                x.assign(backend_Constant(value))
+        elif isinstance(x, backend_Function):
+            if x.vector().local_size() != y.local_size():
+                raise InterfaceException("Invalid function space")
+            x.vector().axpy(-alpha, y)
+        else:
+            return NotImplemented
+    else:
+        return NotImplemented
+
+
+add_subtract_adjoint_derivative_action(backend,
+                                       _subtract_adjoint_derivative_action)
+
+
+def _finalize_adjoint_derivative_action(x):
+    if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
+        if isinstance(x, backend_Constant):
+            y = assemble(x._tlm_adjoint__fenics_adj_b)
             subtract_adjoint_derivative_action(x, (-1.0, y))
         else:
-            assemble(x._tlm_adjoint__adj_b, tensor=x.vector(),
+            assemble(x._tlm_adjoint__fenics_adj_b, tensor=x.vector(),
                      add_values=True)
-        delattr(x, "_tlm_adjoint__adj_b")
+        delattr(x, "_tlm_adjoint__fenics_adj_b")
+
+
+add_finalize_adjoint_derivative_action(backend,
+                                       _finalize_adjoint_derivative_action)
+
+
+def default_comm():
+    warnings.warn("default_comm is deprecated -- "
+                  "use mpi4py.MPI.COMM_WORLD instead",
+                  DeprecationWarning, stacklevel=2)
+    return MPI.COMM_WORLD
 
 
 def RealFunctionSpace(comm=MPI.COMM_WORLD):
@@ -404,7 +365,10 @@ def function_space_new(*args, **kwargs):
     return space_new(*args, **kwargs)
 
 
+# def info(message):
+
+
 def warning(message):
-    warnings.warn("warning is deprecated -- use warnings.warn instead",
+    warnings.warn("warning is deprecated -- use logging.warning instead",
                   DeprecationWarning, stacklevel=2)
     warnings.warn(message, RuntimeWarning)

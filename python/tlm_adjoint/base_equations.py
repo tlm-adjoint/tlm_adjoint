@@ -18,12 +18,20 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import finalize_adjoint_derivative_action, function_assign, \
+    function_axpy, function_copy, function_get_values, function_global_size, \
+    function_id, function_inner, function_is_checkpointed, \
+    function_local_indices, function_new, function_replacement, \
+    function_set_values, function_space, function_sum, \
+    function_update_caches, function_update_state, function_zero, \
+    is_function, space_new, subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 
+import copy
 import inspect
+import logging
 import numpy as np
 import warnings
 import weakref
@@ -851,8 +859,6 @@ class FixedPointSolver(Equation):
                 adjoint_nonzero_initial_guess
                     Whether to use a non-zero initial guess for the adjoint
                     solve. Logical, optional, default True.
-                report
-                    Whether to display output. Optional, default False.
         """
 
         X_ids = set()
@@ -863,7 +869,7 @@ class FixedPointSolver(Equation):
                     raise EquationException("Duplicate solve")
                 X_ids.add(x_id)
 
-        solver_parameters = copy_parameters_dict(solver_parameters)
+        solver_parameters = copy.deepcopy(solver_parameters)
         if "nonzero_adjoint_initial_guess" in solver_parameters:
             warnings.warn("'nonzero_adjoint_initial_guess' parameter is "
                           "deprecated -- use 'adjoint_nonzero_initial_guess' "
@@ -879,8 +885,7 @@ class FixedPointSolver(Equation):
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         for key, default_value in [("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
-                                   ("adjoint_nonzero_initial_guess", True),
-                                   ("report", False)]:
+                                   ("adjoint_nonzero_initial_guess", True)]:
             if key not in solver_parameters:
                 solver_parameters[key] = default_value
 
@@ -1033,7 +1038,7 @@ class FixedPointSolver(Equation):
         maximum_iterations = self._solver_parameters["maximum_iterations"]
         nonzero_initial_guess = \
             self._solver_parameters["nonzero_initial_guess"]
-        report = self._solver_parameters["report"]
+        logger = logging.getLogger("tlm_adjoint.FixedPointSolver")
 
         eq_X = tuple(tuple(X[j] for j in self._eq_X_indices[i])
                      for i in range(len(self._eqs)))
@@ -1071,10 +1076,11 @@ class FixedPointSolver(Equation):
                     X_norm_sq += function_inner(x, x)
                 tolerance_sq = max(absolute_tolerance ** 2,
                                    X_norm_sq * (relative_tolerance ** 2))
-            if report:
-                info(f"Fixed point iteration, forward iteration {it:d}, "
-                     f"change norm {np.sqrt(R_norm_sq):.16e} "
-                     f"(tolerance {np.sqrt(tolerance_sq):.16e})")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Fixed point iteration, "
+                             f"forward iteration {it:d}, "
+                             f"change norm {np.sqrt(R_norm_sq):.16e} "
+                             f"(tolerance {np.sqrt(tolerance_sq):.16e})")
             if np.isnan(R_norm_sq):
                 raise EquationException(
                     f"Fixed point iteration, forward iteration {it:d}, "
@@ -1125,7 +1131,7 @@ class FixedPointSolver(Equation):
         relative_tolerance = self._solver_parameters["relative_tolerance"]
         maximum_iterations = self._solver_parameters["maximum_iterations"]
         nonzero_initial_guess = self._solver_parameters["adjoint_nonzero_initial_guess"]  # noqa: E501
-        report = self._solver_parameters["report"]
+        logger = logging.getLogger("tlm_adjoint.FixedPointSolver")
 
         eq_adj_X = [tuple(adj_X[j] for j in self._eq_X_indices[i])
                     for i in range(len(self._eqs))]
@@ -1199,10 +1205,11 @@ class FixedPointSolver(Equation):
                     X_norm_sq += function_inner(x, x)
                 tolerance_sq = max(absolute_tolerance ** 2,
                                    X_norm_sq * (relative_tolerance ** 2))
-            if report:
-                info(f"Fixed point iteration, adjoint iteration {it:d}, "
-                     f"change norm {np.sqrt(R_norm_sq):.16e} "
-                     f"(tolerance {np.sqrt(tolerance_sq):.16e})")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Fixed point iteration, "
+                             f"adjoint iteration {it:d}, "
+                             f"change norm {np.sqrt(R_norm_sq):.16e} "
+                             f"(tolerance {np.sqrt(tolerance_sq):.16e})")
             if np.isnan(R_norm_sq):
                 raise EquationException(
                     f"Fixed point iteration, adjoint iteration {it:d}, "

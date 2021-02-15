@@ -18,10 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_assign, function_axpy, function_copy, \
+    function_inner, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_linf_norm, function_local_size, \
+    function_name, function_new, function_set_values, is_function
 
+from .base_caches import clear_caches
 from .manager import manager as _manager, set_manager
 
+import logging
 import numpy as np
 
 __all__ = \
@@ -79,6 +84,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return taylor_test(forward, [M], J_val, dJ=dJ, ddJ=ddJ, seed=seed,
                            dM=dM, M0=M0, size=size, manager=manager)
 
+    logger = logging.getLogger("tlm_adjoint.verification")
     if manager is None:
         manager = _manager()
 
@@ -122,15 +128,15 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
-    info(f"Error norms, no adjoint   = {error_norms_0}")
-    info(f"Orders,      no adjoint   = {orders_0}")
+    logger.info(f"Error norms, no adjoint   = {error_norms_0}")
+    logger.info(f"Orders,      no adjoint   = {orders_0}")
 
     if ddJ is None:
         error_norms_1 = abs(J_vals - J_val
                             - eps * functions_inner(dJ, dM))
         orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
-        info(f"Error norms, with adjoint = {error_norms_1}")
-        info(f"Orders,      with adjoint = {orders_1}")
+        logger.info(f"Error norms, with adjoint = {error_norms_1}")
+        logger.info(f"Orders,      with adjoint = {orders_1}")
         return orders_1.min()
     else:
         if dJ is None:
@@ -142,8 +148,8 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                             - eps * dJ
                             - 0.5 * eps * eps * functions_inner(ddJ, dM))
         orders_2 = np.log(error_norms_2[1:] / error_norms_2[:-1]) / np.log(0.5)
-        info(f"Error norms, with adjoint = {error_norms_2}")
-        info(f"Orders,      with adjoint = {orders_2}")
+        logger.info(f"Error norms, with adjoint = {error_norms_2}")
+        logger.info(f"Orders,      with adjoint = {orders_2}")
         return orders_2.min()
 
 
@@ -155,6 +161,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
         return taylor_test_tlm(forward, [M], tlm_order, seed=seed, dMs=dMs,
                                size=size, manager=manager)
 
+    logger = logging.getLogger("tlm_adjoint.verification")
     if manager is None:
         manager = _manager()
     tlm_manager = manager.new("memory", {})
@@ -217,13 +224,13 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
-    info(f"Error norms, no adjoint   = {error_norms_0}")
-    info(f"Orders,      no adjoint   = {orders_0}")
+    logger.info(f"Error norms, no adjoint   = {error_norms_0}")
+    logger.info(f"Orders,      no adjoint   = {orders_0}")
 
     error_norms_1 = abs(J_vals - J_val - eps * dJ)
     orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
-    info(f"Error norms, with adjoint = {error_norms_1}")
-    info(f"Orders,      with adjoint = {orders_1}")
+    logger.info(f"Error norms, with adjoint = {error_norms_1}")
+    logger.info(f"Orders,      with adjoint = {orders_1}")
     return orders_1.min()
 
 

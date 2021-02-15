@@ -18,8 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_axpy, function_copy, function_get_values, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_linf_norm, function_local_size, function_new, \
+    function_set_values, is_function
 
+from .base_caches import clear_caches
 from .manager import manager as _manager, set_manager
 
 import numpy as np

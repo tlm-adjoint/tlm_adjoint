@@ -55,7 +55,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .backend_interface import *
+from .interface import function_get_values, function_global_size, \
+    function_local_size, function_set_values, is_function, space_comm, \
+    space_new
 
 import numpy as np
 import petsc4py.PETSc as PETSc

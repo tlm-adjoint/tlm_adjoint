@@ -18,8 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend_interface import *
+from .interface import function_id
 
+from .base_caches import clear_caches
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import CheckpointStorage

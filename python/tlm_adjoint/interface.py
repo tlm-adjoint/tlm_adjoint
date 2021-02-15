@@ -19,6 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 import copy
+import logging
+import sys
 import types
 
 __all__ = \
@@ -46,6 +48,7 @@ __all__ = \
         "function_inner",
         "function_is_cached",
         "function_is_checkpointed",
+        "function_is_replacement",
         "function_is_static",
         "function_linf_norm",
         "function_local_indices",
@@ -61,7 +64,14 @@ __all__ = \
         "function_tangent_linear",
         "function_update_caches",
         "function_update_state",
-        "function_zero"
+        "function_zero",
+
+        "is_real_function",
+        "new_real_function",
+        "real_function_value",
+
+        "subtract_adjoint_derivative_action",
+        "finalize_adjoint_derivative_action"
     ]
 
 
@@ -126,7 +136,7 @@ class FunctionInterface:
              "_update_caches", "_zero", "_assign", "_axpy", "_inner",
              "_max_value", "_sum", "_linf_norm", "_local_size", "_global_size",
              "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_tangent_linear", "_replacement")
+             "_tangent_linear", "_replacement", "_is_replacement", "_is_real")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -210,6 +220,12 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _replacement(self):
+        raise InterfaceException("Method not overridden")
+
+    def _is_replacement(self):
+        raise InterfaceException("Method not overridden")
+
+    def _is_real(self):
         raise InterfaceException("Method not overridden")
 
 
@@ -335,3 +351,90 @@ def function_tangent_linear(x, name=None):
 
 def function_replacement(x):
     return x._tlm_adjoint__function_interface_replacement()
+
+
+def function_is_replacement(x):
+    return x._tlm_adjoint__function_interface_is_replacement()
+
+
+def is_real_function(x):
+    return x._tlm_adjoint__function_interface_is_real()
+
+
+_new_real_function = {}
+
+
+def add_new_real_function(backend, fn):
+    _new_real_function[backend] = fn
+
+
+def new_real_function(name=None, comm=None, static=False, cache=None,
+                      checkpoint=None):
+    new_real_function = tuple(_new_real_function.values())[0]
+    return new_real_function(name=name, comm=comm, static=static, cache=cache,
+                             checkpoint=checkpoint)
+
+
+def real_function_value(x):
+    if not is_real_function(x):
+        raise InterfaceException("Invalid function")
+    return function_max_value(x)
+
+
+_subtract_adjoint_derivative_action = {}
+
+
+def add_subtract_adjoint_derivative_action(backend, fn):
+    _subtract_adjoint_derivative_action[backend] = fn
+
+
+def subtract_adjoint_derivative_action(x, y):
+    for fn in _subtract_adjoint_derivative_action.values():
+        if fn(x, y) != NotImplemented:
+            break
+    else:
+        if y is None:
+            pass
+        elif is_function(y):
+            if isinstance(y._tlm_adjoint__function_interface,
+                          type(x._tlm_adjoint__function_interface)):
+                function_axpy(x, -1.0, y)
+            else:
+                function_set_values(x,
+                                    function_get_values(x)
+                                    - function_get_values(y))
+        elif isinstance(y, tuple) \
+                and len(y) == 2 \
+                and isinstance(y[0], (int, float)) \
+                and is_function(y[1]):
+            alpha, y = y
+            alpha = float(alpha)
+            if isinstance(y._tlm_adjoint__function_interface,
+                          type(x._tlm_adjoint__function_interface)):
+                function_axpy(x, -alpha, y)
+            else:
+                function_set_values(x,
+                                    function_get_values(x)
+                                    - alpha * function_get_values(y))
+        else:
+            raise InterfaceException("Unexpected case encountered in "
+                                     "subtract_adjoint_derivative_action")
+
+
+_finalize_adjoint_derivative_action = {}
+
+
+def add_finalize_adjoint_derivative_action(backend, fn):
+    _finalize_adjoint_derivative_action[backend] = fn
+
+
+def finalize_adjoint_derivative_action(x):
+    for fn in _finalize_adjoint_derivative_action.values():
+        fn(x)
+
+
+_logger = logging.getLogger("tlm_adjoint")
+_handler = logging.StreamHandler(stream=sys.stdout)
+_handler.setFormatter(logging.Formatter(fmt="%(message)s"))
+_logger.addHandler(_handler)
+_logger.setLevel(logging.INFO)

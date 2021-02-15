@@ -22,6 +22,7 @@ from tlm_adjoint_numpy import *
 from tlm_adjoint_numpy import manager as _manager
 
 import gc
+import logging
 import numpy as np
 import os
 import pytest
@@ -31,6 +32,7 @@ import weakref
 __all__ = \
     [
         "Constant",
+        "info",
 
         "run_example",
         "setup_test",
@@ -43,6 +45,8 @@ def setup_test():
     reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
+
+    logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     np.random.seed(14012313)
 
@@ -102,6 +106,10 @@ def run_example(example, clear_forward_globals=True):
         # Clear objects created by the script. Requires the script to define a
         # 'forward' function.
         gl["forward"].__globals__.clear()
+
+
+def info(message):
+    print(message)
 
 
 class Constant(Function):
