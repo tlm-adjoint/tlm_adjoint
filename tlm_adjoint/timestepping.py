@@ -18,14 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_id, is_function, space_new
+from .interface import function_id, is_function, space_new, time_system_eq
 
 from .alias import Alias
 from .base_equations import AssignmentSolver, Equation
-try:
-    from .equations import EquationSolver
-except ImportError:
-    pass
 
 from collections import OrderedDict
 
@@ -231,7 +227,7 @@ class TimeSystem:
               and hasattr(args[1], "_tlm_adjoint__tfn")):
             eq = AssignmentSolver(args[0], args[1])
         else:
-            eq = EquationSolver(*args, **kwargs)
+            eq = time_system_eq(*args, **kwargs)
 
         X = eq.X()
         level = X[0]._tlm_adjoint__level

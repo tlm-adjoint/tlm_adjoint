@@ -73,7 +73,8 @@ __all__ = \
         "subtract_adjoint_derivative_action",
         "finalize_adjoint_derivative_action",
 
-        "functional_term_eq"
+        "functional_term_eq",
+        "time_system_eq"
     ]
 
 
@@ -453,6 +454,23 @@ def functional_term_eq(term, x):
             return eq
     raise InterfaceException("Unexpected case encountered in "
                              "functional_term_eq")
+
+
+_time_system_eq = {}
+
+
+def add_time_system_eq(backend, fn):
+    assert backend not in _time_system_eq
+    _time_system_eq[backend] = fn
+
+
+def time_system_eq(*args, **kwargs):
+    for fn in _time_system_eq.values():
+        eq = fn(*args, **kwargs)
+        if eq != NotImplemented:
+            return eq
+    raise InterfaceException("Unexpected case encountered in "
+                             "time_system_eq")
 
 
 _logger = logging.getLogger("tlm_adjoint")

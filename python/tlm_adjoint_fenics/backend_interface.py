@@ -24,14 +24,15 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend, \
 from .interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_real_function, \
-    add_subtract_adjoint_derivative_action, function_caches, function_copy, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_new, space_id, space_new, subtract_adjoint_derivative_action
+    add_subtract_adjoint_derivative_action, add_time_system_eq, \
+    function_caches, function_copy, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_new, space_id, \
+    space_new, subtract_adjoint_derivative_action
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from .caches import form_neg
-from .equations import AssembleSolver
+from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
@@ -277,7 +278,8 @@ add_new_real_function(backend, _new_real_function)
 def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, backend_Vector):
         y = (1.0, y)
-    if isinstance(y, ufl.classes.Form):
+    if isinstance(y, ufl.classes.Form) \
+            and isinstance(x, (backend_Constant, backend_Function)):
         if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
             x._tlm_adjoint__fenics_adj_b += form_neg(y)
         else:
@@ -341,13 +343,40 @@ add_finalize_adjoint_derivative_action(backend,
 
 
 def _functional_term_eq(term, x):
-    if isinstance(term, ufl.classes.Form) and len(term.arguments()) == 0:
+    if isinstance(term, ufl.classes.Form) \
+            and len(term.arguments()) == 0 \
+            and isinstance(x, (backend_Constant, backend_Function)):
         return AssembleSolver(term, x)
     else:
         return NotImplemented
 
 
 add_functional_term_eq(backend, _functional_term_eq)
+
+
+def _time_system_eq(*args, **kwargs):
+    if len(args) >= 1:
+        eq = args[0]
+    elif "eq" in kwargs:
+        eq = kwargs["eq"]
+    else:
+        return NotImplemented
+
+    if len(args) >= 2:
+        x = args[1]
+    elif "x" in kwargs:
+        x = kwargs["x"]
+    else:
+        return NotImplemented
+
+    if isinstance(eq, ufl.classes.Equation) \
+            and isinstance(x, backend_Function):
+        return EquationSolver(*args, **kwargs)
+    else:
+        return NotImplemented
+
+
+add_time_system_eq(backend, _time_system_eq)
 
 
 def default_comm():
