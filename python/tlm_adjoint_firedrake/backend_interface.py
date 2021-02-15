@@ -309,6 +309,24 @@ def _subtract_adjoint_derivative_action(x, y):
             x._tlm_adjoint__firedrake_adj_b += form_neg(y)
         else:
             x._tlm_adjoint__firedrake_adj_b = form_neg(y)
+    elif isinstance(x, backend_Constant):
+        if isinstance(y, backend_Function):
+            alpha = 1.0
+        elif isinstance(y, tuple) \
+                and len(y) == 2 \
+                and isinstance(y[0], (int, float)) \
+                and isinstance(y[1], backend_Function):
+            alpha, y = y
+            alpha = float(alpha)
+        else:
+            return NotImplemented
+        if len(x.ufl_shape) == 0:
+            y_value, = y.dat.data
+            # annotate=False, tlm=False
+            x.assign(float(x) - alpha * y_value)
+        else:
+            # See Firedrake issue #1456
+            raise InterfaceException("Rank >= 1 Constant not implemented")
     else:
         return NotImplemented
 

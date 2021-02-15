@@ -389,19 +389,33 @@ def add_subtract_adjoint_derivative_action(backend, fn):
 
 
 def subtract_adjoint_derivative_action(x, y):
-    if y is None:
-        pass
-    elif is_function(y):
-        function_axpy(x, -1.0, y)
-    elif isinstance(y, tuple) \
-            and len(y) == 2 \
-            and isinstance(y[0], (int, float)) \
-            and is_function(y[1]):
-        function_axpy(x, -float(y[0]), y[1])
+    for fn in _subtract_adjoint_derivative_action.values():
+        if fn(x, y) != NotImplemented:
+            break
     else:
-        for fn in _subtract_adjoint_derivative_action.values():
-            if fn(x, y) != NotImplemented:
-                break
+        if y is None:
+            pass
+        elif is_function(y):
+            if isinstance(y._tlm_adjoint__function_interface,
+                          type(x._tlm_adjoint__function_interface)):
+                function_axpy(x, -1.0, y)
+            else:
+                function_set_values(x,
+                                    function_get_values(x)
+                                    - function_get_values(y))
+        elif isinstance(y, tuple) \
+                and len(y) == 2 \
+                and isinstance(y[0], (int, float)) \
+                and is_function(y[1]):
+            alpha, y = y
+            alpha = float(alpha)
+            if isinstance(y._tlm_adjoint__function_interface,
+                          type(x._tlm_adjoint__function_interface)):
+                function_axpy(x, -alpha, y)
+            else:
+                function_set_values(x,
+                                    function_get_values(x)
+                                    - alpha * function_get_values(y))
         else:
             raise InterfaceException("Unexpected case encountered in "
                                      "subtract_adjoint_derivative_action")
