@@ -22,15 +22,16 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_Constant, backend_Function, backend_FunctionSpace, \
     backend_ScalarType, info
 from .interface import InterfaceException, SpaceInterface, \
-    add_finalize_adjoint_derivative_action, add_interface, \
-    add_new_real_function, add_subtract_adjoint_derivative_action, \
-    function_assign, function_caches, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, space_id, \
-    space_new, subtract_adjoint_derivative_action
+    add_finalize_adjoint_derivative_action, add_functional_term_eq, \
+    add_interface, add_new_real_function, \
+    add_subtract_adjoint_derivative_action, function_assign, function_caches, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_new, space_id, space_new, subtract_adjoint_derivative_action
 from .interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble
 
 from .caches import form_neg
+from .equations import AssembleSolver
 from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
@@ -344,6 +345,16 @@ def _finalize_adjoint_derivative_action(x):
 
 add_finalize_adjoint_derivative_action(backend,
                                        _finalize_adjoint_derivative_action)
+
+
+def _functional_term_eq(term, x):
+    if isinstance(term, ufl.classes.Form) and len(term.arguments()) == 0:
+        return AssembleSolver(term, x)
+    else:
+        return NotImplemented
+
+
+add_functional_term_eq(backend, _functional_term_eq)
 
 
 def default_comm():

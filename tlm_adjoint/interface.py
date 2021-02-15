@@ -71,7 +71,9 @@ __all__ = \
         "real_function_value",
 
         "subtract_adjoint_derivative_action",
-        "finalize_adjoint_derivative_action"
+        "finalize_adjoint_derivative_action",
+
+        "functional_term_eq"
     ]
 
 
@@ -365,6 +367,7 @@ _new_real_function = {}
 
 
 def add_new_real_function(backend, fn):
+    assert backend not in _new_real_function
     _new_real_function[backend] = fn
 
 
@@ -385,6 +388,7 @@ _subtract_adjoint_derivative_action = {}
 
 
 def add_subtract_adjoint_derivative_action(backend, fn):
+    assert backend not in _subtract_adjoint_derivative_action
     _subtract_adjoint_derivative_action[backend] = fn
 
 
@@ -425,12 +429,30 @@ _finalize_adjoint_derivative_action = {}
 
 
 def add_finalize_adjoint_derivative_action(backend, fn):
+    assert backend not in _finalize_adjoint_derivative_action
     _finalize_adjoint_derivative_action[backend] = fn
 
 
 def finalize_adjoint_derivative_action(x):
     for fn in _finalize_adjoint_derivative_action.values():
         fn(x)
+
+
+_functional_term_eq = {}
+
+
+def add_functional_term_eq(backend, fn):
+    assert backend not in _functional_term_eq
+    _functional_term_eq[backend] = fn
+
+
+def functional_term_eq(term, x):
+    for fn in _functional_term_eq.values():
+        eq = fn(term, x)
+        if eq != NotImplemented:
+            return eq
+    raise InterfaceException("Unexpected case encountered in "
+                             "functional_term_eq")
 
 
 _logger = logging.getLogger("tlm_adjoint")

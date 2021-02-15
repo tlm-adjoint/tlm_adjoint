@@ -19,14 +19,10 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import function_name, function_new, function_space, \
-    is_function, is_real_function, new_real_function, real_function_value, \
-    space_id, space_new
+    functional_term_eq, is_function, is_real_function, new_real_function, \
+    real_function_value, space_id, space_new
 
 from .base_equations import AssignmentSolver, AxpySolver
-try:
-    from .equations import AssembleSolver
-except ImportError:
-    pass
 from .manager import manager as _manager
 
 __all__ = \
@@ -97,10 +93,10 @@ class Functional:
             manager = _manager()
 
         new_fn = function_new(self._fn, name=self._name)
-        if is_function(term):
+        if is_function(term) and is_real_function(term):
             new_fn_eq = AssignmentSolver(term, new_fn)
         else:
-            new_fn_eq = AssembleSolver(term, new_fn)
+            new_fn_eq = functional_term_eq(term, new_fn)
         new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
@@ -128,11 +124,11 @@ class Functional:
             new_fn_eq = AssignmentSolver(self._fn, new_fn)
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         else:
-            if is_function(term):
+            if is_function(term) and is_real_function(term):
                 term_fn = term
             else:
                 term_fn = function_new(self._fn, name=f"{self._name:s}_term")
-                term_eq = AssembleSolver(term, term_fn)
+                term_eq = functional_term_eq(term, term_fn)
                 term_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
             new_fn_eq = AxpySolver(self._fn, 1.0, term_fn, new_fn)
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
