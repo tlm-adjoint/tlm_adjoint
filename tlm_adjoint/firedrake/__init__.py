@@ -22,34 +22,30 @@ import importlib
 import sys
 
 modules = [("backend", "tlm_adjoint.firedrake"),
-           ("functions", "tlm_adjoint"),
+           ("functions", "tlm_adjoint._code_generator"),
            ("backend_code_generator_interface", "tlm_adjoint.firedrake"),
-           ("caches", "tlm_adjoint"),
-           ("equations", "tlm_adjoint"),
+           ("caches", "tlm_adjoint._code_generator"),
+           ("equations", "tlm_adjoint._code_generator"),
            ("backend_interface", "tlm_adjoint.firedrake"),
            ("backend_overrides", "tlm_adjoint.firedrake"),
            ("firedrake_equations", "tlm_adjoint.firedrake")]
 
-tlm_adjoint_module = "tlm_adjoint" in sys.modules
-
 for module_name, package in modules:
-    if package == "tlm_adjoint":
+    if package == "tlm_adjoint._code_generator":
         sys.modules[f"tlm_adjoint.firedrake.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint")
+                                      package="tlm_adjoint._code_generator")
     else:
         assert package == "tlm_adjoint.firedrake"
-        sys.modules[f"tlm_adjoint.{module_name:s}"] \
+        sys.modules[f"tlm_adjoint._code_generator.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
                                       package="tlm_adjoint.firedrake")
 
 for module_name, package in modules:
-    del sys.modules[f"tlm_adjoint.{module_name:s}"]
+    del sys.modules[f"tlm_adjoint._code_generator.{module_name:s}"]
+del sys.modules["tlm_adjoint._code_generator"]
 
-if not tlm_adjoint_module:
-    del sys.modules["tlm_adjoint"]
-
-del importlib, sys, modules, tlm_adjoint_module, module_name, package
+del importlib, sys, modules, module_name, package
 
 from tlm_adjoint import *  # noqa: E402,F401
 
