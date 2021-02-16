@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from firedrake import *
-from tlm_adjoint_firedrake import *
-from tlm_adjoint_firedrake.backend_code_generator_interface import \
+from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
     assemble_system
 
 from test_base import *

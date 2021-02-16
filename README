@@ -9,7 +9,7 @@ library is used via, e.g., the Python code
     Firedrake backend:
 
         from firedrake import *
-        from tlm_adjoint_firedrake import *
+        from tlm_adjoint.firedrake import *
 
     NumPy backend:
 
