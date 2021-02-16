@@ -32,8 +32,8 @@ from .backend_code_generator_interface import assemble, \
     process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
     update_parameters_dict, verify_assembly
 
-from tlm_adjoint.base_caches import CacheRef
-from tlm_adjoint.base_equations import AssignmentSolver, Equation, \
+from tlm_adjoint.caches import CacheRef
+from tlm_adjoint.equations import AssignmentSolver, Equation, \
     EquationException, NullSolver, get_tangent_linear, no_replace_compatibility
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \

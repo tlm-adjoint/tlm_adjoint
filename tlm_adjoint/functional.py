@@ -22,7 +22,7 @@ from .interface import function_name, function_new, function_space, \
     functional_term_eq, is_function, is_real_function, new_real_function, \
     real_function_value, space_id, space_new
 
-from .base_equations import AssignmentSolver, AxpySolver
+from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
 
 __all__ = \

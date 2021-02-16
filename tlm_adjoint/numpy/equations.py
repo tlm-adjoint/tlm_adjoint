@@ -20,8 +20,8 @@
 
 from tlm_adjoint.interface import space_new
 
-from tlm_adjoint.base_equations import EquationException, LinearEquation, \
-    Matrix, RHS
+from tlm_adjoint.equations import EquationException, LinearEquation, Matrix, \
+    RHS
 
 import numpy as np
 

@@ -24,7 +24,7 @@ from tlm_adjoint.interface import function_id, function_is_cached, \
 from .backend_code_generator_interface import assemble, assemble_arguments, \
     assemble_matrix, linear_solver, matrix_copy, parameters_key
 
-from tlm_adjoint.base_caches import Cache, CacheException
+from tlm_adjoint.caches import Cache, CacheException
 
 from .functions import eliminate_zeros, replaced_form
 

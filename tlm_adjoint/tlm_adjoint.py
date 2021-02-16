@@ -25,9 +25,9 @@ from .interface import function_assign, function_copy, function_get_values, \
     function_tangent_linear, is_function, space_id, space_new
 
 from .alias import WeakAlias, gc_disabled
-from .base_equations import AdjointModelRHS, ControlsMarker, Equation, \
-    FunctionalMarker, NullSolver
 from .binomial_checkpointing import MultistageManager
+from .equations import AdjointModelRHS, ControlsMarker, Equation, \
+    FunctionalMarker, NullSolver
 from .functional import Functional
 from .manager import manager as _manager, set_manager
 

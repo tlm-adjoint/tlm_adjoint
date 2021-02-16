@@ -22,4 +22,4 @@ from tlm_adjoint import *  # noqa: F401
 
 from .backend import backend      # noqa: F401
 from .backend_interface import *  # noqa: F401
-from .numpy_equations import *    # noqa: F401
+from .equations import *          # noqa: F401

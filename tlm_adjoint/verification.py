@@ -23,7 +23,7 @@ from .interface import function_assign, function_axpy, function_copy, \
     function_is_static, function_linf_norm, function_local_size, \
     function_name, function_new, function_set_values, is_function
 
-from .base_caches import clear_caches
+from .caches import clear_caches
 from .manager import manager as _manager, set_manager
 
 import logging
