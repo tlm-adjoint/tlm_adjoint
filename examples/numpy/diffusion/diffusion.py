@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint_numpy import *
+from tlm_adjoint.numpy import *
 
 import numpy as np
 from scipy.sparse import identity, lil_matrix

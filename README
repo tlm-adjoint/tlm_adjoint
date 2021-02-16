@@ -14,7 +14,7 @@ library is used via, e.g., the Python code
     NumPy backend:
 
         import numpy as np
-        from tlm_adjoint_numpy import *
+        from tlm_adjoint.numpy import *
 
 tlm_adjoint is currently targeting FEniCS 2019.1.0, and the Firedrake Git
 master branch.
