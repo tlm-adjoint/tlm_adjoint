@@ -21,27 +21,27 @@
 import importlib
 import sys
 
-modules = [("backend", "tlm_adjoint_fenics"),
+modules = [("backend", "tlm_adjoint.fenics"),
            ("functions", "tlm_adjoint"),
-           ("backend_code_generator_interface", "tlm_adjoint_fenics"),
+           ("backend_code_generator_interface", "tlm_adjoint.fenics"),
            ("caches", "tlm_adjoint"),
            ("equations", "tlm_adjoint"),
-           ("backend_interface", "tlm_adjoint_fenics"),
-           ("backend_overrides", "tlm_adjoint_fenics"),
-           ("fenics_equations", "tlm_adjoint_fenics")]
+           ("backend_interface", "tlm_adjoint.fenics"),
+           ("backend_overrides", "tlm_adjoint.fenics"),
+           ("fenics_equations", "tlm_adjoint.fenics")]
 
 tlm_adjoint_module = "tlm_adjoint" in sys.modules
 
 for module_name, package in modules:
     if package == "tlm_adjoint":
-        sys.modules[f"tlm_adjoint_fenics.{module_name:s}"] \
+        sys.modules[f"tlm_adjoint.fenics.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
                                       package="tlm_adjoint")
     else:
-        assert package == "tlm_adjoint_fenics"
+        assert package == "tlm_adjoint.fenics"
         sys.modules[f"tlm_adjoint.{module_name:s}"] \
             = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint_fenics")
+                                      package="tlm_adjoint.fenics")
 
 for module_name, package in modules:
     del sys.modules[f"tlm_adjoint.{module_name:s}"]

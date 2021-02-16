@@ -20,7 +20,7 @@
 
 # Import FEniCS and tlm_adjoint
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 # Import an optimization module, used for Hessian actions with single block
 # forward models
 from tlm_adjoint.hessian_optimization import *

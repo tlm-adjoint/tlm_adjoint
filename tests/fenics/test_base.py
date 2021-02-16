@@ -19,9 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint_fenics import *
-from tlm_adjoint_fenics import manager as _manager
-from tlm_adjoint_fenics.backend import backend_Constant, backend_Function
+from tlm_adjoint.fenics import *
+from tlm_adjoint.fenics import manager as _manager
+from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
 
 import copy
 import gc

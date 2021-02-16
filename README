@@ -4,7 +4,7 @@ library is used via, e.g., the Python code
     FEniCS backend:
 
         from fenics import *
-        from tlm_adjoint_fenics import *
+        from tlm_adjoint.fenics import *
 
     Firedrake backend:
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 stop_manager()
 
 N = 100
