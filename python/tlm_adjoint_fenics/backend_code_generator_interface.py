@@ -25,7 +25,7 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble, backend_assemble_system, backend_solve, \
     cpp_LinearVariationalProblem, cpp_NonlinearVariationalProblem, \
     extract_args, has_lu_solver_method, parameters
-from .interface import InterfaceException, add_interface
+from tlm_adjoint.interface import InterfaceException, add_interface
 
 from .functions import ConstantInterface, ConstantSpaceInterface, \
     eliminate_zeros, new_count

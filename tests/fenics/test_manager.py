@@ -21,7 +21,7 @@
 from fenics import *
 from tlm_adjoint_fenics import *
 from tlm_adjoint_fenics import manager as _manager
-from tlm_adjoint_fenics.alias import WeakAlias
+from tlm_adjoint.alias import WeakAlias
 
 from test_base import *
 

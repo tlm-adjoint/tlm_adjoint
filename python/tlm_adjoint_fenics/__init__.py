@@ -23,26 +23,12 @@ import sys
 
 modules = [("backend", "tlm_adjoint_fenics"),
            ("functions", "tlm_adjoint"),
-           ("interface", "tlm_adjoint"),
            ("backend_code_generator_interface", "tlm_adjoint_fenics"),
-           ("base_caches", "tlm_adjoint"),
            ("caches", "tlm_adjoint"),
-           ("base_equations", "tlm_adjoint"),
            ("equations", "tlm_adjoint"),
            ("backend_interface", "tlm_adjoint_fenics"),
-           ("fenics_equations", "tlm_adjoint_fenics"),
-           ("tlm_adjoint", "tlm_adjoint"),
            ("backend_overrides", "tlm_adjoint_fenics"),
-           ("alias", "tlm_adjoint"),
-           ("binomial_checkpointing", "tlm_adjoint"),
-           ("eigendecomposition", "tlm_adjoint"),
-           ("functional", "tlm_adjoint"),
-           ("hessian", "tlm_adjoint"),
-           ("hessian_optimization", "tlm_adjoint"),
-           ("manager", "tlm_adjoint"),
-           ("optimization", "tlm_adjoint"),
-           ("timestepping", "tlm_adjoint"),
-           ("verification", "tlm_adjoint")]
+           ("fenics_equations", "tlm_adjoint_fenics")]
 
 tlm_adjoint_module = "tlm_adjoint" in sys.modules
 
@@ -65,21 +51,13 @@ if not tlm_adjoint_module:
 
 del importlib, sys, modules, tlm_adjoint_module, module_name, package
 
+from tlm_adjoint import *  # noqa: E402,F401
+
 from .backend import backend       # noqa: E402,F401
 from .backend_code_generator_interface import copy_parameters_dict  # noqa: E402,E501,F401
 from .backend_interface import *   # noqa: E402,F401
 from .backend_overrides import *   # noqa: E402,F401
-from .base_caches import *         # noqa: E402,F401
-from .base_equations import *      # noqa: E402,F401
 from .caches import *              # noqa: E402,F401
-from .eigendecomposition import *  # noqa: E402,F401
 from .equations import *           # noqa: E402,F401
 from .fenics_equations import *    # noqa: E402,F401
 from .functions import *           # noqa: E402,F401
-from .functional import *          # noqa: E402,F401
-from .hessian import *             # noqa: E402,F401
-from .interface import *           # noqa: E402,F401
-from .manager import *             # noqa: E402,F401
-from .optimization import *        # noqa: E402,F401
-from .tlm_adjoint import *         # noqa: E402,F401
-from .verification import *        # noqa: E402,F401

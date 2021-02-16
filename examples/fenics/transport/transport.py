@@ -23,7 +23,7 @@ from fenics import *
 from tlm_adjoint_fenics import *
 # Import an optimization module, used for Hessian actions with single block
 # forward models
-from tlm_adjoint_fenics.hessian_optimization import *
+from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import numpy as np

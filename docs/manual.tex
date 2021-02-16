@@ -1920,9 +1920,6 @@ memory without the use of checkpointing and rerunning (section
 optimized subclass of the \texttt{Hessian} class for this case. This requires
 the additional import
 \begin{lstlisting}
-from tlm_adjoint_fenics.hessian_optimization import *
-\end{lstlisting}
-\begin{lstlisting}
 from tlm_adjoint_firedrake.hessian_optimization import *
 \end{lstlisting}
 \begin{lstlisting}
@@ -2489,7 +2486,7 @@ example, the diffusion equation example described in section
 \begin{lstlisting}
 from fenics import *
 from tlm_adjoint_fenics import *
-from tlm_adjoint_fenics.timestepping import *
+from tlm_adjoint.timestepping import *
 stop_manager()
 
 t_N = 100
