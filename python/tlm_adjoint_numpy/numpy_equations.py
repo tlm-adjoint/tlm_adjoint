@@ -18,9 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import space_new
+from tlm_adjoint.interface import space_new
 
-from .base_equations import EquationException, LinearEquation, Matrix, RHS
+from tlm_adjoint.base_equations import EquationException, LinearEquation, \
+    Matrix, RHS
 
 import numpy as np
 

@@ -20,7 +20,7 @@
 
 from tlm_adjoint_numpy import *
 from tlm_adjoint_numpy import manager as _manager
-from tlm_adjoint_numpy.alias import WeakAlias
+from tlm_adjoint.alias import WeakAlias
 
 from test_base import *
 

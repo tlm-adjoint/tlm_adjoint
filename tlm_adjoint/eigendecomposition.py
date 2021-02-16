@@ -60,7 +60,6 @@ from .interface import function_get_values, function_global_size, \
     space_new
 
 import numpy as np
-import petsc4py.PETSc as PETSc
 
 __all__ = \
     [
@@ -93,6 +92,8 @@ class PythonMatrix:
 
     @flag_errors
     def mult(self, A, x, y):
+        import petsc4py.PETSc as PETSc
+
         X = space_new(self._space)
         x_a = x.getArray(readonly=True)
         function_set_values(X, x_a)
@@ -144,6 +145,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     containing the real and imaginary parts of the corresponding eigenvectors.
     """
 
+    import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
 
     if problem_type is None:

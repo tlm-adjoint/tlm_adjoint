@@ -19,9 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import backend
-from .interface import InterfaceException, SpaceInterface, add_interface, \
-    add_new_real_function, space_id, space_new
-from .interface import FunctionInterface as _FunctionInterface
+from tlm_adjoint.interface import InterfaceException, SpaceInterface, \
+    add_interface, add_new_real_function, space_id, space_new
+from tlm_adjoint.interface import FunctionInterface as _FunctionInterface
 
 import copy
 import mpi4py.MPI as MPI

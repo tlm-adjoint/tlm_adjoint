@@ -18,55 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-import importlib
-import sys
+from tlm_adjoint import *  # noqa: F401
 
-modules = [("backend", "tlm_adjoint_numpy"),
-           ("interface", "tlm_adjoint"),
-           ("backend_interface", "tlm_adjoint_numpy"),
-           ("base_equations", "tlm_adjoint"),
-           ("numpy_equations", "tlm_adjoint_numpy"),
-           ("alias", "tlm_adjoint"),
-           ("base_caches", "tlm_adjoint"),
-           ("binomial_checkpointing", "tlm_adjoint"),
-           ("functional", "tlm_adjoint"),
-           ("hessian", "tlm_adjoint"),
-           ("hessian_optimization", "tlm_adjoint"),
-           ("manager", "tlm_adjoint"),
-           ("optimization", "tlm_adjoint"),
-           ("tlm_adjoint", "tlm_adjoint"),
-           ("verification", "tlm_adjoint")]
-
-tlm_adjoint_module = "tlm_adjoint" in sys.modules
-
-for module_name, package in modules:
-    if package == "tlm_adjoint":
-        sys.modules[f"tlm_adjoint_numpy.{module_name:s}"] \
-            = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint")
-    else:
-        assert package == "tlm_adjoint_numpy"
-        sys.modules[f"tlm_adjoint.{module_name:s}"] \
-            = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint_numpy")
-
-for module_name, package in modules:
-    del sys.modules[f"tlm_adjoint.{module_name:s}"]
-
-if not tlm_adjoint_module:
-    del sys.modules["tlm_adjoint"]
-
-del importlib, sys, modules, tlm_adjoint_module, module_name, package
-
-from .backend import backend      # noqa: E402,F401
-from .backend_interface import *  # noqa: E402,F401
-from .base_caches import *        # noqa: E402,F401
-from .base_equations import *     # noqa: E402,F401
-from .functional import *         # noqa: E402,F401
-from .hessian import *            # noqa: E402,F401
-from .interface import *          # noqa: E402,F401
-from .manager import *            # noqa: E402,F401
-from .numpy_equations import *    # noqa: E402,F401
-from .optimization import *       # noqa: E402,F401
-from .tlm_adjoint import *        # noqa: E402,F401
-from .verification import *       # noqa: E402,F401
+from .backend import backend      # noqa: F401
+from .backend_interface import *  # noqa: F401
+from .numpy_equations import *    # noqa: F401

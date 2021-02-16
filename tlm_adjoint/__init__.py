@@ -18,7 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-import sys
-if "tlm_adjoint.backend" not in sys.modules:
-    from tlm_adjoint_fenics import *  # noqa: F401
-del sys
+from .base_caches import *         # noqa: F401
+from .base_equations import *      # noqa: F401
+from .eigendecomposition import *  # noqa: F401
+from .functional import *          # noqa: F401
+from .hessian import *             # noqa: F401
+from .interface import *           # noqa: F401
+from .manager import *             # noqa: F401
+from .optimization import *        # noqa: F401
+from .tlm_adjoint import *         # noqa: F401
+from .verification import *        # noqa: F401
