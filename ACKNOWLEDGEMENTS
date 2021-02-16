@@ -100,9 +100,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ===============================================================================
 
-The configuration in examples/basal_sliding/basal.py and
-examples/basal_sliding/basal_fp.py is based upon experiment 3 in [1] (see also
-[2, 3] for equations and configuration parameters).
+The configuration in examples/fenics/basal_sliding/basal.py,
+examples/fenics/basal_sliding/basal_fp.py,
+examples/firedrake/basal_sliding/basal.py, and
+examples/firedrake/basal_sliding/basal_fp.py is based upon experiment 3 in [1]
+(see also [2, 3] for equations and configuration parameters).
 
 [1]  D. N. Golberg and P. Heimbach, "Parameter and state estimation with a
      time-dependent adjoint marine ice sheet model", The Cyrosphere, 7(6), pp.
