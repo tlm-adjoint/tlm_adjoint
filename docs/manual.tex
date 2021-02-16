@@ -1920,12 +1920,8 @@ memory without the use of checkpointing and rerunning (section
 optimized subclass of the \texttt{Hessian} class for this case. This requires
 the additional import
 \begin{lstlisting}
-from tlm_adjoint_firedrake.hessian_optimization import *
-\end{lstlisting}
-\begin{lstlisting}
 from tlm_adjoint.hessian_optimization import *
 \end{lstlisting}
-depending on the backend used.
 
 A \texttt{SingleBlockHessian} can be instantiated via
 \begin{lstlisting}

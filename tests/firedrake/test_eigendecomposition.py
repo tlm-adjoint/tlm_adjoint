@@ -103,7 +103,7 @@ def test_SingleBlockHessian(setup_test):
     stop_manager()
 
     H = Hessian(forward)
-    from tlm_adjoint_firedrake.hessian_optimization import SingleBlockHessian
+    from tlm_adjoint.hessian_optimization import SingleBlockHessian
     H_opt = SingleBlockHessian(J)
 
     # Test consistency of matrix action for static direction

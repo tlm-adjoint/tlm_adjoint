@@ -20,7 +20,7 @@
 
 from firedrake import *
 from tlm_adjoint_firedrake import *
-from tlm_adjoint_firedrake.hessian_optimization import *
+from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import numpy as np

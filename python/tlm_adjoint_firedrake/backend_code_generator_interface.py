@@ -22,8 +22,8 @@ from .backend import FunctionSpace, Parameters, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_LinearSolver, \
     backend_Matrix, backend_ScalarType, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
-from .interface import InterfaceException, add_interface, function_axpy, \
-    function_copy
+from tlm_adjoint.interface import InterfaceException, add_interface, \
+    function_axpy, function_copy
 
 from .functions import ConstantInterface, ConstantSpaceInterface, \
     eliminate_zeros, new_count
