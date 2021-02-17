@@ -20,14 +20,13 @@
 
 from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
     backend_assemble
-from tlm_adjoint.interface import function_assign, function_comm, \
-    function_get_values, function_local_size, function_new, \
-    function_set_values, function_space, is_function, is_real_function, \
-    real_function_value
+from ..interface import function_assign, function_comm, function_get_values, \
+    function_local_size, function_new, function_set_values, function_space, \
+    is_function, is_real_function, real_function_value
 from .backend_code_generator_interface import assemble, matrix_multiply
 
-from tlm_adjoint.caches import Cache
-from tlm_adjoint.equations import Equation, EquationException, NullSolver, \
+from ..caches import Cache
+from ..equations import Equation, EquationException, NullSolver, \
     get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key

@@ -24,12 +24,11 @@ from .backend import Parameters, backend_DirichletBC, backend_Function, \
     backend_NonlinearVariationalSolver, backend_assemble, \
     backend_assemble_system, backend_project, backend_solve, extract_args, \
     parameters
-from tlm_adjoint.interface import function_new, function_update_state, \
-    space_new
+from ..interface import function_new, function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
-from tlm_adjoint.tlm_adjoint import annotation_enabled, tlm_enabled
+from ..tlm_adjoint import annotation_enabled, tlm_enabled
 
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x

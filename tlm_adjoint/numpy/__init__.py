@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint import *  # noqa: F401
+from .. import *  # noqa: F401
 
 from .backend import backend      # noqa: F401
 from .backend_interface import *  # noqa: F401

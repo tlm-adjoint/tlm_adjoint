@@ -21,14 +21,14 @@
 from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_Constant, backend_Function, backend_FunctionSpace, \
     backend_ScalarType, info
-from tlm_adjoint.interface import InterfaceException, SpaceInterface, \
+from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_real_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
     function_assign, function_caches, function_is_cached, \
     function_is_checkpointed, function_is_static, function_new, space_id, \
     space_new, subtract_adjoint_derivative_action
-from tlm_adjoint.interface import FunctionInterface as _FunctionInterface
+from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble
 
 from .caches import form_neg

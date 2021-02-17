@@ -20,11 +20,11 @@
 
 from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from tlm_adjoint.interface import function_assign, function_comm, \
-    function_get_values, function_id, function_local_size, function_new, \
-    function_replacement, function_set_values, function_space, \
-    function_update_caches, function_update_state, function_zero, \
-    is_function, is_real_function, real_function_value
+from ..interface import function_assign, function_comm, function_get_values, \
+    function_id, function_local_size, function_new, function_replacement, \
+    function_set_values, function_space, function_update_caches, \
+    function_update_state, function_zero, is_function, is_real_function, \
+    real_function_value
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -32,9 +32,9 @@ from .backend_code_generator_interface import assemble, \
     process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
     update_parameters_dict, verify_assembly
 
-from tlm_adjoint.caches import CacheRef
-from tlm_adjoint.equations import AssignmentSolver, Equation, \
-    EquationException, NullSolver, get_tangent_linear, no_replace_compatibility
+from ..caches import CacheRef
+from ..equations import AssignmentSolver, Equation, EquationException, \
+    NullSolver, get_tangent_linear, no_replace_compatibility
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form

@@ -20,14 +20,14 @@
 
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
-from tlm_adjoint.interface import InterfaceException, SpaceInterface, \
-    function_caches, function_comm, function_id, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_name, \
-    function_new, function_replacement, function_space, function_state, \
-    add_interface, is_function, space_comm, space_new
-from tlm_adjoint.interface import FunctionInterface as _FunctionInterface
+from ..interface import InterfaceException, SpaceInterface, function_caches, \
+    function_comm, function_id, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_name, function_new, function_replacement, \
+    function_space, function_state, add_interface, is_function, space_comm, \
+    space_new
+from ..interface import FunctionInterface as _FunctionInterface
 
-from tlm_adjoint.alias import gc_disabled
+from ..alias import gc_disabled
 
 import mpi4py.MPI as MPI
 import numpy as np
