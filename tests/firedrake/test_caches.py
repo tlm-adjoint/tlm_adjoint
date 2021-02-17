@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from firedrake import *
-from tlm_adjoint_firedrake import *
+from tlm_adjoint.firedrake import *
 
 from test_base import *
 

@@ -20,7 +20,7 @@
 
 from .interface import function_id
 
-from .base_caches import clear_caches
+from .caches import clear_caches
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import CheckpointStorage

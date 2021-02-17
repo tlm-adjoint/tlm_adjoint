@@ -22,7 +22,7 @@ tlm_adjoint is described in
 tlm_adjoint was developed out of a custom extension to dolfin-adjoint, and
 previously made use of code derived from dolfin-adjoint, particularly in an
 earlier version of the EquationSolver.adjoint_derivative_action method in
-python/tlm_adjoint/equations.py.
+tlm_adjoint/_code_generator/equations.py.
 
 Early development work leading to tlm_adjoint was conducted as part of a U.K.
 Natural Environment Research Council funded project (NE/L005166/1). Further
@@ -32,7 +32,7 @@ Environment Research Council funded project (NE/T001607/1).
 
 ===============================================================================
 
-The file python/tlm_adjoint/backend.py previously included a 'vector' function,
+The file tlm_adjoint/fenics/backend.py previously included a 'vector' function,
 which followed Function::init_vector in dolfin/function/Function.cpp, DOLFIN
 2017.2.0.post0. Code first added 2018-08-03, removed 2018-09-04. Copyright
 notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0, follows.
@@ -60,9 +60,9 @@ notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0, follows.
 
 ===============================================================================
 
-The 'eigendecompose' function in python/tlm_adjoint/eigendecomposition.py
-loosely follows the slepc4py 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license
-information follows.
+The 'eigendecompose' function in tlm_adjoint/eigendecomposition.py loosely
+follows the slepc4py 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information
+follows.
 
 =========================
 LICENSE: SLEPc for Python
@@ -116,8 +116,8 @@ examples/basal_sliding/basal_fp.py is based upon experiment 3 in [1] (see also
 
 ===============================================================================
 
-The FixedPointSolver class in python/tlm_adjoint/base_equations.py derives
-tangent-linear and adjoint information using the approach described in [4, 5].
+The FixedPointSolver class in tlm_adjoint/equations.py derives tangent-linear
+and adjoint information using the approach described in [4, 5].
 
 [4]  J. G. Gilbert, "Automatic differentiation and iterative processes",
      Optimization Methods and Software, 1(1), pp. 13--21, 1992

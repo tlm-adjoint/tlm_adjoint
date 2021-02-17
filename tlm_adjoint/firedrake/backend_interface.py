@@ -20,22 +20,25 @@
 
 from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_Constant, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType, backend_Vector, info
-from .interface import InterfaceException, SpaceInterface, \
-    add_finalize_adjoint_derivative_action, add_interface, \
-    add_new_real_function, add_subtract_adjoint_derivative_action, \
-    function_caches, function_copy, function_is_cached, \
+    backend_ScalarType, info
+from ..interface import InterfaceException, SpaceInterface, \
+    add_finalize_adjoint_derivative_action, add_functional_term_eq, \
+    add_interface, add_new_real_function, \
+    add_subtract_adjoint_derivative_action, add_time_system_eq, \
+    function_assign, function_caches, function_is_cached, \
     function_is_checkpointed, function_is_static, function_new, space_id, \
     space_new, subtract_adjoint_derivative_action
-from .interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble, r0_space
+from ..interface import FunctionInterface as _FunctionInterface
+from .backend_code_generator_interface import assemble
 
 from .caches import form_neg
+from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, Function, Replacement, Zero, \
     is_r0_function
 
 import mpi4py.MPI as MPI
 import numpy as np
+import petsc4py.PETSc as PETSc
 import ufl
 import warnings
 
@@ -52,10 +55,10 @@ __all__ = \
 
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        return self.mesh().mpi_comm()
+        return self.comm
 
     def _id(self):
-        return self.id()
+        return self._tlm_adjoint__space_interface_attrs["id"]
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
@@ -64,22 +67,26 @@ class FunctionSpaceInterface(SpaceInterface):
 
 def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    add_interface(self, FunctionSpaceInterface)
+    id = _space_id_counter[0]
+    _space_id_counter[0] += 1
+    add_interface(self, FunctionSpaceInterface,
+                  {"id": id})
 
 
+_space_id_counter = [0]
 backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
 backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 class FunctionInterface(_FunctionInterface):
     def _comm(self):
-        return self.function_space().mesh().mpi_comm()
+        return self.comm
 
     def _space(self):
         return self.function_space()
 
     def _id(self):
-        return self.id()
+        return self.count()
 
     def _name(self):
         return self.name()
@@ -124,84 +131,118 @@ class FunctionInterface(_FunctionInterface):
         function_caches(self).update(value)
 
     def _zero(self):
-        self.vector().zero()
+        with self.dat.vec_wo as x_v:
+            x_v.zeroEntries()
 
     def _assign(self, y):
         if isinstance(y, backend_Function):
-            if self.vector().local_size() != y.vector().local_size():
-                raise InterfaceException("Invalid function space")
-            self.vector().zero()
-            self.vector().axpy(1.0, y.vector())
-        elif isinstance(y, (int, float)):
-            if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(float(y)),
-                            annotate=False, tlm=False)
+            if is_r0_function(self):
+                # Work around Firedrake bug (related to issue #1459?)
+                self.dat.data[:] = y.dat.data_ro
             else:
-                y_ = np.full(self.ufl_shape, float(y), dtype=np.float64)
-                self.assign(backend_Constant(y_),
-                            annotate=False, tlm=False)
+                with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                    if x_v.getLocalSize() != y_v.getLocalSize():
+                        raise InterfaceException("Invalid function space")
+                    y_v.copy(result=x_v)
+        elif isinstance(y, (int, float)):
+            if is_r0_function(self):
+                # Work around Firedrake issue #1459
+                self.dat.data[:] = float(y)
+            else:
+                with self.dat.vec_wo as x_v:
+                    x_v.set(float(y))
         elif isinstance(y, Zero):
-            self.vector().zero()
+            with self.dat.vec_wo as x_v:
+                x_v.zeroEntries()
         else:
             assert isinstance(y, backend_Constant)
-            self.assign(y, annotate=False, tlm=False)
+            if len(y.ufl_shape) == 0:
+                with self.dat.vec_wo as x_v:
+                    x_v.set(float(y))
+            else:
+                self.assign(y, annotate=False, tlm=False)
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
         if isinstance(x, backend_Function):
-            if self.vector().local_size() != x.vector().local_size():
-                raise InterfaceException("Invalid function space")
-            self.vector().axpy(alpha, x.vector())
+            if is_r0_function(self):
+                # Work around Firedrake bug (related to issue #1459?)
+                self.dat.data[:] += alpha * x.dat.data_ro
+            else:
+                with self.dat.vec as y_v, x.dat.vec_ro as x_v:
+                    if y_v.getLocalSize() != x_v.getLocalSize():
+                        raise InterfaceException("Invalid function space")
+                    y_v.axpy(alpha, x_v)
         elif isinstance(x, Zero):
             pass
         else:
             assert isinstance(x, backend_Constant)
             if is_r0_function(self):
-                self.assign(backend_Constant(self.vector().max()
-                                             + alpha * float(x)),
-                            annotate=False, tlm=False)
+                # Work around Firedrake bug (related to issue #1459?)
+                if len(self.ufl_shape) == 0:
+                    self.dat.data[:] += alpha * float(x)
+                else:
+                    x_ = function_new(self)
+                    x_.assign(x, annotate=False, tlm=False)
+                    self.dat.data[:] += alpha * x_.dat.data_ro
             else:
-                x_ = backend_Function(self.function_space())
-                x_.assign(x, annotate=False, tlm=False)
-                self.vector().axpy(alpha, x_.vector())
+                self += alpha * x  # annotate=False, tlm=False
 
     def _inner(self, y):
         if isinstance(y, backend_Function):
-            if self.vector().local_size() != y.vector().local_size():
-                raise InterfaceException("Invalid function space")
-            return self.vector().inner(y.vector())
+            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                inner = x_v.dot(y_v)
+            return inner
         elif isinstance(y, Zero):
             return 0.0
         else:
             assert isinstance(y, backend_Constant)
             if len(y.ufl_shape) == 0:
-                return self.vector().sum() * float(y)
+                with self.dat.vec_ro as x_v:
+                    sum = x_v.sum()
+                return sum * float(y)
             else:
                 y_ = backend_Function(self.function_space())
                 y_.assign(y, annotate=False, tlm=False)
-                return self.vector().inner(y_.vector())
+                with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
+                    inner = x_v.dot(y_v)
+                return inner
 
     def _max_value(self):
-        return self.vector().max()
+        with self.dat.vec_ro as x_v:
+            max = x_v.max()[1]
+        return max
 
     def _sum(self):
-        return self.vector().sum()
+        with self.dat.vec_ro as x_v:
+            sum = x_v.sum()
+        return sum
 
     def _linf_norm(self):
-        return self.vector().norm("linf")
+        with self.dat.vec_ro as x_v:
+            linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
+        return linf_norm
 
     def _local_size(self):
-        return self.vector().local_size()
+        with self.dat.vec_ro as x_v:
+            local_size = x_v.getLocalSize()
+        return local_size
 
     def _global_size(self):
-        return self.function_space().dofmap().global_dimension()
+        with self.dat.vec_ro as x_v:
+            size = x_v.getSize()
+        return size
 
     def _local_indices(self):
-        return slice(*self.function_space().dofmap().ownership_range())
+        with self.dat.vec_ro as x_v:
+            local_range = x_v.getOwnershipRange()
+        return slice(*local_range)
 
     def _get_values(self):
-        values = self.vector().get_local().view()
-        values.setflags(write=False)
+        with self.dat.vec_ro as x_v:
+            values = x_v.getArray(readonly=True)
         if not np.can_cast(values, np.float64):
             raise InterfaceException("Invalid dtype")
         return values
@@ -209,28 +250,19 @@ class FunctionInterface(_FunctionInterface):
     def _set_values(self, values):
         if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
-        if values.shape != (self.vector().local_size(),):
-            raise InterfaceException("Invalid shape")
-        self.vector().set_local(values)
-        self.vector().apply("insert")
+        with self.dat.vec_wo as x_v:
+            if values.shape != (x_v.getLocalSize(),):
+                raise InterfaceException("Invalid shape")
+            x_v.setArray(values)
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        y = function_copy(self, name=name, static=static, cache=cache,
-                          checkpoint=checkpoint)
-        y.vector().zero()
-        return y
+        return Function(self.function_space(), name=name, static=static,
+                        cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
-        y = self.copy(deepcopy=True)
-        if name is not None:
-            y.rename(name, "a Function")
-        y.is_static = lambda: static
-        if cache is None:
-            cache = static
-        y.is_cached = lambda: cache
-        if checkpoint is None:
-            checkpoint = not static
-        y.is_checkpointed = lambda: checkpoint
+        y = function_new(self, name=name, static=static, cache=cache,
+                         checkpoint=checkpoint)
+        function_assign(y, self)
         return y
 
     def _tangent_linear(self, name=None):
@@ -274,48 +306,30 @@ add_new_real_function(backend, _new_real_function)
 
 
 def _subtract_adjoint_derivative_action(x, y):
-    if isinstance(y, backend_Vector):
-        y = (1.0, y)
-    if isinstance(y, ufl.classes.Form):
-        if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-            x._tlm_adjoint__fenics_adj_b += form_neg(y)
+    if isinstance(y, ufl.classes.Form) \
+            and isinstance(x, (backend_Constant, backend_Function)):
+        if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
+            x._tlm_adjoint__firedrake_adj_b += form_neg(y)
         else:
-            x._tlm_adjoint__fenics_adj_b = form_neg(y)
-    elif isinstance(y, tuple) \
-            and len(y) == 2 \
-            and isinstance(y[0], (int, float)) \
-            and isinstance(y[1], backend_Vector):
-        alpha, y = y
-        alpha = float(alpha)
-        if isinstance(x, backend_Constant):
-            if len(x.ufl_shape) == 0:
-                # annotate=False, tlm=False
-                x.assign(float(x) - alpha * y.max())
-            else:
-                y_fn = Function(r0_space(x))
-
-                # Ordering check
-                check_values = np.arange(np.prod(x.ufl_shape),
-                                         dtype=np.float64)
-                # annotate=False, tlm=False
-                y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
-                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                    assert y_fn_c.vector().max() == check_values[i]
-                y_fn.vector().zero()
-
-                value = x.values()
-                y_fn.vector().axpy(1.0, y)
-                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                    value[i] -= alpha * y_fn_c.vector().max()
-                value.shape = x.ufl_shape
-                # annotate=False, tlm=False
-                x.assign(backend_Constant(value))
-        elif isinstance(x, backend_Function):
-            if x.vector().local_size() != y.local_size():
-                raise InterfaceException("Invalid function space")
-            x.vector().axpy(-alpha, y)
+            x._tlm_adjoint__firedrake_adj_b = form_neg(y)
+    elif isinstance(x, backend_Constant):
+        if isinstance(y, backend_Function):
+            alpha = 1.0
+        elif isinstance(y, tuple) \
+                and len(y) == 2 \
+                and isinstance(y[0], (int, float)) \
+                and isinstance(y[1], backend_Function):
+            alpha, y = y
+            alpha = float(alpha)
         else:
             return NotImplemented
+        if len(x.ufl_shape) == 0:
+            y_value, = y.dat.data
+            # annotate=False, tlm=False
+            x.assign(float(x) - alpha * y_value)
+        else:
+            # See Firedrake issue #1456
+            raise InterfaceException("Rank >= 1 Constant not implemented")
     else:
         return NotImplemented
 
@@ -325,18 +339,51 @@ add_subtract_adjoint_derivative_action(backend,
 
 
 def _finalize_adjoint_derivative_action(x):
-    if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-        if isinstance(x, backend_Constant):
-            y = assemble(x._tlm_adjoint__fenics_adj_b)
-            subtract_adjoint_derivative_action(x, (-1.0, y))
-        else:
-            assemble(x._tlm_adjoint__fenics_adj_b, tensor=x.vector(),
-                     add_values=True)
-        delattr(x, "_tlm_adjoint__fenics_adj_b")
+    if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
+        y = assemble(x._tlm_adjoint__firedrake_adj_b)
+        subtract_adjoint_derivative_action(x, (-1.0, y))
+        delattr(x, "_tlm_adjoint__firedrake_adj_b")
 
 
 add_finalize_adjoint_derivative_action(backend,
                                        _finalize_adjoint_derivative_action)
+
+
+def _functional_term_eq(term, x):
+    if isinstance(term, ufl.classes.Form) \
+            and len(term.arguments()) == 0 \
+            and isinstance(x, (backend_Constant, backend_Function)):
+        return AssembleSolver(term, x)
+    else:
+        return NotImplemented
+
+
+add_functional_term_eq(backend, _functional_term_eq)
+
+
+def _time_system_eq(*args, **kwargs):
+    if len(args) >= 1:
+        eq = args[0]
+    elif "eq" in kwargs:
+        eq = kwargs["eq"]
+    else:
+        return NotImplemented
+
+    if len(args) >= 2:
+        x = args[1]
+    elif "x" in kwargs:
+        x = kwargs["x"]
+    else:
+        return NotImplemented
+
+    if isinstance(eq, ufl.classes.Equation) \
+            and isinstance(x, backend_Function):
+        return EquationSolver(*args, **kwargs)
+    else:
+        return NotImplemented
+
+
+add_time_system_eq(backend, _time_system_eq)
 
 
 def default_comm():
@@ -346,11 +393,13 @@ def default_comm():
     return MPI.COMM_WORLD
 
 
-def RealFunctionSpace(comm=MPI.COMM_WORLD):
+def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
                   "use new_real_function instead",
                   DeprecationWarning, stacklevel=2)
-    return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
+    if comm is None:
+        comm = MPI.COMM_WORLD
+    return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
 
 
 def function_space_id(*args, **kwargs):

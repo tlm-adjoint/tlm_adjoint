@@ -20,7 +20,7 @@
 
 from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from .interface import function_assign, function_comm, function_get_values, \
+from ..interface import function_assign, function_comm, function_get_values, \
     function_id, function_local_size, function_new, function_replacement, \
     function_set_values, function_space, function_update_caches, \
     function_update_state, function_zero, is_function, is_real_function, \
@@ -32,9 +32,10 @@ from .backend_code_generator_interface import assemble, \
     process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
     update_parameters_dict, verify_assembly
 
-from .base_caches import CacheRef
-from .base_equations import AssignmentSolver, Equation, EquationException, \
+from ..caches import CacheRef
+from ..equations import AssignmentSolver, Equation, EquationException, \
     NullSolver, get_tangent_linear, no_replace_compatibility
+
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \

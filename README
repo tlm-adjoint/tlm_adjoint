@@ -4,17 +4,17 @@ library is used via, e.g., the Python code
     FEniCS backend:
 
         from fenics import *
-        from tlm_adjoint_fenics import *
+        from tlm_adjoint.fenics import *
 
     Firedrake backend:
 
         from firedrake import *
-        from tlm_adjoint_firedrake import *
+        from tlm_adjoint.firedrake import *
 
     NumPy backend:
 
         import numpy as np
-        from tlm_adjoint_numpy import *
+        from tlm_adjoint.numpy import *
 
 tlm_adjoint is currently targeting FEniCS 2019.1.0, and the Firedrake Git
 master branch.
@@ -30,6 +30,6 @@ tlm_adjoint optionally requires
     PyPNG, for generation of block Jacobian dependency structure images
     SciPy, for gradient-based optimization and interpolation equations
     h5py, with the 'mpio' driver for parallel calculations, for HDF5 storage
-    slepc4py, for eigendecomposition functionality
+    petsc4py and slepc4py, for eigendecomposition functionality
 
 License: GNU LGPL version 3

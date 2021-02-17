@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 
 from test_base import *
 
@@ -191,8 +191,8 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     kappa = Constant(1.0, domain=mesh, name="kappa", static=True)
 
     def forward(T_0, kappa):
-        from tlm_adjoint_fenics.timestepping import N, TimeFunction, \
-            TimeLevels, TimeSystem, n
+        from tlm_adjoint.timestepping import N, TimeFunction, TimeLevels, \
+            TimeSystem, n
 
         levels = TimeLevels([n, n + 1], {n: n + 1})
         T = TimeFunction(levels, space, name="T")

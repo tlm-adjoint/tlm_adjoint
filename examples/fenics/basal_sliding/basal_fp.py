@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint_fenics import *
-from tlm_adjoint_fenics.hessian_optimization import *
+from tlm_adjoint.fenics import *
+from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import numpy as np

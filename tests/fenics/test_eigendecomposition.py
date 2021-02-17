@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 
 from test_base import *
 
@@ -97,7 +97,7 @@ def test_SingleBlockHessian(setup_test):
     stop_manager()
 
     H = Hessian(forward)
-    from tlm_adjoint_fenics.hessian_optimization import SingleBlockHessian
+    from tlm_adjoint.hessian_optimization import SingleBlockHessian
     H_opt = SingleBlockHessian(J)
 
     # Test consistency of matrix action for static direction

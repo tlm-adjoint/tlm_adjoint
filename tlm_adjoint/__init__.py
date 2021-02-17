@@ -18,31 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint.firedrake import *
-
-from test_base import *
-
-import mpi4py.MPI as MPI
-import os
-import pytest
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
-def test_basal(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal.py"))
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
-@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
-def test_basal_fp(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal_fp.py"))
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
-def test_diffusion(setup_test, test_leaks):
-    run_example(os.path.join("diffusion", "diffusion.py"))
+from .caches import *              # noqa: F401
+from .eigendecomposition import *  # noqa: F401
+from .equations import *           # noqa: F401
+from .functional import *          # noqa: F401
+from .hessian import *             # noqa: F401
+from .interface import *           # noqa: F401
+from .manager import *             # noqa: F401
+from .optimization import *        # noqa: F401
+from .tlm_adjoint import *         # noqa: F401
+from .verification import *        # noqa: F401

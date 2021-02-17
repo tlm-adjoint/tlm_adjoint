@@ -19,9 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from firedrake import *
-from tlm_adjoint_firedrake import *
-from tlm_adjoint_firedrake import manager as _manager
-from tlm_adjoint_firedrake.alias import WeakAlias
+from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake import manager as _manager
+from tlm_adjoint.alias import WeakAlias
 
 from test_base import *
 

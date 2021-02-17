@@ -18,7 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-import sys
-if "tlm_adjoint.backend" not in sys.modules:
-    from tlm_adjoint_fenics import *  # noqa: F401
-del sys
+from .. import *  # noqa: F401
+
+from .backend import backend      # noqa: F401
+from .backend_interface import *  # noqa: F401
+from .equations import *          # noqa: F401

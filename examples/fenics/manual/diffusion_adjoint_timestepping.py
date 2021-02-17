@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from fenics import *
-from tlm_adjoint_fenics import *
-from tlm_adjoint_fenics.timestepping import *
+from tlm_adjoint.fenics import *
+from tlm_adjoint.timestepping import *
 stop_manager()
 
 t_N = 100

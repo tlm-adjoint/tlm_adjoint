@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from firedrake import *
-from tlm_adjoint_firedrake import *
-from tlm_adjoint_firedrake.hessian_optimization import *
+from tlm_adjoint.firedrake import *
+from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import mpi4py.MPI as MPI
@@ -175,7 +175,7 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 J_1 = ufl.replace(self._J_1, replace_map)
                 J_2 = ufl.replace(self._J, replace_map)
 
-            from tlm_adjoint_firedrake.backend_code_generator_interface \
+            from tlm_adjoint.firedrake.backend_code_generator_interface \
                 import assemble, solve
             function_zero(U)
             r = assemble(

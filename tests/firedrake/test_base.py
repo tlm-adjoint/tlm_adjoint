@@ -19,9 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from firedrake import *
-from tlm_adjoint_firedrake import *
-from tlm_adjoint_firedrake import manager as _manager
-from tlm_adjoint_firedrake.backend import backend_Constant, backend_Function
+from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake import manager as _manager
+from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
 
 import copy
 import gc

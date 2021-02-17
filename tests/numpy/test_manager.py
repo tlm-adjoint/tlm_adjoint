@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint_numpy import *
-from tlm_adjoint_numpy import manager as _manager
-from tlm_adjoint_numpy.alias import WeakAlias
+from tlm_adjoint.numpy import *
+from tlm_adjoint.numpy import manager as _manager
+from tlm_adjoint.alias import WeakAlias
 
 from test_base import *
 

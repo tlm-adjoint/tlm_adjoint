@@ -121,7 +121,7 @@ A forward model constrained derivative of $J$ with respect to the discrete
 initial condition $\psi^0$ can computed via
 \begin{lstlisting}
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 stop_manager()
 
 N = 100
@@ -256,7 +256,7 @@ derivative of the functional $J$ with respect to the initial condition
 $\psi^0$, in a direction $\zeta \in V$, can be computed via
 \begin{lstlisting}
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 stop_manager()
 
 N = 100
@@ -367,19 +367,19 @@ For further details see section \ref{sect:higher_order}.
 The FEniCS backend may be used via, e.g.
 \begin{lstlisting}
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 \end{lstlisting}
 
 The Firedrake backend may be used via, e.g.
 \begin{lstlisting}
 from firedrake import *
-from tlm_adjoint_firedrake import *
+from tlm_adjoint.firedrake import *
 \end{lstlisting}
 
 The NumPy backend may be used via, e.g.
 \begin{lstlisting}
 import numpy as np
-from tlm_adjoint_numpy import *
+from tlm_adjoint.numpy import *
 \end{lstlisting}
 
 \section{Automatic processing}\label{sect:overrides}
@@ -415,7 +415,7 @@ solve(inner(test, trial) * dx == inner(test, F * F) * dx,
 A forward model constrained derivative can be computed via, for example
 \begin{lstlisting}
 from fenics import *
-from tlm_adjoint_fenics import *
+from tlm_adjoint.fenics import *
 
 mesh = UnitIntervalMesh(10)
 space = FunctionSpace(mesh, "Lagrange", 1)
@@ -1920,15 +1920,8 @@ memory without the use of checkpointing and rerunning (section
 optimized subclass of the \texttt{Hessian} class for this case. This requires
 the additional import
 \begin{lstlisting}
-from tlm_adjoint_fenics.hessian_optimization import *
+from tlm_adjoint.hessian_optimization import *
 \end{lstlisting}
-\begin{lstlisting}
-from tlm_adjoint_firedrake.hessian_optimization import *
-\end{lstlisting}
-\begin{lstlisting}
-from tlm_adjoint_numpy.hessian_optimization import *
-\end{lstlisting}
-depending on the backend used.
 
 A \texttt{SingleBlockHessian} can be instantiated via
 \begin{lstlisting}
@@ -2488,8 +2481,8 @@ example, the diffusion equation example described in section
 \ref{sect:diffusion} may be implemented via
 \begin{lstlisting}
 from fenics import *
-from tlm_adjoint_fenics import *
-from tlm_adjoint_fenics.timestepping import *
+from tlm_adjoint.fenics import *
+from tlm_adjoint.timestepping import *
 stop_manager()
 
 t_N = 100
