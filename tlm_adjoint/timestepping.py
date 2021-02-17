@@ -44,9 +44,9 @@ __all__ = \
 
 # Aim for a degree of consistency with the API of the 'timestepping' library,
 # as in dolfin-adjoint timestepping_2017.1.0 branch, and as described in
-#   J. R. Maddison and P. E. Farrell, "Rapid Development and adjoining of
+#   J. R. Maddison and P. E. Farrell, "Rapid development and adjoining of
 #   transient finite element models", Computer Methods in Applied Mechanics and
-#   Engineering, 276(1), pp. 95--121, 2014
+#   Engineering, 276, pp. 95--121, 2014
 
 
 class TimesteppingException(Exception):
