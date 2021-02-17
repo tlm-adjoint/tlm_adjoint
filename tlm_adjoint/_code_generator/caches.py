@@ -19,12 +19,12 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import TrialFunction, backend_Function
-from tlm_adjoint.interface import function_id, function_is_cached, \
-    function_space, is_function
+from ..interface import function_id, function_is_cached, function_space, \
+    is_function
 from .backend_code_generator_interface import assemble, assemble_arguments, \
     assemble_matrix, linear_solver, matrix_copy, parameters_key
 
-from tlm_adjoint.caches import Cache, CacheException
+from ..caches import Cache, CacheException
 
 from .functions import eliminate_zeros, replaced_form
 

@@ -47,7 +47,7 @@ del sys.modules["tlm_adjoint._code_generator"]
 
 del importlib, sys, modules, module_name, package
 
-from tlm_adjoint import *  # noqa: E402,F401
+from .. import *  # noqa: E402,F401
 
 from .backend import backend        # noqa: E402,F401
 from .backend_code_generator_interface import copy_parameters_dict  # noqa: E402,E501,F401
