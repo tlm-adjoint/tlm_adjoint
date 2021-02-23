@@ -1417,6 +1417,10 @@ class EquationManager:
         self._checkpoint(final=True)
 
     def dependency_graph_png(self, divider=[255, 127, 127], p=5):
+        warnings.warn("EquationManager.dependency_graph_png method may be "
+                      "removed",
+                      DeprecationWarning, stacklevel=2)
+
         P = 2 ** p
 
         blocks = copy.copy(self._blocks)
