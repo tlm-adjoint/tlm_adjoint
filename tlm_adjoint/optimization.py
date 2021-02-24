@@ -21,7 +21,7 @@
 from .interface import function_axpy, function_copy, function_get_values, \
     function_is_cached, function_is_checkpointed, function_is_static, \
     function_linf_norm, function_local_size, function_new, \
-    function_set_values, is_function
+    function_set_values
 
 from .caches import clear_caches
 from .manager import manager as _manager, set_manager
@@ -69,14 +69,13 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
                                             manager=manager, **kwargs)
         return M, return_value
 
-    M0 = [m0 if is_function(m0) else m0.m() for m0 in M0]
     if manager is None:
         manager = _manager()
     comm = manager.comm().Dup()
 
     N = [0]
-    for m in M0:
-        N.append(N[-1] + function_local_size(m))
+    for m0 in M0:
+        N.append(N[-1] + function_local_size(m0))
     size_global = comm.allgather(np.array(N[-1], dtype=np.int64))
     N_global = [0]
     for size in size_global:

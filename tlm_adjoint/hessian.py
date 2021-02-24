@@ -66,8 +66,8 @@ class Hessian:
 
         Arguments:
 
-        M   A Control or function, or a list or tuple of these, defining the
-            derivative.
+        M   A function, or a list or tuple of functions, defining the control
+            parameters.
         """
 
         if not isinstance(M, (list, tuple)):
@@ -108,8 +108,8 @@ class Hessian:
 
         Arguments:
 
-        M   A Control or function, or a list or tuple of these, defining the
-            Hessian.
+        M   A function, or a list or tuple of functions, defining the control
+            parameters.
         dM  A function, or list or tuple or functions, defining the Hessian
             action direction.
         """
@@ -149,7 +149,7 @@ class Hessian:
 
         Arguments:
 
-        m   A Control or function
+        m   A function
         """
 
         def action(dm):

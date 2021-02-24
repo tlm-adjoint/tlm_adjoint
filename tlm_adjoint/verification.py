@@ -21,7 +21,7 @@
 from .interface import function_assign, function_axpy, function_copy, \
     function_inner, function_is_cached, function_is_checkpointed, \
     function_is_static, function_linf_norm, function_local_size, \
-    function_name, function_new, function_set_values, is_function
+    function_name, function_new, function_set_values
 
 from .caches import clear_caches
 from .manager import manager as _manager, set_manager
@@ -58,7 +58,8 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     forward  A callable which takes as input one or more functions defining the
              value of the control, and returns the Functional.
-    M        A Control or function, or a list or tuple of these. The control.
+    M        A function, or a list or tuple of functions. The control
+             parameters.
     J_val    The reference functional value.
     dJ       (Optional if ddJ is supplied) A function, or a list or tuple of
              functions, storing the derivative of J with respect to M.
@@ -88,7 +89,6 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     if manager is None:
         manager = _manager()
 
-    M = [m.m() if not is_function(m) else m for m in M]
     if M0 is None:
         M0 = [manager.initial_condition(m) for m in M]
     M1 = [function_new(m, static=function_is_static(m),
@@ -167,7 +167,6 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
     tlm_manager = manager.new("memory", {})
     tlm_manager.stop()
 
-    M = [m.m() if not is_function(m) else m for m in M]
     M = [function_copy(m, name=function_name(m),
                        static=function_is_static(m),
                        cache=function_is_cached(m),
@@ -248,7 +247,6 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
     tlm_manager = manager.new()
     tlm_manager.stop()
 
-    M = [m.m() if not is_function(m) else m for m in M]
     M = [function_copy(m, name=function_name(m),
                        static=function_is_static(m),
                        cache=function_is_cached(m),
