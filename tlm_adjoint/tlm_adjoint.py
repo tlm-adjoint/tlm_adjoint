@@ -24,7 +24,7 @@ from .interface import function_assign, function_copy, function_get_values, \
     function_new, function_set_values, function_space, \
     function_tangent_linear, is_function, space_id, space_new
 
-from .alias import WeakAlias, gc_disabled
+from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
@@ -72,7 +72,7 @@ class ManagerException(Exception):
     pass
 
 
-class Control:
+class Control(Alias):
     def __init__(self, m, manager=None):
         if manager is None:
             manager = _manager()
@@ -80,10 +80,22 @@ class Control:
         if isinstance(m, str):
             m = manager.find_initial_condition(m)
 
-        self._m = m
+        super().__init__(m)
+
+    def __new__(cls, m, manager=None):
+        warnings.warn("Control class is deprecated",
+                      DeprecationWarning, stacklevel=2)
+
+        if manager is None:
+            manager = _manager()
+
+        if isinstance(m, str):
+            m = manager.find_initial_condition(m)
+
+        return super().__new__(cls, m)
 
     def m(self):
-        return self._m
+        return self
 
 
 class CheckpointStorage:
@@ -1480,8 +1492,8 @@ class EquationManager:
 
         Js        A Functional or function, or a list or tuple of these,
                   defining the functionals.
-        M         A Control or function, or a list or tuple of these, defining
-                  the control parameters.
+        M         A function, or a list or tuple of functions, defining the
+                  control parameters.
         callback  (Optional) Callable of the form
                       def callback(J_i, n, i, eq, adj_X):
                   where adj_X is None, a function, or a list or tuple of
@@ -1528,7 +1540,7 @@ class EquationManager:
         Js = tuple(Functional(fn=J) if is_function(J) else J for J in Js)
 
         # Controls
-        M = tuple(m if is_function(m) else m.m() for m in M)
+        M = tuple(M)
 
         # Derivatives
         dJ = [None for J in Js]
@@ -1649,8 +1661,12 @@ class EquationManager:
     def find_initial_condition(self, x):
         """
         Find the initial condition function associated with the given function
-        or name.
+        name.
         """
+
+        warnings.warn("EquationManager.find_initial_condition method is "
+                      "deprecated",
+                      DeprecationWarning, stacklevel=2)
 
         for block in self._blocks + [self._block]:
             for eq in block:

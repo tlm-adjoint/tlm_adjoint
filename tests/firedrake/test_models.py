@@ -226,7 +226,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
         J_val_ref = diffusion_ref()
         assert abs(J_val - J_val_ref) < 1.0e-13
 
-    controls = [Control("T_0"), Control("kappa")]
+    controls = [T_0, kappa]
     dJs = compute_gradient(J, controls)
 
     for m, m0, forward_J, dJ, dm in \
