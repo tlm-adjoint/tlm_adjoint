@@ -23,11 +23,13 @@ from tlm_adjoint.firedrake import *
 from tlm_adjoint.hessian_optimization import *
 
 # import h5py
+import logging
 import numpy as np
 # import petsc4py.PETSc as PETSc
 import slepc4py.SLEPc as SLEPc
 import ufl
 
+logging.getLogger("firedrake").setLevel(logging.INFO)
 stop_manager()
 np.random.seed(12143432)
 # PETSc.Options().setValue("citations", "petsc.bib")
