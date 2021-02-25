@@ -23,10 +23,12 @@ from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
 
 # import h5py
+import logging
 import mpi4py.MPI as MPI
 import numpy as np
 # import petsc4py.PETSc as PETSc
 
+logging.getLogger("firedrake").setLevel(logging.INFO)
 stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
 np.random.seed(2212983 + MPI.COMM_WORLD.rank)
