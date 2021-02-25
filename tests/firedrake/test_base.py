@@ -65,6 +65,7 @@ def setup_test():
     clear_caches()
     stop_manager()
 
+    logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     np.random.seed(14012313 + MPI.COMM_WORLD.rank)
