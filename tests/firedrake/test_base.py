@@ -31,6 +31,7 @@ import numpy as np
 import os
 import pytest
 import runpy
+import sys
 import weakref
 
 __all__ = \
@@ -46,6 +47,12 @@ __all__ = \
         "ns_parameters_newton_cg",
         "ns_parameters_newton_gmres"
     ]
+
+_logger = logging.getLogger("firedrake")
+_logger.removeHandler(_logger.handlers[0])
+_handler = logging.StreamHandler(stream=sys.stdout)
+_handler.setFormatter(logging.Formatter(fmt="%(message)s"))
+_logger.addHandler(_handler)
 
 
 @pytest.fixture
