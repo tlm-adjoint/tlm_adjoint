@@ -23,17 +23,15 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
 from ..interface import InterfaceException, SpaceInterface, function_caches, \
     function_comm, function_id, function_is_cached, function_is_checkpointed, \
     function_is_static, function_name, function_new, function_replacement, \
-    function_space, function_state, add_interface, is_function, space_comm, \
-    space_new
+    function_space, add_interface, is_function, space_comm, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
-from ..alias import gc_disabled
+from ..caches import Caches
 
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import warnings
-import weakref
 
 __all__ = \
     [
@@ -67,38 +65,6 @@ def is_r0_function(x):
         return False
     e = x.ufl_element()
     return e.family() == "Real" and e.degree() == 0
-
-
-class Caches:
-    def __init__(self, x):
-        self._caches = weakref.WeakValueDictionary()
-        self._id = function_id(x)
-        self._state = (self._id, function_state(x))
-
-    def __len__(self):
-        return len(self._caches)
-
-    @gc_disabled
-    def clear(self):
-        for cache in tuple(self._caches.valuerefs()):
-            cache = cache()
-            if cache is not None:
-                cache.clear(self._id)
-                assert not cache.id() in self._caches
-
-    def add(self, cache):
-        cache_id = cache.id()
-        if cache_id not in self._caches:
-            self._caches[cache_id] = cache
-
-    def remove(self, cache):
-        del self._caches[cache.id()]
-
-    def update(self, x):
-        state = (function_id(x), function_state(x))
-        if state != self._state:
-            self.clear()
-            self._state = state
 
 
 class ConstantSpaceInterface(SpaceInterface):
