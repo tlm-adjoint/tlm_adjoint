@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_caches, function_id
+from .interface import function_caches, function_id, function_state
 
 from .alias import gc_disabled
 
@@ -29,6 +29,7 @@ __all__ = \
         "Cache",
         "CacheException",
         "CacheRef",
+        "Caches",
         "clear_caches"
     ]
 
@@ -174,3 +175,35 @@ class Cache:
 
     def get(self, key, default=None):
         return self._cache.get(key, default)
+
+
+class Caches:
+    def __init__(self, x):
+        self._caches = weakref.WeakValueDictionary()
+        self._id = function_id(x)
+        self._state = (self._id, function_state(x))
+
+    def __len__(self):
+        return len(self._caches)
+
+    @gc_disabled
+    def clear(self):
+        for cache in tuple(self._caches.valuerefs()):
+            cache = cache()
+            if cache is not None:
+                cache.clear(self._id)
+                assert not cache.id() in self._caches
+
+    def add(self, cache):
+        cache_id = cache.id()
+        if cache_id not in self._caches:
+            self._caches[cache_id] = cache
+
+    def remove(self, cache):
+        del self._caches[cache.id()]
+
+    def update(self, x):
+        state = (function_id(x), function_state(x))
+        if state != self._state:
+            self.clear()
+            self._state = state
