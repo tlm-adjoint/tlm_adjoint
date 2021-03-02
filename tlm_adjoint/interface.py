@@ -31,6 +31,7 @@ __all__ = \
 
         "SpaceInterface",
         "is_space",
+        "new_space_id",
         "space_comm",
         "space_id",
         "space_new",
@@ -65,6 +66,7 @@ __all__ = \
         "function_update_caches",
         "function_update_state",
         "function_zero",
+        "new_function_id",
 
         "is_real_function",
         "new_real_function",
@@ -121,6 +123,15 @@ def is_space(x):
 
 def space_comm(space):
     return space._tlm_adjoint__space_interface_comm()
+
+
+_space_id_counter = [0]
+
+
+def new_space_id():
+    space_id = _space_id_counter[0]
+    _space_id_counter[0] += 1
+    return space_id
 
 
 def space_id(space):
@@ -242,6 +253,15 @@ def function_comm(x):
 
 def function_space(x):
     return x._tlm_adjoint__function_interface_space()
+
+
+_function_id_counter = [0]
+
+
+def new_function_id():
+    function_id = _function_id_counter[0]
+    _function_id_counter[0] += 1
+    return function_id
 
 
 def function_id(x):

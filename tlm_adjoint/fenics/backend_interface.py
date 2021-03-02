@@ -26,8 +26,9 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_interface, add_new_real_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
     function_caches, function_copy, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, space_id, \
-    space_new, subtract_adjoint_derivative_action
+    function_is_checkpointed, function_is_static, function_new, \
+    new_function_id, new_space_id, space_id, space_new, \
+    subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, r0_space
 
@@ -57,7 +58,7 @@ class FunctionSpaceInterface(SpaceInterface):
         return self.mesh().mpi_comm()
 
     def _id(self):
-        return self.id()
+        return self._tlm_adjoint__space_interface_attrs["id"]
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
@@ -66,7 +67,8 @@ class FunctionSpaceInterface(SpaceInterface):
 
 def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    add_interface(self, FunctionSpaceInterface)
+    add_interface(self, FunctionSpaceInterface,
+                  {"id": new_space_id()})
 
 
 backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
@@ -81,7 +83,7 @@ class FunctionInterface(_FunctionInterface):
         return self.function_space()
 
     def _id(self):
-        return self.id()
+        return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
         return self.name()
@@ -259,7 +261,8 @@ class FunctionInterface(_FunctionInterface):
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    add_interface(self, FunctionInterface)
+    add_interface(self, FunctionInterface,
+                  {"id": new_function_id()})
 
 
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
