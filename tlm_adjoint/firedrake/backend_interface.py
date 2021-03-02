@@ -26,8 +26,9 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_interface, add_new_real_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
     function_assign, function_caches, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, space_id, \
-    space_new, subtract_adjoint_derivative_action
+    function_is_checkpointed, function_is_static, function_new, \
+    new_function_id, new_space_id, space_id, space_new, \
+    subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble
 
@@ -67,13 +68,10 @@ class FunctionSpaceInterface(SpaceInterface):
 
 def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    id = _space_id_counter[0]
-    _space_id_counter[0] += 1
     add_interface(self, FunctionSpaceInterface,
-                  {"id": id})
+                  {"id": new_space_id()})
 
 
-_space_id_counter = [0]
 backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
 backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
@@ -86,7 +84,7 @@ class FunctionInterface(_FunctionInterface):
         return self.function_space()
 
     def _id(self):
-        return self.count()
+        return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
         return self.name()
@@ -289,7 +287,8 @@ class FunctionInterface(_FunctionInterface):
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    add_interface(self, FunctionInterface)
+    add_interface(self, FunctionInterface,
+                  {"id": new_function_id()})
 
 
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__

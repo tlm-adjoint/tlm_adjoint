@@ -88,7 +88,7 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["space"]
 
     def _id(self):
-        return self.count()
+        return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
         if hasattr(self, "name"):
@@ -554,7 +554,7 @@ class ReplacementInterface(_FunctionInterface):
         return self.ufl_function_space()
 
     def _id(self):
-        return self.id()
+        return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
         return self.name()
@@ -614,19 +614,22 @@ class Replacement(ufl.classes.Coefficient):
         super().__init__(x_space, count=new_count())
         self.__domain = domain
         self.__space = space
-        self.__id = function_id(x)
         self.__name = function_name(x)
         self.__static = function_is_static(x)
         self.__cache = function_is_cached(x)
         self.__checkpoint = function_is_checkpointed(x)
         self.__caches = function_caches(x)
-        add_interface(self, ReplacementInterface, {"space": x_space})
+        add_interface(self, ReplacementInterface,
+                      {"id": function_id(x), "space": x_space})
 
     def function_space(self):
         return self.__space
 
     def id(self):
-        return self.__id
+        warnings.warn("Replacement.id method is deprecated -- "
+                      "use function_id instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_id(self)
 
     def name(self):
         return self.__name

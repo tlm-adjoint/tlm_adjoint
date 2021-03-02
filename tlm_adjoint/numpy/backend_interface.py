@@ -20,7 +20,7 @@
 
 from .backend import backend
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    add_new_real_function, space_id, space_new
+    add_new_real_function, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
 import copy
@@ -46,10 +46,10 @@ __all__ = \
 
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        return self._comm
+        return self.comm()
 
     def _id(self):
-        return self.dim()
+        return self.id()
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
@@ -63,8 +63,15 @@ class FunctionSpace:
             raise InterfaceException("Serial only")
 
         self._comm = comm
+        self._id = new_space_id()
         self._dim = dim
         add_interface(self, FunctionSpaceInterface)
+
+    def comm(self):
+        return self._comm
+
+    def id(self):
+        return self._id
 
     def dim(self):
         return self._dim
@@ -171,12 +178,9 @@ class FunctionInterface(_FunctionInterface):
 
 
 class Function:
-    _id_counter = [0]
-
     def __init__(self, space, name=None, static=False, cache=None,
                  checkpoint=None, _data=None):
-        id = self._id_counter[0]
-        self._id_counter[0] += 1
+        id = new_function_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
             name = f"f_{id:d}"
@@ -186,13 +190,13 @@ class Function:
             checkpoint = not static
 
         self._space = space
+        self._id = id
         self._name = name
         self._state = 0
         self._static = static
         self._cache = cache
         self._checkpoint = checkpoint
         self._replacement = None
-        self._id = id
         if _data is None:
             self._data = np.zeros(space.dim(), dtype=np.float64)
         else:
@@ -285,11 +289,11 @@ class ReplacementInterface(_FunctionInterface):
 class Replacement:
     def __init__(self, x):
         self._space = x.space()
+        self._id = x.id()
         self._name = x.name()
         self._static = x.is_static()
         self._cache = x.is_cached()
         self._checkpoint = x.is_checkpointed()
-        self._id = x.id()
         add_interface(self, ReplacementInterface)
 
     def space(self):

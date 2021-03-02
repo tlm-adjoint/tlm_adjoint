@@ -25,10 +25,11 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble, backend_assemble_system, backend_solve, \
     cpp_LinearVariationalProblem, cpp_NonlinearVariationalProblem, \
     extract_args, has_lu_solver_method, parameters
-from ..interface import InterfaceException, add_interface
+from ..interface import InterfaceException, add_interface, new_function_id, \
+    new_space_id
 
 from .functions import ConstantInterface, ConstantSpaceInterface, \
-    eliminate_zeros, new_count
+    eliminate_zeros
 
 from collections.abc import Iterable
 import copy
@@ -313,9 +314,9 @@ def _Constant__init__(self, *args, name=None, domain=None, space=None,
     if space is None:
         space = self.ufl_function_space()
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "domain": domain, "id": new_count()})
+                      {"comm": comm, "domain": domain, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"space": space})
+                  {"id": new_function_id(), "space": space})
 
 
 backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
