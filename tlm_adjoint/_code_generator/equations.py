@@ -342,14 +342,8 @@ class EquationSolver(Equation):
         if cache_tlm_jacobian is None:
             cache_tlm_jacobian = cache_jacobian
 
-        if nl_solve_J is None:
-            (solver_parameters, linear_solver_parameters,
-             ic, J_ic) = process_solver_parameters(solver_parameters, linear)
-        else:
-            (solver_parameters, _,
-             ic, _) = process_solver_parameters(solver_parameters, linear)
-            (_, linear_solver_parameters,
-             _, J_ic) = process_solver_parameters(solver_parameters, linear)
+        (solver_parameters, linear_solver_parameters,
+         ic, J_ic) = process_solver_parameters(solver_parameters, linear)
 
         if adjoint_solver_parameters is None:
             adjoint_solver_parameters = process_adjoint_solver_parameters(linear_solver_parameters)  # noqa: E501
