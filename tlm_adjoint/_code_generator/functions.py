@@ -561,7 +561,7 @@ class ReplacementInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
-        return self.name()
+        return self._tlm_adjoint__function_interface_attrs["name"]
 
     def _state(self):
         return -1
@@ -621,8 +621,8 @@ class Replacement(ufl.classes.Coefficient):
         self.__name = function_name(x)
         self.__caches = function_caches(x)
         add_interface(self, ReplacementInterface,
-                      {"id": function_id(x), "space": x_space,
-                       "static": function_is_static(x),
+                      {"id": function_id(x), "name": function_name(x),
+                       "space": x_space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
                        "checkpoint": function_is_checkpointed(x)})
 
@@ -636,7 +636,10 @@ class Replacement(ufl.classes.Coefficient):
         return function_id(self)
 
     def name(self):
-        return self.__name
+        warnings.warn("Replacement.name is deprecated -- "
+                      "use function_name instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_name(self)
 
     def is_static(self):
         warnings.warn("Replacement.is_static is deprecated -- "
