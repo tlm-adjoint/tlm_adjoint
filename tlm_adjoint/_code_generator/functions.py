@@ -315,9 +315,9 @@ class Constant(backend_Constant):
 
         super().__init__(value, *args, name=name, domain=domain, space=space,
                          comm=comm, **kwargs)
-        self._tlm_adjoint__function_interface["static"] = static
-        self._tlm_adjoint__function_interface["cache"] = cache
-        self._tlm_adjoint__function_interface["checkpoint"] = checkpoint
+        self._tlm_adjoint__function_interface_attrs["static"] = static
+        self._tlm_adjoint__function_interface_attrs["cache"] = cache
+        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
 
     def is_static(self):
         warnings.warn("Constant.is_static is deprecated -- "
@@ -430,9 +430,9 @@ class Function(backend_Function):
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface["static"] = static
-        self._tlm_adjoint__function_interface["cache"] = cache
-        self._tlm_adjoint__function_interface["checkpoint"] = checkpoint
+        self._tlm_adjoint__function_interface_attrs["static"] = static
+        self._tlm_adjoint__function_interface_attrs["cache"] = cache
+        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
 
     def is_static(self):
         warnings.warn("Function.is_static is deprecated -- "
