@@ -39,6 +39,7 @@ from .functions import Caches, Constant, Function, Replacement, Zero, \
 
 import mpi4py.MPI as MPI
 import numpy as np
+import types
 import ufl
 import warnings
 
@@ -100,22 +101,13 @@ class FunctionInterface(_FunctionInterface):
             self._tlm_adjoint__state = 1
 
     def _is_static(self):
-        if hasattr(self, "is_static"):
-            return self.is_static()
-        else:
-            return False
+        return self._tlm_adjoint__function_interface_attrs["static"]
 
     def _is_cached(self):
-        if hasattr(self, "is_cached"):
-            return self.is_cached()
-        else:
-            return False
+        return self._tlm_adjoint__function_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        if hasattr(self, "is_checkpointed"):
-            return self.is_checkpointed()
-        else:
-            return True
+        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
         if not hasattr(self, "_tlm_adjoint__caches"):
@@ -228,13 +220,17 @@ class FunctionInterface(_FunctionInterface):
         y = self.copy(deepcopy=True)
         if name is not None:
             y.rename(name, "a Function")
-        y.is_static = lambda: static
         if cache is None:
             cache = static
-        y.is_cached = lambda: cache
         if checkpoint is None:
             checkpoint = not static
-        y.is_checkpointed = lambda: checkpoint
+        self._tlm_adjoint__function_interface_attrs["static"] = static
+        self._tlm_adjoint__function_interface_attrs["cache"] = cache
+        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
+        # Backwards compatibility
+        self.is_static = types.MethodType(Function.is_static, self)
+        self.is_cached = types.MethodType(Function.is_cached, self)
+        self.is_checkpointed = types.MethodType(Function.is_checkpointed, self)
         return y
 
     def _tangent_linear(self, name=None):
@@ -262,7 +258,8 @@ class FunctionInterface(_FunctionInterface):
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id()})
+                  {"id": new_function_id(),
+                   "static": False, "cache": False, "checkpoint": True})
 
 
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__

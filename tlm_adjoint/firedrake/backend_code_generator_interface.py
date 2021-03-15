@@ -402,7 +402,8 @@ def _Constant__init__(self, *args, name=None, domain=None, space=None,
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm, "domain": domain, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "space": space})
+                  {"id": new_function_id(), "space": space,
+                   "static": False, "cache": False, "checkpoint": True})
 
 
 backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
