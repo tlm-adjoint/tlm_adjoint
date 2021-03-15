@@ -90,15 +90,10 @@ class FunctionInterface(_FunctionInterface):
         return self.name()
 
     def _state(self):
-        if not hasattr(self, "_tlm_adjoint__state"):
-            self._tlm_adjoint__state = 0
-        return self._tlm_adjoint__state
+        return self._tlm_adjoint__function_interface_attrs["state"]
 
     def _update_state(self):
-        if hasattr(self, "_tlm_adjoint__state"):
-            self._tlm_adjoint__state += 1
-        else:
-            self._tlm_adjoint__state = 1
+        self._tlm_adjoint__function_interface_attrs["state"] += 1
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -279,7 +274,7 @@ class FunctionInterface(_FunctionInterface):
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(),
+                  {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
 
 

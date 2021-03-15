@@ -98,15 +98,10 @@ class ConstantInterface(_FunctionInterface):
             return "f_{self.count():d}"
 
     def _state(self):
-        if not hasattr(self, "_tlm_adjoint__state"):
-            self._tlm_adjoint__state = 0
-        return self._tlm_adjoint__state
+        return self._tlm_adjoint__function_interface_attrs["state"]
 
     def _update_state(self):
-        if hasattr(self, "_tlm_adjoint__state"):
-            self._tlm_adjoint__state += 1
-        else:
-            self._tlm_adjoint__state = 1
+        self._tlm_adjoint__function_interface_attrs["state"] += 1
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
