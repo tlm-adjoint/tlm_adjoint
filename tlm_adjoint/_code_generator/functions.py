@@ -92,39 +92,25 @@ class ConstantInterface(_FunctionInterface):
 
     def _name(self):
         if hasattr(self, "name"):
+            assert "name" not in self._tlm_adjoint__function_interface_attrs
             return self.name()
         else:
-            # Following FEniCS 2019.1.0 behaviour
-            return "f_{self.count():d}"
+            return self._tlm_adjoint__function_interface_attrs["name"]
 
     def _state(self):
-        if not hasattr(self, "_tlm_adjoint__state"):
-            self._tlm_adjoint__state = 0
-        return self._tlm_adjoint__state
+        return self._tlm_adjoint__function_interface_attrs["state"]
 
     def _update_state(self):
-        if hasattr(self, "_tlm_adjoint__state"):
-            self._tlm_adjoint__state += 1
-        else:
-            self._tlm_adjoint__state = 1
+        self._tlm_adjoint__function_interface_attrs["state"] += 1
 
     def _is_static(self):
-        if hasattr(self, "is_static"):
-            return self.is_static()
-        else:
-            return False
+        return self._tlm_adjoint__function_interface_attrs["static"]
 
     def _is_cached(self):
-        if hasattr(self, "is_cached"):
-            return self.is_cached()
-        else:
-            return False
+        return self._tlm_adjoint__function_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        if hasattr(self, "is_checkpointed"):
-            return self.is_checkpointed()
-        else:
-            return True
+        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
         if not hasattr(self, "_tlm_adjoint__caches"):
@@ -329,21 +315,30 @@ class Constant(backend_Constant):
 
         super().__init__(value, *args, name=name, domain=domain, space=space,
                          comm=comm, **kwargs)
-        self.__static = static
-        self.__cache = cache
-        self.__checkpoint = checkpoint
+        self._tlm_adjoint__function_interface_attrs["static"] = static
+        self._tlm_adjoint__function_interface_attrs["cache"] = cache
+        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
 
     def is_static(self):
-        return self.__static
+        warnings.warn("Constant.is_static is deprecated -- "
+                      "use function_is_static instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_static(self)
 
     def is_cached(self):
-        return self.__cache
+        warnings.warn("Constant.is_cached is deprecated -- "
+                      "use function_is_cached instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_cached(self)
 
     def is_checkpointed(self):
-        return self.__checkpoint
+        warnings.warn("Constant.is_checkpointed is deprecated -- "
+                      "use function_is_checkpointed instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_checkpointed(self)
 
     def tangent_linear(self, name=None):
-        if self.is_static():
+        if function_is_static(self):
             return None
         else:
             domains = self.ufl_domains()
@@ -354,8 +349,8 @@ class Constant(backend_Constant):
             return Constant(name=name, domain=domain,
                             space=function_space(self),
                             comm=function_comm(self), static=False,
-                            cache=self.is_cached(),
-                            checkpoint=self.is_checkpointed())
+                            cache=function_is_cached(self),
+                            checkpoint=function_is_checkpointed(self))
 
 
 class Zero(Constant):
@@ -434,27 +429,36 @@ class Function(backend_Function):
         if checkpoint is None:
             checkpoint = not static
 
-        self.__static = static
-        self.__cache = cache
-        self.__checkpoint = checkpoint
         super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs["static"] = static
+        self._tlm_adjoint__function_interface_attrs["cache"] = cache
+        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
 
     def is_static(self):
-        return self.__static
+        warnings.warn("Function.is_static is deprecated -- "
+                      "use function_is_static instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_static(self)
 
     def is_cached(self):
-        return self.__cache
+        warnings.warn("Function.is_cached is deprecated -- "
+                      "use function_is_cached instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_cached(self)
 
     def is_checkpointed(self):
-        return self.__checkpoint
+        warnings.warn("Function.is_checkpointed is deprecated -- "
+                      "use function_is_checkpointed instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_checkpointed(self)
 
     def tangent_linear(self, name=None):
-        if self.is_static():
+        if function_is_static(self):
             return None
         else:
             return function_new(self, name=name, static=False,
-                                cache=self.is_cached(),
-                                checkpoint=self.is_checkpointed())
+                                cache=function_is_cached(self),
+                                checkpoint=function_is_checkpointed(self))
 
 
 class DirichletBC(backend_DirichletBC):
@@ -557,19 +561,19 @@ class ReplacementInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
-        return self.name()
+        return self._tlm_adjoint__function_interface_attrs["name"]
 
     def _state(self):
         return -1
 
     def _is_static(self):
-        return self.is_static()
+        return self._tlm_adjoint__function_interface_attrs["static"]
 
     def _is_cached(self):
-        return self.is_cached()
+        return self._tlm_adjoint__function_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        return self.is_checkpointed()
+        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
         return self.caches()
@@ -615,12 +619,12 @@ class Replacement(ufl.classes.Coefficient):
         self.__domain = domain
         self.__space = space
         self.__name = function_name(x)
-        self.__static = function_is_static(x)
-        self.__cache = function_is_cached(x)
-        self.__checkpoint = function_is_checkpointed(x)
         self.__caches = function_caches(x)
         add_interface(self, ReplacementInterface,
-                      {"id": function_id(x), "space": x_space})
+                      {"id": function_id(x), "name": function_name(x),
+                       "space": x_space, "static": function_is_static(x),
+                       "cache": function_is_cached(x),
+                       "checkpoint": function_is_checkpointed(x)})
 
     def function_space(self):
         return self.__space
@@ -632,16 +636,28 @@ class Replacement(ufl.classes.Coefficient):
         return function_id(self)
 
     def name(self):
-        return self.__name
+        warnings.warn("Replacement.name is deprecated -- "
+                      "use function_name instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_name(self)
 
     def is_static(self):
-        return self.__static
+        warnings.warn("Replacement.is_static is deprecated -- "
+                      "use function_is_static instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_static(self)
 
     def is_cached(self):
-        return self.__cache
+        warnings.warn("Replacement.is_cached is deprecated -- "
+                      "use function_is_cached instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_cached(self)
 
     def is_checkpointed(self):
-        return self.__checkpoint
+        warnings.warn("Replacement.is_checkpointed is deprecated -- "
+                      "use function_is_checkpointed instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_is_checkpointed(self)
 
     def caches(self):
         return self.__caches

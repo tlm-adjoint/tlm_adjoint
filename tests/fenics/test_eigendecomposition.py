@@ -111,7 +111,7 @@ def test_SingleBlockHessian(setup_test):
         error = Function(space, name="error")
         function_assign(error, ddJ)
         function_axpy(error, -1.0, ddJ_opt)
-        assert function_linf_norm(error) == 0.0
+        assert function_linf_norm(error) < 1.0e-14
 
     # Test consistency of eigenvalues
 
@@ -123,4 +123,4 @@ def test_SingleBlockHessian(setup_test):
 
     error = (np.array(sorted(lam.real), dtype=np.float64)
              - np.array(sorted(lam_opt.real), dtype=np.float64))
-    assert abs(error).max() == 0.0
+    assert abs(error).max() < 1.0e-14

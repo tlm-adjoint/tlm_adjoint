@@ -161,8 +161,8 @@ def test_leaks():
     refs = 0
     for F in function_ids.values():
         F = F()
-        if F is not None and F.name() != "Coordinates":
-            info(f"{F.name():s} referenced")
+        if F is not None and function_name(F) != "Coordinates":
+            info(f"{function_name(F):s} referenced")
             refs += 1
     if refs == 0:
         info("No references")

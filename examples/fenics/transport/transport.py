@@ -439,4 +439,4 @@ if verify:
     #                  fletcher32=True, shuffle=True)
     # h.close()
 
-    assert orders_1.min() > 2.00
+    assert orders_1.min() > 1.99
