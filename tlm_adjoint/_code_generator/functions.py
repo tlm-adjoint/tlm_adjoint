@@ -92,10 +92,10 @@ class ConstantInterface(_FunctionInterface):
 
     def _name(self):
         if hasattr(self, "name"):
+            assert "name" not in self._tlm_adjoint__function_interface_attrs
             return self.name()
         else:
-            # Following FEniCS 2019.1.0 behaviour
-            return "f_{self.count():d}"
+            return self._tlm_adjoint__function_interface_attrs["name"]
 
     def _state(self):
         return self._tlm_adjoint__function_interface_attrs["state"]

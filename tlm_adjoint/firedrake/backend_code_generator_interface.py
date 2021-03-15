@@ -395,14 +395,14 @@ def _Constant__init__(self, *args, name=None, domain=None, space=None,
     if name is None:
         # Following FEniCS 2019.1.0 behaviour
         name = f"f_{self.count():d}"
-    self.name = lambda: name
 
     if space is None:
         space = self.ufl_function_space()
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm, "domain": domain, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "state": 0, "space": space,
+                  {"id": new_function_id(), "name": name, "state": 0,
+                   "space": space,
                    "static": False, "cache": False, "checkpoint": True})
 
 
