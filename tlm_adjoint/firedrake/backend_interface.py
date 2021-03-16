@@ -250,9 +250,7 @@ class FunctionInterface(_FunctionInterface):
         return y
 
     def _tangent_linear(self, name=None):
-        if hasattr(self, "tangent_linear"):
-            return self.tangent_linear(name=name)
-        elif function_is_static(self):
+        if function_is_static(self):
             return None
         else:
             return function_new(self, name=name, static=False,
