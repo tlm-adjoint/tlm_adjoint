@@ -83,7 +83,7 @@ def forward(psi_0, psi_n_file=None):
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n, psi_n) * dx)
+    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
@@ -98,5 +98,5 @@ import mpi4py.MPI as MPI  # noqa: E402
 import numpy as np  # noqa: E402
 np.random.seed(174632238 + MPI.COMM_WORLD.rank)
 
-min_order = taylor_test(forward, psi_0, J_val=J.value(), dJ=dJ, seed=1.0e-5)
+min_order = taylor_test(forward, psi_0, J_val=J.value(), dJ=dJ, seed=1.0e-4)
 assert min_order > 1.99

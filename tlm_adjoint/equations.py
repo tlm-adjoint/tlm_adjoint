@@ -838,9 +838,8 @@ class FixedPointSolver(Equation):
         Arguments:
 
         eqs
-            A list or tuple of Equation objects. The last equation defines the
-            solution of the fixed point iteration. A single function cannot
-            appear as the solution to two or more equations.
+            A list or tuple of Equation objects. A function cannot appear as
+            the solution to two or more equations.
         solver_parameters
             Solver parameters dictionary. Parameters (based on KrylovSolver
             parameters in FEniCS 2017.2.0):
@@ -1028,6 +1027,16 @@ class FixedPointSolver(Equation):
         super().drop_references()
         self._eqs = tuple(WeakAlias(eq) for eq in self._eqs)
 
+    def _forward_norm_sq(self, eq_X):
+        assert len(eq_X) == len(self._eqs)
+
+        norm_sq = 0.0
+        for X in eq_X:
+            for x in X:
+                norm_sq += function_inner(x, x)
+
+        return norm_sq
+
     def forward_solve(self, X, deps=None):
         if is_function(X):
             X = (X,)
@@ -1055,7 +1064,8 @@ class FixedPointSolver(Equation):
             function_update_caches(*self.X(), value=X)
 
         it = 0
-        X_0 = tuple(function_copy(x) for x in eq_X[-1])
+        X_0 = tuple(tuple(function_copy(x) for x in eq_X[i])
+                    for i in range(len(self._eqs)))
         while True:
             it += 1
 
@@ -1064,16 +1074,14 @@ class FixedPointSolver(Equation):
 
             R = X_0
             del X_0
-            R_norm_sq = 0.0
-            for r, x in zip(R, eq_X[-1]):
-                function_axpy(r, -1.0, x)
-                R_norm_sq += function_inner(r, r)
+            for i in range(len(self._eqs)):
+                for r, x in zip(R[i], eq_X[i]):
+                    function_axpy(r, -1.0, x)
+            R_norm_sq = self._forward_norm_sq(R)
             if relative_tolerance == 0.0:
                 tolerance_sq = absolute_tolerance ** 2
             else:
-                X_norm_sq = 0.0
-                for x in eq_X[-1]:
-                    X_norm_sq += function_inner(x, x)
+                X_norm_sq = self._forward_norm_sq(eq_X)
                 tolerance_sq = max(absolute_tolerance ** 2,
                                    X_norm_sq * (relative_tolerance ** 2))
             if logger.isEnabledFor(logging.DEBUG):
@@ -1094,8 +1102,9 @@ class FixedPointSolver(Equation):
 
             X_0 = R
             del R
-            for x_0, x in zip(X_0, eq_X[-1]):
-                function_assign(x_0, x)
+            for i in range(len(self._eqs)):
+                for x_0, x in zip(X_0[i], eq_X[i]):
+                    function_assign(x_0, x)
 
     _reset_adjoint_warning = False
 
@@ -1115,6 +1124,11 @@ class FixedPointSolver(Equation):
     def finalize_adjoint(self, J):
         for eq in self._eqs:
             eq.finalize_adjoint(J)
+
+    def _adjoint_norm_sq(self, eq_adj_X):
+        assert len(eq_adj_X) == len(self._eqs)
+
+        return self._forward_norm_sq(eq_adj_X)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if is_function(B):
@@ -1157,7 +1171,8 @@ class FixedPointSolver(Equation):
                 function_zero(adj_x)
 
         it = 0
-        X_0 = tuple(function_copy(x) for x in eq_adj_X[-1])
+        X_0 = tuple(tuple(function_copy(x) for x in eq_adj_X[i])
+                    for i in range(len(self._eqs)))
         while True:
             it += 1
 
@@ -1193,16 +1208,14 @@ class FixedPointSolver(Equation):
 
             R = X_0
             del X_0
-            R_norm_sq = 0.0
-            for r, x in zip(R, eq_adj_X[-1]):
-                function_axpy(r, -1.0, x)
-                R_norm_sq += function_inner(r, r)
+            for i in range(len(self._eqs)):
+                for r, x in zip(R[i], eq_adj_X[i]):
+                    function_axpy(r, -1.0, x)
+            R_norm_sq = self._adjoint_norm_sq(R)
             if relative_tolerance == 0.0:
                 tolerance_sq = absolute_tolerance ** 2
             else:
-                X_norm_sq = 0.0
-                for x in eq_adj_X[-1]:
-                    X_norm_sq += function_inner(x, x)
+                X_norm_sq = self._adjoint_norm_sq(eq_adj_X)
                 tolerance_sq = max(absolute_tolerance ** 2,
                                    X_norm_sq * (relative_tolerance ** 2))
             if logger.isEnabledFor(logging.DEBUG):
@@ -1223,8 +1236,9 @@ class FixedPointSolver(Equation):
 
             X_0 = R
             del R
-            for x_0, x in zip(X_0, eq_adj_X[-1]):
-                function_assign(x_0, x)
+            for i in range(len(self._eqs)):
+                for x_0, x in zip(X_0[i], eq_adj_X[i]):
+                    function_assign(x_0, x)
 
         return adj_X
 

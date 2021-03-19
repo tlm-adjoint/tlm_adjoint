@@ -83,7 +83,7 @@ def forward(psi_0, psi_n_file=None):
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n, psi_n) * dx)
+    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
@@ -104,9 +104,9 @@ import numpy as np  # noqa: E402
 np.random.seed(174632238 + MPI.COMM_WORLD.rank)
 
 min_order = taylor_test_tlm(forward, psi_0, tlm_order=1, dMs=(zeta,),
-                            seed=1.0e-5)
+                            seed=1.0e-4)
 assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward, psi_0, adjoint_order=1,
-                                    seed=1.0e-5)
+                                    seed=1.0e-4)
 assert min_order > 1.99
