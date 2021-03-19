@@ -115,7 +115,7 @@ for n in range(N):
 
 Define the functional
 \begin{equation*}
-  J \left( \psi^N \right) = \int_\Omega \psi^N \psi^N.
+  J \left( \psi^N \right) = \int_\Omega \left( \psi^N - 1 \right) \left( \psi^N - 1 \right).
 \end{equation*}
 A forward model constrained derivative of $J$ with respect to the discrete
 initial condition $\psi^0$ can computed via
@@ -202,7 +202,7 @@ def forward(psi_0, psi_n_file=None):
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n, psi_n) * dx)
+    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
@@ -337,7 +337,7 @@ def forward(psi_0, psi_n_file=None):
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n, psi_n) * dx)
+    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
@@ -2564,7 +2564,7 @@ def forward(psi_0, psi_n_file=None):
     system.finalize()
 
     J = Functional(name="J")
-    J.assign(inner(psi[N], psi[N]) * dx)
+    J.assign(inner(psi[N] - Constant(1.0), psi[N] - Constant(1.0)) * dx)
     return J
 
 
