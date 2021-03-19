@@ -70,7 +70,7 @@ kappa = Function(kappa_space, name="kappa", static=True)
 kappa.assign(Constant(L_x / (Pe * float(N_x))))
 info(f"kappa = {function_max_value(kappa):.16e}")
 # Regularization parameter
-alpha = Constant(1.0e-8, static=True)
+alpha = Constant(1.0e-6, static=True)
 
 # Stream function
 psi = Function(space, name="psi", static=True)
@@ -288,7 +288,7 @@ for i in range(H.shape[1]):
     clear_caches(dm)
     del dm
 assert not np.isnan(H).any()
-assert abs(H - H.T).max() < 1.0e-16
+assert abs(H - H.T).max() < 1.0e-13
 
 # Solve the optimization problem
 _, dJ = ddJ.compute_gradient(T_inflow)
@@ -309,9 +309,9 @@ stop_manager()
     = compute_gradient([J, K], [T_inflow, kappa])
 if verify:
     # Verify the forward model constrained derivatives
-    assert function_linf_norm(dJ_dinflow) < 1.0e-14
+    assert function_linf_norm(dJ_dinflow) < 1.0e-13
     min_order = taylor_test(forward_kappa_ref_J, kappa, J_val=J.value(),
-                            dJ=dJ_dkappa, seed=1.0e-6)
+                            dJ=dJ_dkappa, seed=1.0e-7)
     assert min_order > 1.99
     min_order = taylor_test(forward_T_inflow_ref_K, T_inflow, J_val=K.value(),
                             dJ=dK_dinflow, seed=1.0e-4)
@@ -387,7 +387,7 @@ if verify:
             del dm
         del ddJ
         assert not np.isnan(H).any()
-        assert abs(H - H.T).max() < 1.0e-16
+        assert abs(H - H.T).max() < 1.0e-13
 
         dJ = compute_gradient(J, T_inflow)
         function_set_values(T_inflow,
@@ -439,4 +439,4 @@ if verify:
     #                  fletcher32=True, shuffle=True)
     # h.close()
 
-    assert orders_1.min() > 1.99
+    assert orders_1.min() > 1.98
