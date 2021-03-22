@@ -268,6 +268,12 @@ class FunctionInterface(_FunctionInterface):
     def _is_real(self):
         return is_r0_function(self) and len(self.ufl_shape) == 0
 
+    def _real_value(self):
+        # assert is_real_function(self)
+        with self.dat.vec_ro as x_v:
+            max = x_v.max()[1]
+        return max
+
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)

@@ -265,6 +265,10 @@ class ConstantInterface(_FunctionInterface):
     def _is_real(self):
         return is_r0_function(self) and len(self.ufl_shape) == 0
 
+    def _real_value(self):
+        # assert is_real_function(self)
+        return float(self)
+
 
 class Constant(backend_Constant):
     def __init__(self, value=None, *args, name=None, domain=None, space=None,

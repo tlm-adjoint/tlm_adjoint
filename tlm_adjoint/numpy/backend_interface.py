@@ -176,6 +176,10 @@ class FunctionInterface(_FunctionInterface):
     def _is_real(self):
         return self.space().dim() == 1
 
+    def _real_value(self):
+        # assert is_real_function(self)
+        return self.vector()[0]
+
 
 class Function:
     def __init__(self, space, name=None, static=False, cache=None,
