@@ -22,6 +22,7 @@ import copy
 import logging
 import sys
 import types
+import warnings
 
 __all__ = \
     [
@@ -331,6 +332,8 @@ def function_inner(x, y):
 
 
 def function_max_value(x):
+    warnings.warn("function_max_value is deprecated",
+                  DeprecationWarning, stacklevel=2)
     return x._tlm_adjoint__function_interface_max_value()
 
 

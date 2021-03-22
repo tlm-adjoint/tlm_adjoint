@@ -67,8 +67,9 @@ info(f"dt = {float(dt):.16e}")
 # Diffusivity
 kappa_space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
 kappa = Function(kappa_space, name="kappa", static=True)
-kappa.assign(Constant(L_x / (Pe * float(N_x))))
-info(f"kappa = {function_max_value(kappa):.16e}")
+kappa_val = L_x / (Pe * float(N_x))
+kappa.assign(Constant(kappa_val))
+info(f"kappa = {kappa_val:.16e}")
 # Regularization parameter
 alpha = Constant(1.0e-6, static=True)
 
