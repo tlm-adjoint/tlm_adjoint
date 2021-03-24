@@ -39,7 +39,7 @@ def test_space_id(setup_test, test_leaks):
     assert space_id(space) == space_id(function_space(F_copy))
     assert space_id(space) == space_id(F_copy.function_space())
 
-    F_copy = F.copy()
+    F_copy = F.copy(deepcopy=True)
     assert space_id(space) == space_id(function_space(F_copy))
     assert space_id(space) == space_id(F_copy.function_space())
 
