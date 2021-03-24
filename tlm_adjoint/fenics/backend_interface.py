@@ -254,7 +254,10 @@ def _Function__init__(self, *args, **kwargs):
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
     if isinstance(args[0], backend_FunctionSpace):
-        self._tlm_adjoint__function_interface_attrs["space"] = args[0]
+        space = args[0]
+    else:
+        space = backend_Function._tlm_adjoint__orig_function_space(self)
+    self._tlm_adjoint__function_interface_attrs["space"] = space
 
 
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
@@ -262,9 +265,14 @@ backend_Function.__init__ = _Function__init__
 
 
 def _Function_function_space(self):
-    return self._tlm_adjoint__function_interface_attrs["space"]
+    if hasattr(self, "_tlm_adjoint__function_interface_attrs") \
+            and "space" in self._tlm_adjoint__function_interface_attrs:
+        return self._tlm_adjoint__function_interface_attrs["space"]
+    else:
+        return backend_Function._tlm_adjoint__orig_function_space(self)
 
 
+backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_space  # noqa: E501
 backend_Function.function_space = _Function_function_space
 
 
