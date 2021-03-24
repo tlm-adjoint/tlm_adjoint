@@ -365,14 +365,15 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
         else:
             y = z
 
-        X_vals = [Constant(name=f"x_{i:d}") for i in range(X_coords.shape[0])]
+        X_vals = [new_real_function(name=f"x_{i:d}")
+                  for i in range(X_coords.shape[0])]
         eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
         eq.solve()
         P[0] = eq._P
 
         J = Functional(name="J")
         for x in X_vals:
-            term = space_new(J.space())
+            term = new_real_function()
             ExprEvaluationSolver(x ** 3, term).solve()
             J.addto(term)
         return X_vals, J
