@@ -394,7 +394,7 @@ def is_real_function(x):
 def real_function_value(x):
     if not is_real_function(x):
         raise InterfaceException("Invalid function")
-    return x._tlm_adjoint__function_real_value(x)
+    return x._tlm_adjoint__function_interface_real_value()
 
 
 _new_real_function = {}
