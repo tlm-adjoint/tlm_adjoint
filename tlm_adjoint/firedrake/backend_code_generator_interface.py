@@ -46,6 +46,7 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
+        "is_valid_r0_space",
         "linear_solver",
         "matrix_copy",
         "matrix_multiply",
@@ -372,6 +373,24 @@ def matrix_multiply(A, x, tensor=None, addto=False):
     return tensor
 
 
+def is_valid_r0_space(space):
+    if not hasattr(space, "_tlm_adjoint__is_valid_r0_space"):
+        e = space.ufl_element()
+        if e.family() != "Real" or e.degree() != 0:
+            valid = False
+        elif len(e.value_shape()) == 0:
+            r = backend_Function(space)
+            r.assign(backend_Constant(1.0), annotate=False, tlm=False)
+            with r.dat.vec_ro as r_v:
+                r_max = r_v.max()[1]
+            valid = (r_max == 1.0)
+        else:
+            # See Firedrake issue #1456
+            valid = False
+        space._tlm_adjoint__is_valid_r0_space = valid
+    return space._tlm_adjoint__is_valid_r0_space
+
+
 def r0_space(x):
     if not hasattr(x, "_tlm_adjoint__r0_space"):
         x_domains = x.ufl_domains()
@@ -383,6 +402,7 @@ def r0_space(x):
         else:
             # See Firedrake issue #1456
             raise InterfaceException("Rank >= 1 Constant not implemented")
+        assert is_valid_r0_space(space)
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
 

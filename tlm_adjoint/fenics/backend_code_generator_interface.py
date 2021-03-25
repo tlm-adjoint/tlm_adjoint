@@ -20,11 +20,12 @@
 
 from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     TestFunction, TrialFunction, as_backend_type, backend_Constant, \
-    backend_DirichletBC, backend_KrylovSolver, backend_LUSolver, \
-    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
-    backend_assemble, backend_assemble_system, backend_solve, \
-    cpp_LinearVariationalProblem, cpp_NonlinearVariationalProblem, \
-    extract_args, has_lu_solver_method, parameters
+    backend_DirichletBC, backend_Function, backend_KrylovSolver, \
+    backend_LUSolver, backend_LinearVariationalSolver, \
+    backend_NonlinearVariationalSolver, backend_assemble, \
+    backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
+    cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
+    parameters
 from ..interface import InterfaceException, add_interface, new_function_id, \
     new_space_id
 
@@ -49,6 +50,7 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
+        "is_valid_r0_space",
         "linear_solver",
         "matrix_copy",
         "matrix_multiply",
@@ -281,6 +283,30 @@ def matrix_multiply(A, x, tensor=None, addto=False):
         return tensor
 
 
+def is_valid_r0_space(space):
+    if not hasattr(space, "_tlm_adjoint__is_valid_r0_space"):
+        e = space.ufl_element()
+        if e.family() != "Real" or e.degree() != 0:
+            valid = False
+        elif len(e.value_shape()) == 0:
+            r = backend_Function(space)
+            r.assign(backend_Constant(1.0), annotate=False, tlm=False)
+            valid = (r.vector().max() == 1.0)
+        else:
+            r = backend_Function(space)
+            r.assign(backend_Constant(np.arange(1, np.prod(r.ufl_shape) + 1,
+                                                dtype=np.float64)),
+                     annotate=False, tlm=False)
+            for i, r_c in enumerate(r.split(deepcopy=True)):
+                if r_c.vector().max() != float(i + 1):
+                    valid = False
+                    break
+            else:
+                valid = True
+        space._tlm_adjoint__is_valid_r0_space = valid
+    return space._tlm_adjoint__is_valid_r0_space
+
+
 def r0_space(x):
     if not hasattr(x, "_tlm_adjoint__r0_space"):
         x_domains = x.ufl_domains()
@@ -293,6 +319,7 @@ def r0_space(x):
         else:
             space = TensorFunctionSpace(domain, "R", degree=0,
                                         shape=x.ufl_shape)
+        assert is_valid_r0_space(space)
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
 

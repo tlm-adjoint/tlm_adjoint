@@ -30,12 +30,11 @@ from ..interface import InterfaceException, SpaceInterface, \
     new_function_id, new_space_id, space_id, space_new, \
     subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble
+from .backend_code_generator_interface import assemble, is_valid_r0_space
 
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
-from .functions import Caches, Constant, Function, Replacement, Zero, \
-    is_r0_function
+from .functions import Caches, Constant, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -139,7 +138,7 @@ class FunctionInterface(_FunctionInterface):
             assert isinstance(y, backend_Constant)
             self.assign(y, annotate=False, tlm=False)
 
-        if is_r0_function(self):
+        if self.ufl_element().family() == "Real":
             # Work around Firedrake issue #1459
             values = self.dat.data_ro.copy()
             values = function_comm(self).bcast(values, root=0)
@@ -161,7 +160,7 @@ class FunctionInterface(_FunctionInterface):
             assert isinstance(x, backend_Constant)
             self.assign(self + alpha * x, annotate=False, tlm=False)
 
-        if is_r0_function(self):
+        if self.ufl_element().family() == "Real":
             # Work around Firedrake issue #1459
             values = self.dat.data_ro.copy()
             values = function_comm(self).bcast(values, root=0)
@@ -255,7 +254,8 @@ class FunctionInterface(_FunctionInterface):
         return False
 
     def _is_real(self):
-        return is_r0_function(self) and len(self.ufl_shape) == 0
+        return (is_valid_r0_space(self.function_space())
+                and len(self.ufl_shape) == 0)
 
     def _real_value(self):
         # assert is_real_function(self)

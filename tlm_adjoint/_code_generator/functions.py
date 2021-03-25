@@ -22,8 +22,9 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
 from ..interface import InterfaceException, SpaceInterface, function_caches, \
     function_comm, function_id, function_is_cached, function_is_checkpointed, \
-    function_is_static, function_name, function_replacement, function_space, \
-    function_tangent_linear, add_interface, is_function, space_comm, space_new
+    function_is_real, function_is_static, function_name, \
+    function_replacement, function_space, function_tangent_linear, \
+    add_interface, is_function, space_comm, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -47,7 +48,6 @@ __all__ = \
         "bcs_is_static",
         "eliminate_zeros",
         "extract_coefficients",
-        "is_r0_function",
         "new_count",
         "replaced_expr",
         "replaced_form"
@@ -58,13 +58,6 @@ def new_count():
     c = backend_Constant.__new__(backend_Constant, 0.0)
     backend_Constant._tlm_adjoint__orig___init__(c, 0.0)
     return c.count()
-
-
-def is_r0_function(x):
-    if not is_function(x):
-        return False
-    e = x.ufl_element()
-    return e.family() == "Real" and e.degree() == 0
 
 
 class ConstantSpaceInterface(SpaceInterface):
@@ -278,7 +271,7 @@ class ConstantInterface(_FunctionInterface):
         return False
 
     def _is_real(self):
-        return is_r0_function(self) and len(self.ufl_shape) == 0
+        return len(self.ufl_shape) == 0
 
     def _real_value(self):
         # assert is_real_function(self)
@@ -601,7 +594,7 @@ class ReplacementInterface(_FunctionInterface):
         return True
 
     def _is_real(self):
-        return is_r0_function(self) and len(self.ufl_shape) == 0
+        return self._tlm_adjoint__function_interface_attrs["is_real"]
 
 
 class Replacement(ufl.classes.Coefficient):
@@ -630,7 +623,8 @@ class Replacement(ufl.classes.Coefficient):
                       {"id": function_id(x), "name": function_name(x),
                        "space": x_space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
-                       "checkpoint": function_is_checkpointed(x)})
+                       "checkpoint": function_is_checkpointed(x),
+                       "is_real": function_is_real(x)})
 
     def function_space(self):
         return self.__space
