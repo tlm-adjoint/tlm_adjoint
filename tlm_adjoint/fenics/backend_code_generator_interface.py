@@ -294,8 +294,9 @@ def is_valid_r0_space(space):
             valid = (r.vector().max() == 1.0)
         else:
             r = backend_Function(space)
-            r.assign(backend_Constant(np.arange(1, np.prod(r.ufl_shape) + 1,
-                                                dtype=np.float64)),
+            r_arr = np.arange(1, np.prod(r.ufl_shape) + 1, dtype=np.float64)
+            r_arr.shape = r.ufl_shape
+            r.assign(backend_Constant(r_arr),
                      annotate=False, tlm=False)
             for i, r_c in enumerate(r.split(deepcopy=True)):
                 if r_c.vector().max() != float(i + 1):
