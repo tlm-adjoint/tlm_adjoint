@@ -128,8 +128,8 @@ class FunctionInterface(_FunctionInterface):
                 self.assign(backend_Constant(float(y)),
                             annotate=False, tlm=False)
             else:
-                y_ = np.full(self.ufl_shape, float(y), dtype=np.float64)
-                self.assign(backend_Constant(y_),
+                y_arr = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                self.assign(backend_Constant(y_arr),
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):
             self.vector().zero()

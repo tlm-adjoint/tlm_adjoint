@@ -120,31 +120,30 @@ class FunctionInterface(_FunctionInterface):
 
     def _assign(self, y):
         if isinstance(y, backend_Function):
-            if is_r0_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                self.dat.data[:] = y.dat.data_ro
-            else:
-                with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                    if x_v.getLocalSize() != y_v.getLocalSize():
-                        raise InterfaceException("Invalid function space")
-                    y_v.copy(result=x_v)
+            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                y_v.copy(result=x_v)
         elif isinstance(y, (int, float)):
-            if is_r0_function(self):
-                # Work around Firedrake issue #1459
-                self.dat.data[:] = float(y)
+            if len(self.ufl_shape) == 0:
+                self.assign(backend_Constant(float(y)),
+                            annotate=False, tlm=False)
             else:
-                with self.dat.vec_wo as x_v:
-                    x_v.set(float(y))
+                y_arr = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                self.assign(backend_Constant(y_arr),
+                            annotate=False, tlm=False)
         elif isinstance(y, Zero):
             with self.dat.vec_wo as x_v:
                 x_v.zeroEntries()
         else:
             assert isinstance(y, backend_Constant)
-            if len(y.ufl_shape) == 0:
-                with self.dat.vec_wo as x_v:
-                    x_v.set(float(y))
-            else:
-                self.assign(y, annotate=False, tlm=False)
+            self.assign(y, annotate=False, tlm=False)
+
+        if is_r0_function(self):
+            # Work around Firedrake issue #1459
+            values = self.dat.data_ro.copy()
+            values = function_comm(self).bcast(values, root=0)
+            self.dat.data[:] = values
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args

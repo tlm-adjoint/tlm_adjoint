@@ -131,7 +131,11 @@ class ConstantInterface(_FunctionInterface):
         self.assign(value)  # annotate=False, tlm=False
 
     def _assign(self, y):
-        self.assign(y)  # annotate=False, tlm=False
+        if isinstance(y, (int, float)):
+            self.assign(float(y))  # annotate=False, tlm=False
+        else:
+            assert isinstance(y, backend_Constant)
+            self.assign(y)  # annotate=False, tlm=False
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
