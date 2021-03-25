@@ -138,7 +138,8 @@ class FunctionInterface(_FunctionInterface):
             assert isinstance(y, backend_Constant)
             self.assign(y, annotate=False, tlm=False)
 
-        if self.ufl_element().family() == "Real":
+        e = self.ufl_element()
+        if e.family() == "Real" and e.degree() == 0:
             # Work around Firedrake issue #1459
             values = self.dat.data_ro.copy()
             values = function_comm(self).bcast(values, root=0)
@@ -160,7 +161,8 @@ class FunctionInterface(_FunctionInterface):
             assert isinstance(x, backend_Constant)
             self.assign(self + alpha * x, annotate=False, tlm=False)
 
-        if self.ufl_element().family() == "Real":
+        e = self.ufl_element()
+        if e.family() == "Real" and e.degree() == 0:
             # Work around Firedrake issue #1459
             values = self.dat.data_ro.copy()
             values = function_comm(self).bcast(values, root=0)
