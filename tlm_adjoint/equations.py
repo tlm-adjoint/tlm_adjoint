@@ -1883,7 +1883,9 @@ class InnerProductRHS(RHS):
             Y = function_new(x)
             self._M.forward_action(M_deps, y, Y, method="assign")
 
-        function_axpy(b, self._alpha, function_inner(x, Y))
+        function_set_values(b,
+                            function_get_values(b) + self._alpha
+                            * function_inner(x, Y))
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if self._norm_sq:
@@ -1961,11 +1963,12 @@ class SumRHS(RHS):
 
     def add_forward(self, b, deps):
         y, = deps
-        function_axpy(b, 1.0, function_sum(y))
+        function_set_values(b, function_get_values(b) + function_sum(y))
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if dep_index == 0:
-            function_axpy(b, -1.0, function_sum(adj_x))
+            function_set_values(b,
+                                function_get_values(b) - function_sum(adj_x))
         else:
             raise EquationException("dep_index out of bounds")
 
