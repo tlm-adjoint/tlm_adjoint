@@ -20,11 +20,11 @@
 
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
-from ..interface import InterfaceException, SpaceInterface, function_caches, \
-    function_comm, function_id, function_is_cached, function_is_checkpointed, \
-    function_is_real, function_is_static, function_name, \
+from ..interface import InterfaceException, SpaceInterface, add_interface, \
+    function_caches, function_comm, function_id, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_name, \
     function_replacement, function_space, function_tangent_linear, \
-    add_interface, is_function, space_comm, space_new
+    is_function, is_real_function, space_comm, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -624,7 +624,7 @@ class Replacement(ufl.classes.Coefficient):
                        "space": x_space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
                        "checkpoint": function_is_checkpointed(x),
-                       "is_real": function_is_real(x)})
+                       "is_real": is_real_function(x)})
 
     def function_space(self):
         return self.__space
