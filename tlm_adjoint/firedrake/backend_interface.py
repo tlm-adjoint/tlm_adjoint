@@ -25,17 +25,16 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_real_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_assign, function_caches, function_is_cached, \
+    function_assign, function_caches, function_comm, function_is_cached, \
     function_is_checkpointed, function_is_static, function_new, \
-    new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action
+    is_real_function, new_function_id, new_space_id, real_function_value, \
+    space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble
+from .backend_code_generator_interface import assemble, is_valid_r0_space
 
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
-from .functions import Caches, Constant, Function, Replacement, Zero, \
-    is_r0_function
+from .functions import Caches, Constant, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -120,57 +119,54 @@ class FunctionInterface(_FunctionInterface):
 
     def _assign(self, y):
         if isinstance(y, backend_Function):
-            if is_r0_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                self.dat.data[:] = y.dat.data_ro
-            else:
-                with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                    if x_v.getLocalSize() != y_v.getLocalSize():
-                        raise InterfaceException("Invalid function space")
-                    y_v.copy(result=x_v)
+            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                y_v.copy(result=x_v)
         elif isinstance(y, (int, float)):
-            if is_r0_function(self):
-                # Work around Firedrake issue #1459
-                self.dat.data[:] = float(y)
+            if len(self.ufl_shape) == 0:
+                self.assign(backend_Constant(float(y)),
+                            annotate=False, tlm=False)
             else:
-                with self.dat.vec_wo as x_v:
-                    x_v.set(float(y))
+                y_arr = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                self.assign(backend_Constant(y_arr),
+                            annotate=False, tlm=False)
         elif isinstance(y, Zero):
             with self.dat.vec_wo as x_v:
                 x_v.zeroEntries()
         else:
             assert isinstance(y, backend_Constant)
-            if len(y.ufl_shape) == 0:
-                with self.dat.vec_wo as x_v:
-                    x_v.set(float(y))
-            else:
-                self.assign(y, annotate=False, tlm=False)
+            self.assign(y, annotate=False, tlm=False)
+
+        e = self.ufl_element()
+        if e.family() == "Real" and e.degree() == 0:
+            # Work around Firedrake issue #1459
+            values = self.dat.data_ro.copy()
+            values = function_comm(self).bcast(values, root=0)
+            self.dat.data[:] = values
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
+        alpha = float(alpha)
         if isinstance(x, backend_Function):
-            if is_r0_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                self.dat.data[:] += alpha * x.dat.data_ro
-            else:
-                with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                    if y_v.getLocalSize() != x_v.getLocalSize():
-                        raise InterfaceException("Invalid function space")
-                    y_v.axpy(alpha, x_v)
+            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
+                if y_v.getLocalSize() != x_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                y_v.axpy(alpha, x_v)
+        elif isinstance(x, (int, float)):
+            self.assign(self + alpha * float(x), annotate=False, tlm=False)
         elif isinstance(x, Zero):
             pass
         else:
             assert isinstance(x, backend_Constant)
-            if is_r0_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                if len(self.ufl_shape) == 0:
-                    self.dat.data[:] += alpha * float(x)
-                else:
-                    x_ = function_new(self)
-                    x_.assign(x, annotate=False, tlm=False)
-                    self.dat.data[:] += alpha * x_.dat.data_ro
-            else:
-                self += alpha * x  # annotate=False, tlm=False
+            self.assign(self + alpha * x, annotate=False, tlm=False)
+
+        e = self.ufl_element()
+        if e.family() == "Real" and e.degree() == 0:
+            # Work around Firedrake issue #1459
+            values = self.dat.data_ro.copy()
+            values = function_comm(self).bcast(values, root=0)
+            self.dat.data[:] = values
 
     def _inner(self, y):
         if isinstance(y, backend_Function):
@@ -178,21 +174,15 @@ class FunctionInterface(_FunctionInterface):
                 if x_v.getLocalSize() != y_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 inner = x_v.dot(y_v)
-            return inner
         elif isinstance(y, Zero):
-            return 0.0
+            inner = 0.0
         else:
             assert isinstance(y, backend_Constant)
-            if len(y.ufl_shape) == 0:
-                with self.dat.vec_ro as x_v:
-                    sum = x_v.sum()
-                return sum * float(y)
-            else:
-                y_ = backend_Function(self.function_space())
-                y_.assign(y, annotate=False, tlm=False)
-                with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
-                    inner = x_v.dot(y_v)
-                return inner
+            y_ = backend_Function(self.function_space())
+            y_.assign(y, annotate=False, tlm=False)
+            with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
+                inner = x_v.dot(y_v)
+        return inner
 
     def _max_value(self):
         with self.dat.vec_ro as x_v:
@@ -234,7 +224,7 @@ class FunctionInterface(_FunctionInterface):
     def _set_values(self, values):
         if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
-        with self.dat.vec_wo as x_v:
+        with self.dat.vec as x_v:
             if values.shape != (x_v.getLocalSize(),):
                 raise InterfaceException("Invalid shape")
             x_v.setArray(values)
@@ -266,7 +256,14 @@ class FunctionInterface(_FunctionInterface):
         return False
 
     def _is_real(self):
-        return is_r0_function(self) and len(self.ufl_shape) == 0
+        return (is_valid_r0_space(self.function_space())
+                and len(self.ufl_shape) == 0)
+
+    def _real_value(self):
+        # assert is_real_function(self)
+        with self.dat.vec_ro as x_v:
+            max = x_v.max()[1]
+        return max
 
 
 def _Function__init__(self, *args, **kwargs):
@@ -297,23 +294,20 @@ def _subtract_adjoint_derivative_action(x, y):
         else:
             x._tlm_adjoint__firedrake_adj_b = form_neg(y)
     elif isinstance(x, backend_Constant):
-        if isinstance(y, backend_Function):
+        if isinstance(y, backend_Function) and is_real_function(y):
             alpha = 1.0
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
                 and isinstance(y[0], (int, float)) \
-                and isinstance(y[1], backend_Function):
+                and isinstance(y[1], backend_Function) \
+                and is_real_function(y[1]):
             alpha, y = y
             alpha = float(alpha)
         else:
             return NotImplemented
-        if len(x.ufl_shape) == 0:
-            y_value, = y.dat.data
-            # annotate=False, tlm=False
-            x.assign(float(x) - alpha * y_value)
-        else:
-            # See Firedrake issue #1456
-            raise InterfaceException("Rank >= 1 Constant not implemented")
+        y_value = real_function_value(y)
+        # annotate=False, tlm=False
+        x.assign(float(x) - alpha * y_value)
     else:
         return NotImplemented
 

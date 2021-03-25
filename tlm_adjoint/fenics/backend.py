@@ -45,13 +45,13 @@
 # Modified by Martin Sandve Alnes 2008-2014
 # Modified by Andre Massing 2009
 
-from fenics import Cell, Constant, DirichletBC, Expression, Form, Function, \
+from fenics import Cell, Constant, DirichletBC, Form, Function, \
     FunctionSpace, LocalSolver, Mesh, MeshEditor, KrylovSolver, LUSolver, \
     LinearVariationalSolver, NonlinearVariationalProblem, \
     NonlinearVariationalSolver, Parameters, Point, TensorFunctionSpace, \
     TestFunction, TrialFunction, UnitIntervalMesh, adjoint, as_backend_type, \
-    assemble, assemble_system, has_lu_solver_method, info, interpolate, \
-    parameters, project, solve
+    assemble, assemble_system, has_lu_solver_method, info, parameters, \
+    project, solve
 import fenics
 import petsc4py.PETSc as PETSc
 
@@ -106,7 +106,6 @@ __all__ = \
         "cpp_NonlinearVariationalProblem",
 
         "Cell",
-        "Expression",
         "Form",
         "FunctionSpace",
         "LocalSolver",
@@ -122,6 +121,5 @@ __all__ = \
         "as_backend_type",
         "has_lu_solver_method",
         "info",
-        "interpolate",
         "parameters"
     ]

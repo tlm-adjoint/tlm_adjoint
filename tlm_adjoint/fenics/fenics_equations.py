@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Cell, Expression, LocalSolver, Mesh, MeshEditor, Point, \
-    TestFunction, TrialFunction, backend_Function, interpolate, parameters
+from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
+    TestFunction, TrialFunction, backend_Function, parameters
 from ..interface import function_assign, function_comm, function_get_values, \
     function_local_size, function_new, function_set_values, function_space, \
     is_function, is_real_function, real_function_value
@@ -52,12 +52,7 @@ __all__ = \
 
 def function_coords(x):
     space = function_space(x)
-    coords = np.full((function_local_size(x), space.mesh().geometry().dim()),
-                     np.NAN, dtype=np.float64)
-    for i in range(coords.shape[1]):
-        coord_ex = Expression(f"x[{i:d}]", element=space.ufl_element())
-        coords[:, i] = function_get_values(interpolate(coord_ex, space))
-    return coords
+    return space.tabulate_dof_coordinates()
 
 
 def has_ghost_cells(mesh):

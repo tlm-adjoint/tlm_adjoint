@@ -39,7 +39,7 @@ from ..equations import AssignmentSolver, Equation, EquationException, \
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
-    eliminate_zeros, extract_coefficients, is_r0_function
+    eliminate_zeros, extract_coefficients
 
 import copy
 import operator
@@ -62,7 +62,8 @@ __all__ = \
 def derivative_space(x):
     space = function_space(x)
     if not isinstance(space, backend_FunctionSpace):
-        assert is_r0_function(x)
+        e = x.ufl_element()
+        assert e.family() == "Real" and e.degree() == 0
         space = r0_space(x)
     return space
 
@@ -936,7 +937,8 @@ class ExprEvaluationSolver(Equation):
                               dict(zip(self.dependencies(), deps)))
         rhs_val = evaluate_expr(rhs)
         if isinstance(rhs_val, float):
-            function_assign(x, rhs_val)
+            function_set_values(x, np.full(function_local_size(x), rhs_val,
+                                           dtype=np.float64))
         else:
             assert function_local_size(x) == len(rhs_val)
             function_set_values(x, rhs_val)
@@ -957,7 +959,8 @@ class ExprEvaluationSolver(Equation):
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
         if isinstance(dF_val, float):
-            function_assign(F, dF_val)
+            function_set_values(F, np.full(function_local_size(F),
+                                           dF_val, dtype=np.float64))
         elif is_real_function(F):
             dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
             dF_val = np.full((1,), np.NAN, dtype=np.float64)

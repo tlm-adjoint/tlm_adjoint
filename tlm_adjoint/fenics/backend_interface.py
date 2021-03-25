@@ -30,12 +30,12 @@ from ..interface import InterfaceException, SpaceInterface, \
     new_function_id, new_space_id, space_id, space_new, \
     subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble, r0_space
+from .backend_code_generator_interface import assemble, is_valid_r0_space, \
+    r0_space
 
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
-from .functions import Caches, Constant, Function, Replacement, Zero, \
-    is_r0_function
+from .functions import Caches, Constant, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -128,8 +128,8 @@ class FunctionInterface(_FunctionInterface):
                 self.assign(backend_Constant(float(y)),
                             annotate=False, tlm=False)
             else:
-                y_ = np.full(self.ufl_shape, float(y), dtype=np.float64)
-                self.assign(backend_Constant(y_),
+                y_arr = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                self.assign(backend_Constant(y_arr),
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):
             self.vector().zero()
@@ -139,38 +139,42 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
+        alpha = float(alpha)
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
                 raise InterfaceException("Invalid function space")
             self.vector().axpy(alpha, x.vector())
+        elif isinstance(x, (int, float)):
+            x_ = function_new(self)
+            if len(self.ufl_shape) == 0:
+                x_.assign(backend_Constant(float(x)),
+                          annotate=False, tlm=False)
+            else:
+                x_arr = np.full(self.ufl_shape, float(x), dtype=np.float64)
+                x_.assign(backend_Constant(x_arr),
+                          annotate=False, tlm=False)
+            self.vector().axpy(alpha, x_.vector())
         elif isinstance(x, Zero):
             pass
         else:
             assert isinstance(x, backend_Constant)
-            if is_r0_function(self):
-                self.assign(backend_Constant(self.vector().max()
-                                             + alpha * float(x)),
-                            annotate=False, tlm=False)
-            else:
-                x_ = backend_Function(self.function_space())
-                x_.assign(x, annotate=False, tlm=False)
-                self.vector().axpy(alpha, x_.vector())
+            x_ = backend_Function(self.function_space())
+            x_.assign(x, annotate=False, tlm=False)
+            self.vector().axpy(alpha, x_.vector())
 
     def _inner(self, y):
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
                 raise InterfaceException("Invalid function space")
-            return self.vector().inner(y.vector())
+            inner = self.vector().inner(y.vector())
         elif isinstance(y, Zero):
-            return 0.0
+            inner = 0.0
         else:
             assert isinstance(y, backend_Constant)
-            if len(y.ufl_shape) == 0:
-                return self.vector().sum() * float(y)
-            else:
-                y_ = backend_Function(self.function_space())
-                y_.assign(y, annotate=False, tlm=False)
-                return self.vector().inner(y_.vector())
+            y_ = backend_Function(self.function_space())
+            y_.assign(y, annotate=False, tlm=False)
+            inner = self.vector().inner(y_.vector())
+        return inner
 
     def _max_value(self):
         return self.vector().max()
@@ -245,7 +249,12 @@ class FunctionInterface(_FunctionInterface):
         return False
 
     def _is_real(self):
-        return is_r0_function(self) and len(self.ufl_shape) == 0
+        return (is_valid_r0_space(self.function_space())
+                and len(self.ufl_shape) == 0)
+
+    def _real_value(self):
+        # assert is_real_function(self)
+        return self.vector().max()
 
 
 def _Function__init__(self, *args, **kwargs):
@@ -305,18 +314,8 @@ def _subtract_adjoint_derivative_action(x, y):
                 # annotate=False, tlm=False
                 x.assign(float(x) - alpha * y.max())
             else:
-                y_fn = Function(r0_space(x))
-
-                # Ordering check
-                check_values = np.arange(np.prod(x.ufl_shape),
-                                         dtype=np.float64)
-                # annotate=False, tlm=False
-                y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
-                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                    assert y_fn_c.vector().max() == check_values[i]
-                y_fn.vector().zero()
-
                 value = x.values()
+                y_fn = Function(r0_space(x))
                 y_fn.vector().axpy(1.0, y)
                 for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
                     value[i] -= alpha * y_fn_c.vector().max()

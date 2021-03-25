@@ -63,12 +63,12 @@ def test_NHEP(setup_test, test_leaks):
     diff = Function(space)
     for lam_val, v_r, v_i in zip(lam, V_r, V_i):
         function_set_values(diff, N_action(v_r))
-        function_axpy(diff, -float(lam_val.real), v_r)
-        function_axpy(diff, +float(lam_val.imag), v_i)
+        function_axpy(diff, -lam_val.real, v_r)
+        function_axpy(diff, +lam_val.imag, v_i)
         assert function_linf_norm(diff) < 1.0e-15
         function_set_values(diff, N_action(v_i))
-        function_axpy(diff, -float(lam_val.real), v_i)
-        function_axpy(diff, -float(lam_val.imag), v_r)
+        function_axpy(diff, -lam_val.real, v_i)
+        function_axpy(diff, -lam_val.imag, v_r)
         assert function_linf_norm(diff) < 1.0e-15
 
 

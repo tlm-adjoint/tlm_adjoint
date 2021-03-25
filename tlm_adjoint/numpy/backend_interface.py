@@ -113,15 +113,22 @@ class FunctionInterface(_FunctionInterface):
 
     def _assign(self, y):
         if isinstance(y, (int, float)):
-            self.vector()[:] = y
+            self.vector()[:] = float(y)
         else:
+            assert isinstance(y, Function)
             self.vector()[:] = y.vector()
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        self.vector()[:] += alpha * x.vector()
+        alpha = float(alpha)
+        if isinstance(x, (int, float)):
+            self.vector()[:] += alpha * float(x)
+        else:
+            assert isinstance(x, Function)
+            self.vector()[:] += alpha * x.vector()
 
     def _inner(self, y):
+        assert isinstance(y, Function)
         return self.vector().dot(y.vector())
 
     def _max_value(self):
@@ -175,6 +182,10 @@ class FunctionInterface(_FunctionInterface):
 
     def _is_real(self):
         return self.space().dim() == 1
+
+    def _real_value(self):
+        # assert is_real_function(self)
+        return self.vector()[0]
 
 
 class Function:

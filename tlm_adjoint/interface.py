@@ -22,6 +22,7 @@ import copy
 import logging
 import sys
 import types
+import warnings
 
 __all__ = \
     [
@@ -150,7 +151,8 @@ class FunctionInterface:
              "_update_caches", "_zero", "_assign", "_axpy", "_inner",
              "_max_value", "_sum", "_linf_norm", "_local_size", "_global_size",
              "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_tangent_linear", "_replacement", "_is_replacement", "_is_real")
+             "_tangent_linear", "_replacement", "_is_replacement", "_is_real",
+             "_real_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -242,6 +244,9 @@ class FunctionInterface:
     def _is_real(self):
         raise InterfaceException("Method not overridden")
 
+    def _real_value(self):
+        raise InterfaceException("Method not overridden")
+
 
 def is_function(x):
     return hasattr(x, "_tlm_adjoint__function_interface")
@@ -327,6 +332,8 @@ def function_inner(x, y):
 
 
 def function_max_value(x):
+    warnings.warn("function_max_value is deprecated",
+                  DeprecationWarning, stacklevel=2)
     return x._tlm_adjoint__function_interface_max_value()
 
 
@@ -384,6 +391,12 @@ def is_real_function(x):
     return x._tlm_adjoint__function_interface_is_real()
 
 
+def real_function_value(x):
+    if not is_real_function(x):
+        raise InterfaceException("Invalid function")
+    return x._tlm_adjoint__function_interface_real_value()
+
+
 _new_real_function = {}
 
 
@@ -397,12 +410,6 @@ def new_real_function(name=None, comm=None, static=False, cache=None,
     new_real_function = tuple(_new_real_function.values())[0]
     return new_real_function(name=name, comm=comm, static=static, cache=cache,
                              checkpoint=checkpoint)
-
-
-def real_function_value(x):
-    if not is_real_function(x):
-        raise InterfaceException("Invalid function")
-    return function_max_value(x)
 
 
 _subtract_adjoint_derivative_action = {}
