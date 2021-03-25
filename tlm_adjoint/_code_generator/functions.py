@@ -125,10 +125,15 @@ class ConstantInterface(_FunctionInterface):
 
     def _assign(self, y):
         if isinstance(y, (int, float)):
-            self.assign(float(y))  # annotate=False, tlm=False
+            if len(self.ufl_shape) == 0:
+                value = float(y)
+            else:
+                value = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                value = backend_Constant(value)
         else:
             assert isinstance(y, backend_Constant)
-            self.assign(y)  # annotate=False, tlm=False
+            value = y
+        self.assign(value)  # annotate=False, tlm=False
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
