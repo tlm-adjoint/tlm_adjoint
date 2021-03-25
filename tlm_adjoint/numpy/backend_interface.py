@@ -128,6 +128,7 @@ class FunctionInterface(_FunctionInterface):
             self.vector()[:] += alpha * x.vector()
 
     def _inner(self, y):
+        assert isinstance(y, Function)
         return self.vector().dot(y.vector())
 
     def _max_value(self):

@@ -173,21 +173,15 @@ class FunctionInterface(_FunctionInterface):
                 if x_v.getLocalSize() != y_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 inner = x_v.dot(y_v)
-            return inner
         elif isinstance(y, Zero):
-            return 0.0
+            inner = 0.0
         else:
             assert isinstance(y, backend_Constant)
-            if len(y.ufl_shape) == 0:
-                with self.dat.vec_ro as x_v:
-                    sum = x_v.sum()
-                return sum * float(y)
-            else:
-                y_ = backend_Function(self.function_space())
-                y_.assign(y, annotate=False, tlm=False)
-                with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
-                    inner = x_v.dot(y_v)
-                return inner
+            y_ = backend_Function(self.function_space())
+            y_.assign(y, annotate=False, tlm=False)
+            with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
+                inner = x_v.dot(y_v)
+        return inner
 
     def _max_value(self):
         with self.dat.vec_ro as x_v:

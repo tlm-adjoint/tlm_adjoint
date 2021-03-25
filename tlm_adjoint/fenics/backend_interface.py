@@ -166,17 +166,15 @@ class FunctionInterface(_FunctionInterface):
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
                 raise InterfaceException("Invalid function space")
-            return self.vector().inner(y.vector())
+            inner = self.vector().inner(y.vector())
         elif isinstance(y, Zero):
-            return 0.0
+            inner = 0.0
         else:
             assert isinstance(y, backend_Constant)
-            if len(y.ufl_shape) == 0:
-                return self.vector().sum() * float(y)
-            else:
-                y_ = backend_Function(self.function_space())
-                y_.assign(y, annotate=False, tlm=False)
-                return self.vector().inner(y_.vector())
+            y_ = backend_Function(self.function_space())
+            y_.assign(y, annotate=False, tlm=False)
+            inner = self.vector().inner(y_.vector())
+        return inner
 
     def _max_value(self):
         return self.vector().max()

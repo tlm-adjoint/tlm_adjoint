@@ -158,7 +158,8 @@ class ConstantInterface(_FunctionInterface):
         self.assign(value)  # annotate=False, tlm=False
 
     def _inner(self, y):
-        return (self.values() * y.values()).sum()
+        assert isinstance(y, backend_Constant)
+        return self.values().dot(y.values())
 
     def _max_value(self):
         return self.values().max()
