@@ -937,7 +937,8 @@ class ExprEvaluationSolver(Equation):
                               dict(zip(self.dependencies(), deps)))
         rhs_val = evaluate_expr(rhs)
         if isinstance(rhs_val, float):
-            function_assign(x, rhs_val)
+            function_set_values(x, np.full(function_local_size(x), rhs_val,
+                                           dtype=np.float64))
         else:
             assert function_local_size(x) == len(rhs_val)
             function_set_values(x, rhs_val)
@@ -958,7 +959,8 @@ class ExprEvaluationSolver(Equation):
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
         if isinstance(dF_val, float):
-            function_assign(F, dF_val)
+            function_set_values(F, np.full(function_local_size(F),
+                                           dF_val, dtype=np.float64))
         elif is_real_function(F):
             dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
             dF_val = np.full((1,), np.NAN, dtype=np.float64)
