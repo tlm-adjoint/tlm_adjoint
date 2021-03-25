@@ -314,18 +314,8 @@ def _subtract_adjoint_derivative_action(x, y):
                 # annotate=False, tlm=False
                 x.assign(float(x) - alpha * y.max())
             else:
-                y_fn = Function(r0_space(x))
-
-                # Ordering check
-                check_values = np.arange(np.prod(x.ufl_shape),
-                                         dtype=np.float64)
-                # annotate=False, tlm=False
-                y_fn.assign(backend_Constant(check_values.reshape(x.ufl_shape)))  # noqa: E501
-                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                    assert y_fn_c.vector().max() == check_values[i]
-                y_fn.vector().zero()
-
                 value = x.values()
+                y_fn = Function(r0_space(x))
                 y_fn.vector().axpy(1.0, y)
                 for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
                     value[i] -= alpha * y_fn_c.vector().max()
