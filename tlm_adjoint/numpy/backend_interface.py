@@ -119,7 +119,11 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        self.vector()[:] += alpha * x.vector()
+        alpha = float(alpha)
+        if isinstance(x, (int, float)):
+            self.vector()[:] += alpha * float(x)
+        else:
+            self.vector()[:] += alpha * x.vector()
 
     def _inner(self, y):
         return self.vector().dot(y.vector())

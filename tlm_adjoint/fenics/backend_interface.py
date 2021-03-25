@@ -139,22 +139,28 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
+        alpha = float(alpha)
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
                 raise InterfaceException("Invalid function space")
             self.vector().axpy(alpha, x.vector())
+        elif isinstance(x, (int, float)):
+            x_ = function_new(self)
+            if len(self.ufl_shape) == 0:
+                x_.assign(backend_Constant(float(x)),
+                          annotate=False, tlm=False)
+            else:
+                x_arr = np.full(self.ufl_shape, float(x), dtype=np.float64)
+                x_.assign(backend_Constant(x_arr),
+                          annotate=False, tlm=False)
+            self.vector().axpy(alpha, x_.vector())
         elif isinstance(x, Zero):
             pass
         else:
             assert isinstance(x, backend_Constant)
-            if is_r0_function(self):
-                self.assign(backend_Constant(self.vector().max()
-                                             + alpha * float(x)),
-                            annotate=False, tlm=False)
-            else:
-                x_ = backend_Function(self.function_space())
-                x_.assign(x, annotate=False, tlm=False)
-                self.vector().axpy(alpha, x_.vector())
+            x_ = backend_Function(self.function_space())
+            x_.assign(x, annotate=False, tlm=False)
+            self.vector().axpy(alpha, x_.vector())
 
     def _inner(self, y):
         if isinstance(y, backend_Function):

@@ -135,12 +135,22 @@ class ConstantInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        if len(self.ufl_shape) == 0:
-            value = float(self) + alpha * float(x)
+        alpha = float(alpha)
+        if isinstance(x, (int, float)):
+            if len(self.ufl_shape) == 0:
+                value = float(self) + alpha * float(x)
+            else:
+                value = self.values() + alpha * float(x)
+                value.shape = self.ufl_shape
+                value = backend_Constant(value)
         else:
-            value = self.values() + alpha * x.values()
-            value.shape = self.ufl_shape
-            value = backend_Constant(value)
+            assert isinstance(x, backend_Constant)
+            if len(self.ufl_shape) == 0:
+                value = float(self) + alpha * float(x)
+            else:
+                value = self.values() + alpha * x.values()
+                value.shape = self.ufl_shape
+                value = backend_Constant(value)
         self.assign(value)  # annotate=False, tlm=False
 
     def _inner(self, y):

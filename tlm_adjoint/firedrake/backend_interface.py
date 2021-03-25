@@ -25,7 +25,7 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_real_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_assign, function_caches, function_is_cached, \
+    function_assign, function_caches, function_comm, function_is_cached, \
     function_is_checkpointed, function_is_static, function_new, \
     new_function_id, new_space_id, space_id, space_new, \
     subtract_adjoint_derivative_action
@@ -148,29 +148,25 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
+        alpha = float(alpha)
         if isinstance(x, backend_Function):
-            if is_r0_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                self.dat.data[:] += alpha * x.dat.data_ro
-            else:
-                with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                    if y_v.getLocalSize() != x_v.getLocalSize():
-                        raise InterfaceException("Invalid function space")
-                    y_v.axpy(alpha, x_v)
+            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
+                if y_v.getLocalSize() != x_v.getLocalSize():
+                    raise InterfaceException("Invalid function space")
+                y_v.axpy(alpha, x_v)
+        elif isinstance(x, (int, float)):
+            self.assign(self + alpha * float(x), annotate=False, tlm=False)
         elif isinstance(x, Zero):
             pass
         else:
             assert isinstance(x, backend_Constant)
-            if is_r0_function(self):
-                # Work around Firedrake bug (related to issue #1459?)
-                if len(self.ufl_shape) == 0:
-                    self.dat.data[:] += alpha * float(x)
-                else:
-                    x_ = function_new(self)
-                    x_.assign(x, annotate=False, tlm=False)
-                    self.dat.data[:] += alpha * x_.dat.data_ro
-            else:
-                self += alpha * x  # annotate=False, tlm=False
+            self.assign(self + alpha * x, annotate=False, tlm=False)
+
+        if is_r0_function(self):
+            # Work around Firedrake issue #1459
+            values = self.dat.data_ro.copy()
+            values = function_comm(self).bcast(values, root=0)
+            self.dat.data[:] = values
 
     def _inner(self, y):
         if isinstance(y, backend_Function):
