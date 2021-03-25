@@ -222,7 +222,7 @@ class FunctionInterface(_FunctionInterface):
     def _set_values(self, values):
         if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
-        with self.dat.vec_wo as x_v:
+        with self.dat.vec as x_v:
             if values.shape != (x_v.getLocalSize(),):
                 raise InterfaceException("Invalid shape")
             x_v.setArray(values)
