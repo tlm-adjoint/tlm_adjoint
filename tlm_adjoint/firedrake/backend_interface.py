@@ -216,7 +216,8 @@ class FunctionInterface(_FunctionInterface):
 
     def _get_values(self):
         with self.dat.vec_ro as x_v:
-            values = x_v.getArray(readonly=True)
+            with x_v as x_v_a:
+                values = x_v_a.copy()
         if not np.can_cast(values, np.float64):
             raise InterfaceException("Invalid dtype")
         return values
