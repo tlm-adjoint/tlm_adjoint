@@ -164,8 +164,6 @@ class Functional:
         if manager is None:
             manager = _manager()
 
-        J_fn = self.fn()
-        for depth in range(max_depth):
-            J_fn = manager.tlm(M, dM, J_fn)
+        J_fn = manager.tlm(M, dM, self.fn(), max_depth=max_depth)
 
         return Functional(fn=J_fn)

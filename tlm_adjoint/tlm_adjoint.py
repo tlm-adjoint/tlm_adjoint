@@ -834,7 +834,7 @@ class EquationManager:
 
         return self._tlm_state == "deriving"
 
-    def tlm(self, M, dM, x):
+    def tlm(self, M, dM, x, max_depth=1):
         """
         Return a tangent-linear function associated with the forward function
         x, for the tangent-linear model defined by M and dM.
@@ -850,10 +850,9 @@ class EquationManager:
             dM = tuple(dM)
 
         if (M, dM) in self._tlm:
-            if x in self._tlm[(M, dM)][0]:
-                return self._tlm[(M, dM)][0][x]
-            else:
-                raise ManagerException("Tangent-linear not found")
+            for depth in range(max_depth):
+                x = self._tlm[(M, dM)][0][x]
+            return x
         else:
             raise ManagerException("Tangent-linear not found")
 
@@ -1759,10 +1758,10 @@ def tlm_enabled(manager=None):
     return manager.tlm_enabled()
 
 
-def tlm(M, dM, x, manager=None):
+def tlm(M, dM, x, max_depth=1, manager=None):
     if manager is None:
         manager = _manager()
-    return manager.tlm(M, dM, x)
+    return manager.tlm(M, dM, x, max_depth=max_depth)
 
 
 def reset_adjoint(manager=None):
