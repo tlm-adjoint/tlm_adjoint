@@ -95,8 +95,8 @@ class PythonMatrix:
         import petsc4py.PETSc as PETSc
 
         X = space_new(self._space)
-        x_a = x.getArray(readonly=True)
-        function_set_values(X, x_a)
+        with x as x_a:
+            function_set_values(X, x_a)
         y_a = self._action(X)
         if is_function(y_a):
             y_a = function_get_values(y_a)
@@ -205,12 +205,16 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         if esolver.isHermitian():
             lam[i] = lam_i.real
             assert lam_i.imag == 0.0
-            function_set_values(V_r[i], v_r.getArray())
-            assert abs(v_i.getArray()).max() == 0.0
+            with v_r as v_r_a:
+                function_set_values(V_r[i], v_r_a)
+            with v_i as v_i_a:
+                assert abs(v_i_a).max() == 0.0
         else:
             lam[i] = lam_i
-            function_set_values(V_r[i], v_r.getArray())
-            function_set_values(V_i[i], v_i.getArray())
+            with v_r as v_r_a:
+                function_set_values(V_r[i], v_r_a)
+            with v_i as v_i_a:
+                function_set_values(V_i[i], v_i_a)
 
     # comm.Free()
 
