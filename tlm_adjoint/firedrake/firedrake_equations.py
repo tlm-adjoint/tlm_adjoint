@@ -22,7 +22,7 @@ from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
     backend_assemble
 from ..interface import function_assign, function_comm, function_get_values, \
     function_local_size, function_new, function_set_values, function_space, \
-    is_function, is_real_function, real_function_value
+    is_function, is_real_function, real_function_value, weakref_method
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -36,7 +36,6 @@ from .functions import eliminate_zeros
 
 import mpi4py.MPI as MPI
 import numpy as np
-import types
 import ufl
 
 __all__ = \
@@ -65,7 +64,7 @@ def LocalSolver(form, form_compiler_parameters={}):
 
     def solve_local(self, x, b):
         matrix_multiply(self, b, tensor=x)
-    local_solver.solve_local = types.MethodType(solve_local, local_solver)
+    local_solver.solve_local = weakref_method(solve_local, local_solver)
 
     return local_solver
 

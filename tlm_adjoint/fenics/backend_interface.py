@@ -28,7 +28,7 @@ from ..interface import InterfaceException, SpaceInterface, \
     function_caches, function_copy, function_is_cached, \
     function_is_checkpointed, function_is_static, function_new, \
     new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action
+    subtract_adjoint_derivative_action, weakref_method
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -39,7 +39,6 @@ from .functions import Caches, Constant, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
-import types
 import ufl
 import warnings
 
@@ -227,9 +226,9 @@ class FunctionInterface(_FunctionInterface):
         self._tlm_adjoint__function_interface_attrs["cache"] = cache
         self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
         # Backwards compatibility
-        self.is_static = types.MethodType(Function.is_static, self)
-        self.is_cached = types.MethodType(Function.is_cached, self)
-        self.is_checkpointed = types.MethodType(Function.is_checkpointed, self)
+        self.is_static = weakref_method(Function.is_static, self)
+        self.is_cached = weakref_method(Function.is_cached, self)
+        self.is_checkpointed = weakref_method(Function.is_checkpointed, self)
         return y
 
     def _tangent_linear(self, name=None):

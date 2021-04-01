@@ -156,7 +156,6 @@ def test_leaks():
     manager.drop_references()
 
     gc.collect()
-    gc.collect()
 
     refs = 0
     for F in function_ids.values():

@@ -452,3 +452,17 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ, M0=m)
     assert min_order > 1.99
+
+
+@pytest.mark.numpy
+@pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+def test_TangentLinearMap_finalizes(setup_test, test_leaks,
+                                    max_depth):
+    m = Constant(1.0, name="m")
+    dm = Constant(1.0, name="dm")
+    add_tlm(m, dm, max_depth=max_depth)
+
+    start_manager()
+    x = Constant(0.0, name="x")
+    NormSqSolver(m, x).solve()
+    stop_manager()
