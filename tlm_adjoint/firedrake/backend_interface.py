@@ -39,6 +39,7 @@ from .functions import Caches, Constant, Function, Replacement, Zero
 import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
+from pyadjoint.block_variable import BlockVariable
 import ufl
 import warnings
 
@@ -51,6 +52,15 @@ __all__ = \
         "info",
         "warning"
     ]
+
+
+def _BlockVariable__init__(self, output):
+    # Prevent a circular reference. See Firedrake issue #1617.
+    BlockVariable._tlm_adjoint__orig___init__(self, None)
+
+
+BlockVariable._tlm_adjoint__orig___init__ = BlockVariable.__init__
+BlockVariable.__init__ = _BlockVariable__init__
 
 
 class FunctionSpaceInterface(SpaceInterface):
