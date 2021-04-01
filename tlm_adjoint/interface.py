@@ -21,14 +21,15 @@
 import copy
 import logging
 import sys
-import types
 import warnings
+import weakref
 
 __all__ = \
     [
         "InterfaceException",
 
         "add_interface",
+        "weakref_method",
 
         "SpaceInterface",
         "is_space",
@@ -85,6 +86,19 @@ class InterfaceException(Exception):
     pass
 
 
+def weakref_method(fn, obj):
+    if not hasattr(obj, "_tlm_adjoint__weakref_method_self_ref"):
+        obj._tlm_adjoint__weakref_method_self_ref = weakref.ref(obj)
+    self_ref = obj._tlm_adjoint__weakref_method_self_ref
+
+    def wrapped_fn(*args, **kwargs):
+        self = self_ref()
+        if self is None:
+            raise InterfaceException("Referent must be alive")
+        return fn(self, *args, **kwargs)
+    return wrapped_fn
+
+
 def add_interface(obj, interface_cls, attrs={}):
     interface_name = f"{interface_cls.prefix:s}"
     assert not hasattr(obj, interface_name)
@@ -94,7 +108,7 @@ def add_interface(obj, interface_cls, attrs={}):
         attr_name = f"{interface_cls.prefix:s}{name:s}"
         if not hasattr(obj, attr_name):
             setattr(obj, attr_name,
-                    types.MethodType(getattr(interface_cls, name), obj))
+                    weakref_method(getattr(interface_cls, name), obj))
 
     attrs_name = f"{interface_cls.prefix:s}_attrs"
     assert not hasattr(obj, attrs_name)
