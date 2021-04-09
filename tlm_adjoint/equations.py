@@ -716,9 +716,9 @@ class FunctionalMarker(Equation):
 
 
 def get_tangent_linear(x, M, dM, tlm_map):
-    try:
+    if x in M:
         return dM[M.index(x)]
-    except ValueError:
+    else:
         return tlm_map[x]
 
 
@@ -1441,9 +1441,9 @@ class LinearEquation(Equation):
             dep_id = function_id(dep)
             F = function_new(dep)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
-                try:
+                if dep_id in b_dep_ids:
                     b_dep_index = b_dep_ids[dep_id]
-                except KeyError:
+                else:
                     continue
                 b_nl_deps = [nl_deps[j] for j in self._b_nl_dep_indices[i]]
                 b.subtract_adjoint_derivative_action(
