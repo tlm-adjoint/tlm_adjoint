@@ -373,9 +373,9 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
             y_cell_colors = y_colors[y_cell_nodes].tolist()
-            try:
+            if color in y_cell_colors:
                 i = y_cell_colors.index(color)
-            except ValueError:
+            else:
                 continue
             y_node = y_cell_nodes[i]
             x_v = np.full((1,), np.NAN, dtype=np.float64)
