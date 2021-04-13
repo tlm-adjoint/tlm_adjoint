@@ -827,7 +827,7 @@ class AxpySolver(LinearCombinationSolver):
 class FixedPointSolver(Equation):
     # Derives tangent-linear and adjoint information using the approach
     # described in
-    #   J. G. Gilbert, "Automatic differentiation and iterative processes",
+    #   J. C. Gilbert, "Automatic differentiation and iterative processes",
     #     Optimization Methods and Software, 1(1), pp. 13--21, 1992
     #   B. Christianson, "Reverse accumulation and attractive fixed points",
     #     Optimization Methods and Software, 3(4), pp. 311--326, 1994
