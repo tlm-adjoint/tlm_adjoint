@@ -203,14 +203,15 @@ def _assemble(form, tensor=None, form_compiler_parameters={},
     else:
         simplified_form = form._cache["_tlm_adjoint__simplified_form"] = \
             eliminate_zeros(form, force_non_empty_form=True)
+    form = simplified_form
 
     if "_tlm_adjoint__parloops" in form._cache:
         cache_0, cache_1 = form._cache.pop("_tlm_adjoint__parloops")
         if "parloops" not in form._cache and tensor is not None:
-            form._cache["parloops"] = (tuple([form, tensor] + list(cache_0)),
-                                       cache_1)
+            form._cache["parloops"] = \
+                (tuple([form, tensor] + list(cache_0)), cache_1)
     return_value = backend_assemble(
-        simplified_form, tensor=tensor,
+        form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
     if "parloops" in form._cache:
