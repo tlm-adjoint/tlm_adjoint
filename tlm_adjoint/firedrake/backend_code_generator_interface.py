@@ -196,19 +196,26 @@ def unbind_forms(*forms):
             delattr(dep, name)
 
 
-def _assemble(form, bcs=[], form_compiler_parameters={}, *args, **kwargs):
+def _assemble(form, tensor=None, form_compiler_parameters={},
+              *args, **kwargs):
     if "_tlm_adjoint__simplified_form" in form._cache:
         simplified_form = form._cache["_tlm_adjoint__simplified_form"]
     else:
         simplified_form = form._cache["_tlm_adjoint__simplified_form"] = \
             eliminate_zeros(form, force_non_empty_form=True)
 
+    if "_tlm_adjoint__parloops" in form._cache:
+        cache_0, cache_1 = form._cache.pop("_tlm_adjoint__parloops")
+        if "parloops" not in form._cache and tensor is not None:
+            form._cache["parloops"] = (tuple([form, tensor] + list(cache_0)),
+                                       cache_1)
     return_value = backend_assemble(
-        simplified_form, bcs=bcs,
+        simplified_form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
     if "parloops" in form._cache:
-        del form._cache["parloops"]
+        cache_0, cache_1 = form._cache.pop("parloops")
+        form._cache["_tlm_adjoint__parloops"] = (cache_0[2:], cache_1)
     return return_value
 
 
