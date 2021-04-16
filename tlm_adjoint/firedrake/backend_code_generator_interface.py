@@ -23,7 +23,7 @@ from .backend import FunctionSpace, Parameters, backend_Constant, \
     backend_Matrix, backend_ScalarType, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
 from ..interface import InterfaceException, add_interface, function_axpy, \
-    function_copy, new_function_id, new_space_id
+    function_copy, function_id, new_function_id, new_space_id
 
 from .functions import ConstantInterface, ConstantSpaceInterface, \
     eliminate_zeros
@@ -206,17 +206,26 @@ def _assemble(form, tensor=None, form_compiler_parameters={},
     form = simplified_form
 
     if "_tlm_adjoint__parloops" in form._cache:
-        cache_0, cache_1 = form._cache.pop("_tlm_adjoint__parloops")
-        if "parloops" not in form._cache and tensor is not None:
+        tensor_id, cache_0, cache_1 = form._cache.pop("_tlm_adjoint__parloops")
+        if "parloops" not in form._cache \
+                and tensor is not None \
+                and function_id(tensor) == tensor_id:
             form._cache["parloops"] = \
                 (tuple([form, tensor] + list(cache_0)), cache_1)
+
     return_value = backend_assemble(
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
-    if "parloops" in form._cache:
+
+    if isinstance(return_value, backend_Function) \
+            and "parloops" in form._cache:
         cache_0, cache_1 = form._cache.pop("parloops")
-        form._cache["_tlm_adjoint__parloops"] = (cache_0[2:], cache_1)
+        assert cache_0[0] is form
+        assert cache_0[1] is return_value
+        form._cache["_tlm_adjoint__parloops"] = \
+            (function_id(cache_0[1]), cache_0[2:], cache_1)
+
     return return_value
 
 
