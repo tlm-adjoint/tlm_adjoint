@@ -20,8 +20,6 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.backend_code_generator_interface import \
-    assemble_system
 
 from test_base import *
 
@@ -675,8 +673,11 @@ def test_initial_guess(setup_test, test_leaks):
                 if deps is not None:
                     rhs = ufl.replace(rhs,
                                       dict(zip(self.dependencies(), deps)))
-                J, b = assemble_system(
-                    self._J, rhs,
+                J = assemble(
+                    self._J,
+                    form_compiler_parameters=self._form_compiler_parameters)
+                b = assemble(
+                    rhs,
                     form_compiler_parameters=self._form_compiler_parameters)
                 solver = linear_solver(J, self._linear_solver_parameters)
                 solver.solve(x, b)

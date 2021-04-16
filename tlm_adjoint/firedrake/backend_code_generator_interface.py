@@ -60,7 +60,6 @@ __all__ = \
         "verify_assembly",
 
         "assemble",
-        "assemble_system",
         "solve"
     ]
 
@@ -287,14 +286,6 @@ def assemble(form, tensor=None, form_compiler_parameters={}, *args,
         *args, **kwargs)
     unbind_forms(form)
     return tensor
-
-
-def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
-                    *args, **kwargs):
-    # Similar interface to assemble_system in FEniCS 2019.1.0
-    return _assemble_system(
-        A_form, b_form=b_form, bcs=bcs,
-        form_compiler_parameters=form_compiler_parameters, *args, **kwargs)
 
 
 def assemble_linear_solver(A_form, b_form=None, bcs=[],
