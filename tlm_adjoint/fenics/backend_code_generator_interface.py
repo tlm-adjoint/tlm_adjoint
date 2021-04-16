@@ -67,7 +67,6 @@ __all__ = \
         "clear_dolfin_form",
 
         "assemble",
-        "assemble_system",
         "solve"
     ]
 
@@ -204,11 +203,6 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={},
 # def assemble(form, tensor=None, form_compiler_parameters={}, *args,
 #              **kwargs):
 #     # Similar interface to assemble in FEniCS 2019.1.0
-
-
-# def assemble_system(A_form, b_form, bcs=[], form_compiler_parameters={},
-#                     *args, **kwargs):
-#     # Similar interface to assemble_system in FEniCS 2019.1.0
 
 
 def assemble_linear_solver(A_form, b_form=None, bcs=[],
