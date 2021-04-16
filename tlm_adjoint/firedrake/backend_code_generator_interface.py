@@ -203,10 +203,13 @@ def _assemble(form, bcs=[], form_compiler_parameters={}, *args, **kwargs):
         simplified_form = form._cache["_tlm_adjoint__simplified_form"] = \
             eliminate_zeros(form, force_non_empty_form=True)
 
-    return backend_assemble(
+    return_value = backend_assemble(
         simplified_form, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
+    if "parloops" in form._cache:
+        del form._cache["parloops"]
+    return return_value
 
 
 def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
