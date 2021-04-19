@@ -63,9 +63,6 @@ __all__ = \
         "update_parameters_dict",
         "verify_assembly",
 
-        "dolfin_form",
-        "clear_dolfin_form",
-
         "assemble",
         "solve"
     ]
@@ -400,7 +397,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 # Form objects are cached on UFL form objects
 
 
-def dolfin_form(form, form_compiler_parameters=None):
+def dolfin_form(form, form_compiler_parameters):
     if form_compiler_parameters is None:
         form_compiler_parameters = parameters["form_compiler"]
 
