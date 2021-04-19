@@ -109,15 +109,15 @@ def packed_solver_parameters(solver_parameters, options_prefix=None,
 
 
 # Aim for compatibility with Firedrake API, git master revision
-# 2a8aea3ffe3d0868fa218cb5c70f555d239e23e9, Jun 26 2020
+# 5acf6500250f1b5eaee342c6e4032eca9f7c9d2e, Apr 16 2021
 
 
-def assemble(expr, tensor=None, bcs=None, form_compiler_parameters=None,
-             *args, **kwargs):
+def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
+             **kwargs):
     b = backend_assemble(
         expr, tensor=tensor, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters,
-        *args, **kwargs)
+        **kwargs)
     if tensor is None:
         tensor = b
 

@@ -177,8 +177,6 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 J_1 = ufl.replace(self._J_1, replace_map)
                 J_2 = ufl.replace(self._J, replace_map)
 
-            from tlm_adjoint.firedrake.backend_code_generator_interface \
-                import assemble, solve
             function_zero(U)
             r = assemble(
                 F, form_compiler_parameters=self._form_compiler_parameters)
