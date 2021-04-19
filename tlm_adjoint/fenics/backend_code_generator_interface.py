@@ -205,11 +205,17 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={},
 #     # Similar interface to assemble in FEniCS 2019.1.0
 
 
-def assemble_linear_solver(A_form, b_form=None, bcs=[],
-                           form_compiler_parameters={},
-                           linear_solver_parameters={}):
-    if isinstance(bcs, backend_DirichletBC):
+def assemble_linear_solver(A_form, b_form=None, bcs=None,
+                           form_compiler_parameters=None,
+                           linear_solver_parameters=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if linear_solver_parameters is None:
+        linear_solver_parameters = {}
 
     if b_form is None:
         A, b = assemble_matrix(
