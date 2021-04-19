@@ -290,8 +290,15 @@ backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
 
-def assemble_matrix(form, bcs=[], form_compiler_parameters={},
+def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
                     *args, **kwargs):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     return _assemble_system(form, bcs=bcs,
                             form_compiler_parameters=form_compiler_parameters,
                             *args, **kwargs)

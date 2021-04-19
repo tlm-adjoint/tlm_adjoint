@@ -174,10 +174,14 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs=[], form_compiler_parameters={},
+def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
                     *args, **kwargs):
-    if isinstance(bcs, backend_DirichletBC):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
 
     if len(bcs) > 0:
         test = TestFunction(form.arguments()[0].function_space())
@@ -219,7 +223,7 @@ def assemble_linear_solver(A_form, b_form=None, bcs=None,
 
     if b_form is None:
         A, b = assemble_matrix(
-            A_form, bcs, form_compiler_parameters=form_compiler_parameters)
+            A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters)
     else:
         A, b = assemble_system(
             A_form, b_form, bcs=bcs,
