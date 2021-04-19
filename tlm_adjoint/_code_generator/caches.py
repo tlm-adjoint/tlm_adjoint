@@ -252,9 +252,16 @@ def assemble_key(form, bcs, assemble_kwargs):
 
 
 class AssemblyCache(Cache):
-    def assemble(self, form, bcs=[], form_compiler_parameters={},
+    def assemble(self, form, bcs=None, form_compiler_parameters=None,
                  solver_parameters=None, linear_solver_parameters=None,
                  replace_map=None):
+        if bcs is None:
+            bcs = ()
+        elif isinstance(bcs, backend_DirichletBC):
+            bcs = (bcs,)
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+
         if solver_parameters is not None:
             warnings.warn("'solver_parameters' argument is deprecated -- use "
                           "'linear_solver_parameters' instead",
