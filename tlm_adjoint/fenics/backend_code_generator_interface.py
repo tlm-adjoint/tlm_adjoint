@@ -201,11 +201,6 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
     return A, b_bc
 
 
-# def assemble(form, tensor=None, form_compiler_parameters={}, *args,
-#              **kwargs):
-#     # Similar interface to assemble in FEniCS 2019.1.0
-
-
 def assemble_linear_solver(A_form, b_form=None, bcs=None,
                            form_compiler_parameters=None,
                            linear_solver_parameters=None):
@@ -460,6 +455,9 @@ def clear_dolfin_form(form):
 
 def assemble(form, tensor=None, form_compiler_parameters=None,
              *args, **kwargs):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     is_dolfin_form = isinstance(form, Form)
     if not is_dolfin_form:
         form = dolfin_form(form, form_compiler_parameters)
