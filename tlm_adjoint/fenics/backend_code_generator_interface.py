@@ -188,7 +188,7 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
             zero = backend_Constant(np.zeros(test.ufl_shape, dtype=np.float64))
         dummy_rhs = ufl.inner(test, zero) * ufl.dx
         A, b_bc = assemble_system(
-            form, dummy_rhs, bcs,
+            form, dummy_rhs, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters, *args, **kwargs)
         if b_bc.norm("linf") == 0.0:
             b_bc = None
@@ -384,7 +384,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         return
 
     J_mat_debug, b_debug = backend_assemble_system(
-        J, rhs, bcs, form_compiler_parameters=form_compiler_parameters)
+        J, rhs, bcs=bcs, form_compiler_parameters=form_compiler_parameters)
 
     if J_mat is not None and not np.isposinf(J_tolerance):
         assert (J_mat - J_mat_debug).norm("linf") \
@@ -471,6 +471,13 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
 
 def assemble_system(A_form, b_form, bcs=None, x0=None,
                     form_compiler_parameters=None, *args, **kwargs):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     A_is_dolfin_form = isinstance(A_form, Form)
     b_is_dolfin_form = isinstance(b_form, Form)
     if not A_is_dolfin_form:
