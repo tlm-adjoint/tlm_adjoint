@@ -54,7 +54,10 @@ def local_solver_key(form, form_compiler_parameters):
             parameters_key(form_compiler_parameters))
 
 
-def LocalSolver(form, form_compiler_parameters={}):
+def LocalSolver(form, form_compiler_parameters=None):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     # Perform zero elimination here, rather than in overridden assemble, as
     # Tensor(form).inv is not a Form
     form = eliminate_zeros(form, force_non_empty_form=True)
@@ -134,7 +137,7 @@ class LocalProjectionSolver(EquationSolver):
             _, _, rhs = self._forward_eq
             bind_form(rhs, deps)
             b = assemble(
-                rhs, deps,
+                rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
             unbind_form(rhs)
 
