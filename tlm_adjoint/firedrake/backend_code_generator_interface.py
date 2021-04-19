@@ -229,10 +229,15 @@ def _assemble(form, tensor=None, form_compiler_parameters={},
     return return_value
 
 
-def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
-                     *args, **kwargs):
-    if isinstance(bcs, backend_DirichletBC):
+def _assemble_system(A_form, b_form=None, bcs=None,
+                     form_compiler_parameters=None, *args, **kwargs):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     if b_form is None:
         bind_forms(A_form)
     else:
