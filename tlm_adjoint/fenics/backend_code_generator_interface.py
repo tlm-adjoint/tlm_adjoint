@@ -485,6 +485,15 @@ def solve(*args, **kwargs):
 
     eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
         = extract_args(*args, **kwargs)
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if solver_parameters is None:
+        solver_parameters = {}
+
     if tol is not None or M is not None:
         return backend_solve(*args, **kwargs)
 

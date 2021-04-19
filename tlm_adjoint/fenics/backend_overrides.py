@@ -173,9 +173,12 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     return A_tensor, b_tensor
 
 
-def extract_args_linear_solve(A, x, b, linear_solver="default",
+def extract_args_linear_solve(A, x, b,
+                              linear_solver="default",
                               preconditioner="default"):
-    return A, x, b, linear_solver, preconditioner
+    solver_parameters = {"linear_solver": linear_solver,
+                         "preconditioner": preconditioner}
+    return A, x, b, solver_parameters
 
 
 def solve(*args, annotate=None, tlm=None, **kwargs):
@@ -189,8 +192,18 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
              tol, M,
              form_compiler_parameters,
              solver_parameters) = extract_args(*args, **kwargs)
+            if bcs is None:
+                bcs = ()
+            elif isinstance(bcs, backend_DirichletBC):
+                bcs = (bcs,)
+            if form_compiler_parameters is None:
+                form_compiler_parameters = {}
+            if solver_parameters is None:
+                solver_parameters = {}
+
             if tol is not None or M is not None:
                 raise OverrideException("Adaptive solves not supported")
+
             if isinstance(eq_arg.rhs, ufl.classes.Form):
                 eq_arg = linear_equation_new_x(eq_arg, x,
                                                annotate=annotate, tlm=tlm)
@@ -203,10 +216,10 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
         else:
             if len(kwargs) > 0:
                 raise OverrideException("Unexpected keyword arguments")
-            A, x, b, linear_solver, preconditioner = \
+            A, x, b, solver_parameters = \
                 extract_args_linear_solve(*args)
-            solver_parameters = {"linear_solver": linear_solver,
-                                 "preconditioner": preconditioner}
+            # if solver_parameters is None:
+            #     solver_parameters = {}
 
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:

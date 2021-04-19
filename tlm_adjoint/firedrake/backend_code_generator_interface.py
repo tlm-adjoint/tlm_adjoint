@@ -502,6 +502,14 @@ def solve(*args, **kwargs):
     eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
         nullspace, transpose_nullspace, near_nullspace, options_prefix = \
         extract_args(*args, **kwargs)
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if solver_parameters is None:
+        solver_parameters = {}
 
     if "tlm_adjoint" in solver_parameters:
         solver_parameters = copy.copy(solver_parameters)
