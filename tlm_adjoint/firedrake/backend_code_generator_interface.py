@@ -196,8 +196,11 @@ def unbind_forms(*forms):
             delattr(dep, name)
 
 
-def _assemble(form, tensor=None, form_compiler_parameters={},
+def _assemble(form, tensor=None, form_compiler_parameters=None,
               *args, **kwargs):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     if "_tlm_adjoint__simplified_form" in form._cache:
         simplified_form = form._cache["_tlm_adjoint__simplified_form"]
     else:
@@ -309,9 +312,13 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
                             *args, **kwargs)
 
 
-def assemble(form, tensor=None, form_compiler_parameters={}, *args,
-             **kwargs):
+def assemble(form, tensor=None, form_compiler_parameters=None,
+             *args, **kwargs):
     # Similar interface to assemble in FEniCS 2019.1.0
+
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     bind_forms(form)
     tensor = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
