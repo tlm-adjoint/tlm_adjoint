@@ -446,9 +446,12 @@ def r0_space(x):
     return x._tlm_adjoint__r0_space
 
 
-def _Constant__init__(self, *args, name=None, domain=None, space=None,
-                      comm=MPI.COMM_WORLD, **kwargs):
-    backend_Constant._tlm_adjoint__orig___init__(self, *args, domain=domain,
+# Aim for compatibility with Firedrake API, git master revision
+# efb48f4f178ae4989c146640025641cf0cc00a0e, Apr 19 2021
+def _Constant__init__(self, value, domain=None, *,
+                      name=None, space=None, comm=MPI.COMM_WORLD,
+                      **kwargs):
+    backend_Constant._tlm_adjoint__orig___init__(self, value, domain=domain,
                                                  **kwargs)
 
     if name is None:
