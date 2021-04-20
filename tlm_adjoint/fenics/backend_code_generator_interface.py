@@ -321,13 +321,12 @@ def r0_space(x):
     return x._tlm_adjoint__r0_space
 
 
-def _Constant__init__(self, *args, name=None, domain=None, space=None,
+def _Constant__init__(self, *args, domain=None, space=None,
                       comm=MPI.COMM_WORLD, **kwargs):
     if domain is not None and hasattr(domain, "ufl_domain"):
         domain = domain.ufl_domain()
 
-    backend_Constant._tlm_adjoint__orig___init__(self, *args, name=name,
-                                                 **kwargs)
+    backend_Constant._tlm_adjoint__orig___init__(self, *args, **kwargs)
 
     self.ufl_domain = lambda: domain
     if domain is None:
