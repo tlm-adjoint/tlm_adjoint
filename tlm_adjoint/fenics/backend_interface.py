@@ -35,7 +35,8 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space, \
 
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
-from .functions import Caches, Constant, Function, Replacement, Zero
+from .functions import Caches, Constant, ConstantInterface, \
+    ConstantSpaceInterface, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -51,6 +52,32 @@ __all__ = \
         "info",
         "warning"
     ]
+
+
+def _Constant__init__(self, *args, domain=None, space=None,
+                      comm=MPI.COMM_WORLD, **kwargs):
+    if domain is not None and hasattr(domain, "ufl_domain"):
+        domain = domain.ufl_domain()
+
+    backend_Constant._tlm_adjoint__orig___init__(self, *args, **kwargs)
+
+    self.ufl_domain = lambda: domain
+    if domain is None:
+        self.ufl_domains = lambda: ()
+    else:
+        self.ufl_domains = lambda: (domain,)
+
+    if space is None:
+        space = self.ufl_function_space()
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm, "domain": domain, "id": new_space_id()})
+    add_interface(self, ConstantInterface,
+                  {"id": new_function_id(), "state": 0, "space": space,
+                   "static": False, "cache": False, "checkpoint": True})
+
+
+backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
+backend_Constant.__init__ = _Constant__init__
 
 
 class FunctionSpaceInterface(SpaceInterface):
