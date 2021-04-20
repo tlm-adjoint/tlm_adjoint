@@ -141,7 +141,7 @@ def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
 # cf7b18cddacae582fd1e92e6d2148d9a538d131a, Jul 25 2019
 
 
-def extract_args_linear_solve(A, x, b, bcs=None, solver_parameters={}):
+def extract_args_linear_solve(A, x, b, bcs=None, solver_parameters=None):
     return A, x, b, bcs, solver_parameters
 
 
@@ -158,10 +158,20 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
              form_compiler_parameters, solver_parameters,
              nullspace, transpose_nullspace, near_nullspace,
              options_prefix) = extract_args(*args, **kwargs)
+            if bcs is None:
+                bcs = ()
+            elif isinstance(bcs, backend_DirichletBC):
+                bcs = (bcs,)
+            if form_compiler_parameters is None:
+                form_compiler_parameters = {}
+            if solver_parameters is None:
+                solver_parameters = {}
+
             if Jp is not None:
                 raise OverrideException("Preconditioners not supported")
             if M is not None:
                 raise OverrideException("Adaptive solves not supported")
+
             solver_parameters = packed_solver_parameters(
                 solver_parameters, options_prefix=options_prefix,
                 nullspace=nullspace, transpose_nullspace=transpose_nullspace,
@@ -179,9 +189,13 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
             (A, x, b,
              bcs,
              solver_parameters) = extract_args_linear_solve(*args, **kwargs)
-
             if bcs is None:
                 bcs = A.bcs
+            elif isinstance(bcs, backend_DirichletBC):
+                bcs = (bcs,)
+            if solver_parameters is None:
+                solver_parameters = {}
+
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,

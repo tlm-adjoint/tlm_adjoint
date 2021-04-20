@@ -196,8 +196,11 @@ def unbind_forms(*forms):
             delattr(dep, name)
 
 
-def _assemble(form, tensor=None, form_compiler_parameters={},
+def _assemble(form, tensor=None, form_compiler_parameters=None,
               *args, **kwargs):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     if "_tlm_adjoint__simplified_form" in form._cache:
         simplified_form = form._cache["_tlm_adjoint__simplified_form"]
     else:
@@ -229,10 +232,15 @@ def _assemble(form, tensor=None, form_compiler_parameters={},
     return return_value
 
 
-def _assemble_system(A_form, b_form=None, bcs=[], form_compiler_parameters={},
-                     *args, **kwargs):
-    if isinstance(bcs, backend_DirichletBC):
+def _assemble_system(A_form, b_form=None, bcs=None,
+                     form_compiler_parameters=None, *args, **kwargs):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     if b_form is None:
         bind_forms(A_form)
     else:
@@ -290,16 +298,27 @@ backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
 
-def assemble_matrix(form, bcs=[], form_compiler_parameters={},
+def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
                     *args, **kwargs):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     return _assemble_system(form, bcs=bcs,
                             form_compiler_parameters=form_compiler_parameters,
                             *args, **kwargs)
 
 
-def assemble(form, tensor=None, form_compiler_parameters={}, *args,
-             **kwargs):
+def assemble(form, tensor=None, form_compiler_parameters=None,
+             *args, **kwargs):
     # Similar interface to assemble in FEniCS 2019.1.0
+
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     bind_forms(form)
     tensor = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
@@ -308,9 +327,18 @@ def assemble(form, tensor=None, form_compiler_parameters={}, *args,
     return tensor
 
 
-def assemble_linear_solver(A_form, b_form=None, bcs=[],
-                           form_compiler_parameters={},
-                           linear_solver_parameters={}):
+def assemble_linear_solver(A_form, b_form=None, bcs=None,
+                           form_compiler_parameters=None,
+                           linear_solver_parameters=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if linear_solver_parameters is None:
+        linear_solver_parameters = {}
+
     A, b = _assemble_system(
         A_form, b_form=b_form, bcs=bcs,
         **assemble_arguments(2, form_compiler_parameters,
@@ -502,6 +530,14 @@ def solve(*args, **kwargs):
     eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
         nullspace, transpose_nullspace, near_nullspace, options_prefix = \
         extract_args(*args, **kwargs)
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if solver_parameters is None:
+        solver_parameters = {}
 
     if "tlm_adjoint" in solver_parameters:
         solver_parameters = copy.copy(solver_parameters)

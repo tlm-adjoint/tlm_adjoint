@@ -63,9 +63,6 @@ __all__ = \
         "update_parameters_dict",
         "verify_assembly",
 
-        "dolfin_form",
-        "clear_dolfin_form",
-
         "assemble",
         "solve"
     ]
@@ -174,10 +171,14 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs=[], form_compiler_parameters={},
+def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
                     *args, **kwargs):
-    if isinstance(bcs, backend_DirichletBC):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
 
     if len(bcs) > 0:
         test = TestFunction(form.arguments()[0].function_space())
@@ -187,7 +188,7 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={},
             zero = backend_Constant(np.zeros(test.ufl_shape, dtype=np.float64))
         dummy_rhs = ufl.inner(test, zero) * ufl.dx
         A, b_bc = assemble_system(
-            form, dummy_rhs, bcs,
+            form, dummy_rhs, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters, *args, **kwargs)
         if b_bc.norm("linf") == 0.0:
             b_bc = None
@@ -200,20 +201,21 @@ def assemble_matrix(form, bcs=[], form_compiler_parameters={},
     return A, b_bc
 
 
-# def assemble(form, tensor=None, form_compiler_parameters={}, *args,
-#              **kwargs):
-#     # Similar interface to assemble in FEniCS 2019.1.0
-
-
-def assemble_linear_solver(A_form, b_form=None, bcs=[],
-                           form_compiler_parameters={},
-                           linear_solver_parameters={}):
-    if isinstance(bcs, backend_DirichletBC):
+def assemble_linear_solver(A_form, b_form=None, bcs=None,
+                           form_compiler_parameters=None,
+                           linear_solver_parameters=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if linear_solver_parameters is None:
+        linear_solver_parameters = {}
 
     if b_form is None:
         A, b = assemble_matrix(
-            A_form, bcs, form_compiler_parameters=form_compiler_parameters)
+            A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters)
     else:
         A, b = assemble_system(
             A_form, b_form, bcs=bcs,
@@ -377,7 +379,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         return
 
     J_mat_debug, b_debug = backend_assemble_system(
-        J, rhs, bcs, form_compiler_parameters=form_compiler_parameters)
+        J, rhs, bcs=bcs, form_compiler_parameters=form_compiler_parameters)
 
     if J_mat is not None and not np.isposinf(J_tolerance):
         assert (J_mat - J_mat_debug).norm("linf") \
@@ -390,7 +392,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 # Form objects are cached on UFL form objects
 
 
-def dolfin_form(form, form_compiler_parameters=None):
+def dolfin_form(form, form_compiler_parameters):
     if form_compiler_parameters is None:
         form_compiler_parameters = parameters["form_compiler"]
 
@@ -453,6 +455,9 @@ def clear_dolfin_form(form):
 
 def assemble(form, tensor=None, form_compiler_parameters=None,
              *args, **kwargs):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     is_dolfin_form = isinstance(form, Form)
     if not is_dolfin_form:
         form = dolfin_form(form, form_compiler_parameters)
@@ -464,6 +469,13 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
 
 def assemble_system(A_form, b_form, bcs=None, x0=None,
                     form_compiler_parameters=None, *args, **kwargs):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     A_is_dolfin_form = isinstance(A_form, Form)
     b_is_dolfin_form = isinstance(b_form, Form)
     if not A_is_dolfin_form:
@@ -485,6 +497,15 @@ def solve(*args, **kwargs):
 
     eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
         = extract_args(*args, **kwargs)
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if solver_parameters is None:
+        solver_parameters = {}
+
     if tol is not None or M is not None:
         return backend_solve(*args, **kwargs)
 

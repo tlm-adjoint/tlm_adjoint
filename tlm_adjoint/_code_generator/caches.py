@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import TrialFunction, backend_Function
+from .backend import TrialFunction, backend_DirichletBC, backend_Function
 from ..interface import function_id, function_is_cached, function_space, \
     is_function
 from .backend_code_generator_interface import assemble, assemble_arguments, \
@@ -252,9 +252,16 @@ def assemble_key(form, bcs, assemble_kwargs):
 
 
 class AssemblyCache(Cache):
-    def assemble(self, form, bcs=[], form_compiler_parameters={},
+    def assemble(self, form, bcs=None, form_compiler_parameters=None,
                  solver_parameters=None, linear_solver_parameters=None,
                  replace_map=None):
+        if bcs is None:
+            bcs = ()
+        elif isinstance(bcs, backend_DirichletBC):
+            bcs = (bcs,)
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+
         if solver_parameters is not None:
             warnings.warn("'solver_parameters' argument is deprecated -- use "
                           "'linear_solver_parameters' instead",
@@ -287,7 +294,7 @@ class AssemblyCache(Cache):
                 for bc in bcs:
                     bc.apply(b)
             elif rank == 2:
-                b = assemble_matrix(assemble_form, bcs, **assemble_kwargs)
+                b = assemble_matrix(assemble_form, bcs=bcs, **assemble_kwargs)
             else:
                 raise CacheException(f"Unexpected form rank {rank:d}")
             return b
@@ -304,9 +311,19 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 
 
 class LinearSolverCache(Cache):
-    def linear_solver(self, form, A=None, bcs=[], form_compiler_parameters={},
-                      linear_solver_parameters={}, replace_map=None,
-                      assembly_cache=None):
+    def linear_solver(self, form, A=None, bcs=None,
+                      form_compiler_parameters=None,
+                      linear_solver_parameters=None,
+                      replace_map=None, assembly_cache=None):
+        if bcs is None:
+            bcs = ()
+        elif isinstance(bcs, backend_DirichletBC):
+            bcs = (bcs,)
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+        if linear_solver_parameters is None:
+            linear_solver_parameters = {}
+
         form = eliminate_zeros(form, force_non_empty_form=True)
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
