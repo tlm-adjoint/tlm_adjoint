@@ -34,7 +34,8 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space
 
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
-from .functions import Caches, Constant, Function, Replacement, Zero
+from .functions import Caches, Constant, ConstantInterface, \
+    ConstantSpaceInterface, Function, Replacement, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -61,6 +62,32 @@ def _BlockVariable__init__(self, output):
 
 BlockVariable._tlm_adjoint__orig___init__ = BlockVariable.__init__
 BlockVariable.__init__ = _BlockVariable__init__
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# efb48f4f178ae4989c146640025641cf0cc00a0e, Apr 19 2021
+def _Constant__init__(self, value, domain=None, *,
+                      name=None, space=None, comm=MPI.COMM_WORLD,
+                      **kwargs):
+    backend_Constant._tlm_adjoint__orig___init__(self, value, domain=domain,
+                                                 **kwargs)
+
+    if name is None:
+        # Following FEniCS 2019.1.0 behaviour
+        name = f"f_{self.count():d}"
+
+    if space is None:
+        space = self.ufl_function_space()
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm, "domain": domain, "id": new_space_id()})
+    add_interface(self, ConstantInterface,
+                  {"id": new_function_id(), "name": name, "state": 0,
+                   "space": space,
+                   "static": False, "cache": False, "checkpoint": True})
+
+
+backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
+backend_Constant.__init__ = _Constant__init__
 
 
 class FunctionSpaceInterface(SpaceInterface):
