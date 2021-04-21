@@ -858,6 +858,10 @@ class FixedPointSolver(Equation):
                 adjoint_nonzero_initial_guess
                     Whether to use a non-zero initial guess for the adjoint
                     solve. Logical, optional, default True.
+                adjoint_eqs_index_0
+                    Start the adjoint fixed-point iteration at
+                    eqs[(len(eqs) - 1 - adjoint_eqs_index_0) % len(eqs)].
+                    Non-negative integer, optional, default 0.
         """
 
         X_ids = set()
@@ -884,7 +888,8 @@ class FixedPointSolver(Equation):
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         for key, default_value in [("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
-                                   ("adjoint_nonzero_initial_guess", True)]:
+                                   ("adjoint_nonzero_initial_guess", True),
+                                   ("adjoint_eqs_index_0", 0)]:
             if key not in solver_parameters:
                 solver_parameters[key] = default_value
 
@@ -956,8 +961,9 @@ class FixedPointSolver(Equation):
             previous_x_ids = set()
             remaining_x_ids = X_ids.copy()
 
+            adjoint_i0 = solver_parameters["adjoint_eqs_index_0"]
             for i in range(len(eqs) - 1, -1, -1):
-                i = (i - 1) % len(eqs)
+                i = (i - adjoint_i0) % len(eqs)
                 eq = eqs[i]
 
                 for x in eq.X():
@@ -1144,7 +1150,9 @@ class FixedPointSolver(Equation):
         absolute_tolerance = self._solver_parameters["absolute_tolerance"]
         relative_tolerance = self._solver_parameters["relative_tolerance"]
         maximum_iterations = self._solver_parameters["maximum_iterations"]
+
         nonzero_initial_guess = self._solver_parameters["adjoint_nonzero_initial_guess"]  # noqa: E501
+        adjoint_i0 = self._solver_parameters["adjoint_eqs_index_0"]
         logger = logging.getLogger("tlm_adjoint.FixedPointSolver")
 
         eq_adj_X = [tuple(adj_X[j] for j in self._eq_X_indices[i])
@@ -1177,7 +1185,7 @@ class FixedPointSolver(Equation):
             it += 1
 
             for i in range(len(self._eqs) - 1, - 1, -1):
-                i = (i - 1) % len(self._eqs)
+                i = (i - adjoint_i0) % len(self._eqs)
                 # Copy required here, as adjoint_jacobian_solve may return the
                 # RHS function itself
                 eq_B = adj_B[0][i].B(copy=True)
