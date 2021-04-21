@@ -92,10 +92,24 @@ class FunctionSpaceInterface(SpaceInterface):
                         checkpoint=checkpoint)
 
 
+_FunctionSpace_add_interface = [True]
+
+
+def FunctionSpace_add_interface_disabled(fn):
+    def wrapped_fn(*args, **kwargs):
+        _FunctionSpace_add_interface[0] = False
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _FunctionSpace_add_interface[0] = True
+    return wrapped_fn
+
+
 def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    add_interface(self, FunctionSpaceInterface,
-                  {"id": new_space_id()})
+    if _FunctionSpace_add_interface[0]:
+        add_interface(self, FunctionSpaceInterface,
+                      {"id": new_space_id()})
 
 
 backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
@@ -283,15 +297,21 @@ class FunctionInterface(_FunctionInterface):
         return self.vector().max()
 
 
+@FunctionSpace_add_interface_disabled
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
-    if isinstance(args[0], backend_FunctionSpace):
-        space = args[0]
+
+    space = backend_Function._tlm_adjoint__orig_function_space(self)
+    if isinstance(args[0], backend_FunctionSpace) \
+            and args[0].id() == space.id():
+        id = space_id(args[0])
     else:
-        space = backend_Function._tlm_adjoint__orig_function_space(self)
+        id = new_space_id()
+    add_interface(space, FunctionSpaceInterface,
+                  {"id": id})
     self._tlm_adjoint__function_interface_attrs["space"] = space
 
 
@@ -300,8 +320,7 @@ backend_Function.__init__ = _Function__init__
 
 
 def _Function_function_space(self):
-    if hasattr(self, "_tlm_adjoint__function_interface_attrs") \
-            and "space" in self._tlm_adjoint__function_interface_attrs:
+    if hasattr(self, "_tlm_adjoint__function_interface_attrs"):
         return self._tlm_adjoint__function_interface_attrs["space"]
     else:
         return backend_Function._tlm_adjoint__orig_function_space(self)
