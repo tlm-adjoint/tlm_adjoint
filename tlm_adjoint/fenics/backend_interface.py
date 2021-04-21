@@ -99,7 +99,7 @@ def FunctionSpace_add_interface_disabled(fn):
     def wrapped_fn(*args, **kwargs):
         _FunctionSpace_add_interface[0] = False
         try:
-            fn(*args, **kwargs)
+            return fn(*args, **kwargs)
         finally:
             _FunctionSpace_add_interface[0] = True
     return wrapped_fn
