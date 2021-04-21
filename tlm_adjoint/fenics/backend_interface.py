@@ -304,11 +304,12 @@ def _Function__init__(self, *args, **kwargs):
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
 
-    if isinstance(args[0], backend_FunctionSpace):
+    space = backend_Function._tlm_adjoint__orig_function_space(self)
+    if isinstance(args[0], backend_FunctionSpace) \
+            and args[0].id() == space.id():
         id = space_id(args[0])
     else:
         id = new_space_id()
-    space = backend_Function._tlm_adjoint__orig_function_space(self)
     add_interface(space, FunctionSpaceInterface,
                   {"id": id})
     self._tlm_adjoint__function_interface_attrs["space"] = space
