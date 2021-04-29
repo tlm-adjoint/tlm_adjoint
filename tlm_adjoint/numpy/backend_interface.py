@@ -22,9 +22,9 @@ from .backend import backend
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     add_new_real_function, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
+from ..tlm_adjoint import _default_comm
 
 import copy
-import mpi4py.MPI as MPI
 import numpy as np
 import warnings
 
@@ -58,7 +58,7 @@ class FunctionSpaceInterface(SpaceInterface):
 
 class FunctionSpace:
     def __init__(self, dim):
-        comm = MPI.COMM_WORLD
+        comm = _default_comm
         if comm.size > 1:
             raise InterfaceException("Serial only")
 
@@ -336,10 +336,9 @@ add_new_real_function(backend, _new_real_function)
 
 
 def default_comm():
-    warnings.warn("default_comm is deprecated -- "
-                  "use mpi4py.MPI.COMM_WORLD instead",
+    warnings.warn("default_comm is deprecated",
                   DeprecationWarning, stacklevel=2)
-    return MPI.COMM_WORLD
+    return _default_comm
 
 
 def RealFunctionSpace(comm=None):
