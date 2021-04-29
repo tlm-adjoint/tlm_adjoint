@@ -35,7 +35,6 @@ from collections import OrderedDict, defaultdict, deque
 import copy
 import gc
 import logging
-import mpi4py.MPI as MPI
 import numpy as np
 import pickle
 import os
@@ -70,6 +69,55 @@ __all__ = \
 
 class ManagerException(Exception):
     pass
+
+
+try:
+    from mpi4py.MPI import COMM_WORLD as _default_comm
+except ImportError:
+    # As for mpi4py 3.0.3 API
+    class SerialComm:
+        _id_counter = [-1]
+
+        def __init__(self):
+            self._id = self._id_counter[0]
+            self._id_counter[0] -= 1
+
+        @property
+        def rank(self):
+            return 0
+
+        @property
+        def size(self):
+            return 1
+
+        def Dup(self, info=None):
+            return SerialComm()
+
+        def Free(self):
+            pass
+
+        def allgather(self, sendobj):
+            return [copy.deepcopy(sendobj)]
+
+        def barrier(self):
+            pass
+
+        def bcast(self, obj, root=0):
+            return copy.deepcopy(obj)
+
+        def gather(self, sendobj, root=0):
+            assert root == 0
+            return [copy.deepcopy(sendobj)]
+
+        def py2f(self):
+            return self._id
+
+        def scatter(self, sendobj, root=0):
+            assert root == 0
+            sendobj, = sendobj
+            return copy.deepcopy(sendobj)
+
+    _default_comm = SerialComm()
 
 
 class Control(Alias):
@@ -521,7 +569,7 @@ class EquationManager:
         Manager for tangent-linear and adjoint models.
 
         Arguments:
-        comm  (Optional) Communicator. Default mpi4py.MPI.COMM_WORLD.
+        comm  (Optional) Communicator.
 
         cp_method  (Optional) Checkpointing method. Default "memory".
             Possible methods
@@ -576,7 +624,7 @@ class EquationManager:
         # dolfin-adjoint 2017.1.0
 
         if comm is None:
-            comm = MPI.COMM_WORLD
+            comm = _default_comm
         comm = comm.Dup()
 
         self._comm = comm
