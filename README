@@ -1,5 +1,5 @@
-To use tlm_adjoint add the 'python' subdirectory to the Python search path. The
-library is used via, e.g., the Python code
+To use tlm_adjoint add the tlm_adjoint root directory to the Python search
+path. The library is used via, e.g., the Python code
 
     FEniCS backend:
 
