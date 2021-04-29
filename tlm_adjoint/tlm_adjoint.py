@@ -1474,48 +1474,6 @@ class EquationManager:
                 self._blocks.append([])
         self._checkpoint(final=True)
 
-    def dependency_graph_png(self, divider=[255, 127, 127], p=5):
-        warnings.warn("EquationManager.dependency_graph_png method may be "
-                      "removed",
-                      DeprecationWarning, stacklevel=2)
-
-        P = 2 ** p
-
-        blocks = copy.copy(self._blocks)
-        if len(self._block) > 0:
-            blocks.append(self._block)
-
-        M = 0
-        for block in blocks:
-            M += len(block) * P
-        M += len(blocks) + 1
-        pixels = np.full((M, M, 3), 255, dtype=np.uint8)
-
-        pixels[0, :, :] = divider
-        pixels[:, 0, :] = divider
-        index = 1
-        for block in blocks:
-            pixels[index + len(block) * P, :, :] = divider
-            pixels[:, index + len(block) * P, :] = divider
-            index += len(block) * P + 1
-
-        index = 1
-        dep_map = {}
-        for block in blocks:
-            for eq in block:
-                eq_indices = slice(index, index + P)
-                for x in eq.X():
-                    dep_map[function_id(x)] = eq_indices
-                index += P
-                for dep in eq.dependencies():
-                    dep_id = function_id(dep)
-                    if dep_id in dep_map:
-                        pixels[eq_indices, dep_map[dep_id]] = 0
-            index += 1
-
-        import png
-        return png.from_array(pixels.reshape((M, 3 * M)).copy(), "RGB")
-
     def reset_adjoint(self, _warning=True):
         """
         Call the reset_adjoint methods of all annotated Equation objects.
