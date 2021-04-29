@@ -1,3 +1,7 @@
+tlm_adjoint is a library for high-level algorithmic differentiation, primarily
+for use with FEniCS (https://fenicsproject.org) or Firedrake
+(https://firedrakeproject.org).
+
 The library can be installed via e.g.
 
     pip install .
@@ -24,13 +28,23 @@ The library is used via, e.g., the Python code
 tlm_adjoint is currently targeting FEniCS 2019.1.0, and the Firedrake Git
 master branch.
 
-Together with the backend libraries, tlm_adjoint requires
+tlm_adjoint requires:
 
-    NumPy
-    mpi4py (FEniCS or Firedrake backends)
-    petsc4py (FEniCS or Firedrake backends)
+    All backends:
+        NumPy
 
-tlm_adjoint optionally requires
+    FEniCS or Firedrake backends:
+        UFL
+        mpi4py
+        petsc4py
+
+    FEniCS backend:
+        DOLFIN
+
+    Firedrake backend:
+        Firedrake
+
+tlm_adjoint optionally uses
 
     SciPy, for gradient-based optimization and interpolation equations
     h5py, with the 'mpio' driver for parallel calculations, for HDF5 storage
