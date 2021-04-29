@@ -1,5 +1,10 @@
-To use tlm_adjoint add the tlm_adjoint root directory to the Python search
-path. The library is used via, e.g., the Python code
+The library can be installed via e.g.
+
+    pip install .
+
+run in the tlm_adjoint root directory.
+
+The library is used via, e.g., the Python code
 
     FEniCS backend:
 
