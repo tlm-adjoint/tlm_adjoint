@@ -24,7 +24,7 @@ from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_id, function_is_cached, \
     function_is_checkpointed, function_is_static, function_name, \
     function_replacement, function_space, function_tangent_linear, \
-    is_function, is_real_function, space_comm, space_new
+    is_function, space_comm, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -598,9 +598,6 @@ class ReplacementInterface(_FunctionInterface):
     def _is_replacement(self):
         return True
 
-    def _is_real(self):
-        return self._tlm_adjoint__function_interface_attrs["is_real"]
-
 
 class Replacement(ufl.classes.Coefficient):
     def __init__(self, x, *args, **kwargs):
@@ -628,8 +625,7 @@ class Replacement(ufl.classes.Coefficient):
                       {"id": function_id(x), "name": function_name(x),
                        "space": x_space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
-                       "checkpoint": function_is_checkpointed(x),
-                       "is_real": is_real_function(x)})
+                       "checkpoint": function_is_checkpointed(x)})
 
     def function_space(self):
         return self.__space

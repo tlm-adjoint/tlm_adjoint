@@ -293,9 +293,6 @@ class ReplacementInterface(_FunctionInterface):
     def _is_replacement(self):
         return True
 
-    def _is_real(self):
-        return self.space().dim() == 1
-
 
 class Replacement:
     def __init__(self, x):
