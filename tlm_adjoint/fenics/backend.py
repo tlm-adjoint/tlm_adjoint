@@ -78,6 +78,7 @@ backend_solve = solve
 
 cpp_LinearVariationalProblem = fenics.cpp.fem.LinearVariationalProblem
 cpp_NonlinearVariationalProblem = fenics.cpp.fem.NonlinearVariationalProblem
+cpp_PETScVector = fenics.cpp.la.PETScVector
 
 __all__ = \
     [
@@ -104,6 +105,7 @@ __all__ = \
 
         "cpp_LinearVariationalProblem",
         "cpp_NonlinearVariationalProblem",
+        "cpp_PETScVector",
 
         "Cell",
         "Form",

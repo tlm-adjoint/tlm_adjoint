@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import FunctionSpace, UnitIntervalMesh, backend, \
-    backend_Constant, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType, backend_Vector, info
+from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
+    backend, backend_Constant, backend_Function, backend_FunctionSpace, \
+    backend_ScalarType, backend_Vector, cpp_PETScVector, info
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_real_function, \
@@ -300,6 +300,11 @@ class FunctionInterface(_FunctionInterface):
 @FunctionSpace_add_interface_disabled
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
+    if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
+        raise InterfaceException("PETSc backend required")
+    if not np.can_cast(backend_ScalarType, np.float64):
+        raise InterfaceException("Invalid dtype")
+
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
