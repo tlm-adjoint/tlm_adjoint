@@ -117,9 +117,6 @@ backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 class FunctionInterface(_FunctionInterface):
-    def _comm(self):
-        return self.function_space().mesh().mpi_comm()
-
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 

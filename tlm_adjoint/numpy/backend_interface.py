@@ -78,9 +78,6 @@ class FunctionSpace:
 
 
 class FunctionInterface(_FunctionInterface):
-    def _comm(self):
-        return self.space().comm()
-
     def _space(self):
         return self.space()
 

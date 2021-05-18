@@ -175,7 +175,7 @@ class FunctionInterface:
         raise InterfaceException("Cannot instantiate FunctionInterface object")
 
     def _comm(self):
-        raise InterfaceException("Method not overridden")
+        return space_comm(function_space(self))
 
     def _space(self):
         raise InterfaceException("Method not overridden")

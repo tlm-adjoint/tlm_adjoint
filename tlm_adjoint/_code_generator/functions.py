@@ -74,9 +74,6 @@ class ConstantSpaceInterface(SpaceInterface):
 
 
 class ConstantInterface(_FunctionInterface):
-    def _comm(self):
-        return space_comm(self._tlm_adjoint__function_interface_attrs["space"])
-
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 
