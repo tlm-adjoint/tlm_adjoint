@@ -53,9 +53,23 @@ from fenics import Cell, Constant, DirichletBC, Form, Function, \
     assemble, assemble_system, has_lu_solver_method, info, parameters, \
     project, solve
 import fenics
+import numpy as np
 import petsc4py.PETSc as PETSc
 
 backend = "FEniCS"
+
+backend_ScalarType = PETSc.ScalarType
+backend_RealScalarType = PETSc.RealType
+backend_ComplexScalarType = PETSc.ComplexType
+
+if not issubclass(backend_ScalarType, (float, np.floating)):
+    raise ImportError(f"Invalid backend scalar type: {backend_ScalarType}")
+if not issubclass(backend_RealScalarType, (float, np.floating)):
+    raise ImportError(f"Invalid backend real scalar type: "
+                      f"{backend_RealScalarType}")
+if not issubclass(backend_ComplexScalarType, (complex, np.complexfloating)):
+    raise ImportError(f"Invalid backend complex scalar type: "
+                      f"{backend_ComplexScalarType}")
 
 extract_args = fenics.fem.solving._extract_args
 
@@ -69,7 +83,6 @@ backend_LinearVariationalSolver = LinearVariationalSolver
 backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_NonlinearVariationalProblem = NonlinearVariationalProblem
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
-backend_ScalarType = PETSc.ScalarType
 backend_Vector = fenics.cpp.la.GenericVector
 backend_assemble = assemble
 backend_assemble_system = assemble_system
@@ -84,6 +97,10 @@ __all__ = \
     [
         "backend",
 
+        "backend_ComplexScalarType",
+        "backend_RealScalarType",
+        "backend_ScalarType",
+
         "extract_args",
 
         "backend_Constant",
@@ -96,7 +113,6 @@ __all__ = \
         "backend_NonlinearVariationalProblem",
         "backend_NonlinearVariationalSolver",
         "backend_Matrix",
-        "backend_ScalarType",
         "backend_Vector",
         "backend_assemble",
         "backend_assemble_system",

@@ -24,8 +24,23 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
     info, parameters, project, solve
 import firedrake
+import numpy as np
+import petsc4py.PETSc as PETSc
 
 backend = "Firedrake"
+
+backend_ScalarType = firedrake.utils.ScalarType.type
+backend_RealScalarType = firedrake.utils.RealType.type
+backend_ComplexScalarType = PETSc.ComplexType
+
+if not issubclass(backend_ScalarType, (float, np.floating)):
+    raise ImportError(f"Invalid backend scalar type: {backend_ScalarType}")
+if not issubclass(backend_RealScalarType, (float, np.floating)):
+    raise ImportError(f"Invalid backend real scalar type: "
+                      f"{backend_RealScalarType}")
+if not issubclass(backend_ComplexScalarType, (complex, np.complexfloating)):
+    raise ImportError(f"Invalid backend complex scalar type: "
+                      f"{backend_ComplexScalarType}")
 
 extract_args = firedrake.solving._extract_args
 
@@ -38,7 +53,6 @@ backend_LinearVariationalProblem = LinearVariationalProblem
 backend_LinearVariationalSolver = LinearVariationalSolver
 backend_Matrix = firedrake.matrix.Matrix
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
-backend_ScalarType = firedrake.utils.ScalarType
 backend_Vector = Vector
 backend_assemble = assemble
 backend_project = project
@@ -47,6 +61,10 @@ backend_solve = solve
 __all__ = \
     [
         "backend",
+
+        "backend_ComplexScalarType",
+        "backend_RealScalarType",
+        "backend_ScalarType",
 
         "extract_args",
 
@@ -59,7 +77,6 @@ __all__ = \
         "backend_LinearVariationalSolver",
         "backend_Matrix",
         "backend_NonlinearVariationalSolver",
-        "backend_ScalarType",
         "backend_Vector",
         "backend_assemble",
         "backend_project",
