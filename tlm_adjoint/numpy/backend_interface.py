@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import backend
+from .backend import backend, backend_ScalarType
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     add_new_scalar_function, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
@@ -47,6 +47,9 @@ __all__ = \
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.comm()
+
+    def _dtype(self):
+        return backend_ScalarType
 
     def _id(self):
         return self.id()
@@ -149,12 +152,12 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().view()
         values.setflags(write=False)
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         if values.shape != self.vector().shape:
             raise InterfaceException("Invalid shape")
@@ -202,9 +205,9 @@ class Function:
         self._checkpoint = checkpoint
         self._replacement = None
         if _data is None:
-            self._data = np.zeros(space.dim(), dtype=np.float64)
+            self._data = np.zeros(space.dim(), dtype=backend_ScalarType)
         else:
-            if not np.can_cast(_data, np.float64):
+            if _data.dtype.type != backend_ScalarType:
                 raise InterfaceException("Invalid dtype")
             self._data = _data
         add_interface(self, FunctionInterface)

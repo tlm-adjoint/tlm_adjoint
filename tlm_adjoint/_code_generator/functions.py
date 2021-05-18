@@ -64,6 +64,9 @@ class ConstantSpaceInterface(SpaceInterface):
     def _comm(self):
         return self._tlm_adjoint__space_interface_attrs["comm"]
 
+    def _dtype(self):
+        return self._tlm_adjoint__space_interface_attrs["dtype"]
+
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 

@@ -19,7 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import FunctionSpace, UnitIntervalMesh, backend, \
-    backend_Constant, backend_Function, backend_FunctionSpace, info
+    backend_Constant, backend_Function, backend_FunctionSpace, \
+    backend_ScalarType, info
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_scalar_function, \
@@ -77,8 +78,11 @@ def _Constant__init__(self, value, domain=None, *,
 
     if space is None:
         space = self.ufl_function_space()
+        if self.dat.dtype.type != backend_ScalarType:
+            raise InterfaceException("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "domain": domain, "id": new_space_id()})
+                      {"comm": comm, "domain": domain,
+                       "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": name, "state": 0,
                    "space": space,
@@ -92,6 +96,9 @@ backend_Constant.__init__ = _Constant__init__
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.comm
+
+    def dtype(self):
+        return backend_ScalarType
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
@@ -301,7 +308,7 @@ class FunctionInterface(_FunctionInterface):
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    if not np.can_cast(self.dat.dtype, np.float64):
+    if self.dat.dtype.type != backend_ScalarType:
         raise InterfaceException("Invalid dtype")
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,

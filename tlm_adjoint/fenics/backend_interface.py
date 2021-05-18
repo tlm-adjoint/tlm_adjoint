@@ -69,8 +69,11 @@ def _Constant__init__(self, *args, domain=None, space=None,
 
     if space is None:
         space = self.ufl_function_space()
+        if self.values().dtype.type != backend_ScalarType:
+            raise InterfaceException("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "domain": domain, "id": new_space_id()})
+                      {"comm": comm, "domain": domain,
+                       "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "state": 0, "space": space,
                    "static": False, "cache": False, "checkpoint": True})
@@ -83,6 +86,9 @@ backend_Constant.__init__ = _Constant__init__
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.mesh().mpi_comm()
+
+    def _dtype(self):
+        return backend_ScalarType
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
@@ -235,7 +241,7 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().get_local().view()
         values.setflags(write=False)
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         return values
 
@@ -300,8 +306,6 @@ def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
         raise InterfaceException("PETSc backend required")
-    if not np.can_cast(backend_ScalarType, np.float64):
-        raise InterfaceException("Invalid dtype")
 
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,

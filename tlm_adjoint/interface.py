@@ -35,6 +35,7 @@ __all__ = \
         "is_space",
         "new_space_id",
         "space_comm",
+        "space_dtype",
         "space_id",
         "space_new",
 
@@ -120,12 +121,15 @@ def add_interface(obj, interface_cls, attrs={}):
 
 class SpaceInterface:
     prefix = "_tlm_adjoint__space_interface"
-    names = ("_comm", "_id", "_new")
+    names = ("_comm", "_dtype", "_id", "_new")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate SpaceInterface object")
 
     def _comm(self):
+        raise InterfaceException("Method not overridden")
+
+    def _dtype(self):
         raise InterfaceException("Method not overridden")
 
     def _id(self):
@@ -141,6 +145,10 @@ def is_space(x):
 
 def space_comm(space):
     return space._tlm_adjoint__space_interface_comm()
+
+
+def space_dtype(space):
+    return space._tlm_adjoint__space_interface_dtype()
 
 
 _space_id_counter = [0]
