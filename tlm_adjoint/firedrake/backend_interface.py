@@ -97,7 +97,7 @@ class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.comm
 
-    def dtype(self):
+    def _dtype(self):
         return backend_ScalarType
 
     def _id(self):
