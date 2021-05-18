@@ -19,8 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import FunctionSpace, UnitIntervalMesh, backend, \
-    backend_Constant, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType, info
+    backend_Constant, backend_Function, backend_FunctionSpace, info
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_real_function, \
@@ -260,7 +259,7 @@ class FunctionInterface(_FunctionInterface):
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, backend_ScalarType):
+        if not np.can_cast(values, self.dat.dtype):
             raise InterfaceException("Invalid dtype")
         with self.dat.vec as x_v:
             if values.shape != (x_v.getLocalSize(),):
@@ -306,6 +305,8 @@ class FunctionInterface(_FunctionInterface):
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
+    if not np.can_cast(self.dat.dtype, np.float64):
+        raise InterfaceException("Invalid dtype")
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
