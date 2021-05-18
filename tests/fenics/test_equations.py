@@ -365,7 +365,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
         else:
             y = z
 
-        X_vals = [new_real_function(name=f"x_{i:d}")
+        X_vals = [new_scalar_function(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
         eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
         eq.solve()
@@ -373,7 +373,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
 
         J = Functional(name="J")
         for x in X_vals:
-            term = new_real_function()
+            term = new_scalar_function()
             ExprEvaluationSolver(x ** 3, term).solve()
             J.addto(term)
         return X_vals, J
@@ -391,7 +391,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
     x_error_norm = 0.0
     for x, x_coord in zip(X_vals, X_coords):
         x_error_norm = max(x_error_norm,
-                           abs(real_function_value(x) - x_ref(x_coord)))
+                           abs(function_scalar_value(x) - x_ref(x_coord)))
     info(f"Error norm = {x_error_norm:.16e}")
     assert x_error_norm < 1.0e-13
 

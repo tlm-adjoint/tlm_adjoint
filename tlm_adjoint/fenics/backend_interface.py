@@ -23,7 +23,7 @@ from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
     backend_ScalarType, backend_Vector, cpp_PETScVector, info
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_new_real_function, \
+    add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
     function_caches, function_copy, function_is_cached, \
     function_is_checkpointed, function_is_static, function_new, \
@@ -288,12 +288,12 @@ class FunctionInterface(_FunctionInterface):
     def _is_replacement(self):
         return False
 
-    def _is_real(self):
+    def _is_scalar(self):
         return (is_valid_r0_space(self.function_space())
                 and len(self.ufl_shape) == 0)
 
-    def _real_value(self):
-        # assert is_real_function(self)
+    def _scalar_value(self):
+        # assert function_is_scalar(self)
         return self.vector().max()
 
 
@@ -335,13 +335,13 @@ backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_s
 backend_Function.function_space = _Function_function_space
 
 
-def _new_real_function(name=None, comm=None, static=False, cache=None,
-                       checkpoint=None):
+def _new_scalar_function(name=None, comm=None, static=False, cache=None,
+                         checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-add_new_real_function(backend, _new_real_function)
+add_new_scalar_function(backend, _new_scalar_function)
 
 
 def _subtract_adjoint_derivative_action(x, y):
@@ -447,7 +447,7 @@ def default_comm():
 
 def RealFunctionSpace(comm=MPI.COMM_WORLD):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_real_function instead",
+                  "use new_scalar_function instead",
                   DeprecationWarning, stacklevel=2)
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 

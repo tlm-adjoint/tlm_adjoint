@@ -22,11 +22,11 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_Constant, backend_Function, backend_FunctionSpace, info
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_new_real_function, \
+    add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
     function_assign, function_caches, function_comm, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, \
-    is_real_function, new_function_id, new_space_id, real_function_value, \
+    function_is_checkpointed, function_is_scalar, function_is_static, \
+    function_new, function_scalar_value, new_function_id, new_space_id, \
     space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
@@ -292,12 +292,12 @@ class FunctionInterface(_FunctionInterface):
     def _is_replacement(self):
         return False
 
-    def _is_real(self):
+    def _is_scalar(self):
         return (is_valid_r0_space(self.function_space())
                 and len(self.ufl_shape) == 0)
 
-    def _real_value(self):
-        # assert is_real_function(self)
+    def _scalar_value(self):
+        # assert function_is_scalar(self)
         with self.dat.vec_ro as x_v:
             max = x_v.max()[1]
         return max
@@ -316,13 +316,13 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def _new_real_function(name=None, comm=None, static=False, cache=None,
-                       checkpoint=None):
+def _new_scalar_function(name=None, comm=None, static=False, cache=None,
+                         checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-add_new_real_function(backend, _new_real_function)
+add_new_scalar_function(backend, _new_scalar_function)
 
 
 def _subtract_adjoint_derivative_action(x, y):
@@ -333,18 +333,18 @@ def _subtract_adjoint_derivative_action(x, y):
         else:
             x._tlm_adjoint__firedrake_adj_b = form_neg(y)
     elif isinstance(x, backend_Constant):
-        if isinstance(y, backend_Function) and is_real_function(y):
+        if isinstance(y, backend_Function) and function_is_scalar(y):
             alpha = 1.0
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
                 and isinstance(y[0], (int, float)) \
                 and isinstance(y[1], backend_Function) \
-                and is_real_function(y[1]):
+                and function_is_scalar(y[1]):
             alpha, y = y
             alpha = float(alpha)
         else:
             return NotImplemented
-        y_value = real_function_value(y)
+        y_value = function_scalar_value(y)
         # annotate=False, tlm=False
         x.assign(float(x) - alpha * y_value)
     else:
@@ -412,7 +412,7 @@ def default_comm():
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_real_function instead",
+                  "use new_scalar_function instead",
                   DeprecationWarning, stacklevel=2)
     if comm is None:
         comm = MPI.COMM_WORLD

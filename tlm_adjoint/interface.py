@@ -70,7 +70,10 @@ __all__ = \
         "function_zero",
         "new_function_id",
 
+        "function_is_scalar",
+        "function_scalar_value",
         "is_real_function",
+        "new_scalar_function",
         "new_real_function",
         "real_function_value",
 
@@ -165,8 +168,8 @@ class FunctionInterface:
              "_update_caches", "_zero", "_assign", "_axpy", "_inner",
              "_max_value", "_sum", "_linf_norm", "_local_size", "_global_size",
              "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_tangent_linear", "_replacement", "_is_replacement", "_is_real",
-             "_real_value")
+             "_tangent_linear", "_replacement", "_is_replacement",
+             "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -255,10 +258,10 @@ class FunctionInterface:
     def _is_replacement(self):
         raise InterfaceException("Method not overridden")
 
-    def _is_real(self):
+    def _is_scalar(self):
         raise InterfaceException("Method not overridden")
 
-    def _real_value(self):
+    def _scalar_value(self):
         raise InterfaceException("Method not overridden")
 
 
@@ -402,28 +405,56 @@ def function_is_replacement(x):
 
 
 def is_real_function(x):
-    return x._tlm_adjoint__function_interface_is_real()
+    warnings.warn("is_real_function is deprecated -- "
+                  "use function_is_scalar instead")
+    return function_is_scalar(x)
 
 
 def real_function_value(x):
-    if not is_real_function(x):
-        raise InterfaceException("Invalid function")
-    return x._tlm_adjoint__function_interface_real_value()
-
-
-_new_real_function = {}
+    warnings.warn("real_function_value is deprecated -- "
+                  "use function_scalar_value instead")
+    return function_scalar_value(x)
 
 
 def add_new_real_function(backend, fn):
-    assert backend not in _new_real_function
-    _new_real_function[backend] = fn
+    warnings.warn("add_new_real_function is deprecated -- "
+                  "use add_new_scalar_function instead",
+                  DeprecationWarning, stacklevel=2)
+    add_new_scalar_function(backend, fn)
 
 
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
-    new_real_function = tuple(_new_real_function.values())[0]
-    return new_real_function(name=name, comm=comm, static=static, cache=cache,
-                             checkpoint=checkpoint)
+    warnings.warn("new_real_function is deprecated -- "
+                  "use new_scalar_function instead",
+                  DeprecationWarning, stacklevel=2)
+    return new_scalar_function(name=name, comm=comm, static=static,
+                               cache=cache, checkpoint=checkpoint)
+
+
+def function_is_scalar(x):
+    return x._tlm_adjoint__function_interface_is_scalar()
+
+
+def function_scalar_value(x):
+    if not function_is_scalar(x):
+        raise InterfaceException("Invalid function")
+    return x._tlm_adjoint__function_interface_scalar_value()
+
+
+_new_scalar_function = {}
+
+
+def add_new_scalar_function(backend, fn):
+    assert backend not in _new_scalar_function
+    _new_scalar_function[backend] = fn
+
+
+def new_scalar_function(name=None, comm=None, static=False, cache=None,
+                        checkpoint=None):
+    new_scalar_function = tuple(_new_scalar_function.values())[0]
+    return new_scalar_function(name=name, comm=comm, static=static,
+                               cache=cache, checkpoint=checkpoint)
 
 
 _subtract_adjoint_derivative_action = {}
