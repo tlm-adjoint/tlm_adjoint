@@ -163,10 +163,6 @@ class FunctionInterface(_FunctionInterface):
             raise InterfaceException("Invalid shape")
         self.vector()[:] = values
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint)
-
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.space(), name=name, static=static, cache=cache,
                         checkpoint=checkpoint, _data=self.vector().copy())
@@ -282,10 +278,6 @@ class ReplacementInterface(_FunctionInterface):
     def _update_caches(self, value=None):
         if value is None:
             raise InterfaceException("value required")
-
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.space(), name=name, static=static, cache=cache,
-                        checkpoint=checkpoint)
 
     def _replacement(self):
         return self

@@ -24,7 +24,7 @@ from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_id, function_is_cached, \
     function_is_checkpointed, function_is_static, function_name, \
     function_replacement, function_space, function_tangent_linear, \
-    is_function, space_comm, space_new
+    is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -221,17 +221,6 @@ class ConstantInterface(_FunctionInterface):
         else:
             values.shape = self.ufl_shape
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
-
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        domains = self.ufl_domains()
-        if len(domains) == 0:
-            domain = None
-        else:
-            domain, = domains
-        space = self._tlm_adjoint__function_interface_attrs["space"]
-        comm = function_comm(self)
-        return Constant(name=name, domain=domain, space=space, comm=comm,
-                        static=static, cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
@@ -586,11 +575,6 @@ class ReplacementInterface(_FunctionInterface):
         if value is None:
             raise InterfaceException("value required")
         self.caches().update(value)
-
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return space_new(self._tlm_adjoint__function_interface_attrs["space"],
-                         name=name, static=static, cache=cache,
-                         checkpoint=checkpoint)
 
     def _replacement(self):
         return self

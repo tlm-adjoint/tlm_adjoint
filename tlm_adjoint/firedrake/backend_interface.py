@@ -266,10 +266,6 @@ class FunctionInterface(_FunctionInterface):
                 raise InterfaceException("Invalid shape")
             x_v.setArray(values)
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.function_space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint)
-
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         y = function_new(self, name=name, static=static, cache=cache,
                          checkpoint=checkpoint)
