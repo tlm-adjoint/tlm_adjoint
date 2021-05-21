@@ -19,7 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import TestFunction, TrialFunction, adjoint, \
-    backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
+    backend_DirichletBC, backend_Function, backend_FunctionSpace, \
+    backend_ScalarType, parameters
 from ..interface import function_assign, function_comm, function_get_values, \
     function_id, function_is_scalar, function_local_size, function_new, \
     function_replacement, function_scalar_value, function_set_values, \
@@ -858,8 +859,8 @@ def evaluate_expr_function(fn):
 
 evaluate_expr_types = \
     {
-        ufl.classes.FloatValue: (lambda x: float(x)),
-        ufl.classes.IntValue: (lambda x: float(x)),
+        ufl.classes.FloatValue: (lambda x: backend_ScalarType(x)),
+        ufl.classes.IntValue: (lambda x: backend_ScalarType(x)),
         ufl.classes.Zero: (lambda x: 0.0),
     }
 
@@ -937,9 +938,10 @@ class ExprEvaluationSolver(Equation):
             rhs = ufl.replace(self._rhs,
                               dict(zip(self.dependencies(), deps)))
         rhs_val = evaluate_expr(rhs)
-        if isinstance(rhs_val, float):
-            function_set_values(x, np.full(function_local_size(x), rhs_val,
-                                           dtype=np.float64))
+        if isinstance(rhs_val, (int, np.integer, float, np.floating)):
+            function_set_values(x, np.full(function_local_size(x),
+                                           backend_ScalarType(rhs_val),
+                                           dtype=backend_ScalarType))
         else:
             assert function_local_size(x) == len(rhs_val)
             function_set_values(x, rhs_val)
@@ -959,12 +961,13 @@ class ExprEvaluationSolver(Equation):
             dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
-        if isinstance(dF_val, float):
+        if isinstance(dF_val, (int, np.integer, float, np.floating)):
             function_set_values(F, np.full(function_local_size(F),
-                                           dF_val, dtype=np.float64))
+                                           backend_ScalarType(dF_val),
+                                           dtype=backend_ScalarType))
         elif function_is_scalar(F):
-            dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
-            dF_val = np.full((1,), np.NAN, dtype=np.float64)
+            dF_val_local = np.array([dF_val.sum()], dtype=backend_ScalarType)
+            dF_val = np.full((1,), np.NAN, dtype=backend_ScalarType)
             comm = function_comm(F)
             comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
             dF_val = dF_val[0]
