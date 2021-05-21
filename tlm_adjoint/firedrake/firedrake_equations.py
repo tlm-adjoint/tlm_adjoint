@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
-    backend_assemble
+    backend_assemble, backend_ScalarType
 from ..interface import function_assign, function_comm, function_get_values, \
     function_is_scalar, function_local_size, function_new, \
     function_scalar_value, function_set_values, function_space, is_function, \
@@ -201,7 +201,7 @@ def interpolation_matrix(x_coords, y, y_nodes):
     gl_map = {g: l for l, g in enumerate(lg_map)}  # noqa: E741
 
     from scipy.sparse import dok_matrix
-    P = dok_matrix((x_coords.shape[0], N), dtype=np.float64)
+    P = dok_matrix((x_coords.shape[0], N), dtype=backend_ScalarType)
 
     y_v = function_new(y)
     for x_node, x_coord in enumerate(x_coords):
@@ -235,7 +235,7 @@ class PointInterpolationSolver(Equation):
                    interpolated.
         X          A scalar, or a list or tuple of scalars. The solution to the
                    equation.
-        X_coords   A float NumPy matrix. Points at which to interpolate y.
+        X_coords   A NumPy matrix. Points at which to interpolate y.
                    Ignored if P is supplied, required otherwise.
         P          (Optional) Interpolation matrix.
         P_T        (Optional) Interpolation matrix transpose.
@@ -296,12 +296,12 @@ class PointInterpolationSolver(Equation):
         y = (self.dependencies() if deps is None else deps)[-1]
 
         y_v = function_get_values(y)
-        x_v_local = np.full(len(X), np.NAN, dtype=np.float64)
+        x_v_local = np.full(len(X), np.NAN, dtype=backend_ScalarType)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = function_comm(y)
-        x_v = np.full(len(X), np.NAN, dtype=np.float64)
+        x_v = np.full(len(X), np.NAN, dtype=backend_ScalarType)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):
@@ -314,7 +314,7 @@ class PointInterpolationSolver(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_x_v = np.full(len(adj_X), np.NAN, dtype=np.float64)
+            adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
             F = function_new(self.dependencies()[-1])
