@@ -18,6 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+from .backend import backend_ScalarType
 from ..interface import space_new
 
 from ..equations import EquationException, LinearEquation, Matrix, RHS
@@ -91,7 +92,7 @@ class ContractionArray:
         self._A = A
         self._A_T = A_T
         self._I = tuple(I)
-        self._alpha = float(alpha)
+        self._alpha = backend_ScalarType(alpha)
 
     def A(self):
         return self._A

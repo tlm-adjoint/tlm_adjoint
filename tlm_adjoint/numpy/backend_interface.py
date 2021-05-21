@@ -112,17 +112,17 @@ class FunctionInterface(_FunctionInterface):
         self.vector()[:] = 0.0
 
     def _assign(self, y):
-        if isinstance(y, (int, float)):
-            self.vector()[:] = float(y)
+        if isinstance(y, (int, np.integer, float, np.floating)):
+            self.vector()[:] = backend_ScalarType(y)
         else:
             assert isinstance(y, Function)
             self.vector()[:] = y.vector()
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = float(alpha)
-        if isinstance(x, (int, float)):
-            self.vector()[:] += alpha * float(x)
+        alpha = backend_ScalarType(alpha)
+        if isinstance(x, (int, np.integer, float, np.floating)):
+            self.vector()[:] += alpha * backend_ScalarType(x)
         else:
             assert isinstance(x, Function)
             self.vector()[:] += alpha * x.vector()
