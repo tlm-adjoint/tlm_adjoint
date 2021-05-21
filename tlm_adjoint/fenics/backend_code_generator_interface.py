@@ -183,7 +183,7 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
             zero = backend_Constant(0.0)
         else:
             zero = backend_Constant(np.zeros(test.ufl_shape, dtype=np.float64))
-        dummy_rhs = ufl.inner(test, zero) * ufl.dx
+        dummy_rhs = ufl.inner(zero, test) * ufl.dx
         A, b_bc = assemble_system(
             form, dummy_rhs, bcs=bcs,
             form_compiler_parameters=form_compiler_parameters, *args, **kwargs)

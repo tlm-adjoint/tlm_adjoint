@@ -133,7 +133,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     if ddJ is None:
         error_norms_1 = abs(J_vals - J_val
-                            - eps * functions_inner(dJ, dM))
+                            - eps * functions_inner(dM, dJ))
         orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
         logger.info(f"Error norms, with adjoint = {error_norms_1}")
         logger.info(f"Orders,      with adjoint = {orders_1}")
@@ -142,11 +142,11 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         if dJ is None:
             _, dJ, ddJ = ddJ.action(M0, dM)
         else:
-            dJ = functions_inner(dJ, dM)
+            dJ = functions_inner(dM, dJ)
             _, _, ddJ = ddJ.action(M0, dM)
         error_norms_2 = abs(J_vals - J_val
                             - eps * dJ
-                            - 0.5 * eps * eps * functions_inner(ddJ, dM))
+                            - 0.5 * eps * eps * functions_inner(dM, ddJ))
         orders_2 = np.log(error_norms_2[1:] / error_norms_2[:-1]) / np.log(0.5)
         logger.info(f"Error norms, with adjoint = {error_norms_2}")
         logger.info(f"Orders,      with adjoint = {orders_2}")

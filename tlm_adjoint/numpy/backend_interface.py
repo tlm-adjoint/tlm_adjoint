@@ -129,7 +129,7 @@ class FunctionInterface(_FunctionInterface):
 
     def _inner(self, y):
         assert isinstance(y, Function)
-        return self.vector().dot(y.vector())
+        return y.vector().dot(self.vector())
 
     def _max_value(self):
         return self.vector().max()

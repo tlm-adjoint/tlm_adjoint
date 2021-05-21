@@ -244,9 +244,9 @@ class LocalProjectionSolver(EquationSolver):
                  match_quadrature=None, defer_adjoint_assembly=None):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
-        lhs = ufl.inner(test, trial) * ufl.dx
+        lhs = ufl.inner(trial, test) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
-            rhs = ufl.inner(test, rhs) * ufl.dx
+            rhs = ufl.inner(rhs, test) * ufl.dx
 
         local_solver_type = LocalSolver.SolverType.Cholesky
 

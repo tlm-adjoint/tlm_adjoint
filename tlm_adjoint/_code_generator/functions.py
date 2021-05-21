@@ -157,7 +157,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _inner(self, y):
         assert isinstance(y, backend_Constant)
-        return self.values().dot(y.values())
+        return y.values().dot(self.values())
 
     def _max_value(self):
         return self.values().max()
@@ -411,7 +411,7 @@ def eliminate_zeros(expr, force_non_empty_form=False):
                 simplified_expr = zero * test * ufl.ds
             else:
                 test, trial = arguments
-                simplified_expr = zero * ufl.inner(test, trial) * ufl.ds
+                simplified_expr = zero * ufl.inner(trial, test) * ufl.ds
 
         return simplified_expr
 

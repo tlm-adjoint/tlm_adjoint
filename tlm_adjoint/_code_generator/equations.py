@@ -797,8 +797,8 @@ class ProjectionSolver(EquationSolver):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
-            rhs = ufl.inner(test, rhs) * ufl.dx
-        super().__init__(ufl.inner(test, trial) * ufl.dx == rhs, x,
+            rhs = ufl.inner(rhs, test) * ufl.dx
+        super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
                          *args, **kwargs)
 
 
