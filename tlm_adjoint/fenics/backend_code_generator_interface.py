@@ -22,7 +22,7 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     TestFunction, TrialFunction, as_backend_type, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_KrylovSolver, \
     backend_LUSolver, backend_LinearVariationalSolver, \
-    backend_NonlinearVariationalSolver, backend_assemble, \
+    backend_NonlinearVariationalSolver, backend_ScalarType, backend_assemble, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
@@ -182,7 +182,8 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
         if len(test.ufl_shape) == 0:
             zero = backend_Constant(0.0)
         else:
-            zero = backend_Constant(np.zeros(test.ufl_shape, dtype=np.float64))
+            zero = backend_Constant(np.zeros(test.ufl_shape,
+                                             dtype=backend_ScalarType))
         dummy_rhs = ufl.inner(zero, test) * ufl.dx
         A, b_bc = assemble_system(
             form, dummy_rhs, bcs=bcs,
@@ -287,12 +288,13 @@ def is_valid_r0_space(space):
             valid = (r.vector().max() == 1.0)
         else:
             r = backend_Function(space)
-            r_arr = np.arange(1, np.prod(r.ufl_shape) + 1, dtype=np.float64)
+            r_arr = np.arange(1, np.prod(r.ufl_shape) + 1,
+                              dtype=backend_ScalarType)
             r_arr.shape = r.ufl_shape
             r.assign(backend_Constant(r_arr),
                      annotate=False, tlm=False)
             for i, r_c in enumerate(r.split(deepcopy=True)):
-                if r_c.vector().max() != float(i + 1):
+                if r_c.vector().max() != i + 1:
                     valid = False
                     break
             else:

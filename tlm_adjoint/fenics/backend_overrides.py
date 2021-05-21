@@ -33,6 +33,7 @@ from ..tlm_adjoint import annotation_enabled, tlm_enabled
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
 
+import numpy as np
 import ufl
 
 __all__ = \
@@ -85,7 +86,7 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if tensor is None:
         tensor = b
 
-    if not isinstance(tensor, float):
+    if not isinstance(tensor, (float, np.floating)):
         if not isinstance(form, ufl.classes.Form):
             raise OverrideException("form must be a UFL form")
 

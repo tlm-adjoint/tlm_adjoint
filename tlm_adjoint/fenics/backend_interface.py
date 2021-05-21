@@ -167,12 +167,13 @@ class FunctionInterface(_FunctionInterface):
                 raise InterfaceException("Invalid function space")
             self.vector().zero()
             self.vector().axpy(1.0, y.vector())
-        elif isinstance(y, (int, float)):
+        elif isinstance(y, (int, np.integer, float, np.floating)):
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(float(y)),
+                self.assign(backend_Constant(backend_ScalarType(y)),
                             annotate=False, tlm=False)
             else:
-                y_arr = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                y_arr = np.full(self.ufl_shape, backend_ScalarType(y),
+                                dtype=backend_ScalarType)
                 self.assign(backend_Constant(y_arr),
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):
@@ -183,18 +184,19 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = float(alpha)
+        alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
                 raise InterfaceException("Invalid function space")
             self.vector().axpy(alpha, x.vector())
-        elif isinstance(x, (int, float)):
+        elif isinstance(x, (int, np.integer, float, np.floating)):
             x_ = function_new(self)
             if len(self.ufl_shape) == 0:
-                x_.assign(backend_Constant(float(x)),
+                x_.assign(backend_Constant(backend_ScalarType(x)),
                           annotate=False, tlm=False)
             else:
-                x_arr = np.full(self.ufl_shape, float(x), dtype=np.float64)
+                x_arr = np.full(self.ufl_shape, backend_ScalarType(x),
+                                dtype=backend_ScalarType)
                 x_.assign(backend_Constant(x_arr),
                           annotate=False, tlm=False)
             self.vector().axpy(alpha, x_.vector())
@@ -357,14 +359,14 @@ def _subtract_adjoint_derivative_action(x, y):
             x._tlm_adjoint__fenics_adj_b = form_neg(y)
     elif isinstance(y, tuple) \
             and len(y) == 2 \
-            and isinstance(y[0], (int, float)) \
+            and isinstance(y[0], (int, np.integer, float, np.floating)) \
             and isinstance(y[1], backend_Vector):
         alpha, y = y
-        alpha = float(alpha)
+        alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) == 0:
                 # annotate=False, tlm=False
-                x.assign(float(x) - alpha * y.max())
+                x.assign(backend_ScalarType(x) - alpha * y.max())
             else:
                 value = x.values()
                 y_fn = Function(r0_space(x))
