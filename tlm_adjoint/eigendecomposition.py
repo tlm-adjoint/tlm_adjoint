@@ -140,9 +140,11 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
 
     Returns:
 
-    A tuple (lam, V_r) for Hermitian problems, or (lam, (V_r, V_i)) otherwise,
-    where lam is an array of eigenvalues, and V_r / V_i are tuples of functions
-    containing the real and imaginary parts of the corresponding eigenvectors.
+    A tuple (lam, V), where lam is an array of eigenvalues. For Hermitian
+    problems or with complex PETSc V is a tuple of functions containing
+    corresponding eigenvectors. Otherwise V is a tuple (V_r, V_i) where V_r and
+    V_i are each tuples of functions containing the real and imaginary parts of
+    corresponding eigenvectors.
     """
 
     import petsc4py.PETSc as PETSc
@@ -195,27 +197,43 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
                                           "converged")
 
     lam = np.full(N_ev, np.NAN,
-                  dtype=np.float64 if esolver.isHermitian() else np.complex128)
+                  dtype=PETSc.RealType if esolver.isHermitian()
+                  else PETSc.ComplexType)
+    v_r = A_matrix.getVecRight()
     V_r = tuple(space_new(space) for n in range(N_ev))
-    if not esolver.isHermitian():
-        V_i = tuple(space_new(space) for n in range(N_ev))
-    v_r, v_i = A_matrix.getVecRight(), A_matrix.getVecRight()
+    if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
+        v_i = None
+        V_i = None
+    else:
+        v_i = A_matrix.getVecRight()
+        if esolver.isHermitian():
+            V_i = None
+        else:
+            V_i = tuple(space_new(space) for n in range(N_ev))
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)
         if esolver.isHermitian():
-            lam[i] = lam_i.real
             assert lam_i.imag == 0.0
+            if v_i is None:
+                with v_r as v_r_a:
+                    assert abs(v_r_a.imag).max() == 0.0
+            else:
+                with v_i as v_i_a:
+                    assert abs(v_i_a).max() == 0.0
+            lam[i] = lam_i.real
             with v_r as v_r_a:
                 function_set_values(V_r[i], v_r_a)
-            with v_i as v_i_a:
-                assert abs(v_i_a).max() == 0.0
         else:
             lam[i] = lam_i
             with v_r as v_r_a:
                 function_set_values(V_r[i], v_r_a)
-            with v_i as v_i_a:
-                function_set_values(V_i[i], v_i_a)
+            if v_i is not None:
+                with v_i as v_i_a:
+                    function_set_values(V_i[i], v_i_a)
 
     # comm.Free()
 
-    return lam, (V_r if esolver.isHermitian() else (V_r, V_i))
+    if V_i is None:
+        return lam, V_r
+    else:
+        return lam, (V_r, V_i)
