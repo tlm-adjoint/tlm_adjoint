@@ -19,10 +19,10 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import finalize_adjoint_derivative_action, function_assign, \
-    function_axpy, function_copy, function_get_values, function_global_size, \
-    function_id, function_inner, function_is_checkpointed, \
-    function_local_indices, function_new, function_replacement, \
-    function_set_values, function_space, function_sum, \
+    function_axpy, function_copy, function_dtype, function_get_values, \
+    function_global_size, function_id, function_inner, \
+    function_is_checkpointed, function_local_indices, function_new, \
+    function_replacement, function_set_values, function_space, function_sum, \
     function_update_caches, function_update_state, function_zero, \
     is_function, space_new, subtract_adjoint_derivative_action
 
@@ -779,7 +779,7 @@ class AssignmentSolver(Equation):
 
 class LinearCombinationSolver(Equation):
     def __init__(self, x, *args):
-        alpha = tuple(float(arg[0]) for arg in args)
+        alpha = tuple(function_dtype(x)(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
 
         super().__init__(x, [x] + Y, nl_deps=[], ic=False, adj_ic=False)
@@ -795,7 +795,7 @@ class LinearCombinationSolver(Equation):
         if dep_index == 0:
             return adj_x
         elif dep_index <= len(self._alpha):
-            return (-self._alpha[dep_index - 1], adj_x)
+            return (-self._alpha[dep_index - 1].conjugate(), adj_x)
         else:
             raise EquationException("dep_index out of bounds")
 
@@ -1840,7 +1840,7 @@ class MatrixActionRHS(RHS):
 class InnerProductRHS(RHS):
     def __init__(self, x, y, alpha=1.0, M=None):
         """
-        An equation representing an inner product.
+        Represents an inner product, y^* M x.
 
         Arguments:
 
@@ -1899,6 +1899,8 @@ class InnerProductRHS(RHS):
         if self._norm_sq:
             if dep_index == 0:
                 x = nl_deps[0]
+                if not issubclass(function_dtype(x), (float, np.floating)):
+                    raise EquationException("Not complex differentiable")
                 M_deps = nl_deps[1:]
 
                 if self._M is None:
@@ -1907,7 +1909,8 @@ class InnerProductRHS(RHS):
                     X = function_new(x)
                     self._M.forward_action(M_deps, x, X, method="assign")
 
-                function_axpy(b, -2.0 * self._alpha * function_sum(adj_x), X)
+                function_axpy(
+                    b, -2.0 * self._alpha.conjugate() * function_sum(adj_x), X)
             else:
                 raise EquationException("dep_index out of bounds")
         elif dep_index == 0:
@@ -1920,9 +1923,11 @@ class InnerProductRHS(RHS):
                 Y = function_new(x)
                 self._M.forward_action(M_deps, y, Y, method="assign")
 
-            function_axpy(b, -self._alpha * function_sum(adj_x), Y)
+            function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), Y)
         elif dep_index == 1:
             x, y = nl_deps[:2]
+            if not issubclass(function_dtype(y), (float, np.floating)):
+                raise EquationException("Not complex differentiable")
             M_deps = nl_deps[2:]
 
             if self._M is None:
@@ -1931,7 +1936,7 @@ class InnerProductRHS(RHS):
                 X = function_new(y)
                 self._M.forward_action(M_deps, x, X, method="assign")
 
-            function_axpy(b, -self._alpha * function_sum(adj_x), X)
+            function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), X)
         else:
             raise EquationException("dep_index out of bounds")
 
@@ -1942,6 +1947,8 @@ class InnerProductRHS(RHS):
             x = self.dependencies()[0]
             tlm_x = get_tangent_linear(x, M, dM, tlm_map)
             if tlm_x is not None:
+                if not issubclass(function_dtype(x), (float, np.floating)):
+                    raise EquationException("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(x, tlm_x, alpha=2.0 * self._alpha,
                                              M=self._M))
         else:
@@ -1954,6 +1961,8 @@ class InnerProductRHS(RHS):
 
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is not None:
+                if not issubclass(function_dtype(y), (float, np.floating)):
+                    raise EquationException("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(x, tlm_y, alpha=self._alpha,
                                              M=self._M))
 
