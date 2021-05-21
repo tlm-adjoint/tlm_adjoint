@@ -18,6 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+import numpy as np
+
 import copy
 import logging
 import sys
@@ -499,10 +501,12 @@ def subtract_adjoint_derivative_action(x, y):
                                     - function_get_values(y))
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
-                and isinstance(y[0], (int, float)) \
+                and isinstance(y[0], (int, np.integer,
+                                      float, np.floating,
+                                      complex, np.complexfloating)) \
                 and is_function(y[1]):
             alpha, y = y
-            alpha = float(alpha)
+            alpha = function_dtype(x)(alpha)
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -alpha, y)
