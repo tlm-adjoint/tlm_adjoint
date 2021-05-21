@@ -116,7 +116,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         for dm in dM:
             function_set_values(dm, np.random.random(function_local_size(dm)))
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=np.float64)
+    J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
     for i in range(eps.shape[0]):
         for m0, m1, dm in zip(M0, M1, dM):
             function_assign(m1, m0)
@@ -125,6 +125,8 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         annotation_enabled, tlm_enabled = manager.stop()
         J_vals[i] = forward(*M1).value()
         manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
+    if abs(J_vals.imag).max() == 0.0:
+        J_vals = J_vals.real
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
@@ -213,13 +215,15 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
     J_val = forward_tlm(dMs[:-1], *M).value()
     dJ = forward_tlm(dMs, *M).value()
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=np.float64)
+    J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
     for i in range(eps.shape[0]):
         for m0, m1, dm in zip(M, M1, dMs[-1]):
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
         clear_caches()
         J_vals[i] = forward_tlm(dMs[:-1], *M1).value()
+    if abs(J_vals.imag).max() == 0.0:
+        J_vals = J_vals.real
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
