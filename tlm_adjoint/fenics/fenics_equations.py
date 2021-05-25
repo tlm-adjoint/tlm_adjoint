@@ -19,10 +19,11 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
-    TestFunction, TrialFunction, backend_Function, parameters
+    TestFunction, TrialFunction, backend_Function, backend_ScalarType, \
+    parameters
 from ..interface import function_assign, function_comm, function_get_values, \
-    function_local_size, function_new, function_set_values, function_space, \
-    is_function, is_real_function, real_function_value
+    function_is_scalar, function_local_size, function_new, \
+    function_scalar_value, function_set_values, function_space, is_function
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -122,7 +123,7 @@ def local_mesh(mesh):
 
 def point_cells(coords, mesh):
     full_cells = np.full(coords.shape[0], -1, dtype=np.int64)
-    distances = np.full(coords.shape[0], np.NAN, dtype=np.float64)
+    distances = np.full(coords.shape[0], np.NAN, dtype=backend_ScalarType)
 
     if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
         full_tree = mesh.bounding_box_tree()
@@ -244,9 +245,9 @@ class LocalProjectionSolver(EquationSolver):
                  match_quadrature=None, defer_adjoint_assembly=None):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
-        lhs = ufl.inner(test, trial) * ufl.dx
+        lhs = ufl.inner(trial, test) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
-            rhs = ufl.inner(test, rhs) * ufl.dx
+            rhs = ufl.inner(rhs, test) * ufl.dx
 
         local_solver_type = LocalSolver.SolverType.Cholesky
 
@@ -358,7 +359,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
     from scipy.sparse import dok_matrix
     P = dok_matrix((x_coords.shape[0], function_local_size(y)),
-                   dtype=np.float64)
+                   dtype=backend_ScalarType)
 
     y_v = function_new(y)
     for color, y_color_nodes in enumerate(y_nodes):
@@ -378,7 +379,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             else:
                 continue
             y_node = y_cell_nodes[i]
-            x_v = np.full((1,), np.NAN, dtype=np.float64)
+            x_v = np.full((1,), np.NAN, dtype=backend_ScalarType)
             y_v.eval_cell(x_v, x_coords[x_node, :], Cell(y_mesh, y_cell))
             P[x_node, y_node] = x_v[0]
         y_v.vector()[y_color_nodes] = 0.0
@@ -390,7 +391,7 @@ class InterpolationSolver(LinearEquation):
     def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
                  tolerance=0.0):
         """
-        Defines an equation which interpolates the scalar Function y.
+        Defines an equation which interpolates the scalar-valued Function y.
 
         Internally this builds (or uses a supplied) interpolation matrix for
         the *local process only*. This works correctly in parallel if y is in a
@@ -403,9 +404,9 @@ class InterpolationSolver(LinearEquation):
 
         Arguments:
 
-        y          A scalar Function. The Function to be interpolated.
-        x          A scalar Function. The solution to the equation.
-        x_coords   (Optional) A real NumPy array. Coordinates at which to
+        y          A scalar-valued Function. The Function to be interpolated.
+        x          A scalar-valued Function. The solution to the equation.
+        x_coords   (Optional) A NumPy array. Coordinates at which to
                    interpolate the Function.
         y_colors   (Optional) An integer NumPy vector. Node-node graph coloring
                    for the space for y. Ignored if P is supplied. Generated
@@ -418,9 +419,10 @@ class InterpolationSolver(LinearEquation):
         """
 
         if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
-            raise EquationException("Solution must be a scalar Function")
+            raise EquationException("Solution must be a scalar-valued "
+                                    "Function")
         if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar Function")
+            raise EquationException("y must be a scalar-valued Function")
         if (x_coords is not None) and (function_comm(x).size > 1):
             raise EquationException("Cannot prescribe x_coords in parallel")
 
@@ -478,9 +480,9 @@ class PointInterpolationSolver(Equation):
     def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
                  P=None, P_T=None):
         """
-        Defines an equation which interpolates the scalar Function y at the
-        points X_coords. It is assumed that the given points are all within the
-        y mesh.
+        Defines an equation which interpolates the scalar-valued Function y at
+        the points X_coords. It is assumed that the given points are all within
+        the y mesh.
 
         Internally this builds (or uses a supplied) interpolation matrix for
         the *local process only*. This works correctly in parallel if y is in a
@@ -493,10 +495,10 @@ class PointInterpolationSolver(Equation):
 
         Arguments:
 
-        y         A scalar Function. The Function to be interpolated.
-        X         A real function, or a list or tuple of real functions. The
-                  solution to the equation.
-        X_coords  A float NumPy matrix. Points at which to interpolate y.
+        y         A scalar-valued Function. The Function to be interpolated.
+        X         A scalar, or a list or tuple of scalars. The solution to the
+                  equation.
+        X_coords  A NumPy matrix. Points at which to interpolate y.
                   Ignored if P is supplied, required otherwise.
         y_colors  (Optional) An integer NumPy vector. Node-node graph coloring
                   for the space for y. Ignored if P is supplied. Generated
@@ -510,9 +512,9 @@ class PointInterpolationSolver(Equation):
         if is_function(X):
             X = (X,)
         for x in X:
-            if not is_real_function(x):
-                raise EquationException("Solution must be a real function, "
-                                        "or a list or tuple of real functions")
+            if not function_is_scalar(x):
+                raise EquationException("Solution must be a scalar, or a list "
+                                        "or tuple of scalars")
         if X_coords is None:
             if P is None:
                 raise EquationException("X_coords required when P is not supplied")  # noqa: E501
@@ -520,7 +522,7 @@ class PointInterpolationSolver(Equation):
             if len(X) != X_coords.shape[0]:
                 raise EquationException("Invalid number of functions")
         if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar Function")
+            raise EquationException("y must be a scalar-valued Function")
 
         if P is None:
             y_space = function_space(y)
@@ -531,7 +533,7 @@ class PointInterpolationSolver(Equation):
 
                 y_cells, distances_local = point_cells(X_coords,
                                                        y_space.mesh())
-                distances = np.full(len(X), np.NAN, dtype=np.float64)
+                distances = np.full(len(X), np.NAN, dtype=backend_ScalarType)
                 comm.Allreduce(distances_local, distances, op=MPI.MIN)
 
                 owner_local = np.full(len(X), -1, dtype=np.int64)
@@ -569,12 +571,12 @@ class PointInterpolationSolver(Equation):
         y = (self.dependencies() if deps is None else deps)[-1]
 
         y_v = function_get_values(y)
-        x_v_local = np.full(len(X), np.NAN, dtype=np.float64)
+        x_v_local = np.full(len(X), np.NAN, dtype=backend_ScalarType)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = function_comm(y)
-        x_v = np.full(len(X), np.NAN, dtype=np.float64)
+        x_v = np.full(len(X), np.NAN, dtype=backend_ScalarType)
         comm.Allreduce(x_v_local, x_v, op=MPI.MAX)
 
         for i, x in enumerate(X):
@@ -587,9 +589,9 @@ class PointInterpolationSolver(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_x_v = np.full(len(adj_X), np.NAN, dtype=np.float64)
+            adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
             for i, adj_x in enumerate(adj_X):
-                adj_x_v[i] = real_function_value(adj_x)
+                adj_x_v[i] = function_scalar_value(adj_x)
             F = function_new(self.dependencies()[-1])
             function_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)

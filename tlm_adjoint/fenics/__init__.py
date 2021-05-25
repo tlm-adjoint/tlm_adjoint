@@ -49,7 +49,8 @@ del importlib, sys, modules, module_name, package
 
 from .. import *  # noqa: E402,F401
 
-from .backend import backend       # noqa: E402,F401
+from .backend import (backend, backend_ComplexScalarType,   # noqa: E402,F401
+                      backend_RealScalarType, backend_ScalarType)
 from .backend_code_generator_interface import copy_parameters_dict  # noqa: E402,E501,F401
 from .backend_interface import *   # noqa: E402,F401
 from .backend_overrides import *   # noqa: E402,F401

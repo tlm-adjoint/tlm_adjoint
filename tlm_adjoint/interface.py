@@ -18,6 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+import numpy as np
+
 import copy
 import logging
 import sys
@@ -35,6 +37,7 @@ __all__ = \
         "is_space",
         "new_space_id",
         "space_comm",
+        "space_dtype",
         "space_id",
         "space_new",
 
@@ -45,6 +48,7 @@ __all__ = \
         "function_caches",
         "function_comm",
         "function_copy",
+        "function_dtype",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -70,7 +74,10 @@ __all__ = \
         "function_zero",
         "new_function_id",
 
+        "function_is_scalar",
+        "function_scalar_value",
         "is_real_function",
+        "new_scalar_function",
         "new_real_function",
         "real_function_value",
 
@@ -117,12 +124,15 @@ def add_interface(obj, interface_cls, attrs={}):
 
 class SpaceInterface:
     prefix = "_tlm_adjoint__space_interface"
-    names = ("_comm", "_id", "_new")
+    names = ("_comm", "_dtype", "_id", "_new")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate SpaceInterface object")
 
     def _comm(self):
+        raise InterfaceException("Method not overridden")
+
+    def _dtype(self):
         raise InterfaceException("Method not overridden")
 
     def _id(self):
@@ -138,6 +148,10 @@ def is_space(x):
 
 def space_comm(space):
     return space._tlm_adjoint__space_interface_comm()
+
+
+def space_dtype(space):
+    return space._tlm_adjoint__space_interface_dtype()
 
 
 _space_id_counter = [0]
@@ -160,22 +174,25 @@ def space_new(space, name=None, static=False, cache=None, checkpoint=None):
 
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
-    names = ("_comm", "_space", "_id", "_name", "_state", "_update_state",
-             "_is_static", "_is_cached", "_is_checkpointed", "_caches",
-             "_update_caches", "_zero", "_assign", "_axpy", "_inner",
-             "_max_value", "_sum", "_linf_norm", "_local_size", "_global_size",
-             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_tangent_linear", "_replacement", "_is_replacement", "_is_real",
-             "_real_value")
+    names = ("_comm", "_space", "_dtype", "_id", "_name", "_state",
+             "_update_state", "_is_static", "_is_cached", "_is_checkpointed",
+             "_caches", "_update_caches", "_zero", "_assign", "_axpy",
+             "_inner", "_max_value", "_sum", "_linf_norm", "_local_size",
+             "_global_size", "_local_indices", "_get_values", "_set_values",
+             "_new", "_copy", "_tangent_linear", "_replacement",
+             "_is_replacement", "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
 
     def _comm(self):
-        raise InterfaceException("Method not overridden")
+        return space_comm(function_space(self))
 
     def _space(self):
         raise InterfaceException("Method not overridden")
+
+    def _dtype(self):
+        return space_dtype(function_space(self))
 
     def _id(self):
         raise InterfaceException("Method not overridden")
@@ -241,7 +258,8 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        raise InterfaceException("Method not overridden")
+        return space_new(function_space(self), name=name, static=static,
+                         cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
@@ -255,10 +273,10 @@ class FunctionInterface:
     def _is_replacement(self):
         raise InterfaceException("Method not overridden")
 
-    def _is_real(self):
+    def _is_scalar(self):
         raise InterfaceException("Method not overridden")
 
-    def _real_value(self):
+    def _scalar_value(self):
         raise InterfaceException("Method not overridden")
 
 
@@ -272,6 +290,10 @@ def function_comm(x):
 
 def function_space(x):
     return x._tlm_adjoint__function_interface_space()
+
+
+def function_dtype(x):
+    return x._tlm_adjoint__function_interface_dtype()
 
 
 _function_id_counter = [0]
@@ -402,28 +424,56 @@ def function_is_replacement(x):
 
 
 def is_real_function(x):
-    return x._tlm_adjoint__function_interface_is_real()
+    warnings.warn("is_real_function is deprecated -- "
+                  "use function_is_scalar instead")
+    return function_is_scalar(x)
 
 
 def real_function_value(x):
-    if not is_real_function(x):
-        raise InterfaceException("Invalid function")
-    return x._tlm_adjoint__function_interface_real_value()
-
-
-_new_real_function = {}
+    warnings.warn("real_function_value is deprecated -- "
+                  "use function_scalar_value instead")
+    return function_scalar_value(x)
 
 
 def add_new_real_function(backend, fn):
-    assert backend not in _new_real_function
-    _new_real_function[backend] = fn
+    warnings.warn("add_new_real_function is deprecated -- "
+                  "use add_new_scalar_function instead",
+                  DeprecationWarning, stacklevel=2)
+    add_new_scalar_function(backend, fn)
 
 
 def new_real_function(name=None, comm=None, static=False, cache=None,
                       checkpoint=None):
-    new_real_function = tuple(_new_real_function.values())[0]
-    return new_real_function(name=name, comm=comm, static=static, cache=cache,
-                             checkpoint=checkpoint)
+    warnings.warn("new_real_function is deprecated -- "
+                  "use new_scalar_function instead",
+                  DeprecationWarning, stacklevel=2)
+    return new_scalar_function(name=name, comm=comm, static=static,
+                               cache=cache, checkpoint=checkpoint)
+
+
+def function_is_scalar(x):
+    return x._tlm_adjoint__function_interface_is_scalar()
+
+
+def function_scalar_value(x):
+    if not function_is_scalar(x):
+        raise InterfaceException("Invalid function")
+    return x._tlm_adjoint__function_interface_scalar_value()
+
+
+_new_scalar_function = {}
+
+
+def add_new_scalar_function(backend, fn):
+    assert backend not in _new_scalar_function
+    _new_scalar_function[backend] = fn
+
+
+def new_scalar_function(name=None, comm=None, static=False, cache=None,
+                        checkpoint=None):
+    new_scalar_function = tuple(_new_scalar_function.values())[0]
+    return new_scalar_function(name=name, comm=comm, static=static,
+                               cache=cache, checkpoint=checkpoint)
 
 
 _subtract_adjoint_derivative_action = {}
@@ -451,10 +501,12 @@ def subtract_adjoint_derivative_action(x, y):
                                     - function_get_values(y))
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
-                and isinstance(y[0], (int, float)) \
+                and isinstance(y[0], (int, np.integer,
+                                      float, np.floating,
+                                      complex, np.complexfloating)) \
                 and is_function(y[1]):
             alpha, y = y
-            alpha = float(alpha)
+            alpha = function_dtype(x)(alpha)
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -alpha, y)

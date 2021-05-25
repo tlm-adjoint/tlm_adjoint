@@ -23,11 +23,11 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_ScalarType, info
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_new_real_function, \
+    add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
     function_assign, function_caches, function_comm, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, \
-    is_real_function, new_function_id, new_space_id, real_function_value, \
+    function_is_checkpointed, function_is_scalar, function_is_static, \
+    function_new, function_scalar_value, new_function_id, new_space_id, \
     space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
@@ -78,8 +78,11 @@ def _Constant__init__(self, value, domain=None, *,
 
     if space is None:
         space = self.ufl_function_space()
+        if self.dat.dtype.type != backend_ScalarType:
+            raise InterfaceException("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "domain": domain, "id": new_space_id()})
+                      {"comm": comm, "domain": domain,
+                       "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": name, "state": 0,
                    "space": space,
@@ -93,6 +96,9 @@ backend_Constant.__init__ = _Constant__init__
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.comm
+
+    def _dtype(self):
+        return backend_ScalarType
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
@@ -160,12 +166,13 @@ class FunctionInterface(_FunctionInterface):
                 if x_v.getLocalSize() != y_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 y_v.copy(result=x_v)
-        elif isinstance(y, (int, float)):
+        elif isinstance(y, (int, np.integer, float, np.floating)):
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(float(y)),
+                self.assign(backend_Constant(backend_ScalarType(y)),
                             annotate=False, tlm=False)
             else:
-                y_arr = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                y_arr = np.full(self.ufl_shape, backend_ScalarType(y),
+                                dtype=backend_ScalarType)
                 self.assign(backend_Constant(y_arr),
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):
@@ -184,14 +191,15 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = float(alpha)
+        alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Function):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 if y_v.getLocalSize() != x_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 y_v.axpy(alpha, x_v)
-        elif isinstance(x, (int, float)):
-            self.assign(self + alpha * float(x), annotate=False, tlm=False)
+        elif isinstance(x, (int, np.integer, float, np.floating)):
+            self.assign(self + alpha * backend_ScalarType(x),
+                        annotate=False, tlm=False)
         elif isinstance(x, Zero):
             pass
         else:
@@ -255,7 +263,7 @@ class FunctionInterface(_FunctionInterface):
         with self.dat.vec_ro as x_v:
             with x_v as x_v_a:
                 values = x_v_a.copy()
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         return values
 
@@ -266,10 +274,6 @@ class FunctionInterface(_FunctionInterface):
             if values.shape != (x_v.getLocalSize(),):
                 raise InterfaceException("Invalid shape")
             x_v.setArray(values)
-
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.function_space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         y = function_new(self, name=name, static=static, cache=cache,
@@ -293,12 +297,12 @@ class FunctionInterface(_FunctionInterface):
     def _is_replacement(self):
         return False
 
-    def _is_real(self):
+    def _is_scalar(self):
         return (is_valid_r0_space(self.function_space())
                 and len(self.ufl_shape) == 0)
 
-    def _real_value(self):
-        # assert is_real_function(self)
+    def _scalar_value(self):
+        # assert function_is_scalar(self)
         with self.dat.vec_ro as x_v:
             max = x_v.max()[1]
         return max
@@ -306,6 +310,8 @@ class FunctionInterface(_FunctionInterface):
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
+    if self.dat.dtype.type != backend_ScalarType:
+        raise InterfaceException("Invalid dtype")
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
@@ -315,13 +321,13 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def _new_real_function(name=None, comm=None, static=False, cache=None,
-                       checkpoint=None):
+def _new_scalar_function(name=None, comm=None, static=False, cache=None,
+                         checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-add_new_real_function(backend, _new_real_function)
+add_new_scalar_function(backend, _new_scalar_function)
 
 
 def _subtract_adjoint_derivative_action(x, y):
@@ -332,20 +338,20 @@ def _subtract_adjoint_derivative_action(x, y):
         else:
             x._tlm_adjoint__firedrake_adj_b = form_neg(y)
     elif isinstance(x, backend_Constant):
-        if isinstance(y, backend_Function) and is_real_function(y):
+        if isinstance(y, backend_Function) and function_is_scalar(y):
             alpha = 1.0
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
-                and isinstance(y[0], (int, float)) \
+                and isinstance(y[0], (int, np.integer, float, np.floating)) \
                 and isinstance(y[1], backend_Function) \
-                and is_real_function(y[1]):
+                and function_is_scalar(y[1]):
             alpha, y = y
-            alpha = float(alpha)
+            alpha = backend_ScalarType(alpha)
         else:
             return NotImplemented
-        y_value = real_function_value(y)
+        y_value = function_scalar_value(y)
         # annotate=False, tlm=False
-        x.assign(float(x) - alpha * y_value)
+        x.assign(backend_ScalarType(x) - alpha * y_value)
     else:
         return NotImplemented
 
@@ -411,7 +417,7 @@ def default_comm():
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_real_function instead",
+                  "use new_scalar_function instead",
                   DeprecationWarning, stacklevel=2)
     if comm is None:
         comm = MPI.COMM_WORLD

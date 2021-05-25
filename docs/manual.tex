@@ -535,7 +535,7 @@ A \texttt{ScaleSolver} represents the equation
 \begin{equation*}
   x = \alpha y,
 \end{equation*}
-where $\alpha$ is a real constant. A \texttt{ScaleSolver} can be instantiated
+where $\alpha$ is a scalar constant. A \texttt{ScaleSolver} can be instantiated
 via
 \begin{lstlisting}
 eq = ScaleSolver(alpha, y, x)
@@ -548,7 +548,7 @@ An \texttt{AxpySolver} represents the equation
 \begin{equation*}
   z = y + \alpha x,
 \end{equation*}
-where $\alpha$ is a real constant. An \texttt{AxpySolver} can be instantiated
+where $\alpha$ is a scalar constant. An \texttt{AxpySolver} can be instantiated
 via
 \begin{lstlisting}
 eq = AxpySolver(y, alpha, x, z)
@@ -561,8 +561,8 @@ A \texttt{LinearCombinationSolver} represents the equation
 \begin{equation*}
   x = \sum_{i = 1}^N \alpha_i y_i,
 \end{equation*}
-where the $\alpha_i$ are real constants. A \texttt{LinearCombinationSolver} is
-instantiated via
+where the $\alpha_i$ are scalar constants. A \texttt{LinearCombinationSolver}
+is instantiated via
 \begin{lstlisting}
 eq = LinearCombinationSolver(x, (alpha_1, y_1), (alpha_2, y_2), [...])
 \end{lstlisting}
@@ -726,8 +726,8 @@ An \texttt{ExprEvaluationSolver} represents an equation
     \quad \forall i \in \left\{ 1, \ldots, N \right\},
 \end{equation*}
 where the $\tilde{\psi}_i$ and $\tilde{\xi}_i$ are respectively the discrete
-degrees of freedom associated with scalar functions $\psi, \xi \in V$, and $F$
-is a given function.
+degrees of freedom associated with scalar-valued functions $\psi, \xi \in V$,
+and $F$ is a given function.
 
 The \texttt{ExprEvaluationSolver} constructor has the form
 \begin{lstlisting}
@@ -776,10 +776,10 @@ with constructor arguments
     which by default is false.
 \end{itemize}
 
-If the form is rank zero then the solution \texttt{x} must be a real function,
-for example as returned by the \texttt{new\_real\_function} function
+If the form is rank zero then the solution \texttt{x} must be a scalar, for
+example as returned by the \texttt{new\_scalar\_function} function
 \begin{lstlisting}
-x = new_real_function(comm=comm)
+x = new_scalar_function(comm=comm)
 \end{lstlisting}
 where here the optional argument \texttt{comm} defines the MPI communicator
 associated with the function.
@@ -789,14 +789,15 @@ associated with the function.
 \subsubsection{\texttt{InterpolationSolver}}\label{sect:InterpolationSolver}
 
 An \texttt{InterpolationSolver} represents consistent interpolation of a given
-scalar function $\xi \in W$ onto a function space $V$, represented in the form
-of an equation
+scalar-valued function $\xi \in W$ onto a function space $V$, represented in
+the form of an equation
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
-discrete degrees of freedom for scalar functions $\psi \in V, \xi \in W$, and
-$P$ is a matrix. An \texttt{InterpolationSolver} can be instantiated via
+discrete degrees of freedom for scalar-valued functions
+$\psi \in V, \xi \in W$, and $P$ is a matrix. An \texttt{InterpolationSolver}
+can be instantiated via
 \begin{lstlisting}
 eq = InterpolationSolver(y, x)
 \end{lstlisting}
@@ -818,26 +819,25 @@ prior to interpolation.
 \subsubsection{\texttt{PointInterpolationSolver}}
 
 With the FEniCS backend, a \texttt{PointInterpolationSolver} represents
-consistent interpolation of a given scalar function $\xi \in W$ onto a given
-set of points,
+consistent interpolation of a given scalar-valued function $\xi \in W$ onto a
+given set of points,
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
-is a vector whose elements are the discrete degrees of freedom for a scalar
-function $\xi \in W$, and where $P$ is a matrix. A
+is a vector whose elements are the discrete degrees of freedom for a
+scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
 \texttt{PointInterpolationSolver} can be instantiated via
 \begin{lstlisting}
 eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
-where \texttt{X} is a list or tuple of real functions being solved for (for
-example each as returned by the \texttt{new\_real\_function} function -- see
-section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
-defining the coordinates at which to interpolate the \texttt{Function}
-\texttt{y}. An optional \texttt{tolerance} argument may be supplied, and this
-is passed to the Firedrake \texttt{MeshGeometry.locate\_cell} method when
-locating the cells, in the mesh for \texttt{y}, containing the coordinates
-\texttt{X\_coords}.
+where \texttt{X} is a list or tuple of scalar being solved for (for example
+each as returned by the \texttt{new\_scalar\_function} function -- see section
+\ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
+coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
+optional \texttt{tolerance} argument may be supplied, and this is passed to the
+Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
+the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
 
 In parallel there are similar node-node graph restrictions for the discrete
 function space for \texttt{y} to those for the \texttt{InterpolationSolver}
@@ -865,20 +865,20 @@ Remaining constructor arguments are as for the \texttt{EquationSolver} class.
 \subsubsection{\texttt{PointInterpolationSolver}}
 
 With the Firedrake backend, a \texttt{PointInterpolationSolver} represents
-consistent interpolation of a given continuous scalar function $\xi \in W$ onto
-a given set of points,
+consistent interpolation of a given continuous scalar-valued function
+$\xi \in W$ onto a given set of points,
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
 is a vector whose elements are the discrete degrees of freedom for a continuous
-scalar function $\xi \in W$, and where $P$ is a matrix. A
+scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
 \texttt{PointInterpolationSolver} can be instantiated via
 \begin{lstlisting}
 eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
-where \texttt{X} is a list or tuple of real functions being solved for (for
-example each as returned by the \texttt{new\_real\_function} function -- see
+where \texttt{X} is a list or tuple of scalars being solved for (for
+example each as returned by the \texttt{new\_scalar\_function} function -- see
 section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
 defining the coordinates at which to interpolate the \texttt{Function}
 \texttt{y}.
@@ -1492,7 +1492,7 @@ Here the $y_j$ and $z_k$ are the degrees of freedom for two functions, which
 should be in the same discrete function space, and which may be the same
 function. $b_i$ are the degrees of freedom for the resulting right-hand-side
 term. The $M_{j,k}$ are the elements of some given matrix, assumed symmetric
-(and which should typically be positive definite), and $\alpha$ is some real
+(and which should typically be positive definite), and $\alpha$ is some scalar
 constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
 representing
 \begin{equation*}
@@ -1729,7 +1729,7 @@ J_val = J.value()
 Internally a \texttt{Functional} object stores the value of the
 \texttt{Functional} in an appropriate function. By default this internal
 function is defined to be a function as returned by
-\texttt{new\_real\_function()} (see section \ref{sect:AssembleSolver}).
+\texttt{new\_scalar\_function()} (see section \ref{sect:AssembleSolver}).
 
 In advanced usage the function space for the internal function may be specified
 \begin{lstlisting}

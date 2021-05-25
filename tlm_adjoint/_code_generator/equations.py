@@ -19,12 +19,13 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import TestFunction, TrialFunction, adjoint, \
-    backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
+    backend_DirichletBC, backend_Function, backend_FunctionSpace, \
+    backend_ScalarType, parameters
 from ..interface import function_assign, function_comm, function_get_values, \
-    function_id, function_local_size, function_new, function_replacement, \
-    function_set_values, function_space, function_update_caches, \
-    function_update_state, function_zero, is_function, is_real_function, \
-    real_function_value
+    function_id, function_is_scalar, function_local_size, function_new, \
+    function_replacement, function_scalar_value, function_set_values, \
+    function_space, function_update_caches, function_update_state, \
+    function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -123,8 +124,9 @@ class AssembleSolver(Equation):
 
         rank = len(rhs.arguments())
         if rank == 0:
-            if not is_real_function(x):
-                raise EquationException("Rank 0 forms can only be assigned to real functions")  # noqa: E501
+            if not function_is_scalar(x):
+                raise EquationException("Rank 0 forms can only be assigned to "
+                                        "scalars")
         elif rank != 1:
             raise EquationException("Must be a rank 0 or 1 form")
 
@@ -199,7 +201,7 @@ class AssembleSolver(Equation):
         if self._rank == 0:
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-real_function_value(adj_x), dF)
+            return (-function_scalar_value(adj_x), dF)
         else:
             assert self._rank == 1
             dF = assemble(
@@ -796,8 +798,8 @@ class ProjectionSolver(EquationSolver):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
-            rhs = ufl.inner(test, rhs) * ufl.dx
-        super().__init__(ufl.inner(test, trial) * ufl.dx == rhs, x,
+            rhs = ufl.inner(rhs, test) * ufl.dx
+        super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
                          *args, **kwargs)
 
 
@@ -857,8 +859,8 @@ def evaluate_expr_function(fn):
 
 evaluate_expr_types = \
     {
-        ufl.classes.FloatValue: (lambda x: float(x)),
-        ufl.classes.IntValue: (lambda x: float(x)),
+        ufl.classes.FloatValue: (lambda x: backend_ScalarType(x)),
+        ufl.classes.IntValue: (lambda x: backend_ScalarType(x)),
         ufl.classes.Zero: (lambda x: 0.0),
     }
 
@@ -893,8 +895,8 @@ del ufl_name, numpy_name
 
 def evaluate_expr(x):
     if is_function(x):
-        if is_real_function(x):
-            return real_function_value(x)
+        if function_is_scalar(x):
+            return function_scalar_value(x)
         else:
             return function_get_values(x)
     else:
@@ -907,7 +909,7 @@ class ExprEvaluationSolver(Equation):
             raise EquationException("rhs should not be a Form")
         x_space = function_space(x)
         if len(x_space.ufl_element().value_shape()) > 0:
-            raise EquationException("Solution must be a scalar function")
+            raise EquationException("Solution must be a scalar")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -936,9 +938,10 @@ class ExprEvaluationSolver(Equation):
             rhs = ufl.replace(self._rhs,
                               dict(zip(self.dependencies(), deps)))
         rhs_val = evaluate_expr(rhs)
-        if isinstance(rhs_val, float):
-            function_set_values(x, np.full(function_local_size(x), rhs_val,
-                                           dtype=np.float64))
+        if isinstance(rhs_val, (int, np.integer, float, np.floating)):
+            function_set_values(x, np.full(function_local_size(x),
+                                           backend_ScalarType(rhs_val),
+                                           dtype=backend_ScalarType))
         else:
             assert function_local_size(x) == len(rhs_val)
             function_set_values(x, rhs_val)
@@ -958,12 +961,13 @@ class ExprEvaluationSolver(Equation):
             dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
-        if isinstance(dF_val, float):
+        if isinstance(dF_val, (int, np.integer, float, np.floating)):
             function_set_values(F, np.full(function_local_size(F),
-                                           dF_val, dtype=np.float64))
-        elif is_real_function(F):
-            dF_val_local = np.array([dF_val.sum()], dtype=np.float64)
-            dF_val = np.full((1,), np.NAN, dtype=np.float64)
+                                           backend_ScalarType(dF_val),
+                                           dtype=backend_ScalarType))
+        elif function_is_scalar(F):
+            dF_val_local = np.array([dF_val.sum()], dtype=backend_ScalarType)
+            dF_val = np.full((1,), np.NAN, dtype=backend_ScalarType)
             comm = function_comm(F)
             comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
             dF_val = dF_val[0]

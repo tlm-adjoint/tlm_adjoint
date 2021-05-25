@@ -24,7 +24,7 @@ from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_id, function_is_cached, \
     function_is_checkpointed, function_is_static, function_name, \
     function_replacement, function_space, function_tangent_linear, \
-    is_function, is_real_function, space_comm, space_new
+    is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -64,6 +64,9 @@ class ConstantSpaceInterface(SpaceInterface):
     def _comm(self):
         return self._tlm_adjoint__space_interface_attrs["comm"]
 
+    def _dtype(self):
+        return self._tlm_adjoint__space_interface_attrs["dtype"]
+
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
@@ -74,9 +77,6 @@ class ConstantSpaceInterface(SpaceInterface):
 
 
 class ConstantInterface(_FunctionInterface):
-    def _comm(self):
-        return space_comm(self._tlm_adjoint__function_interface_attrs["space"])
-
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 
@@ -119,16 +119,17 @@ class ConstantInterface(_FunctionInterface):
         if len(self.ufl_shape) == 0:
             value = 0.0
         else:
-            value = np.zeros(self.ufl_shape, dtype=np.float64)
+            value = np.zeros(self.ufl_shape, dtype=backend_ScalarType)
             value = backend_Constant(value)
         self.assign(value)  # annotate=False, tlm=False
 
     def _assign(self, y):
-        if isinstance(y, (int, float)):
+        if isinstance(y, (int, np.integer, float, np.floating)):
             if len(self.ufl_shape) == 0:
-                value = float(y)
+                value = backend_ScalarType(y)
             else:
-                value = np.full(self.ufl_shape, float(y), dtype=np.float64)
+                value = np.full(self.ufl_shape, backend_ScalarType(y),
+                                dtype=backend_ScalarType)
                 value = backend_Constant(value)
         else:
             assert isinstance(y, backend_Constant)
@@ -137,18 +138,20 @@ class ConstantInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = float(alpha)
-        if isinstance(x, (int, float)):
+        alpha = backend_ScalarType(alpha)
+        if isinstance(x, (int, np.integer, float, np.floating)):
             if len(self.ufl_shape) == 0:
-                value = float(self) + alpha * float(x)
+                value = (backend_ScalarType(self)
+                         + alpha * backend_ScalarType(x))
             else:
-                value = self.values() + alpha * float(x)
+                value = self.values() + alpha * backend_ScalarType(x)
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
         else:
             assert isinstance(x, backend_Constant)
             if len(self.ufl_shape) == 0:
-                value = float(self) + alpha * float(x)
+                value = (backend_ScalarType(self)
+                         + alpha * backend_ScalarType(x))
             else:
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
@@ -157,7 +160,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _inner(self, y):
         assert isinstance(y, backend_Constant)
-        return self.values().dot(y.values())
+        return y.values().dot(self.values())
 
     def _max_value(self):
         return self.values().max()
@@ -199,9 +202,9 @@ class ConstantInterface(_FunctionInterface):
         if comm.rank == 0:
             values = self.values().view()
         else:
-            values = np.array([], dtype=np.float64)
+            values = np.array([], dtype=backend_ScalarType)
         values.setflags(write=False)
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         return values
 
@@ -210,10 +213,7 @@ class ConstantInterface(_FunctionInterface):
             raise InterfaceException("Invalid dtype")
         comm = function_comm(self)
         if comm.rank != 0:
-            if len(self.ufl_shape) == 0:
-                values = np.array([0.0], dtype=np.float64)
-            else:
-                values = np.zeros(np.prod(self.ufl_shape), dtype=np.float64)
+            values = None
         values = comm.bcast(values, root=0)
         if len(self.ufl_shape) == 0:
             values.shape = (1,)
@@ -222,20 +222,9 @@ class ConstantInterface(_FunctionInterface):
             values.shape = self.ufl_shape
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        domains = self.ufl_domains()
-        if len(domains) == 0:
-            domain = None
-        else:
-            domain, = domains
-        space = self._tlm_adjoint__function_interface_attrs["space"]
-        comm = function_comm(self)
-        return Constant(name=name, domain=domain, space=space, comm=comm,
-                        static=static, cache=cache, checkpoint=checkpoint)
-
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
-            value = float(self)
+            value = backend_ScalarType(self)
         else:
             value = self.values().view()
             value.shape = self.ufl_shape
@@ -275,12 +264,12 @@ class ConstantInterface(_FunctionInterface):
     def _is_replacement(self):
         return False
 
-    def _is_real(self):
+    def _is_scalar(self):
         return len(self.ufl_shape) == 0
 
-    def _real_value(self):
-        # assert is_real_function(self)
-        return float(self)
+    def _scalar_value(self):
+        # assert function_is_scalar(self)
+        return backend_ScalarType(self)
 
 
 class Constant(backend_Constant):
@@ -314,7 +303,7 @@ class Constant(backend_Constant):
             if len(shape) == 0:
                 value = 0.0
             else:
-                value = np.zeros(shape, dtype=np.float64)
+                value = np.zeros(shape, dtype=backend_ScalarType)
 
         # Default comm
         if comm is None:
@@ -422,7 +411,7 @@ def eliminate_zeros(expr, force_non_empty_form=False):
                 simplified_expr = zero * test * ufl.ds
             else:
                 test, trial = arguments
-                simplified_expr = zero * ufl.inner(test, trial) * ufl.ds
+                simplified_expr = zero * ufl.inner(trial, test) * ufl.ds
 
         return simplified_expr
 
@@ -531,7 +520,7 @@ class HomogeneousDirichletBC(DirichletBC):
         if len(shape) == 0:
             g = 0.0
         else:
-            g = np.zeros(shape, dtype=np.float64)
+            g = np.zeros(shape, dtype=backend_ScalarType)
         super().__init__(V, g, sub_domain, *args, static=True,
                          _homogeneous=True, **kwargs)
 
@@ -587,19 +576,11 @@ class ReplacementInterface(_FunctionInterface):
             raise InterfaceException("value required")
         self.caches().update(value)
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return space_new(self._tlm_adjoint__function_interface_attrs["space"],
-                         name=name, static=static, cache=cache,
-                         checkpoint=checkpoint)
-
     def _replacement(self):
         return self
 
     def _is_replacement(self):
         return True
-
-    def _is_real(self):
-        return self._tlm_adjoint__function_interface_attrs["is_real"]
 
 
 class Replacement(ufl.classes.Coefficient):
@@ -628,8 +609,7 @@ class Replacement(ufl.classes.Coefficient):
                       {"id": function_id(x), "name": function_name(x),
                        "space": x_space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
-                       "checkpoint": function_is_checkpointed(x),
-                       "is_real": is_real_function(x)})
+                       "checkpoint": function_is_checkpointed(x)})
 
     def function_space(self):
         return self.__space

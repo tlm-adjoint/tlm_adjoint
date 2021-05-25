@@ -84,7 +84,10 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     def get(F):
         x = np.full(N[-1], np.NAN, dtype=np.float64)
         for i, f in enumerate(F):
-            x[N[i]:N[i + 1]] = function_get_values(f)
+            f_vals = function_get_values(f)
+            if not np.can_cast(f_vals, x.dtype):
+                raise OptimizationException("Invalid dtype")
+            x[N[i]:N[i + 1]] = f_vals
 
         if comm.rank == 0:
             x_global = comm.gather(x, root=0)
@@ -124,7 +127,10 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
                 function_axpy(change, -1.0, m0)
                 change_norm = max(change_norm, function_linf_norm(change))
             if change_norm == 0.0:
-                return J[0].value()
+                J_val = J[0].value()
+                if not isinstance(J_val, (float, np.floating)):
+                    raise OptimizationException("Unexpected type")
+                return J_val
 
         J_M[0] = tuple(function_copy(m) for m in M)
 
@@ -142,7 +148,10 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         J_M[1] = M
 
-        return J[0].value()
+        J_val = J[0].value()
+        if not isinstance(J_val, (float, np.floating)):
+            raise OptimizationException("Unexpected type")
+        return J_val
 
     def fun_bcast(x):
         if comm.rank == 0:

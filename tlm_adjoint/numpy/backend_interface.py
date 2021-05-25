@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import backend
+from .backend import backend, backend_ScalarType
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    add_new_real_function, new_function_id, new_space_id, space_id, space_new
+    add_new_scalar_function, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 from ..tlm_adjoint import _default_comm
 
@@ -47,6 +47,9 @@ __all__ = \
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.comm()
+
+    def _dtype(self):
+        return backend_ScalarType
 
     def _id(self):
         return self.id()
@@ -78,9 +81,6 @@ class FunctionSpace:
 
 
 class FunctionInterface(_FunctionInterface):
-    def _comm(self):
-        return self.space().comm()
-
     def _space(self):
         return self.space()
 
@@ -112,24 +112,24 @@ class FunctionInterface(_FunctionInterface):
         self.vector()[:] = 0.0
 
     def _assign(self, y):
-        if isinstance(y, (int, float)):
-            self.vector()[:] = float(y)
+        if isinstance(y, (int, np.integer, float, np.floating)):
+            self.vector()[:] = backend_ScalarType(y)
         else:
             assert isinstance(y, Function)
             self.vector()[:] = y.vector()
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = float(alpha)
-        if isinstance(x, (int, float)):
-            self.vector()[:] += alpha * float(x)
+        alpha = backend_ScalarType(alpha)
+        if isinstance(x, (int, np.integer, float, np.floating)):
+            self.vector()[:] += alpha * backend_ScalarType(x)
         else:
             assert isinstance(x, Function)
             self.vector()[:] += alpha * x.vector()
 
     def _inner(self, y):
         assert isinstance(y, Function)
-        return self.vector().dot(y.vector())
+        return y.vector().dot(self.vector())
 
     def _max_value(self):
         return self.vector().max()
@@ -152,20 +152,16 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().view()
         values.setflags(write=False)
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, np.float64):
+        if not np.can_cast(values, backend_ScalarType):
             raise InterfaceException("Invalid dtype")
         if values.shape != self.vector().shape:
             raise InterfaceException("Invalid shape")
         self.vector()[:] = values
-
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.space(), name=name, static=static,
-                        cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.space(), name=name, static=static, cache=cache,
@@ -180,11 +176,11 @@ class FunctionInterface(_FunctionInterface):
     def _is_replacement(self):
         return False
 
-    def _is_real(self):
+    def _is_scalar(self):
         return self.space().dim() == 1
 
-    def _real_value(self):
-        # assert is_real_function(self)
+    def _scalar_value(self):
+        # assert function_is_scalar(self)
         return self.vector()[0]
 
 
@@ -209,9 +205,9 @@ class Function:
         self._checkpoint = checkpoint
         self._replacement = None
         if _data is None:
-            self._data = np.zeros(space.dim(), dtype=np.float64)
+            self._data = np.zeros(space.dim(), dtype=backend_ScalarType)
         else:
-            if not np.can_cast(_data, np.float64):
+            if _data.dtype.type != backend_ScalarType:
                 raise InterfaceException("Invalid dtype")
             self._data = _data
         add_interface(self, FunctionInterface)
@@ -283,18 +279,11 @@ class ReplacementInterface(_FunctionInterface):
         if value is None:
             raise InterfaceException("value required")
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.space(), name=name, static=static, cache=cache,
-                        checkpoint=checkpoint)
-
     def _replacement(self):
         return self
 
     def _is_replacement(self):
         return True
-
-    def _is_real(self):
-        return self.space().dim() == 1
 
 
 class Replacement:
@@ -326,13 +315,13 @@ class Replacement:
         return self._checkpoint
 
 
-def _new_real_function(name=None, comm=None, static=False, cache=None,
-                       checkpoint=None):
+def _new_scalar_function(name=None, comm=None, static=False, cache=None,
+                         checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-add_new_real_function(backend, _new_real_function)
+add_new_scalar_function(backend, _new_scalar_function)
 
 
 def default_comm():
@@ -343,7 +332,7 @@ def default_comm():
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_real_function instead",
+                  "use new_scalar_function instead",
                   DeprecationWarning, stacklevel=2)
     return FunctionSpace(1)
 

@@ -122,5 +122,5 @@ class Constant(Function):
         if isinstance(y, Constant):
             self.vector()[:] = y.vector()
         else:
-            assert isinstance(y, (int, float))
-            self.vector()[:] = float(y),
+            assert isinstance(y, (int, np.integer, float, np.floating))
+            self.vector()[:] = backend_ScalarType(y),

@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_name, function_new, function_space, \
-    functional_term_eq, is_function, is_real_function, new_real_function, \
-    real_function_value, space_id, space_new
+from .interface import function_is_scalar, function_name, function_new, \
+    function_scalar_value, function_space, functional_term_eq, is_function, \
+    new_scalar_function, space_id, space_new
 
 from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
@@ -56,7 +56,7 @@ class Functional:
             if name is None:
                 name = "Functional"
             if space is None:
-                fn = new_real_function(name=name)
+                fn = new_scalar_function(name=name)
             else:
                 fn = space_new(space, name=name)
         else:
@@ -65,8 +65,8 @@ class Functional:
             if space is not None \
                     and space_id(space) != space_id(function_space(fn)):
                 raise FunctionalException("Invalid function space")
-        if not is_real_function(fn):
-            raise FunctionalException("fn must be a real function")
+        if not function_is_scalar(fn):
+            raise FunctionalException("fn must be a scalar")
 
         self._name = name
         self._fn = fn
@@ -93,7 +93,7 @@ class Functional:
             manager = _manager()
 
         new_fn = function_new(self._fn, name=self._name)
-        if is_function(term) and is_real_function(term):
+        if is_function(term) and function_is_scalar(term):
             new_fn_eq = AssignmentSolver(term, new_fn)
         else:
             new_fn_eq = functional_term_eq(term, new_fn)
@@ -124,7 +124,7 @@ class Functional:
             new_fn_eq = AssignmentSolver(self._fn, new_fn)
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         else:
-            if is_function(term) and is_real_function(term):
+            if is_function(term) and function_is_scalar(term):
                 term_fn = term
             else:
                 term_fn = function_new(self._fn, name=f"{self._name:s}_term")
@@ -153,7 +153,7 @@ class Functional:
         Return the value of the functional.
         """
 
-        return real_function_value(self._fn)
+        return function_scalar_value(self._fn)
 
     def tlm(self, M, dM, max_depth=1, manager=None):
         """
