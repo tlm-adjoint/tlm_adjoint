@@ -258,8 +258,8 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _new(self, name=None, static=False, cache=None, checkpoint=None):
-        return space_new(function_space(self), static=static, cache=cache,
-                         checkpoint=checkpoint)
+        return space_new(function_space(self), name=name, static=static,
+                         cache=cache, checkpoint=checkpoint)
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
