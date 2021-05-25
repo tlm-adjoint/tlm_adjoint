@@ -573,6 +573,8 @@ class EquationManager:
 
         cp_method  (Optional) Checkpointing method. Default "memory".
             Possible methods
+                none
+                    No storage.
                 memory
                     Store everything in RAM.
                 periodic_disk
@@ -592,10 +594,15 @@ class EquationManager:
                                 pp. 1946--1967, 2009
 
         cp_parameters  (Optional) Checkpointing parameters dictionary.
+            Parameters for "none" method
+                drop_references  Whether to automatically drop references to
+                                 internal functions in the provided equations.
+                                 Logical, optional, default False.
+
             Parameters for "memory" method
-                replace        Whether to automatically replace internal
-                               functions in the provided equations. Logical,
-                               optional, default False.
+                drop_references  Whether to automatically drop references to
+                                 internal functions in the provided equations.
+                                 Logical, optional, default False.
 
             Parameters for "periodic_disk" method
                 path           Directory in which disk checkpoint data should
@@ -707,7 +714,7 @@ class EquationManager:
         info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
         info("Checkpointing:")
         info(f"  Method: {self._cp_method:s}")
-        if self._cp_method == "memory":
+        if self._cp_method in ["none", "memory"]:
             pass
         elif self._cp_method == "periodic_disk":
             info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
@@ -716,7 +723,8 @@ class EquationManager:
             info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
             info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: "
+                                   f"{self._cp_method:s}")
 
     def new(self, cp_method=None, cp_parameters=None):
         """
@@ -768,14 +776,15 @@ class EquationManager:
 
         cp_parameters = copy.deepcopy(cp_parameters)
 
-        if cp_method == "memory":
+        if cp_method in ["none", "memory"]:
             disk_storage = False
         elif cp_method == "periodic_disk":
             disk_storage = True
         elif cp_method == "multistage":
             disk_storage = cp_parameters.get("snaps_on_disk", 0) > 0
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: {cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: "
+                                   f"{cp_method:s}")
 
         if disk_storage:
             cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
@@ -786,7 +795,7 @@ class EquationManager:
                     os.makedirs(cp_path)
             self._comm.barrier()
 
-        if cp_method == "memory":
+        if cp_method in ["none", "memory"]:
             cp_manager = None
             if "replace" in cp_parameters:
                 warnings.warn("'replace' cp_parameters key is deprecated",
@@ -810,7 +819,8 @@ class EquationManager:
             cp_manager = MultistageManager(cp_blocks,
                                            cp_snaps_in_ram, cp_snaps_on_disk)
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: {cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: "
+                                   f"{cp_method:s}")
 
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
@@ -819,7 +829,13 @@ class EquationManager:
         self._cp_memory = {}
         self._cp_disk = {}
 
-        if cp_method == "multistage":
+        if cp_method == "none":
+            self._cp = CheckpointStorage(store_ics=False, store_data=False)
+        elif cp_method == "memory":
+            self._cp = CheckpointStorage(store_ics=True, store_data=True)
+        elif cp_method == "periodic_disk":
+            self._cp = CheckpointStorage(store_ics=True, store_data=False)
+        elif cp_method == "multistage":
             logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
             if self._cp_manager.max_n() == 1:
@@ -835,8 +851,8 @@ class EquationManager:
             self._cp_manager.forward()
             logger.debug(f"forward: forward advance to {self._cp_manager.n():d}")  # noqa: E501
         else:
-            self._cp = CheckpointStorage(store_ics=True,
-                                         store_data=cp_method == "memory")
+            raise ManagerException(f"Unrecognized checkpointing method: "
+                                   f"{cp_method:s}")
 
     def add_tlm(self, M, dM, max_depth=1):
         """
@@ -1021,7 +1037,8 @@ class EquationManager:
             elif self._annotation_state == "final":
                 raise ManagerException("Cannot add equations after finalization")  # noqa: E501
 
-            if self._cp_method == "memory" and not self._cp_parameters["drop_references"]:  # noqa: E501
+            if self._cp_method in ["none", "memory"] \
+                    and not self._cp_parameters["drop_references"]:
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq
@@ -1241,14 +1258,15 @@ class EquationManager:
             raise ManagerException(f"Unrecognized checkpointing format: {cp_format:s}")  # noqa: E501
 
     def _checkpoint(self, final=False):
-        if self._cp_method == "memory":
+        if self._cp_method in ["none", "memory"]:
             pass
         elif self._cp_method == "periodic_disk":
             self._periodic_disk_checkpoint(final=final)
         elif self._cp_method == "multistage":
             self._multistage_checkpoint()
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: "
+                                   f"{self._cp_method:s}")
 
     def _periodic_disk_checkpoint(self, final=False):
         cp_period = self._cp_parameters["period"]
@@ -1307,7 +1325,10 @@ class EquationManager:
         logger.debug(f"forward: forward advance to {self._cp_manager.n():d}")
 
     def _restore_checkpoint(self, n):
-        if self._cp_method == "memory":
+        if self._cp_method == "none":
+            raise ManagerException("Cannot restore from checkpoint with "
+                                   "checkpointing method 'none'")
+        elif self._cp_method == "memory":
             pass
         elif self._cp_method == "periodic_disk":
             if n not in self._cp_manager:
@@ -1423,7 +1444,8 @@ class EquationManager:
             self._cp_manager.reverse()
             assert n == self._cp_manager.max_n() - self._cp_manager.r()
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: {self._cp_method:s}")  # noqa: E501
+            raise ManagerException(f"Unrecognized checkpointing method: "
+                                   f"{self._cp_method:s}")
 
     def new_block(self):
         """
