@@ -21,8 +21,8 @@
 from .interface import function_assign, function_copy, function_get_values, \
     function_global_size, function_id, function_is_checkpointed, \
     function_is_replacement, function_local_indices, function_name, \
-    function_new, function_set_values, function_space, \
-    function_tangent_linear, is_function, space_id, space_new
+    function_new, function_new_tangent_linear, function_set_values, \
+    function_space, is_function, space_id, space_new
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
@@ -318,7 +318,7 @@ class TangentLinearMap:
 
         x_id = function_id(x)
         if x_id not in self._map:
-            self._map[x_id] = function_tangent_linear(
+            self._map[x_id] = function_new_tangent_linear(
                 x, name=f"{function_name(x):s}{self._name_suffix:s}")
 
             @gc_disabled

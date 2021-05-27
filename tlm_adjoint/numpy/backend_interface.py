@@ -20,7 +20,8 @@
 
 from .backend import backend
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    add_new_scalar_function, new_function_id, new_space_id, space_id, space_new
+    add_new_scalar_function, function_new_tangent_linear, new_function_id, \
+    new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 from ..tlm_adjoint import _default_comm
 
@@ -196,9 +197,6 @@ class FunctionInterface(_FunctionInterface):
         return Function(self.space(), name=name, static=static, cache=cache,
                         checkpoint=checkpoint, _data=self.vector().copy())
 
-    def _tangent_linear(self, name=None):
-        return self.tangent_linear(name=name)
-
     def _replacement(self):
         return self.replacement()
 
@@ -271,12 +269,10 @@ class Function:
         return self._checkpoint
 
     def tangent_linear(self, name=None):
-        if self.is_static():
-            return None
-        else:
-            return Function(self.space(), name=name, static=False,
-                            cache=self.is_cached(),
-                            checkpoint=self.is_checkpointed())
+        warnings.warn("Function.tangent_linear is deprecated -- "
+                      "use function_new_tangent_linear instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_new_tangent_linear(self, name=name)
 
     def replacement(self):
         if self._replacement is None:

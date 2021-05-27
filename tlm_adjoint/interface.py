@@ -60,15 +60,14 @@ __all__ = \
         "function_linf_norm",
         "function_local_indices",
         "function_local_size",
-        "function_max_value",
         "function_name",
         "function_new",
+        "function_new_tangent_linear",
         "function_replacement",
         "function_set_values",
         "function_space",
         "function_state",
         "function_sum",
-        "function_tangent_linear",
         "function_update_caches",
         "function_update_state",
         "function_zero",
@@ -76,16 +75,19 @@ __all__ = \
 
         "function_is_scalar",
         "function_scalar_value",
-        "is_real_function",
         "new_scalar_function",
-        "new_real_function",
-        "real_function_value",
 
         "subtract_adjoint_derivative_action",
         "finalize_adjoint_derivative_action",
 
         "functional_term_eq",
-        "time_system_eq"
+        "time_system_eq",
+
+        "function_max_value",
+        "function_tangent_linear",
+        "is_real_function",
+        "new_real_function",
+        "real_function_value"
     ]
 
 
@@ -179,7 +181,7 @@ class FunctionInterface:
              "_caches", "_update_caches", "_zero", "_assign", "_axpy",
              "_inner", "_max_value", "_sum", "_linf_norm", "_local_size",
              "_global_size", "_local_indices", "_get_values", "_set_values",
-             "_new", "_copy", "_tangent_linear", "_replacement",
+             "_new", "_copy", "_new_tangent_linear", "_replacement",
              "_is_replacement", "_is_scalar", "_scalar_value")
 
     def __init__(self):
@@ -264,8 +266,13 @@ class FunctionInterface:
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
-    def _tangent_linear(self, name=None):
-        raise InterfaceException("Method not overridden")
+    def _new_tangent_linear(self, name=None):
+        if function_is_static(self):
+            return None
+        else:
+            return function_new(self, name=name, static=False,
+                                cache=function_is_cached(self),
+                                checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
         raise InterfaceException("Method not overridden")
@@ -412,7 +419,14 @@ def function_copy(x, name=None, static=False, cache=None, checkpoint=None):
 
 
 def function_tangent_linear(x, name=None):
-    return x._tlm_adjoint__function_interface_tangent_linear(name=name)
+    warnings.warn("function_tangent_linear is deprecated -- "
+                  "use function_new_tangent_linear instead",
+                  DeprecationWarning, stacklevel=2)
+    return function_new_tangent_linear(x, name=name)
+
+
+def function_new_tangent_linear(x, name=None):
+    return x._tlm_adjoint__function_interface_new_tangent_linear(name=name)
 
 
 def function_replacement(x):
@@ -425,13 +439,15 @@ def function_is_replacement(x):
 
 def is_real_function(x):
     warnings.warn("is_real_function is deprecated -- "
-                  "use function_is_scalar instead")
+                  "use function_is_scalar instead",
+                  DeprecationWarning, stacklevel=2)
     return function_is_scalar(x)
 
 
 def real_function_value(x):
     warnings.warn("real_function_value is deprecated -- "
-                  "use function_scalar_value instead")
+                  "use function_scalar_value instead",
+                  DeprecationWarning, stacklevel=2)
     return function_scalar_value(x)
 
 
