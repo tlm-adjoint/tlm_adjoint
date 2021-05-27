@@ -20,7 +20,6 @@
 
 from .. import *  # noqa: F401
 
-from .backend import (backend, backend_ComplexScalarType,   # noqa: F401
-                      backend_RealScalarType, backend_ScalarType)
+from .backend import backend      # noqa: F401
 from .backend_interface import *  # noqa: F401
 from .equations import *          # noqa: F401

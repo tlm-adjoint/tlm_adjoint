@@ -30,6 +30,8 @@ import pytest
 
 @pytest.mark.numpy
 def test_EmptySolver(setup_test, test_leaks):
+    dtype = default_dtype()
+
     class EmptySolver(Equation):
         def __init__(self):
             super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
@@ -51,7 +53,7 @@ def test_EmptySolver(setup_test, test_leaks):
         return J
 
     F = Function(space, name="F")
-    F.vector()[:] = np.arange(len(F.vector()), dtype=np.float64)
+    F.vector()[:] = np.arange(len(F.vector()), dtype=dtype)
 
     start_manager()
     J = forward(F)

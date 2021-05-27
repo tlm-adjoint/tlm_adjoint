@@ -18,12 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import backend_ScalarType
 from ..interface import space_new
 
 from ..equations import EquationException, LinearEquation, Matrix, RHS
 
 import numpy as np
+import warnings
 
 __all__ = \
     [
@@ -35,15 +35,20 @@ __all__ = \
 
 class ConstantMatrix(Matrix):
     def __init__(self, A, A_T=None, ic=False, adj_ic=False):
+        if A_T is not None:
+            warnings.warn("A_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+
         super().__init__(nl_deps=[], ic=ic, adj_ic=adj_ic)
-        self._A = A
-        self._A_T = A_T
+        self._A = A.copy()
+        self._A_H = A.conjugate().T
 
     def A(self):
-        return self._A
-
-    def A_T(self):
-        return self._A.T if self._A_T is None else self._A_T
+        A = self._A
+        if isinstance(A, np.ndarray):
+            A = A.view()
+            A.setflags(write=False)
+        return A
 
     def forward_action(self, nl_deps, x, b, method="assign"):
         sb = self._A.dot(x.vector())
@@ -59,7 +64,7 @@ class ConstantMatrix(Matrix):
     def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
         if b_index != 0:
             raise EquationException("Invalid index")
-        sb = self._A_T().dot(adj_x.vector())
+        sb = self._A_H.dot(adj_x.vector())
         if method == "assign":
             b.vector()[:] = sb
         elif method == "add":
@@ -78,7 +83,7 @@ class ConstantMatrix(Matrix):
 
     def adjoint_solve(self, adj_x, nl_deps, b):
         return space_new(b.space(),
-                         _data=np.linalg.solve(self.A_T(), b.vector()))
+                         _data=np.linalg.solve(self._A_H, b.vector()))
 
     def tangent_linear_rhs(self, M, dM, tlm_map, x):
         return None
@@ -86,19 +91,32 @@ class ConstantMatrix(Matrix):
 
 class ContractionArray:
     def __init__(self, A, I, A_T=None, alpha=1.0):  # noqa: E741
+        if A_T is not None:
+            warnings.warn("A_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+
         for i in range(len(I) - 1):
             if I[i + 1] <= I[i]:
                 raise EquationException("Axes must be in ascending order")
-        self._A = A
-        self._A_T = A_T
+
+        self._A = A.copy()
+        self._A_conjugate = A.conjugate()
         self._I = tuple(I)
-        self._alpha = backend_ScalarType(alpha)
+        self._alpha = A.dtype.type(alpha)
 
     def A(self):
-        return self._A
+        A = self._A
+        if isinstance(A, np.ndarray):
+            A = A.view()
+            A.setflags(write=False)
+        return A
 
-    def A_T(self):
-        return self._A.T if self._A_T is None else self._A_T
+    def A_conjugate(self):
+        A_conjugate = self._A_conjugate
+        if isinstance(A_conjugate, np.ndarray):
+            A_conjugate = A_conjugate.view()
+            A_conjugate.setflags(write=False)
+        return A_conjugate
 
     def I(self):  # noqa: E741,E743
         return self._I
@@ -108,7 +126,7 @@ class ContractionArray:
 
     def value(self, X):
         if len(self._A.shape) == 2 and self._I == (0,):
-            v = self.A_T().dot(X[0].vector())
+            v = self._A.T.dot(X[0].vector())
         elif len(self._A.shape) == 2 and self._I == (1,):
             v = self._A.dot(X[0].vector())
         else:
@@ -127,6 +145,10 @@ class ContractionArray:
 
 class ContractionRHS(RHS):
     def __init__(self, A, I, X, A_T=None, alpha=1.0):  # noqa: E741
+        if A_T is not None:
+            warnings.warn("A_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+
         if len(X) != len(A.shape) - 1:
             raise EquationException("Contraction does not result in a vector")
         j = set(range(len(A.shape)))
@@ -137,8 +159,7 @@ class ContractionRHS(RHS):
         j = j.pop()
 
         super().__init__(X, nl_deps=[] if len(X) == 1 else X)
-        self._A_T = A_T
-        self._c = ContractionArray(A, I, A_T=A_T, alpha=alpha)
+        self._c = ContractionArray(A, I, alpha=alpha)
         self._j = j
 
     def add_forward(self, b, deps):
@@ -146,7 +167,9 @@ class ContractionRHS(RHS):
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if dep_index < len(self._c.I()):
-            A, I, alpha = self._c.A(), self._c.I(), self._c.alpha()
+            A = self._c.A_conjugate()
+            I = self._c.I()  # noqa: E741
+            alpha = self._c.alpha().conjugate()
             X = [None for i in range(len(A.shape))]
             k = I[dep_index]
             for j, (i, nl_dep) in enumerate(zip(I, nl_deps)):
@@ -157,7 +180,7 @@ class ContractionRHS(RHS):
             A_c = ContractionArray(A,
                                    list(range(k))
                                    + list(range(k + 1, len(A.shape))),
-                                   A_T=self._A_T, alpha=alpha)
+                                   alpha=alpha)
             b.vector()[:] -= A_c.value(X[:k] + X[k + 1:])
         else:
             raise EquationException("dep_index out of bounds")
@@ -175,7 +198,7 @@ class ContractionRHS(RHS):
                 J.append(j)
 
         if len(J) == 0:
-            return ContractionRHS(A, I, X, A_T=self._A_T, alpha=alpha)
+            return ContractionRHS(A, I, X, alpha=alpha)
         else:
             tlm_B = []
             for j in J:
@@ -183,10 +206,14 @@ class ContractionRHS(RHS):
                 if tau_x is not None:
                     tlm_B.append(ContractionRHS(A, I,
                                                 X[:j] + [tau_x] + X[j + 1:],
-                                                A_T=self._A_T, alpha=alpha))
+                                                alpha=alpha))
             return tlm_B
 
 
 class ContractionSolver(LinearEquation):
     def __init__(self, A, I, Y, x, A_T=None, alpha=1.0):  # noqa: E741
-        super().__init__(ContractionRHS(A, I, Y, A_T=A_T, alpha=alpha), x)
+        if A_T is not None:
+            warnings.warn("A_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+
+        super().__init__(ContractionRHS(A, I, Y, alpha=alpha), x)

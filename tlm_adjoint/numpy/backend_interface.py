@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import backend, backend_ScalarType
+from .backend import backend
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     add_new_scalar_function, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
@@ -30,6 +30,9 @@ import warnings
 
 __all__ = \
     [
+        "default_dtype",
+        "set_default_dtype",
+
         "Function",
         "FunctionSpace",
         "Replacement",
@@ -44,12 +47,23 @@ __all__ = \
     ]
 
 
+_default_dtype = [np.float64]
+
+
+def default_dtype():
+    return _default_dtype[0]
+
+
+def set_default_dtype(dtype):
+    _default_dtype[0] = dtype
+
+
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self.comm()
 
     def _dtype(self):
-        return backend_ScalarType
+        return self.dtype()
 
     def _id(self):
         return self.id()
@@ -60,14 +74,17 @@ class FunctionSpaceInterface(SpaceInterface):
 
 
 class FunctionSpace:
-    def __init__(self, dim):
+    def __init__(self, dim, dtype=None):
         comm = _default_comm
         if comm.size > 1:
             raise InterfaceException("Serial only")
+        if dtype is None:
+            dtype = default_dtype()
 
         self._comm = comm
         self._id = new_space_id()
         self._dim = dim
+        self._dtype = dtype
         add_interface(self, FunctionSpaceInterface)
 
     def comm(self):
@@ -78,6 +95,9 @@ class FunctionSpace:
 
     def dim(self):
         return self._dim
+
+    def dtype(self):
+        return self._dtype
 
 
 class FunctionInterface(_FunctionInterface):
@@ -112,24 +132,34 @@ class FunctionInterface(_FunctionInterface):
         self.vector()[:] = 0.0
 
     def _assign(self, y):
-        if isinstance(y, (int, np.integer, float, np.floating)):
-            self.vector()[:] = backend_ScalarType(y)
-        else:
-            assert isinstance(y, Function)
+        dtype = self.dtype()
+        if isinstance(y, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)) \
+                and np.can_cast(y, dtype):
+            self.vector()[:] = dtype(y)
+        elif isinstance(y, Function) and np.can_cast(y.dtype(), dtype):
             self.vector()[:] = y.vector()
+        else:
+            raise InterfaceException("Invalid type or dtype")
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = backend_ScalarType(alpha)
-        if isinstance(x, (int, np.integer, float, np.floating)):
-            self.vector()[:] += alpha * backend_ScalarType(x)
-        else:
-            assert isinstance(x, Function)
+        dtype = self.dtype()
+        alpha = dtype(alpha)
+        if isinstance(x, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)) \
+                and np.can_cast(x, dtype):
+            self.vector()[:] += alpha * dtype(x)
+        elif isinstance(x, Function) and np.can_cast(x.dtype(), dtype):
             self.vector()[:] += alpha * x.vector()
+        else:
+            raise InterfaceException("Invalid type or dtype")
 
     def _inner(self, y):
         assert isinstance(y, Function)
-        return y.vector().dot(self.vector())
+        return y.vector().conjugate().dot(self.vector())
 
     def _max_value(self):
         return self.vector().max()
@@ -152,12 +182,11 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().view()
         values.setflags(write=False)
-        if not np.can_cast(values, backend_ScalarType):
-            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, backend_ScalarType):
+        dtype = self.dtype()
+        if not np.can_cast(values, dtype):
             raise InterfaceException("Invalid dtype")
         if values.shape != self.vector().shape:
             raise InterfaceException("Invalid shape")
@@ -205,15 +234,20 @@ class Function:
         self._checkpoint = checkpoint
         self._replacement = None
         if _data is None:
-            self._data = np.zeros(space.dim(), dtype=backend_ScalarType)
+            self._data = np.zeros(space.dim(), dtype=space.dtype())
         else:
-            if _data.dtype.type != backend_ScalarType:
+            if _data.dtype.type != space.dtype():
                 raise InterfaceException("Invalid dtype")
+            elif _data.shape != (space.dim(),):
+                raise InterfaceException("Invalid shape")
             self._data = _data
         add_interface(self, FunctionInterface)
 
     def space(self):
         return self._space
+
+    def dtype(self):
+        return self._space.dtype()
 
     def id(self):
         return self._id
