@@ -165,7 +165,9 @@ class FunctionInterface(_FunctionInterface):
                 if x_v.getLocalSize() != y_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 y_v.copy(result=x_v)
-        elif isinstance(y, (int, np.integer, float, np.floating)):
+        elif isinstance(y, (int, np.integer,
+                            float, np.floating,
+                            complex, np.complexfloating)):
             if len(self.ufl_shape) == 0:
                 self.assign(backend_Constant(backend_ScalarType(y)),
                             annotate=False, tlm=False)
@@ -196,7 +198,9 @@ class FunctionInterface(_FunctionInterface):
                 if y_v.getLocalSize() != x_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 y_v.axpy(alpha, x_v)
-        elif isinstance(x, (int, np.integer, float, np.floating)):
+        elif isinstance(x, (int, np.integer,
+                            float, np.floating,
+                            complex, np.complexfloating)):
             self.assign(self + alpha * backend_ScalarType(x),
                         annotate=False, tlm=False)
         elif isinstance(x, Zero):
@@ -333,7 +337,9 @@ def _subtract_adjoint_derivative_action(x, y):
             alpha = 1.0
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
-                and isinstance(y[0], (int, np.integer, float, np.floating)) \
+                and isinstance(y[0], (int, np.integer,
+                                      float, np.floating,
+                                      complex, np.complexfloating)) \
                 and isinstance(y[1], backend_Function) \
                 and function_is_scalar(y[1]):
             alpha, y = y

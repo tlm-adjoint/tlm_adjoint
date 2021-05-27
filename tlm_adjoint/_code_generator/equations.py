@@ -199,13 +199,15 @@ class AssembleSolver(Equation):
 
         dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         if self._rank == 0:
+            dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
+                           for integral in dF.integrals()])  # dF = adjoint(dF)
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-function_scalar_value(adj_x), dF)
         else:
             assert self._rank == 1
             dF = assemble(
-                ufl.action(adjoint(dF), adj_x),
+                ufl.action(adjoint(dF), coefficient=adj_x),
                 form_compiler_parameters=self._form_compiler_parameters)
             return (-1.0, dF)
 
@@ -877,6 +879,7 @@ for ufl_name, numpy_name in [("Abs", "abs"),
                              ("Asin", "arcsin"),
                              ("Atan", "arctan"),
                              ("Atan2", "arctan2"),
+                             ("Conj", "conjugate"),
                              ("Cos", "cos"),
                              ("Cosh", "cosh"),
                              ("Exp", "exp"),
@@ -938,7 +941,9 @@ class ExprEvaluationSolver(Equation):
             rhs = ufl.replace(self._rhs,
                               dict(zip(self.dependencies(), deps)))
         rhs_val = evaluate_expr(rhs)
-        if isinstance(rhs_val, (int, np.integer, float, np.floating)):
+        if isinstance(rhs_val, (int, np.integer,
+                                float, np.floating,
+                                complex, np.complexfloating)):
             function_set_values(x, np.full(function_local_size(x),
                                            backend_ScalarType(rhs_val),
                                            dtype=backend_ScalarType))
@@ -954,14 +959,16 @@ class ExprEvaluationSolver(Equation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        dF = derivative(self._rhs, dep, argument=adj_x)
+        dF = ufl.conj(derivative(self._rhs, dep, argument=ufl.conj(adj_x)))
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = ufl.replace(
             dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
-        if isinstance(dF_val, (int, np.integer, float, np.floating)):
+        if isinstance(dF_val, (int, np.integer,
+                               float, np.floating,
+                               complex, np.complexfloating)):
             function_set_values(F, np.full(function_local_size(F),
                                            backend_ScalarType(dF_val),
                                            dtype=backend_ScalarType))

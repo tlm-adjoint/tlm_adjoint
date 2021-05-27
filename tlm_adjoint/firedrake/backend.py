@@ -33,8 +33,6 @@ backend_ScalarType = firedrake.utils.ScalarType.type
 backend_RealScalarType = firedrake.utils.RealType.type
 backend_ComplexScalarType = PETSc.ComplexType
 
-if not issubclass(backend_ScalarType, (float, np.floating)):
-    raise ImportError(f"Invalid backend scalar type: {backend_ScalarType}")
 if not issubclass(backend_RealScalarType, (float, np.floating)):
     raise ImportError(f"Invalid backend real scalar type: "
                       f"{backend_RealScalarType}")

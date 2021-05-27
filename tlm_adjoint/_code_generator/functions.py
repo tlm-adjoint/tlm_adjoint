@@ -124,7 +124,9 @@ class ConstantInterface(_FunctionInterface):
         self.assign(value)  # annotate=False, tlm=False
 
     def _assign(self, y):
-        if isinstance(y, (int, np.integer, float, np.floating)):
+        if isinstance(y, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)):
             if len(self.ufl_shape) == 0:
                 value = backend_ScalarType(y)
             else:
@@ -139,7 +141,9 @@ class ConstantInterface(_FunctionInterface):
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
         alpha = backend_ScalarType(alpha)
-        if isinstance(x, (int, np.integer, float, np.floating)):
+        if isinstance(x, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)):
             if len(self.ufl_shape) == 0:
                 value = (backend_ScalarType(self)
                          + alpha * backend_ScalarType(x))
@@ -160,7 +164,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _inner(self, y):
         assert isinstance(y, backend_Constant)
-        return y.values().dot(self.values())
+        return y.values().conjugate().dot(self.values())
 
     def _max_value(self):
         return self.values().max()
