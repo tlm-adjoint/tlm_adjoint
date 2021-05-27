@@ -23,7 +23,7 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_id, function_is_cached, \
     function_is_checkpointed, function_is_static, function_name, \
-    function_replacement, function_space, function_tangent_linear, \
+    function_new_tangent_linear, function_replacement, function_space, \
     is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
@@ -239,21 +239,6 @@ class ConstantInterface(_FunctionInterface):
                         comm=comm, static=static, cache=cache,
                         checkpoint=checkpoint)
 
-    def _tangent_linear(self, name=None):
-        if function_is_static(self):
-            return None
-        else:
-            domains = self.ufl_domains()
-            if len(domains) == 0:
-                domain = None
-            else:
-                domain, = domains
-            space = self._tlm_adjoint__function_interface_attrs["space"]
-            comm = function_comm(self)
-            return Constant(name=name, domain=domain, space=space, comm=comm,
-                            static=False, cache=function_is_cached(self),
-                            checkpoint=function_is_checkpointed(self))
-
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
             # Firedrake requires Constant.function_space() to return None
@@ -343,9 +328,9 @@ class Constant(backend_Constant):
 
     def tangent_linear(self, name=None):
         warnings.warn("Constant.tangent_linear is deprecated -- "
-                      "use function_tangent_linear instead",
+                      "use function_new_tangent_linear instead",
                       DeprecationWarning, stacklevel=2)
-        return function_tangent_linear(self, name=name)
+        return function_new_tangent_linear(self, name=name)
 
 
 class Zero(Constant):
@@ -449,9 +434,9 @@ class Function(backend_Function):
 
     def tangent_linear(self, name=None):
         warnings.warn("Function.tangent_linear is deprecated -- "
-                      "use function_tangent_linear instead",
+                      "use function_new_tangent_linear instead",
                       DeprecationWarning, stacklevel=2)
-        return function_tangent_linear(self, name=name)
+        return function_new_tangent_linear(self, name=name)
 
 
 class DirichletBC(backend_DirichletBC):

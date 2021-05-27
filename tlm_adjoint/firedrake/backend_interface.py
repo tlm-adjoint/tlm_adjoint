@@ -25,8 +25,7 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_assign, function_caches, function_comm, function_is_cached, \
-    function_is_checkpointed, function_is_scalar, function_is_static, \
+    function_assign, function_caches, function_comm, function_is_scalar, \
     function_new, function_scalar_value, new_function_id, new_space_id, \
     space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
@@ -280,14 +279,6 @@ class FunctionInterface(_FunctionInterface):
                          checkpoint=checkpoint)
         function_assign(y, self)
         return y
-
-    def _tangent_linear(self, name=None):
-        if function_is_static(self):
-            return None
-        else:
-            return function_new(self, name=name, static=False,
-                                cache=function_is_cached(self),
-                                checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):

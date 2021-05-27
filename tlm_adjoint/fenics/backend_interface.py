@@ -25,10 +25,9 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_caches, function_copy, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_new, \
-    new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action, weakref_method
+    function_caches, function_copy, function_new, new_function_id, \
+    new_space_id, space_id, space_new, subtract_adjoint_derivative_action, \
+    weakref_method
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -277,14 +276,6 @@ class FunctionInterface(_FunctionInterface):
         self.is_cached = weakref_method(Function.is_cached, self)
         self.is_checkpointed = weakref_method(Function.is_checkpointed, self)
         return y
-
-    def _tangent_linear(self, name=None):
-        if function_is_static(self):
-            return None
-        else:
-            return function_new(self, name=name, static=False,
-                                cache=function_is_cached(self),
-                                checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
