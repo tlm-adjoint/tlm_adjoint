@@ -43,12 +43,14 @@ reset_manager("multistage", {"blocks": N_t, "snaps_on_disk": 1,
 stop_manager()
 np.random.seed(16143324)
 
+dtype = default_dtype()
+
 kappa_0 = 0.2
 dt = 0.01
 L = 1.0
 N = 50
 
-x = np.linspace(0.0, L, N + 1, dtype=np.float64)
+x = np.linspace(0.0, L, N + 1, dtype=dtype)
 y = x.copy()
 dx = 1.0 / N
 
@@ -61,7 +63,7 @@ def index(i, j):
 
 def K(kappa):
     kappa = kappa.vector()
-    K = lil_matrix(((N + 1) * (N + 1), (N + 1) * (N + 1)), dtype=np.float64)
+    K = lil_matrix(((N + 1) * (N + 1), (N + 1) * (N + 1)), dtype=dtype)
     for i in range(1, N):
         for j in range(1, N):
             if i > 1:
@@ -87,7 +89,7 @@ def K(kappa):
 def dK_dkappa_adjoint_action(psi, adj_psi):
     psi = psi.vector()
     adj_psi = adj_psi.vector()
-    b = np.zeros((N + 1) * (N + 1), dtype=np.float64)
+    b = np.zeros((N + 1) * (N + 1), dtype=dtype)
     for i in range(1, N):
         for j in range(1, N):
             if i > 1:
@@ -111,13 +113,13 @@ def dK_dkappa_adjoint_action(psi, adj_psi):
 
 
 def A(kappa, alpha=1.0, beta=1.0):
-    return (alpha * identity((N + 1) * (N + 1), dtype=np.float64)
+    return (alpha * identity((N + 1) * (N + 1), dtype=dtype)
             + beta * K(kappa)).tocsr()
 
 
-B = identity((N + 1) * (N + 1), dtype=np.float64).tocsr()
+B = identity((N + 1) * (N + 1), dtype=dtype).tocsr()
 
-mass = lil_matrix(((N + 1) * (N + 1), (N + 1) * (N + 1)), dtype=np.float64)
+mass = lil_matrix(((N + 1) * (N + 1), (N + 1) * (N + 1)), dtype=dtype)
 mass[index(0, 0), index(0, 0)] = 0.25 * dx * dx
 mass[index(0, N), index(0, N)] = 0.25 * dx * dx
 mass[index(N, 0), index(N, 0)] = 0.25 * dx * dx

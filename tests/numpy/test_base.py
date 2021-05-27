@@ -50,6 +50,8 @@ def setup_test():
 
     np.random.seed(14012313)
 
+    set_default_dtype(np.float64)
+
 
 function_ids = {}
 
@@ -113,14 +115,11 @@ def info(message):
 
 class Constant(Function):
     def __init__(self, value=0.0, name=None, static=False, cache=None,
-                 checkpoint=None, _data=None):
-        super().__init__(FunctionSpace(1), name=name, static=static,
-                         cache=cache, checkpoint=checkpoint, _data=_data)
+                 checkpoint=None):
+        space = FunctionSpace(1)  # , dtype=default_dtype())
+        super().__init__(space, name=name, static=static, cache=cache,
+                         checkpoint=checkpoint)
         self.assign(value)
 
     def assign(self, y):
-        if isinstance(y, Constant):
-            self.vector()[:] = y.vector()
-        else:
-            assert isinstance(y, (int, np.integer, float, np.floating))
-            self.vector()[:] = backend_ScalarType(y),
+        function_assign(self, y)

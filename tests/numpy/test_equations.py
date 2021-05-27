@@ -185,10 +185,12 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
 @pytest.mark.numpy
 def test_ContractionSolver(setup_test, test_leaks):
+    dtype = default_dtype()
+
     space_0 = FunctionSpace(1)
     space = FunctionSpace(3)
     A = np.array([[1.0, 2.0, 3.0], [0.0, 4.0, 5.0], [0.0, 0.0, 6.0]],
-                 dtype=np.float64)
+                 dtype=dtype)
 
     def forward(m):
         x = Function(space, name="x")
@@ -202,13 +204,15 @@ def test_ContractionSolver(setup_test, test_leaks):
         return x, J
 
     m = Function(space, name="m", static=True)
-    function_set_values(m, np.array([7.0, 8.0, 9.0], dtype=np.float64))
+    function_set_values(m, np.array([7.0, 8.0, 9.0], dtype=dtype))
 
     start_manager()
     x, J = forward(m)
     stop_manager()
 
-    assert abs(A.dot(m.vector()) - x.vector()).max() == 0.0
+    A_action = A.dot(m.vector())
+    assert abs(A_action - x.vector()).max() == 0.0
+    assert abs(A_action.conjugate().dot(A_action)) ** 2 - J.value() == 0.0
 
     J_val = J.value()
 
@@ -232,3 +236,50 @@ def test_ContractionSolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
     assert min_order > 2.00
+
+
+@pytest.mark.numpy
+def test_ContractionSolver_complex(setup_test, test_leaks):
+    set_default_dtype(np.complex128)
+    dtype = default_dtype()
+
+    space = FunctionSpace(3)
+    A = np.array([[1.0 + 10.0j, 2.0 + 11.0j, 3.0 + 12.0j],
+                  [0.0, 4.0 + 13.0j, 5.0 + 14.0j],
+                  [0.0, 0.0, 6.0 + 15.0j]],
+                 dtype=dtype)
+
+    def forward(m):
+        x = Function(space, name="x")
+        ContractionSolver(A, (1,), (m,), x).solve()
+
+        J = Functional(name="J")
+        SumSolver(x, J.fn()).solve()
+        return x, J
+
+    m = Function(space, name="m", static=True)
+    function_set_values(m, np.array([7.0 + 16.0j, 8.0 + 17.0j, 9.0 + 18.0j],
+                                    dtype=dtype))
+
+    start_manager()
+    x, J = forward(m)
+    stop_manager()
+
+    A_action = A.dot(m.vector())
+    assert abs(A_action - x.vector()).max() == 0.0
+    assert A_action.sum() - J.value() == 0.0
+
+    dJ = compute_gradient(J, m)
+
+    def forward_m_val(m_val):
+        m = Function(space)
+        function_set_values(m, m_val)
+        return forward(m)[1].value()
+
+    dJ_ref = np.full(3, np.NAN, dtype=dtype)
+    for i in range(3):
+        m_val = np.zeros(3, dtype=dtype)
+        m_val[i] = 1.0
+        dJ_ref[i] = forward_m_val(m_val)
+
+    assert abs(dJ.vector().conjugate() - dJ_ref).max() == 0.0
