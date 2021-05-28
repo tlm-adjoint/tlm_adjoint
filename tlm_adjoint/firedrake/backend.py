@@ -30,15 +30,6 @@ import petsc4py.PETSc as PETSc
 backend = "Firedrake"
 
 backend_ScalarType = firedrake.utils.ScalarType.type
-backend_RealScalarType = firedrake.utils.RealType.type
-backend_ComplexScalarType = PETSc.ComplexType
-
-if not issubclass(backend_RealScalarType, (float, np.floating)):
-    raise ImportError(f"Invalid backend real scalar type: "
-                      f"{backend_RealScalarType}")
-if not issubclass(backend_ComplexScalarType, (complex, np.complexfloating)):
-    raise ImportError(f"Invalid backend complex scalar type: "
-                      f"{backend_ComplexScalarType}")
 
 extract_args = firedrake.solving._extract_args
 
@@ -60,8 +51,6 @@ __all__ = \
     [
         "backend",
 
-        "backend_ComplexScalarType",
-        "backend_RealScalarType",
         "backend_ScalarType",
 
         "extract_args",

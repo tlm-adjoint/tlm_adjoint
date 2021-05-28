@@ -59,17 +59,9 @@ import petsc4py.PETSc as PETSc
 backend = "FEniCS"
 
 backend_ScalarType = PETSc.ScalarType
-backend_RealScalarType = PETSc.RealType
-backend_ComplexScalarType = PETSc.ComplexType
 
 if not issubclass(backend_ScalarType, (float, np.floating)):
     raise ImportError(f"Invalid backend scalar type: {backend_ScalarType}")
-if not issubclass(backend_RealScalarType, (float, np.floating)):
-    raise ImportError(f"Invalid backend real scalar type: "
-                      f"{backend_RealScalarType}")
-if not issubclass(backend_ComplexScalarType, (complex, np.complexfloating)):
-    raise ImportError(f"Invalid backend complex scalar type: "
-                      f"{backend_ComplexScalarType}")
 
 extract_args = fenics.fem.solving._extract_args
 
@@ -97,8 +89,6 @@ __all__ = \
     [
         "backend",
 
-        "backend_ComplexScalarType",
-        "backend_RealScalarType",
         "backend_ScalarType",
 
         "extract_args",
