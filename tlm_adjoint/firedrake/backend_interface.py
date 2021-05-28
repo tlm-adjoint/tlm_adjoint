@@ -82,7 +82,7 @@ def _Constant__init__(self, value, domain=None, *,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": name, "state": 0,
-                   "space": space, "dtype": self.dat.dtype,
+                   "space": space, "dtype": self.dat.dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
 
 
@@ -95,7 +95,7 @@ class FunctionSpaceInterface(SpaceInterface):
         return self.comm
 
     def _dtype(self):
-        return self.dat.dtype
+        return backend_ScalarType
 
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
@@ -121,6 +121,9 @@ class FunctionInterface(_FunctionInterface):
 
     def _space(self):
         return self.function_space()
+
+    def _dtype(self):
+        return self.dat.dtype.type
 
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
