@@ -24,8 +24,6 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
     info, parameters, project, solve
 import firedrake
-import numpy as np
-import petsc4py.PETSc as PETSc
 
 backend = "Firedrake"
 
