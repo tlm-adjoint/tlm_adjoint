@@ -38,6 +38,7 @@ from .functions import eliminate_zeros
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -238,10 +239,13 @@ class PointInterpolationSolver(Equation):
         X_coords   A NumPy matrix. Points at which to interpolate y.
                    Ignored if P is supplied, required otherwise.
         P          (Optional) Interpolation matrix.
-        P_T        (Optional) Interpolation matrix transpose.
         tolerance  (Optional) Cell containment tolerance, passed to the
                    MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
+
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
 
         if is_function(X):
             X = (X,)
@@ -291,14 +295,13 @@ class PointInterpolationSolver(Equation):
                 raise EquationException("Unable to locate one or more cells")
 
             P = interpolation_matrix(X_coords, y, y_nodes, dtype=dtype)
-
-        if P_T is None:
-            P_T = P.T
+        else:
+            P = P.copy()
 
         super().__init__(X, list(X) + [y], nl_deps=[], ic=False, adj_ic=False)
         self._dtype = dtype
         self._P = P
-        self._P_T = P_T
+        self._P_H = P.conjugate().T
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -331,7 +334,7 @@ class PointInterpolationSolver(Equation):
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
             F = function_new(self.dependencies()[-1])
-            function_set_values(F, self._P_T.dot(adj_x_v))
+            function_set_values(F, self._P_H.dot(adj_x_v))
             return (-1.0, F)
         else:
             raise EquationException("dep_index out of bounds")
@@ -348,4 +351,4 @@ class PointInterpolationSolver(Equation):
             return NullSolver([tlm_map[x] for x in X])
         else:
             return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
-                                            P=self._P, P_T=self._P_T)
+                                            P=self._P)
