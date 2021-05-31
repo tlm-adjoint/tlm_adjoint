@@ -21,8 +21,8 @@
 from .backend import backend
 from ..caches import Caches
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    add_new_scalar_function, function_caches, function_new_tangent_linear, \
-    new_function_id, new_space_id, space_id, space_new
+    add_new_scalar_function, function_new_tangent_linear, new_function_id, \
+    new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 from ..tlm_adjoint import _default_comm
 
@@ -129,11 +129,6 @@ class FunctionInterface(_FunctionInterface):
 
     def _caches(self):
         return self.caches()
-
-    def _update_caches(self, value=None):
-        if value is None:
-            value = self
-        function_caches(self).update(value)
 
     def _zero(self):
         self.vector()[:] = 0.0
@@ -317,11 +312,6 @@ class ReplacementInterface(_FunctionInterface):
 
     def _caches(self):
         return self.caches()
-
-    def _update_caches(self, value=None):
-        if value is None:
-            raise InterfaceException("value required")
-        function_caches(self).update(value)
 
     def _replacement(self):
         return self

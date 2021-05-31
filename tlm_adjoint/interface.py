@@ -221,7 +221,11 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _update_caches(self, value=None):
-        raise InterfaceException("Method not overridden")
+        if value is None:
+            if function_is_replacement(self):
+                raise InterfaceException("value required")
+            value = self
+        function_caches(self).update(value)
 
     def _zero(self):
         raise InterfaceException("Method not overridden")
