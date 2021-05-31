@@ -109,9 +109,10 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
-        if not hasattr(self, "_tlm_adjoint__caches"):
-            self._tlm_adjoint__caches = Caches(self)
-        return self._tlm_adjoint__caches
+        if "caches" not in self._tlm_adjoint__function_interface_attrs:
+            self._tlm_adjoint__function_interface_attrs["caches"] \
+                = Caches(self)
+        return self._tlm_adjoint__function_interface_attrs["caches"]
 
     def _zero(self):
         if len(self.ufl_shape) == 0:
@@ -553,7 +554,7 @@ class ReplacementInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
-        return self.caches()
+        return self._tlm_adjoint__function_interface_attrs["caches"]
 
     def _replacement(self):
         return self
@@ -583,12 +584,12 @@ class Replacement(ufl.classes.Coefficient):
         self.__domain = domain
         self.__space = space
         self.__name = function_name(x)
-        self.__caches = function_caches(x)
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
                        "space": x_space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
-                       "checkpoint": function_is_checkpointed(x)})
+                       "checkpoint": function_is_checkpointed(x),
+                       "caches": function_caches(x)})
 
     def function_space(self):
         return self.__space
@@ -624,7 +625,10 @@ class Replacement(ufl.classes.Coefficient):
         return function_is_checkpointed(self)
 
     def caches(self):
-        return self.__caches
+        warnings.warn("Replacement.caches is deprecated -- "
+                      "use function_caches instead",
+                      DeprecationWarning, stacklevel=2)
+        return function_caches(self)
 
     def ufl_domain(self):
         return self.__domain

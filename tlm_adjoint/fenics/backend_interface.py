@@ -148,9 +148,10 @@ class FunctionInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
-        if not hasattr(self, "_tlm_adjoint__caches"):
-            self._tlm_adjoint__caches = Caches(self)
-        return self._tlm_adjoint__caches
+        if "caches" not in self._tlm_adjoint__function_interface_attrs:
+            self._tlm_adjoint__function_interface_attrs["caches"] \
+                = Caches(self)
+        return self._tlm_adjoint__function_interface_attrs["caches"]
 
     def _zero(self):
         self.vector().zero()
