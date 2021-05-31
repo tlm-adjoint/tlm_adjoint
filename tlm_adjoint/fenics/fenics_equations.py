@@ -38,6 +38,7 @@ from .functions import eliminate_zeros
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -412,11 +413,14 @@ class InterpolationSolver(LinearEquation):
                    for the space for y. Ignored if P is supplied. Generated
                    using greedy_coloring if not supplied.
         P          (Optional) Interpolation matrix.
-        P_T        (Optional) Interpolation matrix transpose.
         tolerance  (Optional) Maximum distance of an interpolation point from
                    the closest cell in the process local mesh associated with
                    y. Ignored if P is supplied.
         """
+
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
 
         if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
             raise EquationException("Solution must be a scalar-valued "
@@ -440,12 +444,14 @@ class InterpolationSolver(LinearEquation):
                 y_colors = greedy_coloring(y_space)
 
             P = interpolation_matrix(x_coords, y, y_cells, y_colors)
+        else:
+            P = P.copy()
 
         class InterpolationMatrix(Matrix):
-            def __init__(self, P, P_T=None):
+            def __init__(self, P):
                 super().__init__(nl_deps=[], ic=False, adj_ic=False)
                 self._P = P
-                self._P_T = P.T if P_T is None else P_T
+                self._P_T = P.T
 
             def forward_action(self, nl_deps, x, b, method="assign"):
                 if method == "assign":
@@ -473,7 +479,7 @@ class InterpolationSolver(LinearEquation):
                     raise EquationException(f"Invalid method: '{method:s}'")
 
         super().__init__(
-            MatrixActionRHS(InterpolationMatrix(P, P_T=P_T), y), x)
+            MatrixActionRHS(InterpolationMatrix(P), y), x)
 
 
 class PointInterpolationSolver(Equation):
@@ -506,8 +512,11 @@ class PointInterpolationSolver(Equation):
         y_cells   (Optional) An integer NumPy vector. The cells in the y mesh
                   containing each point. Ignored if P is supplied.
         P         (Optional) Interpolation matrix.
-        P_T       (Optional) Interpolation matrix transpose.
         """
+
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
 
         if is_function(X):
             X = (X,)
@@ -557,13 +566,12 @@ class PointInterpolationSolver(Equation):
                 y_colors = greedy_coloring(y_space)
 
             P = interpolation_matrix(X_coords, y, y_cells, y_colors)
-
-        if P_T is None:
-            P_T = P.T
+        else:
+            P = P.copy()
 
         super().__init__(X, list(X) + [y], nl_deps=[], ic=False, adj_ic=False)
         self._P = P
-        self._P_T = P_T
+        self._P_T = P.T
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -610,4 +618,4 @@ class PointInterpolationSolver(Equation):
             return NullSolver([tlm_map[x] for x in X])
         else:
             return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
-                                            P=self._P, P_T=self._P_T)
+                                            P=self._P)

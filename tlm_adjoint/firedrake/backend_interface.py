@@ -25,9 +25,9 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_assign, function_caches, function_comm, function_is_scalar, \
-    function_new, function_scalar_value, new_function_id, new_space_id, \
-    space_id, space_new, subtract_adjoint_derivative_action
+    function_assign, function_caches, function_comm, function_dtype, \
+    function_is_scalar, function_new, function_scalar_value, new_function_id, \
+    new_space_id, space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
 
@@ -77,14 +77,12 @@ def _Constant__init__(self, value, domain=None, *,
 
     if space is None:
         space = self.ufl_function_space()
-        if self.dat.dtype.type != backend_ScalarType:
-            raise InterfaceException("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm, "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": name, "state": 0,
-                   "space": space,
+                   "space": space, "dtype": self.dat.dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
 
 
@@ -123,6 +121,9 @@ class FunctionInterface(_FunctionInterface):
 
     def _space(self):
         return self.function_space()
+
+    def _dtype(self):
+        return self.dat.dtype.type
 
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
@@ -165,13 +166,15 @@ class FunctionInterface(_FunctionInterface):
                 if x_v.getLocalSize() != y_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 y_v.copy(result=x_v)
-        elif isinstance(y, (int, np.integer, float, np.floating)):
+        elif isinstance(y, (int, np.integer,
+                            float, np.floating,
+                            complex, np.complexfloating)):
+            dtype = function_dtype(self)
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(backend_ScalarType(y)),
+                self.assign(backend_Constant(dtype(y)),
                             annotate=False, tlm=False)
             else:
-                y_arr = np.full(self.ufl_shape, backend_ScalarType(y),
-                                dtype=backend_ScalarType)
+                y_arr = np.full(self.ufl_shape, dtype(y), dtype=dtype)
                 self.assign(backend_Constant(y_arr),
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):
@@ -190,14 +193,17 @@ class FunctionInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = backend_ScalarType(alpha)
+        dtype = function_dtype(self)
+        alpha = dtype(alpha)
         if isinstance(x, backend_Function):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 if y_v.getLocalSize() != x_v.getLocalSize():
                     raise InterfaceException("Invalid function space")
                 y_v.axpy(alpha, x_v)
-        elif isinstance(x, (int, np.integer, float, np.floating)):
-            self.assign(self + alpha * backend_ScalarType(x),
+        elif isinstance(x, (int, np.integer,
+                            float, np.floating,
+                            complex, np.complexfloating)):
+            self.assign(self + alpha * dtype(x),
                         annotate=False, tlm=False)
         elif isinstance(x, Zero):
             pass
@@ -262,12 +268,10 @@ class FunctionInterface(_FunctionInterface):
         with self.dat.vec_ro as x_v:
             with x_v as x_v_a:
                 values = x_v_a.copy()
-        if not np.can_cast(values, backend_ScalarType):
-            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, backend_ScalarType):
+        if not np.can_cast(values, function_dtype(self)):
             raise InterfaceException("Invalid dtype")
         with self.dat.vec as x_v:
             if values.shape != (x_v.getLocalSize(),):
@@ -301,8 +305,6 @@ class FunctionInterface(_FunctionInterface):
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    if self.dat.dtype.type != backend_ScalarType:
-        raise InterfaceException("Invalid dtype")
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0,
                    "static": False, "cache": False, "checkpoint": True})
@@ -329,20 +331,23 @@ def _subtract_adjoint_derivative_action(x, y):
         else:
             x._tlm_adjoint__firedrake_adj_b = form_neg(y)
     elif isinstance(x, backend_Constant):
+        dtype = function_dtype(x)
         if isinstance(y, backend_Function) and function_is_scalar(y):
             alpha = 1.0
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
-                and isinstance(y[0], (int, np.integer, float, np.floating)) \
+                and isinstance(y[0], (int, np.integer,
+                                      float, np.floating,
+                                      complex, np.complexfloating)) \
                 and isinstance(y[1], backend_Function) \
                 and function_is_scalar(y[1]):
             alpha, y = y
-            alpha = backend_ScalarType(alpha)
+            alpha = dtype(alpha)
         else:
             return NotImplemented
         y_value = function_scalar_value(y)
         # annotate=False, tlm=False
-        x.assign(backend_ScalarType(x) - alpha * y_value)
+        x.assign(dtype(x) - alpha * y_value)
     else:
         return NotImplemented
 

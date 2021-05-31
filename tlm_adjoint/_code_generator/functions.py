@@ -21,10 +21,10 @@
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    function_caches, function_comm, function_id, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_name, \
-    function_new_tangent_linear, function_replacement, function_space, \
-    is_function, space_comm
+    function_caches, function_comm, function_dtype, function_id, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_name, function_new_tangent_linear, function_replacement, \
+    function_space, is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -80,6 +80,9 @@ class ConstantInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 
+    def _dtype(self):
+        return self._tlm_adjoint__function_interface_attrs["dtype"]
+
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
 
@@ -119,17 +122,19 @@ class ConstantInterface(_FunctionInterface):
         if len(self.ufl_shape) == 0:
             value = 0.0
         else:
-            value = np.zeros(self.ufl_shape, dtype=backend_ScalarType)
+            value = np.zeros(self.ufl_shape, dtype=function_dtype(self))
             value = backend_Constant(value)
         self.assign(value)  # annotate=False, tlm=False
 
     def _assign(self, y):
-        if isinstance(y, (int, np.integer, float, np.floating)):
+        if isinstance(y, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)):
+            dtype = function_dtype(self)
             if len(self.ufl_shape) == 0:
-                value = backend_ScalarType(y)
+                value = dtype(y)
             else:
-                value = np.full(self.ufl_shape, backend_ScalarType(y),
-                                dtype=backend_ScalarType)
+                value = np.full(self.ufl_shape, dtype(y), dtype=dtype)
                 value = backend_Constant(value)
         else:
             assert isinstance(y, backend_Constant)
@@ -138,20 +143,21 @@ class ConstantInterface(_FunctionInterface):
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
-        alpha = backend_ScalarType(alpha)
-        if isinstance(x, (int, np.integer, float, np.floating)):
+        dtype = function_dtype(self)
+        alpha = dtype(alpha)
+        if isinstance(x, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)):
             if len(self.ufl_shape) == 0:
-                value = (backend_ScalarType(self)
-                         + alpha * backend_ScalarType(x))
+                value = (dtype(self) + alpha * dtype(x))
             else:
-                value = self.values() + alpha * backend_ScalarType(x)
+                value = self.values() + alpha * dtype(x)
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
         else:
             assert isinstance(x, backend_Constant)
             if len(self.ufl_shape) == 0:
-                value = (backend_ScalarType(self)
-                         + alpha * backend_ScalarType(x))
+                value = (dtype(self) + alpha * dtype(x))
             else:
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
@@ -160,7 +166,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _inner(self, y):
         assert isinstance(y, backend_Constant)
-        return y.values().dot(self.values())
+        return y.values().conjugate().dot(self.values())
 
     def _max_value(self):
         return self.values().max()
@@ -202,14 +208,12 @@ class ConstantInterface(_FunctionInterface):
         if comm.rank == 0:
             values = self.values().view()
         else:
-            values = np.array([], dtype=backend_ScalarType)
+            values = np.array([], dtype=function_dtype(self))
         values.setflags(write=False)
-        if not np.can_cast(values, backend_ScalarType):
-            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, backend_ScalarType):
+        if not np.can_cast(values, function_dtype(self)):
             raise InterfaceException("Invalid dtype")
         comm = function_comm(self)
         if comm.rank != 0:
@@ -224,7 +228,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _copy(self, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
-            value = backend_ScalarType(self)
+            value = function_dtype(self)(self)
         else:
             value = self.values().view()
             value.shape = self.ufl_shape
@@ -254,7 +258,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _scalar_value(self):
         # assert function_is_scalar(self)
-        return backend_ScalarType(self)
+        return function_dtype(self)(self)
 
 
 class Constant(backend_Constant):

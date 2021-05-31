@@ -20,10 +20,10 @@
 
 from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
     backend_assemble, backend_ScalarType
-from ..interface import function_assign, function_comm, function_get_values, \
-    function_is_scalar, function_local_size, function_new, \
-    function_scalar_value, function_set_values, function_space, is_function, \
-    weakref_method
+from ..interface import function_assign, function_comm, function_dtype, \
+    function_get_values, function_is_scalar, function_local_size, \
+    function_new, function_scalar_value, function_set_values, function_space, \
+    is_function, weakref_method
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -38,6 +38,7 @@ from .functions import eliminate_zeros
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -195,13 +196,13 @@ class LocalProjectionSolver(EquationSolver):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
-def interpolation_matrix(x_coords, y, y_nodes):
+def interpolation_matrix(x_coords, y, y_nodes, dtype=backend_ScalarType):
     N = function_local_size(y)
     lg_map = function_space(y).local_to_global_map([]).indices
     gl_map = {g: l for l, g in enumerate(lg_map)}  # noqa: E741
 
     from scipy.sparse import dok_matrix
-    P = dok_matrix((x_coords.shape[0], N), dtype=backend_ScalarType)
+    P = dok_matrix((x_coords.shape[0], N), dtype=dtype)
 
     y_v = function_new(y)
     for x_node, x_coord in enumerate(x_coords):
@@ -238,17 +239,29 @@ class PointInterpolationSolver(Equation):
         X_coords   A NumPy matrix. Points at which to interpolate y.
                    Ignored if P is supplied, required otherwise.
         P          (Optional) Interpolation matrix.
-        P_T        (Optional) Interpolation matrix transpose.
         tolerance  (Optional) Cell containment tolerance, passed to the
                    MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
 
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+
         if is_function(X):
             X = (X,)
+
+        dtype = None
         for x in X:
             if not function_is_scalar(x):
                 raise EquationException("Solution must be a scalar, or a list "
                                         "or tuple of scalars")
+            if dtype is None:
+                dtype = function_dtype(x)
+            elif function_dtype(x) != dtype:
+                raise EquationException("Invalid dtype")
+        if dtype is None:
+            dtype = backend_ScalarType
+
         if X_coords is None:
             if P is None:
                 raise EquationException("X_coords required when P is not supplied")  # noqa: E501
@@ -281,14 +294,14 @@ class PointInterpolationSolver(Equation):
             if (y_nodes < 0).any():
                 raise EquationException("Unable to locate one or more cells")
 
-            P = interpolation_matrix(X_coords, y, y_nodes)
-
-        if P_T is None:
-            P_T = P.T
+            P = interpolation_matrix(X_coords, y, y_nodes, dtype=dtype)
+        else:
+            P = P.copy()
 
         super().__init__(X, list(X) + [y], nl_deps=[], ic=False, adj_ic=False)
+        self._dtype = dtype
         self._P = P
-        self._P_T = P_T
+        self._P_H = P.conjugate().T
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -296,12 +309,12 @@ class PointInterpolationSolver(Equation):
         y = (self.dependencies() if deps is None else deps)[-1]
 
         y_v = function_get_values(y)
-        x_v_local = np.full(len(X), np.NAN, dtype=backend_ScalarType)
+        x_v_local = np.full(len(X), np.NAN, dtype=self._dtype)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = function_comm(y)
-        x_v = np.full(len(X), np.NAN, dtype=backend_ScalarType)
+        x_v = np.full(len(X), np.NAN, dtype=self._dtype)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):
@@ -310,15 +323,18 @@ class PointInterpolationSolver(Equation):
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_function(adj_X):
             adj_X = (adj_X,)
+        for adj_x in adj_X:
+            if function_dtype(adj_x) != self._dtype:
+                raise EquationException("Invalid dtype")
 
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
+            adj_x_v = np.full(len(adj_X), np.NAN, dtype=self._dtype)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
             F = function_new(self.dependencies()[-1])
-            function_set_values(F, self._P_T.dot(adj_x_v))
+            function_set_values(F, self._P_H.dot(adj_x_v))
             return (-1.0, F)
         else:
             raise EquationException("dep_index out of bounds")
@@ -335,4 +351,4 @@ class PointInterpolationSolver(Equation):
             return NullSolver([tlm_map[x] for x in X])
         else:
             return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
-                                            P=self._P, P_T=self._P_T)
+                                            P=self._P)

@@ -20,8 +20,8 @@
 
 from .backend import FunctionSpace, Parameters, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_LinearSolver, \
-    backend_Matrix, backend_ScalarType, backend_assemble, backend_solve, \
-    extract_args, homogenize, parameters
+    backend_Matrix, backend_assemble, backend_solve, extract_args, \
+    homogenize, parameters
 from ..interface import InterfaceException, function_axpy, function_copy, \
     function_id
 
@@ -382,7 +382,7 @@ def matrix_copy(A):
 
     options_prefix = A.petscmat.getOptionsPrefix()
     A_copy = backend_Matrix(A.a, A.bcs, A.mat_type,
-                            A.M.sparsity, backend_ScalarType,
+                            A.M.sparsity, A.M.dtype,
                             options_prefix=options_prefix)
 
     assert A.petscmat.assembled

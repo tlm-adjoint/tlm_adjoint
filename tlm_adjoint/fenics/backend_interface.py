@@ -74,7 +74,8 @@ def _Constant__init__(self, *args, domain=None, space=None,
                       {"comm": comm, "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "state": 0, "space": space,
+                  {"id": new_function_id(), "state": 0,
+                   "space": space, "dtype": backend_ScalarType,
                    "static": False, "cache": False, "checkpoint": True})
 
 
@@ -242,8 +243,6 @@ class FunctionInterface(_FunctionInterface):
     def _get_values(self):
         values = self.vector().get_local().view()
         values.setflags(write=False)
-        if not np.can_cast(values, backend_ScalarType):
-            raise InterfaceException("Invalid dtype")
         return values
 
     def _set_values(self, values):

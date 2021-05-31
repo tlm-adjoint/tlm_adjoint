@@ -19,13 +19,12 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import TestFunction, TrialFunction, adjoint, \
-    backend_DirichletBC, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType, parameters
-from ..interface import function_assign, function_comm, function_get_values, \
-    function_id, function_is_scalar, function_local_size, function_new, \
-    function_replacement, function_scalar_value, function_set_values, \
-    function_space, function_update_caches, function_update_state, \
-    function_zero, is_function
+    backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
+from ..interface import function_assign, function_comm, function_dtype, \
+    function_get_values, function_id, function_is_scalar, \
+    function_local_size, function_new, function_replacement, \
+    function_scalar_value, function_set_values, function_space, \
+    function_update_caches, function_update_state, function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -199,13 +198,15 @@ class AssembleSolver(Equation):
 
         dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         if self._rank == 0:
+            dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
+                           for integral in dF.integrals()])  # dF = adjoint(dF)
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-function_scalar_value(adj_x), dF)
         else:
             assert self._rank == 1
             dF = assemble(
-                ufl.action(adjoint(dF), adj_x),
+                ufl.action(adjoint(dF), coefficient=adj_x),
                 form_compiler_parameters=self._form_compiler_parameters)
             return (-1.0, dF)
 
@@ -859,8 +860,9 @@ def evaluate_expr_function(fn):
 
 evaluate_expr_types = \
     {
-        ufl.classes.FloatValue: (lambda x: backend_ScalarType(x)),
-        ufl.classes.IntValue: (lambda x: backend_ScalarType(x)),
+        ufl.classes.ComplexValue: (lambda x: complex(x)),
+        ufl.classes.FloatValue: (lambda x: float(x)),
+        ufl.classes.IntValue: (lambda x: float(x)),
         ufl.classes.Zero: (lambda x: 0.0),
     }
 
@@ -877,6 +879,7 @@ for ufl_name, numpy_name in [("Abs", "abs"),
                              ("Asin", "arcsin"),
                              ("Atan", "arctan"),
                              ("Atan2", "arctan2"),
+                             ("Conj", "conjugate"),
                              ("Cos", "cos"),
                              ("Cosh", "cosh"),
                              ("Exp", "exp"),
@@ -938,10 +941,12 @@ class ExprEvaluationSolver(Equation):
             rhs = ufl.replace(self._rhs,
                               dict(zip(self.dependencies(), deps)))
         rhs_val = evaluate_expr(rhs)
-        if isinstance(rhs_val, (int, np.integer, float, np.floating)):
-            function_set_values(x, np.full(function_local_size(x),
-                                           backend_ScalarType(rhs_val),
-                                           dtype=backend_ScalarType))
+        if isinstance(rhs_val, (int, np.integer,
+                                float, np.floating,
+                                complex, np.complexfloating)):
+            dtype = function_dtype(x)
+            function_set_values(
+                x, np.full(function_local_size(x), dtype(rhs_val), dtype=dtype))  # noqa: E501
         else:
             assert function_local_size(x) == len(rhs_val)
             function_set_values(x, rhs_val)
@@ -954,20 +959,23 @@ class ExprEvaluationSolver(Equation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        dF = derivative(self._rhs, dep, argument=adj_x)
+        dF = ufl.conj(derivative(self._rhs, dep, argument=ufl.conj(adj_x)))
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = ufl.replace(
             dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
-        if isinstance(dF_val, (int, np.integer, float, np.floating)):
-            function_set_values(F, np.full(function_local_size(F),
-                                           backend_ScalarType(dF_val),
-                                           dtype=backend_ScalarType))
+        if isinstance(dF_val, (int, np.integer,
+                               float, np.floating,
+                               complex, np.complexfloating)):
+            dtype = function_dtype(F)
+            function_set_values(
+                F, np.full(function_local_size(F), dtype(dF_val), dtype=dtype))
         elif function_is_scalar(F):
-            dF_val_local = np.array([dF_val.sum()], dtype=backend_ScalarType)
-            dF_val = np.full((1,), np.NAN, dtype=backend_ScalarType)
+            dtype = function_dtype(F)
+            dF_val_local = np.array([dF_val.sum()], dtype=dtype)
+            dF_val = np.full((1,), np.NAN, dtype=dtype)
             comm = function_comm(F)
             comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
             dF_val = dF_val[0]
