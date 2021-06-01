@@ -25,9 +25,9 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_new_scalar_function, \
     add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_assign, function_caches, function_comm, function_dtype, \
-    function_is_scalar, function_new, function_scalar_value, new_function_id, \
-    new_space_id, space_id, space_new, subtract_adjoint_derivative_action
+    function_assign, function_comm, function_dtype, function_is_scalar, \
+    function_new, function_scalar_value, new_function_id, new_space_id, \
+    space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
 
@@ -147,14 +147,10 @@ class FunctionInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["checkpoint"]
 
     def _caches(self):
-        if not hasattr(self, "_tlm_adjoint__caches"):
-            self._tlm_adjoint__caches = Caches(self)
-        return self._tlm_adjoint__caches
-
-    def _update_caches(self, value=None):
-        if value is None:
-            value = self
-        function_caches(self).update(value)
+        if "caches" not in self._tlm_adjoint__function_interface_attrs:
+            self._tlm_adjoint__function_interface_attrs["caches"] \
+                = Caches(self)
+        return self._tlm_adjoint__function_interface_attrs["caches"]
 
     def _zero(self):
         with self.dat.vec_wo as x_v:

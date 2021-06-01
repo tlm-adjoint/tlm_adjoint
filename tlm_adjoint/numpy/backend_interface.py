@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import backend
+from ..caches import Caches
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     add_new_scalar_function, function_new_tangent_linear, new_function_id, \
     new_space_id, space_id, space_new
@@ -126,8 +127,8 @@ class FunctionInterface(_FunctionInterface):
     def _is_checkpointed(self):
         return self.is_checkpointed()
 
-    def _update_caches(self, value=None):
-        pass
+    def _caches(self):
+        return self.caches()
 
     def _zero(self):
         self.vector()[:] = 0.0
@@ -240,6 +241,7 @@ class Function:
                 raise InterfaceException("Invalid shape")
             self._data = _data
         add_interface(self, FunctionInterface)
+        self._caches = Caches(self)
 
     def space(self):
         return self._space
@@ -267,6 +269,9 @@ class Function:
 
     def is_checkpointed(self):
         return self._checkpoint
+
+    def caches(self):
+        return self._caches
 
     def tangent_linear(self, name=None):
         warnings.warn("Function.tangent_linear is deprecated -- "
@@ -305,9 +310,8 @@ class ReplacementInterface(_FunctionInterface):
     def _is_checkpointed(self):
         return self.is_checkpointed()
 
-    def _update_caches(self, value=None):
-        if value is None:
-            raise InterfaceException("value required")
+    def _caches(self):
+        return self.caches()
 
     def _replacement(self):
         return self
@@ -324,6 +328,7 @@ class Replacement:
         self._static = x.is_static()
         self._cache = x.is_cached()
         self._checkpoint = x.is_checkpointed()
+        self._caches = x.caches()
         add_interface(self, ReplacementInterface)
 
     def space(self):
@@ -343,6 +348,9 @@ class Replacement:
 
     def is_checkpointed(self):
         return self._checkpoint
+
+    def caches(self):
+        return self._caches
 
 
 def _new_scalar_function(name=None, comm=None, static=False, cache=None,
