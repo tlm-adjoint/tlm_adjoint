@@ -24,7 +24,7 @@ from .interface import function_assign, function_axpy, function_copy, \
     function_name, function_new, function_set_values
 
 from .caches import clear_caches
-from .manager import manager as _manager, set_manager
+from .manager import manager as _manager, restore_manager, set_manager
 
 import logging
 import numpy as np
@@ -194,8 +194,8 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
                 function_set_values(dm,
                                     np.random.random(function_local_size(dm)))
 
+    @restore_manager
     def forward_tlm(dMs, *M):
-        old_manager = _manager()
         set_manager(tlm_manager)
         tlm_manager.reset()
         tlm_manager.stop()
@@ -207,8 +207,6 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
         J = forward(*M)
         for dM in dMs:
             J = J.tlm(M, dM, manager=tlm_manager)
-
-        set_manager(old_manager)
 
         return J
 
@@ -268,8 +266,8 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
         dM_test = dMs[-1]
         dMs = dMs[:-1]
 
+    @restore_manager
     def forward_tlm(*M, annotation=False):
-        old_manager = _manager()
         set_manager(tlm_manager)
         tlm_manager.reset()
         tlm_manager.stop()
@@ -281,8 +279,6 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
         J = forward(*M)
         for dM in dMs:
             J = J.tlm(M, dM, manager=tlm_manager)
-
-        set_manager(old_manager)
 
         return J
 
