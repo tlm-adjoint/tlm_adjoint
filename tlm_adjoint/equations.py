@@ -492,8 +492,10 @@ class Equation(Referrer):
         self._pre_process(manager=manager, annotate=annotate)
 
         annotation_enabled, tlm_enabled = manager.stop()
-        self.forward(self.X())
-        manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
+        try:
+            self.forward(self.X())
+        finally:
+            manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
 
         self._post_process(manager=manager, annotate=annotate, tlm=tlm,
                            tlm_skip=_tlm_skip)

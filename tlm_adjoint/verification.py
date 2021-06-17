@@ -123,8 +123,10 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             function_axpy(m1, eps[i], dm)
         clear_caches()
         annotation_enabled, tlm_enabled = manager.stop()
-        J_vals[i] = forward(*M1).value()
-        manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
+        try:
+            J_vals[i] = forward(*M1).value()
+        finally:
+            manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
     if abs(J_vals.imag).max() == 0.0:
         J_vals = J_vals.real
 
