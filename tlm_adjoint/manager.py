@@ -21,6 +21,7 @@
 __all__ = \
     [
         "manager",
+        "restore_manager",
         "set_manager"
     ]
 
@@ -33,3 +34,13 @@ def manager():
 
 def set_manager(manager):
     _manager[0] = manager
+
+
+def restore_manager(fn):
+    def wrapped_fn(*args, **kwargs):
+        old_manager = manager()
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            set_manager(old_manager)
+    return wrapped_fn

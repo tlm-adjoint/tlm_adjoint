@@ -23,7 +23,7 @@ from .interface import function_copy, function_get_values, \
     function_name
 
 from .caches import clear_caches
-from .manager import manager as _manager, set_manager
+from .manager import manager as _manager, restore_manager, set_manager
 
 __all__ = \
     [
@@ -56,6 +56,7 @@ class Hessian:
         self._forward = forward
         self._manager = manager
 
+    @restore_manager
     def compute_gradient(self, M):
         """
         Evaluate a derivative. Re-evaluates the forward. Returns a tuple
@@ -74,7 +75,6 @@ class Hessian:
             J, (dJ,) = self.compute_gradient((M,))
             return J, dJ
 
-        old_manager = _manager()
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
@@ -92,9 +92,9 @@ class Hessian:
         J_val = J.value()
         dJ = self._manager.compute_gradient(J, M)
 
-        set_manager(old_manager)
         return J_val, dJ
 
+    @restore_manager
     def action(self, M, dM):
         """
         Evaluate a Hessian action. Re-evaluates the forward. Returns a tuple
@@ -118,7 +118,6 @@ class Hessian:
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
-        old_manager = _manager()
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
@@ -139,7 +138,6 @@ class Hessian:
         dJ_val = dJ.value()
         ddJ = self._manager.compute_gradient(dJ, M)
 
-        set_manager(old_manager)
         return J_val, dJ_val, ddJ
 
     def action_fn(self, m):

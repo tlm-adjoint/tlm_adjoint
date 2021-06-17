@@ -24,7 +24,7 @@ from .interface import function_axpy, function_copy, function_get_values, \
     function_set_values
 
 from .caches import clear_caches
-from .manager import manager as _manager, set_manager
+from .manager import manager as _manager, restore_manager, set_manager
 
 import numpy as np
 
@@ -116,6 +116,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     J = [J0]
     J_M = [tuple(function_copy(m0) for m0 in M0), M0]
 
+    @restore_manager
     def fun(x, force=False):
         set(M, x)
         clear_caches(*M)
@@ -134,7 +135,6 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         J_M[0] = tuple(function_copy(m) for m in M)
 
-        old_manager = _manager()
         set_manager(manager)
         manager.reset()
         manager.stop()
@@ -143,8 +143,6 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         manager.start()
         J[0] = forward(*M)
         manager.stop()
-
-        set_manager(old_manager)
 
         J_M[1] = M
 
