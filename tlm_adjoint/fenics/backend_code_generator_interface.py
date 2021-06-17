@@ -30,7 +30,7 @@ from ..interface import InterfaceException
 
 from .functions import eliminate_zeros
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 import copy
 import ffc
 import numpy as np
@@ -338,7 +338,7 @@ def parameters_key(parameters):
         sub_parameters = parameters[name]
         if isinstance(sub_parameters, (Parameters, dict)):
             key.append((name, parameters_key(sub_parameters)))
-        elif isinstance(sub_parameters, list):
+        elif isinstance(sub_parameters, Sequence):
             key.append((name, tuple(sub_parameters)))
         else:
             key.append((name, sub_parameters))
