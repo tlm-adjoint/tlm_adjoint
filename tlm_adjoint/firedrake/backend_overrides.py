@@ -28,7 +28,7 @@ from ..interface import InterfaceException, function_new, \
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
-from ..tlm_adjoint import annotation_enabled, tlm_enabled
+from ..manager import annotation_enabled, tlm_enabled
 
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
