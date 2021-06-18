@@ -1947,25 +1947,25 @@ with arguments
 \begin{itemize}
   \item \texttt{forward}, a callable, which takes as input one or more
     functions defining the control, and returns the functional.
-  \item \texttt{M}, a function, or a list or tuple of functions, defining the
+  \item \texttt{M}, a function, or a sequence of functions, defining the
     control.
   \item \texttt{J\_val}, a float, defining the value of the functional at the
     unperturbed reference value for the control.
-  \item \texttt{dJ}, a function, or a list or tuple of functions, defining the
-    value of the forward model constrained derivative. Required if \texttt{ddJ}
-    is not supplied.
+  \item \texttt{dJ}, a function, or a sequence of functions, defining the value
+    of the forward model constrained derivative. Required if \texttt{ddJ} is
+    not supplied.
   \item \texttt{ddJ}, a \texttt{Hessian}, used for second order adjoint
     verification.
   \item \texttt{seed}, a \texttt{float}, controlling the magnitude of control
     perturbations.
-  \item \texttt{dM}, a function, or a list or tuple of functions, defining the
+  \item \texttt{dM}, a function, or a sequence of functions, defining the
     direction of control perturbations. If not supplied then a perturbation
     direction whose degrees of freedom are uniform random values in $\left[ 0,
     1 \right)$ (generated using the NumPy \texttt{numpy.random.random}
     function) is used.
-  \item \texttt{M0}, a function, or a list or tuple of functions, defining the
-    value of the unperturbed reference value for the control. Extracted from
-    internal storage associated with the first block of the model (see section
+  \item \texttt{M0}, a function, or a sequence of functions, defining the value
+    of the unperturbed reference value for the control. Extracted from internal
+    storage associated with the first block of the model (see section
     \ref{sect:blocks}) if not supplied.
   \item \texttt{size}, an integer, the number of control perturbations.
     Perturbations whose degrees of freedom are $\alpha 2^{-p}$ times
@@ -2044,11 +2044,11 @@ with arguments
 \begin{itemize}
   \item \texttt{tlm\_order}, a positive integer, the order of tangent-linear
     model to test.
-  \item \texttt{dMs}, a function, or a tuple containing functions (or further
-    such tuples), defining the tangent-linear directions (in \texttt{dMs[:-1]}
-    if \texttt{dMs} is a tuple) and perturbation direction (\texttt{dMs} if
-    \texttt{dMs} is a function, or \texttt{dMs[-1]} if \texttt{dMs} is a
-    tuple).
+  \item \texttt{dMs}, a function, or a sequence containing functions (or
+    further such sequences), defining the tangent-linear directions (in
+    \texttt{dMs[:-1]} if \texttt{dMs} is a sequence) and perturbation direction
+    (\texttt{dMs} if \texttt{dMs} is a function, or \texttt{dMs[-1]} if
+    \texttt{dMs} is a sequence).
   \item \texttt{manager}, defaulting to the currently active equation manager.
     A new equation manager is generated using the \texttt{manager.new} method.
 \end{itemize}

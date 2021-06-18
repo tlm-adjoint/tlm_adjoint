@@ -26,6 +26,7 @@ from .interface import function_assign, function_axpy, function_copy, \
 from .caches import clear_caches
 from .manager import manager as _manager, restore_manager, set_manager
 
+from collections.abc import Sequence
 import logging
 import numpy as np
 
@@ -58,10 +59,9 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     forward  A callable which takes as input one or more functions defining the
              value of the control, and returns the Functional.
-    M        A function, or a list or tuple of functions. The control
-             parameters.
+    M        A function, or a sequence of functions. The control parameters.
     J_val    The reference functional value.
-    dJ       (Optional if ddJ is supplied) A function, or a list or tuple of
+    dJ       (Optional if ddJ is supplied) A function, or a sequence of
              functions, storing the derivative of J with respect to M.
     ddJ      (Optional) A Hessian used to compute Hessian actions associated
              with the second derivative of J with respect to M.
@@ -75,7 +75,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     manager  (Optional) The equation manager.
     """
 
-    if not isinstance(M, (list, tuple)):
+    if not isinstance(M, Sequence):
         if dJ is not None:
             dJ = [dJ]
         if dM is not None:
@@ -159,7 +159,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
 def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
                     manager=None):
-    if not isinstance(M, (list, tuple)):
+    if not isinstance(M, Sequence):
         if dMs is not None:
             dMs = tuple((dM,) for dM in dMs)
         return taylor_test_tlm(forward, [M], tlm_order, seed=seed, dMs=dMs,
@@ -239,7 +239,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
 
 def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
                             size=5, manager=None):
-    if not isinstance(M, (list, tuple)):
+    if not isinstance(M, Sequence):
         if dMs is not None:
             dMs = tuple((dM,) for dM in dMs)
         return taylor_test_tlm_adjoint(
