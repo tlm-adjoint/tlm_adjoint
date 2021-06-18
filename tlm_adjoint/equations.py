@@ -259,20 +259,20 @@ class Equation(Referrer):
 
         Arguments:
 
-        X        A function, or a list or tuple of functions. The solution to
-                 the equation.
-        deps     A list or tuple of dependencies, which must include the
-                 solution itself.
-        nl_deps  (Optional) A list or tuple of non-linear dependencies. Must be
-                 a subset of deps. Defaults to deps.
-        ic_deps  (Optional) A list or tuple of dependencies whose initial value
+        X        A function, or a sequence of functions. The solution to the
+                 equation.
+        deps     A sequence of dependencies, which must include the solution
+                 itself.
+        nl_deps  (Optional) A sequence of non-linear dependencies. Must be a
+                 subset of deps. Defaults to deps.
+        ic_deps  (Optional) A sequence of dependencies whose initial value
                  should be available prior to solving the forward equation.
                  Must be a subset of X.
         ic       (Optional) If true then ic_deps is set equal to X. Defaults to
                  true if ic_deps is None, and false otherwise.
-        adj_ic_deps  (Optional) A list or tuple of dependencies whose adjoint
-                     value should be available prior to solving the adjoint
-                     equation. Must be a subset of X.
+        adj_ic_deps  (Optional) A sequence of dependencies whose adjoint value
+                     should be available prior to solving the adjoint equation.
+                     Must be a subset of X.
         adj_ic       (Optional) If true then adj_ic_deps is set equal to X.
                      Defaults to true if adj_ic_deps is None, and false
                      otherwise.
@@ -506,9 +506,9 @@ class Equation(Referrer):
 
         Arguments:
 
-        X     A list or tuple of functions. The solution, which should be set
-              by this method.
-        deps  (Optional) A list or tuple of functions defining the values of
+        X     A sequence of functions. The solution, which should be set by
+              this method.
+        deps  (Optional) A sequence of functions defining the values of
               dependencies.
         """
 
@@ -528,7 +528,7 @@ class Equation(Referrer):
         Arguments:
 
         x/X   The solution, which should be set by this method.
-        deps  (Optional) A list or tuple of functions defining the values of
+        deps  (Optional) A sequence of functions defining the values of
               dependencies. self.dependencies() should be used if this is not
               supplied.
         """
@@ -543,14 +543,13 @@ class Equation(Referrer):
         Arguments:
 
         J          Adjoint model functional.
-        adj_X      A list or tuple of functions defining the initial guess for
-                   the adjoint solve, or None if the Equation does not accept
-                   an initial guess. May be modified or returned by this
-                   method.
-        nl_deps    A list or tuple of functions defining the values of
-                   non-linear dependencies.
-        B          A list or tuple of functions defining the right-hand-side.
-                   May be modified or returned by this method.
+        adj_X      A sequence of functions defining the initial guess for the
+                   adjoint solve, or None if the Equation does not accept an
+                   initial guess. May be modified or returned by this method.
+        nl_deps    A sequence of functions defining the values of non-linear
+                   dependencies.
+        B          A sequence of functions defining the right-hand-side. May be
+                   modified or returned by this method.
         dep_Bs     Dictionary of dep_index: dep_B pairs, where each dep_B is an
                    AdjointRHS which should be updated by subtracting derivative
                    information computed by differentiating with respect to
@@ -594,8 +593,8 @@ class Equation(Referrer):
 
         Arguments:
 
-        nl_deps      A list or tuple of functions defining the values of
-                     non-linear dependencies.
+        nl_deps      A sequence of functions defining the values of non-linear
+                     dependencies.
         dep_index    The index of the dependency in self.dependencies() with
                      respect to which a derivative should be taken.
         adj_x/adj_X  The direction of the adjoint derivative action.
@@ -617,8 +616,8 @@ class Equation(Referrer):
         Arguments:
 
         adj_x/adj_X  The direction of the adjoint derivative actions.
-        nl_deps      A list or tuple of functions defining the values of
-                     non-linear dependencies.
+        nl_deps      A sequence of functions defining the values of non-linear
+                     dependencies.
         dep_Bs       Dictionary of dep_index: dep_B pairs, where each dep_B is
                      an AdjointRHS which should be updated by subtracting
                      derivative information computed by differentiating with
@@ -643,7 +642,7 @@ class Equation(Referrer):
         adj_x/adj_X    Initial guess for the adjoint solve, or None if the
                        Equation does not accept an initial guess. May be
                        modified or returned by this method.
-        nl_deps        A list or tuple of functions defining the values of
+        nl_deps        A sequence of functions defining the values of
                        non-linear dependencies.
         b/B            The right-hand-side. May be modified or returned by this
                        method.
@@ -659,8 +658,8 @@ class Equation(Referrer):
 
         Arguments:
 
-        M        A list or tuple of functions defining the control.
-        dM       A list or tuple of functions defining the direction.
+        M        A sequence of functions defining the control.
+        dM       A sequence of functions defining the direction.
         tlm_map  The TangentLinearMap.
         """
 
@@ -674,8 +673,7 @@ class ControlsMarker(Equation):
 
         Arguments:
 
-        M  A function, or a list or tuple of functions. May be
-           non-checkpointed.
+        M  A function, or a sequence of functions. May be non-checkpointed.
         """
 
         if is_function(M):
@@ -840,8 +838,8 @@ class FixedPointSolver(Equation):
         Arguments:
 
         eqs
-            A list or tuple of Equation objects. A function cannot appear as
-            the solution to two or more equations.
+            A sequence of Equation objects. A function cannot appear as the
+            solution to two or more equations.
         solver_parameters
             Solver parameters dictionary. Parameters (based on KrylovSolver
             parameters in FEniCS 2017.2.0):
@@ -1614,8 +1612,8 @@ class Matrix(Referrer):
 
         Arguments:
 
-        nl_deps      A list or tuple of functions defining the values of
-                     non-linear dependencies.
+        nl_deps      A sequence of functions defining the values of non-linear
+                     dependencies.
         x/X          The argument of the matrix action.
         b/B          The result of the matrix action.
         method       (Optional) One of {"assign", "add", "sub"}.
@@ -1633,8 +1631,8 @@ class Matrix(Referrer):
 
         Arguments:
 
-        nl_deps      A list or tuple of functions defining the values of
-                     non-linear dependencies.
+        nl_deps      A sequence of functions defining the values of non-linear
+                     dependencies.
         adj_x/adj_X  The argument of the matrix action.
         b            The result of the matrix action.
         b_index      (Optional) The element of the matrix action B to compute.
@@ -1659,8 +1657,8 @@ class Matrix(Referrer):
 
         Arguments:
 
-        nl_deps      A list or tuple of functions defining the values of
-                     non-linear dependencies.
+        nl_deps      A sequence of functions defining the values of non-linear
+                     dependencies.
         nl_dep_index The index of the dependency in
                      self.nonlinear_dependencies() with respect to which a
                      derivative should be taken.

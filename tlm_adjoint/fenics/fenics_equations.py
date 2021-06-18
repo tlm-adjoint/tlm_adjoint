@@ -502,7 +502,7 @@ class PointInterpolationSolver(Equation):
         Arguments:
 
         y         A scalar-valued Function. The Function to be interpolated.
-        X         A scalar, or a list or tuple of scalars. The solution to the
+        X         A scalar, or a sequence of scalars. The solution to the
                   equation.
         X_coords  A NumPy matrix. Points at which to interpolate y.
                   Ignored if P is supplied, required otherwise.
@@ -522,8 +522,8 @@ class PointInterpolationSolver(Equation):
             X = (X,)
         for x in X:
             if not function_is_scalar(x):
-                raise EquationException("Solution must be a scalar, or a list "
-                                        "or tuple of scalars")
+                raise EquationException("Solution must be a scalar, or a "
+                                        "sequence of scalars")
         if X_coords is None:
             if P is None:
                 raise EquationException("X_coords required when P is not supplied")  # noqa: E501

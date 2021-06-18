@@ -25,6 +25,8 @@ from .interface import function_copy, function_get_values, \
 from .caches import clear_caches
 from .manager import manager as _manager, restore_manager, set_manager
 
+from collections.abc import Sequence
+
 __all__ = \
     [
         "Hessian",
@@ -67,11 +69,11 @@ class Hessian:
 
         Arguments:
 
-        M   A function, or a list or tuple of functions, defining the control
+        M   A function, or a sequence of functions, defining the control
             parameters.
         """
 
-        if not isinstance(M, (list, tuple)):
+        if not isinstance(M, Sequence):
             J, (dJ,) = self.compute_gradient((M,))
             return J, dJ
 
@@ -108,13 +110,13 @@ class Hessian:
 
         Arguments:
 
-        M   A function, or a list or tuple of functions, defining the control
+        M   A function, or a sequence of functions, defining the control
             parameters.
-        dM  A function, or list or tuple or functions, defining the Hessian
-            action direction.
+        dM  A function, or a sequence or functions, defining the Hessian action
+            direction.
         """
 
-        if not isinstance(M, (list, tuple)):
+        if not isinstance(M, Sequence):
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 

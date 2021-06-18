@@ -26,6 +26,7 @@ from .interface import function_axpy, function_copy, function_get_values, \
 from .caches import clear_caches
 from .manager import manager as _manager, restore_manager, set_manager
 
+from collections.abc import Sequence
 import numpy as np
 
 __all__ = \
@@ -48,8 +49,8 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
     forward  A callable which takes as input the control and returns the
              Functional to be minimized.
-    M0       A function, or a list or tuple of functions. Control parameters
-             initial guess.
+    M0       A function, or a sequence of functions. Control parameters initial
+             guess.
     J0       (Optional) Initial functional. If supplied assumes that the
              forward has already been run, and processed by the equation
              manager, using the control parameters given by M0.
@@ -64,7 +65,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     is the return value of scipy.optimize.minimize.
     """
 
-    if not isinstance(M0, (list, tuple)):
+    if not isinstance(M0, Sequence):
         (M,), return_value = minimize_scipy(forward, [M0], J0=J0,
                                             manager=manager, **kwargs)
         return M, return_value

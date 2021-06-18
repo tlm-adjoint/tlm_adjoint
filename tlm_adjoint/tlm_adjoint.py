@@ -32,6 +32,7 @@ from .functional import Functional
 from .manager import manager as _manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
+from collections.abc import Sequence
 import copy
 import gc
 import logging
@@ -1499,26 +1500,25 @@ class EquationManager:
 
         Arguments:
 
-        Js        A Functional or function, or a list or tuple of these,
-                  defining the functionals.
-        M         A function, or a list or tuple of functions, defining the
-                  control parameters.
+        Js        A Functional or function, or a sequence of these, defining
+                  the functionals.
+        M         A function, or a sequence of functions, defining the control
+                  parameters.
         callback  (Optional) Callable of the form
                       def callback(J_i, n, i, eq, adj_X):
-                  where adj_X is None, a function, or a list or tuple of
-                  functions, corresponding to the adjoint solution for the
-                  equation eq, which is equation i in block n for the J_i th
-                  Functional.
+                  where adj_X is None, a function, or a sequence of functions,
+                  corresponding to the adjoint solution for the equation eq,
+                  which is equation i in block n for the J_i th Functional.
         prune_forward  (Optional) Whether forward traversal graph pruning
                        should be applied.
         prune_adjoint  (Optional) Whether reverse traversal graph pruning
                        should be applied.
-        adj_ics   (Optional) Map, or a list of tuple of maps, from forward
-                  functions or function IDs to adjoint initial conditions.
+        adj_ics   (Optional) Map, or a sequence of maps, from forward functions
+                  or function IDs to adjoint initial conditions.
         """
 
-        if not isinstance(M, (list, tuple)):
-            if not isinstance(Js, (list, tuple)):
+        if not isinstance(M, Sequence):
+            if not isinstance(Js, Sequence):
                 if adj_ics is not None:
                     adj_ics = [adj_ics]
                 ((dJ,),) = self.compute_gradient([Js], [M], callback=callback,
@@ -1532,7 +1532,7 @@ class EquationManager:
                                             prune_adjoint=prune_adjoint,
                                             adj_ics=adj_ics)
                 return tuple(dJ for (dJ,) in dJs)
-        elif not isinstance(Js, (list, tuple)):
+        elif not isinstance(Js, Sequence):
             if adj_ics is not None:
                 adj_ics = [adj_ics]
             dJ, = self.compute_gradient([Js], M, callback=callback,

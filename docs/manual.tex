@@ -511,7 +511,7 @@ where \texttt{x} is the function being solved for, or
 \begin{lstlisting}
 eq = NullSolver(X)
 \end{lstlisting}
-where \texttt{X} is a list or tuple of functions being solved for.
+where \texttt{X} is a sequence of functions being solved for.
 
 The intended use of a \texttt{NullSolver} is in the definition of
 \texttt{tangent\_linear} methods of \texttt{Equation} classes (see section
@@ -580,7 +580,7 @@ def __init__(self, eqs, solver_parameters):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
-  \item \texttt{eqs}, a list or tuple of \texttt{Equation} objects. A function
+  \item \texttt{eqs}, a sequence of \texttt{Equation} objects. A function
     cannot appear as the solution to two or more equations.
   \item \texttt{solver\_parameters}, a dictionary, solver parameters (described
     below).
@@ -622,7 +622,7 @@ with constructor arguments
     the form ``bilinear form equals linear form'', and is assumed non-linear if
     \texttt{eq} is of the form ``linear form equals zero''.
   \item \texttt{x}, a \texttt{Function}, the solution to the equation.
-  \item \texttt{bcs}, a Dirichlet boundary condition, or a list or tuple of
+  \item \texttt{bcs}, a Dirichlet boundary condition, or a sequence of
     Dirichlet boundary conditions.
   \item \texttt{J}, a \texttt{ufl.classes.Form}, defining the Jacobian to be
     used in the solution of a non-linear forward equation. Used only if the
@@ -831,8 +831,8 @@ scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
 \begin{lstlisting}
 eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
-where \texttt{X} is a list or tuple of scalar being solved for (for example
-each as returned by the \texttt{new\_scalar\_function} function -- see section
+where \texttt{X} is a sequence of scalar being solved for (for example each as
+returned by the \texttt{new\_scalar\_function} function -- see section
 \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
 coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
 optional \texttt{tolerance} argument may be supplied, and this is passed to the
@@ -877,11 +877,10 @@ scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
 \begin{lstlisting}
 eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
-where \texttt{X} is a list or tuple of scalars being solved for (for
-example each as returned by the \texttt{new\_scalar\_function} function -- see
-section \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array
-defining the coordinates at which to interpolate the \texttt{Function}
-\texttt{y}.
+where \texttt{X} is a sequence of scalars being solved for (for example each as
+returned by the \texttt{new\_scalar\_function} function -- see section
+\ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
+coordinates at which to interpolate the \texttt{Function} \texttt{y}.
 
 \subsubsection{\texttt{LocalProjectionSolver}}
 
@@ -949,18 +948,18 @@ def __init__(self, x, deps, nl_deps=None,
 with constructor arguments
 \begin{itemize}
   \item \texttt{x}, a function, defining the solution to the equation.
-  \item \texttt{deps}, a list or tuple of functions, defining the union of the
+  \item \texttt{deps}, a sequence of functions, defining the union of the
     symbolic and non-symbolic dependencies. Must include the solution to the
     equation.
-  \item \texttt{nl\_deps}, a list or tuple of functions, defining the
-    non-linear dependencies. If not supplied then set equal to \texttt{deps}.
-  \item \texttt{ic\_deps}, a list or tuple of functions, defining the initial
+  \item \texttt{nl\_deps}, a sequence of functions, defining the non-linear
+    dependencies. If not supplied then set equal to \texttt{deps}.
+  \item \texttt{ic\_deps}, a sequence of functions, defining the initial
     condition dependencies. Can contain only dependencies which are solutions
     to the equation.
   \item \texttt{ic}, if true sets \texttt{ic\_deps} to be the solution to the
     equation. Defaults to true if \texttt{ic\_deps} is \texttt{None}, and false
     otherwise.
-  \item \texttt{adj\_ic\_deps}, a list or tuple of functions, defining adjoint
+  \item \texttt{adj\_ic\_deps}, a sequence of functions, defining adjoint
     initial condition dependencies. Can contain only dependencies which are
     solutions to the equation.
   \item \texttt{adj\_ic}, if true sets \texttt{adj\_ic\_deps} to be the
@@ -988,7 +987,7 @@ with arguments
   \item \texttt{x}, a function, whose value should be set equal to the solution
     to the equation. If \texttt{deps} is supplied then \texttt{x} is contained
     in \texttt{deps}.
-  \item \texttt{deps}, a list or tuple of functions containing values for the
+  \item \texttt{deps}, a sequence of functions containing values for the
     dependencies defined by \texttt{self.dependencies()}. If not supplied then
     the values contained in \texttt{self.dependencies()} should be used. If
     supplied, only the entry corresponding to \texttt{x} may be modified.
@@ -1019,8 +1018,8 @@ def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
 \end{lstlisting}
 with arguments
 \begin{itemize}
-  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
-    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+  \item \texttt{nl\_deps}, a sequence of functions containing values for the
+    dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
     dependencies must not be modified.
   \item \texttt{dep\_index}, an integer, defining the dependency with respect
     to which as derivative should be taken. The dependency is defined by
@@ -1071,8 +1070,8 @@ with arguments
   \item \texttt{adj\_x}, an initial guess for the adjoint solve, or
     \texttt{None} if the \texttt{Equation} does not accept an initial guess.
     May be modified or returned.
-  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
-    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+  \item \texttt{nl\_deps}, a sequence of functions containing values for the
+    dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
     dependencies must not be modified.
   \item \texttt{b}, a function, defining the right-hand-side of the linear
     system ($b$ above). May be modified or returned.
@@ -1133,10 +1132,9 @@ def tangent_linear(self, M, dM, tlm_map):
 \end{lstlisting}
 with arguments
 \begin{itemize}
-  \item \texttt{M}, a list or tuple of functions, defining the
-    control ($m$ above).
-  \item \texttt{dM}, a list or tuple of functions, defining the direction
-    ($\zeta$ above).
+  \item \texttt{M}, a sequence of functions, defining the control ($m$ above).
+  \item \texttt{dM}, a sequence of functions, defining the direction ($\zeta$
+    above).
   \item \texttt{tlm\_map}, a \texttt{TangentLinearMap}, allowing tangent-linear
     variables to be accessed.
 \end{itemize}
@@ -1161,8 +1159,8 @@ previously been called prior to a call to the \texttt{tangent\_linear} method.
 An \texttt{Equation} may solve for two or more functions. In this case the
 arguments \texttt{x}, \texttt{adj\_x}, and \texttt{b} in the above should be
 capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
-list or tuple of functions. The return value of
-\texttt{adjoint\_jacobian\_solve} should also be a list or tuple of functions.
+sequence of functions. The return value of \texttt{adjoint\_jacobian\_solve}
+should also be a sequence of functions.
 
 \subsection{Dropping references}\label{sect:drop_references}
 
@@ -1191,9 +1189,9 @@ def __init__(self, B, X, A=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
-  \item \texttt{B}, a \texttt{RHS}, or a list or tuple of \texttt{RHS} objects,
+  \item \texttt{B}, a \texttt{RHS}, or a sequence of \texttt{RHS} objects,
     defining the $b_i$.
-  \item \texttt{X}, a function, or a list or tuple of functions, defining $x$.
+  \item \texttt{X}, a function, or a sequence of functions, defining $x$.
   \item \texttt{A}, a \texttt{Matrix}. If not provided $A$ is an identity
     matrix.
 \end{itemize}
@@ -1212,8 +1210,8 @@ def __init__(self, nl_deps=[], ic=True, adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
-  \item \texttt{nl\_deps}, a list or tuple of functions, defining the
-    dependencies of the matrix.
+  \item \texttt{nl\_deps}, a sequence of functions, defining the dependencies
+    of the matrix.
   \item \texttt{ic}. If true then in solving a linear equation involving the
     matrix the solution variable is an initial condition dependency of the
     equation.
@@ -1231,8 +1229,8 @@ def forward_action(self, nl_deps, x, b, method="assign"):
 \end{lstlisting}
 with arguments
 \begin{itemize}
-  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
-    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+  \item \texttt{nl\_deps}, a sequence of functions containing values for the
+    dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
     dependencies must not be modified.
   \item \texttt{x}, a function, defining $x$. Must not be modified.
   \item \texttt{b}, a function, defining the result of the matrix action. Set
@@ -1334,8 +1332,8 @@ def tangent_linear_rhs(self, M, dM, tlm_map, x):
 \end{lstlisting}
 with arguments
 \begin{itemize}
-  \item \texttt{M}, a list or tuple of functions, defining the control.
-  \item \texttt{dM}, a list or tuple of functions, defining the direction.
+  \item \texttt{M}, a sequence of functions, defining the control.
+  \item \texttt{dM}, a sequence of functions, defining the direction.
   \item \texttt{tlm\_map}, a \texttt{TangentLinearMap}, allowing tangent-linear
     variables to be accessed.
   \item \texttt{x}, a function.
@@ -1343,7 +1341,7 @@ with arguments
 This method should return tangent-linear terms associated with a forward term
 of the form $A x$, where the \texttt{Matrix} defines $A$ and the argument
 \texttt{x} defines $x$. This method may return \texttt{None} (if there are no
-terms), a \texttt{RHS}, or a list or tuple of \texttt{RHS} objects.
+terms), a \texttt{RHS}, or a sequence of \texttt{RHS} objects.
 
 \subsubsection{Matrices acting on multiple functions}\label{sect:Matrix_multiple}
 
@@ -1368,11 +1366,11 @@ def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
 \begin{lstlisting}
 def tangent_linear_rhs(self, M, dM, tlm_map, X):
 \end{lstlisting}
-where \texttt{X}, \texttt{adj\_X}, and \texttt{B} are now each a list or tuple
+where \texttt{X}, \texttt{adj\_X}, and \texttt{B} are now each a sequence of
 functions (except in the case of \texttt{adjoint\_solve}, where \texttt{adj\_X}
 may be \texttt{None} if no adjoint initial guess is provided). The return value
-of \texttt{forward\_solve} and \texttt{adjoint\_solve} should also be list or
-tuple of functions. The \texttt{b} argument of \texttt{adjoint\_action} is
+of \texttt{forward\_solve} and \texttt{adjoint\_solve} should also be a
+sequence of functions. The \texttt{b} argument of \texttt{adjoint\_action} is
 equal to \texttt{B[b\_index]}.
 
 \subsubsection{Dropping references}
@@ -1400,11 +1398,11 @@ def __init__(self, deps, nl_deps=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
-  \item \texttt{deps}, a list or tuple of functions, defining the union of the
+  \item \texttt{deps}, a sequence of functions, defining the union of the
     symbolic and non-symbolic dependencies of the right-hand-side.
-  \item \texttt{nl\_deps}, a list or tuple of functions, defining the
-    non-linear dependencies of the right-hand-side. If not supplied then set
-    equal to \texttt{deps}.
+  \item \texttt{nl\_deps}, a sequence of functions, defining the non-linear
+    dependencies of the right-hand-side. If not supplied then set equal to
+    \texttt{deps}.
 \end{itemize}
 
 \subsubsection{Forward}
@@ -1418,7 +1416,7 @@ with arguments
 \begin{itemize}
   \item \texttt{b}, a function. The function to which the right-hand-side
     should be added. Should be modified by this method.
-  \item \texttt{deps}, a list or tuple of functions containing values for the
+  \item \texttt{deps}, a sequence of functions containing values for the
     dependencies defined by \texttt{self.dependencies()}. The dependencies must
     not be modified.
 \end{itemize}
@@ -1433,8 +1431,8 @@ def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
 \end{lstlisting}
 with arguments
 \begin{itemize}
-  \item \texttt{nl\_deps}, a list or tuple of functions containing values for
-    the dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
+  \item \texttt{nl\_deps}, a sequence of functions containing values for the
+    dependencies defined by \texttt{self.nonlinear\_dependencies()}. The
     dependencies must not be modified.
   \item \texttt{dep\_index}, an integer, defining the dependency with respect
     to which as derivative should be taken. The dependency is defined by
@@ -1453,8 +1451,8 @@ right-hand-side terms. The \texttt{tangent\_linear\_rhs} method has the form
 def tangent_linear_rhs(self, M, dM, tlm_map):
 \end{lstlisting}
 with arguments as in the \texttt{Equation.tangent\_linear} method. This method
-may return \texttt{None} (if there are no terms), a \texttt{RHS}, or a list or
-tuple of \texttt{RHS} objects.
+may return \texttt{None} (if there are no terms), a \texttt{RHS}, or a sequence
+of \texttt{RHS} objects.
 
 \subsubsection{Multiple functions}
 
@@ -1466,7 +1464,7 @@ def add_forward(self, B, deps):
 \begin{lstlisting}
 def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
 \end{lstlisting}
-where \texttt{adj\_X} and \texttt{B} are now each a list or tuple of functions. 
+where \texttt{adj\_X} and \texttt{B} are now each a sequence of functions. 
 
 \subsubsection{Dropping references}
 
@@ -1579,13 +1577,12 @@ A \texttt{MatrixActionRHS} can be instantiated via
 b = MatrixActionRHS(A, Y)
 \end{lstlisting}
 where \texttt{A} is a \texttt{Matrix} defining the matrix $A$, and \texttt{Y}
-is a function, or a list or tuple of functions, defining $y$. A
+is a function, or a sequence of functions, defining $y$. A
 \texttt{MatrixActionSolver} can be instantiated via
 \begin{lstlisting}
 eq = MatrixActionSolver(Y, A, X)
 \end{lstlisting}
-where \texttt{X} is a function, or a list or tuple of functions, being solved
-for.
+where \texttt{X} is a function, or a sequence of functions, being solved for.
 
 \section{Custom storage}
 
@@ -1806,9 +1803,9 @@ add_tlm(m_0, zeta_0)
 \end{lstlisting}
 for a tangent-linear defined by differentiation with respect to the function
 \texttt{m\_0} in the direction defined by the function \texttt{zeta\_0}.
-\texttt{m\_0} and \texttt{zeta\_0} may more generally each be a list or tuple
-of functions, in which case the tangent-linear is defined by differentiation
-with respect to a function in the appropriate Cartesian product space of which
+\texttt{m\_0} and \texttt{zeta\_0} may more generally each be a sequence of
+functions, in which case the tangent-linear is defined by differentiation with
+respect to a function in the appropriate Cartesian product space of which
 \texttt{m\_0} is a member, in a direction defined by \texttt{zeta\_0}.
 
 \subsection{Higher order tangent-linear}
@@ -1895,19 +1892,19 @@ A first order derivative can subsequently be computed using the
 \begin{lstlisting}
 dJ = H.compute_gradient(m)
 \end{lstlisting}
-where \texttt{m} is a function or a list or tuple of functions defining the
-value of the control. The forward model is first rerun using the
-\texttt{forward} callable prior to the first order adjoint calculation.
+where \texttt{m} is a function or a sequence of functions defining the value of
+the control. The forward model is first rerun using the \texttt{forward}
+callable prior to the first order adjoint calculation.
 
 The action of the Hessian can be computed using the \texttt{Hessian.action}
 method
 \begin{lstlisting}
 J_val, dJ_val, ddJ = H.action(m, dm)
 \end{lstlisting}
-where \texttt{m} and \texttt{dm} are each a function or a list or tuple of
-functions defining the control and Hessian action direction. The forward model
-is first rerun using the \texttt{forward} callable prior to the second order
-adjoint calculation. This method returns the value of the functional, the first
+where \texttt{m} and \texttt{dm} are each a function or a sequence of functions
+defining the control and Hessian action direction. The forward model is first
+rerun using the \texttt{forward} callable prior to the second order adjoint
+calculation. This method returns the value of the functional, the first
 derivative of the functional in the direction defined by \texttt{dm}, and the
 action of the Hessian in the direction defined by \texttt{dm}.
 
@@ -1950,25 +1947,25 @@ with arguments
 \begin{itemize}
   \item \texttt{forward}, a callable, which takes as input one or more
     functions defining the control, and returns the functional.
-  \item \texttt{M}, a function, or a list or tuple of functions, defining the
+  \item \texttt{M}, a function, or a sequence of functions, defining the
     control.
   \item \texttt{J\_val}, a float, defining the value of the functional at the
     unperturbed reference value for the control.
-  \item \texttt{dJ}, a function, or a list or tuple of functions, defining the
-    value of the forward model constrained derivative. Required if \texttt{ddJ}
-    is not supplied.
+  \item \texttt{dJ}, a function, or a sequence of functions, defining the value
+    of the forward model constrained derivative. Required if \texttt{ddJ} is
+    not supplied.
   \item \texttt{ddJ}, a \texttt{Hessian}, used for second order adjoint
     verification.
   \item \texttt{seed}, a \texttt{float}, controlling the magnitude of control
     perturbations.
-  \item \texttt{dM}, a function, or a list or tuple of functions, defining the
+  \item \texttt{dM}, a function, or a sequence of functions, defining the
     direction of control perturbations. If not supplied then a perturbation
     direction whose degrees of freedom are uniform random values in $\left[ 0,
     1 \right)$ (generated using the NumPy \texttt{numpy.random.random}
     function) is used.
-  \item \texttt{M0}, a function, or a list or tuple of functions, defining the
-    value of the unperturbed reference value for the control. Extracted from
-    internal storage associated with the first block of the model (see section
+  \item \texttt{M0}, a function, or a sequence of functions, defining the value
+    of the unperturbed reference value for the control. Extracted from internal
+    storage associated with the first block of the model (see section
     \ref{sect:blocks}) if not supplied.
   \item \texttt{size}, an integer, the number of control perturbations.
     Perturbations whose degrees of freedom are $\alpha 2^{-p}$ times
@@ -2047,11 +2044,11 @@ with arguments
 \begin{itemize}
   \item \texttt{tlm\_order}, a positive integer, the order of tangent-linear
     model to test.
-  \item \texttt{dMs}, a function, or a tuple containing functions (or further
-    such tuples), defining the tangent-linear directions (in \texttt{dMs[:-1]}
-    if \texttt{dMs} is a tuple) and perturbation direction (\texttt{dMs} if
-    \texttt{dMs} is a function, or \texttt{dMs[-1]} if \texttt{dMs} is a
-    tuple).
+  \item \texttt{dMs}, a function, or a sequence containing functions (or
+    further such sequences), defining the tangent-linear directions (in
+    \texttt{dMs[:-1]} if \texttt{dMs} is a sequence) and perturbation direction
+    (\texttt{dMs} if \texttt{dMs} is a function, or \texttt{dMs[-1]} if
+    \texttt{dMs} is a sequence).
   \item \texttt{manager}, defaulting to the currently active equation manager.
     A new equation manager is generated using the \texttt{manager.new} method.
 \end{itemize}
@@ -2408,16 +2405,15 @@ Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
 constrained derivative (see sections \ref{sect:first_order_adjoint} and
 \ref{sect:higher_order_adjoint}). \texttt{prune\_forward} and
 \texttt{prune\_adjoint} control pruning of the transpose dependency graph via
-forward and reverse traversal respectively. The optional \texttt{adj\_ics} is
-a map, or a list or tuple of maps, from forward functions or function IDs to
-adjoint initial conditions. The optional \texttt{callback} argument takes the
-form
+forward and reverse traversal respectively. The optional \texttt{adj\_ics} is a
+map, or a sequence of maps, from forward functions or function IDs to adjoint
+initial conditions. The optional \texttt{callback} argument takes the form
 \begin{lstlisting}
 def callback(J_i, n, i, eq, adj_X)
 \end{lstlisting}
-where \texttt{adj\_X} is \texttt{None}, a function, or a list or tuple of
-functions, corresponding to the adjoint solution for the equation \texttt{eq},
-which is equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
+where \texttt{adj\_X} is \texttt{None}, a function, or a sequence of functions,
+corresponding to the adjoint solution for the equation \texttt{eq}, which is
+equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
 \texttt{Functional}.
 \begin{lstlisting}
 def new_block(manager=None):
