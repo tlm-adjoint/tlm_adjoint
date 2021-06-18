@@ -1803,9 +1803,9 @@ add_tlm(m_0, zeta_0)
 \end{lstlisting}
 for a tangent-linear defined by differentiation with respect to the function
 \texttt{m\_0} in the direction defined by the function \texttt{zeta\_0}.
-\texttt{m\_0} and \texttt{zeta\_0} may more generally each be a list or tuple
-of functions, in which case the tangent-linear is defined by differentiation
-with respect to a function in the appropriate Cartesian product space of which
+\texttt{m\_0} and \texttt{zeta\_0} may more generally each be a sequence of
+functions, in which case the tangent-linear is defined by differentiation with
+respect to a function in the appropriate Cartesian product space of which
 \texttt{m\_0} is a member, in a direction defined by \texttt{zeta\_0}.
 
 \subsection{Higher order tangent-linear}
@@ -2405,16 +2405,15 @@ Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
 constrained derivative (see sections \ref{sect:first_order_adjoint} and
 \ref{sect:higher_order_adjoint}). \texttt{prune\_forward} and
 \texttt{prune\_adjoint} control pruning of the transpose dependency graph via
-forward and reverse traversal respectively. The optional \texttt{adj\_ics} is
-a map, or a list or tuple of maps, from forward functions or function IDs to
-adjoint initial conditions. The optional \texttt{callback} argument takes the
-form
+forward and reverse traversal respectively. The optional \texttt{adj\_ics} is a
+map, or a sequence of maps, from forward functions or function IDs to adjoint
+initial conditions. The optional \texttt{callback} argument takes the form
 \begin{lstlisting}
 def callback(J_i, n, i, eq, adj_X)
 \end{lstlisting}
-where \texttt{adj\_X} is \texttt{None}, a function, or a list or tuple of
-functions, corresponding to the adjoint solution for the equation \texttt{eq},
-which is equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
+where \texttt{adj\_X} is \texttt{None}, a function, or a sequence of functions,
+corresponding to the adjoint solution for the equation \texttt{eq}, which is
+equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
 \texttt{Functional}.
 \begin{lstlisting}
 def new_block(manager=None):
