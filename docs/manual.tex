@@ -1892,19 +1892,19 @@ A first order derivative can subsequently be computed using the
 \begin{lstlisting}
 dJ = H.compute_gradient(m)
 \end{lstlisting}
-where \texttt{m} is a function or a list or tuple of functions defining the
-value of the control. The forward model is first rerun using the
-\texttt{forward} callable prior to the first order adjoint calculation.
+where \texttt{m} is a function or a sequence of functions defining the value of
+the control. The forward model is first rerun using the \texttt{forward}
+callable prior to the first order adjoint calculation.
 
 The action of the Hessian can be computed using the \texttt{Hessian.action}
 method
 \begin{lstlisting}
 J_val, dJ_val, ddJ = H.action(m, dm)
 \end{lstlisting}
-where \texttt{m} and \texttt{dm} are each a function or a list or tuple of
-functions defining the control and Hessian action direction. The forward model
-is first rerun using the \texttt{forward} callable prior to the second order
-adjoint calculation. This method returns the value of the functional, the first
+where \texttt{m} and \texttt{dm} are each a function or a sequence of functions
+defining the control and Hessian action direction. The forward model is first
+rerun using the \texttt{forward} callable prior to the second order adjoint
+calculation. This method returns the value of the functional, the first
 derivative of the functional in the direction defined by \texttt{dm}, and the
 action of the Hessian in the direction defined by \texttt{dm}.
 

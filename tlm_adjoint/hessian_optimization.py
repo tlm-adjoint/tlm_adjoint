@@ -25,6 +25,8 @@ from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import CheckpointStorage
 
+from collections.abc import Sequence
+
 __all__ = \
     [
         "HessianException",
@@ -49,7 +51,7 @@ class SingleBlockHessian(Hessian):
         self._manager = _manager() if manager is None else manager
 
     def compute_gradient(self, M):
-        if not isinstance(M, (list, tuple)):
+        if not isinstance(M, Sequence):
             J, (dJ,) = self.compute_gradient((M,))
             return J, dJ
 
@@ -59,7 +61,7 @@ class SingleBlockHessian(Hessian):
         return J_val, dJ
 
     def action(self, M, dM):
-        if not isinstance(M, (list, tuple)):
+        if not isinstance(M, Sequence):
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
