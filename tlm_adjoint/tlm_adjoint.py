@@ -31,7 +31,8 @@ from .equations import AdjointModelRHS, ControlsMarker, Equation, \
 from .functional import Functional
 from .manager import manager as _manager, set_manager
 
-from collections import OrderedDict, Sequence, defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
+from collections.abc import Sequence
 import copy
 import gc
 import logging
