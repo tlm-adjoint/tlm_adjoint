@@ -262,13 +262,13 @@ class FunctionInterface(_FunctionInterface):
             cache = static
         if checkpoint is None:
             checkpoint = not static
-        self._tlm_adjoint__function_interface_attrs["static"] = static
-        self._tlm_adjoint__function_interface_attrs["cache"] = cache
-        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
+        y._tlm_adjoint__function_interface_attrs["static"] = static
+        y._tlm_adjoint__function_interface_attrs["cache"] = cache
+        y._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
         # Backwards compatibility
-        self.is_static = weakref_method(Function.is_static, self)
-        self.is_cached = weakref_method(Function.is_cached, self)
-        self.is_checkpointed = weakref_method(Function.is_checkpointed, self)
+        y.is_static = weakref_method(Function.is_static, y)
+        y.is_cached = weakref_method(Function.is_cached, y)
+        y.is_checkpointed = weakref_method(Function.is_checkpointed, y)
         return y
 
     def _replacement(self):
