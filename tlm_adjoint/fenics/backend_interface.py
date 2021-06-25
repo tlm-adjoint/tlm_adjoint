@@ -136,7 +136,8 @@ class FunctionInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["state"]
 
     def _update_state(self):
-        self._tlm_adjoint__function_interface_attrs["state"] += 1
+        state = self._tlm_adjoint__function_interface_attrs["state"]
+        self._tlm_adjoint__function_interface_attrs.d_setitem("state", state + 1)  # noqa: E501
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -262,9 +263,9 @@ class FunctionInterface(_FunctionInterface):
             cache = static
         if checkpoint is None:
             checkpoint = not static
-        y._tlm_adjoint__function_interface_attrs["static"] = static
-        y._tlm_adjoint__function_interface_attrs["cache"] = cache
-        y._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
+        y._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        y._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        y._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
         # Backwards compatibility
         y.is_static = weakref_method(Function.is_static, y)
         y.is_cached = weakref_method(Function.is_cached, y)
