@@ -123,7 +123,7 @@ class protecteddict(Mapping):
 
     def __setitem__(self, key, value):
         if key in self:
-            raise KeyError(f"Key '{key:s}' already set")
+            raise KeyError(f"Key '{key}' already set")
         self._d[key] = value
 
     def __iter__(self):
@@ -138,9 +138,6 @@ class protecteddict(Mapping):
 
     def d_setitem(self, key, value):
         self._d[key] = value
-
-    def d_update(self, *args, **kwargs):
-        self._d.update(*args, **kwargs)
 
 
 def add_interface(obj, interface_cls, attrs={}):
