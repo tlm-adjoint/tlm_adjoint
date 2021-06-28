@@ -1605,18 +1605,25 @@ class EquationManager:
                     B_state, eq_B = B.pop()
                     assert B_state == (n, i)
 
+                    adj_X_ic = tuple(
+                        adj_Xs[J_i].pop(function_id(x), None) for x in eq.X())
+
                     if transpose_deps.is_active(J_marker, n, i):
                         # Solve adjoint equation, add terms to adjoint
                         # equations
-                        if len(eq.adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
+                        adj_X_ic_ids = \
+                            {function_id(adj_x)
+                             for adj_x in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
+                        if len(adj_X_ic_ids) == 0:
                             adj_X = None
                         else:
                             adj_X = []
-                            for x in eq.X():
-                                adj_x = adj_Xs[J_i].pop(function_id(x), None)
-                                if adj_x is None:
-                                    adj_x = function_new(x)
-                                adj_X.append(adj_x)
+                            for x, adj_x_ic in zip(eq.X(), adj_X_ic):
+                                if adj_x_ic is None \
+                                        or function_id(x) not in adj_X_ic_ids:
+                                    adj_X.append(function_new(x))
+                                else:
+                                    adj_X.append(adj_x_ic)
 
                         eq_B = eq_B.B()
 
