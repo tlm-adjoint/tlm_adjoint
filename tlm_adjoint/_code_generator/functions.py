@@ -97,7 +97,8 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["state"]
 
     def _update_state(self):
-        self._tlm_adjoint__function_interface_attrs["state"] += 1
+        state = self._tlm_adjoint__function_interface_attrs["state"]
+        self._tlm_adjoint__function_interface_attrs.d_setitem("state", state + 1)  # noqa: E501
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -304,9 +305,9 @@ class Constant(backend_Constant):
 
         super().__init__(value, *args, name=name, domain=domain, space=space,
                          comm=comm, **kwargs)
-        self._tlm_adjoint__function_interface_attrs["static"] = static
-        self._tlm_adjoint__function_interface_attrs["cache"] = cache
-        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
+        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
     def is_static(self):
         warnings.warn("Constant.is_static is deprecated -- "
@@ -410,9 +411,9 @@ class Function(backend_Function):
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface_attrs["static"] = static
-        self._tlm_adjoint__function_interface_attrs["cache"] = cache
-        self._tlm_adjoint__function_interface_attrs["checkpoint"] = checkpoint
+        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
     def is_static(self):
         warnings.warn("Function.is_static is deprecated -- "

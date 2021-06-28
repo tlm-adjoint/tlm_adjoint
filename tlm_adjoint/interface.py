@@ -20,7 +20,7 @@
 
 import numpy as np
 
-import copy
+from collections.abc import Mapping
 import logging
 import sys
 import warnings
@@ -108,6 +108,38 @@ def weakref_method(fn, obj):
     return wrapped_fn
 
 
+class protecteddict(Mapping):
+    def __init__(self, *args, **kwargs):
+        """
+        A mapping where previous key: value pairs are partially protected from
+        modification. d_ prefixed methods can be used to modify key: value
+        pairs.
+        """
+
+        self._d = dict(*args, **kwargs)
+
+    def __getitem__(self, key):
+        return self._d[key]
+
+    def __setitem__(self, key, value):
+        if key in self:
+            raise KeyError(f"Key '{key}' already set")
+        self._d[key] = value
+
+    def __iter__(self):
+        for key in self._d:
+            yield key
+
+    def __len__(self):
+        return len(self._d)
+
+    def d_delitem(self, key):
+        del self._d[key]
+
+    def d_setitem(self, key, value):
+        self._d[key] = value
+
+
 def add_interface(obj, interface_cls, attrs={}):
     interface_name = f"{interface_cls.prefix:s}"
     assert not hasattr(obj, interface_name)
@@ -121,7 +153,7 @@ def add_interface(obj, interface_cls, attrs={}):
 
     attrs_name = f"{interface_cls.prefix:s}_attrs"
     assert not hasattr(obj, attrs_name)
-    setattr(obj, attrs_name, copy.copy(attrs))
+    setattr(obj, attrs_name, protecteddict(attrs))
 
 
 class SpaceInterface:
