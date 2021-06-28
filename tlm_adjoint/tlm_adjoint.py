@@ -544,6 +544,21 @@ class DependencyGraphTranspose:
             J_id = function_id(J)
         return self._stored_adj_ics[J_id][n][i][m]
 
+    def adj_Bs(self, J, n, i, eq, B):
+        if isinstance(J, int):
+            J_id = J
+        else:
+            J_id = function_id(J)
+
+        dep_Bs = {}
+        for j, dep in enumerate(eq.dependencies()):
+            if (n, i, j) in self:
+                p, k, m = self[(n, i, j)]
+                if self.is_active(J_id, p, k):
+                    dep_Bs[j] = B[p][k][m]
+
+        return dep_Bs
+
 
 class EquationManager:
     _id_counter = [0]
@@ -1595,9 +1610,11 @@ class EquationManager:
             # Reverse (equations in block n)
             for i in range(len(blocks[n]) - 1, -1, -1):
                 eq = blocks[n][i]
+                eq_X = eq.X()
                 # Non-linear dependency data
                 nl_deps = self._cp[(cp_n, i)] if cp_block else ()
 
+                assert len(Js) == len(J_markers)
                 for J_i, (J, J_marker) in enumerate(zip(Js, J_markers)):
                     # Adjoint model right-hand-sides
                     B = Bs[J_i]
@@ -1606,11 +1623,10 @@ class EquationManager:
                     assert B_state == (n, i)
 
                     adj_X_ic = tuple(
-                        adj_Xs[J_i].pop(function_id(x), None) for x in eq.X())
+                        adj_Xs[J_i].pop(function_id(x), None) for x in eq_X)
 
                     if transpose_deps.is_active(J_marker, n, i):
-                        # Solve adjoint equation, add terms to adjoint
-                        # equations
+                        # Construct adjoint initial condition
                         adj_X_ic_ids = \
                             {function_id(adj_x)
                              for adj_x in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
@@ -1618,35 +1634,32 @@ class EquationManager:
                             adj_X = None
                         else:
                             adj_X = []
-                            for x, adj_x_ic in zip(eq.X(), adj_X_ic):
+                            assert len(eq_X) == len(adj_X_ic)
+                            for x, adj_x_ic in zip(eq_X, adj_X_ic):
                                 if adj_x_ic is None \
                                         or function_id(x) not in adj_X_ic_ids:
                                     adj_X.append(function_new(x))
                                 else:
                                     adj_X.append(adj_x_ic)
-
-                        eq_B = eq_B.B()
-
-                        eq_dep_Bs = {}
-                        for j, dep in enumerate(eq.dependencies()):
-                            if (n, i, j) in transpose_deps:
-                                p, k, m = transpose_deps[(n, i, j)]
-                                if transpose_deps.is_active(J_marker, p, k):
-                                    eq_dep_Bs[j] = Bs[J_i][p][k][m]
-
-                        adj_X = eq.adjoint(J, adj_X, nl_deps, eq_B, eq_dep_Bs)
-
-                        if adj_X is not None:
-                            for m, (x, adj_x) in enumerate(zip(eq.X(), adj_X)):
-                                if transpose_deps.is_stored_adj_ic(J_marker,
-                                                                   n, i, m):
-                                    adj_Xs[J_i][function_id(x)] \
-                                        = function_copy(adj_x)
+                        # Solve adjoint equation, add terms to adjoint
+                        # equations
+                        adj_X = eq.adjoint(
+                            J, adj_X, nl_deps,
+                            eq_B.B(),
+                            transpose_deps.adj_Bs(J_marker, n, i, eq, Bs[J_i]))
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
 
+                    if adj_X is not None:
+                        # Store adjoint initial conditions
+                        assert len(eq_X) == len(adj_X)
+                        for m, (x, adj_x) in enumerate(zip(eq_X, adj_X)):
+                            if transpose_deps.is_stored_adj_ic(J_marker, n, i, m):  # noqa: E501
+                                adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
+
                     if callback is not None and cp_block:
+                        # Diagnostic callback
                         if adj_X is None:
                             callback(J_i, cp_n, i, eq,
                                      None)
