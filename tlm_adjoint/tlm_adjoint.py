@@ -389,7 +389,9 @@ class ReplayStorage:
 
 
 class DependencyGraphTranspose:
-    def __init__(self, blocks, M, Js, prune_forward=True, prune_adjoint=True):
+    def __init__(self, Js, M, blocks,
+                 prune_forward=True, prune_adjoint=True,
+                 prune=None):
         # Transpose dependency graph
         last_eq = {}
         transpose_deps = tuple(tuple([None for dep in eq.dependencies()]
@@ -481,6 +483,14 @@ class DependencyGraphTranspose:
                         else:
                             active[J_id][n][i] = False
 
+        if prune is not None:
+            for J in Js:
+                J_id = function_id(J)
+                for n, block in enumerate(blocks):
+                    for i, eq in enumerate(block):
+                        if prune(J, n, i):
+                            active[J_id][n][i] = False
+
         stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
                           for eq in block) for block in blocks) for J in Js}
         adj_ics = {function_id(J): {} for J in Js}
@@ -558,6 +568,33 @@ class DependencyGraphTranspose:
                     dep_Bs[j] = B[p][k][m]
 
         return dep_Bs
+
+
+class AdjointCache:
+    def __init__(self):
+        self._keys = set()
+        self._cache = {}
+
+    def register(self, J_i, n, i):
+        self._keys.add((J_i, n, i))
+
+    def has_cached(self, J_i, n, i):
+        return (J_i, n, i) in self._cache
+
+    def get_cached(self, J_i, n, i, copy=False):
+        adj_X = self._cache[(J_i, n, i)]
+        if copy:
+            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+        return adj_X
+
+    def cache(self, J_i, n, i, adj_X, copy=True, replace=False):
+        if (J_i, n, i) in self._keys:
+            if replace or (J_i, n, i) not in self._cache:
+                if copy:
+                    adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+                else:
+                    adj_X = tuple(adj_X)
+                self._cache[(J_i, n, i)] = adj_X
 
 
 class EquationManager:
@@ -1507,7 +1544,7 @@ class EquationManager:
             eq.reset_adjoint()
 
     def compute_gradient(self, Js, M, callback=None, prune_forward=True,
-                         prune_adjoint=True, adj_ics=None):
+                         prune_adjoint=True, adj_ics=None, adj_cache=None):
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
@@ -1515,45 +1552,46 @@ class EquationManager:
 
         Arguments:
 
-        Js        A Functional or function, or a sequence of these, defining
-                  the functionals.
-        M         A function, or a sequence of functions, defining the control
-                  parameters.
-        callback  (Optional) Callable of the form
-                      def callback(J_i, n, i, eq, adj_X):
-                  where adj_X is None, a function, or a sequence of functions,
-                  corresponding to the adjoint solution for the equation eq,
-                  which is equation i in block n for the J_i th Functional.
+        Js         A Functional or function, or a sequence of these, defining
+                   the functionals.
+        M          A function, or a sequence of functions, defining the control
+                   parameters.
+        callback   (Optional) Callable of the form
+                       def callback(J_i, n, i, eq, adj_X):
+                   where adj_X is None, a function, or a sequence of functions,
+                   corresponding to the adjoint solution for the equation eq,
+                   which is equation i in block n for the J_i th Functional.
         prune_forward  (Optional) Whether forward traversal graph pruning
                        should be applied.
         prune_adjoint  (Optional) Whether reverse traversal graph pruning
                        should be applied.
-        adj_ics   (Optional) Map, or a sequence of maps, from forward functions
-                  or function IDs to adjoint initial conditions.
+        adj_ics    (Optional) Map, or a sequence of maps, from forward
+                   functions or function IDs to adjoint initial conditions.
+        adj_cache  (Optional) An AdjointCache.
         """
 
         if not isinstance(M, Sequence):
             if not isinstance(Js, Sequence):
                 if adj_ics is not None:
                     adj_ics = [adj_ics]
-                ((dJ,),) = self.compute_gradient([Js], [M], callback=callback,
-                                                 prune_forward=prune_forward,
-                                                 prune_adjoint=prune_adjoint,
-                                                 adj_ics=adj_ics)
+                ((dJ,),) = self.compute_gradient(
+                    [Js], [M], callback=callback,
+                    prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+                    adj_ics=adj_ics, adj_cache=adj_cache)
                 return dJ
             else:
-                dJs = self.compute_gradient(Js, [M], callback=callback,
-                                            prune_forward=prune_forward,
-                                            prune_adjoint=prune_adjoint,
-                                            adj_ics=adj_ics)
+                dJs = self.compute_gradient(
+                    Js, [M], callback=callback,
+                    prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+                    adj_ics=adj_ics, adj_cache=adj_cache)
                 return tuple(dJ for (dJ,) in dJs)
         elif not isinstance(Js, Sequence):
             if adj_ics is not None:
                 adj_ics = [adj_ics]
-            dJ, = self.compute_gradient([Js], M, callback=callback,
-                                        prune_forward=prune_forward,
-                                        prune_adjoint=prune_adjoint,
-                                        adj_ics=adj_ics)
+            dJ, = self.compute_gradient(
+                [Js], M, callback=callback,
+                prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+                adj_ics=adj_ics, adj_cache=adj_cache)
             return dJ
 
         gc.collect()
@@ -1585,9 +1623,24 @@ class EquationManager:
             function_assign(Bs[J_i][-1][J_i].b(), 1.0)
 
         # Transpose dependency graph
-        transpose_deps = DependencyGraphTranspose(blocks, M, J_markers,
-                                                  prune_forward=prune_forward,
-                                                  prune_adjoint=prune_adjoint)
+        if adj_cache is None:
+            prune = None
+        else:
+            J_is = {function_id(J): J_i for J_i, J in enumerate(J_markers)}
+
+            def prune(J, n, i):
+                cp_n = n - 1
+                cp_block = cp_n >= 0 and cp_n < len(self._blocks)
+                J_i = J_is[function_id(J)]
+                return cp_block and adj_cache.has_cached(J_i, cp_n, i)
+        transpose_deps = DependencyGraphTranspose(
+            J_markers, M, blocks,
+            prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+            prune=prune)
+        if adj_cache is None:
+            del prune
+        else:
+            del J_is, prune
 
         # Adjoint variables
         adj_Xs = tuple({} for J in Js)
@@ -1647,6 +1700,14 @@ class EquationManager:
                             J, adj_X, nl_deps,
                             eq_B.B(),
                             transpose_deps.adj_Bs(J_marker, n, i, eq, Bs[J_i]))
+                    elif adj_cache is not None and cp_block \
+                            and adj_cache.has_cached(J_i, cp_n, i):
+                        # Extract adjoint solution from the cache
+                        adj_X = adj_cache.get_cached(J_i, cp_n, i, copy=False)
+                        # Add terms to adjoint equations
+                        eq.adjoint_cached(
+                            J, adj_X, nl_deps,
+                            transpose_deps.adj_Bs(J_marker, n, i, eq, Bs[J_i]))
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
@@ -1657,6 +1718,11 @@ class EquationManager:
                         for m, (x, adj_x) in enumerate(zip(eq_X, adj_X)):
                             if transpose_deps.is_stored_adj_ic(J_marker, n, i, m):  # noqa: E501
                                 adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
+
+                        if adj_cache is not None and cp_block:
+                            # Store adjoint solution in the cache, if needed
+                            adj_cache.cache(J_i, cp_n, i, adj_X,
+                                            copy=True, replace=False)
 
                     if callback is not None and cp_block:
                         # Diagnostic callback
