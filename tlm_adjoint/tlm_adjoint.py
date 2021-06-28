@@ -1629,20 +1629,27 @@ class EquationManager:
 
                         adj_X = eq.adjoint(J, adj_X, nl_deps, eq_B, eq_dep_Bs)
 
-                        for m, (x, adj_x) in enumerate(zip(eq.X(), adj_X)):
-                            if transpose_deps.is_stored_adj_ic(J_marker,
-                                                               n, i, m):
-                                adj_Xs[J_i][function_id(x)] \
-                                    = function_copy(adj_x)
+                        if adj_X is not None:
+                            for m, (x, adj_x) in enumerate(zip(eq.X(), adj_X)):
+                                if transpose_deps.is_stored_adj_ic(J_marker,
+                                                                   n, i, m):
+                                    adj_Xs[J_i][function_id(x)] \
+                                        = function_copy(adj_x)
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
 
                     if callback is not None and cp_block:
-                        if adj_X is None or len(adj_X) > 1:
-                            callback(J_i, cp_n, i, eq, adj_X)
+                        if adj_X is None:
+                            callback(J_i, cp_n, i, eq,
+                                     None)
+                        elif len(adj_X) == 1:
+                            callback(J_i, cp_n, i, eq,
+                                     function_copy(adj_X[0]))
                         else:
-                            callback(J_i, cp_n, i, eq, adj_X[0])
+                            callback(J_i, cp_n, i, eq,
+                                     tuple(function_copy(adj_x)
+                                           for adj_x in adj_X))
 
                     if n == 0 and i == 0:
                         # A requested derivative

@@ -1077,7 +1077,9 @@ with arguments
     system ($b$ above). May be modified or returned.
 \end{itemize}
 This method returns a function defining the solution of the linear system
-($\lambda_x$ above). The return value will not be modified by calling code.
+($\lambda_x$ above). The return value will not be modified by calling code. A
+return value of \texttt{None} can be used to indicate that the solution is
+zero.
 
 Equation processing by the currently active the \texttt{EquationManager} is
 disabled (see section \ref{sect:EquationManager}) when the
