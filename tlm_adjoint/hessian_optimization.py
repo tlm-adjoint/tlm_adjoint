@@ -48,9 +48,18 @@ class SingleBlockHessian(Hessian):
         manager  (Optional) The equation manager used to process the forward.
         """
 
+        if manager is None:
+            manager = _manager()
+        if manager._cp_method != "memory" \
+                or manager._cp_parameters["drop_references"]:
+            raise HessianException("Invalid equation manager state")
+
+        blocks = list(manager._blocks) + [manager._block]
+
         self._J_state = function_state(J.fn())
         self._J = Functional(fn=J.fn())
-        self._manager = _manager() if manager is None else manager
+        self._manager = manager
+        self._blocks = blocks
         self._M_dM = None
         self._adj_cache = AdjointCache()
 
@@ -109,17 +118,6 @@ class SingleBlockHessian(Hessian):
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
-        if self._manager._cp_method != "memory" \
-           or self._manager._cp_parameters["drop_references"] \
-           or not (len(self._manager._blocks) == 0
-                   or (len(self._manager._blocks) == 1
-                       and len(self._manager._block) == 0)):
-            raise HessianException("Invalid equation manager state")
-        if len(self._manager._blocks) == 0:
-            block = self._manager._block
-        else:
-            block = self._manager._blocks[0]
-
         M, dM, tlm_map, manager = self._setup(M, dM)
 
         # Copy (references to) forward model initial condition data
@@ -130,44 +128,45 @@ class SingleBlockHessian(Hessian):
                                                copy=False)
         del ics
 
-        for i, eq in enumerate(block):
-            # Copy annotation of the equation
-            manager._eqs[eq.id()] = eq
-            manager._block.append(eq)
-            manager._cp.add_equation((0, len(manager._block) - 1), eq,
-                                     nl_deps=self._manager._cp[(0, i)],
-                                     copy=lambda x: False)
+        for n, block in enumerate(self._blocks):
+            for i, eq in enumerate(block):
+                # Copy annotation of the equation
+                manager._eqs[eq.id()] = eq
+                manager._block.append(eq)
+                manager._cp.add_equation((len(manager._blocks), len(manager._block) - 1), eq,  # noqa: E501
+                                         nl_deps=self._manager._cp[(n, i)],
+                                         copy=lambda x: False)
 
-            # Generate the associated tangent-linear equation (or extract
-            # it from the cache)
-            tlm_eq = manager._tangent_linear(eq, M, dM, tlm_map)
-            if tlm_eq is not None:
-                # Extract the dependency values from storage for use in the
-                # solution of the tangent-linear equation
-                eq_deps = {function_id(eq_dep): cp_dep
-                           for eq_dep, cp_dep in
-                           zip(eq.nonlinear_dependencies(),
-                               self._manager._cp[(0, i)])}
-                tlm_deps = list(tlm_eq.dependencies())
-                for j, tlm_dep in enumerate(tlm_deps):
-                    tlm_dep_id = function_id(tlm_dep)
-                    if tlm_dep_id in eq_deps:
-                        tlm_deps[j] = eq_deps[tlm_dep_id]
+                # Generate the associated tangent-linear equation (or extract
+                # it from the cache)
+                tlm_eq = manager._tangent_linear(eq, M, dM, tlm_map)
+                if tlm_eq is not None:
+                    # Extract the dependency values from storage for use in the
+                    # solution of the tangent-linear equation
+                    eq_deps = {function_id(eq_dep): cp_dep
+                               for eq_dep, cp_dep in
+                               zip(eq.nonlinear_dependencies(),
+                                   self._manager._cp[(n, i)])}
+                    tlm_deps = list(tlm_eq.dependencies())
+                    for j, tlm_dep in enumerate(tlm_deps):
+                        tlm_dep_id = function_id(tlm_dep)
+                        if tlm_dep_id in eq_deps:
+                            tlm_deps[j] = eq_deps[tlm_dep_id]
 
-                tlm_X = tlm_eq.X()
-                # Pre-process the tangent-linear equation
-                for tlm_dep in tlm_eq.initial_condition_dependencies():
-                    manager._cp.add_initial_condition(tlm_dep)
-                # Solve the tangent-linear equation
-                tlm_eq.forward(tlm_X, deps=tlm_deps)
-                # Post-process the tangent-linear equation
-                manager._eqs[tlm_eq.id()] = tlm_eq
-                manager._block.append(tlm_eq)
-                manager._cp.add_equation(
-                    (len(manager._blocks), len(manager._block) - 1),
-                    tlm_eq, deps=tlm_deps)
-                self._adj_cache.register(
-                    0, len(manager._blocks), len(manager._block) - 1)
+                    tlm_X = tlm_eq.X()
+                    # Pre-process the tangent-linear equation
+                    for tlm_dep in tlm_eq.initial_condition_dependencies():
+                        manager._cp.add_initial_condition(tlm_dep)
+                    # Solve the tangent-linear equation
+                    tlm_eq.forward(tlm_X, deps=tlm_deps)
+                    # Post-process the tangent-linear equation
+                    manager._eqs[tlm_eq.id()] = tlm_eq
+                    manager._block.append(tlm_eq)
+                    manager._cp.add_equation(
+                        (len(manager._blocks), len(manager._block) - 1),
+                        tlm_eq, deps=tlm_deps)
+                    self._adj_cache.register(
+                        0, len(manager._blocks), len(manager._block) - 1)
 
         dJ = self._J.tlm(M, dM, manager=manager)
 
