@@ -681,7 +681,6 @@ class EquationManager:
         self._id = self._comm.bcast(id, root=0)
         self._comm_py2f = self._comm.bcast(comm_py2f, root=0)
 
-        self._tlm_eqs = {}
         self._to_drop_references = []
         self._finalizes = {}
 
@@ -798,7 +797,7 @@ class EquationManager:
         self._block = []
 
         self._tlm = OrderedDict()
-        self._tlm_eqs.clear()
+        self._tlm_eqs = {}
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
@@ -1109,7 +1108,6 @@ class EquationManager:
                         _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
                                    else [i, 0]))
 
-    @gc_disabled
     def _tangent_linear(self, eq, M, dM, tlm_map):
         if is_function(M):
             M = (M,)
@@ -1159,9 +1157,6 @@ class EquationManager:
                     if self is not None:
                         self._to_drop_references.append(referrer_alias)
                         del self._finalizes[referrer_id]
-                        if referrer_id in self._tlm_eqs:
-                            assert isinstance(referrer_alias, Equation)
-                            del self._tlm_eqs[referrer_id]
                 finalize = weakref.finalize(
                     referrer, finalize_callback,
                     weakref.ref(self), WeakAlias(referrer), referrer_id)
@@ -1173,6 +1168,10 @@ class EquationManager:
         while len(self._to_drop_references) > 0:
             referrer = self._to_drop_references.pop()
             referrer._drop_references()
+            if isinstance(referrer, Equation):
+                referrer_id = referrer.id()
+                if referrer_id in self._tlm_eqs:
+                    del self._tlm_eqs[referrer_id]
 
     def _checkpoint_space_id(self, fn):
         space = function_space(fn)
