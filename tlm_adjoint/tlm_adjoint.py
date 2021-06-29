@@ -908,6 +908,8 @@ class EquationManager:
         else:
             dM = tuple(dM)
 
+        if len(M) != len(dM):
+            raise ManagerException("Invalid tangent-linear model")
         if (M, dM) in self._tlm:
             raise ManagerException("Duplicate tangent-linear model")
 
@@ -1109,6 +1111,18 @@ class EquationManager:
 
     @gc_disabled
     def _tangent_linear(self, eq, M, dM, tlm_map):
+        if is_function(M):
+            M = (M,)
+        else:
+            M = tuple(M)
+        if is_function(dM):
+            dM = (dM,)
+        else:
+            dM = tuple(dM)
+
+        if (M, dM) not in self._tlm:
+            raise ManagerException("Missing tangent-linear model")
+
         eq_id = eq.id()
         X = eq.X()
         if len(set(X).intersection(set(M))) > 0:
