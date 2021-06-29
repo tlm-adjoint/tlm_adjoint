@@ -551,8 +551,7 @@ class Equation(Referrer):
         nl_deps    A sequence of functions defining the values of non-linear
                    dependencies.
         B          A sequence of functions defining the right-hand-side, which
-                   may be modified or returned by this method. Alternatively
-                   None may be used, to indicate a right-hand-side of zero.
+                   may be modified or returned by this method.
         dep_Bs     Dictionary of dep_index: dep_B pairs, where each dep_B is an
                    AdjointRHS which should be updated by subtracting derivative
                    information computed by differentiating with respect to
@@ -567,11 +566,8 @@ class Equation(Referrer):
 
         if adj_X is not None and len(adj_X) == 1:
             adj_X = adj_X[0]
-        if B is None:
-            adj_X = None
-        else:
-            adj_X = self.adjoint_jacobian_solve(
-                adj_X, nl_deps, B[0] if len(B) == 1 else B)
+        adj_X = self.adjoint_jacobian_solve(
+            adj_X, nl_deps, B[0] if len(B) == 1 else B)
         if adj_X is not None:
             self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
 
