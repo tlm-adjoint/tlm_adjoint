@@ -44,7 +44,6 @@ import weakref
 
 __all__ = \
     [
-        "CheckpointStorage",
         "Control",
         "EquationManager",
         "ManagerException"
