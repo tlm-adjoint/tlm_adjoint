@@ -18,9 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_id
+from .interface import function_id, function_state
 
 from .caches import clear_caches
+from .functional import Functional
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import AdjointCache, EquationManager
@@ -47,7 +48,8 @@ class SingleBlockHessian(Hessian):
         manager  (Optional) The equation manager used to process the forward.
         """
 
-        self._J = J
+        self._J_state = function_state(J.fn())
+        self._J = Functional(fn=J.fn())
         self._manager = _manager() if manager is None else manager
         self._M_dM = None
         self._adj_cache = AdjointCache()
@@ -73,7 +75,24 @@ class SingleBlockHessian(Hessian):
         assert max_depth == 1
 
         self._M_dM = (M, dM)
-        return M, dM, tlm_map
+        return tlm_map
+
+    def _setup(self, M, dM):
+        if function_state(self._J.fn()) != self._J_state:
+            raise HessianException("Functional state has changed")
+
+        M = tuple(M)
+        dM = tuple(dM)
+
+        clear_caches(*dM)
+        if not self._adj_cache_is_valid(M):
+            self._adj_cache = AdjointCache()
+
+        manager = EquationManager(cp_method="memory",
+                                  cp_parameters={"drop_references": False})
+        tlm_map = self._set_tlm(manager, M, dM)
+
+        return M, dM, tlm_map, manager
 
     def compute_gradient(self, M):
         if not isinstance(M, Sequence):
@@ -101,13 +120,7 @@ class SingleBlockHessian(Hessian):
         else:
             block = self._manager._blocks[0]
 
-        clear_caches(*dM)
-        if not self._adj_cache_is_valid(M):
-            self._adj_cache = AdjointCache()
-
-        manager = EquationManager(cp_method="memory",
-                                  cp_parameters={"drop_references": False})
-        M, dM, tlm_map = self._set_tlm(manager, M, dM)
+        M, dM, tlm_map, manager = self._setup(M, dM)
 
         # Copy (references to) forward model initial condition data
         ics = self._manager._cp.initial_conditions(cp=True, refs=True,
