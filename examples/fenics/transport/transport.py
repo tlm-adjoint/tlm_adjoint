@@ -21,9 +21,6 @@
 # Import FEniCS and tlm_adjoint
 from fenics import *
 from tlm_adjoint.fenics import *
-# Import an optimization module, used for Hessian actions with single block
-# forward models
-from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import numpy as np
@@ -260,7 +257,7 @@ T_inflow = Function(inflow_space, name="T_inflow", static=True)
 start_manager()
 _, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref)
 stop_manager()
-ddJ = SingleBlockHessian(J)
+ddJ = CachedHessian(J)
 
 
 def forward_T_inflow_ref_J(T_inflow):
@@ -375,7 +372,7 @@ if verify:
         _, J, K = forward(T_inflow, kappa, T_N_ref=T_N_ref)
         stop_manager()
 
-        ddJ = SingleBlockHessian(J)
+        ddJ = CachedHessian(J)
         H = np.full((function_local_size(T_inflow),
                      function_local_size(T_inflow)),
                     np.NAN, dtype=np.float64)
@@ -386,11 +383,12 @@ if verify:
             H[:, i] = function_get_values(ddJ.action(T_inflow, dm)[2])
             clear_caches(dm)
             del dm
-        del ddJ
         assert not np.isnan(H).any()
         assert abs(H - H.T).max() < 1.0e-13
 
-        dJ = compute_gradient(J, T_inflow)
+        _, dJ = ddJ.compute_gradient(T_inflow)
+        del ddJ
+
         function_set_values(T_inflow,
                             -np.linalg.solve(H, function_get_values(dJ)))
 

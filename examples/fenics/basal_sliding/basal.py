@@ -20,7 +20,6 @@
 
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import mpi4py.MPI as MPI
@@ -375,7 +374,7 @@ start_manager()
 ref, J = forward(beta_sq_ref)
 stop_manager()
 
-ddJ = SingleBlockHessian(J)
+ddJ = CachedHessian(J)
 M_solver = KrylovSolver(assemble(inner(test, trial) * dx), "cg", "sor")
 M_solver.parameters.update({"relative_tolerance": 1.0e-12,
                             "absolute_tolerance": 1.0e-16})
@@ -439,8 +438,8 @@ if debug:
     _, J = forward(beta_sq, ref=ref)
     stop_manager()
 
-    dJ = compute_gradient(J, beta_sq)
-    ddJ = SingleBlockHessian(J)
+    ddJ = CachedHessian(J)
+    _, dJ = ddJ.compute_gradient(beta_sq)
 
     def forward_ref_J(beta_sq):
         return forward(beta_sq, ref=ref)[1]

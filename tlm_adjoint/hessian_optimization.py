@@ -27,20 +27,21 @@ from .manager import manager as _manager
 from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
+import warnings
 
 __all__ = \
     [
+        "CachedHessian",
         "HessianException",
         "SingleBlockHessian"
     ]
 
 
-class SingleBlockHessian(Hessian):
+class CachedHessian(Hessian):
     def __init__(self, J, manager=None):
         """
-        A Hessian class for the case where a single block equation with memory
-        checkpointing is used. The forward should already have been processed
-        by the supplied equation manager.
+        A Hessian class for the case where memory checkpointing is used,
+        without automatic dropping of references to function objects.
 
         Arguments:
 
@@ -175,3 +176,11 @@ class SingleBlockHessian(Hessian):
         ddJ = manager.compute_gradient(dJ, M, adj_cache=self._adj_cache)
 
         return J_val, dJ_val, ddJ
+
+
+class SingleBlockHessian(CachedHessian):
+    def __init__(self, *args, **kwargs):
+        warnings.warn("SingleBlockHessian class is deprecated -- "
+                      "use CachedHessian instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
