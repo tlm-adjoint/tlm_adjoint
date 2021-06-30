@@ -55,20 +55,30 @@ class CachedHessian(Hessian):
                 or manager._cp_parameters["drop_references"]:
             raise HessianException("Invalid equation manager state")
 
-        blocks = list(manager._blocks) + [manager._block]
+        blocks = list(manager._blocks) + [list(manager._block)]
+
+        ics = dict(manager._cp.initial_conditions(cp=True, refs=True,
+                                                  copy=False))
+
+        nl_deps = {}
+        for n, block in enumerate(blocks):
+            for i, eq in enumerate(block):
+                nl_deps[(n, i)] = manager._cp[(n, i)]
 
         self._J_state = function_state(J.fn())
         self._J = Functional(fn=J.fn())
         self._manager = manager
         self._blocks = blocks
-        self._M_dM = None
-        self._adj_cache = AdjointCache()
+        self._ics = ics
+        self._nl_deps = nl_deps
+        self._adj_cache_M = None
+        self._adj_cache = None
 
     def _adj_cache_is_valid(self, M):
-        if self._M_dM is None:
+        if self._adj_cache_M is None:
             return False
 
-        old_M, _ = self._M_dM
+        old_M = self._adj_cache_M
         if len(old_M) != len(M):
             return False
 
@@ -78,16 +88,65 @@ class CachedHessian(Hessian):
 
         return True
 
-    def _set_tlm(self, manager, M, dM):
-        manager.add_tlm(M, dM)
+    def _new_manager(self):
+        manager = EquationManager(cp_method="memory",
+                                  cp_parameters={"drop_references": False})
 
-        (tlm_map, max_depth), = list(manager._tlm.values())
-        assert max_depth == 1
+        for x_id, value in self._ics.items():
+            manager._cp._add_initial_condition(
+                x_id=x_id, value=value, copy=False)
 
-        self._M_dM = (M, dM)
-        return tlm_map
+        return manager
 
-    def _setup(self, M, dM):
+    def _add_forward_equations(self, manager):
+        for n, block in enumerate(self._blocks):
+            for i, eq in enumerate(block):
+                eq_id = eq.id()
+                if eq_id not in manager._eqs:
+                    manager._eqs[eq_id] = eq
+                manager._block.append(eq)
+                manager._cp.add_equation(
+                    (len(manager._blocks), len(manager._block) - 1), eq,
+                    nl_deps=self._nl_deps[(n, i)], copy=lambda x: False)
+                yield n, i, eq
+
+    def _tangent_linear(self, manager, eq, M, dM):
+        return manager._tangent_linear(eq, M, dM)
+
+    def _add_tangent_linear_equation(self, manager, n, i, eq, M, dM, tlm_eq,
+                                     solve=True):
+        for tlm_dep in tlm_eq.initial_condition_dependencies():
+            manager._cp.add_initial_condition(tlm_dep)
+
+        eq_nl_deps = eq.nonlinear_dependencies()
+        cp_deps = self._nl_deps[(n, i)]
+        assert len(eq_nl_deps) == len(cp_deps)
+        eq_deps = {function_id(eq_dep): cp_dep
+                   for eq_dep, cp_dep in zip(eq_nl_deps, cp_deps)}
+        del eq_nl_deps, cp_deps
+
+        tlm_deps = list(tlm_eq.dependencies())
+        for j, tlm_dep in enumerate(tlm_deps):
+            tlm_dep_id = function_id(tlm_dep)
+            if tlm_dep_id in eq_deps:
+                tlm_deps[j] = eq_deps[tlm_dep_id]
+        del eq_deps
+
+        if solve:
+            tlm_eq.forward(tlm_eq.X(), deps=tlm_deps)
+
+        tlm_eq_id = tlm_eq.id()
+        if tlm_eq_id not in manager._eqs:
+            manager._eqs[tlm_eq_id] = tlm_eq
+        manager._block.append(tlm_eq)
+        manager._cp.add_equation(
+            (len(manager._blocks), len(manager._block) - 1), tlm_eq,
+            deps=tlm_deps)
+
+        self._adj_cache.register(
+            0, len(manager._blocks), len(manager._block) - 1)
+
+    def _setup_manager(self, M, dM, solve_tlm=True):
         if function_state(self._J.fn()) != self._J_state:
             raise HessianException("Functional state has changed")
 
@@ -96,13 +155,21 @@ class CachedHessian(Hessian):
 
         clear_caches(*dM)
         if not self._adj_cache_is_valid(M):
+            self._adj_cache_M = M
             self._adj_cache = AdjointCache()
+        assert self._adj_cache is not None
 
-        manager = EquationManager(cp_method="memory",
-                                  cp_parameters={"drop_references": False})
-        tlm_map = self._set_tlm(manager, M, dM)
+        manager = self._new_manager()
+        manager.add_tlm(M, dM)
 
-        return M, dM, tlm_map, manager
+        for n, i, eq in self._add_forward_equations(manager):
+            tlm_eq = self._tangent_linear(manager, eq, M, dM)
+            if tlm_eq is not None:
+                self._add_tangent_linear_equation(
+                    manager, n, i, eq, M, dM, tlm_eq,
+                    solve=solve_tlm)
+
+        return manager, M, dM
 
     def compute_gradient(self, M):
         if not isinstance(M, Sequence):
@@ -119,55 +186,7 @@ class CachedHessian(Hessian):
             J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
             return J_val, dJ_val, ddJ
 
-        M, dM, tlm_map, manager = self._setup(M, dM)
-
-        # Copy (references to) forward model initial condition data
-        ics = self._manager._cp.initial_conditions(cp=True, refs=True,
-                                                   copy=False).items()
-        for x_id, value in ics:
-            manager._cp._add_initial_condition(x_id=x_id, value=value,
-                                               copy=False)
-        del ics
-
-        for n, block in enumerate(self._blocks):
-            for i, eq in enumerate(block):
-                # Copy annotation of the equation
-                manager._eqs[eq.id()] = eq
-                manager._block.append(eq)
-                manager._cp.add_equation((len(manager._blocks), len(manager._block) - 1), eq,  # noqa: E501
-                                         nl_deps=self._manager._cp[(n, i)],
-                                         copy=lambda x: False)
-
-                # Generate the associated tangent-linear equation (or extract
-                # it from the cache)
-                tlm_eq = manager._tangent_linear(eq, M, dM, tlm_map)
-                if tlm_eq is not None:
-                    # Extract the dependency values from storage for use in the
-                    # solution of the tangent-linear equation
-                    eq_deps = {function_id(eq_dep): cp_dep
-                               for eq_dep, cp_dep in
-                               zip(eq.nonlinear_dependencies(),
-                                   self._manager._cp[(n, i)])}
-                    tlm_deps = list(tlm_eq.dependencies())
-                    for j, tlm_dep in enumerate(tlm_deps):
-                        tlm_dep_id = function_id(tlm_dep)
-                        if tlm_dep_id in eq_deps:
-                            tlm_deps[j] = eq_deps[tlm_dep_id]
-
-                    tlm_X = tlm_eq.X()
-                    # Pre-process the tangent-linear equation
-                    for tlm_dep in tlm_eq.initial_condition_dependencies():
-                        manager._cp.add_initial_condition(tlm_dep)
-                    # Solve the tangent-linear equation
-                    tlm_eq.forward(tlm_X, deps=tlm_deps)
-                    # Post-process the tangent-linear equation
-                    manager._eqs[tlm_eq.id()] = tlm_eq
-                    manager._block.append(tlm_eq)
-                    manager._cp.add_equation(
-                        (len(manager._blocks), len(manager._block) - 1),
-                        tlm_eq, deps=tlm_deps)
-                    self._adj_cache.register(
-                        0, len(manager._blocks), len(manager._block) - 1)
+        manager, M, dM = self._setup_manager(M, dM, solve_tlm=True)
 
         dJ = self._J.tlm(M, dM, manager=manager)
 

@@ -1099,15 +1099,15 @@ class EquationManager:
             for i, (M, dM) in enumerate(reversed(self._tlm)):
                 if tlm_skip is not None and i >= tlm_skip[0]:
                     break
-                tlm_map, max_depth = self._tlm[(M, dM)]
-                tlm_eq = self._tangent_linear(eq, M, dM, tlm_map)
+                tlm_eq = self._tangent_linear(eq, M, dM)
                 if tlm_eq is not None:
+                    tlm_map, max_depth = self._tlm[(M, dM)]
                     tlm_eq.solve(
                         manager=self, annotate=annotate, tlm=True,
                         _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
                                    else [i, 0]))
 
-    def _tangent_linear(self, eq, M, dM, tlm_map):
+    def _tangent_linear(self, eq, M, dM):
         if is_function(M):
             M = (M,)
         else:
@@ -1119,6 +1119,7 @@ class EquationManager:
 
         if (M, dM) not in self._tlm:
             raise ManagerException("Missing tangent-linear model")
+        tlm_map, max_depth = self._tlm[(M, dM)]
 
         eq_id = eq.id()
         X = eq.X()
