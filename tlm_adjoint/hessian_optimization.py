@@ -38,7 +38,7 @@ __all__ = \
 
 
 class CachedHessian(Hessian):
-    def __init__(self, J, manager=None):
+    def __init__(self, J, manager=None, cache_adjoint=True):
         """
         A Hessian class for the case where memory checkpointing is used,
         without automatic dropping of references to function objects.
@@ -47,6 +47,7 @@ class CachedHessian(Hessian):
 
         J        The Functional.
         manager  (Optional) The equation manager used to process the forward.
+        cache_adjoint  (Optional) Whether to cache the first order adjoint.
         """
 
         if manager is None:
@@ -70,7 +71,10 @@ class CachedHessian(Hessian):
         self._blocks = blocks
         self._ics = ics
         self._nl_deps = nl_deps
-        self._adj_cache = AdjointCache()
+        if cache_adjoint:
+            self._adj_cache = AdjointCache()
+        else:
+            self._adj_cache = None
 
     def _new_manager(self):
         manager = EquationManager(cp_method="memory",
@@ -127,8 +131,9 @@ class CachedHessian(Hessian):
             (len(manager._blocks), len(manager._block) - 1), tlm_eq,
             deps=tlm_deps)
 
-        self._adj_cache.register(
-            0, len(manager._blocks), len(manager._block) - 1)
+        if self._adj_cache is not None:
+            self._adj_cache.register(
+                0, len(manager._blocks), len(manager._block) - 1)
 
     def _setup_manager(self, M, dM, solve_tlm=True):
         if function_state(self._J.fn()) != self._J_state:
