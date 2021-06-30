@@ -70,22 +70,7 @@ class CachedHessian(Hessian):
         self._blocks = blocks
         self._ics = ics
         self._nl_deps = nl_deps
-        self._adj_cache_M = None
-        self._adj_cache = None
-
-    def _adj_cache_is_valid(self, M):
-        if self._adj_cache_M is None:
-            return False
-
-        old_M = self._adj_cache_M
-        if len(old_M) != len(M):
-            return False
-
-        for old_m, m in zip(old_M, M):
-            if old_m is not m:
-                return False
-
-        return True
+        self._adj_cache = AdjointCache()
 
     def _new_manager(self):
         manager = EquationManager(cp_method="memory",
@@ -153,10 +138,6 @@ class CachedHessian(Hessian):
         dM = tuple(dM)
 
         clear_caches(*dM)
-        if not self._adj_cache_is_valid(M):
-            self._adj_cache_M = M
-            self._adj_cache = AdjointCache()
-        assert self._adj_cache is not None
 
         manager = self._new_manager()
         manager.add_tlm(M, dM)
