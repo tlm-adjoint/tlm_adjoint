@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_id, function_state
+from .interface import function_id, function_new, function_state
 
 from .caches import clear_caches
 from .functional import Functional
@@ -67,7 +67,6 @@ class CachedHessian(Hessian):
 
         self._J_state = function_state(J.fn())
         self._J = Functional(fn=J.fn())
-        self._manager = manager
         self._blocks = blocks
         self._ics = ics
         self._nl_deps = nl_deps
@@ -173,11 +172,16 @@ class CachedHessian(Hessian):
 
     def compute_gradient(self, M):
         if not isinstance(M, Sequence):
-            J, (dJ,) = self.compute_gradient((M,))
-            return J, dJ
+            J_val, (dJ,) = self.compute_gradient((M,))
+            return J_val, dJ
+
+        dM = tuple(function_new(m) for m in M)
+        manager, M, dM = self._setup_manager(M, dM, solve_tlm=False)
+
+        dJ = self._J.tlm(M, dM, manager=manager)
 
         J_val = self._J.value()
-        dJ = self._manager.compute_gradient(self._J, M)
+        dJ = manager.compute_gradient(dJ, dM, adj_cache=self._adj_cache)
 
         return J_val, dJ
 
