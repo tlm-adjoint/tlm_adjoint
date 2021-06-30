@@ -135,12 +135,13 @@ class CachedHessian(Hessian):
             self._adj_cache.register(
                 0, len(manager._blocks), len(manager._block) - 1)
 
-    def _setup_manager(self, M, dM, solve_tlm=True):
+    def _setup_manager(self, M, dM, M0=None, solve_tlm=True):
         if function_state(self._J.fn()) != self._J_state:
             raise HessianException("Functional state has changed")
 
         M = tuple(M)
         dM = tuple(dM)
+        # M0 ignored
 
         clear_caches(*dM)
 
@@ -156,13 +157,15 @@ class CachedHessian(Hessian):
 
         return manager, M, dM
 
-    def compute_gradient(self, M):
+    def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
-            J_val, (dJ,) = self.compute_gradient((M,))
+            J_val, (dJ,) = self.compute_gradient(
+                (M,),
+                M0=None if M0 is None else (M0,))
             return J_val, dJ
 
         dM = tuple(function_new(m) for m in M)
-        manager, M, dM = self._setup_manager(M, dM, solve_tlm=False)
+        manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
 
         dJ = self._J.tlm(M, dM, manager=manager)
 
@@ -171,12 +174,14 @@ class CachedHessian(Hessian):
 
         return J_val, dJ
 
-    def action(self, M, dM):
+    def action(self, M, dM, M0=None):
         if not isinstance(M, Sequence):
-            J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
+            J_val, dJ_val, (ddJ,) = self.action(
+                (M,), (dM,),
+                M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
-        manager, M, dM = self._setup_manager(M, dM, solve_tlm=True)
+        manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
 
         dJ = self._J.tlm(M, dM, manager=manager)
 
