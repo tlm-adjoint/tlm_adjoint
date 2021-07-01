@@ -1680,10 +1680,8 @@ class EquationManager:
 
                 assert len(Js) == len(J_markers)
                 for J_i, (J, J_marker) in enumerate(zip(Js, J_markers)):
-                    # Adjoint model right-hand-sides
-                    B = Bs[J_i]
                     # Adjoint right-hand-side associated with this equation
-                    B_state, eq_B = B.pop()
+                    B_state, eq_B = Bs[J_i].pop()
                     assert B_state == (n, i)
 
                     # Whether this adjoint equation is solved
