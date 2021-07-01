@@ -544,10 +544,8 @@ class Equation(Referrer):
 
         J          Adjoint model functional.
         adj_X      A sequence of functions defining the initial guess for the
-                   adjoint solve, which may be modified or returned by this
-                   method. Alternatively None may be used, to indicate an
-                   initial guess of zero, or if the Equation does not accept
-                   an adjoint initial guess.
+                   adjoint solve, or None if the Equation does not accept an
+                   initial guess. May be modified or returned by this method.
         nl_deps    A sequence of functions defining the values of non-linear
                    dependencies.
         B          A sequence of functions defining the right-hand-side, which
