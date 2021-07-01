@@ -491,7 +491,8 @@ class DependencyGraphTranspose:
                             active[J_id][n][i] = False
 
         stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
-                          for eq in block) for block in blocks) for J in Js}
+                                                      for eq in block)
+                                                for block in blocks) for J in Js}  # noqa: E501
         adj_ics = {function_id(J): {} for J in Js}
         for J_id in stored_adj_ics:
             stored = {}
@@ -502,17 +503,14 @@ class DependencyGraphTranspose:
                             stored_adj_ics[J_id][n][i][m] = \
                                 stored.get(function_id(x), False)
 
-                        adj_ic_ids = {function_id(dep) for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
-                        for dep_id in adj_ic_ids:
-                            stored[dep_id] = True
-                            if dep_id not in adj_ics[J_id]:
-                                adj_ics[J_id][dep_id] = True
-                        for x in eq.X():
-                            x_id = function_id(x)
-                            if x_id not in adj_ic_ids:
-                                stored[x_id] = False
-                                if x_id not in adj_ics[J_id]:
-                                    adj_ics[J_id][x_id] = False
+                    adj_ic_ids = {function_id(dep)
+                                  for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
+                    for x in eq.X():
+                        x_id = function_id(x)
+                        store_x = active[J_id][n][i] and x_id in adj_ic_ids
+                        stored[x_id] = store_x
+                        if x_id not in adj_ics[J_id]:
+                            adj_ics[J_id][x_id] = store_x
 
         self._transpose_deps = transpose_deps
         self._active = active
@@ -1688,22 +1686,33 @@ class EquationManager:
                     B_state, eq_B = B.pop()
                     assert B_state == (n, i)
 
-                    adj_X_ic = tuple(
-                        adj_Xs[J_i].pop(function_id(x), None) for x in eq_X)
+                    # Whether this adjoint equation is solved
+                    eq_active = transpose_deps.is_active(J_marker, n, i)
 
-                    if transpose_deps.is_active(J_marker, n, i):
+                    # Extract adjoint initial condition
+                    adj_X_ic = tuple(adj_Xs[J_i].pop(function_id(x), None)
+                                     for x in eq_X)
+                    if eq_active:
+                        adj_X_ic_ids = {function_id(dep)
+                                        for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
+                        assert len(eq_X) == len(adj_X_ic)
+                        for x, adj_x_ic in zip(eq_X, adj_X_ic):
+                            if function_id(x) not in adj_X_ic_ids:
+                                assert adj_x_ic is None
+                        del adj_X_ic_ids
+                    else:
+                        for adj_x_ic in adj_X_ic:
+                            assert adj_x_ic is None
+
+                    if eq_active:
                         # Construct adjoint initial condition
-                        adj_X_ic_ids = \
-                            {function_id(adj_x)
-                             for adj_x in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
-                        if len(adj_X_ic_ids) == 0:
+                        if len(eq.adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
                             adj_X = None
                         else:
                             adj_X = []
                             assert len(eq_X) == len(adj_X_ic)
                             for x, adj_x_ic in zip(eq_X, adj_X_ic):
-                                if adj_x_ic is None \
-                                        or function_id(x) not in adj_X_ic_ids:
+                                if adj_x_ic is None:
                                     adj_X.append(function_new(x))
                                 else:
                                     adj_X.append(adj_x_ic)
@@ -1765,7 +1774,7 @@ class EquationManager:
 
         for B in Bs:
             assert B.is_empty()
-        for J_i in range(len(Js)):
+        for J_i in range(len(adj_Xs)):
             assert len(adj_Xs[J_i]) == 0
 
         if self._cp_method == "multistage":
