@@ -1637,21 +1637,18 @@ class EquationManager:
         if adj_cache is None:
             prune = None
         else:
-            J_is = {function_id(J): J_i for J_i, J in enumerate(J_markers)}
-
             def prune(J, n, i):
                 cp_n = n - 1
                 cp_block = cp_n >= 0 and cp_n < len(self._blocks)
-                J_i = J_is[function_id(J)]
+                J_i = prune.J_is[function_id(J)]  # noqa: F821
                 return cp_block and adj_cache.has_cached(J_i, cp_n, i)
+            prune.J_is = {function_id(J): J_i
+                          for J_i, J in enumerate(J_markers)}
         transpose_deps = DependencyGraphTranspose(
             J_markers, M, blocks,
             prune_forward=prune_forward, prune_adjoint=prune_adjoint,
             prune=prune)
-        if adj_cache is None:
-            del prune
-        else:
-            del J_is, prune
+        del prune
 
         # Adjoint variables
         adj_Xs = tuple({} for J in Js)
