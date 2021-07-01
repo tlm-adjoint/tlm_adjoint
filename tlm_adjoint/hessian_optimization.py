@@ -18,125 +18,183 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_id
+from .interface import function_id, function_new, function_state
 
 from .caches import clear_caches
+from .functional import Functional
 from .hessian import Hessian, HessianException
 from .manager import manager as _manager
-from .tlm_adjoint import CheckpointStorage
+from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
+import warnings
 
 __all__ = \
     [
+        "CachedHessian",
         "HessianException",
         "SingleBlockHessian"
     ]
 
 
-class SingleBlockHessian(Hessian):
-    def __init__(self, J, manager=None):
+class CachedHessian(Hessian):
+    def __init__(self, J, manager=None, cache_adjoint=True):
         """
-        A Hessian class for the case where a single block equation with memory
-        checkpointing is used. The forward should already have been processed
-        by the supplied equation manager.
+        A Hessian class for the case where memory checkpointing is used,
+        without automatic dropping of references to function objects.
 
         Arguments:
 
         J        The Functional.
         manager  (Optional) The equation manager used to process the forward.
+        cache_adjoint  (Optional) Whether to cache the first order adjoint.
         """
 
-        self._J = J
-        self._manager = _manager() if manager is None else manager
+        if manager is None:
+            manager = _manager()
+        if manager._cp_method != "memory" \
+                or manager._cp_parameters["drop_references"]:
+            raise HessianException("Invalid equation manager state")
 
-    def compute_gradient(self, M):
-        if not isinstance(M, Sequence):
-            J, (dJ,) = self.compute_gradient((M,))
-            return J, dJ
+        blocks = list(manager._blocks) + [list(manager._block)]
 
-        J_val = self._J.value()
-        dJ = self._manager.compute_gradient(self._J, M)
+        ics = dict(manager._cp.initial_conditions(cp=True, refs=True,
+                                                  copy=False))
 
-        return J_val, dJ
+        nl_deps = {}
+        for n, block in enumerate(blocks):
+            for i, eq in enumerate(block):
+                nl_deps[(n, i)] = manager._cp[(n, i)]
 
-    def action(self, M, dM):
-        if not isinstance(M, Sequence):
-            J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
-            return J_val, dJ_val, ddJ
+        self._J_state = function_state(J.fn())
+        self._J = Functional(fn=J.fn())
+        self._blocks = blocks
+        self._ics = ics
+        self._nl_deps = nl_deps
+        if cache_adjoint:
+            self._adj_cache = AdjointCache()
+        else:
+            self._adj_cache = None
+
+    def _new_manager(self):
+        manager = EquationManager(cp_method="memory",
+                                  cp_parameters={"drop_references": False})
+
+        for x_id, value in self._ics.items():
+            manager._cp._add_initial_condition(
+                x_id=x_id, value=value, copy=False)
+
+        return manager
+
+    def _add_forward_equations(self, manager):
+        for n, block in enumerate(self._blocks):
+            for i, eq in enumerate(block):
+                eq_id = eq.id()
+                if eq_id not in manager._eqs:
+                    manager._eqs[eq_id] = eq
+                manager._block.append(eq)
+                manager._cp.add_equation(
+                    (len(manager._blocks), len(manager._block) - 1), eq,
+                    nl_deps=self._nl_deps[(n, i)], copy=lambda x: False)
+                yield n, i, eq
+
+    def _tangent_linear(self, manager, eq, M, dM):
+        return manager._tangent_linear(eq, M, dM)
+
+    def _add_tangent_linear_equation(self, manager, n, i, eq, M, dM, tlm_eq,
+                                     solve=True):
+        for tlm_dep in tlm_eq.initial_condition_dependencies():
+            manager._cp.add_initial_condition(tlm_dep)
+
+        eq_nl_deps = eq.nonlinear_dependencies()
+        cp_deps = self._nl_deps[(n, i)]
+        assert len(eq_nl_deps) == len(cp_deps)
+        eq_deps = {function_id(eq_dep): cp_dep
+                   for eq_dep, cp_dep in zip(eq_nl_deps, cp_deps)}
+        del eq_nl_deps, cp_deps
+
+        tlm_deps = list(tlm_eq.dependencies())
+        for j, tlm_dep in enumerate(tlm_deps):
+            tlm_dep_id = function_id(tlm_dep)
+            if tlm_dep_id in eq_deps:
+                tlm_deps[j] = eq_deps[tlm_dep_id]
+        del eq_deps
+
+        if solve:
+            tlm_eq.forward(tlm_eq.X(), deps=tlm_deps)
+
+        tlm_eq_id = tlm_eq.id()
+        if tlm_eq_id not in manager._eqs:
+            manager._eqs[tlm_eq_id] = tlm_eq
+        manager._block.append(tlm_eq)
+        manager._cp.add_equation(
+            (len(manager._blocks), len(manager._block) - 1), tlm_eq,
+            deps=tlm_deps)
+
+        if self._adj_cache is not None:
+            self._adj_cache.register(
+                0, len(manager._blocks), len(manager._block) - 1)
+
+    def _setup_manager(self, M, dM, M0=None, solve_tlm=True):
+        if function_state(self._J.fn()) != self._J_state:
+            raise HessianException("Functional state has changed")
+
+        M = tuple(M)
+        dM = tuple(dM)
+        # M0 ignored
 
         clear_caches(*dM)
 
-        if self._manager._cp_method != "memory" \
-           or self._manager._cp_parameters["drop_references"] \
-           or not (len(self._manager._blocks) == 0
-                   or (len(self._manager._blocks) == 1
-                       and len(self._manager._block) == 0)):
-            raise HessianException("Invalid equation manager state")
-        if len(self._manager._blocks) == 0:
-            block = self._manager._block
-        else:
-            block = self._manager._blocks[0]
-
-        # The following rather nasty piece of code creates a new temporary
-        # equation manager with the necessary tangent-linear equations added
-        # manually, via direct modification of internal equation manager data
-
-        manager = self._manager.new()
+        manager = self._new_manager()
         manager.add_tlm(M, dM)
-        manager._annotation_state = "annotating"
-        manager._tlm_state = "deriving"
-        manager._cp = CheckpointStorage(store_ics=True, store_data=True)
 
-        # Copy (references to) forward model initial condition data
-        ics = self._manager._cp.initial_conditions(cp=True, refs=True,
-                                                   copy=False).items()
-        for x_id, value in ics:
-            manager._cp._add_initial_condition(x_id=x_id, value=value,
-                                               copy=False)
-        del ics
+        for n, i, eq in self._add_forward_equations(manager):
+            tlm_eq = self._tangent_linear(manager, eq, M, dM)
+            if tlm_eq is not None:
+                self._add_tangent_linear_equation(
+                    manager, n, i, eq, M, dM, tlm_eq,
+                    solve=solve_tlm)
 
-        for i, eq in enumerate(block):
-            # Copy annotation of the equation
-            manager._eqs[eq.id()] = eq
-            manager._block.append(eq)
-            manager._cp.add_equation((0, len(manager._block) - 1), eq,
-                                     nl_deps=self._manager._cp[(0, i)],
-                                     copy=lambda x: False)
+        return manager, M, dM
 
-            for (M, dM), (tlm_map, max_depth) in manager._tlm.items():
-                # Generate the associated tangent-linear equation (or extract
-                # it from the cache)
-                tlm_eq = manager._tangent_linear(eq, M, dM, tlm_map)
-                if tlm_eq is not None:
-                    # Extract the dependency values from storage for use in the
-                    # solution of the tangent-linear equation
-                    eq_deps = {function_id(eq_dep): cp_dep
-                               for eq_dep, cp_dep in
-                               zip(eq.nonlinear_dependencies(),
-                                   self._manager._cp[(0, i)])}
-                    tlm_deps = list(tlm_eq.dependencies())
-                    for j, tlm_dep in enumerate(tlm_deps):
-                        tlm_dep_id = function_id(tlm_dep)
-                        if tlm_dep_id in eq_deps:
-                            tlm_deps[j] = eq_deps[tlm_dep_id]
+    def compute_gradient(self, M, M0=None):
+        if not isinstance(M, Sequence):
+            J_val, (dJ,) = self.compute_gradient(
+                (M,),
+                M0=None if M0 is None else (M0,))
+            return J_val, dJ
 
-                    tlm_X = tlm_eq.X()
-                    # Pre-process the tangent-linear equation
-                    for tlm_dep in tlm_eq.initial_condition_dependencies():
-                        manager._cp.add_initial_condition(tlm_dep)
-                    # Solve the tangent-linear equation
-                    tlm_eq.forward(tlm_X, deps=tlm_deps)
-                    # Post-process the tangent-linear equation
-                    manager._eqs[tlm_eq.id()] = tlm_eq
-                    manager._block.append(tlm_eq)
-                    manager._cp.add_equation((0, len(manager._block) - 1),
-                                             tlm_eq, deps=tlm_deps)
+        dM = tuple(function_new(m) for m in M)
+        manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
+
+        dJ = self._J.tlm(M, dM, manager=manager)
+
+        J_val = self._J.value()
+        dJ = manager.compute_gradient(dJ, dM, adj_cache=self._adj_cache)
+
+        return J_val, dJ
+
+    def action(self, M, dM, M0=None):
+        if not isinstance(M, Sequence):
+            J_val, dJ_val, (ddJ,) = self.action(
+                (M,), (dM,),
+                M0=None if M0 is None else (M0,))
+            return J_val, dJ_val, ddJ
+
+        manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
 
         dJ = self._J.tlm(M, dM, manager=manager)
 
         J_val = self._J.value()
         dJ_val = dJ.value()
-        ddJ = manager.compute_gradient(dJ, M)
+        ddJ = manager.compute_gradient(dJ, M, adj_cache=self._adj_cache)
 
         return J_val, dJ_val, ddJ
+
+
+class SingleBlockHessian(CachedHessian):
+    def __init__(self, *args, **kwargs):
+        warnings.warn("SingleBlockHessian class is deprecated -- "
+                      "use CachedHessian instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)

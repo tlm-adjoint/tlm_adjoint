@@ -73,7 +73,7 @@ def test_NHEP(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-def test_SingleBlockHessian(setup_test):
+def test_CachedHessian(setup_test):
     configure_checkpointing("memory", {"drop_references": False})
 
     mesh = UnitIntervalMesh(5)
@@ -97,8 +97,7 @@ def test_SingleBlockHessian(setup_test):
     stop_manager()
 
     H = Hessian(forward)
-    from tlm_adjoint.hessian_optimization import SingleBlockHessian
-    H_opt = SingleBlockHessian(J)
+    H_opt = CachedHessian(J)
 
     # Test consistency of matrix action for static direction
 

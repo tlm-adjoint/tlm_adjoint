@@ -538,7 +538,7 @@ class Equation(Referrer):
     def adjoint(self, J, adj_X, nl_deps, B, dep_Bs):
         """
         Solve the adjoint equation with the given right-hand-side, and subtract
-        corresponding adjoint terms from other adjoint equations.
+        adjoint terms from other adjoint right-hand-sides.
 
         Arguments:
 
@@ -548,8 +548,8 @@ class Equation(Referrer):
                    initial guess. May be modified or returned by this method.
         nl_deps    A sequence of functions defining the values of non-linear
                    dependencies.
-        B          A sequence of functions defining the right-hand-side. May be
-                   modified or returned by this method.
+        B          A sequence of functions defining the right-hand-side, which
+                   may be modified or returned by this method.
         dep_Bs     Dictionary of dep_index: dep_B pairs, where each dep_B is an
                    AdjointRHS which should be updated by subtracting derivative
                    information computed by differentiating with respect to
@@ -560,26 +560,48 @@ class Equation(Referrer):
         """
 
         function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
-
         self.initialize_adjoint(J, nl_deps)
 
         if adj_X is not None and len(adj_X) == 1:
             adj_X = adj_X[0]
         adj_X = self.adjoint_jacobian_solve(
             adj_X, nl_deps, B[0] if len(B) == 1 else B)
-        if adj_X is None:
-            warnings.warn("None return from Equation.adjoint_jacobian_solve "
-                          "is deprecated",
-                          DeprecationWarning, stacklevel=2)
-            if len(B) == 1:
-                adj_X = function_new(B[0])
-            else:
-                adj_X = tuple(function_new(b) for b in B)
-        self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
+        if adj_X is not None:
+            self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
 
         self.finalize_adjoint(J)
 
-        return (adj_X,) if is_function(adj_X) else tuple(adj_X)
+        if adj_X is None:
+            return None
+        elif is_function(adj_X):
+            return (adj_X,)
+        else:
+            return tuple(adj_X)
+
+    def adjoint_cached(self, J, adj_X, nl_deps, dep_Bs):
+        """
+        Subtract adjoint terms from other adjoint right-hand-sides.
+
+        Arguments:
+
+        J          Adjoint model functional.
+        adj_X      A sequence of functions defining the adjoint solution.
+        nl_deps    A sequence of functions defining the values of non-linear
+                   dependencies.
+        dep_Bs     Dictionary of dep_index: dep_B pairs, where each dep_B is an
+                   AdjointRHS which should be updated by subtracting derivative
+                   information computed by differentiating with respect to
+                   self.dependencies()[dep_index].
+        """
+
+        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
+        self.initialize_adjoint(J, nl_deps)
+
+        if len(adj_X) == 1:
+            adj_X = adj_X[0]
+        self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
+
+        self.finalize_adjoint(J)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """
@@ -630,8 +652,9 @@ class Equation(Referrer):
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         """
-        Solve an adjoint equation, returning the result. The result will not
-        be modified by calling code.
+        Solve an adjoint equation, returning the result. The result will not be
+        modified by calling code. A return value of None can be used to
+        indicate that the solution is zero.
 
         The form:
             adjoint_jacobian_solve(self, adj_x, nl_deps, b)
@@ -1196,19 +1219,16 @@ class FixedPointSolver(Equation):
                     eq_B[0] if len(eq_B) == 1 else eq_B)
 
                 if eq_adj_X[i] is None:
-                    warnings.warn("None return from "
-                                  "Equation.adjoint_jacobian_solve is "
-                                  "deprecated",
-                                  DeprecationWarning, stacklevel=2)
                     eq_adj_X[i] = tuple(function_new(b) for b in eq_B)
-                elif is_function(eq_adj_X[i]):
-                    eq_adj_X[i] = (eq_adj_X[i],)
+                else:
+                    if is_function(eq_adj_X[i]):
+                        eq_adj_X[i] = (eq_adj_X[i],)
+                    self._eqs[i].subtract_adjoint_derivative_actions(
+                        eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],  # noqa: E501
+                        eq_nl_deps[i], dep_Bs[i])
+
                 for j, x in zip(self._eq_X_indices[i], eq_adj_X[i]):
                     adj_X[j] = x
-
-                self._eqs[i].subtract_adjoint_derivative_actions(
-                    eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],
-                    eq_nl_deps[i], dep_Bs[i])
 
                 eq_B = adj_B[0][i].B()
                 for j, k in enumerate(self._eq_X_indices[i]):

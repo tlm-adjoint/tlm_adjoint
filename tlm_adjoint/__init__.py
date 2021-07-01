@@ -18,13 +18,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .caches import *              # noqa: F401
-from .eigendecomposition import *  # noqa: F401
-from .equations import *           # noqa: F401
-from .functional import *          # noqa: F401
-from .hessian import *             # noqa: F401
-from .interface import *           # noqa: F401
-from .manager import *             # noqa: F401
-from .optimization import *        # noqa: F401
-from .tlm_adjoint import *         # noqa: F401
-from .verification import *        # noqa: F401
+from .caches import *                # noqa: F401
+from .eigendecomposition import *    # noqa: F401
+from .equations import *             # noqa: F401
+from .functional import *            # noqa: F401
+from .hessian import *               # noqa: F401
+from .hessian_optimization import *  # noqa: F401
+from .interface import *             # noqa: F401
+from .manager import *               # noqa: F401
+from .optimization import *          # noqa: F401
+from .tlm_adjoint import *           # noqa: F401
+from .verification import *          # noqa: F401

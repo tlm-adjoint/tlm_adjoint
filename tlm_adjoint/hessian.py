@@ -59,7 +59,7 @@ class Hessian:
         self._manager = manager
 
     @restore_manager
-    def compute_gradient(self, M):
+    def compute_gradient(self, M, M0=None):
         """
         Evaluate a derivative. Re-evaluates the forward. Returns a tuple
             (J, dJ)
@@ -71,10 +71,14 @@ class Hessian:
 
         M   A function, or a sequence of functions, defining the control
             parameters.
+        M0  (Optional) A function, or a sequence of functions, defining the
+            values of the control parameters.
         """
 
         if not isinstance(M, Sequence):
-            J, (dJ,) = self.compute_gradient((M,))
+            J, (dJ,) = self.compute_gradient(
+                (M,),
+                M0=None if M0 is None else (M0,))
             return J, dJ
 
         set_manager(self._manager)
@@ -82,10 +86,15 @@ class Hessian:
         self._manager.stop()
         clear_caches()
 
-        M = [function_copy(m, name=function_name(m),
-                           static=function_is_static(m),
-                           cache=function_is_cached(m),
-                           checkpoint=function_is_checkpointed(m)) for m in M]
+        if M0 is None:
+            M0 = M
+        assert len(M0) == len(M)
+        M = tuple(function_copy(m0, name=function_name(m),
+                                static=function_is_static(m),
+                                cache=function_is_cached(m),
+                                checkpoint=function_is_checkpointed(m))
+                  for m0, m in zip(M0, M))
+        del M0
 
         self._manager.start()
         J = self._forward(*M)
@@ -97,7 +106,7 @@ class Hessian:
         return J_val, dJ
 
     @restore_manager
-    def action(self, M, dM):
+    def action(self, M, dM, M0=None):
         """
         Evaluate a Hessian action. Re-evaluates the forward. Returns a tuple
             (J, dJ, ddJ)
@@ -114,10 +123,14 @@ class Hessian:
             parameters.
         dM  A function, or a sequence or functions, defining the Hessian action
             direction.
+        M0  (Optional) A function, or a sequence of functions, defining the
+            values of the control parameters.
         """
 
         if not isinstance(M, Sequence):
-            J_val, dJ_val, (ddJ,) = self.action((M,), (dM,))
+            J_val, dJ_val, (ddJ,) = self.action(
+                (M,), (dM,),
+                M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
         set_manager(self._manager)
@@ -125,10 +138,21 @@ class Hessian:
         self._manager.stop()
         clear_caches()
 
-        M = [function_copy(m, name=function_name(m),
-                           static=function_is_static(m),
-                           cache=function_is_cached(m),
-                           checkpoint=function_is_checkpointed(m)) for m in M]
+        if M0 is None:
+            M0 = M
+        assert len(M0) == len(M)
+        M = tuple(function_copy(m0, name=function_name(m),
+                                static=function_is_static(m),
+                                cache=function_is_cached(m),
+                                checkpoint=function_is_checkpointed(m))
+                  for m0, m in zip(M0, M))
+        del M0
+
+        dM = tuple(function_copy(dm, name=function_name(dm),
+                                 static=function_is_static(dm),
+                                 cache=function_is_cached(dm),
+                                 checkpoint=function_is_checkpointed(dm))
+                   for dm in dM)
 
         self._manager.add_tlm(M, dM)
         self._manager.start()
@@ -142,18 +166,19 @@ class Hessian:
 
         return J_val, dJ_val, ddJ
 
-    def action_fn(self, m):
+    def action_fn(self, m, m0=None):
         """
         Return a callable which accepts a function defining dm, and returns the
         Hessian action as a NumPy array.
 
         Arguments:
 
-        m   A function
+        m   A function defining the control
+        m0  (Optional) A function defining the control value
         """
 
         def action(dm):
-            _, _, ddJ = self.action(m, dm)
+            _, _, ddJ = self.action(m, dm, M0=m0)
             return function_get_values(ddJ)
 
         return action

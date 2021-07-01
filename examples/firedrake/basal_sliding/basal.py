@@ -20,7 +20,6 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.hessian_optimization import *
 
 # import h5py
 import logging
@@ -349,7 +348,7 @@ start_manager()
 ref, J = forward(beta_sq_ref)
 stop_manager()
 
-ddJ = SingleBlockHessian(J)
+ddJ = CachedHessian(J)
 M_solver = LinearSolver(assemble(inner(test, trial) * dx),
                         solver_parameters={"ksp_type": "cg",
                                            "pc_type": "sor",
@@ -416,8 +415,8 @@ if debug:
     _, J = forward(beta_sq, ref=ref)
     stop_manager()
 
-    dJ = compute_gradient(J, beta_sq)
-    ddJ = SingleBlockHessian(J)
+    ddJ = CachedHessian(J)
+    _, dJ = ddJ.compute_gradient(beta_sq)
 
     def forward_ref_J(beta_sq):
         return forward(beta_sq, ref=ref)[1]
