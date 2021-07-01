@@ -417,7 +417,6 @@ class DependencyGraphTranspose:
                 block = blocks[p]
                 for k in range(len(block) - 1, -1, -1):
                     eq = block[k]
-                    X_map = {function_id(x): m for m, x in enumerate(eq.X())}
                     dep_map = {function_id(dep): j
                                for j, dep in enumerate(eq.dependencies())}
                     for dep in eq.adjoint_initial_condition_dependencies():
@@ -429,7 +428,7 @@ class DependencyGraphTranspose:
                                 = (p, k, dep_map[dep_id])
                     for m, x in enumerate(eq.X()):
                         x_id = function_id(x)
-                        last_eq[x_id] = (p, k, X_map[x_id])
+                        last_eq[x_id] = (p, k, m)
             del last_eq
 
             # Pruning, forward traversal
