@@ -1583,26 +1583,25 @@ class EquationManager:
 
         if not isinstance(M, Sequence):
             if not isinstance(Js, Sequence):
-                if adj_ics is not None:
-                    adj_ics = [adj_ics]
                 ((dJ,),) = self.compute_gradient(
-                    [Js], [M], callback=callback,
+                    (Js,), (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                    adj_ics=adj_ics, adj_cache=adj_cache)
+                    adj_ics=None if adj_ics is None else (adj_ics,),
+                    adj_cache=adj_cache)
                 return dJ
             else:
                 dJs = self.compute_gradient(
-                    Js, [M], callback=callback,
+                    Js, (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                    adj_ics=adj_ics, adj_cache=adj_cache)
+                    adj_ics=adj_ics,
+                    adj_cache=adj_cache)
                 return tuple(dJ for (dJ,) in dJs)
         elif not isinstance(Js, Sequence):
-            if adj_ics is not None:
-                adj_ics = [adj_ics]
             dJ, = self.compute_gradient(
-                [Js], M, callback=callback,
+                (Js,), M, callback=callback,
                 prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                adj_ics=adj_ics, adj_cache=adj_cache)
+                adj_ics=None if adj_ics is None else (adj_ics,),
+                adj_cache=adj_cache)
             return dJ
 
         gc.collect()
