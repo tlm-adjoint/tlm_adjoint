@@ -56,6 +56,8 @@ class CachedHessian(Hessian):
                 or manager._cp_parameters["drop_references"]:
             raise HessianException("Invalid equation manager state")
 
+        comm = manager.comm()
+
         blocks = list(manager._blocks) + [list(manager._block)]
 
         ics = dict(manager._cp.initial_conditions(cp=True, refs=True,
@@ -66,6 +68,7 @@ class CachedHessian(Hessian):
             for i, eq in enumerate(block):
                 nl_deps[(n, i)] = manager._cp[(n, i)]
 
+        self._comm = comm
         self._J_state = function_state(J.fn())
         self._J = Functional(fn=J.fn())
         self._blocks = blocks
@@ -77,7 +80,8 @@ class CachedHessian(Hessian):
             self._adj_cache = None
 
     def _new_manager(self):
-        manager = EquationManager(cp_method="memory",
+        manager = EquationManager(comm=self._comm,
+                                  cp_method="memory",
                                   cp_parameters={"drop_references": False})
 
         for x_id, value in self._ics.items():
