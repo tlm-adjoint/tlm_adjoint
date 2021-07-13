@@ -239,13 +239,6 @@ class Referrer:
         raise EquationException("Method not overridden")
 
 
-def no_replace_compatibility(function):
-    def wrapped_function(*args, **kwargs):
-        return function(*args, **kwargs)
-    wrapped_function._replace_compatibility = False
-    return wrapped_function
-
-
 class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None,
                  ic_deps=None, ic=None,
@@ -354,17 +347,6 @@ class Equation(Referrer):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        if getattr(cls.replace, "_replace_compatibility", True):
-            warnings.warn("Equation.replace method is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-            def drop_references(self):
-                replace_map = {dep: function_replacement(dep)
-                               for dep in self.dependencies()}
-                self.replace(replace_map)
-            cls.drop_references = drop_references
-            cls.replace._replace_compatibility = False
-
         if hasattr(cls, "reset_adjoint"):
             if cls._reset_adjoint_warning:
                 warnings.warn("Equation.reset_adjoint method is deprecated",
@@ -410,22 +392,6 @@ class Equation(Referrer):
         self._ic_deps = tuple(function_replacement(dep)
                               for dep in self._ic_deps)
         self._adj_ic_deps = tuple(function_replacement(dep)
-                                  for dep in self._adj_ic_deps)
-
-    @no_replace_compatibility
-    def replace(self, replace_map):
-        """
-        Replace all internal functions using the supplied replace map. Must
-        call the base class replace method.
-        """
-
-        self._X = tuple(replace_map.get(x, x) for x in self._X)
-        self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
-        self._nl_deps = tuple(replace_map.get(dep, dep)
-                              for dep in self._nl_deps)
-        self._ic_deps = tuple(replace_map.get(dep, dep)
-                              for dep in self._ic_deps)
-        self._adj_ic_deps = tuple(replace_map.get(dep, dep)
                                   for dep in self._adj_ic_deps)
 
     def x(self):
@@ -1550,17 +1516,6 @@ class Matrix(Referrer):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        if getattr(cls.replace, "_replace_compatibility", True):
-            warnings.warn("Matrix.replace method is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-            def drop_references(self):
-                replace_map = {dep: function_replacement(dep)
-                               for dep in self.nonlinear_dependencies()}
-                self.replace(replace_map)
-            cls.drop_references = drop_references
-            cls.replace._replace_compatibility = False
-
         if hasattr(cls, "reset_adjoint"):
             if cls._reset_adjoint_warning:
                 warnings.warn("Matrix.reset_adjoint method is deprecated",
@@ -1600,11 +1555,6 @@ class Matrix(Referrer):
 
     def drop_references(self):
         self._nl_deps = tuple(function_replacement(dep)
-                              for dep in self._nl_deps)
-
-    @no_replace_compatibility
-    def replace(self, replace_map):
-        self._nl_deps = tuple(replace_map.get(dep, dep)
                               for dep in self._nl_deps)
 
     def nonlinear_dependencies(self):
@@ -1716,29 +1666,9 @@ class RHS(Referrer):
         self._deps = tuple(deps)
         self._nl_deps = tuple(nl_deps)
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-
-        if getattr(cls.replace, "_replace_compatibility", True):
-            warnings.warn("RHS.replace method is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-            def drop_references(self):
-                replace_map = {dep: function_replacement(dep)
-                               for dep in self.dependencies()}
-                self.replace(replace_map)
-            cls.drop_references = drop_references
-            cls.replace._replace_compatibility = False
-
     def drop_references(self):
         self._deps = tuple(function_replacement(dep) for dep in self._deps)
         self._nl_deps = tuple(function_replacement(dep)
-                              for dep in self._nl_deps)
-
-    @no_replace_compatibility
-    def replace(self, replace_map):
-        self._deps = tuple(replace_map.get(dep, dep) for dep in self._deps)
-        self._nl_deps = tuple(replace_map.get(dep, dep)
                               for dep in self._nl_deps)
 
     def dependencies(self):
