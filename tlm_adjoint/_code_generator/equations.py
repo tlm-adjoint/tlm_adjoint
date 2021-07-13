@@ -34,7 +34,7 @@ from .backend_code_generator_interface import assemble, \
 
 from ..caches import CacheRef
 from ..equations import AssignmentSolver, Equation, EquationException, \
-    NullSolver, get_tangent_linear, no_replace_compatibility
+    NullSolver, get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
@@ -153,11 +153,9 @@ class AssembleSolver(Equation):
     def drop_references(self):
         replace_map = {dep: function_replacement(dep)
                        for dep in self.dependencies()}
-        self.replace(replace_map)
 
-    @no_replace_compatibility
-    def replace(self, replace_map):
-        super().replace(replace_map)
+        super().drop_references()
+
         self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):
@@ -408,11 +406,8 @@ class EquationSolver(Equation):
     def drop_references(self):
         replace_map = {dep: function_replacement(dep)
                        for dep in self.dependencies()}
-        self.replace(replace_map)
 
-    @no_replace_compatibility
-    def replace(self, replace_map):
-        super().replace(replace_map)
+        super().drop_references()
 
         self._F = ufl.replace(self._F, replace_map)
         self._lhs = ufl.replace(self._lhs, replace_map)
@@ -927,11 +922,9 @@ class ExprEvaluationSolver(Equation):
     def drop_references(self):
         replace_map = {dep: function_replacement(dep)
                        for dep in self.dependencies()}
-        self.replace(replace_map)
 
-    @no_replace_compatibility
-    def replace(self, replace_map):
-        super().replace(replace_map)
+        super().drop_references()
+
         self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):
