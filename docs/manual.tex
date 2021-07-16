@@ -1622,8 +1622,8 @@ with constructor arguments
 
 \subsubsection{\texttt{HDF5Storage}}
 
-Storage using the HDF5 format \citep{hdf5} using the \texttt{h5py} library. An
-\texttt{HDF5Storage} can be instantiated via
+Storage using the HDF5 format \citep{hdf52021} using the \texttt{h5py} library.
+An \texttt{HDF5Storage} can be instantiated via
 \begin{lstlisting}
 eq = HDF5Storage(x, h, key, save=save)
 \end{lstlisting}
@@ -2141,7 +2141,8 @@ Checkpoints are stored to disk at regular intervals. Keys for
   \item \texttt{format}, one of ``pickle'' or ``hdf5'' (default ``hdf5''). The
     data storage format. If ``pickle'' is used then the data are stored using
     the Python \texttt{pickle} module. If ``hdf5'' is used then the data are
-    stored using the HDF5 format \citep{hdf5} using the \texttt{h5py} library.
+    stored using the HDF5 format \citep{hdf52021} using the \texttt{h5py}
+    library.
   \item \texttt{period}, positive integer, the interval (in blocks -- see
     section \ref{sect:blocks}) between disk checkpoints.
 \end{itemize}
@@ -2578,7 +2579,7 @@ dJ = compute_gradient(J, psi_0)
 
 The \texttt{minimize\_scipy} function can be used for functional minimization
 using the \texttt{scipy.optimize.minimize} function supplied with SciPy
-\citep{scipy}. This has the interface
+\citep{virtanen2020}. This has the interface
 \begin{lstlisting}
 def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 \end{lstlisting}
@@ -2619,7 +2620,7 @@ for the control.
 
 The \texttt{eigendecompose} function can be used for matrix-free
 eigendecomposition, using SLEPc via slepc4py
-\citep{hernandez2005,dalcin2011,slepc-user-3.9}. This seeks eigenvalues $\mu$
+\citep{hernandez2005,dalcin2011,slepc-user-3.15}. This seeks eigenvalues $\mu$
 and associated eigenvectors $v$ where
 \begin{equation*}
   A v = \mu B v.
