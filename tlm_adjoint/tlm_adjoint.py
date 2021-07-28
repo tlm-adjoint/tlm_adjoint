@@ -246,6 +246,7 @@ class CheckpointStorage:
         if self._store_ics:
             for eq_x in eq_X:
                 self._seen_ics.add(function_id(eq_x))
+            assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
                 self.add_initial_condition(eq_dep, value=dep,
                                            copy=copy(eq_dep))
@@ -256,7 +257,9 @@ class CheckpointStorage:
                                 for i in eq.nonlinear_dependencies_map())
 
             dep_keys = []
-            for eq_dep, dep in zip(eq.nonlinear_dependencies(), nl_deps):
+            eq_nl_deps = eq.nonlinear_dependencies()
+            assert len(eq_nl_deps) == len(nl_deps)
+            for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 eq_dep_id = function_id(eq_dep)
                 dep_key = self._data_key(eq_dep_id)
                 if dep_key not in self._data:
@@ -268,6 +271,7 @@ class CheckpointStorage:
                             self._seen_ics.add(eq_dep_id)
                             self._refs[eq_dep_id] = dep
                 dep_keys.append(dep_key)
+            del eq_nl_deps
             self._dep_keys[key] = dep_keys
 
 

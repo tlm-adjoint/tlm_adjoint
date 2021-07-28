@@ -160,6 +160,7 @@ class Cache:
 
         self._cache[key] = value_ref
 
+        assert len(deps) == len(dep_ids)
         for dep, dep_id in zip(deps, dep_ids):
             dep_caches = function_caches(dep)
             dep_caches.add(self)

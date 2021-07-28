@@ -777,6 +777,7 @@ class LinearCombinationSolver(Equation):
     def forward_solve(self, x, deps=None):
         deps = self.dependencies() if deps is None else tuple(deps)
         function_zero(x)
+        assert len(self._alpha) == len(deps[1:])
         for alpha, y in zip(self._alpha, deps[1:]):
             function_axpy(x, alpha, y)
 
@@ -795,6 +796,7 @@ class LinearCombinationSolver(Equation):
         deps = self.dependencies()
         x, ys = deps[0], deps[1:]
         args = []
+        assert len(self._alpha) == len(ys)
         for alpha, y in zip(self._alpha, ys):
             tau_y = get_tangent_linear(y, M, dM, tlm_map)
             if tau_y is not None:
@@ -1070,6 +1072,7 @@ class FixedPointSolver(Equation):
             R = X_0
             del X_0
             for i in range(len(self._eqs)):
+                assert len(R[i]) == len(eq_X[i])
                 for r, x in zip(R[i], eq_X[i]):
                     function_axpy(r, -1.0, x)
             R_norm_sq = self._forward_norm_sq(R)
@@ -1098,6 +1101,7 @@ class FixedPointSolver(Equation):
             X_0 = R
             del R
             for i in range(len(self._eqs)):
+                assert len(X_0[i]) == len(eq_X[i])
                 for x_0, x in zip(X_0[i], eq_X[i]):
                     function_assign(x_0, x)
 
@@ -1193,6 +1197,7 @@ class FixedPointSolver(Equation):
                         eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],  # noqa: E501
                         eq_nl_deps[i], dep_Bs[i])
 
+                assert len(self._eq_X_indices[i]) == len(eq_adj_X[i])
                 for j, x in zip(self._eq_X_indices[i], eq_adj_X[i]):
                     adj_X[j] = x
 
@@ -1203,6 +1208,7 @@ class FixedPointSolver(Equation):
             R = X_0
             del X_0
             for i in range(len(self._eqs)):
+                assert len(R[i]) == len(eq_adj_X[i])
                 for r, x in zip(R[i], eq_adj_X[i]):
                     function_axpy(r, -1.0, x)
             R_norm_sq = self._adjoint_norm_sq(R)
@@ -1231,6 +1237,7 @@ class FixedPointSolver(Equation):
             X_0 = R
             del R
             for i in range(len(self._eqs)):
+                assert len(X_0[i]) == len(eq_adj_X[i])
                 for x_0, x in zip(X_0[i], eq_adj_X[i]):
                     function_assign(x_0, x)
 
@@ -1434,6 +1441,7 @@ class LinearEquation(Equation):
             dep = eq_deps[dep_index]
             dep_id = function_id(dep)
             F = function_new(dep)
+            assert len(self._B) == len(self._b_dep_ids)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
                 if dep_id in b_dep_ids:
                     b_dep_index = b_dep_ids[dep_id]

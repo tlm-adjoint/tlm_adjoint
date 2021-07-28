@@ -124,6 +124,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         if not force and J[0] is not None:
             change_norm = 0.0
+            assert len(M) == len(J_M[0])
             for m, m0 in zip(M, J_M[0]):
                 change = function_copy(m)
                 function_axpy(change, -1.0, m0)
