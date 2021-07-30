@@ -389,6 +389,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
         return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
 
     x_error_norm = 0.0
+    assert len(X_vals) == len(X_coords)
     for x, x_coord in zip(X_vals, X_coords):
         x_error_norm = max(x_error_norm,
                            abs(function_scalar_value(x) - x_ref(x_coord)))

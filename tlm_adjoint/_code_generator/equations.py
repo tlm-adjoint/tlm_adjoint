@@ -250,14 +250,16 @@ class AssembleSolver(ExprEquation):
 
 def unbound_form(form, deps):
     replacement_deps = tuple(function_replacement(dep) for dep in deps)
+    assert len(deps) == len(replacement_deps)
     return_value = ufl.replace(form, dict(zip(deps, replacement_deps)))
     return_value._cache["_tlm_adjoint__replacement_deps"] = replacement_deps
     return return_value
 
 
 def bind_form(form, deps):
-    form._cache["_tlm_adjoint__bindings"] = dict(
-        zip(form._cache["_tlm_adjoint__replacement_deps"], deps))
+    replacement_deps = form._cache["_tlm_adjoint__replacement_deps"]
+    assert len(replacement_deps) == len(deps)
+    form._cache["_tlm_adjoint__bindings"] = dict(zip(replacement_deps, deps))
 
 
 def unbind_form(form):

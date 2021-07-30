@@ -407,6 +407,7 @@ for v_i in V_i:
 del v_i, V_i
 
 lam = lam.real
+assert len(lam) == len(V)
 pack = sorted(zip(lam, V), key=lambda p: p[0], reverse=True)
 lam = [p[0] for p in pack]
 V = [p[1] for p in pack]

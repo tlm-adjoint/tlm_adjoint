@@ -547,6 +547,7 @@ class PointInterpolationSolver(Equation):
 
                 owner_local = np.full(len(X), -1, dtype=np.int64)
                 owner_local[:] = rank
+                assert len(distances_local) == len(distances)
                 for i, (distance_local,
                         distance) in enumerate(zip(distances_local,
                                                    distances)):
