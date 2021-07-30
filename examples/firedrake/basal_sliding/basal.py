@@ -171,10 +171,9 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                 J_1 = self._J_1
                 J_2 = self._J
             else:
-                replace_map = dict(zip(self.dependencies(), deps))
-                F = ufl.replace(self._F, replace_map)
-                J_1 = ufl.replace(self._J_1, replace_map)
-                J_2 = ufl.replace(self._J, replace_map)
+                F = self._replace(self._F, deps)
+                J_1 = self._replace(self._J_1, deps)
+                J_2 = self._replace(self._J, deps)
 
             function_zero(U)
             r = assemble(

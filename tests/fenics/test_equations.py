@@ -741,8 +741,7 @@ def test_initial_guess(setup_test, test_leaks):
             def forward_solve(self, x, deps=None):
                 rhs = self._rhs
                 if deps is not None:
-                    rhs = ufl.replace(rhs,
-                                      dict(zip(self.dependencies(), deps)))
+                    rhs = self._replace(rhs, deps)
                 J, b = assemble_system(
                     self._J, rhs,
                     form_compiler_parameters=self._form_compiler_parameters)
