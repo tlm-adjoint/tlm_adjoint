@@ -145,6 +145,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
             _, T_bc = self.dependencies() if deps is None else deps
             x_arr = np.zeros(function_local_size(x),
                              dtype=np.float64)
+            assert len(self._nodes) == len(self._y)
             for node, y in zip(self._nodes, self._y):
                 x_arr[node] = T_bc(np.array([0.0, y],
                                    dtype=np.float64))
@@ -156,6 +157,7 @@ def forward(T_inflow_bc, kappa, T_N_ref=None, output_filename=None):
             elif dep_index == 1:
                 F = function_new(self.dependencies()[1])
                 F_arr = np.zeros(function_local_size(F), dtype=np.float64)
+                assert len(self._nodes_adj) == len(self._y_adj)
                 for node, y in zip(self._nodes_adj, self._y_adj):
                     F_arr[node] = -adj_x(np.array([0.0, y], dtype=np.float64))
                 function_set_values(F, F_arr)

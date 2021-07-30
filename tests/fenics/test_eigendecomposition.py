@@ -42,6 +42,7 @@ def test_HEP(setup_test, test_leaks):
     lam, V_r = eigendecompose(space, M_action,
                               problem_type=SLEPc.EPS.ProblemType.HEP)
     diff = Function(space)
+    assert len(lam) == len(V_r)
     for lam_val, v_r in zip(lam, V_r):
         function_set_values(diff, M_action(v_r))
         function_axpy(diff, -lam_val, v_r)
@@ -61,6 +62,8 @@ def test_NHEP(setup_test, test_leaks):
 
     lam, (V_r, V_i) = eigendecompose(space, N_action)
     diff = Function(space)
+    assert len(lam) == len(V_r)
+    assert len(lam) == len(V_i)
     for lam_val, v_r, v_i in zip(lam, V_r, V_i):
         function_set_values(diff, N_action(v_r))
         function_axpy(diff, -lam_val.real, v_r)

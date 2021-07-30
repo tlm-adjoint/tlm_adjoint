@@ -98,6 +98,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     def functions_inner(X, Y):
         inner = 0.0
+        assert len(X) == len(Y)
         for x, y in zip(X, Y):
             inner += function_inner(x, y)
         return inner
@@ -118,6 +119,8 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
     for i in range(eps.shape[0]):
+        assert len(M0) == len(M1)
+        assert len(M0) == len(dM)
         for m0, m1, dm in zip(M0, M1, dM):
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
@@ -217,6 +220,8 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
 
     J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
     for i in range(eps.shape[0]):
+        assert len(M) == len(M1)
+        assert len(M) == len(dMs[-1])
         for m0, m1, dm in zip(M, M1, dMs[-1]):
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)

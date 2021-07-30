@@ -113,7 +113,25 @@ def apply_rhs_bcs(b, hbcs, b_bc=None):
         rhs_addto(b, b_bc)
 
 
-class AssembleSolver(Equation):
+class ExprEquation(Equation):
+    def _replace_map(self, deps):
+        eq_deps = self.dependencies()
+        assert len(eq_deps) == len(deps)
+        return dict(zip(eq_deps, deps))
+
+    def _replace(self, expr, deps):
+        return ufl.replace(expr, self._replace_map(deps))
+
+    def _nonlinear_replace_map(self, nl_deps):
+        eq_nl_deps = self.nonlinear_dependencies()
+        assert len(eq_nl_deps) == len(nl_deps)
+        return dict(zip(eq_nl_deps, nl_deps))
+
+    def _nonlinear_replace(self, expr, nl_deps):
+        return ufl.replace(expr, self._nonlinear_replace_map(nl_deps))
+
+
+class AssembleSolver(ExprEquation):
     def __init__(self, rhs, x, form_compiler_parameters={},
                  match_quadrature=None):
         if match_quadrature is None:
@@ -162,7 +180,7 @@ class AssembleSolver(Equation):
         if deps is None:
             rhs = self._rhs
         else:
-            rhs = ufl.replace(self._rhs, dict(zip(self.dependencies(), deps)))
+            rhs = self._replace(self._rhs, deps)
 
         if self._rank == 0:
             function_assign(
@@ -194,7 +212,7 @@ class AssembleSolver(Equation):
         if dF.empty():
             return None
 
-        dF = ufl.replace(dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
+        dF = self._nonlinear_replace(dF, nl_deps)
         if self._rank == 0:
             dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
                            for integral in dF.integrals()])  # dF = adjoint(dF)
@@ -232,14 +250,16 @@ class AssembleSolver(Equation):
 
 def unbound_form(form, deps):
     replacement_deps = tuple(function_replacement(dep) for dep in deps)
+    assert len(deps) == len(replacement_deps)
     return_value = ufl.replace(form, dict(zip(deps, replacement_deps)))
     return_value._cache["_tlm_adjoint__replacement_deps"] = replacement_deps
     return return_value
 
 
 def bind_form(form, deps):
-    form._cache["_tlm_adjoint__bindings"] = dict(
-        zip(form._cache["_tlm_adjoint__replacement_deps"], deps))
+    replacement_deps = form._cache["_tlm_adjoint__replacement_deps"]
+    assert len(replacement_deps) == len(deps)
+    form._cache["_tlm_adjoint__bindings"] = dict(zip(replacement_deps, deps))
 
 
 def unbind_form(form):
@@ -261,7 +281,7 @@ def homogenized_bc(bc):
         return hbc
 
 
-class EquationSolver(Equation):
+class EquationSolver(ExprEquation):
     # eq, x, bcs, J, form_compiler_parameters and solver_parameters argument
     # usage based on the interface for the solve function in FEniCS (see e.g.
     # FEniCS 2017.1.0)
@@ -470,8 +490,7 @@ class EquationSolver(Equation):
                     mat_form,
                     form_compiler_parameters=self._form_compiler_parameters,
                     linear_solver_parameters=self._linear_solver_parameters,
-                    replace_map=None if deps is None else dict(zip(eq_deps,
-                                                                   deps)))
+                    replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
@@ -486,8 +505,7 @@ class EquationSolver(Equation):
                 cached_form[1], cached_b = assembly_cache().assemble(
                     cached_form[0],
                     form_compiler_parameters=self._form_compiler_parameters,
-                    replace_map=None if deps is None else dict(zip(eq_deps,
-                                                                   deps)))
+                    replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
             if b is None:
                 b = rhs_copy(cached_b)
             else:
@@ -525,7 +543,7 @@ class EquationSolver(Equation):
                             self._J, bcs=self._bcs,
                             form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                             linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
-                            replace_map=None if deps is None else dict(zip(eq_deps, deps)))  # noqa: E501
+                            replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
                 J_solver, J_mat, b_bc = J_solver_mat_bc
 
                 if self._cache_rhs_assembly:
@@ -606,9 +624,9 @@ class EquationSolver(Equation):
             if not np.isposinf(J_tolerance) or not np.isposinf(b_tolerance):
                 verify_assembly(
                     self._J if deps is None
-                    else ufl.replace(self._J, dict(zip(eq_deps, deps))),
+                    else self._replace(self._J, deps),
                     self._rhs if deps is None
-                    else ufl.replace(self._rhs, dict(zip(eq_deps, deps))),
+                    else self._replace(self._rhs, deps),
                     J_mat, b, self._bcs, self._form_compiler_parameters,
                     self._linear_solver_parameters, J_tolerance, b_tolerance)
 
@@ -622,9 +640,8 @@ class EquationSolver(Equation):
             else:
                 J = self._nl_solve_J
             if deps is not None:
-                replace_map = dict(zip(self.dependencies(), deps))
-                lhs = ufl.replace(lhs, replace_map)
-                J = ufl.replace(J, replace_map)
+                lhs = self._replace(lhs, deps)
+                J = self._replace(J, deps)
             solve(lhs == 0, x, self._bcs, J=J,
                   form_compiler_parameters=self._form_compiler_parameters,
                   solver_parameters=self._solver_parameters)
@@ -662,21 +679,18 @@ class EquationSolver(Equation):
 
                 if cache is None:
                     # Cached form, deferred assembly
-                    replace_map = dict(zip(self.nonlinear_dependencies(),
-                                       nl_deps))
-                    dep_B.sub(ufl.action(ufl.replace(dF, replace_map),
-                                         coefficient=adj_x))
+                    dep_B.sub(ufl.action(
+                        self._nonlinear_replace(dF, nl_deps),
+                        coefficient=adj_x))
                 elif isinstance(cache, CacheRef):
                     # Cached matrix action
                     mat_bc = cache()
                     if mat_bc is None:
-                        replace_map = dict(zip(self.nonlinear_dependencies(),
-                                               nl_deps))
                         self._adjoint_action_cache[dep_index], (mat, _) = \
                             assembly_cache().assemble(
                                 dF,
                                 form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                                replace_map=replace_map)
+                                replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     else:
                         mat, _ = mat_bc
                     dep_B.sub(matrix_multiply(mat, function_vector(adj_x)))
@@ -710,8 +724,7 @@ class EquationSolver(Equation):
                         J, bcs=self._hbcs,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         linear_solver_parameters=self._adjoint_solver_parameters,  # noqa: E501
-                        replace_map=dict(zip(self.nonlinear_dependencies(),
-                                             nl_deps)))
+                        replace_map=self._nonlinear_replace_map(nl_deps))
             J_solver, _, _ = J_solver_mat_bc
 
             apply_rhs_bcs(function_vector(b), self._hbcs)
@@ -901,7 +914,7 @@ def evaluate_expr(x):
         return evaluate_expr_types[type(x)](x)
 
 
-class ExprEvaluationSolver(Equation):
+class ExprEvaluationSolver(ExprEquation):
     def __init__(self, rhs, x):
         if isinstance(rhs, ufl.classes.Form):
             raise EquationException("rhs should not be a Form")
@@ -931,8 +944,7 @@ class ExprEvaluationSolver(Equation):
         if deps is None:
             rhs = self._rhs
         else:
-            rhs = ufl.replace(self._rhs,
-                              dict(zip(self.dependencies(), deps)))
+            rhs = self._replace(self._rhs, deps)
         rhs_val = evaluate_expr(rhs)
         if isinstance(rhs_val, (int, np.integer,
                                 float, np.floating,
@@ -955,8 +967,7 @@ class ExprEvaluationSolver(Equation):
         dF = ufl.conj(derivative(self._rhs, dep, argument=ufl.conj(adj_x)))
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
-        dF = ufl.replace(
-            dF, dict(zip(self.nonlinear_dependencies(), nl_deps)))
+        dF = self._nonlinear_replace(dF, nl_deps)
         dF_val = evaluate_expr(dF)
         F = function_new(dep)
         if isinstance(dF_val, (int, np.integer,

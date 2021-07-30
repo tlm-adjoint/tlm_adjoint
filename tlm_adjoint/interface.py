@@ -389,6 +389,7 @@ def function_update_caches(*X, value=None):
     else:
         if is_function(value):
             value = (value,)
+        assert len(X) == len(value)
         for x, x_value in zip(X, value):
             x._tlm_adjoint__function_interface_update_caches(value=x_value)
 

@@ -319,6 +319,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks,
         return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
 
     x_error_norm = 0.0
+    assert len(X_vals) == len(X_coords)
     for x, x_coord in zip(X_vals, X_coords):
         x_error_norm = max(x_error_norm,
                            abs(function_scalar_value(x) - x_ref(x_coord)))
@@ -671,8 +672,7 @@ def test_initial_guess(setup_test, test_leaks):
             def forward_solve(self, x, deps=None):
                 rhs = self._rhs
                 if deps is not None:
-                    rhs = ufl.replace(rhs,
-                                      dict(zip(self.dependencies(), deps)))
+                    rhs = self._replace(rhs, deps)
                 J = assemble(
                     self._J,
                     form_compiler_parameters=self._form_compiler_parameters)
