@@ -134,6 +134,7 @@ class ContractionArray:
             if len(self._I) == 0:
                 v = v.copy()
             else:
+                assert len(self._I) == len(X)
                 for i, (j, x) in enumerate(zip(self._I, X)):
                     v = np.tensordot(v, x.vector(), axes=((j - i,), (0,)))
 
@@ -172,9 +173,13 @@ class ContractionRHS(RHS):
             alpha = self._c.alpha().conjugate()
             X = [None for i in range(len(A.shape))]
             k = I[dep_index]
-            for j, (i, nl_dep) in enumerate(zip(I, nl_deps)):
-                if j != dep_index:
-                    X[i] = nl_dep
+            if len(I) == 1:
+                assert dep_index == 0
+            else:
+                assert len(I) == len(nl_deps)
+                for j, (i, nl_dep) in enumerate(zip(I, nl_deps)):
+                    if j != dep_index:
+                        X[i] = nl_dep
             X[self._j] = adj_x
 
             A_c = ContractionArray(A,
@@ -188,6 +193,7 @@ class ContractionRHS(RHS):
     def tangent_linear_rhs(self, M, dM, tlm_map):
         X = list(self.dependencies())
         A, I, alpha = self._c.A(), self._c.I(), self._c.alpha()
+        assert len(M) == len(dM)
         m_map = dict(zip(M, dM))
 
         J = []
