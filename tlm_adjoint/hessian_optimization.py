@@ -37,19 +37,8 @@ __all__ = \
     ]
 
 
-class CachedHessian(Hessian):
+class HessianOptimization:
     def __init__(self, J, manager=None, cache_adjoint=True):
-        """
-        A Hessian class for the case where memory checkpointing is used,
-        without automatic dropping of references to function objects.
-
-        Arguments:
-
-        J        The Functional.
-        manager  (Optional) The equation manager used to process the forward.
-        cache_adjoint  (Optional) Whether to cache the first order adjoint.
-        """
-
         if manager is None:
             manager = _manager()
         if manager._cp_method != "memory" \
@@ -160,6 +149,23 @@ class CachedHessian(Hessian):
                     solve=solve_tlm)
 
         return manager, M, dM
+
+
+class CachedHessian(Hessian, HessianOptimization):
+    def __init__(self, J, manager=None, cache_adjoint=True):
+        """
+        A Hessian class for the case where memory checkpointing is used,
+        without automatic dropping of references to function objects.
+
+        Arguments:
+
+        J        The Functional.
+        manager  (Optional) The equation manager used to process the forward.
+        cache_adjoint  (Optional) Whether to cache the first order adjoint.
+        """
+
+        HessianOptimization.__init__(self, J, manager=manager,
+                                     cache_adjoint=cache_adjoint)
 
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
