@@ -18,17 +18,20 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_copy, function_get_values, \
+from .interface import function_axpy, function_copy, function_get_values, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name
+    function_name, function_new
 
 from .caches import clear_caches
+from .equations import InnerProductSolver
+from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
 
 __all__ = \
     [
+        "GaussNewton",
         "Hessian",
         "HessianException"
     ]
@@ -179,6 +182,95 @@ class Hessian:
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
+            return function_get_values(ddJ)
+
+        return action
+
+
+class GaussNewton:
+    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
+        if manager is None:
+            manager = _manager().new()
+
+        self._forward = forward
+        self._R_inv_action = R_inv_action
+        self._B_inv_action = B_inv_action
+        self._manager = manager
+
+    @restore_manager
+    def action(self, M, dM, M0=None):
+        if not isinstance(M, Sequence):
+            ddJ, = self.action(
+                (M,), (dM,),
+                M0=None if M0 is None else (M0,))
+            return ddJ
+
+        set_manager(self._manager)
+        self._manager.reset()
+        self._manager.stop()
+        clear_caches()
+
+        if M0 is None:
+            M0 = M
+        assert len(M0) == len(M)
+        M = tuple(function_copy(m0, name=function_name(m),
+                                static=function_is_static(m),
+                                cache=function_is_cached(m),
+                                checkpoint=function_is_checkpointed(m))
+                  for m0, m in zip(M0, M))
+        del M0
+
+        dM = tuple(function_copy(dm, name=function_name(dm),
+                                 static=function_is_static(dm),
+                                 cache=function_is_cached(dm),
+                                 checkpoint=function_is_checkpointed(dm))
+                   for dm in dM)
+
+        self._manager.add_tlm(M, dM)
+        # Possible optimization: We annotate all the TLM equations, but are
+        # later only going to differentiate back through the forward
+        self._manager.start()
+        X = self._forward(*M)
+        if not isinstance(X, Sequence):
+            X = (X,)
+        self._manager.stop()
+
+        # J dM
+        tau_X = tuple(self._manager.tlm(M, dM, x) for x in X)
+        # R^{-1} J dM
+        R_inv_tau_X = self._R_inv_action(*tau_X)
+        if not isinstance(R_inv_tau_X, Sequence):
+            R_inv_tau_X = (R_inv_tau_X,)
+
+        # This defines the adjoint right-hand-side appropriately to compute a
+        # J^* action
+        self._manager.start()
+        J = Functional(name="J")
+        assert len(X) == len(R_inv_tau_X)
+        for x, R_inv_tau_x in zip(X, R_inv_tau_X):
+            J_term = function_new(J.fn())
+            InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
+                tlm=False)
+            J.addto(J_term, tlm=False)
+        self._manager.stop()
+
+        # Likelihood term: J^* R^{-1} J dM
+        ddJ = self._manager.compute_gradient(J, M)
+
+        # Prior term
+        if self._B_inv_action is not None:
+            B_inv_dM = self._B_inv_action(*dM)
+            if not isinstance(B_inv_dM, Sequence):
+                B_inv_dM = (B_inv_dM,)
+            assert len(ddJ) == len(B_inv_dM)
+            for i, B_inv_dm in enumerate(B_inv_dM):
+                function_axpy(ddJ[i], 1.0, B_inv_dm)
+
+        return ddJ
+
+    def action_fn(self, m, m0=None):
+        def action(dm):
+            ddJ = self.action(m, dm, M0=m0)
             return function_get_values(ddJ)
 
         return action
