@@ -187,17 +187,14 @@ class Hessian:
         return action
 
 
-class GaussNewton:
-    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
-        if manager is None:
-            manager = _manager().new()
-
-        self._forward = forward
+class GaussNewtonBase:
+    def __init__(self, R_inv_action, B_inv_action=None):
         self._R_inv_action = R_inv_action
         self._B_inv_action = B_inv_action
-        self._manager = manager
 
-    @restore_manager
+    def _setup_manager(self, M, dM, M0=None):
+        raise HessianException("Abstract method not overridden")
+
     def action(self, M, dM, M0=None):
         if not isinstance(M, Sequence):
             ddJ, = self.action(
@@ -205,6 +202,60 @@ class GaussNewton:
                 M0=None if M0 is None else (M0,))
             return ddJ
 
+        manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
+
+        # J dM
+        tau_X = tuple(manager.tlm(M, dM, x) for x in X)
+        # R^{-1} J dM
+        R_inv_tau_X = self._R_inv_action(*tau_X)
+        if not isinstance(R_inv_tau_X, Sequence):
+            R_inv_tau_X = (R_inv_tau_X,)
+
+        # This defines the adjoint right-hand-side appropriately to compute a
+        # J^* action
+        manager.start()
+        J = Functional(name="J")
+        assert len(X) == len(R_inv_tau_X)
+        for x, R_inv_tau_x in zip(X, R_inv_tau_X):
+            J_term = function_new(J.fn())
+            InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
+                manager=manager, tlm=False)
+            J.addto(J_term, manager=manager, tlm=False)
+        manager.stop()
+
+        # Likelihood term: J^* R^{-1} J dM
+        ddJ = manager.compute_gradient(J, M)
+
+        # Prior term
+        if self._B_inv_action is not None:
+            B_inv_dM = self._B_inv_action(*dM)
+            if not isinstance(B_inv_dM, Sequence):
+                B_inv_dM = (B_inv_dM,)
+            assert len(ddJ) == len(B_inv_dM)
+            for i, B_inv_dm in enumerate(B_inv_dM):
+                function_axpy(ddJ[i], 1.0, B_inv_dm)
+
+        return ddJ
+
+    def action_fn(self, m, m0=None):
+        def action(dm):
+            ddJ = self.action(m, dm, M0=m0)
+            return function_get_values(ddJ)
+
+        return action
+
+
+class GaussNewton(GaussNewtonBase):
+    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
+        if manager is None:
+            manager = _manager().new()
+
+        super().__init__(R_inv_action, B_inv_action=B_inv_action)
+        self._forward = forward
+        self._manager = manager
+
+    @restore_manager
+    def _setup_manager(self, M, dM, M0=None):
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
@@ -235,42 +286,4 @@ class GaussNewton:
             X = (X,)
         self._manager.stop()
 
-        # J dM
-        tau_X = tuple(self._manager.tlm(M, dM, x) for x in X)
-        # R^{-1} J dM
-        R_inv_tau_X = self._R_inv_action(*tau_X)
-        if not isinstance(R_inv_tau_X, Sequence):
-            R_inv_tau_X = (R_inv_tau_X,)
-
-        # This defines the adjoint right-hand-side appropriately to compute a
-        # J^* action
-        self._manager.start()
-        J = Functional(name="J")
-        assert len(X) == len(R_inv_tau_X)
-        for x, R_inv_tau_x in zip(X, R_inv_tau_X):
-            J_term = function_new(J.fn())
-            InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
-                tlm=False)
-            J.addto(J_term, tlm=False)
-        self._manager.stop()
-
-        # Likelihood term: J^* R^{-1} J dM
-        ddJ = self._manager.compute_gradient(J, M)
-
-        # Prior term
-        if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(*dM)
-            if not isinstance(B_inv_dM, Sequence):
-                B_inv_dM = (B_inv_dM,)
-            assert len(ddJ) == len(B_inv_dM)
-            for i, B_inv_dm in enumerate(B_inv_dM):
-                function_axpy(ddJ[i], 1.0, B_inv_dm)
-
-        return ddJ
-
-    def action_fn(self, m, m0=None):
-        def action(dm):
-            ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
-
-        return action
+        return self._manager, M, dM, X
