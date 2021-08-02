@@ -22,7 +22,7 @@ from .interface import function_id, function_new, function_state
 
 from .caches import clear_caches
 from .functional import Functional
-from .hessian import GaussNewtonBase, Hessian, HessianException
+from .hessian import GaussNewton, Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import AdjointCache, EquationManager
 
@@ -147,7 +147,7 @@ class HessianOptimization:
         return manager, M, dM
 
 
-class CachedHessian(Hessian, HessianOptimization):
+class CachedHessian(HessianOptimization, Hessian):
     def __init__(self, J, manager=None, cache_adjoint=True):
         """
         A Hessian class for the case where memory checkpointing is used,
@@ -162,6 +162,7 @@ class CachedHessian(Hessian, HessianOptimization):
 
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
+        Hessian.__init__(self)
         self._J_state = function_state(J.fn())
         self._J = Functional(fn=J.fn())
 
@@ -214,7 +215,7 @@ class SingleBlockHessian(CachedHessian):
         super().__init__(*args, **kwargs)
 
 
-class CachedGaussNewton(HessianOptimization, GaussNewtonBase):
+class CachedGaussNewton(HessianOptimization, GaussNewton):
     def __init__(self, X, R_inv_action, B_inv_action=None, manager=None,
                  cache_adjoint=True):
         if not isinstance(X, Sequence):
@@ -222,7 +223,7 @@ class CachedGaussNewton(HessianOptimization, GaussNewtonBase):
 
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
-        GaussNewtonBase.__init__(self, R_inv_action, B_inv_action=B_inv_action)
+        GaussNewton.__init__(self, R_inv_action, B_inv_action=B_inv_action)
         self._X = tuple(X)
         self._X_state = tuple(function_state(x) for x in X)
 
@@ -237,4 +238,4 @@ class CachedGaussNewton(HessianOptimization, GaussNewtonBase):
         if tuple(function_state(x) for x in self._X) != self._X_state:
             raise HessianException("State has changed")
 
-        return GaussNewtonBase.action(self, M, dM, M0=M0)
+        return GaussNewton.action(self, M, dM, M0=M0)

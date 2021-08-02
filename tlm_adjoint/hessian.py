@@ -32,6 +32,8 @@ from collections.abc import Sequence
 __all__ = \
     [
         "GaussNewton",
+        "GeneralGaussNewton",
+        "GeneralHessian",
         "Hessian",
         "HessianException"
     ]
@@ -42,22 +44,39 @@ class HessianException(Exception):
 
 
 class Hessian:
-    def __init__(self, forward, manager=None):
+    def __init__(self):
+        pass
+
+    def compute_gradient(self, M, M0=None):
+        raise HessianException("Abstract method not overridden")
+
+    def action(self, M, dM, M0=None):
+        raise HessianException("Abstract method not overridden")
+
+    def action_fn(self, m, m0=None):
         """
-        Manager for evaluation of Hessian actions.
+        Return a callable which accepts a function defining dm, and returns the
+        Hessian action as a NumPy array.
 
         Arguments:
 
-        forward  A callable which takes as input the control parameters and
-                 returns the Functional whose Hessian action is to be computed.
-        manager  (Optional) The equation manager used when computing Hessian
-                 actions. If not specified a new manager is created on
-                 instantiation using manager().new().
+        m   A function defining the control
+        m0  (Optional) A function defining the control value
         """
 
+        def action(dm):
+            _, _, ddJ = self.action(m, dm, M0=m0)
+            return function_get_values(ddJ)
+
+        return action
+
+
+class GeneralHessian(Hessian):
+    def __init__(self, forward, manager=None):
         if manager is None:
             manager = _manager().new()
 
+        super().__init__()
         self._forward = forward
         self._manager = manager
 
@@ -169,25 +188,8 @@ class Hessian:
 
         return J_val, dJ_val, ddJ
 
-    def action_fn(self, m, m0=None):
-        """
-        Return a callable which accepts a function defining dm, and returns the
-        Hessian action as a NumPy array.
 
-        Arguments:
-
-        m   A function defining the control
-        m0  (Optional) A function defining the control value
-        """
-
-        def action(dm):
-            _, _, ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
-
-        return action
-
-
-class GaussNewtonBase:
+class GaussNewton:
     def __init__(self, R_inv_action, B_inv_action=None):
         self._R_inv_action = R_inv_action
         self._B_inv_action = B_inv_action
@@ -245,7 +247,7 @@ class GaussNewtonBase:
         return action
 
 
-class GaussNewton(GaussNewtonBase):
+class GeneralGaussNewton(GaussNewton):
     def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
         if manager is None:
             manager = _manager().new()
