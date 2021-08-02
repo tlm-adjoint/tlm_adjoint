@@ -83,3 +83,62 @@ def test_GaussNewton(setup_test, test_leaks):
         H_action_error = function_copy(H_action)
         function_axpy(H_action_error, -1.0, H_action_GN)
         assert function_linf_norm(H_action_error) < 1.0e-18
+
+
+@pytest.mark.firedrake
+def test_CachedGaussNewton(setup_test):
+    configure_checkpointing("memory", {"drop_references": False})
+    np.random.seed(41930924 + MPI.COMM_WORLD.rank)
+
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    eps = Constant(0.1234, static=True)
+
+    def forward(F):
+        u = Function(space, name="u")
+        solve(inner(grad(trial), grad(test)) * dx == -inner(F, test) * dx,
+              u,
+              HomogeneousDirichletBC(space, "on_boundary"),
+              solver_parameters=ls_parameters_cg)
+        return u
+
+    u_ref = Function(space, name="u_ref")
+    interpolate_expression(u_ref, X[0] * sin(2.0 * pi * X[0]) * sin(pi * X[1]))
+
+    def forward_J(F):
+        u = forward(F)
+        J = Functional(name="J")
+        J.assign(0.5 * dot(grad(u - u_ref), grad(u - u_ref)) * dx  # Likelihood
+                 + 0.5 * eps * dot(F, F) * dx)  # Prior
+        return J
+
+    def R_inv_action(x):
+        y = function_new(x)
+        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
+        return y
+
+    def B_inv_action(x):
+        y = function_new(x)
+        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
+        return y
+
+    F = Function(space, name="F")
+    interpolate_expression(F, sin(pi * X[0]) * exp(X[1]))
+
+    H = Hessian(forward_J)
+    start_manager()
+    u = forward(F)
+    stop_manager()
+    H_GN = CachedGaussNewton(u, R_inv_action, B_inv_action=B_inv_action)
+
+    for i in range(20):
+        dm = Function(space, static=True)
+        function_set_values(dm, np.random.random(function_local_size(dm)))
+        _, _, H_action = H.action(F, function_copy(dm, static=True))
+        H_action_GN = H_GN.action(F, dm)
+
+        H_action_error = function_copy(H_action)
+        function_axpy(H_action_error, -1.0, H_action_GN)
+        assert function_linf_norm(H_action_error) < 1.0e-18
