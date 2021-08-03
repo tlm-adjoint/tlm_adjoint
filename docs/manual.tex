@@ -1886,7 +1886,7 @@ constrained Hessian actions. There are two types -- \texttt{GeneralHessian},
 which can be used with any checkpointing method, and \texttt{CachedHessian},
 which uses caching to avoid rerunning.
 
-\subsection{Hessian actions without caching}
+\subsubsection{Hessian actions without caching}
 
 A \texttt{GeneralHessian} can be instantiated via
 \begin{lstlisting}
@@ -1916,7 +1916,7 @@ calculation. This method returns the value of the functional, the first
 derivative of the functional in the direction defined by \texttt{dm}, and the
 action of the Hessian in the direction defined by \texttt{dm}.
 
-\subsection{Hessian actions with caching}
+\subsubsection{Hessian actions with caching}
 
 For small problems it may be possible to store the entire forward solution in
 memory without the use of checkpointing and rerunning (section
