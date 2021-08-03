@@ -22,7 +22,7 @@ from .interface import function_id, function_new, function_state
 
 from .caches import clear_caches
 from .functional import Functional
-from .hessian import Hessian, HessianException
+from .hessian import GaussNewton, Hessian, HessianException
 from .manager import manager as _manager
 from .tlm_adjoint import AdjointCache, EquationManager
 
@@ -31,25 +31,15 @@ import warnings
 
 __all__ = \
     [
+        "CachedGaussNewton",
         "CachedHessian",
         "HessianException",
         "SingleBlockHessian"
     ]
 
 
-class CachedHessian(Hessian):
-    def __init__(self, J, manager=None, cache_adjoint=True):
-        """
-        A Hessian class for the case where memory checkpointing is used,
-        without automatic dropping of references to function objects.
-
-        Arguments:
-
-        J        The Functional.
-        manager  (Optional) The equation manager used to process the forward.
-        cache_adjoint  (Optional) Whether to cache the first order adjoint.
-        """
-
+class HessianOptimization:
+    def __init__(self, manager=None, cache_adjoint=True):
         if manager is None:
             manager = _manager()
         if manager._cp_method != "memory" \
@@ -69,8 +59,6 @@ class CachedHessian(Hessian):
                 nl_deps[(n, i)] = manager._cp[(n, i)]
 
         self._comm = comm
-        self._J_state = function_state(J.fn())
-        self._J = Functional(fn=J.fn())
         self._blocks = blocks
         self._ics = ics
         self._nl_deps = nl_deps
@@ -140,9 +128,6 @@ class CachedHessian(Hessian):
                 0, len(manager._blocks), len(manager._block) - 1)
 
     def _setup_manager(self, M, dM, M0=None, solve_tlm=True):
-        if function_state(self._J.fn()) != self._J_state:
-            raise HessianException("Functional state has changed")
-
         M = tuple(M)
         dM = tuple(dM)
         # M0 ignored
@@ -161,12 +146,35 @@ class CachedHessian(Hessian):
 
         return manager, M, dM
 
+
+class CachedHessian(HessianOptimization, Hessian):
+    def __init__(self, J, manager=None, cache_adjoint=True):
+        """
+        A Hessian class for the case where memory checkpointing is used,
+        without automatic dropping of references to function objects.
+
+        Arguments:
+
+        J        The Functional.
+        manager  (Optional) The equation manager used to process the forward.
+        cache_adjoint  (Optional) Whether to cache the first order adjoint.
+        """
+
+        HessianOptimization.__init__(self, manager=manager,
+                                     cache_adjoint=cache_adjoint)
+        Hessian.__init__(self)
+        self._J_state = function_state(J.fn())
+        self._J = Functional(fn=J.fn())
+
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
             J_val, (dJ,) = self.compute_gradient(
                 (M,),
                 M0=None if M0 is None else (M0,))
             return J_val, dJ
+
+        if function_state(self._J.fn()) != self._J_state:
+            raise HessianException("State has changed")
 
         dM = tuple(function_new(m) for m in M)
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
@@ -185,6 +193,9 @@ class CachedHessian(Hessian):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
+        if function_state(self._J.fn()) != self._J_state:
+            raise HessianException("State has changed")
+
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
 
         dJ = self._J.tlm(M, dM, manager=manager)
@@ -202,3 +213,28 @@ class SingleBlockHessian(CachedHessian):
                       "use CachedHessian instead",
                       DeprecationWarning, stacklevel=2)
         super().__init__(*args, **kwargs)
+
+
+class CachedGaussNewton(HessianOptimization, GaussNewton):
+    def __init__(self, X, R_inv_action, B_inv_action=None, manager=None):
+        if not isinstance(X, Sequence):
+            X = (X,)
+
+        HessianOptimization.__init__(self, manager=manager,
+                                     cache_adjoint=False)
+        GaussNewton.__init__(self, R_inv_action, B_inv_action=B_inv_action)
+        self._X = tuple(X)
+        self._X_state = tuple(function_state(x) for x in X)
+
+    def _setup_manager(self, M, dM, M0=None):
+        # Possible optimization: We annotate all the TLM equations, but are
+        # later only going to differentiate back through the forward
+        manager, M, dM = HessianOptimization._setup_manager(
+            self, M, dM, M0=M0, solve_tlm=True)
+        return manager, M, dM, self._X
+
+    def action(self, M, dM, M0=None):
+        if tuple(function_state(x) for x in self._X) != self._X_state:
+            raise HessianException("State has changed")
+
+        return GaussNewton.action(self, M, dM, M0=M0)

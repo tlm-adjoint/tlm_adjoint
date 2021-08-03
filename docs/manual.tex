@@ -1881,8 +1881,14 @@ ddddJ = compute_gradient(J_tlm_3, m)
 
 \subsection{Hessian actions}\label{sect:Hessian}
 
-The \texttt{Hessian} class facilitates the calculation of forward model
-constrained Hessian actions. A \texttt{Hessian} can be instantiated via
+Subclasses of \texttt{Hessian} facilitate the calculation of forward model
+constrained Hessian actions. There are two types -- \texttt{GeneralHessian},
+which can be used with any checkpointing method, and \texttt{CachedHessian},
+which uses caching to avoid rerunning.
+
+\subsection{Hessian actions without caching}
+
+A \texttt{GeneralHessian} can be instantiated via
 \begin{lstlisting}
 H = Hessian(forward)
 \end{lstlisting}
@@ -1890,7 +1896,7 @@ where \texttt{forward} is a callable which takes as input one or more functions
 defining the control and its value, and which returns the \texttt{Functional}.
 
 A first order derivative can subsequently be computed using the
-\texttt{Hessian.compute\_gradient} method
+\texttt{GeneralHessian.compute\_gradient} method
 \begin{lstlisting}
 dJ = H.compute_gradient(m)
 \end{lstlisting}
@@ -1898,8 +1904,8 @@ where \texttt{m} is a function or a sequence of functions defining the value of
 the control. The forward model is first rerun using the \texttt{forward}
 callable prior to the first order adjoint calculation.
 
-The action of the Hessian can be computed using the \texttt{Hessian.action}
-method
+The action of the Hessian can be computed using the
+\texttt{GeneralHessian.action} method
 \begin{lstlisting}
 J_val, dJ_val, ddJ = H.action(m, dm)
 \end{lstlisting}
@@ -1915,15 +1921,15 @@ action of the Hessian in the direction defined by \texttt{dm}.
 For small problems it may be possible to store the entire forward solution in
 memory without the use of checkpointing and rerunning (section
 \ref{sect:checkpointing}). The \texttt{CachedHessian} class is an optimized
-subclass of the \texttt{Hessian} class for this case.
+subclass for this case.
 
 A \texttt{CachedHessian} can be instantiated via
 \begin{lstlisting}
 H = CachedHessian(J)
 \end{lstlisting}
-where \texttt{J} is the functional of interest. Its \texttt{compute\_gradient}
-and \texttt{action} methods have the same interface as those of the
-\texttt{Hessian} class.
+where \texttt{J} is the functional of interest. It defines
+\texttt{compute\_gradient} and \texttt{action} methods with the same interface
+as those of the \texttt{GeneralHessian} class.
 
 The \texttt{CachedHessian} class requires the use of the ``memory''
 checkpointing method, and for weak referencing of \texttt{Equation} objects to

@@ -18,17 +18,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_copy, function_get_values, \
+from .interface import function_axpy, function_copy, function_get_values, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name
+    function_name, function_new
 
 from .caches import clear_caches
+from .equations import InnerProductSolver
+from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
 
 __all__ = \
     [
+        "GaussNewton",
+        "GeneralGaussNewton",
+        "GeneralHessian",
         "Hessian",
         "HessianException"
     ]
@@ -39,22 +44,39 @@ class HessianException(Exception):
 
 
 class Hessian:
-    def __init__(self, forward, manager=None):
+    def __init__(self):
+        pass
+
+    def compute_gradient(self, M, M0=None):
+        raise HessianException("Abstract method not overridden")
+
+    def action(self, M, dM, M0=None):
+        raise HessianException("Abstract method not overridden")
+
+    def action_fn(self, m, m0=None):
         """
-        Manager for evaluation of Hessian actions.
+        Return a callable which accepts a function defining dm, and returns the
+        Hessian action as a NumPy array.
 
         Arguments:
 
-        forward  A callable which takes as input the control parameters and
-                 returns the Functional whose Hessian action is to be computed.
-        manager  (Optional) The equation manager used when computing Hessian
-                 actions. If not specified a new manager is created on
-                 instantiation using manager().new().
+        m   A function defining the control
+        m0  (Optional) A function defining the control value
         """
 
+        def action(dm):
+            _, _, ddJ = self.action(m, dm, M0=m0)
+            return function_get_values(ddJ)
+
+        return action
+
+
+class GeneralHessian(Hessian):
+    def __init__(self, forward, manager=None):
         if manager is None:
             manager = _manager().new()
 
+        super().__init__()
         self._forward = forward
         self._manager = manager
 
@@ -166,19 +188,106 @@ class Hessian:
 
         return J_val, dJ_val, ddJ
 
+
+class GaussNewton:
+    def __init__(self, R_inv_action, B_inv_action=None):
+        self._R_inv_action = R_inv_action
+        self._B_inv_action = B_inv_action
+
+    def _setup_manager(self, M, dM, M0=None):
+        raise HessianException("Abstract method not overridden")
+
+    def action(self, M, dM, M0=None):
+        if not isinstance(M, Sequence):
+            ddJ, = self.action(
+                (M,), (dM,),
+                M0=None if M0 is None else (M0,))
+            return ddJ
+
+        manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
+
+        # J dM
+        tau_X = tuple(manager.tlm(M, dM, x) for x in X)
+        # R^{-1} J dM
+        R_inv_tau_X = self._R_inv_action(
+            *tuple(function_copy(tau_x) for tau_x in tau_X))
+        if not isinstance(R_inv_tau_X, Sequence):
+            R_inv_tau_X = (R_inv_tau_X,)
+
+        # This defines the adjoint right-hand-side appropriately to compute a
+        # J^* action
+        manager.start()
+        J = Functional(name="J")
+        assert len(X) == len(R_inv_tau_X)
+        for x, R_inv_tau_x in zip(X, R_inv_tau_X):
+            J_term = function_new(J.fn())
+            InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
+                manager=manager, tlm=False)
+            J.addto(J_term, manager=manager, tlm=False)
+        manager.stop()
+
+        # Likelihood term: J^* R^{-1} J dM
+        ddJ = manager.compute_gradient(J, M)
+
+        # Prior term
+        if self._B_inv_action is not None:
+            B_inv_dM = self._B_inv_action(
+                *tuple(function_copy(dm) for dm in dM))
+            if not isinstance(B_inv_dM, Sequence):
+                B_inv_dM = (B_inv_dM,)
+            assert len(ddJ) == len(B_inv_dM)
+            for i, B_inv_dm in enumerate(B_inv_dM):
+                function_axpy(ddJ[i], 1.0, B_inv_dm)
+
+        return ddJ
+
     def action_fn(self, m, m0=None):
-        """
-        Return a callable which accepts a function defining dm, and returns the
-        Hessian action as a NumPy array.
-
-        Arguments:
-
-        m   A function defining the control
-        m0  (Optional) A function defining the control value
-        """
-
         def action(dm):
-            _, _, ddJ = self.action(m, dm, M0=m0)
+            ddJ = self.action(m, dm, M0=m0)
             return function_get_values(ddJ)
 
         return action
+
+
+class GeneralGaussNewton(GaussNewton):
+    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
+        if manager is None:
+            manager = _manager().new()
+
+        super().__init__(R_inv_action, B_inv_action=B_inv_action)
+        self._forward = forward
+        self._manager = manager
+
+    @restore_manager
+    def _setup_manager(self, M, dM, M0=None):
+        set_manager(self._manager)
+        self._manager.reset()
+        self._manager.stop()
+        clear_caches()
+
+        if M0 is None:
+            M0 = M
+        assert len(M0) == len(M)
+        M = tuple(function_copy(m0, name=function_name(m),
+                                static=function_is_static(m),
+                                cache=function_is_cached(m),
+                                checkpoint=function_is_checkpointed(m))
+                  for m0, m in zip(M0, M))
+        del M0
+
+        dM = tuple(function_copy(dm, name=function_name(dm),
+                                 static=function_is_static(dm),
+                                 cache=function_is_cached(dm),
+                                 checkpoint=function_is_checkpointed(dm))
+                   for dm in dM)
+
+        self._manager.add_tlm(M, dM)
+        # Possible optimization: We annotate all the TLM equations, but are
+        # later only going to differentiate back through the forward
+        self._manager.start()
+        X = self._forward(*M)
+        if not isinstance(X, Sequence):
+            X = (X,)
+        self._manager.stop()
+
+        return self._manager, M, dM, X
