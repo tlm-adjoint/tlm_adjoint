@@ -209,7 +209,8 @@ class GaussNewton:
         # J dM
         tau_X = tuple(manager.tlm(M, dM, x) for x in X)
         # R^{-1} J dM
-        R_inv_tau_X = self._R_inv_action(*tau_X)
+        R_inv_tau_X = self._R_inv_action(
+            *tuple(function_copy(tau_x) for tau_x in tau_X))
         if not isinstance(R_inv_tau_X, Sequence):
             R_inv_tau_X = (R_inv_tau_X,)
 
@@ -230,7 +231,8 @@ class GaussNewton:
 
         # Prior term
         if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(*dM)
+            B_inv_dM = self._B_inv_action(
+                *tuple(function_copy(dm) for dm in dM))
             if not isinstance(B_inv_dM, Sequence):
                 B_inv_dM = (B_inv_dM,)
             assert len(ddJ) == len(B_inv_dM)
