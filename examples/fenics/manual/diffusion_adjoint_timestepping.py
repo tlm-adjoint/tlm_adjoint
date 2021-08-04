@@ -43,7 +43,7 @@ def forward(psi_0, psi_n_file=None):
 
         def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
             if dep_index == 0:
-                return b
+                return adj_x
             elif dep_index == 1:
                 b = function_copy(adj_x)
                 self._bc.apply(b.vector())
