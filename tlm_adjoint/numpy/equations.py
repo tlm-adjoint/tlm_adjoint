@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from ..interface import space_new
+from ..interface import function_new
 
 from ..equations import EquationException, LinearEquation, Matrix, RHS
 
@@ -82,8 +82,9 @@ class ConstantMatrix(Matrix):
         raise EquationException("Unexpected call to adjoint_derivative_action")
 
     def adjoint_solve(self, adj_x, nl_deps, b):
-        return space_new(b.space(),
-                         _data=np.linalg.solve(self._A_H, b.vector()))
+        adj_x = function_new(b)
+        adj_x.vector()[:] = np.linalg.solve(self._A_H, b.vector())
+        return adj_x
 
     def tangent_linear_rhs(self, M, dM, tlm_map, x):
         return None
