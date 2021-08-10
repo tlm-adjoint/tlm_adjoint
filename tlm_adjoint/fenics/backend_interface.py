@@ -78,6 +78,7 @@ def _Constant__init__(self, *args, domain=None, space=None,
                    "static": False, "cache": False, "checkpoint": True})
 
 
+assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
 backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
 backend_Constant.__init__ = _Constant__init__
 
@@ -118,6 +119,7 @@ def _FunctionSpace__init__(self, *args, **kwargs):
                       {"id": new_space_id()})
 
 
+assert not hasattr(backend_FunctionSpace, "_tlm_adjoint__orig___init__")
 backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
 backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
@@ -310,6 +312,7 @@ def _Function__init__(self, *args, **kwargs):
     self._tlm_adjoint__function_interface_attrs["space"] = space
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig___init__")
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
@@ -321,6 +324,7 @@ def _Function_function_space(self):
         return backend_Function._tlm_adjoint__orig_function_space(self)
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_function_space")
 backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_space  # noqa: E501
 backend_Function.function_space = _Function_function_space
 
