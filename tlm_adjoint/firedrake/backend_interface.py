@@ -59,6 +59,7 @@ def _BlockVariable__init__(self, output):
     BlockVariable._tlm_adjoint__orig___init__(self, None)
 
 
+assert not hasattr(BlockVariable, "_tlm_adjoint__orig___init__")
 BlockVariable._tlm_adjoint__orig___init__ = BlockVariable.__init__
 BlockVariable.__init__ = _BlockVariable__init__
 
@@ -86,6 +87,7 @@ def _Constant__init__(self, value, domain=None, *,
                    "static": False, "cache": False, "checkpoint": True})
 
 
+assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
 backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
 backend_Constant.__init__ = _Constant__init__
 
@@ -111,6 +113,7 @@ def _FunctionSpace__init__(self, *args, **kwargs):
                   {"id": new_space_id()})
 
 
+assert not hasattr(backend_FunctionSpace, "_tlm_adjoint__orig___init__")
 backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
 backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
@@ -307,6 +310,7 @@ def _Function__init__(self, *args, **kwargs):
                    "static": False, "cache": False, "checkpoint": True})
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig___init__")
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 

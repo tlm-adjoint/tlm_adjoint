@@ -325,6 +325,7 @@ def _DirichletBC_apply(self, *args):
         b._tlm_adjoint__bcs.append(self)
 
 
+assert not hasattr(backend_DirichletBC, "_tlm_adjoint__orig_apply")
 backend_DirichletBC._tlm_adjoint__orig_apply = backend_DirichletBC.apply
 backend_DirichletBC.apply = _DirichletBC_apply
 
@@ -343,6 +344,7 @@ def _Function_assign(self, rhs, annotate=None, tlm=None):
     return return_value
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_assign")
 backend_Function._tlm_adjoint__orig_assign = backend_Function.assign
 backend_Function.assign = _Function_assign
 
@@ -353,6 +355,7 @@ def _Function_vector(self):
     return return_value
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_vector")
 backend_Function._tlm_adjoint__orig_vector = backend_Function.vector
 backend_Function.vector = _Function_vector
 
@@ -371,6 +374,7 @@ def _Matrix_mul(self, other):
     return return_value
 
 
+assert not hasattr(backend_Matrix, "_tlm_adjoint__orig___mul__")
 backend_Matrix._tlm_adjoint__orig___mul__ = backend_Matrix.__mul__
 backend_Matrix.__mul__ = _Matrix_mul
 

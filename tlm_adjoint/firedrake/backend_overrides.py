@@ -286,6 +286,7 @@ def _Function_assign(self, expr, subset=None, annotate=None, tlm=None):
     return return_value
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_assign")
 backend_Function._tlm_adjoint__orig_assign = backend_Function.assign
 backend_Function.assign = _Function_assign
 
@@ -294,6 +295,7 @@ def _Function_project(self, b, *args, **kwargs):
     return project(b, self, *args, **kwargs)
 
 
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_project")
 backend_Function._tlm_adjoint__orig_project = backend_Function.project
 backend_Function.project = _Function_project
 

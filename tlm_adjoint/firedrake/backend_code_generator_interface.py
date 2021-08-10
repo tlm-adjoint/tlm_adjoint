@@ -292,6 +292,7 @@ def _LinearSolver_lifted(self, b):
         return b
 
 
+assert not hasattr(backend_LinearSolver, "_tlm_adjoint__orig__lifted")
 backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
