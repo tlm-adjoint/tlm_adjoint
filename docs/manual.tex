@@ -1709,14 +1709,6 @@ where \texttt{term} is again either an appropriate function (see section
 \ref{sect:Functional_internals}) or a \texttt{ufl.classes.Form} representing a
 term in the functional.
 
-The \texttt{Functional.addto} method, when supplied with no arguments
-\begin{lstlisting}
-J.addto()
-\end{lstlisting}
-defines an equation which copies the current value of the \texttt{Functional}
-(stored in the internal function -- see section
-\ref{sect:Functional_internals}) into a new function.
-
 The value of the functional can be accessed using its \texttt{value} method,
 which returns a float
 \begin{lstlisting}
