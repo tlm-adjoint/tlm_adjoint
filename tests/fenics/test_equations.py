@@ -549,7 +549,8 @@ def test_AssembleSolver(setup_test, test_leaks):
                        + inner(test, F) * dx, x).solve()
         AssembleSolver(inner(F, x) * dx, y).solve()
 
-        J = Functional(name="J", fn=y)
+        J = Functional(name="J")
+        J.assign(y)
         return J
 
     F = Function(space, name="F", static=True)

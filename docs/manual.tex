@@ -1684,10 +1684,8 @@ Functionals are defined using a \texttt{Functional} object. A
 \begin{lstlisting}
 J = Functional(name=name)
 \end{lstlisting}
-where \texttt{name} is a descriptive name for the \texttt{Functional}. The name
-defaults to \texttt{function\_name(fn)} if an optional \texttt{fn} argument is
-provided (see section \ref{sect:Functional_internals}), and ``Functional''
-otherwise. On instantiation the value of the \texttt{Functional} is zero.
+where \texttt{name} is a name for the \texttt{Functional}. On instantiation the
+value of the \texttt{Functional} is zero.
 
 \subsection{Adding terms}
 
@@ -1725,10 +1723,6 @@ function is defined to be a function as returned by
 In advanced usage the function space for the internal function may be specified
 \begin{lstlisting}
 J = Functional(name=name, space=space)
-\end{lstlisting}
-or the function itself may be supplied
-\begin{lstlisting}
-J = Functional(name=name, fn=fn)
 \end{lstlisting}
 The internal function may be accessed via
 \begin{lstlisting}
