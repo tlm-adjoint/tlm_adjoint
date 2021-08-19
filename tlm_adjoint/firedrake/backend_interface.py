@@ -34,7 +34,7 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, Replacement, Zero
+    ConstantSpaceInterface, Function, ReplacementFunction, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -286,7 +286,7 @@ class FunctionInterface(_FunctionInterface):
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = Replacement(self)
+            self._tlm_adjoint__replacement = ReplacementFunction(self)
         return self._tlm_adjoint__replacement
 
     def _is_replacement(self):
@@ -313,6 +313,17 @@ def _Function__init__(self, *args, **kwargs):
 assert not hasattr(backend_Function, "_tlm_adjoint__orig___init__")
 backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
+
+
+def _Function__getattr__(self, key):
+    if "_data" not in self.__dict__:
+        raise AttributeError(f"No attribute '{key:s}'")
+    return backend_Function._tlm_adjoint__orig__getattr__(self, key)
+
+
+assert not hasattr(backend_Function, "_tlm_adjoint__orig__getattr__")
+backend_Function._tlm_adjoint__orig__getattr__ = backend_Function.__getattr__
+backend_Function.__getattr__ = _Function__getattr__
 
 
 def _new_scalar_function(name=None, comm=None, static=False, cache=None,

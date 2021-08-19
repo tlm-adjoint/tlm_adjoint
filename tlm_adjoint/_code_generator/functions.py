@@ -41,6 +41,8 @@ __all__ = \
         "Function",
         "HomogeneousDirichletBC",
         "Replacement",
+        "ReplacementConstant",
+        "ReplacementFunction",
         "ZeroConstant",
         "ZeroFunction",
         "bcs_is_cached",
@@ -242,7 +244,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = Replacement(self)
+            self._tlm_adjoint__replacement = ReplacementConstant(self)
         return self._tlm_adjoint__replacement
 
     def _is_replacement(self):
@@ -589,6 +591,16 @@ class Replacement(ufl.classes.Coefficient):
             return ()
         else:
             return (self.__domain,)
+
+
+class ReplacementConstant(backend_Constant, Replacement):
+    def __init__(self, x):
+        Replacement.__init__(self, x)
+
+
+class ReplacementFunction(backend_Function, Replacement):
+    def __init__(self, x):
+        Replacement.__init__(self, x)
 
 
 def replaced_expr(expr):
