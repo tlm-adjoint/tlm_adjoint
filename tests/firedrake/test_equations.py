@@ -20,6 +20,8 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
+    function_vector
 
 from test_base import *
 
@@ -897,3 +899,54 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
     assert min_order > 2.00
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("dim", [1, 2, 3, 4])
+def test_form_binding(setup_test, test_leaks,
+                      dim):
+    from tlm_adjoint.firedrake.backend_code_generator_interface import \
+        assemble as bind_assemble
+    from tlm_adjoint.firedrake.equations import bind_form, unbind_form, \
+        unbound_form
+
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    if dim > 1:
+        space = FunctionSpace(
+            mesh, MixedElement(*[space.ufl_element() for i in range(dim)]))
+    test = TestFunction(space)
+
+    if dim == 1:
+        u = project(sin(pi * X[0])
+                    * exp(2 * pi * X[1]),
+                    space, solver_parameters=ls_parameters_cg)
+    else:
+        u = project(as_vector([sin((2 * i + 1) * pi * X[0])
+                               * exp((2 * i + 2) * pi * X[1])
+                               for i in range(dim)]),
+                    space, solver_parameters=ls_parameters_cg)
+
+    form = inner(dot(u, u) * u, test) * dx
+    assembled_form_ref = Function(space)
+    assemble(form, tensor=function_vector(assembled_form_ref))
+
+    for c in form.coefficients():
+        assert not function_is_replacement(c)
+    form = unbound_form(form, [u])
+    for c in form.coefficients():
+        assert function_is_replacement(c)
+    u = function_copy(u)
+
+    assert "_tlm_adjoint__bindings" not in form._cache
+    bind_form(form, [u])
+    assert "_tlm_adjoint__bindings" in form._cache
+    assembled_form = Function(space)
+    bind_assemble(form, tensor=function_vector(assembled_form))
+    unbind_form(form)
+    assert "_tlm_adjoint__bindings" not in form._cache
+
+    error = function_copy(assembled_form_ref)
+    function_axpy(error, -1.0, assembled_form)
+    assert function_linf_norm(error) == 0.0
