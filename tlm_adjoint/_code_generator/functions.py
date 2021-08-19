@@ -242,9 +242,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
-            # Firedrake requires Constant.function_space() to return None
-            self._tlm_adjoint__replacement = \
-                Replacement(self, space=None)
+            self._tlm_adjoint__replacement = Replacement(self)
         return self._tlm_adjoint__replacement
 
     def _is_replacement(self):
@@ -565,15 +563,8 @@ class ReplacementInterface(_FunctionInterface):
 
 
 class Replacement(ufl.classes.Coefficient):
-    def __init__(self, x, *args, **kwargs):
-        if len(args) > 0 or len(kwargs) > 0:
-            def extract_args(x, space):
-                return x, space
-            x, space = extract_args(x, *args, **kwargs)
-            x_space = function_space(x)
-        else:
-            space = function_space(x)
-            x_space = space
+    def __init__(self, x):
+        space = function_space(x)
 
         x_domains = x.ufl_domains()
         if len(x_domains) == 0:
@@ -581,18 +572,14 @@ class Replacement(ufl.classes.Coefficient):
         else:
             domain, = x_domains
 
-        super().__init__(x_space, count=new_count())
-        self.__space = space
+        super().__init__(space, count=new_count())
         self.__domain = domain
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
-                       "space": x_space, "static": function_is_static(x),
+                       "space": space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
                        "checkpoint": function_is_checkpointed(x),
                        "caches": function_caches(x)})
-
-    def function_space(self):
-        return self.__space
 
     def ufl_domain(self):
         return self.__domain
