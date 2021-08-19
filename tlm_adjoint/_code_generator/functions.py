@@ -582,9 +582,8 @@ class Replacement(ufl.classes.Coefficient):
             domain, = x_domains
 
         super().__init__(x_space, count=new_count())
-        self.__domain = domain
         self.__space = space
-        self.__name = function_name(x)
+        self.__domain = domain
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
                        "space": x_space, "static": function_is_static(x),
@@ -594,42 +593,6 @@ class Replacement(ufl.classes.Coefficient):
 
     def function_space(self):
         return self.__space
-
-    def id(self):
-        warnings.warn("Replacement.id method is deprecated -- "
-                      "use function_id instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_id(self)
-
-    def name(self):
-        warnings.warn("Replacement.name is deprecated -- "
-                      "use function_name instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_name(self)
-
-    def is_static(self):
-        warnings.warn("Replacement.is_static is deprecated -- "
-                      "use function_is_static instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_static(self)
-
-    def is_cached(self):
-        warnings.warn("Replacement.is_cached is deprecated -- "
-                      "use function_is_cached instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_cached(self)
-
-    def is_checkpointed(self):
-        warnings.warn("Replacement.is_checkpointed is deprecated -- "
-                      "use function_is_checkpointed instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_checkpointed(self)
-
-    def caches(self):
-        warnings.warn("Replacement.caches is deprecated -- "
-                      "use function_caches instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_caches(self)
 
     def ufl_domain(self):
         return self.__domain
