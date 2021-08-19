@@ -73,7 +73,7 @@ def test_clear_caches(setup_test, test_leaks):
     function_update_caches(F, value=Function(space))
     test_cleared(F, cached_form)
 
-    # Clear on cache update, Replacement with new Function
+    # Clear on cache update, replacement with new Function
     cached_form = cache_item(F)
     test_not_cleared(F, cached_form)
     function_update_caches(function_replacement(F), value=Function(space))

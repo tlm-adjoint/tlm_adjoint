@@ -40,7 +40,6 @@ __all__ = \
         "DirichletBC",
         "Function",
         "HomogeneousDirichletBC",
-        "Replacement",
         "ReplacementConstant",
         "ReplacementFunction",
         "ZeroConstant",

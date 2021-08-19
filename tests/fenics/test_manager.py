@@ -271,9 +271,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
             for dep in b.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
 
             linear_eq = WeakAlias(linear_eq)
 
@@ -282,9 +282,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
             for dep in b.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
 
             manager.drop_references()
 
@@ -293,9 +293,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert isinstance(dep, Replacement)
+                assert function_is_replacement(dep)
             for dep in b.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
 
         y = Constant(0.0, name="y")
         LinearEquation(b, y, A=M).solve()
@@ -310,7 +310,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in b.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
 
             M = WeakAlias(M)
             b = WeakAlias(b)
@@ -319,7 +319,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in b.dependencies():
-                assert not isinstance(dep, Replacement)
+                assert not function_is_replacement(dep)
 
             manager.drop_references()
 
@@ -327,7 +327,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert b._references_dropped
             assert M._references_dropped
             for dep in b.dependencies():
-                assert isinstance(dep, Replacement)
+                assert function_is_replacement(dep)
 
         J = Functional(name="J")
         NormSqSolver(z, J.fn()).solve()
@@ -427,7 +427,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [fp_eq, eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not isinstance(dep, Replacement)
+                    assert not function_is_replacement(dep)
             del eq
 
             fp_eq = WeakAlias(fp_eq)
@@ -436,7 +436,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [fp_eq, eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not isinstance(dep, Replacement)
+                    assert not function_is_replacement(dep)
             del eq
 
             manager.drop_references()
@@ -444,11 +444,11 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             assert len(manager._to_drop_references) == 0
             assert fp_eq._references_dropped
             for dep in fp_eq.dependencies():
-                assert isinstance(dep, Replacement)
+                assert function_is_replacement(dep)
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not isinstance(dep, Replacement)
+                    assert not function_is_replacement(dep)
             del eq
 
         eq0.solve()
@@ -459,7 +459,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not isinstance(dep, Replacement)
+                    assert not function_is_replacement(dep)
             del eq
 
             eq0 = WeakAlias(eq0)
@@ -469,7 +469,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not isinstance(dep, Replacement)
+                    assert not function_is_replacement(dep)
             del eq
 
             manager.drop_references()
@@ -478,7 +478,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [eq0, eq1]:
                 assert eq._references_dropped
                 for dep in eq.dependencies():
-                    assert isinstance(dep, Replacement)
+                    assert function_is_replacement(dep)
             del eq
 
         J = Functional(name="J")
