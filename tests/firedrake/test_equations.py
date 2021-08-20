@@ -910,7 +910,7 @@ def test_form_binding(setup_test, test_leaks,
     from tlm_adjoint.firedrake.equations import bind_form, unbind_form, \
         unbound_form
 
-    mesh = UnitSquareMesh(10, 10)
+    mesh = UnitSquareMesh(30, 30)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     if dim > 1:
@@ -945,11 +945,11 @@ def test_form_binding(setup_test, test_leaks,
 
     for i in range(5):
         if dim == 1:
-            u = project((i + 1) * sin(pi * X[0]) * exp(2 * pi * X[1]),
+            u = project((i + 1) * sin(pi * X[0]) * cos(2 * pi * X[1]),
                         space, solver_parameters=ls_parameters_cg)
         else:
             u = project((i + 1) * as_vector([sin((2 * j + 1) * pi * X[0])
-                                             * exp((2 * j + 2) * pi * X[1])
+                                             * cos((2 * j + 2) * pi * X[1])
                                             for j in range(dim)]),
                         space, solver_parameters=ls_parameters_cg)
         u_split = u.split()
