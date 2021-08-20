@@ -800,6 +800,7 @@ def test_initial_guess(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("dim", [1, 2, 3, 4])
+@seed_test
 def test_form_binding(setup_test, test_leaks,
                       dim):
     from tlm_adjoint.firedrake.backend_code_generator_interface import \
@@ -869,6 +870,7 @@ def test_form_binding(setup_test, test_leaks,
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("cache_rhs_assembly", [True, False])
+@seed_test
 def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
                                         cache_rhs_assembly):
     mesh = UnitSquareMesh(20, 20)
@@ -883,14 +885,14 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
         x = Function(space, name="x")
         CustomEquationSolver(
-            inner(test, m * trial) * dx == inner(test, Constant(0.0)) * dx,
+            inner(m * trial, test) * dx == inner(Constant(2.0), test) * dx,
             x, DirichletBC(space, 1.0, "on_boundary"),
             solver_parameters=ls_parameters_cg,
             cache_jacobian=False,
             cache_rhs_assembly=cache_rhs_assembly).solve()
 
         J = Functional(name="J")
-        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+        J.assign(((1 + x) ** 3) * dx)
         return J
 
     # m should not be static for this test
@@ -916,7 +918,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
-    assert min_order > 1.98
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
     assert min_order > 1.99

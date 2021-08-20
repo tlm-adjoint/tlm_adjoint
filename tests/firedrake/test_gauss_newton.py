@@ -31,9 +31,8 @@ import pytest
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_GaussNewton(setup_test, test_leaks):
-    np.random.seed(50167378 + MPI.COMM_WORLD.rank)
-
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)

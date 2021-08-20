@@ -866,6 +866,7 @@ def test_initial_guess(setup_test, test_leaks):
 
 @pytest.mark.fenics
 @pytest.mark.parametrize("dim", [1, 2, 3, 4])
+@seed_test
 def test_form_binding(setup_test, test_leaks,
                       dim):
     from tlm_adjoint.fenics.backend_code_generator_interface import \
@@ -931,6 +932,62 @@ def test_form_binding(setup_test, test_leaks,
         error = function_copy(assembled_form_ref)
         function_axpy(error, -1.0, assembled_form)
         assert function_linf_norm(error) < 1.0e-16
+
+
+@pytest.mark.fenics
+@pytest.mark.parametrize("cache_rhs_assembly", [True, False])
+@seed_test
+def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
+                                        cache_rhs_assembly):
+    mesh = UnitSquareMesh(20, 20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        class CustomEquationSolver(EquationSolver):
+            def forward_solve(self, x, deps=None):
+                # Force into form binding code paths
+                super().forward_solve(x, deps=self.dependencies())
+
+        x = Function(space, name="x")
+        CustomEquationSolver(
+            inner(m * trial, test) * dx == inner(Constant(2.0), test) * dx,
+            x, DirichletBC(space, 1.0, "on_boundary"),
+            solver_parameters=ls_parameters_cg,
+            cache_jacobian=False,
+            cache_rhs_assembly=cache_rhs_assembly).solve()
+
+        J = Functional(name="J")
+        J.assign(((1 + x) ** 3) * dx)
+        return J
+
+    # m should not be static for this test
+    m = Function(space, name="m")
+    function_assign(m, 1.0)
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 1.99
 
 
 @pytest.mark.fenics
