@@ -34,7 +34,7 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space, \
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, Replacement, Zero
+    ConstantSpaceInterface, Function, ReplacementFunction, Zero
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -276,7 +276,7 @@ class FunctionInterface(_FunctionInterface):
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = Replacement(self)
+            self._tlm_adjoint__replacement = ReplacementFunction(self)
         return self._tlm_adjoint__replacement
 
     def _is_replacement(self):

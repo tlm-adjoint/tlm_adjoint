@@ -40,7 +40,8 @@ __all__ = \
         "DirichletBC",
         "Function",
         "HomogeneousDirichletBC",
-        "Replacement",
+        "ReplacementConstant",
+        "ReplacementFunction",
         "ZeroConstant",
         "ZeroFunction",
         "bcs_is_cached",
@@ -242,9 +243,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
-            # Firedrake requires Constant.function_space() to return None
-            self._tlm_adjoint__replacement = \
-                Replacement(self, space=None)
+            self._tlm_adjoint__replacement = ReplacementConstant(self)
         return self._tlm_adjoint__replacement
 
     def _is_replacement(self):
@@ -565,15 +564,8 @@ class ReplacementInterface(_FunctionInterface):
 
 
 class Replacement(ufl.classes.Coefficient):
-    def __init__(self, x, *args, **kwargs):
-        if len(args) > 0 or len(kwargs) > 0:
-            def extract_args(x, space):
-                return x, space
-            x, space = extract_args(x, *args, **kwargs)
-            x_space = function_space(x)
-        else:
-            space = function_space(x)
-            x_space = space
+    def __init__(self, x):
+        space = function_space(x)
 
         x_domains = x.ufl_domains()
         if len(x_domains) == 0:
@@ -581,55 +573,14 @@ class Replacement(ufl.classes.Coefficient):
         else:
             domain, = x_domains
 
-        super().__init__(x_space, count=new_count())
+        super().__init__(space, count=new_count())
         self.__domain = domain
-        self.__space = space
-        self.__name = function_name(x)
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
-                       "space": x_space, "static": function_is_static(x),
+                       "space": space, "static": function_is_static(x),
                        "cache": function_is_cached(x),
                        "checkpoint": function_is_checkpointed(x),
                        "caches": function_caches(x)})
-
-    def function_space(self):
-        return self.__space
-
-    def id(self):
-        warnings.warn("Replacement.id method is deprecated -- "
-                      "use function_id instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_id(self)
-
-    def name(self):
-        warnings.warn("Replacement.name is deprecated -- "
-                      "use function_name instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_name(self)
-
-    def is_static(self):
-        warnings.warn("Replacement.is_static is deprecated -- "
-                      "use function_is_static instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_static(self)
-
-    def is_cached(self):
-        warnings.warn("Replacement.is_cached is deprecated -- "
-                      "use function_is_cached instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_cached(self)
-
-    def is_checkpointed(self):
-        warnings.warn("Replacement.is_checkpointed is deprecated -- "
-                      "use function_is_checkpointed instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_checkpointed(self)
-
-    def caches(self):
-        warnings.warn("Replacement.caches is deprecated -- "
-                      "use function_caches instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_caches(self)
 
     def ufl_domain(self):
         return self.__domain
@@ -639,6 +590,16 @@ class Replacement(ufl.classes.Coefficient):
             return ()
         else:
             return (self.__domain,)
+
+
+class ReplacementConstant(backend_Constant, Replacement):
+    def __init__(self, x):
+        Replacement.__init__(self, x)
+
+
+class ReplacementFunction(backend_Function, Replacement):
+    def __init__(self, x):
+        Replacement.__init__(self, x)
 
 
 def replaced_expr(expr):

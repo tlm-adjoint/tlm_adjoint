@@ -184,7 +184,9 @@ def form_bindings(*forms):
 def bind_forms(*forms):
     for dep, binding in form_bindings(*forms):
         for name in _form_binding_names:
-            assert not hasattr(dep, name)
+            if hasattr(dep, name):
+                old_name = f"_tlm_adjoint__bindings_old_{name:s}"
+                setattr(dep, old_name, getattr(dep, name))
             setattr(dep, name, getattr(binding, name))
 
 
@@ -192,6 +194,10 @@ def unbind_forms(*forms):
     for dep, binding in form_bindings(*forms):
         for name in _form_binding_names:
             delattr(dep, name)
+            old_name = f"_tlm_adjoint__bindings_old_{name:s}"
+            if hasattr(dep, old_name):
+                setattr(dep, name, getattr(dep, old_name))
+                delattr(dep, old_name)
 
 
 def _assemble(form, tensor=None, form_compiler_parameters=None,

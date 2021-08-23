@@ -24,7 +24,9 @@ from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
 
 import copy
+import functools
 import gc
+import hashlib
 import logging
 import mpi4py.MPI as MPI
 import numpy as np
@@ -39,6 +41,7 @@ __all__ = \
         "interpolate_expression",
 
         "run_example",
+        "seed_test",
         "setup_test",
         "test_configurations",
         "test_ghost_modes",
@@ -72,6 +75,20 @@ def setup_test():
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     np.random.seed(14012313 + MPI.COMM_WORLD.rank)
+
+
+def seed_test(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
+        h = hashlib.sha256()
+        h.update(fn.__name__.encode("utf-8"))
+        h.update(str(args).encode("utf-8"))
+        h.update(str(sorted(kwargs.items(), key=lambda e: e[0])).encode("utf-8"))  # noqa: E501
+        seed = int(h.hexdigest(), 16) + MPI.COMM_WORLD.rank
+        seed %= 2 ** 32
+        np.random.seed(seed)
+        return fn(*args, **kwargs)
+    return wrapped_fn
 
 
 def params_set(names, *values):

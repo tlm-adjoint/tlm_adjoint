@@ -20,6 +20,8 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
+    function_vector
 
 from test_base import *
 
@@ -797,7 +799,78 @@ def test_initial_guess(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("dim", [1, 2, 3, 4])
+@seed_test
+def test_form_binding(setup_test, test_leaks,
+                      dim):
+    from tlm_adjoint.firedrake.backend_code_generator_interface import \
+        assemble as bind_assemble
+    from tlm_adjoint.firedrake.equations import bind_form, unbind_form, \
+        unbound_form
+
+    mesh = UnitSquareMesh(30, 30)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    if dim > 1:
+        space = FunctionSpace(
+            mesh, MixedElement(*[space.ufl_element() for i in range(dim)]))
+    test = TestFunction(space)
+
+    def test_form(u, u_split, test):
+        if dim == 1:
+            # With FEniCS u.split() is empty for dim=1
+            v = u
+        else:
+            v = as_vector(u_split)
+        return inner(dot(u, v) * u, test) * dx
+
+    def test_form_deps(u, u_split):
+        if dim == 1:
+            return [u]
+        else:
+            return [u] + list(u_split)
+
+    u = Function(space)
+    # With FEniCS u.split() creates new Coefficient objects
+    u_split = u.split()
+    form = test_form(u, u_split, test)
+    for c in form.coefficients():
+        assert not function_is_replacement(c)
+    form = unbound_form(form, test_form_deps(u, u_split))
+    for c in form.coefficients():
+        assert function_is_replacement(c)
+    del u, u_split
+
+    for i in range(5):
+        if dim == 1:
+            u = project((i + 1) * sin(pi * X[0]) * cos(2 * pi * X[1]),
+                        space, solver_parameters=ls_parameters_cg)
+        else:
+            u = project((i + 1) * as_vector([sin((2 * j + 1) * pi * X[0])
+                                             * cos((2 * j + 2) * pi * X[1])
+                                            for j in range(dim)]),
+                        space, solver_parameters=ls_parameters_cg)
+        u_split = u.split()
+        assembled_form_ref = Function(space)
+        assemble(test_form(u, u_split, test),
+                 tensor=function_vector(assembled_form_ref))
+
+        assert "_tlm_adjoint__bindings" not in form._cache
+        bind_form(form, test_form_deps(u, u_split))
+        assert "_tlm_adjoint__bindings" in form._cache
+        assembled_form = Function(space)
+        bind_assemble(form, tensor=function_vector(assembled_form))
+        unbind_form(form)
+        assert "_tlm_adjoint__bindings" not in form._cache
+
+        error = function_copy(assembled_form_ref)
+        function_axpy(error, -1.0, assembled_form)
+        assert function_linf_norm(error) == 0.0
+
+
+@pytest.mark.firedrake
 @pytest.mark.parametrize("cache_rhs_assembly", [True, False])
+@seed_test
 def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
                                         cache_rhs_assembly):
     mesh = UnitSquareMesh(20, 20)
@@ -812,14 +885,14 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
         x = Function(space, name="x")
         CustomEquationSolver(
-            inner(test, m * trial) * dx == inner(test, Constant(0.0)) * dx,
+            inner(m * trial, test) * dx == inner(Constant(2.0), test) * dx,
             x, DirichletBC(space, 1.0, "on_boundary"),
             solver_parameters=ls_parameters_cg,
             cache_jacobian=False,
             cache_rhs_assembly=cache_rhs_assembly).solve()
 
         J = Functional(name="J")
-        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+        J.assign(((1 + x) ** 3) * dx)
         return J
 
     # m should not be static for this test
@@ -845,7 +918,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
-    assert min_order > 1.98
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
     assert min_order > 1.99
