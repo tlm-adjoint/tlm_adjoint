@@ -25,6 +25,8 @@ from .interface import function_is_scalar, function_name, function_new, \
 from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
 
+import warnings
+
 __all__ = \
     [
         "Functional",
@@ -39,34 +41,38 @@ class FunctionalException(Exception):
 class Functional:
     _id_counter = [0]
 
-    def __init__(self, fn=None, space=None, name=None):
+    def __init__(self, fn=None, space=None, name=None, _fn=None):
         """
         A functional.
 
         Arguments:
 
-        fn     (Optional) The function storing the functional value. Replaced
-               by a new function by subsequent calls to the assign or addto
-               methods.
         space  (Optional) The space for the functional.
         name   (Optional) The name of the functional.
         """
 
         if fn is None:
-            if name is None:
-                name = "Functional"
+            fn = _fn
+        else:
+            warnings.warn("fn argument is deprecated ",
+                          DeprecationWarning, stacklevel=2)
+            if _fn is not None:
+                raise FunctionalException("Cannot specify both fn and _fn "
+                                          "arguments")
+        del _fn
+
+        if fn is None:
             if space is None:
                 fn = new_scalar_function(name=name)
             else:
                 fn = space_new(space, name=name)
         else:
-            if name is None:
-                name = function_name(fn)
             if space is not None \
                     and space_id(space) != space_id(function_space(fn)):
                 raise FunctionalException("Invalid function space")
         if not function_is_scalar(fn):
             raise FunctionalException("fn must be a scalar")
+        name = function_name(fn)
 
         self._name = name
         self._fn = fn
@@ -166,4 +172,4 @@ class Functional:
 
         J_fn = manager.tlm(M, dM, self.fn(), max_depth=max_depth)
 
-        return Functional(fn=J_fn)
+        return Functional(_fn=J_fn)

@@ -1612,7 +1612,7 @@ class EquationManager:
         self.reset_adjoint(_warning=False)
 
         # Functionals
-        Js = tuple(Functional(fn=J) if is_function(J) else J for J in Js)
+        Js = tuple(Functional(_fn=J) if is_function(J) else J for J in Js)
 
         # Controls
         M = tuple(M)

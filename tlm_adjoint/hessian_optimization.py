@@ -164,7 +164,7 @@ class CachedHessian(HessianOptimization, Hessian):
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
         self._J_state = function_state(J.fn())
-        self._J = Functional(fn=J.fn())
+        self._J = Functional(_fn=J.fn())
 
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):

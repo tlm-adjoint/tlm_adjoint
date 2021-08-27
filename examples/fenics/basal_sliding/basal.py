@@ -360,8 +360,6 @@ def forward(beta_sq, ref=None, h_filename=None, speed_filename=None):
                                                    U[0] - ref[timestep][0]) * dx  # noqa: E501
                     + (1.0 / (sigma_h ** 2)) * inner(h[0] - ref[timestep][1],
                                                      h[0] - ref[timestep][1]) * dx)  # noqa: E501
-        else:
-            J.addto()
         output(t=(timestep + 1) * float(dt))
 
     info(f"forward call {forward_calls[0]:d}, J = {J.value():.16e}")
