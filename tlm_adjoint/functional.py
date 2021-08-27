@@ -53,13 +53,13 @@ class Functional:
 
         if fn is None:
             fn = _fn
-            del _fn
         else:
             warnings.warn("fn argument is deprecated ",
                           DeprecationWarning, stacklevel=2)
             if _fn is not None:
                 raise FunctionalException("Cannot specify both fn and _fn "
                                           "arguments")
+        del _fn
 
         if fn is None:
             if space is None:
