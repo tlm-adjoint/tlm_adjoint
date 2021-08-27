@@ -37,7 +37,6 @@ __all__ = \
 
         "Function",
         "FunctionSpace",
-        "Replacement",
 
         "RealFunctionSpace",
         "copy_parameters_dict",
