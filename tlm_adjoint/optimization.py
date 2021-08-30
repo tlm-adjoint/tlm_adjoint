@@ -159,8 +159,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         return fun(x)
 
     def jac(x):
-        if J_M[1] is None:
-            fun(x, force=True)
+        fun(x, force=J_M[1] is None)
         dJ = manager.compute_gradient(J[0], J_M[1])
         if manager._cp_method not in ["memory", "periodic_disk"]:
             J_M[1] = None
