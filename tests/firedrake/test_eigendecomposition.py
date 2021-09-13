@@ -28,6 +28,7 @@ import pytest
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_HEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -53,6 +54,7 @@ def test_HEP(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_NHEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -82,6 +84,7 @@ def test_NHEP(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_CachedHessian(setup_test):
     configure_checkpointing("memory", {"drop_references": False})
 
