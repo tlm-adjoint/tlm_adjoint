@@ -91,13 +91,15 @@ def test_CachedHessian(setup_test):
     mesh = UnitIntervalMesh(5)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
+    zero = Constant(0.0, name="zero")
 
     def forward(F):
         y = Function(space, name="y")
         EquationSolver(
-            inner(trial, test) * dx
-            == inner(F, test) * dx,
-            y, solver_parameters=ls_parameters_cg).solve()
+            inner(grad(trial), grad(test)) * dx
+            == inner(F, test) * dx + inner(zero * sin(F), test) * dx,
+            y, HomogeneousDirichletBC(space, "on_boundary"),
+            solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
         J.addto((dot(y, y) ** 2) * dx)
@@ -118,13 +120,16 @@ def test_CachedHessian(setup_test):
     zeta = Function(space, name="zeta", static=True)
     for i in range(5):
         function_set_values(zeta, np.random.random(function_local_size(zeta)))
+        # Leads to an inconsistency if the stored value is not used
+        zero.assign(np.NAN)
         _, _, ddJ_opt = H_opt.action(F, zeta)
+        zero.assign(0.0)
         _, _, ddJ = H.action(F, zeta)
 
         error = Function(space, name="error")
         function_assign(error, ddJ)
         function_axpy(error, -1.0, ddJ_opt)
-        assert function_linf_norm(error) < 1.0e-14
+        assert function_linf_norm(error) == 0.0
 
     # Test consistency of eigenvalues
 
@@ -136,4 +141,4 @@ def test_CachedHessian(setup_test):
 
     error = (np.array(sorted(lam.real), dtype=np.float64)
              - np.array(sorted(lam_opt.real), dtype=np.float64))
-    assert abs(error).max() < 1.0e-14
+    assert abs(error).max() == 0.0
