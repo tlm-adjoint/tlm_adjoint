@@ -20,6 +20,8 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
+    function_vector, matrix_multiply
 
 from test_base import *
 
@@ -36,11 +38,10 @@ def test_HEP(setup_test, test_leaks):
 
     M = assemble(inner(test, trial) * dx)
 
-    def M_action(F):
-        G = function_new(F)
-        with F.dat.vec_ro as F_v, G.dat.vec_wo as G_v:
-            M.petscmat.mult(F_v, G_v)
-        return function_get_values(G)
+    def M_action(x):
+        y = function_new(x)
+        matrix_multiply(M, function_vector(x), tensor=function_vector(y))
+        return function_get_values(y)
 
     import slepc4py.SLEPc as SLEPc
     lam, V_r = eigendecompose(space, M_action,
@@ -62,11 +63,10 @@ def test_NHEP(setup_test, test_leaks):
 
     N = assemble(inner(test, trial.dx(0)) * dx)
 
-    def N_action(F):
-        G = function_new(F)
-        with F.dat.vec_ro as F_v, G.dat.vec_wo as G_v:
-            N.petscmat.mult(F_v, G_v)
-        return function_get_values(G)
+    def N_action(x):
+        y = function_new(x)
+        matrix_multiply(N, function_vector(x), tensor=function_vector(y))
+        return function_get_values(y)
 
     lam, (V_r, V_i) = eigendecompose(space, N_action)
     diff = Function(space)
