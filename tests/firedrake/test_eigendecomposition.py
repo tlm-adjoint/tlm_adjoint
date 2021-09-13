@@ -20,6 +20,8 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
+    function_vector, matrix_multiply
 
 from test_base import *
 
@@ -28,18 +30,18 @@ import pytest
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_HEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
-    M = assemble(inner(test, trial) * dx)
+    M = assemble(inner(trial, test) * dx)
 
-    def M_action(F):
-        G = function_new(F)
-        with F.dat.vec_ro as F_v, G.dat.vec_wo as G_v:
-            M.petscmat.mult(F_v, G_v)
-        return function_get_values(G)
+    def M_action(x):
+        y = function_new(x)
+        matrix_multiply(M, function_vector(x), tensor=function_vector(y))
+        return function_get_values(y)
 
     import slepc4py.SLEPc as SLEPc
     lam, V_r = eigendecompose(space, M_action,
@@ -53,18 +55,18 @@ def test_HEP(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_NHEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
-    N = assemble(inner(test, trial.dx(0)) * dx)
+    N = assemble(inner(trial.dx(0), test) * dx)
 
-    def N_action(F):
-        G = function_new(F)
-        with F.dat.vec_ro as F_v, G.dat.vec_wo as G_v:
-            N.petscmat.mult(F_v, G_v)
-        return function_get_values(G)
+    def N_action(x):
+        y = function_new(x)
+        matrix_multiply(N, function_vector(x), tensor=function_vector(y))
+        return function_get_values(y)
 
     lam, (V_r, V_i) = eigendecompose(space, N_action)
     diff = Function(space)
@@ -82,20 +84,25 @@ def test_NHEP(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_CachedHessian(setup_test):
     configure_checkpointing("memory", {"drop_references": False})
 
     mesh = UnitIntervalMesh(5)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
+    zero = Constant(0.0, name="zero")
 
     def forward(F):
         y = Function(space, name="y")
-        EquationSolver(inner(test, trial) * dx == inner(test, F) * dx,
-                       y, solver_parameters=ls_parameters_cg).solve()
+        EquationSolver(
+            inner(grad(trial), grad(test)) * dx
+            == inner(F, test) * dx + inner(zero * sin(F), test) * dx,
+            y, HomogeneousDirichletBC(space, "on_boundary"),
+            solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
-        J.addto(inner(dot(y, y), dot(y, y)) * dx)
+        J.addto((dot(y, y) ** 2) * dx)
         return J
 
     F = Function(space, name="F", static=True)
@@ -113,7 +120,10 @@ def test_CachedHessian(setup_test):
     zeta = Function(space, name="zeta", static=True)
     for i in range(5):
         function_set_values(zeta, np.random.random(function_local_size(zeta)))
+        # Leads to an inconsistency if the stored value is not used
+        zero.assign(np.NAN)
         _, _, ddJ_opt = H_opt.action(F, zeta)
+        zero.assign(0.0)
         _, _, ddJ = H.action(F, zeta)
 
         error = Function(space, name="error")
