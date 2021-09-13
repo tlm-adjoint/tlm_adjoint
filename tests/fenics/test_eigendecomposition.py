@@ -36,7 +36,7 @@ def test_HEP(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
-    M = assemble(inner(test, trial) * dx)
+    M = assemble(inner(trial, test) * dx)
 
     def M_action(x):
         y = function_new(x)
@@ -61,7 +61,7 @@ def test_NHEP(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
-    N = assemble(inner(test, trial.dx(0)) * dx)
+    N = assemble(inner(trial.dx(0), test) * dx)
 
     def N_action(x):
         y = function_new(x)
@@ -94,11 +94,13 @@ def test_CachedHessian(setup_test):
 
     def forward(F):
         y = Function(space, name="y")
-        EquationSolver(inner(test, trial) * dx == inner(test, F) * dx,
-                       y, solver_parameters=ls_parameters_cg).solve()
+        EquationSolver(
+            inner(trial, test) * dx
+            == inner(F, test) * dx,
+            y, solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
-        J.addto(inner(dot(y, y), dot(y, y)) * dx)
+        J.addto((dot(y, y) ** 2) * dx)
         return J
 
     F = Function(space, name="F", static=True)
