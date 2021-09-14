@@ -29,7 +29,7 @@ import numpy as np
 
 stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
-np.random.seed(2212983 + MPI.COMM_WORLD.rank)
+np.random.seed(87838678 + MPI.COMM_WORLD.rank)
 
 mesh = UnitSquareMesh(50, 50)
 space = FunctionSpace(mesh, "Lagrange", 1)
@@ -63,9 +63,9 @@ def forward(kappa, manager=None, output_filename=None):
     Psi_n = Function(space, name="Psi_n")
     Psi_np1 = Function(space, name="Psi_np1")
 
-    eq = EquationSolver(inner(test, trial / dt) * dx
-                        + inner(grad(test), kappa * grad(trial)) * dx
-                        == inner(test, Psi_n / dt) * dx, Psi_np1,
+    eq = EquationSolver(inner(trial / dt, test) * dx
+                        + inner(kappa * grad(trial), grad(test)) * dx
+                        == inner(Psi_n / dt, test) * dx, Psi_np1,
                         bc, solver_parameters={"linear_solver": "cg",
                                                "preconditioner": "sor",
                                                "krylov_solver": {"absolute_tolerance": 1.0e-16,  # noqa: E501
@@ -91,7 +91,7 @@ def forward(kappa, manager=None, output_filename=None):
             f << (Psi_n, (n + 1) * float(dt))
 
     J = Functional(name="J")
-    J.assign(inner(Psi_n, Psi_n) * dx, manager=manager)
+    J.assign(dot(Psi_n, Psi_n) * dx, manager=manager)
 
     return J
 
@@ -126,13 +126,13 @@ def info_compare(x, y, tol):
 
 
 info("TLM/adjoint consistency, zeta_1")
-info_compare(dJ_tlm_1.value(), function_inner(dJ_adj, zeta_1), tol=1.0e-17)
+info_compare(dJ_tlm_1.value(), function_inner(zeta_1, dJ_adj), tol=1.0e-18)
 
 info("TLM/adjoint consistency, zeta_2")
-info_compare(dJ_tlm_2.value(), function_inner(dJ_adj, zeta_2), tol=1.0e-17)
+info_compare(dJ_tlm_2.value(), function_inner(zeta_2, dJ_adj), tol=1.0e-17)
 
 info("Second order TLM/adjoint consistency")
-info_compare(ddJ_tlm.value(), function_inner(ddJ_adj, zeta_2), tol=1.0e-17)
+info_compare(ddJ_tlm.value(), function_inner(zeta_2, ddJ_adj), tol=1.0e-17)
 
 kappa_perturb = Function(space, name="kappa_perturb", static=True)
 
