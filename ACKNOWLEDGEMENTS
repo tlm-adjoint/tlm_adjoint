@@ -100,44 +100,26 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ===============================================================================
 
-The configuration in examples/fenics/basal_sliding/basal.py,
-examples/fenics/basal_sliding/basal_fp.py,
-examples/firedrake/basal_sliding/basal.py, and
-examples/firedrake/basal_sliding/basal_fp.py is based upon experiment 3 in [1]
-(see also [2, 3] for equations and configuration parameters).
-
-[1]  D. N. Golberg and P. Heimbach, "Parameter and state estimation with a
-     time-dependent adjoint marine ice sheet model", The Cyrosphere, 7(6), pp.
-     1659--1678, 2013
-[2]  D. Golgberg, D. M. Holland, and C. Schoof, "Grounding line movement and
-     ice shelf buttressing in marine ice sheets", Journal of Geophysical
-     Research: Earth Surface, 114(F4), F04026, 2009
-[3]  D. N. Goldberg, "A variationally derived, depth-integrated approximation
-     to a higher-order glaciological flow model", Journal of Glaciology,
-     57(201), pp. 157--170, 2011
-
-===============================================================================
-
 The FixedPointSolver class in tlm_adjoint/equations.py derives tangent-linear
-and adjoint information using the approach described in [4, 5].
+and adjoint information using the approach described in [1, 2].
 
-[4]  J. C. Gilbert, "Automatic differentiation and iterative processes",
+[1]  J. C. Gilbert, "Automatic differentiation and iterative processes",
      Optimization Methods and Software, 1(1), pp. 13--21, 1992
-[5]  B. Christianson, "Reverse accumulation and attractive fixed points",
+[2]  B. Christianson, "Reverse accumulation and attractive fixed points",
      Optimization Methods and Software, 3(4), pp. 311--326, 1994
 
 ===============================================================================
 
-tlm_adjoint implements the binomial checkpointing strategy described in [6],
+tlm_adjoint implements the binomial checkpointing strategy described in [3],
 choosing the maximum step size permitted when choosing the next snapshot block.
 tlm_adjoint further implements multi-stage offline checkpointing, using a brute
-force approach to yield behaviour described in [7].
+force approach to yield behaviour described in [4].
 
-[6]  A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation of
+[3]  A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation of
      checkpointing for the reverse or adjoint mode of computational
      differentiation", ACM Transactions on Mathematical Software, 26(1),
      pp. 19--45, 2000
-[7]  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
+[4]  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
      checkpointing", SIAM Journal on Scientific Computing, 31(3),
      pp. 1946--1967, 2009
 
@@ -145,8 +127,8 @@ force approach to yield behaviour described in [7].
 
 The interface provided in tlm_adjoint/timestepping.py aims for a degree of
 consistency with the API of the 'timestepping' library, as in dolfin-adjoint
-timestepping_2017.1.0 branch, and as described in [8].
-[8]  J. R. Maddison and P. E. Farrell, "Rapid development and adjoining of
+timestepping_2017.1.0 branch, and as described in [5].
+[5]  J. R. Maddison and P. E. Farrell, "Rapid development and adjoining of
      transient finite element models", Computer Methods in Applied Mechanics
      and Engineering, 276, pp. 95--121, 2014
 

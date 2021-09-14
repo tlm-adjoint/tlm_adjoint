@@ -22,24 +22,8 @@ from tlm_adjoint.firedrake import *
 
 from test_base import *
 
-import mpi4py.MPI as MPI
 import os
 import pytest
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
-def test_basal(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal.py"))
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
-@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
-def test_basal_fp(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal_fp.py"))
 
 
 @pytest.mark.firedrake

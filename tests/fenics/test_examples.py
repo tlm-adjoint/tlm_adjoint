@@ -29,21 +29,6 @@ import pytest
 
 @pytest.mark.fenics
 @pytest.mark.example
-def test_basal(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal.py"))
-
-
-@pytest.mark.fenics
-@pytest.mark.example
-@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
-def test_basal_fp(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal_fp.py"))
-
-
-@pytest.mark.fenics
-@pytest.mark.example
 def test_diffusion(setup_test, test_leaks):
     run_example(os.path.join("diffusion", "diffusion.py"))
 
