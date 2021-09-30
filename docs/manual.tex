@@ -412,8 +412,9 @@ info(f"G L^2 norm = {sqrt(J):.16e}")
 \end{lstlisting}
 This model contains the key line
 \begin{lstlisting}
-solve(inner(test, trial) * dx == inner(test, F * F) * dx,
-      G, solver_parameters={"linear_solver": "direct"})
+solve(inner(trial, test) * dx == inner(F * F, test) * dx,
+      G, solver_parameters={"ksp_type": "preonly",
+                            "pc_type": "lu"})
 \end{lstlisting}
 
 A forward model constrained derivative can be computed via, for example
@@ -488,8 +489,9 @@ objects, and then solve the same equation multiple times by calling its
 An equation, defined by an \texttt{Equation} object, is solved by calling its
 \texttt{solve} method, for example
 \begin{lstlisting}
-eq = EquationSolver(inner(test, trial) * dx == inner(test, F * F) * dx,
-                    G, solver_parameters={"linear_solver": "direct"})
+eq = EquationSolver(inner(trial, test) * dx == inner(F * F, test) * dx,
+                    G, solver_parameters={"ksp_type": "preonly",
+                                          "pc_type": "lu"})
 eq.solve()
 \end{lstlisting}
 
