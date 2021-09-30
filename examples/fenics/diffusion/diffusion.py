@@ -96,17 +96,6 @@ def forward(kappa, manager=None, output_filename=None):
     return J
 
 
-def tlm(kappa, zeta):
-    clear_caches()
-
-    manager = _manager().new()
-    manager.add_tlm(kappa, zeta)
-    manager.start()
-    J = forward(kappa, manager=manager)
-    manager.stop()
-    return J.tlm(kappa, zeta, manager=manager).value()
-
-
 add_tlm(kappa, zeta_1)
 add_tlm((kappa, zeta_1), (zeta_2, zeta_3))
 start_manager()
@@ -133,8 +122,6 @@ info_compare(dJ_tlm_2.value(), function_inner(zeta_2, dJ_adj), tol=1.0e-17)
 
 info("Second order TLM/adjoint consistency")
 info_compare(ddJ_tlm.value(), function_inner(zeta_2, ddJ_adj), tol=1.0e-17)
-
-kappa_perturb = Function(space, name="kappa_perturb", static=True)
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99

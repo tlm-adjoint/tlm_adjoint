@@ -55,8 +55,8 @@ function_set_values(zeta_1,
                     2.0 * np.random.random(function_local_size(zeta_1)) - 1.0)
 function_set_values(zeta_2,
                     2.0 * np.random.random(function_local_size(zeta_2)) - 1.0)
-# File("zeta_1.pvd", "compressed").write(zeta_1)
-# File("zeta_2.pvd", "compressed").write(zeta_2)
+# File("zeta_1.pvd").write(zeta_1)
+# File("zeta_2.pvd").write(zeta_2)
 
 
 def forward(kappa, manager=None, output_filename=None):
@@ -75,7 +75,7 @@ def forward(kappa, manager=None, output_filename=None):
     cycle = AssignmentSolver(Psi_np1, Psi_n)
 
     if output_filename is not None:
-        f = File(output_filename, "compressed")
+        f = File(output_filename)
 
     AssignmentSolver(Psi_0, Psi_n).solve(manager=manager)
     if output_filename is not None:
@@ -96,17 +96,6 @@ def forward(kappa, manager=None, output_filename=None):
     J.assign(dot(Psi_n, Psi_n) * dx, manager=manager)
 
     return J
-
-
-def tlm(kappa, zeta):
-    clear_caches()
-
-    manager = _manager().new()
-    manager.add_tlm(kappa, zeta)
-    manager.start()
-    J = forward(kappa, manager=manager)
-    manager.stop()
-    return J.tlm(kappa, zeta, manager=manager).value()
 
 
 add_tlm(kappa, zeta_1)
@@ -135,8 +124,6 @@ info_compare(dJ_tlm_2.value(), function_inner(zeta_2, dJ_adj), tol=1.0e-17)
 
 info("Second order TLM/adjoint consistency")
 info_compare(ddJ_tlm.value(), function_inner(zeta_2, ddJ_adj), tol=1.0e-17)
-
-kappa_perturb = Function(space, name="kappa_perturb", static=True)
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99
