@@ -29,12 +29,14 @@ import pytest
 
 @pytest.mark.fenics
 @pytest.mark.example
+@seed_test
 def test_diffusion(setup_test, test_leaks):
     run_example(os.path.join("diffusion", "diffusion.py"))
 
 
 @pytest.mark.fenics
 @pytest.mark.example
+@seed_test
 def test_poisson(setup_test, test_leaks):
     run_example(os.path.join("poisson", "poisson.py"))
 
@@ -42,6 +44,7 @@ def test_poisson(setup_test, test_leaks):
 @pytest.mark.fenics
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
 def test_manual_diffusion_forward(setup_test):
     run_example(os.path.join("manual", "diffusion_forward.py"),
                 clear_forward_globals=False)
@@ -50,6 +53,7 @@ def test_manual_diffusion_forward(setup_test):
 @pytest.mark.fenics
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
 def test_manual_diffusion_adjoint(setup_test, test_leaks):
     run_example(os.path.join("manual", "diffusion_adjoint.py"))
 
@@ -57,6 +61,7 @@ def test_manual_diffusion_adjoint(setup_test, test_leaks):
 @pytest.mark.fenics
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
 def test_manual_diffusion_hessian(setup_test, test_leaks):
     run_example(os.path.join("manual", "diffusion_hessian.py"))
 
@@ -64,6 +69,7 @@ def test_manual_diffusion_hessian(setup_test, test_leaks):
 @pytest.mark.fenics
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
 def test_manual_override_forward(setup_test):
     run_example(os.path.join("manual", "override_forward.py"),
                 clear_forward_globals=False)
@@ -72,6 +78,7 @@ def test_manual_override_forward(setup_test):
 @pytest.mark.fenics
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
 def test_manual_override_adjoint(setup_test, test_leaks):
     start_manager()
     run_example(os.path.join("manual", "override_adjoint.py"))
@@ -80,5 +87,6 @@ def test_manual_override_adjoint(setup_test, test_leaks):
 @pytest.mark.fenics
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
 def test_manual_diffusion_adjoint_timestepping(setup_test, test_leaks):
     run_example(os.path.join("manual", "diffusion_adjoint_timestepping.py"))
