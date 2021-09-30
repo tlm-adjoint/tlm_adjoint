@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from fenics import *
+from firedrake import *
 
 mesh = UnitIntervalMesh(10)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 F = Function(space, name="F")
 G = Function(space, name="G")
 
-F.interpolate(Expression("sin(pi * x[0])", element=space.ufl_element()))
+F.interpolate(sin(pi * X[0]))
 solve(inner(trial, test) * dx == inner(F * F, test) * dx,
-      G, solver_parameters={"linear_solver": "direct"})
+      G, solver_parameters={"ksp_type": "preonly",
+                            "pc_type": "lu"})
 
 J = assemble(inner(G, G) * dx)
 
