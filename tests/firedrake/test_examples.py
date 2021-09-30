@@ -67,3 +67,11 @@ def test_manual_diffusion_hessian(setup_test, test_leaks):
 def test_manual_override_forward(setup_test):
     run_example(os.path.join("manual", "override_forward.py"),
                 clear_forward_globals=False)
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+def test_manual_override_adjoint(setup_test, test_leaks):
+    start_manager()
+    run_example(os.path.join("manual", "override_adjoint.py"))
