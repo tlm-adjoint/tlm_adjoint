@@ -52,3 +52,10 @@ def test_manual_diffusion_forward(setup_test):
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
 def test_manual_diffusion_adjoint(setup_test, test_leaks):
     run_example(os.path.join("manual", "diffusion_adjoint.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+def test_manual_diffusion_hessian(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_hessian.py"))
