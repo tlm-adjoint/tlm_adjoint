@@ -29,20 +29,63 @@ import pytest
 
 @pytest.mark.firedrake
 @pytest.mark.example
-def test_basal(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal.py"))
+@seed_test
+def test_diffusion(setup_test, test_leaks):
+    run_example(os.path.join("diffusion", "diffusion.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@seed_test
+def test_poisson(setup_test, test_leaks):
+    run_example(os.path.join("poisson", "poisson.py"))
 
 
 @pytest.mark.firedrake
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
-def test_basal_fp(setup_test):
-    configure_checkpointing("memory", {"drop_references": False})
-    run_example(os.path.join("basal_sliding", "basal_fp.py"))
+@seed_test
+def test_manual_diffusion_forward(setup_test):
+    run_example(os.path.join("manual", "diffusion_forward.py"),
+                clear_forward_globals=False)
 
 
 @pytest.mark.firedrake
 @pytest.mark.example
-def test_diffusion(setup_test, test_leaks):
-    run_example(os.path.join("diffusion", "diffusion.py"))
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
+def test_manual_diffusion_adjoint(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_adjoint.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
+def test_manual_diffusion_hessian(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_hessian.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
+def test_manual_override_forward(setup_test):
+    run_example(os.path.join("manual", "override_forward.py"),
+                clear_forward_globals=False)
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
+def test_manual_override_adjoint(setup_test, test_leaks):
+    run_example(os.path.join("manual", "override_adjoint.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+@seed_test
+def test_manual_diffusion_adjoint_timestepping(setup_test, test_leaks):
+    run_example(os.path.join("manual", "diffusion_adjoint_timestepping.py"))

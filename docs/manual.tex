@@ -72,20 +72,19 @@ initial condition.
 
 \subsection{Forward}
 
-A basic implementation in FEniCS (compatible with FEniCS 2019.1.0) takes the
-form
+A basic implementation in Firedrake takes the form
 \begin{lstlisting}
-from fenics import *
+from firedrake import *
 
 mesh = UnitSquareMesh(100, 100)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 psi_n = Function(space, name="psi_n")
-psi_n.interpolate(Expression(
-    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
-    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
-    element=space.ufl_element()))
+psi_n.interpolate(
+    exp(X[0] * X[1]) * sin(2.0 * pi * X[0]) * sin(5.0 * pi * X[1])
+    + sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
 psi_np1 = Function(space, name="psi_np1")
 
@@ -95,20 +94,21 @@ bc = DirichletBC(space, 0.0, "on_boundary")
 N = 100
 
 solver = LinearVariationalSolver(
-    LinearVariationalProblem(inner(test, trial / dt) * dx
-                             + inner(grad(test), kappa * grad(trial)) * dx,
-                             inner(test, psi_n / dt) * dx,
-                             psi_np1, bc))
-solver.parameters.update({"linear_solver": "direct"})
+    LinearVariationalProblem(inner(trial / dt, test) * dx
+                             + inner(kappa * grad(trial), grad(test)) * dx,
+                             inner(psi_n / dt, test) * dx,
+                             psi_np1, bc),
+    solver_parameters={"ksp_type": "preonly",
+                       "pc_type": "lu"})
 
-psi_n_file = File("psi.pvd", "compressed")
-psi_n_file << (psi_n, 0.0)
+psi_n_file = File("psi.pvd")
+psi_n_file.write(psi_n, time=0.0)
 
 for n in range(N):
     solver.solve()
     psi_n.assign(psi_np1)
 
-    psi_n_file << (psi_n, (n + 1) * float(dt))
+    psi_n_file.write(psi_n, time=(n + 1) * float(dt))
 \end{lstlisting}
 
 \subsection{First order adjoint}
@@ -120,22 +120,22 @@ Define the functional
 A forward model constrained derivative of $J$ with respect to the discrete
 initial condition $\psi^0$ can computed via
 \begin{lstlisting}
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 stop_manager()
 
 N = 100
 configure_checkpointing("multistage", {"blocks": N, "snaps_in_ram": 5})
 
 mesh = UnitSquareMesh(100, 100)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 psi_0 = Function(space, name="psi_0", static=True)
-psi_0.interpolate(Expression(
-    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
-    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
-    element=space.ufl_element()))
+psi_0.interpolate(
+    exp(X[0] * X[1]) * sin(2.0 * pi * X[0]) * sin(5.0 * pi * X[1])
+    + sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
 kappa = Constant(0.001, static=True)
 dt = Constant(0.2, static=True)
@@ -151,19 +151,19 @@ def forward(psi_0, psi_n_file=None):
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+            self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
             _, y = self.dependencies() if deps is None else deps
             function_assign(x, y)
-            self._bc.apply(x.vector())
+            self._bc.apply(x)
 
         def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
             if dep_index == 0:
                 return adj_x
             elif dep_index == 1:
                 b = function_copy(adj_x)
-                self._bc.apply(b.vector())
+                self._bc.apply(b)
                 return (-1.0, b)
             else:
                 raise EquationException("dep_index out of bounds")
@@ -182,32 +182,33 @@ def forward(psi_0, psi_n_file=None):
     InteriorAssignmentSolver(psi_0, psi_n).solve()
 
     eq = EquationSolver(
-        inner(test, trial / dt) * dx
-        + inner(grad(test), kappa * grad(trial)) * dx
-        == inner(test, psi_n / dt) * dx,
+        inner(trial / dt, test) * dx
+        + inner(kappa * grad(trial), grad(test)) * dx
+        == inner(psi_n / dt, test) * dx,
         psi_np1, bc,
-        solver_parameters={"linear_solver": "direct"})
+        solver_parameters={"ksp_type": "preonly",
+                           "pc_type": "lu"})
     cycle = AssignmentSolver(psi_np1, psi_n)
 
     if psi_n_file is not None:
-        psi_n_file << (psi_n, 0.0)
+        psi_n_file.write(psi_n, time=0.0)
 
     for n in range(N):
         eq.solve()
         cycle.solve()
 
         if psi_n_file is not None:
-            psi_n_file << (psi_n, (n + 1) * float(dt))
+            psi_n_file.write(psi_n, time=(n + 1) * float(dt))
         if n < N - 1:
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
+    J.assign(dot(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
 start_manager()
-J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+J = forward(psi_0, psi_n_file=File("psi.pvd"))
 stop_manager()
 
 dJ = compute_gradient(J, psi_0)
@@ -215,8 +216,9 @@ dJ = compute_gradient(J, psi_0)
 
 The key changes which appear here are
 \begin{itemize}
-  \item \texttt{import tlm\_adjoint\_fenics}, to use the \texttt{tlm\_adjoint}
-    library. For further details see section \ref{sect:backends}.
+  \item \texttt{import tlm\_adjoint.firedrake}, to use the
+    \texttt{tlm\_adjoint} library. For further details see section
+    \ref{sect:backends}.
   \item \texttt{start\_manager} and \texttt{stop\_manager}, which enable and
     disable the underlying \texttt{EquationManager}. For further details see
     section \ref{sect:EquationManager_state}.
@@ -255,22 +257,22 @@ V$, where the Hessian is defined by the forward model constrained (second)
 derivative of the functional $J$ with respect to the initial condition
 $\psi^0$, can be computed via
 \begin{lstlisting}
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 stop_manager()
 
 N = 100
 configure_checkpointing("multistage", {"blocks": N, "snaps_in_ram": 5})
 
 mesh = UnitSquareMesh(100, 100)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 psi_0 = Function(space, name="psi_0", static=True)
-psi_0.interpolate(Expression(
-    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
-    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
-    element=space.ufl_element()))
+psi_0.interpolate(
+    exp(X[0] * X[1]) * sin(2.0 * pi * X[0]) * sin(5.0 * pi * X[1])
+    + sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
 kappa = Constant(0.001, static=True)
 dt = Constant(0.2, static=True)
@@ -286,19 +288,19 @@ def forward(psi_0, psi_n_file=None):
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+            self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
             _, y = self.dependencies() if deps is None else deps
             function_assign(x, y)
-            self._bc.apply(x.vector())
+            self._bc.apply(x)
 
         def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
             if dep_index == 0:
                 return adj_x
             elif dep_index == 1:
                 b = function_copy(adj_x)
-                self._bc.apply(b.vector())
+                self._bc.apply(b)
                 return (-1.0, b)
             else:
                 raise EquationException("dep_index out of bounds")
@@ -317,37 +319,37 @@ def forward(psi_0, psi_n_file=None):
     InteriorAssignmentSolver(psi_0, psi_n).solve()
 
     eq = EquationSolver(
-        inner(test, trial / dt) * dx
-        + inner(grad(test), kappa * grad(trial)) * dx
-        == inner(test, psi_n / dt) * dx,
+        inner(trial / dt, test) * dx
+        + inner(kappa * grad(trial), grad(test)) * dx
+        == inner(psi_n / dt, test) * dx,
         psi_np1, bc,
-        solver_parameters={"linear_solver": "direct"})
+        solver_parameters={"ksp_type": "preonly",
+                           "pc_type": "lu"})
     cycle = AssignmentSolver(psi_np1, psi_n)
 
     if psi_n_file is not None:
-        psi_n_file << (psi_n, 0.0)
+        psi_n_file.write(psi_n, time=0.0)
 
     for n in range(N):
         eq.solve()
         cycle.solve()
 
         if psi_n_file is not None:
-            psi_n_file << (psi_n, (n + 1) * float(dt))
+            psi_n_file.write(psi_n, time=(n + 1) * float(dt))
         if n < N - 1:
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
+    J.assign(dot(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
 zeta = Function(space, name="zeta", static=True)
-zeta.interpolate(Expression("sin(pi * x[0]) * sin(pi * x[1])",
-                            element=space.ufl_element()))
+zeta.interpolate(sin(pi * X[0]) * sin(pi * X[1]))
 add_tlm(psi_0, zeta)
 
 start_manager()
-J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+J = forward(psi_0, psi_n_file=File("psi.pvd"))
 stop_manager()
 
 ddJ = compute_gradient(J.tlm(psi_0, zeta), psi_0)
@@ -389,18 +391,20 @@ associated with some models written using FEniCS or Firedrake with minimal
 modification, through automatic processing of encountered calculations.
 Consider for example the very basic model
 \begin{lstlisting}
-from fenics import *
+from firedrake import *
 
 mesh = UnitIntervalMesh(10)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 F = Function(space, name="F")
 G = Function(space, name="G")
 
-F.interpolate(Expression("sin(pi * x[0])", element=space.ufl_element()))
-solve(inner(test, trial) * dx == inner(test, F * F) * dx,
-      G, solver_parameters={"linear_solver": "direct"})
+F.interpolate(sin(pi * X[0]))
+solve(inner(trial, test) * dx == inner(F * F, test) * dx,
+      G, solver_parameters={"ksp_type": "preonly",
+                            "pc_type": "lu"})
 
 J = assemble(inner(G, G) * dx)
 
@@ -408,25 +412,28 @@ info(f"G L^2 norm = {sqrt(J):.16e}")
 \end{lstlisting}
 This model contains the key line
 \begin{lstlisting}
-solve(inner(test, trial) * dx == inner(test, F * F) * dx,
-      G, solver_parameters={"linear_solver": "direct"})
+solve(inner(trial, test) * dx == inner(F * F, test) * dx,
+      G, solver_parameters={"ksp_type": "preonly",
+                            "pc_type": "lu"})
 \end{lstlisting}
 
 A forward model constrained derivative can be computed via, for example
 \begin{lstlisting}
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 
 mesh = UnitIntervalMesh(10)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 F = Function(space, name="F")
 G = Function(space, name="G")
 
-F.interpolate(Expression("sin(pi * x[0])", element=space.ufl_element()))
-solve(inner(test, trial) * dx == inner(test, F * F) * dx,
-      G, solver_parameters={"linear_solver": "direct"})
+F.interpolate(sin(pi * X[0]))
+solve(inner(trial, test) * dx == inner(F * F, test) * dx,
+      G, solver_parameters={"ksp_type": "preonly",
+                            "pc_type": "lu"})
 
 J = Functional(name="J")
 J.assign(inner(G, G) * dx)
@@ -482,8 +489,9 @@ objects, and then solve the same equation multiple times by calling its
 An equation, defined by an \texttt{Equation} object, is solved by calling its
 \texttt{solve} method, for example
 \begin{lstlisting}
-eq = EquationSolver(inner(test, trial) * dx == inner(test, F * F) * dx,
-                    G, solver_parameters={"linear_solver": "direct"})
+eq = EquationSolver(inner(trial, test) * dx == inner(F * F, test) * dx,
+                    G, solver_parameters={"ksp_type": "preonly",
+                                          "pc_type": "lu"})
 eq.solve()
 \end{lstlisting}
 
@@ -2467,8 +2475,8 @@ defined by the \texttt{timestepping} library \citep[see][]{maddison2014}. For
 example, the diffusion equation example described in section
 \ref{sect:diffusion} may be implemented via
 \begin{lstlisting}
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 from tlm_adjoint.timestepping import *
 stop_manager()
 
@@ -2476,14 +2484,14 @@ t_N = 100
 configure_checkpointing("multistage", {"blocks": t_N, "snaps_in_ram": 5})
 
 mesh = UnitSquareMesh(100, 100)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 psi_0 = Function(space, name="psi_0", static=True)
-psi_0.interpolate(Expression(
-    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
-    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
-    element=space.ufl_element()))
+psi_0.interpolate(
+    exp(X[0] * X[1]) * sin(2.0 * pi * X[0]) * sin(5.0 * pi * X[1])
+    + sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
 kappa = Constant(0.001, static=True)
 dt = Constant(0.2, static=True)
@@ -2500,19 +2508,19 @@ def forward(psi_0, psi_n_file=None):
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+            self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
             _, y = self.dependencies() if deps is None else deps
             function_assign(x, y)
-            self._bc.apply(x.vector())
+            self._bc.apply(x)
 
         def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
             if dep_index == 0:
                 return adj_x
             elif dep_index == 1:
                 b = function_copy(adj_x)
-                self._bc.apply(b.vector())
+                self._bc.apply(b)
                 return (-1.0, b)
             else:
                 raise EquationException("dep_index out of bounds")
@@ -2530,34 +2538,35 @@ def forward(psi_0, psi_n_file=None):
 
     system.add_solve(InteriorAssignmentSolver(psi_0, psi[0]))
 
-    system.add_solve(inner(test, trial / dt) * dx
-                     + inner(grad(test), kappa * grad(trial)) * dx
-                     == inner(test, psi[n] / dt) * dx,
+    system.add_solve(inner(trial / dt, test) * dx
+                     + inner(kappa * grad(trial), grad(test)) * dx
+                     == inner(psi[n] / dt, test) * dx,
                      psi[n + 1], bc,
-                     solver_parameters={"linear_solver": "direct"})
+                     solver_parameters={"ksp_type": "preonly",
+                                        "pc_type": "lu"})
 
     system.assemble()
 
     if psi_n_file is not None:
-        psi_n_file << (psi[n], 0.0)
+        psi_n_file.write(psi[n], time=0.0)
 
     for t_n in range(t_N):
         system.timestep()
 
         if psi_n_file is not None:
-            psi_n_file << (psi[n], (t_n + 1) * float(dt))
+            psi_n_file.write(psi[n], time=(t_n + 1) * float(dt))
         if t_n < t_N - 1:
             new_block()
 
     system.finalize()
 
     J = Functional(name="J")
-    J.assign(inner(psi[N] - Constant(1.0), psi[N] - Constant(1.0)) * dx)
+    J.assign(dot(psi[N] - Constant(1.0), psi[N] - Constant(1.0)) * dx)
     return J
 
 
 start_manager()
-J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+J = forward(psi_0, psi_n_file=File("psi.pvd"))
 stop_manager()
 
 dJ = compute_gradient(J, psi_0)

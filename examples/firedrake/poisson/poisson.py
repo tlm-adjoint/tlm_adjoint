@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -37,6 +37,7 @@ np.random.seed(82844243 + MPI.COMM_WORLD.rank)
 
 # Configure a simple discrete function space
 mesh = UnitSquareMesh(20, 20)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 
 # Configure a boundary condition
@@ -51,9 +52,10 @@ def forward(F, x0=None):
     # inhomogeneous Dirichlet boundary conditions)
     x = Function(space, name="x")
     test, trial = TestFunction(space), TrialFunction(space)
-    ls_parameters = {"linear_solver": "cg", "preconditioner": "sor",
-                     "krylov_solver": {"absolute_tolerance": 1.0e-16,
-                                       "relative_tolerance": 1.0e-14}}
+    ls_parameters = {"ksp_type": "cg",
+                     "pc_type": "sor",
+                     "ksp_rtol": 1.0e-14,
+                     "ksp_atol": 1.0e-16}
     EquationSolver(inner(grad(trial), grad(test)) * dx
                    == inner(F * F, test) * dx,
                    x, bc, solver_parameters=ls_parameters).solve()
@@ -73,9 +75,8 @@ def forward(F, x0=None):
 # Generate a reference solution x0 using F0. The optional "static" flag is used
 # for optimization.
 F0 = Function(space, name="F0", static=True)
-F0.interpolate(Expression(
-    "sin(pi * x[0]) * sin(3.0 * pi * x[1]) * exp(x[0] * x[1])",
-    element=space.ufl_element()))
+F0.interpolate(
+    sin(pi * X[0]) * sin(3.0 * pi * X[1]) * exp(X[0] * X[1]))
 x0, _ = forward(F0)
 
 # Set F to one everywhere ...

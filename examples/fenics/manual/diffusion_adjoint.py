@@ -32,7 +32,7 @@ def forward(psi_0, psi_n_file=None):
     class InteriorAssignmentSolver(Equation):
         def __init__(self, y, x):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-            self._bc = DirichletBC(x.function_space(), 0.0, "on_boundary")
+            self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
         def forward_solve(self, x, deps=None):
             _, y = self.dependencies() if deps is None else deps
@@ -63,9 +63,9 @@ def forward(psi_0, psi_n_file=None):
     InteriorAssignmentSolver(psi_0, psi_n).solve()
 
     eq = EquationSolver(
-        inner(test, trial / dt) * dx
-        + inner(grad(test), kappa * grad(trial)) * dx
-        == inner(test, psi_n / dt) * dx,
+        inner(trial / dt, test) * dx
+        + inner(kappa * grad(trial), grad(test)) * dx
+        == inner(psi_n / dt, test) * dx,
         psi_np1, bc,
         solver_parameters={"linear_solver": "direct"})
     cycle = AssignmentSolver(psi_np1, psi_n)
@@ -83,7 +83,7 @@ def forward(psi_0, psi_n_file=None):
             new_block()
 
     J = Functional(name="J")
-    J.assign(inner(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
+    J.assign(dot(psi_n - Constant(1.0), psi_n - Constant(1.0)) * dx)
     return J
 
 
@@ -96,7 +96,7 @@ dJ = compute_gradient(J, psi_0)
 
 import mpi4py.MPI as MPI  # noqa: E402
 import numpy as np  # noqa: E402
-np.random.seed(174632238 + MPI.COMM_WORLD.rank)
+np.random.seed(65038062 + MPI.COMM_WORLD.rank)
 
-min_order = taylor_test(forward, psi_0, J_val=J.value(), dJ=dJ, seed=1.0e-4)
+min_order = taylor_test(forward, psi_0, J_val=J.value(), dJ=dJ, seed=1.0e-3)
 assert min_order > 1.99

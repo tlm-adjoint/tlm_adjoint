@@ -31,7 +31,7 @@ import numpy as np
 logging.getLogger("firedrake").setLevel(logging.INFO)
 stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
-np.random.seed(2212983 + MPI.COMM_WORLD.rank)
+np.random.seed(87838678 + MPI.COMM_WORLD.rank)
 
 mesh = UnitSquareMesh(50, 50)
 X = SpatialCoordinate(mesh)
@@ -55,8 +55,8 @@ function_set_values(zeta_1,
                     2.0 * np.random.random(function_local_size(zeta_1)) - 1.0)
 function_set_values(zeta_2,
                     2.0 * np.random.random(function_local_size(zeta_2)) - 1.0)
-# File("zeta_1.pvd", "compressed").write(zeta_1)
-# File("zeta_2.pvd", "compressed").write(zeta_2)
+# File("zeta_1.pvd").write(zeta_1)
+# File("zeta_2.pvd").write(zeta_2)
 
 
 def forward(kappa, manager=None, output_filename=None):
@@ -65,9 +65,9 @@ def forward(kappa, manager=None, output_filename=None):
     Psi_n = Function(space, name="Psi_n")
     Psi_np1 = Function(space, name="Psi_np1")
 
-    eq = EquationSolver(inner(test, trial / dt) * dx
-                        + inner(grad(test), kappa * grad(trial)) * dx
-                        == inner(test, Psi_n / dt) * dx, Psi_np1,
+    eq = EquationSolver(inner(trial / dt, test) * dx
+                        + inner(kappa * grad(trial), grad(test)) * dx
+                        == inner(Psi_n / dt, test) * dx, Psi_np1,
                         bc, solver_parameters={"ksp_type": "cg",
                                                "pc_type": "sor",
                                                "ksp_rtol": 1.0e-14,
@@ -75,7 +75,7 @@ def forward(kappa, manager=None, output_filename=None):
     cycle = AssignmentSolver(Psi_np1, Psi_n)
 
     if output_filename is not None:
-        f = File(output_filename, "compressed")
+        f = File(output_filename)
 
     AssignmentSolver(Psi_0, Psi_n).solve(manager=manager)
     if output_filename is not None:
@@ -93,20 +93,9 @@ def forward(kappa, manager=None, output_filename=None):
             f.write(Psi_n, time=(n + 1) * float(dt))
 
     J = Functional(name="J")
-    J.assign(inner(Psi_n, Psi_n) * dx, manager=manager)
+    J.assign(dot(Psi_n, Psi_n) * dx, manager=manager)
 
     return J
-
-
-def tlm(kappa, zeta):
-    clear_caches()
-
-    manager = _manager().new()
-    manager.add_tlm(kappa, zeta)
-    manager.start()
-    J = forward(kappa, manager=manager)
-    manager.stop()
-    return J.tlm(kappa, zeta, manager=manager).value()
 
 
 add_tlm(kappa, zeta_1)
@@ -128,15 +117,13 @@ def info_compare(x, y, tol):
 
 
 info("TLM/adjoint consistency, zeta_1")
-info_compare(dJ_tlm_1.value(), function_inner(dJ_adj, zeta_1), tol=1.0e-17)
+info_compare(dJ_tlm_1.value(), function_inner(zeta_1, dJ_adj), tol=1.0e-17)
 
 info("TLM/adjoint consistency, zeta_2")
-info_compare(dJ_tlm_2.value(), function_inner(dJ_adj, zeta_2), tol=1.0e-17)
+info_compare(dJ_tlm_2.value(), function_inner(zeta_2, dJ_adj), tol=1.0e-17)
 
 info("Second order TLM/adjoint consistency")
-info_compare(ddJ_tlm.value(), function_inner(ddJ_adj, zeta_2), tol=1.0e-18)
-
-kappa_perturb = Function(space, name="kappa_perturb", static=True)
+info_compare(ddJ_tlm.value(), function_inner(zeta_2, ddJ_adj), tol=1.0e-17)
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99
