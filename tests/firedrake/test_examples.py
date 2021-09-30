@@ -22,6 +22,7 @@ from tlm_adjoint.firedrake import *
 
 from test_base import *
 
+import mpi4py.MPI as MPI
 import os
 import pytest
 
@@ -36,3 +37,11 @@ def test_diffusion(setup_test, test_leaks):
 @pytest.mark.example
 def test_poisson(setup_test, test_leaks):
     run_example(os.path.join("poisson", "poisson.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
+def test_manual_diffusion_forward(setup_test):
+    run_example(os.path.join("manual", "diffusion_forward.py"),
+                clear_forward_globals=False)
