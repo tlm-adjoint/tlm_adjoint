@@ -99,6 +99,7 @@ def test_leaks():
 
 
 def run_example(example, clear_forward_globals=True):
+    start_manager()
     filename = os.path.join(os.path.dirname(__file__),
                             os.path.pardir, os.path.pardir,
                             "examples", "numpy", example)

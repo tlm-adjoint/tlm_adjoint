@@ -80,7 +80,6 @@ def test_manual_override_forward(setup_test):
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
 @seed_test
 def test_manual_override_adjoint(setup_test, test_leaks):
-    start_manager()
     run_example(os.path.join("manual", "override_adjoint.py"))
 
 
