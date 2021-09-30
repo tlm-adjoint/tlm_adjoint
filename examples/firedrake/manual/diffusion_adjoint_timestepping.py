@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 from tlm_adjoint.timestepping import *
 stop_manager()
 
@@ -10,14 +10,14 @@ t_N = 100
 configure_checkpointing("multistage", {"blocks": t_N, "snaps_in_ram": 5})
 
 mesh = UnitSquareMesh(100, 100)
+X = SpatialCoordinate(mesh)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
 
 psi_0 = Function(space, name="psi_0", static=True)
-psi_0.interpolate(Expression(
-    "exp(x[0] * x[1]) * sin(2.0 * pi * x[0]) * sin(5.0 * pi * x[1])"
-    " + sin(pi * x[0]) * sin(2.0 * pi * x[1])",
-    element=space.ufl_element()))
+psi_0.interpolate(
+    exp(X[0] * X[1]) * sin(2.0 * pi * X[0]) * sin(5.0 * pi * X[1])
+    + sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
 kappa = Constant(0.001, static=True)
 dt = Constant(0.2, static=True)
@@ -39,14 +39,14 @@ def forward(psi_0, psi_n_file=None):
         def forward_solve(self, x, deps=None):
             _, y = self.dependencies() if deps is None else deps
             function_assign(x, y)
-            self._bc.apply(x.vector())
+            self._bc.apply(x)
 
         def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
             if dep_index == 0:
                 return adj_x
             elif dep_index == 1:
                 b = function_copy(adj_x)
-                self._bc.apply(b.vector())
+                self._bc.apply(b)
                 return (-1.0, b)
             else:
                 raise EquationException("dep_index out of bounds")
@@ -68,18 +68,19 @@ def forward(psi_0, psi_n_file=None):
                      + inner(kappa * grad(trial), grad(test)) * dx
                      == inner(psi[n] / dt, test) * dx,
                      psi[n + 1], bc,
-                     solver_parameters={"linear_solver": "direct"})
+                     solver_parameters={"ksp_type": "preonly",
+                                        "pc_type": "lu"})
 
     system.assemble()
 
     if psi_n_file is not None:
-        psi_n_file << (psi[n], 0.0)
+        psi_n_file.write(psi[n], time=0.0)
 
     for t_n in range(t_N):
         system.timestep()
 
         if psi_n_file is not None:
-            psi_n_file << (psi[n], (t_n + 1) * float(dt))
+            psi_n_file.write(psi[n], time=(t_n + 1) * float(dt))
         if t_n < t_N - 1:
             new_block()
 
@@ -91,7 +92,7 @@ def forward(psi_0, psi_n_file=None):
 
 
 start_manager()
-# J = forward(psi_0, psi_n_file=File("psi.pvd", "compressed"))
+# J = forward(psi_0, psi_n_file=File("psi.pvd"))
 J = forward(psi_0)
 stop_manager()
 
