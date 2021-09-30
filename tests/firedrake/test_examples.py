@@ -30,3 +30,9 @@ import pytest
 @pytest.mark.example
 def test_diffusion(setup_test, test_leaks):
     run_example(os.path.join("diffusion", "diffusion.py"))
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+def test_poisson(setup_test, test_leaks):
+    run_example(os.path.join("poisson", "poisson.py"))
