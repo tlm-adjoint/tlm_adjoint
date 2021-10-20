@@ -27,13 +27,14 @@ import pytest
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_clear_caches(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     F = Function(space, name="F", cache=True)
 
     def cache_item(F):
-        form = inner(TestFunction(F.function_space()), F) * dx
+        form = inner(F, TestFunction(F.function_space())) * dx
         cached_form, _ = assembly_cache().assemble(form)
         return cached_form
 
@@ -83,6 +84,7 @@ def test_clear_caches(setup_test, test_leaks):
 @pytest.mark.firedrake
 @pytest.mark.parametrize("non_static_term", [True, False])
 @pytest.mark.parametrize("static_bc", [None, True, False])
+@seed_test
 def test_cached_rhs(setup_test, test_leaks,
                     non_static_term, static_bc):
     mesh = UnitSquareMesh(10, 10)
@@ -108,20 +110,20 @@ def test_cached_rhs(setup_test, test_leaks,
 
     b = (
         # Static
-        inner(test_1, static_1) * dx
+        inner(static_1, test_1) * dx
         # Static
-        + inner(test_1, static_1 * static_2) * dx
+        + inner(static_1 * static_2, test_1) * dx
         # Static matrix action
-        + inner(test_1, non_static_1 * static_2) * dx
+        + inner(non_static_1 * static_2, test_1) * dx
         # Static matrix action
-        + inner(test_1, non_static_2a) * dx
+        + inner(non_static_2a, test_1) * dx
         # Static matrix actions
-        + inner(test_1, (non_static_1
-                         + non_static_2a + non_static_2b)) * dx
+        + inner((non_static_1
+                 + non_static_2a + non_static_2b), test_1) * dx
         # Static matrix action
-        + inner(test_1, non_static_2b) * dx)
+        + inner(non_static_2b, test_1) * dx)
     if non_static_term:
-        b += inner(test_1, non_static_1 * non_static_2a) * dx
+        b += inner(non_static_1 * non_static_2a, test_1) * dx
 
     F = Function(space_1, name="F")
     F_ref = Function(space_1, name="F_ref")
@@ -131,7 +133,7 @@ def test_cached_rhs(setup_test, test_leaks,
 
     assert tuple(len(cache) for cache in caches) == (0, 0, 0)
 
-    eq = EquationSolver(inner(test_1, trial_1) * dx == b, F, bc,
+    eq = EquationSolver(inner(trial_1, test_1) * dx == b, F, bc,
                         solver_parameters=ls_parameters_cg)
     eq.solve()
 
@@ -148,7 +150,7 @@ def test_cached_rhs(setup_test, test_leaks,
     else:
         assert eq._forward_b_pa[2] is None
 
-    solve(inner(test_1, trial_1) * dx == b, F_ref, bc,
+    solve(inner(trial_1, test_1) * dx == b, F_ref, bc,
           solver_parameters=ls_parameters_cg)
 
     function_assign(error, F_ref)
@@ -160,6 +162,7 @@ def test_cached_rhs(setup_test, test_leaks,
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("static_control", [True, False])
+@seed_test
 def test_cached_adjoint(setup_test, test_leaks,
                         static_control):
     mesh = UnitIntervalMesh(100)
@@ -177,13 +180,13 @@ def test_cached_adjoint(setup_test, test_leaks,
     def forward(G):
         F = Function(space_1, name="F")
         eq = EquationSolver(
-            inner(test_1, trial_1) * dx
-            == inner(test_1, alpha * beta * G) * dx, F, bc,
+            inner(trial_1, test_1) * dx
+            == inner(alpha * beta * G, test_1) * dx, F, bc,
             solver_parameters=ls_parameters_cg)
         eq.solve()
 
         J = Functional(name="J")
-        J.assign(inner(F, F) * dx)
+        J.assign(dot(F, F) * dx)
         return J
 
     G = Function(space_2, name="G", static=static_control)
