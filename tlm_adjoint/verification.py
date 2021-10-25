@@ -19,9 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import function_assign, function_axpy, function_copy, \
-    function_inner, function_is_cached, function_is_checkpointed, \
-    function_is_static, function_linf_norm, function_local_size, \
-    function_name, function_new, function_set_values
+    function_dtype, function_inner, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_linf_norm, \
+    function_local_size, function_name, function_new, function_set_values
 
 from .caches import clear_caches
 from .manager import manager as _manager, restore_manager, set_manager
@@ -115,7 +115,13 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     if dM is None:
         dM = [function_new(m1, static=True) for m1 in M1]
         for dm in dM:
-            function_set_values(dm, np.random.random(function_local_size(dm)))
+            dm_arr = np.random.random(function_local_size(dm))
+            if issubclass(function_dtype(dm),
+                          (complex, np.complexfloating)):
+                dm_arr = dm_arr \
+                    + 1.0j * np.random.random(function_local_size(dm))
+            function_set_values(dm, dm_arr)
+            del dm_arr
 
     J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
     for i in range(eps.shape[0]):
@@ -196,8 +202,13 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
                     for i in range(tlm_order))
         for dM in dMs:
             for dm in dM:
-                function_set_values(dm,
-                                    np.random.random(function_local_size(dm)))
+                dm_arr = np.random.random(function_local_size(dm))
+                if issubclass(function_dtype(dm),
+                              (complex, np.complexfloating)):
+                    dm_arr = dm_arr \
+                        + 1.0j * np.random.random(function_local_size(dm))
+                function_set_values(dm, dm_arr)
+                del dm_arr
 
     @restore_manager
     def forward_tlm(dMs, *M):
@@ -267,8 +278,13 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
                     for i in range(adjoint_order - 1))
         for dM in dMs:
             for dm in dM:
-                function_set_values(dm,
-                                    np.random.random(function_local_size(dm)))
+                dm_arr = np.random.random(function_local_size(dm))
+                if issubclass(function_dtype(dm),
+                              (complex, np.complexfloating)):
+                    dm_arr = dm_arr \
+                        + 1.0j * np.random.random(function_local_size(dm))
+                function_set_values(dm, dm_arr)
+                del dm_arr
     else:
         dM_test = dMs[-1]
         dMs = dMs[:-1]
