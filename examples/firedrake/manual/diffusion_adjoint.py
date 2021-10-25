@@ -100,4 +100,4 @@ import numpy as np  # noqa: E402
 np.random.seed(65038062 + MPI.COMM_WORLD.rank)
 
 min_order = taylor_test(forward, psi_0, J_val=J.value(), dJ=dJ, seed=1.0e-3)
-assert min_order > 2.00
+assert min_order > 1.99
