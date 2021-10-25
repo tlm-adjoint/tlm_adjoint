@@ -28,6 +28,7 @@ from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
+import warnings
 
 __all__ = \
     [
@@ -190,9 +191,35 @@ class GeneralHessian(Hessian):
 
 
 class GaussNewton:
-    def __init__(self, R_inv_action, B_inv_action=None):
-        self._R_inv_action = R_inv_action
-        self._B_inv_action = B_inv_action
+    def __init__(self, adjoint_R_inv_action=None, adjoint_B_inv_action=None,
+                 *, R_inv_action=None, B_inv_action=None):
+        if adjoint_R_inv_action is None:
+            if R_inv_action is None:
+                raise HessianException("adjoint_R_inv_action argument "
+                                       "required")
+            else:
+                warnings.warn("'R_inv_action argument' is deprecated -- "
+                              "use 'adjoint_R_inv_action' instead",
+                              DeprecationWarning, stacklevel=2)
+                adjoint_R_inv_action = R_inv_action
+        elif R_inv_action is not None:
+            raise HessianException("Cannot supply both adjoint_R_inv_action "
+                                   "and R_inv_action arguments")
+        del R_inv_action
+
+        if adjoint_B_inv_action is None:
+            if B_inv_action is not None:
+                warnings.warn("'B_inv_action argument' is deprecated -- "
+                              "use 'adjoint_B_inv_action' instead",
+                              DeprecationWarning, stacklevel=2)
+                adjoint_B_inv_action = B_inv_action
+        elif B_inv_action is not None:
+            raise HessianException("Cannot supply both adjoint_B_inv_action "
+                                   "and B_inv_action arguments")
+        del B_inv_action
+
+        self._adjoint_R_inv_action = adjoint_R_inv_action
+        self._adjoint_B_inv_action = adjoint_B_inv_action
 
     def _setup_manager(self, M, dM, M0=None):
         raise HessianException("Abstract method not overridden")
@@ -209,7 +236,7 @@ class GaussNewton:
         # J dM
         tau_X = tuple(manager.tlm(M, dM, x) for x in X)
         # R^{-1} J dM
-        R_inv_tau_X = self._R_inv_action(
+        R_inv_tau_X = self._adjoint_R_inv_action(
             *tuple(function_copy(tau_x) for tau_x in tau_X))
         if not isinstance(R_inv_tau_X, Sequence):
             R_inv_tau_X = (R_inv_tau_X,)
@@ -230,8 +257,8 @@ class GaussNewton:
         ddJ = manager.compute_gradient(J, M)
 
         # Prior term
-        if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(
+        if self._adjoint_B_inv_action is not None:
+            B_inv_dM = self._adjoint_B_inv_action(
                 *tuple(function_copy(dm) for dm in dM))
             if not isinstance(B_inv_dM, Sequence):
                 B_inv_dM = (B_inv_dM,)
@@ -250,11 +277,15 @@ class GaussNewton:
 
 
 class GeneralGaussNewton(GaussNewton):
-    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
+    def __init__(self, forward,
+                 adjoint_R_inv_action, adjoint_B_inv_action=None,
+                 *, R_inv_action=None, B_inv_action=None, manager=None):
         if manager is None:
             manager = _manager().new()
 
-        super().__init__(R_inv_action, B_inv_action=B_inv_action)
+        super().__init__(
+            adjoint_R_inv_action, adjoint_B_inv_action=adjoint_B_inv_action,
+            R_inv_action=R_inv_action, B_inv_action=B_inv_action)
         self._forward = forward
         self._manager = manager
 

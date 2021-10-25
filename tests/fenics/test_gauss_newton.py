@@ -24,9 +24,9 @@ from tlm_adjoint.fenics.backend_code_generator_interface import function_vector
 
 from test_base import *
 
-import mpi4py.MPI as MPI
 import numpy as np
 import pytest
+import ufl
 
 
 @pytest.mark.fenics
@@ -56,25 +56,33 @@ def test_GaussNewton(setup_test, test_leaks):
                  + 0.5 * eps * dot(F, F) * dx)  # Prior
         return J
 
-    def R_inv_action(x):
+    def adjoint_R_inv_action(x):
         y = function_new(x)
-        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
+        assemble(inner(ufl.conj(grad(x)), grad(test)) * dx,
+                 tensor=function_vector(y))
         return y
 
-    def B_inv_action(x):
+    def adjoint_B_inv_action(x):
         y = function_new(x)
-        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
+        assemble(eps * inner(ufl.conj(x), test) * dx,
+                 tensor=function_vector(y))
         return y
 
     F = Function(space, name="F")
     interpolate_expression(F, sin(pi * X[0]) * exp(X[1]))
 
     H = Hessian(forward_J)
-    H_GN = GaussNewton(forward, R_inv_action, B_inv_action=B_inv_action)
+    H_GN = GaussNewton(forward, adjoint_R_inv_action,
+                       adjoint_B_inv_action=adjoint_B_inv_action)
 
     for i in range(20):
         dm = Function(space, static=True)
-        function_set_values(dm, np.random.random(function_local_size(dm)))
+        dm_arr = np.random.random(function_local_size(dm))
+        if issubclass(function_dtype(dm), (complex, np.complexfloating)):
+            dm_arr = dm_arr + 1.0j * np.random.random(function_local_size(dm))
+        function_set_values(dm, dm_arr)
+        del dm_arr
+
         _, _, H_action = H.action(F, function_copy(dm, static=True))
         H_action_GN = H_GN.action(F, dm)
 
@@ -84,9 +92,9 @@ def test_GaussNewton(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@seed_test
 def test_CachedGaussNewton(setup_test):
     configure_checkpointing("memory", {"drop_references": False})
-    np.random.seed(41930924 + MPI.COMM_WORLD.rank)
 
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
@@ -112,14 +120,16 @@ def test_CachedGaussNewton(setup_test):
                  + 0.5 * eps * dot(F, F) * dx)  # Prior
         return J
 
-    def R_inv_action(x):
+    def adjoint_R_inv_action(x):
         y = function_new(x)
-        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
+        assemble(inner(ufl.conj(grad(x)), grad(test)) * dx,
+                 tensor=function_vector(y))
         return y
 
-    def B_inv_action(x):
+    def adjoint_B_inv_action(x):
         y = function_new(x)
-        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
+        assemble(eps * inner(ufl.conj(x), test) * dx,
+                 tensor=function_vector(y))
         return y
 
     F = Function(space, name="F")
@@ -129,11 +139,17 @@ def test_CachedGaussNewton(setup_test):
     start_manager()
     u = forward(F)
     stop_manager()
-    H_GN = CachedGaussNewton(u, R_inv_action, B_inv_action=B_inv_action)
+    H_GN = CachedGaussNewton(u, adjoint_R_inv_action,
+                             adjoint_B_inv_action=adjoint_B_inv_action)
 
     for i in range(20):
         dm = Function(space, static=True)
-        function_set_values(dm, np.random.random(function_local_size(dm)))
+        dm_arr = np.random.random(function_local_size(dm))
+        if issubclass(function_dtype(dm), (complex, np.complexfloating)):
+            dm_arr = dm_arr + 1.0j * np.random.random(function_local_size(dm))
+        function_set_values(dm, dm_arr)
+        del dm_arr
+
         _, _, H_action = H.action(F, function_copy(dm, static=True))
         H_action_GN = H_GN.action(F, dm)
 
