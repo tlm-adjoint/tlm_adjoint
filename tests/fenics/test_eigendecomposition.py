@@ -149,11 +149,11 @@ def test_CachedHessian(setup_test):
     # Test consistency of eigenvalues
 
     lam, _ = eigendecompose(space, H.action_fn(F))
-    if issubclass(space_dtype(space), (float, np.floating)):
+    if not issubclass(space_dtype(space), (complex, np.complexfloating)):
         assert max(abs(lam.imag)) == 0.0
 
     lam_opt, _ = eigendecompose(space, H_opt.action_fn(F))
-    if issubclass(space_dtype(space), (float, np.floating)):
+    if not issubclass(space_dtype(space), (complex, np.complexfloating)):
         assert max(abs(lam_opt.imag)) == 0.0
 
     error = (np.array(sorted(lam.real), dtype=np.float64)
