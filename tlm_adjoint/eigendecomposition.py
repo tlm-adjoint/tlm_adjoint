@@ -214,13 +214,13 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
         lam_i = esolver.getEigenpair(i, v_r, v_i)
         if esolver.isHermitian():
             assert lam_i.imag == 0.0
-            if v_i is None:
-                with v_r as v_r_a:
-                    assert abs(v_r_a.imag).max() == 0.0
-            else:
+            lam[i] = lam_i.real
+            if v_i is not None:
                 with v_i as v_i_a:
                     assert abs(v_i_a).max() == 0.0
-            lam[i] = lam_i.real
+            # else:
+            #     # Complex note: If v_i is None then v_r may be non-real
+            #     pass
             with v_r as v_r_a:
                 function_set_values(V_r[i], v_r_a)
         else:
