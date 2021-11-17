@@ -23,10 +23,16 @@ from tlm_adjoint.firedrake import *
 
 from test_base import *
 
+import numpy as np
+import petsc4py.PETSc as PETSc
 import pytest
 
 
 @pytest.mark.firedrake
+@pytest.mark.skipif(issubclass(PETSc.ScalarType,
+                               (complex, np.complexfloating)),
+                    reason="real only")
+@seed_test
 def test_minimize_project(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -35,7 +41,7 @@ def test_minimize_project(setup_test, test_leaks):
 
     def forward(alpha, x_ref=None):
         x = Function(space, name="x")
-        solve(inner(test, trial) * dx == inner(test, alpha) * dx,
+        solve(inner(trial, test) * dx == inner(alpha, test) * dx,
               x, solver_parameters=ls_parameters_cg)
 
         if x_ref is None:
@@ -70,6 +76,10 @@ def test_minimize_project(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.skipif(issubclass(PETSc.ScalarType,
+                               (complex, np.complexfloating)),
+                    reason="real only")
+@seed_test
 def test_minimize_project_multiple(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -78,11 +88,11 @@ def test_minimize_project_multiple(setup_test, test_leaks):
 
     def forward(alpha, beta, x_ref=None, y_ref=None):
         x = Function(space, name="x")
-        solve(inner(test, trial) * dx == inner(test, alpha) * dx,
+        solve(inner(trial, test) * dx == inner(alpha, test) * dx,
               x, solver_parameters=ls_parameters_cg)
 
         y = Function(space, name="y")
-        solve(inner(test, trial) * dx == inner(test, beta) * dx,
+        solve(inner(trial, test) * dx == inner(beta, test) * dx,
               y, solver_parameters=ls_parameters_cg)
 
         if x_ref is None:
