@@ -388,6 +388,36 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
     return P.tocsr()
 
 
+class InterpolationMatrix(Matrix):
+    def __init__(self, P):
+        super().__init__(nl_deps=[], ic=False, adj_ic=False)
+        self._P = P.copy()
+        self._P_T = P.T
+
+    def forward_action(self, nl_deps, x, b, method="assign"):
+        if method == "assign":
+            function_set_values(b, self._P.dot(function_get_values(x)))
+        elif method == "add":
+            b.vector()[:] += self._P.dot(function_get_values(x))
+        elif method == "sub":
+            b.vector()[:] -= self._P.dot(function_get_values(x))
+        else:
+            raise EquationException(f"Invalid method: '{method:s}'")
+
+    def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
+        if b_index != 0:
+            raise EquationException("Invalid index")
+        if method == "assign":
+            function_set_values(
+                b, self._P_T.dot(function_get_values(adj_x)))
+        elif method == "add":
+            b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
+        elif method == "sub":
+            b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
+        else:
+            raise EquationException(f"Invalid method: '{method:s}'")
+
+
 class InterpolationSolver(LinearEquation):
     def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
                  tolerance=0.0):
@@ -446,37 +476,6 @@ class InterpolationSolver(LinearEquation):
             P = interpolation_matrix(x_coords, y, y_cells, y_colors)
         else:
             P = P.copy()
-
-        class InterpolationMatrix(Matrix):
-            def __init__(self, P):
-                super().__init__(nl_deps=[], ic=False, adj_ic=False)
-                self._P = P
-                self._P_T = P.T
-
-            def forward_action(self, nl_deps, x, b, method="assign"):
-                if method == "assign":
-                    function_set_values(b, self._P.dot(function_get_values(x)))
-                elif method == "add":
-                    b.vector()[:] += self._P.dot(function_get_values(x))
-                elif method == "sub":
-                    b.vector()[:] -= self._P.dot(function_get_values(x))
-                else:
-                    raise EquationException(f"Invalid method: '{method:s}'")
-
-            def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
-                               method="assign"):
-                if b_index != 0:
-                    raise EquationException("Invalid index")
-                if method == "assign":
-                    function_set_values(
-                        b,
-                        self._P_T.dot(function_get_values(adj_x)))
-                elif method == "add":
-                    b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
-                elif method == "sub":
-                    b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
-                else:
-                    raise EquationException(f"Invalid method: '{method:s}'")
 
         super().__init__(
             MatrixActionRHS(InterpolationMatrix(P), y), x)
