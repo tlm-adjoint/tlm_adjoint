@@ -813,9 +813,7 @@ where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
 \texttt{Function} being interpolated. An optional \texttt{x\_coords} argument
 may be supplied to define the coordinates associated with the degrees of
 freedom for $\tilde{\psi}$. An optional \texttt{tolerance} argument may be
-supplied to define the maximum permitted distance of a coordinate, associated
-with a degree of freedom for $\tilde{\psi}$, from the closest cell in the
-process local mesh associated with $W$.
+supplied to define the maximum permitted distance of a coordinate from a cell.
 
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. In
@@ -839,13 +837,12 @@ scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
 \begin{lstlisting}
 eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
-where \texttt{X} is a sequence of scalar being solved for (for example each as
+where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
 \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
 coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
-optional \texttt{tolerance} argument may be supplied, and this is passed to the
-Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
-the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
+optional \texttt{tolerance} argument may be supplied to define the maximum
+permitted distance of a coordinate from a cell.
 
 In parallel there are similar node-node graph restrictions for the discrete
 function space for \texttt{y} to those for the \texttt{InterpolationSolver}
@@ -888,7 +885,10 @@ eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
 \ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
-coordinates at which to interpolate the \texttt{Function} \texttt{y}.
+coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
+optional \texttt{tolerance} argument may be supplied, and this is passed to the
+Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
+the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
 
 \subsubsection{\texttt{LocalProjectionSolver}}
 

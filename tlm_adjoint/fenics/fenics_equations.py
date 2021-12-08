@@ -333,7 +333,7 @@ class LocalProjectionSolver(EquationSolver):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
-def point_owners(x_coords, y_space):
+def point_owners(x_coords, y_space, tolerance=0.0):
     comm = space_comm(y_space)
     rank = comm.rank
 
@@ -354,7 +354,11 @@ def point_owners(x_coords, y_space):
     for i in range(x_coords.shape[0]):
         if owner[i] == -1:
             raise EquationException("Unable to find owning process for point")
-        if owner[i] != rank:
+        if owner[i] == rank:
+            if distances_local[i] > tolerance:
+                raise EquationException("Unable to find owning process for "
+                                        "point")
+        else:
             y_cells[i] = -1
 
     return y_cells
@@ -472,8 +476,7 @@ class InterpolationSolver(LinearEquation):
                    using greedy_coloring if not supplied.
         P          (Optional) Interpolation matrix.
         tolerance  (Optional) Maximum distance of an interpolation point from
-                   the closest cell in the process local mesh associated with
-                   y. Ignored if P is supplied.
+                   a cell. Ignored if P is supplied.
         """
 
         if P_T is not None:
@@ -511,7 +514,7 @@ class InterpolationSolver(LinearEquation):
 
 class PointInterpolationSolver(Equation):
     def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
-                 P=None, P_T=None):
+                 P=None, P_T=None, tolerance=0.0):
         """
         Defines an equation which interpolates the scalar-valued Function y at
         the points X_coords. It is assumed that the given points are all within
@@ -539,6 +542,8 @@ class PointInterpolationSolver(Equation):
         y_cells   (Optional) An integer NumPy vector. The cells in the y mesh
                   containing each point. Ignored if P is supplied.
         P         (Optional) Interpolation matrix.
+        tolerance  (Optional) Maximum distance of an interpolation point from
+                   a cell. Ignored if P or y_cells are supplied.
         """
 
         if P_T is not None:
@@ -564,7 +569,7 @@ class PointInterpolationSolver(Equation):
             y_space = function_space(y)
 
             if y_cells is None:
-                y_cells = point_owners(X_coords, y_space)
+                y_cells = point_owners(X_coords, y_space, tolerance=tolerance)
 
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
