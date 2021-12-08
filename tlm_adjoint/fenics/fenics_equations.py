@@ -23,7 +23,8 @@ from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
     parameters
 from ..interface import function_assign, function_comm, function_get_values, \
     function_is_scalar, function_local_size, function_new, \
-    function_scalar_value, function_set_values, function_space, is_function
+    function_scalar_value, function_set_values, function_space, is_function, \
+    space_comm
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -332,6 +333,33 @@ class LocalProjectionSolver(EquationSolver):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
+def point_owners(x_coords, y_space):
+    comm = space_comm(y_space)
+    rank = comm.rank
+
+    y_cells, distances_local = point_cells(x_coords, y_space.mesh())
+    distances = np.full(x_coords.shape[0], np.NAN, dtype=distances_local.dtype)
+    comm.Allreduce(distances_local, distances, op=MPI.MIN)
+
+    owner_local = np.full(x_coords.shape[0], rank, dtype=np.int64)
+    assert len(distances_local) == len(distances)
+    for i, (distance_local, distance) in enumerate(zip(distances_local,
+                                                       distances)):
+        if distance_local != distance:
+            y_cells[i] = -1
+            owner_local[i] = -1
+    owner = np.full(x_coords.shape[0], -1, dtype=np.int64)
+    comm.Allreduce(owner_local, owner, op=MPI.MAX)
+
+    for i in range(x_coords.shape[0]):
+        if owner[i] == -1:
+            raise EquationException("Unable to find owning process for point")
+        if owner[i] != rank:
+            y_cells[i] = -1
+
+    return y_cells
+
+
 def interpolation_matrix(x_coords, y, y_cells, y_colors):
     y_space = function_space(y)
     y_mesh = y_space.mesh()
@@ -536,31 +564,7 @@ class PointInterpolationSolver(Equation):
             y_space = function_space(y)
 
             if y_cells is None:
-                comm = function_comm(y)
-                rank = comm.rank
-
-                y_cells, distances_local = point_cells(X_coords,
-                                                       y_space.mesh())
-                distances = np.full(len(X), np.NAN, dtype=backend_ScalarType)
-                comm.Allreduce(distances_local, distances, op=MPI.MIN)
-
-                owner_local = np.full(len(X), -1, dtype=np.int64)
-                owner_local[:] = rank
-                assert len(distances_local) == len(distances)
-                for i, (distance_local,
-                        distance) in enumerate(zip(distances_local,
-                                                   distances)):
-                    if distance_local != distance:
-                        y_cells[i] = -1
-                        owner_local[i] = -1
-                owner = np.full(len(X), -1, dtype=np.int64)
-                comm.Allreduce(owner_local, owner, op=MPI.MAX)
-
-                for i in range(len(X)):
-                    if owner[i] == -1:
-                        raise EquationException("Unable to find owning process for point")  # noqa: E501
-                    if owner[i] != rank:
-                        y_cells[i] = -1
+                y_cells = point_owners(X_coords, y_space)
 
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
