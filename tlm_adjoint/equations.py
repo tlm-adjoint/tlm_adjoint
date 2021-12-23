@@ -1915,7 +1915,9 @@ class InnerProductRHS(RHS):
             if tlm_x is not None:
                 if not issubclass(function_dtype(x), (float, np.floating)):
                     raise EquationException("Not complex differentiable")
-                tlm_B.append(InnerProductRHS(x, tlm_x, alpha=2.0 * self._alpha,
+                tlm_B.append(InnerProductRHS(tlm_x, x, alpha=self._alpha,
+                                             M=self._M))
+                tlm_B.append(InnerProductRHS(x, tlm_x, alpha=self._alpha,
                                              M=self._M))
         else:
             x, y = self.dependencies()[:2]
