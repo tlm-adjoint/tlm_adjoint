@@ -23,7 +23,8 @@ from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
     parameters
 from ..interface import function_assign, function_comm, function_get_values, \
     function_is_scalar, function_local_size, function_new, \
-    function_scalar_value, function_set_values, function_space, is_function
+    function_scalar_value, function_set_values, function_space, is_function, \
+    space_comm
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -332,6 +333,37 @@ class LocalProjectionSolver(EquationSolver):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
+def point_owners(x_coords, y_space, tolerance=0.0):
+    comm = space_comm(y_space)
+    rank = comm.rank
+
+    y_cells, distances_local = point_cells(x_coords, y_space.mesh())
+    distances = np.full(x_coords.shape[0], np.NAN, dtype=distances_local.dtype)
+    comm.Allreduce(distances_local, distances, op=MPI.MIN)
+
+    owner_local = np.full(x_coords.shape[0], rank, dtype=np.int64)
+    assert len(distances_local) == len(distances)
+    for i, (distance_local, distance) in enumerate(zip(distances_local,
+                                                       distances)):
+        if distance_local != distance:
+            y_cells[i] = -1
+            owner_local[i] = -1
+    owner = np.full(x_coords.shape[0], -1, dtype=np.int64)
+    comm.Allreduce(owner_local, owner, op=MPI.MAX)
+
+    for i in range(x_coords.shape[0]):
+        if owner[i] == -1:
+            raise EquationException("Unable to find owning process for point")
+        if owner[i] == rank:
+            if distances_local[i] > tolerance:
+                raise EquationException("Unable to find owning process for "
+                                        "point")
+        else:
+            y_cells[i] = -1
+
+    return y_cells
+
+
 def interpolation_matrix(x_coords, y, y_cells, y_colors):
     y_space = function_space(y)
     y_mesh = y_space.mesh()
@@ -388,6 +420,36 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
     return P.tocsr()
 
 
+class InterpolationMatrix(Matrix):
+    def __init__(self, P):
+        super().__init__(nl_deps=[], ic=False, adj_ic=False)
+        self._P = P.copy()
+        self._P_T = P.T
+
+    def forward_action(self, nl_deps, x, b, method="assign"):
+        if method == "assign":
+            function_set_values(b, self._P.dot(function_get_values(x)))
+        elif method == "add":
+            b.vector()[:] += self._P.dot(function_get_values(x))
+        elif method == "sub":
+            b.vector()[:] -= self._P.dot(function_get_values(x))
+        else:
+            raise EquationException(f"Invalid method: '{method:s}'")
+
+    def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
+        if b_index != 0:
+            raise EquationException("Invalid index")
+        if method == "assign":
+            function_set_values(
+                b, self._P_T.dot(function_get_values(adj_x)))
+        elif method == "add":
+            b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
+        elif method == "sub":
+            b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
+        else:
+            raise EquationException(f"Invalid method: '{method:s}'")
+
+
 class InterpolationSolver(LinearEquation):
     def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
                  tolerance=0.0):
@@ -414,8 +476,7 @@ class InterpolationSolver(LinearEquation):
                    using greedy_coloring if not supplied.
         P          (Optional) Interpolation matrix.
         tolerance  (Optional) Maximum distance of an interpolation point from
-                   the closest cell in the process local mesh associated with
-                   y. Ignored if P is supplied.
+                   a cell. Ignored if P is supplied.
         """
 
         if P_T is not None:
@@ -447,44 +508,13 @@ class InterpolationSolver(LinearEquation):
         else:
             P = P.copy()
 
-        class InterpolationMatrix(Matrix):
-            def __init__(self, P):
-                super().__init__(nl_deps=[], ic=False, adj_ic=False)
-                self._P = P
-                self._P_T = P.T
-
-            def forward_action(self, nl_deps, x, b, method="assign"):
-                if method == "assign":
-                    function_set_values(b, self._P.dot(function_get_values(x)))
-                elif method == "add":
-                    b.vector()[:] += self._P.dot(function_get_values(x))
-                elif method == "sub":
-                    b.vector()[:] -= self._P.dot(function_get_values(x))
-                else:
-                    raise EquationException(f"Invalid method: '{method:s}'")
-
-            def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
-                               method="assign"):
-                if b_index != 0:
-                    raise EquationException("Invalid index")
-                if method == "assign":
-                    function_set_values(
-                        b,
-                        self._P_T.dot(function_get_values(adj_x)))
-                elif method == "add":
-                    b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
-                elif method == "sub":
-                    b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
-                else:
-                    raise EquationException(f"Invalid method: '{method:s}'")
-
         super().__init__(
             MatrixActionRHS(InterpolationMatrix(P), y), x)
 
 
 class PointInterpolationSolver(Equation):
     def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
-                 P=None, P_T=None):
+                 P=None, P_T=None, tolerance=0.0):
         """
         Defines an equation which interpolates the scalar-valued Function y at
         the points X_coords. It is assumed that the given points are all within
@@ -512,6 +542,8 @@ class PointInterpolationSolver(Equation):
         y_cells   (Optional) An integer NumPy vector. The cells in the y mesh
                   containing each point. Ignored if P is supplied.
         P         (Optional) Interpolation matrix.
+        tolerance  (Optional) Maximum distance of an interpolation point from
+                   a cell. Ignored if P or y_cells are supplied.
         """
 
         if P_T is not None:
@@ -537,31 +569,7 @@ class PointInterpolationSolver(Equation):
             y_space = function_space(y)
 
             if y_cells is None:
-                comm = function_comm(y)
-                rank = comm.rank
-
-                y_cells, distances_local = point_cells(X_coords,
-                                                       y_space.mesh())
-                distances = np.full(len(X), np.NAN, dtype=backend_ScalarType)
-                comm.Allreduce(distances_local, distances, op=MPI.MIN)
-
-                owner_local = np.full(len(X), -1, dtype=np.int64)
-                owner_local[:] = rank
-                assert len(distances_local) == len(distances)
-                for i, (distance_local,
-                        distance) in enumerate(zip(distances_local,
-                                                   distances)):
-                    if distance_local != distance:
-                        y_cells[i] = -1
-                        owner_local[i] = -1
-                owner = np.full(len(X), -1, dtype=np.int64)
-                comm.Allreduce(owner_local, owner, op=MPI.MAX)
-
-                for i in range(len(X)):
-                    if owner[i] == -1:
-                        raise EquationException("Unable to find owning process for point")  # noqa: E501
-                    if owner[i] != rank:
-                        y_cells[i] = -1
+                y_cells = point_owners(X_coords, y_space, tolerance=tolerance)
 
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
