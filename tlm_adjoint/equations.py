@@ -1804,9 +1804,8 @@ class InnerProductRHS(RHS):
 
         x, y   Inner product arguments. May be the same function.
         alpha  (Optional) Scale the result of the inner product by alpha.
-        M      (Optional) Matrix defining the inner product. Assumed symmetric,
-               and must have no non-linear dependencies. Defaults to an
-               identity matrix.
+        M      (Optional) Matrix defining the inner product. Must have no
+               non-linear dependencies. Defaults to an identity matrix.
         """
 
         if M is not None and len(M.nonlinear_dependencies()) > 0:
@@ -1847,7 +1846,7 @@ class InnerProductRHS(RHS):
             Y = y
         else:
             Y = function_new(x)
-            self._M.forward_action(M_deps, y, Y, method="assign")
+            self._M.adjoint_action(M_deps, y, Y, method="assign")
 
         function_set_values(b,
                             function_get_values(b) + self._alpha
@@ -1865,10 +1864,19 @@ class InnerProductRHS(RHS):
                     X = x
                 else:
                     X = function_new(x)
+                    self._M.adjoint_action(M_deps, x, X, method="assign")
+
+                function_axpy(
+                    b, -self._alpha.conjugate() * function_sum(adj_x), X)
+
+                if self._M is None:
+                    X = x
+                else:
+                    X = function_new(x)
                     self._M.forward_action(M_deps, x, X, method="assign")
 
                 function_axpy(
-                    b, -2.0 * self._alpha.conjugate() * function_sum(adj_x), X)
+                    b, -self._alpha.conjugate() * function_sum(adj_x), X)
             else:
                 raise EquationException("dep_index out of bounds")
         elif dep_index == 0:
@@ -1879,7 +1887,7 @@ class InnerProductRHS(RHS):
                 Y = y
             else:
                 Y = function_new(x)
-                self._M.forward_action(M_deps, y, Y, method="assign")
+                self._M.adjoint_action(M_deps, y, Y, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), Y)
         elif dep_index == 1:
@@ -1907,7 +1915,9 @@ class InnerProductRHS(RHS):
             if tlm_x is not None:
                 if not issubclass(function_dtype(x), (float, np.floating)):
                     raise EquationException("Not complex differentiable")
-                tlm_B.append(InnerProductRHS(x, tlm_x, alpha=2.0 * self._alpha,
+                tlm_B.append(InnerProductRHS(tlm_x, x, alpha=self._alpha,
+                                             M=self._M))
+                tlm_B.append(InnerProductRHS(x, tlm_x, alpha=self._alpha,
                                              M=self._M))
         else:
             x, y = self.dependencies()[:2]

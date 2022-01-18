@@ -247,6 +247,15 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 else:
                     raise EquationException(f"Unexpected method '{method:s}'")
 
+            def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
+                               method="assign"):
+                if b_index != 0:
+                    raise EquationException("Invalid index")
+                if method == "assign":
+                    function_assign(b, adj_x)
+                else:
+                    raise EquationException(f"Unexpected method '{method:s}'")
+
             def forward_solve(self, x, nl_deps, b):
                 function_assign(x, b)
 
