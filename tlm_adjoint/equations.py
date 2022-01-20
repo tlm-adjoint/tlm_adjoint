@@ -1856,15 +1856,27 @@ class DotProductRHS(RHS):
         if self._x_equals_y:
             if dep_index == 0:
                 x, = nl_deps
-                function_axpy(b, -2.0 * self._alpha * function_sum(adj_x), x)
+                alpha = -2.0 * self._alpha.conjugate() * function_sum(adj_x)
+                function_set_values(
+                    b,
+                    function_get_values(b)
+                    + alpha * function_get_values(x).conjugate())
             else:
                 raise EquationException("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps
-            function_axpy(b, -self._alpha * function_sum(adj_x), y)
+            alpha = -self._alpha.conjugate() * function_sum(adj_x)
+            function_set_values(
+                b,
+                function_get_values(b)
+                + alpha * function_get_values(y).conjugate())
         elif dep_index == 1:
             x, y = nl_deps
-            function_axpy(b, -self._alpha * function_sum(adj_x), x)
+            alpha = -self._alpha.conjugate() * function_sum(adj_x)
+            function_set_values(
+                b,
+                function_get_values(b)
+                + alpha * function_get_values(x).conjugate())
         else:
             raise EquationException("dep_index out of bounds")
 
