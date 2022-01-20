@@ -26,10 +26,12 @@ from tlm_adjoint.alias import WeakAlias
 from test_base import *
 
 import numpy as np
+import petsc4py.PETSc as PETSc
 import pytest
 
 
 @pytest.mark.fenics
+@seed_test
 def test_long_range(setup_test, test_leaks):
     n_steps = 200
     configure_checkpointing("multistage",
@@ -56,7 +58,7 @@ def test_long_range(setup_test, test_leaks):
             if n % 17 == 0:
                 if gather_ref:
                     x_ref[n] = function_copy(x, name=f"x_ref_{n:d}")
-                J.addto(inner(x * x * x, x_ref[n]) * dx)
+                J.addto(dot(x * x * x, x_ref[n]) * dx)
             AssignmentSolver(x, x_old).solve()
             if n < n_steps - 1:
                 new_block()
@@ -95,6 +97,7 @@ def test_long_range(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@seed_test
 def test_EmptySolver(setup_test, test_leaks):
     class EmptySolver(Equation):
         def __init__(self):
@@ -110,11 +113,11 @@ def test_EmptySolver(setup_test, test_leaks):
     def forward(F):
         EmptySolver().solve()
 
-        F_norm_sq = Constant(name="F_norm_sq")
-        NormSqSolver(F, F_norm_sq).solve()
+        F_dot_F = Constant(name="F_dot_F")
+        DotProductSolver(F, F, F_dot_F).solve()
 
         J = Functional(name="J")
-        NormSqSolver(F_norm_sq, J.fn()).solve()
+        DotProductSolver(F_dot_F, F_dot_F, J.fn()).solve()
         return J
 
     F = Function(space, name="F")
@@ -154,6 +157,7 @@ def test_EmptySolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@seed_test
 def test_empty(setup_test, test_leaks):
     def forward(m):
         return Functional(name="J")
@@ -165,10 +169,11 @@ def test_empty(setup_test, test_leaks):
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert float(dJ) == 0.0
+    assert complex(dJ) == 0.0
 
 
 @pytest.mark.fenics
+@seed_test
 def test_adjoint_graph_pruning(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     X = SpatialCoordinate(mesh)
@@ -182,7 +187,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
         AssignmentSolver(y, x).solve()
 
         J_0 = Functional(name="J_0")
-        J_0.assign(inner(dot(x, x), dot(x, x)) * dx)
+        J_0.assign((dot(x, x) ** 2) * dx)
 
         J_1 = Functional(name="J_1")
         J_1.assign(x * dx)
@@ -190,7 +195,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
         J_0_val = J_0.value()
         NullSolver(x).solve()
         assert function_linf_norm(x) == 0.0
-        J_0.addto(inner(x, y) * dx)
+        J_0.addto(dot(x, y) * dx)
         assert J_0.value() == J_0_val
 
         J_2 = Functional(name="J_2")
@@ -235,6 +240,10 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@pytest.mark.skipif(issubclass(PETSc.ScalarType,
+                               (complex, np.complexfloating)),
+                    reason="real only")
+@seed_test
 def test_Referrers_LinearEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class IdentityMatrix(Matrix):
@@ -378,6 +387,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@seed_test
 def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class NewtonIterationSolver(Equation):
@@ -525,6 +535,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (200, 20),
                                                    (200, 50),
                                                    (1000, 50)])
+@seed_test
 def test_binomial_checkpointing(setup_test, test_leaks,
                                 n_steps, snaps_in_ram):
     _minimal_n_extra_steps = {}
@@ -573,7 +584,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
                 new_block()
 
         J = Functional(name="J")
-        NormSqSolver(m, J.fn()).solve()
+        DotProductSolver(m, m, J.fn()).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -596,6 +607,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+@seed_test
 def test_TangentLinearMap_finalizes(setup_test, test_leaks,
                                     max_depth):
     m = Constant(1.0, name="m")
@@ -604,5 +616,5 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
 
     start_manager()
     x = Constant(0.0, name="x")
-    NormSqSolver(m, x).solve()
+    DotProductSolver(m, m, x).solve()
     stop_manager()
