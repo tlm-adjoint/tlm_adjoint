@@ -29,10 +29,13 @@ import firedrake
 import mpi4py.MPI as MPI
 import numpy as np
 import os
+import petsc4py.PETSc as PETSc
 import pytest
+import ufl
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_AssignmentSolver(setup_test, test_leaks):
     x = Constant(16.0, name="x", static=True)
 
@@ -43,20 +46,21 @@ def test_AssignmentSolver(setup_test, test_leaks):
         AssignmentSolver(x, y[0]).solve()
         for i in range(len(y) - 1):
             AssignmentSolver(y[i], y[i + 1]).solve()
-        NormSqSolver(y[-1], z).solve()  # Should have no effect on sensitivity
-        NormSqSolver(y[-1], z).solve()
+        # Following line should have no effect on sensitivity
+        DotProductSolver(y[-1], y[-1], z).solve()
+        DotProductSolver(y[-1], y[-1], z).solve()
 
-        x_norm_sq = Constant(name="x_norm_sq")
-        NormSqSolver(x, x_norm_sq).solve()
+        x_dot_x = Constant(name="x_dot_x")
+        DotProductSolver(x, x, x_dot_x).solve()
 
-        z_norm_sq = Constant(name="z_norm_sq")
-        NormSqSolver(z, z_norm_sq).solve()
+        z_dot_z = Constant(name="z_dot_z")
+        DotProductSolver(z, z, z_dot_z).solve()
 
         J = Functional(name="J")
-        AxpySolver(z_norm_sq, 2.0, x_norm_sq, J.fn()).solve()
+        AxpySolver(z_dot_z, 2.0, x_dot_x, J.fn()).solve()
 
         K = Functional(name="K")
-        AssignmentSolver(z_norm_sq, K.fn()).solve()
+        AssignmentSolver(z_dot_z, K.fn()).solve()
 
         return J, K
 
@@ -93,6 +97,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_AxpySolver(setup_test, test_leaks):
     x = Constant(1.0, name="x", static=True)
 
@@ -104,10 +109,10 @@ def test_AxpySolver(setup_test, test_leaks):
         AssignmentSolver(x, y[0]).solve()
         for i in range(len(y) - 1):
             AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
-        NormSqSolver(y[-1], z[1]).solve()
+        DotProductSolver(y[-1], y[-1], z[1]).solve()
 
         J = Functional(name="J")
-        NormSqSolver(z[1], J.fn()).solve()
+        DotProductSolver(z[1], z[1], J.fn()).solve()
         return J
 
     start_manager()
@@ -141,6 +146,7 @@ def test_AxpySolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -158,15 +164,15 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
         DirichletBCSolver(bc, x_1, "on_boundary").solve()
 
         EquationSolver(
-            inner(grad(test), grad(trial)) * dx
-            == inner(test, F) * dx - inner(grad(test), grad(x_1)) * dx,
+            inner(grad(trial), grad(test)) * dx
+            == inner(F, test) * dx - inner(grad(x_1), grad(test)) * dx,
             x_0, HomogeneousDirichletBC(space, "on_boundary"),
             solver_parameters=ls_parameters_cg).solve()
 
         AxpySolver(x_0, 1.0, x_1, x).solve()
 
         J = Functional(name="J")
-        J.assign(inner(x * x, x * x) * dx)
+        J.assign((dot(x, x) ** 2) * dx)
         return x, J
 
     bc = Function(space, name="bc", static=True)
@@ -177,7 +183,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
     stop_manager()
 
     x_ref = Function(space, name="x_ref")
-    solve(inner(grad(test), grad(trial)) * dx == inner(test, F) * dx,
+    solve(inner(grad(trial), grad(test)) * dx == inner(F, test) * dx,
           x_ref,
           DirichletBC(space, 1.0, "on_boundary"),
           solver_parameters=ls_parameters_cg)
@@ -211,6 +217,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_FixedPointSolver(setup_test, test_leaks):
     x = Constant(name="x")
     z = Constant(name="z")
@@ -234,9 +241,9 @@ def test_FixedPointSolver(setup_test, test_leaks):
     J = forward(a, b)
     stop_manager()
 
-    x_val = float(x)
-    a_val = float(a)
-    b_val = float(b)
+    x_val = complex(x)
+    a_val = complex(a)
+    b_val = complex(b)
     assert abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14
 
     J_val = J.value()
@@ -281,6 +288,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
                                                   reason="parallel only"))])
 @pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
                                            (5, 5, 5)])
+@seed_test
 def test_PointInterpolationSolver(setup_test, test_leaks,
                                   overlap_type,
                                   N_x, N_y, N_z):
@@ -354,6 +362,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_ExprEvaluationSolver(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
@@ -410,6 +419,10 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.skipif(issubclass(PETSc.ScalarType,
+                               (complex, np.complexfloating)),
+                    reason="real only")
+@seed_test
 def test_LocalProjectionSolver(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
@@ -433,7 +446,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
     stop_manager()
 
     F_ref = Function(space_1, name="F_ref")
-    solve(inner(test_1, trial_1) * dx == inner(test_1, G) * dx, F_ref,
+    solve(inner(trial_1, test_1) * dx == inner(G, test_1) * dx, F_ref,
           solver_parameters=ls_parameters_cg)
     F_error = Function(space_1, name="F_error")
     function_assign(F_error, F_ref)
@@ -468,6 +481,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_AssembleSolver(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -478,9 +492,9 @@ def test_AssembleSolver(setup_test, test_leaks):
         x = Function(space, name="x")
         y = Constant(name="y")
 
-        AssembleSolver(inner(test, F * F) * dx
-                       + inner(test, F) * dx, x).solve()
-        AssembleSolver(inner(F, x) * dx, y).solve()
+        AssembleSolver(inner(F * F, test) * dx
+                       + inner(F, test) * dx, x).solve()
+        AssembleSolver(dot(F, x) * dx, y).solve()
 
         J = Functional(name="J")
         J.assign(y)
@@ -515,6 +529,7 @@ def test_AssembleSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_Storage(setup_test, test_leaks):
     comm = manager().comm()
     if comm.rank == 0:
@@ -550,7 +565,7 @@ def test_Storage(setup_test, test_leaks):
         HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 
         J = Functional(name="J")
-        InnerProductSolver(y, y_s, J.fn()).solve()
+        DotProductSolver(y, y_s, J.fn()).solve()
         return y, x_s, y_s, d, h, J
 
     x = Function(space, name="x", static=True)
@@ -577,26 +592,30 @@ def test_Storage(setup_test, test_leaks):
 
     dJ = compute_gradient(J, x)
 
-    min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ)
+    min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, seed=1.0e-3)
     assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ)
+    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
+                            size=4)
     assert min_order > 2.99
 
-    min_order = taylor_test_tlm(forward_J, x, tlm_order=1)
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1)
+    min_order = taylor_test_tlm(forward_J, x, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
 
-    min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2)
+    min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
+                                        seed=1.0e-3)
     assert min_order > 1.99
 
     h.close()
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_SumSolver(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
@@ -610,7 +629,11 @@ def test_SumSolver(setup_test, test_leaks):
         return J
 
     F = Function(space, name="F", static=True)
-    function_set_values(F, np.random.random(function_local_size(F)))
+    F_arr = np.random.random(function_local_size(F))
+    if issubclass(function_dtype(F), (complex, np.complexfloating)):
+        F_arr = F_arr + 1.0j * np.random.random(function_local_size(F))
+    function_set_values(F, F_arr)
+    del F_arr
 
     start_manager()
     J = forward(F)
@@ -623,6 +646,10 @@ def test_SumSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.skipif(issubclass(PETSc.ScalarType,
+                               (complex, np.complexfloating)),
+                    reason="real only")
+@seed_test
 def test_InnerProductSolver(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
@@ -636,7 +663,11 @@ def test_InnerProductSolver(setup_test, test_leaks):
         return J
 
     F = Function(space, name="F", static=True)
-    function_set_values(F, np.random.random(function_local_size(F)))
+    F_arr = np.random.random(function_local_size(F))
+    if issubclass(function_dtype(F), (complex, np.complexfloating)):
+        F_arr = F_arr + 1.0j * np.random.random(function_local_size(F))
+    function_set_values(F, F_arr)
+    del F_arr
 
     start_manager()
     J = forward(F)
@@ -648,6 +679,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_initial_guess(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -668,7 +700,7 @@ def test_initial_guess(setup_test, test_leaks):
                          solver_parameters={}):
                 assert is_function(y)
                 super().__init__(
-                    inner(TestFunction(x.function_space()), y) * dx, x,
+                    inner(y, TestFunction(x.function_space())) * dx, x,
                     form_compiler_parameters=form_compiler_parameters,
                     solver_parameters=solver_parameters,
                     cache_jacobian=False, cache_rhs_assembly=False)
@@ -719,20 +751,20 @@ def test_initial_guess(setup_test, test_leaks):
                                "ksp_initial_guess_nonzero": True}).solve()
 
         J = Functional(name="J")
-        J.assign(inner(dot(x, x), dot(x, x)) * dx)
+        J.assign((dot(x, x) ** 2) * dx)
         J_val = J.value()
 
         # test_adj_ic defined in test scope below
         if test_adj_ic:
             adj_x_0 = Function(space_1, name="adj_x_0", static=True)
             solve(
-                inner(test_1, trial_1) * dx
-                == derivative(inner(dot(x, x), dot(x, x)) * dx, x, du=test_1),
+                inner(trial_1, test_1) * dx
+                == derivative((dot(x, x) ** 2) * dx, x, du=ufl.conj(test_1)),
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
             NullSolver(x).solve()
             J_term = space_new(J.space())
-            InnerProductSolver(x, adj_x_0, J_term).solve()
+            DotProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)
         else:
             adj_x_0 = None
@@ -743,7 +775,7 @@ def test_initial_guess(setup_test, test_leaks):
         ProjectionSolver(
             zero * x, z,
             solver_parameters=ls_parameters_cg).solve()
-        J.addto(inner(z, z) * dx)
+        J.addto(dot(z, z) * dx)
 
         assert abs(J.value() - J_val) == 0.0
 
@@ -755,7 +787,7 @@ def test_initial_guess(setup_test, test_leaks):
     test_adj_ic = True
     start_manager()
     x_0 = Function(space_1, name="x_0")
-    solve(inner(test_1, trial_1) * dx == inner(test_1, y) * dx,
+    solve(inner(trial_1, test_1) * dx == inner(y, test_1) * dx,
           x_0, solver_parameters=ls_parameters_cg)
     x, adj_x_0, z, J = forward(y, x_0=x_0)
     stop_manager()
@@ -927,6 +959,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -941,10 +974,8 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
                          solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
-        J.assign(inner(dot(X[-1] + 1.0, X[-1] + 1.0),
-                       dot(X[-1] + 1.0, X[-1] + 1.0)) * dx
-                 + inner(dot(m + 2.0, m + 2.0),
-                         dot(m + 2.0, m + 2.0)) * dx)
+        J.assign((dot(X[-1] + 1.0, X[-1] + 1.0) ** 2) * dx
+                 + (dot(m + 2.0, m + 2.0) ** 2) * dx)
         return J
 
     m = ZeroFunction(space, name="m")
