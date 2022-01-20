@@ -19,8 +19,8 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import finalize_adjoint_derivative_action, function_assign, \
-    function_axpy, function_copy, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, \
+    function_axpy, function_comm, function_copy, function_dtype, \
+    function_get_values, function_global_size, function_id, function_inner, \
     function_is_checkpointed, function_local_indices, function_local_size, \
     function_new, function_replacement, function_set_values, function_space, \
     function_sum, function_update_caches, function_update_state, \
@@ -1839,10 +1839,18 @@ class DotProductRHS(RHS):
 
         if function_local_size(y) != function_local_size(x):
             raise EquationException("Invalid space")
-        function_set_values(
-            b,
-            function_get_values(b) + self._alpha
-            * (function_get_values(y) * function_get_values(x)).sum())
+
+        d = (function_get_values(y) * function_get_values(x)).sum()
+        comm = function_comm(b)
+        if comm.size > 1:
+            import mpi4py.MPI as MPI
+            d_local = np.array([d], dtype=function_dtype(b))
+            d_global = np.full((1,), np.NAN, dtype=function_dtype(b))
+            comm.Allreduce(d_local, d_global, op=MPI.SUM)
+            d, = d_global
+            del d_local, d_global
+
+        function_set_values(b, function_get_values(b) + self._alpha * d)
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if self._x_equals_y:
