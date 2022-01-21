@@ -27,6 +27,7 @@ import pytest
 
 
 @pytest.mark.fenics
+@seed_test
 def test_overrides(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -49,10 +50,10 @@ def test_overrides(setup_test, test_leaks):
     def project_assemble_system_KrylovSolver(F):
         G = Function(space, name="G")
 
-        A, b = assemble_system(0.2 * inner(test, trial) * dx,
-                               0.3 * inner(test, F) * dx)
-        A, b = assemble_system(0.8 * inner(test, trial) * dx,
-                               0.7 * inner(test, F) * dx,
+        A, b = assemble_system(0.2 * inner(trial, test) * dx,
+                               0.3 * inner(F, test) * dx)
+        A, b = assemble_system(0.8 * inner(trial, test) * dx,
+                               0.7 * inner(F, test) * dx,
                                A_tensor=A, b_tensor=b, add_values=True)
         bc.apply(A, b)
 
@@ -66,8 +67,8 @@ def test_overrides(setup_test, test_leaks):
     def project_assemble_KrylovSolver(F):
         G = Function(space, name="G")
 
-        A = assemble(inner(test, trial) * dx)
-        b = assemble(inner(test, F) * dx)
+        A = assemble(inner(trial, test) * dx)
+        b = assemble(inner(F, test) * dx)
         bc.apply(A, b)
 
         solver = KrylovSolver(A, "gmres", "sor")
@@ -80,7 +81,7 @@ def test_overrides(setup_test, test_leaks):
     def project_assemble_mult_KrylovSolver(F):
         G = Function(space, name="G")
 
-        A = assemble(inner(test, trial) * dx)
+        A = assemble(inner(trial, test) * dx)
         b = A * F.vector()
         bc.apply(A, b)
 
@@ -94,7 +95,7 @@ def test_overrides(setup_test, test_leaks):
     def project_LinearVariationalSolver(F):
         G = Function(space, name="G")
 
-        eq = inner(test, trial) * dx == inner(test, F) * dx
+        eq = inner(trial, test) * dx == inner(F, test) * dx
         problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc)
         solver = LinearVariationalSolver(problem)
         solver.parameters.update(ls_parameters_cg)
@@ -105,12 +106,13 @@ def test_overrides(setup_test, test_leaks):
     def project_NonlinearVariationalSolver(F):
         G = Function(space, name="G")
 
-        eq = inner(test, G) * dx - inner(test, F) * dx
+        eq = inner(G, test) * dx - inner(F, test) * dx
         problem = NonlinearVariationalProblem(eq, G,
-                                              J=inner(test, trial) * dx,
+                                              J=inner(trial, test) * dx,
                                               bcs=bc)
         solver = NonlinearVariationalSolver(problem)
         solver.parameters["nonlinear_solver"] = "newton"
+        solver.parameters["symmetric"] = True
         solver.parameters["newton_solver"].update(ns_parameters_newton_cg)
         solver.solve()
 
@@ -126,7 +128,7 @@ def test_overrides(setup_test, test_leaks):
             G = project_fn(F)
 
             J = Functional(name="J")
-            J.assign(inner(G, G * (1 + G)) * dx)
+            J.assign(dot(G, G * (1 + G)) * dx)
             return G, J
 
         reset_manager("memory", {"drop_references": True})
@@ -135,7 +137,7 @@ def test_overrides(setup_test, test_leaks):
         stop_manager()
 
         error = Function(space, name="error")
-        solve(inner(test, trial) * dx == inner(test, F) * dx,
+        solve(inner(trial, test) * dx == inner(F, test) * dx,
               error, bc, solver_parameters=ls_parameters_cg)
         function_axpy(error, -1.0, G)
         assert function_linf_norm(error) < 1.0e-13

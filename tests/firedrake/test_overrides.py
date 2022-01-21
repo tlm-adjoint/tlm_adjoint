@@ -27,6 +27,7 @@ import pytest
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_overrides(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -45,8 +46,8 @@ def test_overrides(setup_test, test_leaks):
     def project_assemble_LinearSolver(F):
         G = Function(space, name="G")
 
-        A = assemble(inner(test, trial) * dx, bcs=bc)
-        b = assemble(inner(test, F) * dx)
+        A = assemble(inner(trial, test) * dx, bcs=bc)
+        b = assemble(inner(F, test) * dx)
 
         solver = LinearSolver(A, solver_parameters=ls_parameters_cg)
         solver.solve(G, b)
@@ -56,7 +57,7 @@ def test_overrides(setup_test, test_leaks):
     def project_LinearVariationalSolver(F):
         G = Function(space, name="G")
 
-        eq = inner(test, trial) * dx == inner(test, F) * dx
+        eq = inner(trial, test) * dx == inner(F, test) * dx
         problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc)
         solver = LinearVariationalSolver(
             problem, solver_parameters=ls_parameters_cg)
@@ -67,9 +68,9 @@ def test_overrides(setup_test, test_leaks):
     def project_NonlinearVariationalSolver(F):
         G = Function(space, name="G")
 
-        eq = inner(test, G) * dx - inner(test, F) * dx
+        eq = inner(G, test) * dx - inner(F, test) * dx
         problem = NonlinearVariationalProblem(eq, G,
-                                              J=inner(test, trial) * dx,
+                                              J=inner(trial, test) * dx,
                                               bcs=bc)
         solver = NonlinearVariationalSolver(
             problem, solver_parameters=ns_parameters_newton_cg)
@@ -85,7 +86,7 @@ def test_overrides(setup_test, test_leaks):
             G = project_fn(F)
 
             J = Functional(name="J")
-            J.assign(inner(G, G * (1 + G)) * dx)
+            J.assign(dot(G, G * (1 + G)) * dx)
             return G, J
 
         reset_manager("memory", {"drop_references": True})
@@ -94,7 +95,7 @@ def test_overrides(setup_test, test_leaks):
         stop_manager()
 
         error = Function(space, name="error")
-        solve(inner(test, trial) * dx == inner(test, F) * dx,
+        solve(inner(trial, test) * dx == inner(F, test) * dx,
               error, bc, solver_parameters=ls_parameters_cg)
         function_axpy(error, -1.0, G)
         assert function_linf_norm(error) < 1.0e-14
@@ -124,6 +125,7 @@ def test_overrides(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_Nullspace(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -133,15 +135,15 @@ def test_Nullspace(setup_test, test_leaks):
     def forward(F):
         psi = Function(space, name="psi")
 
-        solve(inner(grad(test), grad(trial)) * dx
-              == -inner(test, F * F) * dx, psi,
+        solve(inner(grad(trial), grad(test)) * dx
+              == -inner(F * F, test) * dx, psi,
               solver_parameters=ls_parameters_cg,
               nullspace=VectorSpaceBasis(constant=True),
               transpose_nullspace=VectorSpaceBasis(constant=True))
 
         J = Functional(name="J")
-        J.assign(inner(psi * psi, psi * psi) * dx
-                 + inner(grad(psi), grad(psi)) * dx)
+        J.assign((dot(psi, psi) ** 2) * dx
+                 + dot(grad(psi), grad(psi)) * dx)
 
         return psi, J
 
@@ -166,7 +168,7 @@ def test_Nullspace(setup_test, test_leaks):
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, F, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, F, tlm_order=1)
     assert min_order > 2.00

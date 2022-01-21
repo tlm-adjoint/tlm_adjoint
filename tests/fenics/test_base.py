@@ -255,8 +255,7 @@ ns_parameters_newton_cg = {"linear_solver": "cg",
                            "krylov_solver": {"relative_tolerance": 1.0e-14,
                                              "absolute_tolerance": 1.0e-16},
                            "relative_tolerance": 1.0e-13,
-                           "absolute_tolerance": 1.0e-15,
-                           "symmetric": True}
+                           "absolute_tolerance": 1.0e-15}
 
 ns_parameters_newton_gmres = {"linear_solver": "gmres",
                               "preconditioner": "sor",
