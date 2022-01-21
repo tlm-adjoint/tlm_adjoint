@@ -48,9 +48,9 @@ def oscillator_ref():
     T_n.assign(T_0)
     for n in range(nsteps):
         solve(
-            inner(test, (T_np1 - T_n) / dt) * dx
-            - inner(test[0], T_s[1]) * dx
-            + inner(test[1], sin(T_s[0])) * dx == 0,
+            inner((T_np1 - T_n) / dt, test) * dx
+            - inner(T_s[1], test[0]) * dx
+            + inner(sin(T_s[0]), test[1]) * dx == 0,
             T_np1,
             solver_parameters={"nonlinear_solver": "newton",
                                "newton_solver": ns_parameters_newton_gmres})
@@ -68,24 +68,24 @@ def diffusion_ref():
     kappa = Constant(1.0)
 
     mesh = UnitIntervalMesh(100)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
     T_n = Function(space, name="T_n")
     T_np1 = Function(space, name="T_np1")
 
-    T_n.interpolate(Expression("sin(pi * x[0]) + sin(10.0 * pi * x[0])",
-                    element=space.ufl_element()))
+    interpolate_expression(T_n, sin(pi * X[0]) + sin(10.0 * pi * X[0]))
     for n in range(n_steps):
-        solve(inner(test, trial / dt) * dx
-              + inner(grad(test), kappa * grad(trial)) * dx
-              == inner(test, T_n / dt) * dx,
+        solve(inner(trial / dt, test) * dx
+              + inner(kappa * grad(trial), grad(test)) * dx
+              == inner(T_n / dt, test) * dx,
               T_np1,
               DirichletBC(space, 1.0, "on_boundary"),
-              solver_parameters=ls_parameters_gmres)
+              solver_parameters=ls_parameters_cg)
         T_n, T_np1 = T_np1, T_n
 
-    return assemble(inner(T_n * T_n, T_n * T_n) * dx)
+    return assemble((dot(T_n, T_n) ** 2) * dx)
 
 
 @pytest.mark.fenics
@@ -98,6 +98,7 @@ def diffusion_ref():
                      "snaps_in_ram": 2}),
      ("multistage", {"format": "hdf5", "snaps_on_disk": 1,
                      "snaps_in_ram": 2})])
+@seed_test
 def test_oscillator(setup_test, test_leaks,
                     cp_method, cp_parameters):
     n_steps = 20
@@ -125,9 +126,9 @@ def test_oscillator(setup_test, test_leaks,
 
         solver_parameters = {"nonlinear_solver": "newton",
                              "newton_solver": ns_parameters_newton_gmres}
-        eq = EquationSolver(inner(test, (T_np1 - T_n) / dt) * dx
-                            - inner(test[0], T_s[1]) * dx
-                            + inner(test[1], sin(T_s[0])) * dx == 0,
+        eq = EquationSolver(inner((T_np1 - T_n) / dt, test) * dx
+                            - inner(T_s[1], test[0]) * dx
+                            + inner(sin(T_s[0]), test[1]) * dx == 0,
                             T_np1,
                             solver_parameters=solver_parameters)
 
@@ -138,7 +139,7 @@ def test_oscillator(setup_test, test_leaks,
                 new_block()
 
         J = Functional(name="J")
-        J.assign(inner(T_n[0], T_n[0]) * dx)
+        J.assign(dot(T_n[0], T_n[0]) * dx)
         return J
 
     start_manager()
@@ -175,6 +176,7 @@ def test_oscillator(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @pytest.mark.parametrize("n_steps", [1, 2, 5, 20])
+@seed_test
 def test_diffusion_1d_timestepping(setup_test, test_leaks,
                                    n_steps):
     configure_checkpointing("multistage",
@@ -203,9 +205,9 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
 
         system.add_solve(T_0, T[0])
 
-        system.add_solve(inner(test, trial) * dx
-                         + dt * inner(grad(test), kappa * grad(trial)) * dx
-                         == inner(test, T[n]) * dx,
+        system.add_solve(inner(trial, test) * dx
+                         + dt * inner(kappa * grad(trial), grad(test)) * dx
+                         == inner(T[n], test) * dx,
                          T[n + 1],
                          DirichletBC(space, 1.0, "on_boundary"),
                          solver_parameters=ls_parameters_cg)
@@ -217,7 +219,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
         system.finalize()
 
         J = Functional(name="J")
-        J.assign(inner(T[N] * T[N], T[N] * T[N]) * dx)
+        J.assign((dot(T[N], T[N]) ** 2) * dx)
         return J
 
     start_manager()
@@ -241,8 +243,9 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
         assert min_order > 1.99
 
         ddJ = Hessian(forward_J)
-        min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm)
-        assert min_order > 2.97
+        min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm,
+                                size=4)
+        assert min_order > 2.98
 
         min_order = taylor_test_tlm(forward_J, m0, tlm_order=1,
                                     dMs=None if dm is None else (dm,))
@@ -259,6 +262,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
 
 
 @pytest.mark.fenics
+@seed_test
 def test_diffusion_2d(setup_test, test_leaks):
     n_steps = 20
     configure_checkpointing("multistage",
@@ -284,9 +288,9 @@ def test_diffusion_2d(setup_test, test_leaks):
 
         AssignmentSolver(T_0, T_n).solve()
 
-        eq = (inner(test, trial / dt) * dx
-              + inner(grad(test), dot(kappa, grad(trial))) * dx
-              == inner(test, T_n / dt) * dx)
+        eq = (inner(trial / dt, test) * dx
+              + inner(dot(kappa, grad(trial)), grad(test)) * dx
+              == inner(T_n / dt, test) * dx)
         eqs = [EquationSolver(eq, T_np1, bc,
                               solver_parameters=ls_parameters_cg),
                AssignmentSolver(T_np1, T_n)]
@@ -298,7 +302,7 @@ def test_diffusion_2d(setup_test, test_leaks):
                 new_block()
 
         J = Functional(name="J")
-        J.assign(inner(T_np1, T_np1) * dx)
+        J.assign(dot(T_np1, T_np1) * dx)
 
         return J
 

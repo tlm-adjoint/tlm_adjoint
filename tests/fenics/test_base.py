@@ -242,7 +242,8 @@ def interpolate_expression(F, ex):
 ls_parameters_cg = {"linear_solver": "cg",
                     "preconditioner": "sor",
                     "krylov_solver": {"relative_tolerance": 1.0e-14,
-                                      "absolute_tolerance": 1.0e-16}}
+                                      "absolute_tolerance": 1.0e-16},
+                    "symmetric": True}
 
 ls_parameters_gmres = {"linear_solver": "gmres",
                        "preconditioner": "sor",
@@ -254,7 +255,8 @@ ns_parameters_newton_cg = {"linear_solver": "cg",
                            "krylov_solver": {"relative_tolerance": 1.0e-14,
                                              "absolute_tolerance": 1.0e-16},
                            "relative_tolerance": 1.0e-13,
-                           "absolute_tolerance": 1.0e-15}
+                           "absolute_tolerance": 1.0e-15,
+                           "symmetric": True}
 
 ns_parameters_newton_gmres = {"linear_solver": "gmres",
                               "preconditioner": "sor",
