@@ -74,8 +74,6 @@ def setup_test():
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    np.random.seed(14012313 + MPI.COMM_WORLD.rank)
-
 
 def seed_test(fn):
     @functools.wraps(fn)
