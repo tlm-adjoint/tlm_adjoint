@@ -21,7 +21,9 @@
 from tlm_adjoint.numpy import *
 from tlm_adjoint.numpy import manager as _manager
 
+import functools
 import gc
+import hashlib
 import logging
 import numpy as np
 import os
@@ -35,7 +37,9 @@ __all__ = \
         "info",
 
         "run_example",
+        "seed_test",
         "setup_test",
+        "test_default_dtypes",
         "test_leaks"
     ]
 
@@ -51,6 +55,26 @@ def setup_test():
     np.random.seed(14012313)
 
     set_default_dtype(np.float64)
+
+
+def seed_test(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
+        h = hashlib.sha256()
+        h.update(fn.__name__.encode("utf-8"))
+        h.update(str(args).encode("utf-8"))
+        h.update(str(sorted(kwargs.items(), key=lambda e: e[0])).encode("utf-8"))  # noqa: E501
+        seed = int(h.hexdigest(), 16)
+        seed %= 2 ** 32
+        np.random.seed(seed)
+        return fn(*args, **kwargs)
+    return wrapped_fn
+
+
+@pytest.fixture(params=[{"default_dtype": np.float64},
+                        {"default_dtype": np.complex128}])
+def test_default_dtypes(request):
+    set_default_dtype(request.param["default_dtype"])
 
 
 function_ids = {}
