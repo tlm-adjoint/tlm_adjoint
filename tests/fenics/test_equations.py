@@ -962,7 +962,7 @@ def test_form_binding(setup_test, test_leaks,
 
         error = function_copy(assembled_form_ref)
         function_axpy(error, -1.0, assembled_form)
-        assert function_linf_norm(error) == 0.0
+        assert function_linf_norm(error) < 1.0e-16
 
 
 @pytest.mark.fenics
