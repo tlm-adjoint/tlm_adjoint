@@ -299,8 +299,8 @@ class FunctionInterface(_FunctionInterface):
     def _scalar_value(self):
         # assert function_is_scalar(self)
         with self.dat.vec_ro as x_v:
-            max = x_v.max()[1]
-        return max
+            value = x_v.sum() / x_v.getSize()
+        return value
 
 
 def _Function__init__(self, *args, **kwargs):

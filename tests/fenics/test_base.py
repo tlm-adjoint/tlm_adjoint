@@ -74,8 +74,6 @@ def setup_test():
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    np.random.seed(14012313 + MPI.COMM_WORLD.rank)
-
 
 def seed_test(fn):
     @functools.wraps(fn)
@@ -242,7 +240,8 @@ def interpolate_expression(F, ex):
 ls_parameters_cg = {"linear_solver": "cg",
                     "preconditioner": "sor",
                     "krylov_solver": {"relative_tolerance": 1.0e-14,
-                                      "absolute_tolerance": 1.0e-16}}
+                                      "absolute_tolerance": 1.0e-16},
+                    "symmetric": True}
 
 ls_parameters_gmres = {"linear_solver": "gmres",
                        "preconditioner": "sor",

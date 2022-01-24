@@ -18,15 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from fenics import *
-from tlm_adjoint.fenics import *
+from firedrake import *
+from tlm_adjoint.firedrake import *
 
 from test_base import *
 
 import pytest
 
 
-@pytest.mark.fenics
+@pytest.mark.firedrake
 @seed_test
 def test_FunctionSpace_interface(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
@@ -44,18 +44,7 @@ def test_FunctionSpace_interface(setup_test, test_leaks):
     assert space_id(space) == space_id(function_space(F_copy))
     assert space_id(space) == space_id(F_copy.function_space())
 
-    F_0 = Function(F, 0)
-    assert space_id(function_space(F_0)) == space_id(F_0.function_space())
-    assert space_id(space) != space_id(function_space(F_0))
-    assert space_id(space) != space_id(F_0.function_space())
-
     F_0 = F.split()[0]
     assert space_id(function_space(F_0)) == space_id(F_0.function_space())
     assert space_id(space) != space_id(function_space(F_0))
     assert space_id(space) != space_id(F_0.function_space())
-
-    F_0 = F.split(deepcopy=True)[0]
-    assert space_id(function_space(F_0)) == space_id(F_0.function_space())
-    assert space_id(space) != space_id(function_space(F_0))
-    assert space_id(space) != space_id(F_0.function_space())
-    Function(F_0.function_space())

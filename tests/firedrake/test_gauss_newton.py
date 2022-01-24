@@ -25,7 +25,6 @@ from tlm_adjoint.firedrake.backend_code_generator_interface import \
 
 from test_base import *
 
-import mpi4py.MPI as MPI
 import numpy as np
 import pytest
 
@@ -75,7 +74,12 @@ def test_GaussNewton(setup_test, test_leaks):
 
     for i in range(20):
         dm = Function(space, static=True)
-        function_set_values(dm, np.random.random(function_local_size(dm)))
+        dm_arr = np.random.random(function_local_size(dm))
+        if issubclass(function_dtype(dm), (complex, np.complexfloating)):
+            dm_arr = dm_arr + 1.0j * np.random.random(function_local_size(dm))
+        function_set_values(dm, dm_arr)
+        del dm_arr
+
         _, _, H_action = H.action(F, function_copy(dm, static=True))
         H_action_GN = H_GN.action(F, dm)
 
@@ -85,9 +89,9 @@ def test_GaussNewton(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@seed_test
 def test_CachedGaussNewton(setup_test):
     configure_checkpointing("memory", {"drop_references": False})
-    np.random.seed(41930924 + MPI.COMM_WORLD.rank)
 
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
@@ -134,7 +138,12 @@ def test_CachedGaussNewton(setup_test):
 
     for i in range(20):
         dm = Function(space, static=True)
-        function_set_values(dm, np.random.random(function_local_size(dm)))
+        dm_arr = np.random.random(function_local_size(dm))
+        if issubclass(function_dtype(dm), (complex, np.complexfloating)):
+            dm_arr = dm_arr + 1.0j * np.random.random(function_local_size(dm))
+        function_set_values(dm, dm_arr)
+        del dm_arr
+
         _, _, H_action = H.action(F, function_copy(dm, static=True))
         H_action_GN = H_GN.action(F, dm)
 

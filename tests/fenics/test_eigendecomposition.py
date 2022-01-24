@@ -26,6 +26,7 @@ from tlm_adjoint.fenics.backend_code_generator_interface import \
 from test_base import *
 
 import numpy as np
+import petsc4py.PETSc as PETSc
 import pytest
 
 
@@ -68,19 +69,27 @@ def test_NHEP(setup_test, test_leaks):
         matrix_multiply(N, function_vector(x), tensor=function_vector(y))
         return function_get_values(y)
 
-    lam, (V_r, V_i) = eigendecompose(space, N_action)
+    lam, V = eigendecompose(space, N_action)
     diff = Function(space)
-    assert len(lam) == len(V_r)
-    assert len(lam) == len(V_i)
-    for lam_val, v_r, v_i in zip(lam, V_r, V_i):
-        function_set_values(diff, N_action(v_r))
-        function_axpy(diff, -lam_val.real, v_r)
-        function_axpy(diff, +lam_val.imag, v_i)
-        assert function_linf_norm(diff) < 1.0e-15
-        function_set_values(diff, N_action(v_i))
-        function_axpy(diff, -lam_val.real, v_i)
-        function_axpy(diff, -lam_val.imag, v_r)
-        assert function_linf_norm(diff) < 1.0e-15
+    if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
+        assert len(lam) == len(V)
+        for lam_val, v in zip(lam, V):
+            function_set_values(diff, N_action(v))
+            function_axpy(diff, -lam_val, v)
+            assert function_linf_norm(diff) < 1.0e-14
+    else:
+        V_r, V_i = V
+        assert len(lam) == len(V_r)
+        assert len(lam) == len(V_i)
+        for lam_val, v_r, v_i in zip(lam, V_r, V_i):
+            function_set_values(diff, N_action(v_r))
+            function_axpy(diff, -lam_val.real, v_r)
+            function_axpy(diff, +lam_val.imag, v_i)
+            assert function_linf_norm(diff) < 1.0e-15
+            function_set_values(diff, N_action(v_i))
+            function_axpy(diff, -lam_val.real, v_i)
+            function_axpy(diff, -lam_val.imag, v_r)
+            assert function_linf_norm(diff) < 1.0e-15
 
 
 @pytest.mark.fenics
@@ -119,7 +128,13 @@ def test_CachedHessian(setup_test):
 
     zeta = Function(space, name="zeta", static=True)
     for i in range(5):
-        function_set_values(zeta, np.random.random(function_local_size(zeta)))
+        zeta_arr = np.random.random(function_local_size(zeta))
+        if issubclass(function_dtype(zeta), (complex, np.complexfloating)):
+            zeta_arr = zeta_arr \
+                + 1.0j * np.random.random(function_local_size(zeta))
+        function_set_values(zeta, zeta_arr)
+        del zeta_arr
+
         # Leads to an inconsistency if the stored value is not used
         zero.assign(np.NAN)
         _, _, ddJ_opt = H_opt.action(F, zeta)
@@ -134,10 +149,12 @@ def test_CachedHessian(setup_test):
     # Test consistency of eigenvalues
 
     lam, _ = eigendecompose(space, H.action_fn(F))
-    assert max(abs(lam.imag)) == 0.0
+    if not issubclass(space_dtype(space), (complex, np.complexfloating)):
+        assert max(abs(lam.imag)) == 0.0
 
     lam_opt, _ = eigendecompose(space, H_opt.action_fn(F))
-    assert max(abs(lam_opt.imag)) == 0.0
+    if not issubclass(space_dtype(space), (complex, np.complexfloating)):
+        assert max(abs(lam_opt.imag)) == 0.0
 
     error = (np.array(sorted(lam.real), dtype=np.float64)
              - np.array(sorted(lam_opt.real), dtype=np.float64))

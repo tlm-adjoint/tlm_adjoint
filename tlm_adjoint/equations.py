@@ -19,12 +19,12 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import finalize_adjoint_derivative_action, function_assign, \
-    function_axpy, function_copy, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, \
-    function_is_checkpointed, function_local_indices, function_new, \
-    function_replacement, function_set_values, function_space, function_sum, \
-    function_update_caches, function_update_state, function_zero, \
-    is_function, space_new, subtract_adjoint_derivative_action
+    function_axpy, function_comm, function_copy, function_dtype, \
+    function_get_values, function_global_size, function_id, function_inner, \
+    function_is_checkpointed, function_local_indices, function_local_size, \
+    function_new, function_replacement, function_set_values, function_space, \
+    function_sum, function_update_caches, function_update_state, \
+    function_zero, is_function, space_new, subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
@@ -63,6 +63,8 @@ __all__ = \
         "Matrix",
         "RHS",
 
+        "DotProductRHS",
+        "DotProductSolver",
         "InnerProductRHS",
         "InnerProductSolver",
         "MatrixActionRHS",
@@ -1700,6 +1702,11 @@ class MatrixActionSolver(LinearEquation):
         super().__init__(MatrixActionRHS(A, Y), X)
 
 
+class DotProductSolver(LinearEquation):
+    def __init__(self, y, z, x, alpha=1.0):
+        super().__init__(DotProductRHS(y, z, alpha=alpha), x)
+
+
 class InnerProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0, M=None):
         super().__init__(InnerProductRHS(y, z, alpha=alpha, M=M), x)
@@ -1791,6 +1798,107 @@ class MatrixActionRHS(RHS):
                 tlm_B.append(tlm_b)
             else:
                 tlm_B.extend(tlm_b)
+
+        return tlm_B
+
+
+class DotProductRHS(RHS):
+    def __init__(self, x, y, alpha=1.0):
+        """
+        Represents a dot product of the form, y^T x, with *no* complex
+        conjugation.
+
+        Arguments:
+
+        x, y   Dot product arguments. May be the same function.
+        alpha  (Optional) Scale the result of the dot product by alpha.
+        """
+
+        x_equals_y = x == y
+        if x_equals_y:
+            deps = [x]
+        else:
+            deps = [x, y]
+
+        super().__init__(deps, nl_deps=deps)
+        self._x = x
+        self._y = y
+        self._x_equals_y = x_equals_y
+        self._alpha = alpha
+
+    def drop_references(self):
+        super().drop_references()
+        self._x = function_replacement(self._x)
+        self._y = function_replacement(self._y)
+
+    def add_forward(self, b, deps):
+        if self._x_equals_y:
+            (x,), (y,) = deps, deps
+        else:
+            x, y = deps
+
+        if function_local_size(y) != function_local_size(x):
+            raise EquationException("Invalid space")
+
+        d = (function_get_values(y) * function_get_values(x)).sum()
+        comm = function_comm(b)
+        if comm.size > 1:
+            import mpi4py.MPI as MPI
+            d_local = np.array([d], dtype=function_dtype(b))
+            d_global = np.full((1,), np.NAN, dtype=function_dtype(b))
+            comm.Allreduce(d_local, d_global, op=MPI.SUM)
+            d, = d_global
+            del d_local, d_global
+
+        function_set_values(b, function_get_values(b) + self._alpha * d)
+
+    def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
+        if self._x_equals_y:
+            if dep_index == 0:
+                x, = nl_deps
+                alpha = -2.0 * self._alpha.conjugate() * function_sum(adj_x)
+                function_set_values(
+                    b,
+                    function_get_values(b)
+                    + alpha * function_get_values(x).conjugate())
+            else:
+                raise EquationException("dep_index out of bounds")
+        elif dep_index == 0:
+            x, y = nl_deps
+            alpha = -self._alpha.conjugate() * function_sum(adj_x)
+            function_set_values(
+                b,
+                function_get_values(b)
+                + alpha * function_get_values(y).conjugate())
+        elif dep_index == 1:
+            x, y = nl_deps
+            alpha = -self._alpha.conjugate() * function_sum(adj_x)
+            function_set_values(
+                b,
+                function_get_values(b)
+                + alpha * function_get_values(x).conjugate())
+        else:
+            raise EquationException("dep_index out of bounds")
+
+    def tangent_linear_rhs(self, M, dM, tlm_map):
+        tlm_B = []
+
+        if self._x_equals_y:
+            x, = self.dependencies()
+
+            tlm_x = get_tangent_linear(x, M, dM, tlm_map)
+            if tlm_x is not None:
+                tlm_B.append(DotProductRHS(tlm_x, x, alpha=2.0 * self._alpha))
+        else:
+            x, y = self.dependencies()
+
+            tlm_x = get_tangent_linear(x, M, dM, tlm_map)
+            if tlm_x is not None:
+                tlm_B.append(DotProductRHS(tlm_x, y, alpha=self._alpha))
+
+            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+            if tlm_y is not None:
+                tlm_B.append(DotProductRHS(x, tlm_y, alpha=self._alpha))
 
         return tlm_B
 
