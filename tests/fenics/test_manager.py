@@ -169,7 +169,7 @@ def test_empty(setup_test, test_leaks):
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert complex(dJ) == 0.0
+    assert function_scalar_value(dJ) == 0.0
 
 
 @pytest.mark.fenics

@@ -241,9 +241,9 @@ def test_FixedPointSolver(setup_test, test_leaks):
     J = forward(a, b)
     stop_manager()
 
-    x_val = complex(x)
-    a_val = complex(a)
-    b_val = complex(b)
+    x_val = function_scalar_value(x)
+    a_val = function_scalar_value(a)
+    b_val = function_scalar_value(b)
     assert abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14
 
     J_val = J.value()

@@ -29,9 +29,8 @@ import pytest
 
 
 @pytest.mark.numpy
-def test_EmptySolver(setup_test, test_leaks):
-    dtype = default_dtype()
-
+@seed_test
+def test_EmptySolver(setup_test, test_leaks, test_default_dtypes):
     class EmptySolver(Equation):
         def __init__(self):
             super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
@@ -40,20 +39,19 @@ def test_EmptySolver(setup_test, test_leaks):
             pass
 
     space = FunctionSpace(100)
-    space_0 = FunctionSpace(1)
 
     def forward(F):
         EmptySolver().solve()
 
-        F_norm_sq = Function(space_0, name="F_norm_sq")
-        NormSqSolver(F, F_norm_sq).solve()
+        F_dot_F = Constant(name="F_dot_F")
+        DotProductSolver(F, F, F_dot_F).solve()
 
-        J = Functional(name="J", space=space_0)
-        NormSqSolver(F_norm_sq, J.fn()).solve()
+        J = Functional(name="J")
+        DotProductSolver(F_dot_F, F_dot_F, J.fn()).solve()
         return J
 
     F = Function(space, name="F")
-    F.vector()[:] = np.arange(len(F.vector()), dtype=dtype)
+    F.vector()[:] = np.arange(len(F.vector()), dtype=function_dtype(F))
 
     start_manager()
     J = forward(F)
@@ -89,23 +87,23 @@ def test_EmptySolver(setup_test, test_leaks):
 
 
 @pytest.mark.numpy
-def test_empty(setup_test, test_leaks):
-    space = FunctionSpace(1)
-
+@seed_test
+def test_empty(setup_test, test_leaks, test_default_dtypes):
     def forward(m):
-        return Functional(name="J", space=space)
+        return Functional(name="J")
 
-    m = Function(space, name="m", static=True)
+    m = Constant(name="m", static=True)
 
     start_manager()
     J = forward(m)
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert dJ.vector()[0] == 0.0
+    assert function_scalar_value(dJ) == 0.0
 
 
 @pytest.mark.numpy
+@seed_test
 def test_Referrers_LinearEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class IdentityMatrix(Matrix):
@@ -249,7 +247,8 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
 
 
 @pytest.mark.numpy
-def test_Referrers_FixedPointEquation(setup_test, test_leaks):
+@seed_test
+def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtypes):  # noqa: E501
     def forward(m, forward_run=False):
         class NewtonIterationSolver(Equation):
             def __init__(self, m, x0, x):
@@ -396,7 +395,8 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (200, 20),
                                                    (200, 50),
                                                    (1000, 50)])
-def test_binomial_checkpointing(setup_test, test_leaks,
+@seed_test
+def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
                                 n_steps, snaps_in_ram):
     _minimal_n_extra_steps = {}
 
@@ -444,7 +444,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
                 new_block()
 
         J = Functional(name="J")
-        NormSqSolver(m, J.fn()).solve()
+        DotProductSolver(m, m, J.fn()).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -467,7 +467,8 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
 @pytest.mark.numpy
 @pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
-def test_TangentLinearMap_finalizes(setup_test, test_leaks,
+@seed_test
+def test_TangentLinearMap_finalizes(setup_test, test_leaks, test_default_dtypes,  # noqa: E501
                                     max_depth):
     m = Constant(1.0, name="m")
     dm = Constant(1.0, name="dm")
@@ -475,5 +476,5 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
 
     start_manager()
     x = Constant(0.0, name="x")
-    NormSqSolver(m, x).solve()
+    DotProductSolver(m, m, x).solve()
     stop_manager()

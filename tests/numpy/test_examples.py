@@ -28,5 +28,6 @@ import pytest
 
 @pytest.mark.numpy
 @pytest.mark.example
+@seed_test
 def test_diffusion(setup_test, test_leaks):
     run_example(os.path.join("diffusion", "diffusion.py"))
