@@ -27,7 +27,6 @@ from test_base import *
 
 import numpy as np
 import pytest
-import ufl
 
 
 @pytest.mark.firedrake
@@ -57,24 +56,21 @@ def test_GaussNewton(setup_test, test_leaks):
                  + 0.5 * eps * dot(F, F) * dx)  # Prior
         return J
 
-    def adjoint_R_inv_action(x):
+    def R_inv_action(x):
         y = function_new(x)
-        assemble(inner(ufl.conj(grad(x)), grad(test)) * dx,
-                 tensor=function_vector(y))
+        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
         return y
 
-    def adjoint_B_inv_action(x):
+    def B_inv_action(x):
         y = function_new(x)
-        assemble(eps * inner(ufl.conj(x), test) * dx,
-                 tensor=function_vector(y))
+        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
         return y
 
     F = Function(space, name="F")
     interpolate_expression(F, sin(pi * X[0]) * exp(X[1]))
 
     H = Hessian(forward_J)
-    H_GN = GaussNewton(forward, adjoint_R_inv_action,
-                       adjoint_B_inv_action=adjoint_B_inv_action)
+    H_GN = GaussNewton(forward, R_inv_action, B_inv_action=B_inv_action)
 
     for i in range(20):
         dm = Function(space, static=True)
@@ -121,16 +117,14 @@ def test_CachedGaussNewton(setup_test):
                  + 0.5 * eps * dot(F, F) * dx)  # Prior
         return J
 
-    def adjoint_R_inv_action(x):
+    def R_inv_action(x):
         y = function_new(x)
-        assemble(inner(ufl.conj(grad(x)), grad(test)) * dx,
-                 tensor=function_vector(y))
+        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
         return y
 
-    def adjoint_B_inv_action(x):
+    def B_inv_action(x):
         y = function_new(x)
-        assemble(eps * inner(ufl.conj(x), test) * dx,
-                 tensor=function_vector(y))
+        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
         return y
 
     F = Function(space, name="F")
@@ -140,8 +134,7 @@ def test_CachedGaussNewton(setup_test):
     start_manager()
     u = forward(F)
     stop_manager()
-    H_GN = CachedGaussNewton(u, adjoint_R_inv_action,
-                             adjoint_B_inv_action=adjoint_B_inv_action)
+    H_GN = CachedGaussNewton(u, R_inv_action, B_inv_action=B_inv_action)
 
     for i in range(20):
         dm = Function(space, static=True)

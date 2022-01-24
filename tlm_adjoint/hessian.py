@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_axpy, function_copy, function_get_values, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_new
+from .interface import function_axpy, function_copy, function_dtype, \
+    function_get_values, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_name, function_new, function_set_values
 
 from .caches import clear_caches
 from .equations import InnerProductSolver
@@ -28,7 +28,7 @@ from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
-import warnings
+import numpy as np
 
 __all__ = \
     [
@@ -191,35 +191,9 @@ class GeneralHessian(Hessian):
 
 
 class GaussNewton:
-    def __init__(self, adjoint_R_inv_action=None, adjoint_B_inv_action=None,
-                 *, R_inv_action=None, B_inv_action=None):
-        if adjoint_R_inv_action is None:
-            if R_inv_action is None:
-                raise HessianException("adjoint_R_inv_action argument "
-                                       "required")
-            else:
-                warnings.warn("'R_inv_action argument' is deprecated -- "
-                              "use 'adjoint_R_inv_action' instead",
-                              DeprecationWarning, stacklevel=2)
-                adjoint_R_inv_action = R_inv_action
-        elif R_inv_action is not None:
-            raise HessianException("Cannot supply both adjoint_R_inv_action "
-                                   "and R_inv_action arguments")
-        del R_inv_action
-
-        if adjoint_B_inv_action is None:
-            if B_inv_action is not None:
-                warnings.warn("'B_inv_action argument' is deprecated -- "
-                              "use 'adjoint_B_inv_action' instead",
-                              DeprecationWarning, stacklevel=2)
-                adjoint_B_inv_action = B_inv_action
-        elif B_inv_action is not None:
-            raise HessianException("Cannot supply both adjoint_B_inv_action "
-                                   "and B_inv_action arguments")
-        del B_inv_action
-
-        self._adjoint_R_inv_action = adjoint_R_inv_action
-        self._adjoint_B_inv_action = adjoint_B_inv_action
+    def __init__(self, R_inv_action, B_inv_action=None):
+        self._R_inv_action = R_inv_action
+        self._B_inv_action = B_inv_action
 
     def _setup_manager(self, M, dM, M0=None):
         raise HessianException("Abstract method not overridden")
@@ -231,13 +205,21 @@ class GaussNewton:
                 M0=None if M0 is None else (M0,))
             return ddJ
 
+        def function_copy_conj(x):
+            if issubclass(function_dtype(x), (float, np.floating)):
+                return function_copy(x)
+            else:
+                x_conj = function_new(x)
+                function_set_values(x_conj, function_get_values(x).conjugate())
+                return x_conj
+
         manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
 
         # J dM
         tau_X = tuple(manager.tlm(M, dM, x) for x in X)
-        # R^{-1} J dM
-        R_inv_tau_X = self._adjoint_R_inv_action(
-            *tuple(function_copy(tau_x) for tau_x in tau_X))
+        # R^{-1} conj(J dM)
+        R_inv_tau_X = self._R_inv_action(
+            *tuple(function_copy_conj(tau_x) for tau_x in tau_X))
         if not isinstance(R_inv_tau_X, Sequence):
             R_inv_tau_X = (R_inv_tau_X,)
 
@@ -253,13 +235,13 @@ class GaussNewton:
             J.addto(J_term, manager=manager, tlm=False)
         manager.stop()
 
-        # Likelihood term: J^* R^{-1} J dM
+        # Likelihood term: J^* R^{-1} conj(J dM)
         ddJ = manager.compute_gradient(J, M)
 
-        # Prior term
-        if self._adjoint_B_inv_action is not None:
-            B_inv_dM = self._adjoint_B_inv_action(
-                *tuple(function_copy(dm) for dm in dM))
+        # Prior term: B^{-1} conj(dM)
+        if self._B_inv_action is not None:
+            B_inv_dM = self._B_inv_action(
+                *tuple(function_copy_conj(dm) for dm in dM))
             if not isinstance(B_inv_dM, Sequence):
                 B_inv_dM = (B_inv_dM,)
             assert len(ddJ) == len(B_inv_dM)
@@ -277,15 +259,11 @@ class GaussNewton:
 
 
 class GeneralGaussNewton(GaussNewton):
-    def __init__(self, forward,
-                 adjoint_R_inv_action, adjoint_B_inv_action=None,
-                 *, R_inv_action=None, B_inv_action=None, manager=None):
+    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
         if manager is None:
             manager = _manager().new()
 
-        super().__init__(
-            adjoint_R_inv_action, adjoint_B_inv_action=adjoint_B_inv_action,
-            R_inv_action=R_inv_action, B_inv_action=B_inv_action)
+        super().__init__(R_inv_action, B_inv_action=B_inv_action)
         self._forward = forward
         self._manager = manager
 
