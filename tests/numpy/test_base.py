@@ -52,8 +52,6 @@ def setup_test():
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    np.random.seed(14012313)
-
     set_default_dtype(np.float64)
 
 
