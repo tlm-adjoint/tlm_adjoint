@@ -41,7 +41,7 @@ N_t = 10
 reset_manager("multistage", {"blocks": N_t, "snaps_on_disk": 1,
                              "snaps_in_ram": 1})
 stop_manager()
-np.random.seed(16143324)
+np.random.seed(48377229)
 
 dtype = default_dtype()
 
@@ -140,7 +140,7 @@ def forward_reference(psi_0, kappa):
         psi, fail = cg(lA, B.dot(psi), x0=psi)
         assert fail == 0
     J = Functional(name="J")
-    J.fn().vector()[:] = psi.dot(mass.dot(psi))
+    J.fn().vector()[:] = (psi + 1.0).dot(mass.dot(psi + 1.0))
     return J
 
 
@@ -232,8 +232,13 @@ def forward(psi_0, kappa):
         if n < N_t - 1:
             new_block()
 
+    one = Function(space, name="one", static=True)
+    function_assign(one, 1.0)
+    phi = Function(space, name="phi")
+    AxpySolver(psi_n, 1.0, one, phi).solve()
+
     J = Functional(name="J")
-    NormSqSolver(psi_n, J.fn(), M=ConstantMatrix(mass)).solve()
+    NormSqSolver(phi, J.fn(), M=ConstantMatrix(mass)).solve()
 
     return J
 
@@ -273,14 +278,14 @@ def forward_reference_J(psi_0):
 
 
 min_order = taylor_test(forward_reference_J, psi_0, J_val=J_ref.value(),
-                        dJ=dJ_dpsi_0, seed=1.0e-5)
+                        dJ=dJ_dpsi_0, seed=1.0e-3)
 assert min_order > 1.99
 
-min_order = taylor_test_tlm(forward_J, psi_0, tlm_order=1, seed=1.0e-6)
+min_order = taylor_test_tlm(forward_J, psi_0, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward_J, psi_0, adjoint_order=1,
-                                    seed=1.0e-6)
+                                    seed=1.0e-3)
 assert min_order > 1.99
 
 
@@ -293,20 +298,20 @@ def forward_reference_J(kappa):
 
 
 min_order = taylor_test(forward_reference_J, kappa, J_val=J_ref.value(),
-                        dJ=dJ_dkappa, seed=5.0e-3)
-assert min_order > 1.98
+                        dJ=dJ_dkappa, seed=1.0e-3)
+assert min_order > 1.99
 
 ddJ = Hessian(forward_J)
 min_order = taylor_test(forward_reference_J, kappa, J_val=J_ref.value(),
-                        ddJ=ddJ, seed=5.0e-3)
-assert min_order > 2.98
+                        ddJ=ddJ, seed=1.0e-2)
+assert min_order > 2.97
 
-min_order = taylor_test_tlm(forward_J, kappa, tlm_order=1, seed=1.0e-4)
+min_order = taylor_test_tlm(forward_J, kappa, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99
 
 min_order = taylor_test_tlm_adjoint(forward_J, kappa, adjoint_order=1,
                                     seed=1.0e-3)
-assert min_order > 1.99
+assert min_order > 2.00
 
 min_order = taylor_test_tlm_adjoint(forward_J, kappa, adjoint_order=2,
                                     seed=1.0e-3)
