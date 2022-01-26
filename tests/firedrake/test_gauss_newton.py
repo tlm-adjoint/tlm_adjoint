@@ -27,6 +27,7 @@ from test_base import *
 
 import numpy as np
 import pytest
+import ufl
 
 
 @pytest.mark.firedrake
