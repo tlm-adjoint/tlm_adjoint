@@ -58,12 +58,14 @@ def test_GaussNewton(setup_test, test_leaks):
 
     def R_inv_action(x):
         y = function_new(x)
-        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
+        assemble(inner(grad(ufl.conj(x)), grad(test)) * dx,
+                 tensor=function_vector(y))
         return y
 
     def B_inv_action(x):
         y = function_new(x)
-        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
+        assemble(eps * inner(ufl.conj(x), test) * dx,
+                 tensor=function_vector(y))
         return y
 
     F = Function(space, name="F")
@@ -119,12 +121,14 @@ def test_CachedGaussNewton(setup_test):
 
     def R_inv_action(x):
         y = function_new(x)
-        assemble(inner(grad(x), grad(test)) * dx, tensor=function_vector(y))
+        assemble(inner(grad(ufl.conj(x)), grad(test)) * dx,
+                 tensor=function_vector(y))
         return y
 
     def B_inv_action(x):
         y = function_new(x)
-        assemble(eps * inner(x, test) * dx, tensor=function_vector(y))
+        assemble(eps * inner(ufl.conj(x), test) * dx,
+                 tensor=function_vector(y))
         return y
 
     F = Function(space, name="F")
