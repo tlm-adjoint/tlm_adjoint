@@ -25,6 +25,7 @@ from test_base import *
 
 import copy
 import mpi4py.MPI as MPI
+import numpy as np
 import pytest
 
 
@@ -152,26 +153,22 @@ def test_oscillator(setup_test, test_leaks,
 
     dJ = compute_gradient(J, T_0)
 
-    dm = Function(space, name="dm", static=True)
-    dm.assign(Constant((1.0, 0.0)))
-
-    min_order = taylor_test(forward, T_0, J_val=J_val, dJ=dJ, dM=dm)
+    min_order = taylor_test(forward, T_0, J_val=J_val, dJ=dJ)
     assert min_order > 2.00
 
     ddJ = Hessian(forward)
-    min_order = taylor_test(forward, T_0, J_val=J_val, ddJ=ddJ, dM=dm)
-    assert min_order > 3.00
+    min_order = taylor_test(forward, T_0, J_val=J_val, ddJ=ddJ,
+                            seed=0.1)
+    assert min_order > 2.99
 
-    min_order = taylor_test_tlm(forward, T_0, tlm_order=1, dMs=(dm,))
+    min_order = taylor_test_tlm(forward, T_0, tlm_order=1)
     assert min_order > 2.00
 
-    min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=1,
-                                        dMs=(dm,))
+    min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=1)
     assert min_order > 2.00
 
-    min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=2,
-                                        dMs=(dm, dm))
-    assert min_order > 2.00
+    min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=2)
+    assert min_order > 1.99
 
 
 @pytest.mark.fenics
@@ -231,33 +228,39 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
         J_val_ref = diffusion_ref()
         assert abs(J_val - J_val_ref) < 1.0e-12
 
-    controls = [T_0, kappa]
-    dJs = compute_gradient(J, controls)
+    dJs = compute_gradient(J, [T_0, kappa])
 
-    for m, m0, forward_J, dJ, dm in \
-            [(controls[0], T_0, lambda T_0: forward(T_0, kappa), dJs[0],
-              None),
-             (controls[1], kappa, lambda kappa: forward(T_0, kappa), dJs[1],
-              Constant(1.0, name="dm", static=True))]:
-        min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, dM=dm)
+    if issubclass(function_dtype(kappa), (complex, np.complexfloating)):
+        dm_kappa = None
+    else:
+        dm_kappa = Constant(1.0, name="dm_kappa", static=True)
+    for m, forward_J, dJ, dm in \
+            [(T_0, lambda T_0: forward(T_0, kappa), dJs[0], None),
+             (kappa, lambda kappa: forward(T_0, kappa), dJs[1], dm_kappa)]:
+        min_order = taylor_test(
+            forward_J, m, J_val=J_val, dJ=dJ,
+            dM=dm)
         assert min_order > 1.99
 
         ddJ = Hessian(forward_J)
-        min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm,
-                                size=4)
+        min_order = taylor_test(
+            forward_J, m, J_val=J_val, ddJ=ddJ, size=4,
+            dM=dm)
         assert min_order > 2.98
 
-        min_order = taylor_test_tlm(forward_J, m0, tlm_order=1,
-                                    dMs=None if dm is None else (dm,))
-        assert min_order > 1.99
-
-        min_order = taylor_test_tlm_adjoint(forward_J, m0, adjoint_order=1,
-                                            dMs=None if dm is None else (dm,))
+        min_order = taylor_test_tlm(
+            forward_J, m, tlm_order=1,
+            dMs=None if dm is None else (dm,))
         assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(
-            forward_J, m0, adjoint_order=2,
-            dMs=None if dm is None else (dm, dm), seed=1.0e-3)
+            forward_J, m, adjoint_order=1,
+            dMs=None if dm is None else (dm,))
+        assert min_order > 1.99
+
+        min_order = taylor_test_tlm_adjoint(
+            forward_J, m, adjoint_order=2, seed=1.0e-3,
+            dMs=None if dm is None else (dm, dm))
         assert min_order > 1.99
 
 
