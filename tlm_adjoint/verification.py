@@ -243,13 +243,13 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
-    logger.info(f"Error norms, no adjoint   = {error_norms_0}")
-    logger.info(f"Orders,      no adjoint   = {orders_0}")
+    logger.info(f"Error norms, no tangent-linear   = {error_norms_0}")
+    logger.info(f"Orders,      no tangent-linear   = {orders_0}")
 
     error_norms_1 = abs(J_vals - J_val - eps * dJ)
     orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
-    logger.info(f"Error norms, with adjoint = {error_norms_1}")
-    logger.info(f"Orders,      with adjoint = {orders_1}")
+    logger.info(f"Error norms, with tangent-linear = {error_norms_1}")
+    logger.info(f"Orders,      with tangent-linear = {orders_1}")
     return orders_1.min()
 
 
