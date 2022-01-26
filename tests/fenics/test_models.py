@@ -159,7 +159,7 @@ def test_oscillator(setup_test, test_leaks,
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, T_0, J_val=J_val, ddJ=ddJ,
                             seed=0.1)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, T_0, tlm_order=1)
     assert min_order > 2.00
