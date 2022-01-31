@@ -764,7 +764,7 @@ def test_initial_guess(setup_test, test_leaks):
                 annotate=False, tlm=False)
             NullSolver(x).solve()
             J_term = space_new(J.space())
-            DotProductSolver(x, adj_x_0, J_term).solve()
+            InnerProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)
         else:
             adj_x_0 = None
