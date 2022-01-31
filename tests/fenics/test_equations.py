@@ -822,7 +822,7 @@ def test_initial_guess(setup_test, test_leaks):
             adj_x_0 = Function(space_1, name="adj_x_0", static=True)
             solve(
                 inner(trial_1, test_1) * dx
-                == derivative((dot(x, x) ** 2) * dx, x, du=ufl.conj(test_1)),
+                == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
             NullSolver(x).solve()
