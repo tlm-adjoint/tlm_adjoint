@@ -845,7 +845,10 @@ def test_initial_guess(setup_test, test_leaks):
         return x, adj_x_0, z, J
 
     y = Function(space_2, name="y", static=True)
-    interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
+    if issubclass(function_dtype(y), (complex, np.complexfloating)):
+        interpolate_expression(y, exp(X[0]) * (1.0 + 1.0j + X[1] * X[1]))
+    else:
+        interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
 
     test_adj_ic = True
     start_manager()
