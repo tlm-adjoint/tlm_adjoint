@@ -1494,17 +1494,16 @@ The \texttt{drop\_references} method must call the base class
 An \texttt{InnerProductRHS} is a \texttt{RHS} representing a right-hand-side
 term of the form
 \begin{equation*}
-  b_i = \alpha \sum_{j,k} y_j M_{j,k} z_k.
+  b_i = \alpha \sum_{j,k} z_j M_{j,k} y_k.
 \end{equation*}
-Here the $y_j$ and $z_k$ are the degrees of freedom for two functions, which
-should be in the same discrete function space, and which may be the same
-function. $b_i$ are the degrees of freedom for the resulting right-hand-side
-term. The $M_{j,k}$ are the elements of some given matrix (which should
-typically be symmetric positive definite), and $\alpha$ is some scalar
-constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
+Here the $z_j$ and $y_k$ are the degrees of freedom for two functions, which
+may be the same function. $b_i$ are the degrees of freedom for the resulting
+right-hand-side term. The $M_{j,k}$ are the elements of some given matrix
+(which should typically be symmetric positive definite), and $\alpha$ is some
+scalar constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
 representing
 \begin{equation*}
-  x_i = \alpha \sum_{j,k} y_j M_{j,k} z_k,
+  x_i = \alpha \sum_{j,k} z_j M_{j,k} y_k,
 \end{equation*}
 solving for $x$, whose degrees of freedom are the $x_i$.
 
