@@ -66,7 +66,7 @@ class Hessian:
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
+            return function_get_values(ddJ).conjugate()
 
         return action
 
@@ -244,7 +244,7 @@ class GaussNewton:
     def action_fn(self, m, m0=None):
         def action(dm):
             ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
+            return function_get_values(ddJ).conjugate()
 
         return action
 
