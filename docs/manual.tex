@@ -709,11 +709,11 @@ space are swapped in the adjoint solver parameters.
 A \texttt{ProjectionSolver} is a subclass of the \texttt{EquationSolver} class,
 and represents either the equation
 \begin{equation*}
-  \int_\Omega \phi \psi = b \left( \phi \right) \quad \forall \phi \in V,
+  \int_\Omega \phi^* \cdot \psi = b \left( \phi^* \right) \quad \forall \phi \in V,
 \end{equation*}
 where $\psi \in V$ and $b$ is a linear form, or
 \begin{equation*}
-  \int_\Omega \phi \psi = \int_\Omega \phi \xi \quad \forall \phi \in V,
+  \int_\Omega \phi^* \cdot \psi = \int_\Omega \phi^* \cdot \xi \quad \forall \phi \in V,
 \end{equation*}
 where $\xi$ is a given expression.
 
@@ -1014,7 +1014,7 @@ Given the forward residual function $F \left( x, y_0, y_1, \ldots \right)$, an
 adjoint model requires the ability to compute an adjoint derivative action,
 e.g.
 \begin{equation*}
-  \frac{\partial F}{\partial y_i}^T \lambda_x,
+  \frac{\partial F}{\partial y_i}^* \lambda_x,
 \end{equation*}
 for a given $\lambda_x$.
 
@@ -1040,14 +1040,15 @@ This method returns one of
 \begin{itemize}
   \item \texttt{None}, if the adjoint derivative action is zero.
   \item A function containing the value of the adjoint derivative action.
-  \item A vector (e.g. as returned by \texttt{Function.vector()}) containing
-    the value of the adjoint derivative action.
+  \item (FEniCS only) A vector containing the value of the adjoint derivative
+    action.
   \item A tuple whose first element is an integer or float, and whose second
     element is a function or vector as defined above. The adjoint derivative
     action is equal to the product of the two elements.
-  \item A \texttt{ufl.classes.Form}. Note that assembly with default form
-    compiler parameters will later be used to assemble the form (possibly after
-    addition to, or the addition of, other forms).
+  \item (FEniCS or Firedrake only) A \texttt{ufl.classes.Form}. Note that
+    assembly with default form compiler parameters will later be used to
+    assemble the form (possibly after addition to, or the addition of, other
+    forms).
 \end{itemize}
 The return value will not be modified by calling code.
 
@@ -1063,7 +1064,7 @@ Given the forward residual function $F \left( x, y_0, y_1, \ldots \right)$, an
 adjoint model requires the ability to solve an equation involving the adjoint
 Jacobian, i.e. to solve for $\lambda_x$ in
 \begin{equation*}
-  \frac{\partial F}{\partial x}^T \lambda_x = b,
+  \frac{\partial F}{\partial x}^* \lambda_x = b,
 \end{equation*}
 for a given $b$.
 
@@ -1257,8 +1258,9 @@ with arguments
 
 \subsubsection{Adjoint matrix action}
 
-The value of a matrix action $A^T x$ is defined by the \texttt{adjoint\_action}
-method. The \texttt{adjoint\_action} method has the form
+The value of a matrix action $A^* x$ is defined by the
+\texttt{adjoint\_action} method. The \texttt{adjoint\_action} method has the
+form
 \begin{lstlisting}
 def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
 \end{lstlisting}
@@ -1291,7 +1293,7 @@ with arguments
 
 \subsubsection{Adjoint matrix solve}
 
-The value of an inverse adjoint matrix action $A^{-T} b$ is defined by the
+The value of an inverse adjoint matrix action $A^{-*} b$ is defined by the
 \texttt{adjoint\_solve} method. The \texttt{adjoint\_solve} method has the
 form
 \begin{lstlisting}
@@ -1494,16 +1496,16 @@ The \texttt{drop\_references} method must call the base class
 An \texttt{InnerProductRHS} is a \texttt{RHS} representing a right-hand-side
 term of the form
 \begin{equation*}
-  b_i = \alpha \sum_{j,k} z_j M_{j,k} y_k.
+  b_i = \alpha \sum_{j,k} z_j^* M_{j,k} y_k.
 \end{equation*}
 Here the $z_j$ and $y_k$ are the degrees of freedom for two functions, which
 may be the same function. $b_i$ are the degrees of freedom for the resulting
 right-hand-side term. The $M_{j,k}$ are the elements of some given matrix
-(which should typically be symmetric positive definite), and $\alpha$ is some
+(which should typically be Hermitian positive definite), and $\alpha$ is some
 scalar constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
 representing
 \begin{equation*}
-  x_i = \alpha \sum_{j,k} z_j M_{j,k} y_k,
+  x_i = \alpha \sum_{j,k} z_j^* M_{j,k} y_k,
 \end{equation*}
 solving for $x$, whose degrees of freedom are the $x_i$.
 
@@ -1702,8 +1704,8 @@ method
 J.assign(term)
 \end{lstlisting}
 where \texttt{term} is either an appropriate function (see section
-\ref{sect:Functional_internals}) or a \texttt{ufl.classes.Form} representing a
-term in the functional.
+\ref{sect:Functional_internals}) or (with the FEniCS or Firedrake backends) a
+\texttt{ufl.classes.Form} representing a term in the functional.
 
 Further terms can be added to the \texttt{Functional} by calling its
 \texttt{addto} method
@@ -1786,6 +1788,12 @@ controls can be computed via for example
 Note that the \texttt{compute\_gradient} method finalizes the internal
 \texttt{EquationManager} (see section \ref{sect:EquationManager_state}).
 
+\texttt{tlm\_adjoint} uses the convention that the values stored for linear
+sensitivity functionals are the complex conjugate of the coefficients
+appearing in their expansion using the dual basis. Hence the degrees of freedom
+associated with functions returned by \texttt{compute\_gradient} are the
+complex conjugate of linear sensitivities.
+
 \section{Tangent-linear and higher order adjoint}\label{sect:higher_order}
 
 \subsection{First order tangent-linear}
@@ -1820,8 +1828,8 @@ and solution of third order tangent-linear equations defined by differentiation
 of the second order tangent-linear with respect to \texttt{m\_2} in the
 direction \texttt{zeta\_2}.
 
-The derivation and solution of a higher-order tangent-linear equations defined
-by repeated differentiation with respect to a single function in a single
+The derivation and solution of higher-order tangent-linear equations defined by
+repeated differentiation with respect to a single function in a single
 direction is enabled using the optional \texttt{max\_depth} argument, for
 example
 \begin{lstlisting}
@@ -1872,6 +1880,9 @@ J_tlm_3 = J.tlm(m_0, zeta_0).tlm(m_1, zeta_1, max_depth=2)
 ddddJ = compute_gradient(J_tlm_3, m)
 \end{lstlisting}
 
+As before, the degrees of freedom associated with functions returned by
+\texttt{compute\_gradient} are the complex conjugate of sensitivities.
+
 \subsection{Hessian actions}\label{sect:Hessian}
 
 Subclasses of \texttt{Hessian} facilitate the calculation of forward model
@@ -1895,7 +1906,9 @@ dJ = H.compute_gradient(m)
 \end{lstlisting}
 where \texttt{m} is a function or a sequence of functions defining the value of
 the control. The forward model is first rerun using the \texttt{forward}
-callable prior to the first order adjoint calculation.
+callable prior to the first order adjoint calculation. The degrees of
+freedom associated with \texttt{dJ} are the complex conjugate of linear
+sensitivities.
 
 The action of the Hessian can be computed using the
 \texttt{GeneralHessian.action} method
@@ -1907,7 +1920,9 @@ defining the control and Hessian action direction. The forward model is first
 rerun using the \texttt{forward} callable prior to the second order adjoint
 calculation. This method returns the value of the functional, the first
 derivative of the functional in the direction defined by \texttt{dm}, and the
-action of the Hessian in the direction defined by \texttt{dm}.
+action of the Hessian in the direction defined by \texttt{dm}. The degrees of
+freedom associated with \texttt{ddJ} are the complex conjugate of
+sensitivities.
 
 \subsubsection{Hessian actions with caching}
 
@@ -1950,8 +1965,8 @@ with arguments
   \item \texttt{J\_val}, a float, defining the value of the functional at the
     unperturbed reference value for the control.
   \item \texttt{dJ}, a function, or a sequence of functions, defining the value
-    of the forward model constrained derivative. Required if \texttt{ddJ} is
-    not supplied.
+    of the forward model constrained derivative as returned by
+    \texttt{compute\_gradient}. Required if \texttt{ddJ} is not supplied.
   \item \texttt{ddJ}, a \texttt{Hessian}, used for second order adjoint
     verification.
   \item \texttt{seed}, a \texttt{float}, controlling the magnitude of control
@@ -2042,11 +2057,9 @@ with arguments
 \begin{itemize}
   \item \texttt{tlm\_order}, a positive integer, the order of tangent-linear
     model to test.
-  \item \texttt{dMs}, a function, or a sequence containing functions (or
-    further such sequences), defining the tangent-linear directions (in
-    \texttt{dMs[:-1]} if \texttt{dMs} is a sequence) and perturbation direction
-    (\texttt{dMs} if \texttt{dMs} is a function, or \texttt{dMs[-1]} if
-    \texttt{dMs} is a sequence).
+  \item \texttt{dMs}, a sequence whose elements are functions or sequences of
+    functions, defining the tangent-linear directions (in \texttt{dMs[:-1]})
+    and perturbation direction (in \texttt{dMs[-1]}).
   \item \texttt{manager}, defaulting to the currently active equation manager.
     A new equation manager is generated using the \texttt{manager.new} method.
 \end{itemize}
@@ -2236,7 +2249,7 @@ implement a number of caching optimizations automatically. Specifically
 
 As described in \citet{maddison2014}, caching can be facilitated by declaring
 data which are known to be ``static''. Caching of \texttt{Function},
-\texttt{Constant}, and \texttt{DirichletBC} may enabled with additional
+\texttt{Constant}, and \texttt{DirichletBC} may be enabled with additional
 constructor arguments (see section \ref{sect:flags}). All other
 \texttt{ufl.classes.Coefficient} objects are assumed non-cachable.
 
@@ -2280,26 +2293,26 @@ where the additional arguments are optional logicals
     \texttt{Equation}.
 \end{itemize}
 
-A \texttt{ZeroFunction} may be used in place of a \texttt{Function} whose value
-is zero throughout a calculation. A \texttt{ZeroFunction} can be instantiated
-via
+With the FEniCS or Firedrake backends, a \texttt{ZeroFunction} may be used in
+place of a \texttt{Function} whose value is zero throughout a calculation. A
+\texttt{ZeroFunction} can be instantiated via
 \begin{lstlisting}
 F = ZeroFunction(space, name=name)
 \end{lstlisting}
 
 \subsection{\texttt{Constant}}
 
-\texttt{Constant} objects may be supplied with optional arguments on
-instantiation, e.g.
+With the FEniCS or Firedrake backends, \texttt{Constant} objects may be
+supplied with optional arguments on instantiation, e.g.
 \begin{lstlisting}
 F = Constant(1.0, static=static, cache=cache, checkpoint=checkpoint)
 \end{lstlisting}
 where the additional arguments are optional logicals, and are as for the
 \texttt{Function} constructor.
 
-A \texttt{ZeroConstant} may be used in place of a \texttt{Constant} whose value
-is zero throughout a calculation. A \texttt{ZeroConstant} can be instantiated
-via
+With the FEniCS or Firedrake backends, a \texttt{ZeroConstant} may be used in
+place of a \texttt{Constant} whose value is zero throughout a calculation. A
+\texttt{ZeroConstant} can be instantiated via
 \begin{lstlisting}
 c = ZeroConstant(shape=shape, name=name, comm=comm)
 \end{lstlisting}
@@ -2307,8 +2320,8 @@ where the shape is specified by the optional \texttt{shape} argument.
 
 \subsection{\texttt{DirichletBC}}
 
-\texttt{DirichletBC} objects may be supplied with optional arguments on
-instantiation, e.g.
+With the FEniCS or Firedrake backends, \texttt{DirichletBC} objects may be
+supplied with optional arguments on instantiation, e.g.
 \begin{lstlisting}
 bc = DirichletBC(space, 0.0, "on_boundary", static=static, cache=cache)
 \end{lstlisting}
@@ -2323,7 +2336,8 @@ where the additional arguments are optional logicals
     \texttt{Equation}.
 \end{itemize}
 
-A homogeneous Dirichlet boundary condition is defined using e.g.
+With the FEniCS or Firedrake backends, a homogeneous Dirichlet boundary
+condition is defined using e.g.
 \begin{lstlisting}
 hbc = HomogeneousDirichletBC(space, "on_boundary")
 \end{lstlisting}
@@ -2635,8 +2649,9 @@ with arguments
 \begin{itemize}
   \item \texttt{space}, a function space. Eigenvector discrete function space.
   \item \texttt{A\_action}, a callable which accepts a single input
-    \texttt{Function}, and computes the action of the matrix $A$. The result
-    must be returned as a \texttt{Function} or a NumPy array.
+    \texttt{Function}, and computes the complex conjugate of the action of the
+    matrix $A$. The result must be returned as a \texttt{Function} or a NumPy
+    array.
   \item \texttt{B\_matrix}, a PETSc matrix defining the matrix $B$. If not
     provided then $B$ is considered an identity matrix.
   \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
@@ -2645,7 +2660,7 @@ with arguments
   \item \texttt{solver\_type}. Sets the SLEPc solver type, passed to
     \texttt{slepc4py.EPS.setType}.
   \item \texttt{problem\_type}, the eigendecomposition problem type, passed to
-    \texttt{slepc4py.EPS.setWhichEigenpairs}. If not provided then
+    \texttt{slepc4py.EPS.setProblemType}. If not provided then
     \texttt{slepc4py.EPS.ProblemType.GNHEP} is used if \texttt{B\_action} is
     provided, and \texttt{slepc4py.EPS.ProblemType.NHEP} is used otherwise.
   \item \texttt{which}, which eigenvalues to find, passed to
@@ -2659,11 +2674,11 @@ with arguments
 \end{itemize}
 
 Returns a tuple \texttt{(lam, V)} where \texttt{lam} is a NumPy vector of
-eigenvalues. For Hermitian eigendecomposition problems \texttt{V} is a tuple of
-\texttt{Function} objects containing corresponding eigenvectors. Otherwise
-\texttt{V} is a tuple of two tuples of \texttt{Function} objects, the first
-corresponding to real components of eigenvectors, and the second to imaginary
-components.
+eigenvalues. For Hermitian eigendecomposition problems or with complex PETSc
+\texttt{V} is a tuple of \texttt{Function} objects containing corresponding
+eigenvectors. Otherwise \texttt{V} is a tuple of two tuples of
+\texttt{Function} objects, the first corresponding to real components of
+eigenvectors, and the second to imaginary components.
 
 The \texttt{action\_fn} method of \texttt{Hessian} objects (see section
 \ref{sect:Hessian}) returns a callable suitable for use as the
