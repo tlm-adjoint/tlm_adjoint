@@ -41,17 +41,21 @@ def test_HEP(setup_test, test_leaks):
 
     def M_action(x):
         y = function_new(x)
-        matrix_multiply(M, function_vector(x), tensor=function_vector(y))
-        return function_get_values(y)
+        assemble(inner(x, test) * dx, tensor=function_vector(y))
+        return function_get_values(y).conjugate()
 
     import slepc4py.SLEPc as SLEPc
-    lam, V_r = eigendecompose(space, M_action,
-                              problem_type=SLEPc.EPS.ProblemType.HEP)
+    lam, V = eigendecompose(space, M_action,
+                            problem_type=SLEPc.EPS.ProblemType.HEP)
+
+    assert (lam > 0.0).all()
+
     diff = Function(space)
-    assert len(lam) == len(V_r)
-    for lam_val, v_r in zip(lam, V_r):
-        function_set_values(diff, M_action(v_r))
-        function_axpy(diff, -lam_val, v_r)
+    assert len(lam) == len(V)
+    for lam_val, v in zip(lam, V):
+        matrix_multiply(M, function_vector(v),
+                        tensor=function_vector(diff))
+        function_axpy(diff, -lam_val, v)
         assert function_linf_norm(diff) < 1.0e-16
 
 
@@ -66,27 +70,33 @@ def test_NHEP(setup_test, test_leaks):
 
     def N_action(x):
         y = function_new(x)
-        matrix_multiply(N, function_vector(x), tensor=function_vector(y))
-        return function_get_values(y)
+        assemble(inner(x.dx(0), test) * dx, tensor=function_vector(y))
+        return function_get_values(y).conjugate()
 
     lam, V = eigendecompose(space, N_action)
+
+    assert abs(lam.real).max() < 1.0e-15
+
     diff = Function(space)
     if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
         assert len(lam) == len(V)
         for lam_val, v in zip(lam, V):
-            function_set_values(diff, N_action(v))
+            matrix_multiply(N, function_vector(v),
+                            tensor=function_vector(diff))
             function_axpy(diff, -lam_val, v)
-            assert function_linf_norm(diff) < 1.0e-14
+            assert function_linf_norm(diff) == 0.0
     else:
         V_r, V_i = V
         assert len(lam) == len(V_r)
         assert len(lam) == len(V_i)
         for lam_val, v_r, v_i in zip(lam, V_r, V_i):
-            function_set_values(diff, N_action(v_r))
+            matrix_multiply(N, function_vector(v_r),
+                            tensor=function_vector(diff))
             function_axpy(diff, -lam_val.real, v_r)
             function_axpy(diff, +lam_val.imag, v_i)
             assert function_linf_norm(diff) < 1.0e-15
-            function_set_values(diff, N_action(v_i))
+            matrix_multiply(N, function_vector(v_i),
+                            tensor=function_vector(diff))
             function_axpy(diff, -lam_val.real, v_i)
             function_axpy(diff, -lam_val.imag, v_r)
             assert function_linf_norm(diff) < 1.0e-15
