@@ -133,7 +133,7 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
 
     Arguments:
 
-    space          Eigenspace.
+    space          Eigenvector space.
     A_action       Callable accepting a function and returning a function or
                    NumPy array, defining the complex conjugate of the action
                    of the left-hand-side matrix, e.g. as returned by
