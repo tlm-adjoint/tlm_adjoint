@@ -122,7 +122,7 @@ def wrapped_action(space, action):
     return action
 
 
-def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
+def eigendecompose(space, A_action, *, B_matrix=None, N_eigenvalues=None,
                    solver_type=None, problem_type=None, which=None,
                    tolerance=1.0e-12, configure=None):
     # First written 2018-03-01
