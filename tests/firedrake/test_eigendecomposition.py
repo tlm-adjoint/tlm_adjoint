@@ -169,3 +169,8 @@ def test_CachedHessian(setup_test):
     error = (np.array(sorted(lam.real), dtype=np.float64)
              - np.array(sorted(lam_opt.real), dtype=np.float64))
     assert abs(error).max() == 0.0
+
+    if issubclass(space_dtype(space), (complex, np.complexfloating)):
+        error = (np.array(sorted(lam.imag), dtype=np.float64)
+                 - np.array(sorted(lam_opt.imag), dtype=np.float64))
+        assert abs(error).max() == 0.0
