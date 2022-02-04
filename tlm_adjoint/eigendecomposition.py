@@ -122,26 +122,27 @@ def wrapped_action(space, action):
     return action
 
 
-def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
+def eigendecompose(space, A_action, *, B_action=None, N_eigenvalues=None,
                    solver_type=None, problem_type=None, which=None,
                    tolerance=1.0e-12, configure=None):
     # First written 2018-03-01
     """
     Matrix-free interface with SLEPc via slepc4py, loosely following
-    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of Hessian
-    eigendecompositions.
+    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of a
+    Hessian eigendecomposition with a real control space.
 
     Arguments:
 
-    space          Eigenspace.
+    space          Eigenvector space.
     A_action       Callable accepting a function and returning a function or
                    NumPy array, defining the complex conjugate of the action
                    of the left-hand-side matrix, e.g. as returned by
                    Hessian.action_fn.
-    B_matrix       (Optional) Right-hand-side matrix in a generalized
-                   eigendecomposition.
+    B_action       (Optional) Callable accepting a function and returning a
+                   function or NumPy array, defining the complex conjugate of
+                   the action of the right-hand-side matrix.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
-                   Defaults to a full eigendecomposition.
+                   Defaults to a full spectrum.
     solver_type    (Optional) The solver type.
     problem_type   (Optional) The problem type. If not supplied
                    slepc4py.SLEPc.EPS.ProblemType.NHEP or
@@ -166,9 +167,11 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
     import slepc4py.SLEPc as SLEPc
 
     A_action = wrapped_action(space, A_action)
+    if B_action is not None:
+        B_action = wrapped_action(space, B_action)
 
     if problem_type is None:
-        if B_matrix is None:
+        if B_action is None:
             problem_type = SLEPc.EPS.ProblemType.NHEP
         else:
             problem_type = SLEPc.EPS.ProblemType.GNHEP
@@ -186,6 +189,14 @@ def eigendecompose(space, A_action, B_matrix=None, N_eigenvalues=None,
                                         PythonMatrix(A_action),
                                         comm=comm)
     A_matrix.setUp()
+
+    if B_action is None:
+        B_matrix = None
+    else:
+        B_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                            PythonMatrix(B_action),
+                                            comm=comm)
+        B_matrix.setUp()
 
     esolver = SLEPc.EPS().create(comm=comm)
     if solver_type is not None:
