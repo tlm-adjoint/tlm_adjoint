@@ -128,8 +128,8 @@ def eigendecompose(space, A_action, *, B_action=None, N_eigenvalues=None,
     # First written 2018-03-01
     """
     Matrix-free interface with SLEPc via slepc4py, loosely following
-    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of Hessian
-    eigendecompositions.
+    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of a
+    Hessian eigendecomposition with a real control space.
 
     Arguments:
 
@@ -142,7 +142,7 @@ def eigendecompose(space, A_action, *, B_action=None, N_eigenvalues=None,
                    function or NumPy array, defining the complex conjugate of
                    the action of the right-hand-side matrix.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
-                   Defaults to a full eigendecomposition.
+                   Defaults to a full spectrum.
     solver_type    (Optional) The solver type.
     problem_type   (Optional) The problem type. If not supplied
                    slepc4py.SLEPc.EPS.ProblemType.NHEP or
