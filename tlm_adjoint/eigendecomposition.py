@@ -167,7 +167,8 @@ def eigendecompose(space, A_action, *, B_action=None, N_eigenvalues=None,
     import slepc4py.SLEPc as SLEPc
 
     A_action = wrapped_action(space, A_action)
-    B_action = wrapped_action(space, B_action)
+    if B_action is not None:
+        B_action = wrapped_action(space, B_action)
 
     if problem_type is None:
         if B_action is None:
