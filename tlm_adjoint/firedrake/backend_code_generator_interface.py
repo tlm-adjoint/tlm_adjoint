@@ -18,10 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import FunctionSpace, Parameters, backend_Constant, \
-    backend_DirichletBC, backend_Function, backend_LinearSolver, \
-    backend_Matrix, backend_assemble, backend_solve, extract_args, \
-    homogenize, parameters
+from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
+    backend_Constant, backend_DirichletBC, backend_Function, \
+    backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
+    extract_args, homogenize, parameters
 from ..interface import InterfaceException, function_axpy, function_copy, \
     function_id
 
@@ -189,6 +189,10 @@ def bind_forms(*forms):
                 setattr(dep, old_name, getattr(dep, name))
             setattr(dep, name, getattr(binding, name))
 
+    for form in forms:
+        if _FORM_CACHE_KEY in form._cache:
+            raise InterfaceException("Unexpected cache")
+
 
 def unbind_forms(*forms):
     for dep, binding in form_bindings(*forms):
@@ -198,6 +202,10 @@ def unbind_forms(*forms):
             if hasattr(dep, old_name):
                 setattr(dep, name, getattr(dep, old_name))
                 delattr(dep, old_name)
+
+    for form in forms:
+        if _FORM_CACHE_KEY in form._cache:
+            del form._cache[_FORM_CACHE_KEY]
 
 
 def _assemble(form, tensor=None, form_compiler_parameters=None,
