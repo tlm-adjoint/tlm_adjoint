@@ -438,10 +438,14 @@ class EquationSolver(ExprEquation):
             self._nl_solve_J = ufl.replace(self._nl_solve_J, replace_map)
 
         if self._forward_b_pa is not None:
-            if self._forward_b_pa[0] is not None:
-                self._forward_b_pa[0][0] = ufl.replace(self._forward_b_pa[0][0], replace_map)  # noqa: E501
-            for dep_index, (mat_form, mat_cache) in self._forward_b_pa[1].items():  # noqa: E501
-                self._forward_b_pa[1][dep_index][0] = ufl.replace(mat_form, replace_map)  # noqa: E501
+            cached_form, mat_forms, non_cached_form = self._forward_b_pa
+
+            if cached_form is not None:
+                cached_form[0] = ufl.replace(cached_form[0], replace_map)
+            for dep_index, (mat_form, mat_cache) in mat_forms.items():
+                mat_forms[dep_index][0] = ufl.replace(mat_form, replace_map)
+
+            # self._forward_b_pa = (cached_form, mat_forms, non_cached_form)
 
         for dep_index, dF in self._adjoint_dF_cache.items():
             if dF is not None:
@@ -470,7 +474,7 @@ class EquationSolver(ExprEquation):
             else:
                 cached_form = [cached_form, CacheRef()]
 
-            self._forward_b_pa = [cached_form, mat_forms, non_cached_form]
+            self._forward_b_pa = (cached_form, mat_forms, non_cached_form)
         else:
             cached_form, mat_forms, non_cached_form = self._forward_b_pa
 
