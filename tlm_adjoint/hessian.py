@@ -72,7 +72,7 @@ class Hessian:
 
 
 class GeneralHessian(Hessian):
-    def __init__(self, forward, manager=None):
+    def __init__(self, forward, *, manager=None):
         if manager is None:
             manager = _manager().new()
 
@@ -250,7 +250,8 @@ class GaussNewton:
 
 
 class GeneralGaussNewton(GaussNewton):
-    def __init__(self, forward, R_inv_action, B_inv_action=None, manager=None):
+    def __init__(self, forward, R_inv_action, B_inv_action=None,
+                 *, manager=None):
         if manager is None:
             manager = _manager().new()
 

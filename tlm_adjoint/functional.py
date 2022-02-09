@@ -41,7 +41,7 @@ class FunctionalException(Exception):
 class Functional:
     _id_counter = [0]
 
-    def __init__(self, fn=None, space=None, name=None, _fn=None):
+    def __init__(self, *, fn=None, space=None, name=None, _fn=None):
         """
         A functional.
 
@@ -82,7 +82,7 @@ class Functional:
     def id(self):
         return self._id
 
-    def assign(self, term, manager=None, annotate=None, tlm=None):
+    def assign(self, term, *, manager=None, annotate=None, tlm=None):
         """
         Assign the functional.
 
@@ -106,7 +106,7 @@ class Functional:
         new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
-    def addto(self, term=None, manager=None, annotate=None, tlm=None):
+    def addto(self, term=None, *, manager=None, annotate=None, tlm=None):
         """
         Add to the functional.
 
@@ -161,7 +161,7 @@ class Functional:
 
         return function_scalar_value(self._fn)
 
-    def tlm(self, M, dM, max_depth=1, manager=None):
+    def tlm(self, M, dM, *, max_depth=1, manager=None):
         """
         Return a Functional associated with evaluation of the tangent-linear of
         the functional.
