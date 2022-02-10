@@ -132,8 +132,10 @@ class ExprEquation(Equation):
 
 
 class AssembleSolver(ExprEquation):
-    def __init__(self, rhs, x, form_compiler_parameters={},
+    def __init__(self, rhs, x, form_compiler_parameters=None,
                  match_quadrature=None):
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
 
@@ -285,12 +287,19 @@ class EquationSolver(ExprEquation):
     # eq, x, bcs, J, form_compiler_parameters and solver_parameters argument
     # usage based on the interface for the solve function in FEniCS (see e.g.
     # FEniCS 2017.1.0)
-    def __init__(self, eq, x, bcs=[], J=None, form_compiler_parameters={},
-                 solver_parameters={}, adjoint_solver_parameters=None,
+    def __init__(self, eq, x, bcs=None, J=None, form_compiler_parameters=None,
+                 solver_parameters=None, adjoint_solver_parameters=None,
                  tlm_solver_parameters=None, initial_guess=None,
                  cache_jacobian=None, cache_adjoint_jacobian=None,
                  cache_tlm_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
+        if bcs is None:
+            bcs = []
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+        if solver_parameters is None:
+            solver_parameters = {}
+
         if isinstance(bcs, backend_DirichletBC):
             bcs = (bcs,)
         else:

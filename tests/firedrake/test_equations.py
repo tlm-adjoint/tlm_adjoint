@@ -708,8 +708,13 @@ def test_initial_guess(setup_test, test_leaks):
         x = Function(space_1, name="x")
 
         class TestSolver(ProjectionSolver):
-            def __init__(self, y, x, form_compiler_parameters={},
-                         solver_parameters={}):
+            def __init__(self, y, x, form_compiler_parameters=None,
+                         solver_parameters=None):
+                if form_compiler_parameters is None:
+                    form_compiler_parameters = {}
+                if solver_parameters is None:
+                    solver_parameters = {}
+
                 assert is_function(y)
                 super().__init__(
                     inner(y, TestFunction(x.function_space())) * dx, x,

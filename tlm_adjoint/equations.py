@@ -194,7 +194,10 @@ class AdjointModelRHS:
 class Referrer:
     _id_counter = [0]
 
-    def __init__(self, referrers=[]):
+    def __init__(self, referrers=None):
+        if referrers is None:
+            referrers = []
+
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
         self._referrers = weakref.WeakValueDictionary()
@@ -1494,11 +1497,8 @@ class LinearEquation(Equation):
 
 
 class Matrix(Referrer):
-    def __init__(self, nl_deps=[], has_ic_dep=None, ic=None, adj_ic=True):
+    def __init__(self, nl_deps=None, has_ic_dep=None, ic=None, adj_ic=True):
         if nl_deps is None:
-            warnings.warn("'nl_deps=None' is deprecated -- use 'nl_deps=[]' "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
             nl_deps = []
         if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
             raise EquationException("Duplicate non-linear dependency")

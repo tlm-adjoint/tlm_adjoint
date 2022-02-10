@@ -106,7 +106,7 @@ def weakref_method(fn, obj):
     return wrapped_fn
 
 
-class protecteddict(Mapping):
+class protecteddict(Mapping):  # noqa: N801
     def __init__(self, *args, **kwargs):
         """
         A mapping where previous key: value pairs are partially protected from
@@ -138,7 +138,10 @@ class protecteddict(Mapping):
         self._d[key] = value
 
 
-def add_interface(obj, interface_cls, attrs={}):
+def add_interface(obj, interface_cls, attrs=None):
+    if attrs is None:
+        attrs = {}
+
     interface_name = f"{interface_cls.prefix:s}"
     assert not hasattr(obj, interface_name)
     setattr(obj, interface_name, interface_cls)

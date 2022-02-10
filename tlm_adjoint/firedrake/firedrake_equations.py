@@ -75,8 +75,11 @@ def LocalSolver(form, form_compiler_parameters=None):
 
 
 class LocalSolverCache(Cache):
-    def local_solver(self, form, form_compiler_parameters={},
+    def local_solver(self, form, form_compiler_parameters=None,
                      replace_map=None):
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+
         form = eliminate_zeros(form, force_non_empty_form=True)
         key = local_solver_key(form, form_compiler_parameters)
 
@@ -105,9 +108,12 @@ def set_local_solver_cache(local_solver_cache):
 
 
 class LocalProjectionSolver(EquationSolver):
-    def __init__(self, rhs, x, form_compiler_parameters={},
+    def __init__(self, rhs, x, form_compiler_parameters=None,
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
