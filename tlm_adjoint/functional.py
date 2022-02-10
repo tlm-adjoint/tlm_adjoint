@@ -20,12 +20,10 @@
 
 from .interface import function_is_scalar, function_name, function_new, \
     function_scalar_value, function_space, functional_term_eq, is_function, \
-    new_scalar_function, space_id, space_new
+    space_id, space_new
 
 from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
-
-import warnings
 
 __all__ = \
     [
@@ -41,7 +39,7 @@ class FunctionalException(Exception):
 class Functional:
     _id_counter = [0]
 
-    def __init__(self, *, fn=None, space=None, name=None, _fn=None):
+    def __init__(self, *, space=None, name=None, _fn=None):
         """
         A functional.
 
@@ -51,22 +49,13 @@ class Functional:
         name   (Optional) The name of the functional.
         """
 
-        if fn is None:
-            fn = _fn
-        else:
-            warnings.warn("fn argument is deprecated ",
-                          DeprecationWarning, stacklevel=2)
-            if _fn is not None:
-                raise FunctionalException("Cannot specify both fn and _fn "
-                                          "arguments")
-        del _fn
-
-        if fn is None:
+        if _fn is None:
             if space is None:
-                fn = new_scalar_function(name=name)
-            else:
-                fn = space_new(space, name=name)
+                raise FunctionalException("Function space not defined")
+            fn = space_new(space, name=name)
         else:
+            fn = _fn
+            del _fn
             if space is not None \
                     and space_id(space) != space_id(function_space(fn)):
                 raise FunctionalException("Invalid function space")

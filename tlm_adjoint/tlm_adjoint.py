@@ -674,12 +674,15 @@ class EquationManager:
         if self._comm.rank == 0:
             id = self._id_counter[0]
             self._id_counter[0] += 1
+            pid = os.getpid()
             comm_py2f = self._comm.py2f()
         else:
-            id = -1
-            comm_py2f = -1
+            id = None
+            pid = None
+            comm_py2f = None
         self._id = self._comm.bcast(id, root=0)
-        self._comm_py2f = self._comm.bcast(comm_py2f, root=0)
+        self._root_pid = self._comm.bcast(pid, root=0)
+        self._root_comm_py2f = self._comm.bcast(comm_py2f, root=0)
 
         self._to_drop_references = []
         self._finalizes = {}
@@ -1206,10 +1209,11 @@ class EquationManager:
         if cp_format == "pickle":
             cp_filename = os.path.join(
                 cp_path,
-                "checkpoint_%i_%i_%i_%i.pickle" % (self._id,
-                                                   n,
-                                                   self._comm_py2f,
-                                                   self._comm.rank))
+                "checkpoint_%i_%i_%i_%i_%i.pickle" % (self._id,
+                                                      n,
+                                                      self._root_pid,
+                                                      self._root_comm_py2f,
+                                                      self._comm.rank))
             self._cp_disk[n] = cp_filename
             h = open(cp_filename, "wb")
 
@@ -1222,9 +1226,10 @@ class EquationManager:
         elif cp_format == "hdf5":
             cp_filename = os.path.join(
                 cp_path,
-                "checkpoint_%i_%i_%i.hdf5" % (self._id,
-                                              n,
-                                              self._comm_py2f))
+                "checkpoint_%i_%i_%i_%i.hdf5" % (self._id,
+                                                 n,
+                                                 self._root_pid,
+                                                 self._root_comm_py2f))
             self._cp_disk[n] = cp_filename
             import h5py
             if self._comm.size > 1:

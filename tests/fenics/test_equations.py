@@ -22,7 +22,7 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend_code_generator_interface import function_vector
 
-from test_base import *
+from .test_base import *
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -30,6 +30,10 @@ import os
 import petsc4py.PETSc as PETSc
 import pytest
 import ufl
+
+pytestmark = pytest.mark.skipif(
+    MPI.COMM_WORLD.size not in [1, 4],
+    reason="tests must be run in serial, or with 4 processes")
 
 
 @pytest.mark.fenics
@@ -621,12 +625,20 @@ def test_Storage(setup_test, test_leaks):
 
         if h is None:
             function_assign(y_s, y)
+
+            if comm.rank == 0:
+                pid = os.getpid()
+            else:
+                pid = None
+            root_pid = comm.bcast(pid, root=0)
+            filename = f"storage_{root_pid:d}.hdf5"
+
             import h5py
             if comm.size > 1:
-                h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
+                h = h5py.File(os.path.join("checkpoints~", filename),
                               "w", driver="mpio", comm=comm)
             else:
-                h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
+                h = h5py.File(os.path.join("checkpoints~", filename),
                               "w")
         HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 

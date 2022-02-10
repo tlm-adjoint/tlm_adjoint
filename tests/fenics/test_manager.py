@@ -23,11 +23,16 @@ from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.alias import WeakAlias
 
-from test_base import *
+from .test_base import *
 
+import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    MPI.COMM_WORLD.size not in [1, 4],
+    reason="tests must be run in serial, or with 4 processes")
 
 
 @pytest.mark.fenics

@@ -190,7 +190,8 @@ class GeneralHessian(Hessian):
 
 
 class GaussNewton:
-    def __init__(self, R_inv_action, B_inv_action=None):
+    def __init__(self, J_space, R_inv_action, B_inv_action=None):
+        self._J_space = J_space
         self._R_inv_action = R_inv_action
         self._B_inv_action = B_inv_action
 
@@ -217,7 +218,7 @@ class GaussNewton:
         # This defines the adjoint right-hand-side appropriately to compute a
         # J^* action
         manager.start()
-        J = Functional(name="J")
+        J = Functional(space=self._J_space)
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
             J_term = function_new(J.fn())
@@ -250,12 +251,12 @@ class GaussNewton:
 
 
 class GeneralGaussNewton(GaussNewton):
-    def __init__(self, forward, R_inv_action, B_inv_action=None,
+    def __init__(self, forward, J_space, R_inv_action, B_inv_action=None,
                  *, manager=None):
         if manager is None:
             manager = _manager().new()
 
-        super().__init__(R_inv_action, B_inv_action=B_inv_action)
+        super().__init__(J_space, R_inv_action, B_inv_action=B_inv_action)
         self._forward = forward
         self._manager = manager
 
