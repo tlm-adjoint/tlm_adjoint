@@ -23,7 +23,7 @@ from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend_code_generator_interface import \
     function_vector
 
-from test_base import *
+from .test_base import *
 
 import firedrake
 import mpi4py.MPI as MPI

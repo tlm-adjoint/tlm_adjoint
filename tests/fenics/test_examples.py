@@ -20,7 +20,7 @@
 
 from tlm_adjoint.fenics import *
 
-from test_base import *
+from .test_base import *
 
 import mpi4py.MPI as MPI
 import numpy as np

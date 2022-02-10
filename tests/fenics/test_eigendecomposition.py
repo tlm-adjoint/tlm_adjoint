@@ -23,7 +23,7 @@ from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend_code_generator_interface import \
     function_vector, matrix_multiply
 
-from test_base import *
+from .test_base import *
 
 import numpy as np
 import petsc4py.PETSc as PETSc

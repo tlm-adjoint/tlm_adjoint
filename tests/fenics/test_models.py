@@ -21,7 +21,7 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 
-from test_base import *
+from .test_base import *
 
 import copy
 import mpi4py.MPI as MPI

@@ -20,7 +20,7 @@
 
 from tlm_adjoint.numpy import *
 
-from test_base import *
+from .test_base import *
 
 import numpy as np
 import pytest

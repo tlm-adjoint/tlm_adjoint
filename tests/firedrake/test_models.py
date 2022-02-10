@@ -21,7 +21,7 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 
-from test_base import *
+from .test_base import *
 
 import copy
 import numpy as np
