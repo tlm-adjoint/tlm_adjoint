@@ -21,12 +21,15 @@
 from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
     backend, backend_Constant, backend_Function, backend_FunctionSpace, \
     backend_ScalarType, backend_Vector, cpp_PETScVector, info
+from ..functional import Functional as _Functional
+from ..hessian import GeneralGaussNewton as _GaussNewton
+from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_new_scalar_function, \
-    add_subtract_adjoint_derivative_action, add_time_system_eq, \
-    function_copy, function_new, new_function_id, new_space_id, space_id, \
-    space_new, subtract_adjoint_derivative_action, weakref_method
+    add_interface, add_subtract_adjoint_derivative_action, \
+    add_time_system_eq, function_copy, function_new, function_space, \
+    new_function_id, new_space_id, space_id, space_new, \
+    subtract_adjoint_derivative_action, weakref_method
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -43,6 +46,11 @@ import warnings
 
 __all__ = \
     [
+        "CachedGaussNewton",
+        "Functional",
+        "GaussNewton",
+        "new_scalar_function",
+
         "RealFunctionSpace",
         "default_comm",
         "function_space_id",
@@ -329,13 +337,40 @@ backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_s
 backend_Function.function_space = _Function_function_space
 
 
-def _new_scalar_function(name=None, comm=None, static=False, cache=None,
-                         checkpoint=None):
+def new_scalar_function(name=None, comm=None, static=False, cache=None,
+                        checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
 
 
-add_new_scalar_function(backend, _new_scalar_function)
+class Functional(_Functional):
+    def __init__(self, *, space=None, name=None, _fn=None):
+        if space is None and _fn is None:
+            space = function_space(new_scalar_function())
+
+        super().__init__(space=space, name=name, _fn=_fn)
+
+
+class GaussNewton(_GaussNewton):
+    def __init__(self, forward, R_inv_action, B_inv_action=None,
+                 *, J_space=None, manager=None):
+        if J_space is None:
+            J_space = function_space(new_scalar_function())
+
+        super().__init__(
+            forward, J_space, R_inv_action, B_inv_action=B_inv_action,
+            manager=manager)
+
+
+class CachedGaussNewton(_CachedGaussNewton):
+    def __init__(self, X, R_inv_action, B_inv_action=None,
+                 *, J_space=None, manager=None):
+        if J_space is None:
+            J_space = function_space(new_scalar_function())
+
+        super().__init__(
+            X, J_space, R_inv_action, B_inv_action=B_inv_action,
+            manager=manager)
 
 
 def _subtract_adjoint_derivative_action(x, y):
