@@ -26,7 +26,7 @@ from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_new_tangent_linear, function_space, new_function_id, \
     new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
-from ..tlm_adjoint import _default_comm
+from ..tlm_adjoint import DEFAULT_COMM
 
 import copy
 import numpy as np
@@ -83,7 +83,7 @@ class FunctionSpaceInterface(SpaceInterface):
 
 class FunctionSpace:
     def __init__(self, dim, dtype=None):
-        comm = _default_comm
+        comm = DEFAULT_COMM
         if comm.size > 1:
             raise InterfaceException("Serial only")
         if dtype is None:
@@ -398,7 +398,7 @@ class CachedGaussNewton(_CachedGaussNewton):
 def default_comm():
     warnings.warn("default_comm is deprecated",
                   DeprecationWarning, stacklevel=2)
-    return _default_comm
+    return DEFAULT_COMM
 
 
 def RealFunctionSpace(comm=None):

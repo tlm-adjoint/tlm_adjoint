@@ -615,8 +615,8 @@ Keys for the \texttt{solver\_parameters} argument are based on the
 The \texttt{EquationSolver} class defines a finite element discretized partial
 differential equation. The \texttt{EquationSolver} constructor has the form
 \begin{lstlisting}
-def __init__(self, eq, x, bcs=[], J=None, form_compiler_parameters={},
-             solver_parameters={}, adjoint_solver_parameters=None,
+def __init__(self, eq, x, bcs=None, J=None, form_compiler_parameters=None,
+             solver_parameters=None, adjoint_solver_parameters=None,
              tlm_solver_parameters=None, cache_jacobian=None,
              cache_adjoint_jacobian=None, cache_tlm_jacobian=None,
              cache_rhs_assembly=None, match_quadrature=None,
@@ -767,7 +767,7 @@ directly to the \texttt{DirichletBC} constructor.
 An \texttt{AssembleSolver} represents the assembly of a rank zero or rank one
 form. The \texttt{AssembleSolver} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters={},
+def __init__(self, rhs, x, form_compiler_parameters=None,
              match_quadrature=None):
 \end{lstlisting}
 with constructor arguments
@@ -857,7 +857,7 @@ solver.
 
 The \texttt{LocalProjectionSolver} constuctor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters={},
+def __init__(self, rhs, x, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
              match_quadrature=None, defer_adjoint_assembly=None):
 \end{lstlisting}
@@ -899,7 +899,7 @@ solver.
 
 The \texttt{LocalProjectionSolver} constuctor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters={},
+def __init__(self, rhs, x, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
              match_quadrature=None, defer_adjoint_assembly=None):
 \end{lstlisting}
@@ -1217,7 +1217,7 @@ matrices as used by a \texttt{LinearEquation}.
 A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
 define dependencies. The \texttt{Matrix} constructor has the form
 \begin{lstlisting}
-def __init__(self, nl_deps=[], ic=True, adj_ic=True):
+def __init__(self, nl_deps=None, ic=True, adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -2373,7 +2373,7 @@ currently active \texttt{EquationManager}. In the following the
 \texttt{manager} argument is optional, and defaults to the currently active
 \texttt{EquationManager}.
 \begin{lstlisting}
-def configure_checkpointing(cp_method, cp_parameters={}, manager=None):
+def configure_checkpointing(cp_method, cp_parameters=None, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.configure\_checkpointing}. See section
 \ref{sect:configure_checkpointing}.

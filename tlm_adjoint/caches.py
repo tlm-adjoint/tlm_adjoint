@@ -146,7 +146,10 @@ class Cache:
                         dep_caches.remove(self)
                     del self._dep_caches[dep_id]
 
-    def add(self, key, value, deps=[]):
+    def add(self, key, value, deps=None):
+        if deps is None:
+            deps = []
+
         if key in self._cache:
             value_ref = self._cache[key]
             value = value_ref()

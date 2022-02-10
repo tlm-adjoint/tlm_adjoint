@@ -79,7 +79,7 @@ def flag_errors(fn):
     def wrapped_fn(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except:  # noqa: E722
+        except Exception:
             _flagged_error[0] = True
             raise
     return wrapped_fn

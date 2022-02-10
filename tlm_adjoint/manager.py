@@ -65,7 +65,9 @@ def restore_manager(fn):
     return wrapped_fn
 
 
-def configure_checkpointing(cp_method, cp_parameters={}, manager=None):
+def configure_checkpointing(cp_method, cp_parameters=None, manager=None):
+    if cp_parameters is None:
+        cp_parameters = {}
     if manager is None:
         manager = globals()["manager"]()
     manager.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
