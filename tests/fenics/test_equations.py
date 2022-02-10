@@ -621,12 +621,20 @@ def test_Storage(setup_test, test_leaks):
 
         if h is None:
             function_assign(y_s, y)
+
+            if comm.rank == 0:
+                pid = os.getpid()
+            else:
+                pid = None
+            root_pid = self._comm.bcast(pid, root=0)
+            filename = f"storage_{root_pid:d}.hdf5"
+
             import h5py
             if comm.size > 1:
-                h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
+                h = h5py.File(os.path.join("checkpoints~", filename),
                               "w", driver="mpio", comm=comm)
             else:
-                h = h5py.File(os.path.join("checkpoints~", "storage.hdf5"),
+                h = h5py.File(os.path.join("checkpoints~", filename),
                               "w")
         HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 
