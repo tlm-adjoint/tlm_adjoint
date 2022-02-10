@@ -564,7 +564,7 @@ def test_Storage(setup_test, test_leaks):
                 pid = os.getpid()
             else:
                 pid = None
-            root_pid = self._comm.bcast(pid, root=0)
+            root_pid = comm.bcast(pid, root=0)
             filename = f"storage_{root_pid:d}.hdf5"
 
             import h5py
