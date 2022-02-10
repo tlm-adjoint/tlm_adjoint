@@ -40,9 +40,11 @@ tlm_adjoint requires:
 
     FEniCS backend:
         DOLFIN
+        FFC
 
     Firedrake backend:
         Firedrake
+        pyadjoint
 
 tlm_adjoint optionally uses
 
