@@ -25,6 +25,13 @@ from .test_base import *
 import os
 import pytest
 
+try:
+    import mpi4py.MPI as MPI
+    pytestmark = pytest.mark.skipif(
+        MPI.COMM_WORLD.size != 1, reason="serial only")
+except ImportError:
+    pass
+
 
 @pytest.mark.numpy
 @pytest.mark.example

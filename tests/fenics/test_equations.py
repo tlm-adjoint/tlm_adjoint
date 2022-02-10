@@ -31,6 +31,10 @@ import petsc4py.PETSc as PETSc
 import pytest
 import ufl
 
+pytestmark = pytest.mark.skipif(
+    MPI.COMM_WORLD.size not in [1, 4],
+    reason="tests must be run in serial, or with 4 processes")
+
 
 @pytest.mark.fenics
 @seed_test
