@@ -352,7 +352,7 @@ class Replacement:
         return self._caches
 
 
-def new_scalar_function(name=None, comm=None, static=False, cache=None,
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)

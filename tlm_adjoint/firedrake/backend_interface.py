@@ -334,7 +334,7 @@ backend_Function._tlm_adjoint__orig__getattr__ = backend_Function.__getattr__
 backend_Function.__getattr__ = _Function__getattr__
 
 
-def new_scalar_function(name=None, comm=None, static=False, cache=None,
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
