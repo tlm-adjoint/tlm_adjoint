@@ -364,7 +364,7 @@ def extract_coefficients(expr):
         return ufl.algorithms.extract_coefficients(expr)
 
 
-def eliminate_zeros(expr, force_non_empty_form=False):
+def eliminate_zeros(expr, *, force_non_empty_form=False):
     replace_map = {}
     for c in extract_coefficients(expr):
         if isinstance(c, Zero):
