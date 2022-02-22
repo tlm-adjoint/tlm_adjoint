@@ -83,7 +83,6 @@ __all__ = \
         "time_system_eq",
 
         "function_max_value",
-        "function_tangent_linear",
         "is_real_function",
         "real_function_value"
     ]
@@ -173,7 +172,7 @@ class SpaceInterface:
     def _id(self):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
 
@@ -202,7 +201,7 @@ def space_id(space):
     return space._tlm_adjoint__space_interface_id()
 
 
-def space_new(space, name=None, static=False, cache=None, checkpoint=None):
+def space_new(space, *, name=None, static=False, cache=None, checkpoint=None):
     return space._tlm_adjoint__space_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
@@ -296,14 +295,14 @@ class FunctionInterface:
     def _set_values(self, values):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         return space_new(function_space(self), name=name, static=static,
                          cache=cache, checkpoint=checkpoint)
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
+    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
-    def _new_tangent_linear(self, name=None):
+    def _new_tangent_linear(self, *, name=None):
         if function_is_static(self):
             return None
         else:
@@ -446,24 +445,17 @@ def function_set_values(x, values):
     x._tlm_adjoint__function_interface_set_values(values)
 
 
-def function_new(x, name=None, static=False, cache=None, checkpoint=None):
+def function_new(x, *, name=None, static=False, cache=None, checkpoint=None):
     return x._tlm_adjoint__function_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
-def function_copy(x, name=None, static=False, cache=None, checkpoint=None):
+def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
     return x._tlm_adjoint__function_interface_copy(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
-def function_tangent_linear(x, name=None):
-    warnings.warn("function_tangent_linear is deprecated -- "
-                  "use function_new_tangent_linear instead",
-                  DeprecationWarning, stacklevel=2)
-    return function_new_tangent_linear(x, name=name)
-
-
-def function_new_tangent_linear(x, name=None):
+def function_new_tangent_linear(x, *, name=None):
     return x._tlm_adjoint__function_interface_new_tangent_linear(name=name)
 
 

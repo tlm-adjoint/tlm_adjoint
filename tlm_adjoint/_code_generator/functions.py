@@ -23,8 +23,8 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_dtype, function_id, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_new_tangent_linear, function_replacement, \
-    function_space, is_function, space_comm
+    function_name, function_replacement, function_space, is_function, \
+    space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -71,7 +71,7 @@ class ConstantSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         domain = self._tlm_adjoint__space_interface_attrs["domain"]
         return Constant(name=name, domain=domain, space=self, static=static,
                         cache=cache, checkpoint=checkpoint)
@@ -224,7 +224,7 @@ class ConstantInterface(_FunctionInterface):
             values.shape = self.ufl_shape
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
+    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         if len(self.ufl_shape) == 0:
             value = function_dtype(self)(self)
         else:
@@ -326,12 +326,6 @@ class Constant(backend_Constant):
                       DeprecationWarning, stacklevel=2)
         return function_is_checkpointed(self)
 
-    def tangent_linear(self, name=None):
-        warnings.warn("Constant.tangent_linear is deprecated -- "
-                      "use function_new_tangent_linear instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_new_tangent_linear(self, name=name)
-
 
 class Zero(Constant):
     def __init__(self, name=None, domain=None, space=None, shape=None,
@@ -431,12 +425,6 @@ class Function(backend_Function):
                       "use function_is_checkpointed instead",
                       DeprecationWarning, stacklevel=2)
         return function_is_checkpointed(self)
-
-    def tangent_linear(self, name=None):
-        warnings.warn("Function.tangent_linear is deprecated -- "
-                      "use function_new_tangent_linear instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_new_tangent_linear(self, name=name)
 
 
 class DirichletBC(backend_DirichletBC):

@@ -101,7 +101,7 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
                         checkpoint=checkpoint)
 
@@ -259,13 +259,13 @@ class FunctionInterface(_FunctionInterface):
         self.vector().set_local(values)
         self.vector().apply("insert")
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         y = function_copy(self, name=name, static=static, cache=cache,
                           checkpoint=checkpoint)
         y.vector().zero()
         return y
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
+    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         y = self.copy(deepcopy=True)
         if name is not None:
             y.rename(name, "a Function")
