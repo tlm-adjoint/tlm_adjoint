@@ -328,7 +328,7 @@ class Constant(backend_Constant):
 
 
 class Zero(Constant):
-    def __init__(self, name=None, domain=None, space=None, shape=None,
+    def __init__(self, *, name=None, domain=None, space=None, shape=None,
                  comm=None):
         super().__init__(name=name, domain=domain, space=space, shape=shape,
                          comm=comm, static=True)
@@ -347,13 +347,13 @@ class Zero(Constant):
 
 
 class ZeroConstant(Zero):
-    def __init__(self, name=None, domain=None, shape=None):
+    def __init__(self, *, name=None, domain=None, shape=None):
         super().__init__(name=name, domain=domain, shape=shape,
                          comm=MPI.COMM_NULL)
 
 
 class ZeroFunction(Zero):
-    def __init__(self, space, name=None):
+    def __init__(self, space, *, name=None):
         super().__init__(name=name, space=space)
 
 
