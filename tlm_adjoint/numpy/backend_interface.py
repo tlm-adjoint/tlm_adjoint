@@ -81,7 +81,7 @@ class FunctionSpaceInterface(SpaceInterface):
 
 
 class FunctionSpace:
-    def __init__(self, dim, dtype=None):
+    def __init__(self, dim, *, dtype=None):
         comm = DEFAULT_COMM
         if comm.size > 1:
             raise InterfaceException("Serial only")
@@ -218,7 +218,7 @@ class FunctionInterface(_FunctionInterface):
 
 
 class Function:
-    def __init__(self, space, name=None, static=False, cache=None,
+    def __init__(self, space, *, name=None, static=False, cache=None,
                  checkpoint=None, _data=None):
         id = new_function_id()
         if name is None:

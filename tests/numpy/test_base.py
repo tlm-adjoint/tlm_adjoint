@@ -137,7 +137,7 @@ def info(message):
 
 
 class Constant(Function):
-    def __init__(self, value=0.0, name=None, static=False, cache=None,
+    def __init__(self, value=0.0, *, name=None, static=False, cache=None,
                  checkpoint=None):
         space = FunctionSpace(1)  # , dtype=default_dtype())
         super().__init__(space, name=name, static=static, cache=cache,
