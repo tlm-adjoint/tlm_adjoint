@@ -110,7 +110,7 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
                         checkpoint=checkpoint)
 
@@ -286,7 +286,7 @@ class FunctionInterface(_FunctionInterface):
                 raise InterfaceException("Invalid shape")
             x_v.setArray(values)
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
+    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         y = function_new(self, name=name, static=static, cache=cache,
                          checkpoint=checkpoint)
         function_assign(y, self)
@@ -334,7 +334,7 @@ backend_Function._tlm_adjoint__orig__getattr__ = backend_Function.__getattr__
 backend_Function.__getattr__ = _Function__getattr__
 
 
-def new_scalar_function(name=None, comm=None, static=False, cache=None,
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)

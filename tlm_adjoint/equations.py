@@ -246,7 +246,7 @@ class Referrer:
 
 class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None,
-                 ic_deps=None, ic=None,
+                 *, ic_deps=None, ic=None,
                  adj_ic_deps=None, adj_ic=None):
         """
         An equation. The equation is expressed in the form:
@@ -1497,7 +1497,7 @@ class LinearEquation(Equation):
 
 
 class Matrix(Referrer):
-    def __init__(self, nl_deps=None, has_ic_dep=None, ic=None, adj_ic=True):
+    def __init__(self, nl_deps=None, *, has_ic_dep=None, ic=None, adj_ic=True):
         if nl_deps is None:
             nl_deps = []
         if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):

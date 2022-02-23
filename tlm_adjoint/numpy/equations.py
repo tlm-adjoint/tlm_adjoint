@@ -34,7 +34,7 @@ __all__ = \
 
 
 class ConstantMatrix(Matrix):
-    def __init__(self, A, A_T=None, ic=False, adj_ic=False):
+    def __init__(self, A, A_T=None, *, ic=False, adj_ic=False):
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)

@@ -950,7 +950,7 @@ symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
 the form
 \begin{lstlisting}
 def __init__(self, x, deps, nl_deps=None,
-             ic_deps=None, ic=None,
+             *, ic_deps=None, ic=None,
              adj_ic_deps=None, adj_ic=None):
 \end{lstlisting}
 with constructor arguments
@@ -1217,7 +1217,7 @@ matrices as used by a \texttt{LinearEquation}.
 A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
 define dependencies. The \texttt{Matrix} constructor has the form
 \begin{lstlisting}
-def __init__(self, nl_deps=None, ic=True, adj_ic=True):
+def __init__(self, nl_deps=None, *, ic=True, adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}

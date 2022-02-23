@@ -23,8 +23,7 @@ from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    function_new_tangent_linear, function_space, new_function_id, \
-    new_space_id, space_id, space_new
+    function_space, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 from ..tlm_adjoint import DEFAULT_COMM
 
@@ -76,13 +75,13 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self.id()
 
-    def _new(self, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
         return Function(self, name=name, static=static, cache=cache,
                         checkpoint=checkpoint)
 
 
 class FunctionSpace:
-    def __init__(self, dim, dtype=None):
+    def __init__(self, dim, *, dtype=None):
         comm = DEFAULT_COMM
         if comm.size > 1:
             raise InterfaceException("Serial only")
@@ -200,7 +199,7 @@ class FunctionInterface(_FunctionInterface):
             raise InterfaceException("Invalid shape")
         self.vector()[:] = values
 
-    def _copy(self, name=None, static=False, cache=None, checkpoint=None):
+    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         return Function(self.space(), name=name, static=static, cache=cache,
                         checkpoint=checkpoint, _data=self.vector().copy())
 
@@ -219,7 +218,7 @@ class FunctionInterface(_FunctionInterface):
 
 
 class Function:
-    def __init__(self, space, name=None, static=False, cache=None,
+    def __init__(self, space, *, name=None, static=False, cache=None,
                  checkpoint=None, _data=None):
         id = new_function_id()
         if name is None:
@@ -278,12 +277,6 @@ class Function:
 
     def caches(self):
         return self._caches
-
-    def tangent_linear(self, name=None):
-        warnings.warn("Function.tangent_linear is deprecated -- "
-                      "use function_new_tangent_linear instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_new_tangent_linear(self, name=name)
 
     def replacement(self):
         if self._replacement is None:
@@ -359,7 +352,7 @@ class Replacement:
         return self._caches
 
 
-def new_scalar_function(name=None, comm=None, static=False, cache=None,
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
