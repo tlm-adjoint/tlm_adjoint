@@ -54,7 +54,7 @@ class TimesteppingException(Exception):
 
 
 class BaseTimeLevel:
-    def __init__(self, order, i):
+    def __init__(self, *, order, i):
         self._order = order
         self._i = i
 
@@ -157,7 +157,7 @@ class TimeLevels:
 
 
 class TimeFunction:
-    def __init__(self, levels, space, name=None):
+    def __init__(self, levels, space, *, name=None):
         # Note that this keeps references to the functions on each time level
         self._fns = {}
         for level in levels:
@@ -193,7 +193,7 @@ class TimeFunction:
     def levels(self):
         return self._levels
 
-    def cycle(self, manager=None):
+    def cycle(self, *, manager=None):
         if self._cycle_eqs is None:
             self._cycle_eqs = tuple(AssignmentSolver(self[source_level],
                                                      self[target_level])
@@ -243,7 +243,7 @@ class TimeSystem:
         else:
             raise TimesteppingException(f"Invalid time level: {level}")
 
-    def assemble(self, initialize=True, manager=None):
+    def assemble(self, *, initialize=True, manager=None):
         if self._state != "initial":
             raise TimesteppingException("Invalid state")
         self._state = "assembled"
@@ -309,7 +309,7 @@ class TimeSystem:
 
         return self
 
-    def initialize(self, manager=None):
+    def initialize(self, *, manager=None):
         if self._state != "assembled":
             raise TimesteppingException("Invalid state")
         self._state = "initialized"
@@ -320,7 +320,7 @@ class TimeSystem:
         self._initial_eqs = []
         self._sorted_eqs[0] = []
 
-    def timestep(self, s=1, manager=None):
+    def timestep(self, s=1, *, manager=None):
         if self._state == "initial":
             self.assemble(initialize=True, manager=manager)
         if self._state not in ["initialized", "timestepping"]:
@@ -335,7 +335,7 @@ class TimeSystem:
             for tfn in self._tfns:
                 tfn.cycle(manager=manager)
 
-    def finalize(self, manager=None):
+    def finalize(self, *, manager=None):
         if self._state == "initial":
             self.assemble(initialize=True, manager=manager)
         if self._state not in ["initialized", "timestepping"]:
