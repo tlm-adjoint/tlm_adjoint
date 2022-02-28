@@ -66,6 +66,7 @@ __all__ = \
         "function_replacement",
         "function_set_values",
         "function_space",
+        "function_space_type",
         "function_state",
         "function_sum",
         "function_update_caches",
@@ -208,13 +209,13 @@ def space_new(space, *, name=None, static=False, cache=None, checkpoint=None):
 
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
-    names = ("_comm", "_space", "_dtype", "_id", "_name", "_state",
-             "_update_state", "_is_static", "_is_cached", "_is_checkpointed",
-             "_caches", "_update_caches", "_zero", "_assign", "_axpy",
-             "_inner", "_max_value", "_sum", "_linf_norm", "_local_size",
-             "_global_size", "_local_indices", "_get_values", "_set_values",
-             "_new", "_copy", "_new_tangent_linear", "_replacement",
-             "_is_replacement", "_is_scalar", "_scalar_value")
+    names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
+             "_state", "_update_state", "_is_static", "_is_cached",
+             "_is_checkpointed", "_caches", "_update_caches", "_zero",
+             "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
+             "_local_size", "_global_size", "_local_indices", "_get_values",
+             "_set_values", "_new", "_copy", "_new_tangent_linear",
+             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -223,6 +224,9 @@ class FunctionInterface:
         return space_comm(function_space(self))
 
     def _space(self):
+        raise InterfaceException("Method not overridden")
+
+    def _space_type(self):
         raise InterfaceException("Method not overridden")
 
     def _dtype(self):
@@ -333,6 +337,10 @@ def function_comm(x):
 
 def function_space(x):
     return x._tlm_adjoint__function_interface_space()
+
+
+def function_space_type(x):
+    return x._tlm_adjoint__function_interface_space_type()
 
 
 def function_dtype(x):
