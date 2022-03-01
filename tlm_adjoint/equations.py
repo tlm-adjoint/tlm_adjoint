@@ -23,8 +23,9 @@ from .interface import finalize_adjoint_derivative_action, function_assign, \
     function_get_values, function_global_size, function_id, function_inner, \
     function_is_checkpointed, function_local_indices, function_local_size, \
     function_new, function_replacement, function_set_values, function_space, \
-    function_sum, function_update_caches, function_update_state, \
-    function_zero, is_function, space_new, subtract_adjoint_derivative_action
+    function_space_type, function_sum, function_update_caches, \
+    function_update_state, function_zero, is_function, space_new, \
+    subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
@@ -86,8 +87,11 @@ class EquationException(Exception):
 
 
 class AdjointRHS:
-    def __init__(self, space):
-        self._space = space
+    def __init__(self, x):
+        self._space = function_space(x)
+        space_type = function_space_type(x)
+        space_type = {"primal": "dual", "dual": "primal"}[space_type]
+        self._space_type = space_type
         self._b = None
 
     def b(self, copy=False):
@@ -99,7 +103,7 @@ class AdjointRHS:
 
     def initialize(self):
         if self._b is None:
-            self._b = space_new(self._space)
+            self._b = space_new(self._space, space_type=self._space_type)
 
     def finalize(self):
         self.initialize()
@@ -116,7 +120,7 @@ class AdjointRHS:
 
 class AdjointEquationRHS:
     def __init__(self, eq):
-        self._B = tuple(AdjointRHS(function_space(x)) for x in eq.X())
+        self._B = tuple(AdjointRHS(x) for x in eq.X())
 
     def __getitem__(self, key):
         return self._B[key]
