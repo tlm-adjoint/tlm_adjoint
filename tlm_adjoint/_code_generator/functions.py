@@ -23,8 +23,8 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_dtype, function_id, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_replacement, function_space, is_function, \
-    space_comm
+    function_name, function_replacement, function_space, function_space_type, \
+    is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -80,6 +80,9 @@ class ConstantSpaceInterface(SpaceInterface):
 class ConstantInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
 
     def _dtype(self):
         return self._tlm_adjoint__function_interface_attrs["dtype"]
@@ -259,8 +262,11 @@ class ConstantInterface(_FunctionInterface):
 
 class Constant(backend_Constant):
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
-                 shape=None, comm=None, static=False, cache=None,
-                 checkpoint=None, **kwargs):
+                 space_type="primal", shape=None, comm=None, static=False,
+                 cache=None, checkpoint=None, **kwargs):
+        if space_type not in ["primal", "dual"]:
+            raise InterfaceException("Invalid space type")
+
         if domain is None and space is not None:
             domains = space.ufl_domains()
             if len(domains) > 0:
@@ -304,6 +310,7 @@ class Constant(backend_Constant):
 
         super().__init__(value, *args, name=name, domain=domain, space=space,
                          comm=comm, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
@@ -328,10 +335,11 @@ class Constant(backend_Constant):
 
 
 class Zero(Constant):
-    def __init__(self, *, name=None, domain=None, space=None, shape=None,
-                 comm=None):
-        super().__init__(name=name, domain=domain, space=space, shape=shape,
-                         comm=comm, static=True)
+    def __init__(self, *, name=None, domain=None, space=None,
+                 space_type="primal", shape=None, comm=None):
+        super().__init__(name=name, domain=domain, space=space,
+                         space_type=space_type, shape=shape, comm=comm,
+                         static=True)
 
     def assign(self, *args, **kwargs):
         raise InterfaceException("Cannot call assign method of Zero")
@@ -347,14 +355,15 @@ class Zero(Constant):
 
 
 class ZeroConstant(Zero):
-    def __init__(self, *, name=None, domain=None, shape=None):
-        super().__init__(name=name, domain=domain, shape=shape,
-                         comm=MPI.COMM_NULL)
+    def __init__(self, *, name=None, domain=None, space_type="primal",
+                 shape=None):
+        super().__init__(name=name, domain=domain, space_type=space_type,
+                         shape=shape, comm=MPI.COMM_NULL)
 
 
 class ZeroFunction(Zero):
-    def __init__(self, space, *, name=None):
-        super().__init__(name=name, space=space)
+    def __init__(self, space, *, name=None, space_type="primal"):
+        super().__init__(name=name, space=space, space_type=space_type)
 
 
 def extract_coefficients(expr):
@@ -396,14 +405,17 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
 
 
 class Function(backend_Function):
-    def __init__(self, *args, static=False, cache=None, checkpoint=None,
-                 **kwargs):
+    def __init__(self, *args, space_type="primal", static=False, cache=None,
+                 checkpoint=None, **kwargs):
+        if space_type not in ["primal", "dual"]:
+            raise InterfaceException("Invalid space type")
         if cache is None:
             cache = static
         if checkpoint is None:
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
@@ -523,6 +535,9 @@ class ReplacementInterface(_FunctionInterface):
     def _space(self):
         return self.ufl_function_space()
 
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
+
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
 
@@ -565,7 +580,9 @@ class Replacement(ufl.classes.Coefficient):
         self.__domain = domain
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
-                       "space": space, "static": function_is_static(x),
+                       "space": space,
+                       "space_type": function_space_type(x),
+                       "static": function_is_static(x),
                        "cache": function_is_cached(x),
                        "checkpoint": function_is_checkpointed(x),
                        "caches": function_caches(x)})

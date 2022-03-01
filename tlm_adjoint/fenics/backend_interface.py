@@ -82,8 +82,9 @@ def _Constant__init__(self, *args, domain=None, space=None,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "state": 0,
-                   "space": space, "dtype": backend_ScalarType,
-                   "static": False, "cache": False, "checkpoint": True})
+                   "space": space, "space_type": "primal",
+                   "dtype": backend_ScalarType, "static": False,
+                   "cache": False, "checkpoint": True})
 
 
 assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
@@ -135,6 +136,9 @@ backend_FunctionSpace.__init__ = _FunctionSpace__init__
 class FunctionInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
 
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
@@ -306,7 +310,7 @@ def _Function__init__(self, *args, **kwargs):
         raise InterfaceException("PETSc backend required")
 
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(), "state": 0,
+                  {"id": new_function_id(), "state": 0, "space_type": "primal",
                    "static": False, "cache": False, "checkpoint": True})
 
     space = backend_Function._tlm_adjoint__orig_function_space(self)

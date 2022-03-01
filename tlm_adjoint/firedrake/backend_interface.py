@@ -91,8 +91,9 @@ def _Constant__init__(self, value, domain=None, *,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": name, "state": 0,
-                   "space": space, "dtype": self.dat.dtype.type,
-                   "static": False, "cache": False, "checkpoint": True})
+                   "space": space, "space_type": "primal",
+                   "dtype": self.dat.dtype.type, "static": False,
+                   "cache": False, "checkpoint": True})
 
 
 assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
@@ -132,6 +133,9 @@ class FunctionInterface(_FunctionInterface):
 
     def _space(self):
         return self.function_space()
+
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
 
     def _dtype(self):
         return self.dat.dtype.type
@@ -314,7 +318,7 @@ class FunctionInterface(_FunctionInterface):
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(), "state": 0,
+                  {"id": new_function_id(), "state": 0, "space_type": "primal",
                    "static": False, "cache": False, "checkpoint": True})
 
 
