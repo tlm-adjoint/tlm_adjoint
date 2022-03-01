@@ -2642,20 +2642,27 @@ and associated eigenvectors $v$ where
 \end{equation*}
 This has the interface
 \begin{lstlisting}
-def eigendecompose(space, A_action, *, B_action=None, N_eigenvalues=None,
-                   solver_type=None, problem_type=None, which=None,
-                   tolerance=1.0e-12, configure=None):
+def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
+                   action_type="dual", N_eigenvalues=None, solver_type=None,
+                   problem_type=None, which=None, tolerance=1.0e-12,
+                   configure=None):
 \end{lstlisting}
 with arguments
 \begin{itemize}
   \item \texttt{space}, a function space. Eigenvector discrete function space.
   \item \texttt{A\_action}, a callable which accepts a single input function,
-    and computes the complex conjugate of the action of the matrix $A$. The
-    result must be returned as a function or a NumPy array.
+    and computes the action of the matrix $A$. The result must be returned as a
+    function or a NumPy array.
   \item \texttt{B\_action}, a callable which accepts a single input function,
-    and computes the complex conjugate of the action of the matrix $B$. The
-    result must be returned as a function or a NumPy array. If not provided
-    then $B$ is considered an identity matrix.
+    and computes the action of the matrix $B$. The result must be returned as a
+    function or a NumPy array. If not provided then $B$ is considered an
+    identity matrix.
+  \item \texttt{space\_type}, ``primal'' or ``dual'', whether eigenvectors
+    are in the primal or dual space.
+  \item \texttt{action\_type}, whether the action is in the same space as the
+    eigenvectors, or the associated dual space. If ``dual'' then
+    \texttt{A\_action} and \texttt{B\_action} return the complex conjugate of
+    the matrix actions.
   \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
     passed as the \texttt{nev} argument to \texttt{slepc4py.EPS.setDimensions}.
     If not provided then performs a full spectrum eigendecomposition.
