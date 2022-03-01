@@ -62,6 +62,7 @@ __all__ = \
         "function_local_size",
         "function_name",
         "function_new",
+        "function_new_dual",
         "function_new_tangent_linear",
         "function_replacement",
         "function_set_values",
@@ -217,8 +218,9 @@ class FunctionInterface:
              "_is_checkpointed", "_caches", "_update_caches", "_zero",
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
-             "_set_values", "_new", "_copy", "_new_tangent_linear",
-             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value")
+             "_set_values", "_new", "_new_dual", "_copy",
+             "_new_tangent_linear", "_replacement", "_is_replacement",
+             "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -303,9 +305,18 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+        space_type = function_space_type(self)
         return space_new(function_space(self), name=name,
-                         space_type=function_space_type(self), static=static,
-                         cache=cache, checkpoint=checkpoint)
+                         space_type=space_type, static=static, cache=cache,
+                         checkpoint=checkpoint)
+
+    def _new_dual(self, *, name=None, static=False, cache=None,
+                  checkpoint=None):
+        space_type = function_space_type(self)
+        space_type = {"primal": "dual", "dual": "primal"}[space_type]
+        return space_new(function_space(self), name=name,
+                         space_type=space_type, static=static, cache=cache,
+                         checkpoint=checkpoint)
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
@@ -459,6 +470,12 @@ def function_set_values(x, values):
 
 def function_new(x, *, name=None, static=False, cache=None, checkpoint=None):
     return x._tlm_adjoint__function_interface_new(
+        name=name, static=static, cache=cache, checkpoint=checkpoint)
+
+
+def function_new_dual(x, *, name=None, static=False, cache=None,
+                      checkpoint=None):
+    return x._tlm_adjoint__function_interface_new_dual(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 

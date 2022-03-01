@@ -398,7 +398,7 @@ class EquationSolver(ExprEquation):
 
         super().__init__(x, deps, nl_deps=nl_deps,
                          ic=initial_guess is None and ic,
-                         adj_ic=adj_ic)
+                         adj_ic=adj_ic, adj_type="primal")
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = bcs

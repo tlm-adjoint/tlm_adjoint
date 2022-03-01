@@ -22,14 +22,15 @@ from .interface import finalize_adjoint_derivative_action, function_assign, \
     function_axpy, function_comm, function_copy, function_dtype, \
     function_get_values, function_global_size, function_id, function_inner, \
     function_is_checkpointed, function_local_indices, function_local_size, \
-    function_new, function_replacement, function_set_values, function_space, \
-    function_space_type, function_sum, function_update_caches, \
-    function_update_state, function_zero, is_function, space_new, \
-    subtract_adjoint_derivative_action
+    function_new, function_new_dual, function_replacement, \
+    function_set_values, function_space, function_space_type, function_sum, \
+    function_update_caches, function_update_state, function_zero, \
+    is_function, space_new, subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 
+from collections.abc import Sequence
 import copy
 import inspect
 import logging
@@ -251,7 +252,8 @@ class Referrer:
 class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None,
                  *, ic_deps=None, ic=None,
-                 adj_ic_deps=None, adj_ic=None):
+                 adj_ic_deps=None, adj_ic=None,
+                 adj_type="dual"):
         """
         An equation. The equation is expressed in the form:
             F ( X, y_0, y_1, ... ) = 0,
@@ -278,6 +280,9 @@ class Equation(Referrer):
         adj_ic       (Optional) If true then adj_ic_deps is set equal to X.
                      Defaults to true if adj_ic_deps is None, and false
                      otherwise.
+        adj_type  (Optional) "primal" or "dual", or a sequence of these,
+                  defining whether elements of the adjoint are in the
+                  dual space associated with corresponding elements of X.
         """
 
         if is_function(X):
@@ -341,6 +346,17 @@ class Equation(Referrer):
         if adj_ic:
             adj_ic_deps = list(X)
 
+        if adj_type in ["primal", "dual"]:
+            adj_type = tuple(adj_type for x in X)
+        elif isinstance(adj_type, Sequence):
+            if len(adj_type) != len(X):
+                raise EquationException("Invalid adjoint type")
+            for adj_x_type in adj_type:
+                if adj_x_type not in ["primal", "dual"]:
+                    raise EquationException("Invalid adjoint type")
+        else:
+            raise EquationException("Invalid adjoint type")
+
         super().__init__()
         self._X = tuple(X)
         self._deps = tuple(deps)
@@ -348,6 +364,7 @@ class Equation(Referrer):
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
+        self._adj_type = tuple(adj_type)
 
     _reset_adjoint_warning = True
     _initialize_adjoint_warning = True
@@ -405,14 +422,11 @@ class Equation(Referrer):
 
     def x(self):
         """
-        If the equation solves for exactly one function, return it. Otherwise
-        raise an error.
+        If the equation solves for exactly one function, return it.
         """
 
-        if len(self._X) != 1:
-            raise EquationException("Equation does not solve for exactly one "
-                                    "function")
-        return self._X[0]
+        x, = self._X
+        return x
 
     def X(self):
         """
@@ -435,6 +449,39 @@ class Equation(Referrer):
 
     def adjoint_initial_condition_dependencies(self):
         return self._adj_ic_deps
+
+    def adj_x_type(self):
+        adj_x_type, = self._adj_type
+        return adj_x_type
+
+    def adj_X_type(self):
+        return self._adj_type
+
+    def new_adj_x(self):
+        x = self.x()
+        adj_x_type = self.adj_x_type()
+        if adj_x_type == "primal":
+            adj_x = function_new(x)
+        elif adj_x_type == "dual":
+            adj_x = function_new_dual(x)
+        else:
+            raise EquationException("Invalid adjoint type")
+        return adj_x
+
+    def new_adj_X(self):
+        X = self.X()
+        adj_X_type = self.adj_X_type()
+        adj_X = []
+        assert len(X) == len(adj_X_type)
+        for x, adj_x_type in zip(X, adj_X_type):
+            if adj_x_type == "primal":
+                adj_x = function_new(x)
+            elif adj_x_type == "dual":
+                adj_x = function_new_dual(x)
+            else:
+                raise EquationException("Invalid adjoint type")
+            adj_X.append(adj_x)
+        return tuple(adj_X)
 
     def _pre_process(self, manager=None, annotate=None):
         if manager is None:
@@ -684,6 +731,7 @@ class ControlsMarker(Equation):
         self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
+        self._adj_type = tuple("dual" for m in M)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -902,15 +950,21 @@ class FixedPointSolver(Equation):
         dep_ids = {}
         nl_deps = []
         nl_dep_ids = {}
+        adj_X_type = []
 
         eq_X_indices = tuple([] for eq in eqs)
         eq_dep_indices = tuple([] for eq in eqs)
         eq_nl_dep_indices = tuple([] for eq in eqs)
 
         for i, eq in enumerate(eqs):
-            for x in eq.X():
+            eq_X = eq.X()
+            eq_adj_X_type = eq.adj_X_type()
+            assert len(eq_X) == len(eq_adj_X_type)
+            for x, adj_x_type in zip(eq_X, eq_adj_X_type):
                 X.append(x)
                 eq_X_indices[i].append(len(X) - 1)
+                adj_X_type.append(adj_x_type)
+            del eq_X, eq_adj_X_type
 
             for dep in eq.dependencies():
                 dep_id = function_id(dep)
@@ -1017,7 +1071,8 @@ class FixedPointSolver(Equation):
         del dep_map
 
         super().__init__(X, deps, nl_deps=nl_deps,
-                         ic_deps=ic_deps, adj_ic_deps=adj_ic_deps)
+                         ic_deps=ic_deps, adj_ic_deps=adj_ic_deps,
+                         adj_type=adj_X_type)
         self._eqs = tuple(eqs)
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices

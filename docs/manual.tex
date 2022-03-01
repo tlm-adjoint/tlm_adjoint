@@ -951,7 +951,8 @@ the form
 \begin{lstlisting}
 def __init__(self, x, deps, nl_deps=None,
              *, ic_deps=None, ic=None,
-             adj_ic_deps=None, adj_ic=None):
+             adj_ic_deps=None, adj_ic=None,
+             adj_type="dual"):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -973,6 +974,9 @@ with constructor arguments
   \item \texttt{adj\_ic}, if true sets \texttt{adj\_ic\_deps} to be the
     solution to the equation. Defaults to true if \texttt{adj\_ic\_deps} is
     \texttt{None}, and false otherwise.
+  \item \texttt{adj\_type}, ``primal'' or ``dual'', defining whether the
+    adjoint is in the dual space associated with the solution to the equation,
+    \texttt{x}.
 \end{itemize}
 
 \subsection{Forward}
@@ -1171,7 +1175,8 @@ An \texttt{Equation} may solve for two or more functions. In this case the
 arguments \texttt{x}, \texttt{adj\_x}, and \texttt{b} in the above should be
 capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
 sequence of functions. The return value of \texttt{adjoint\_jacobian\_solve}
-should also be a sequence of functions.
+should also be a sequence of functions. \texttt{adj\_type} may be a sequence
+with elements equal to ``primal'' or ``dual''.
 
 \subsection{Dropping references}\label{sect:drop_references}
 
