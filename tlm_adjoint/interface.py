@@ -173,7 +173,8 @@ class SpaceInterface:
     def _id(self):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
         raise InterfaceException("Method not overridden")
 
 
@@ -202,9 +203,11 @@ def space_id(space):
     return space._tlm_adjoint__space_interface_id()
 
 
-def space_new(space, *, name=None, static=False, cache=None, checkpoint=None):
+def space_new(space, *, name=None, space_type="primal", static=False,
+              cache=None, checkpoint=None):
     return space._tlm_adjoint__space_interface_new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint)
+        name=name, space_type=space_type, static=static, cache=cache,
+        checkpoint=checkpoint)
 
 
 class FunctionInterface:

@@ -102,9 +102,10 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint)
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
+        return Function(self, name=name, space_type=space_type, static=static,
+                        cache=cache, checkpoint=checkpoint)
 
 
 _FunctionSpace_add_interface = [True]

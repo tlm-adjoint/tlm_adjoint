@@ -71,10 +71,12 @@ class ConstantSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
         domain = self._tlm_adjoint__space_interface_attrs["domain"]
-        return Constant(name=name, domain=domain, space=self, static=static,
-                        cache=cache, checkpoint=checkpoint)
+        return Constant(name=name, domain=domain, space=self,
+                        space_type=space_type, static=static, cache=cache,
+                        checkpoint=checkpoint)
 
 
 class ConstantInterface(_FunctionInterface):
