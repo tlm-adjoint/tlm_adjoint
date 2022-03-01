@@ -22,7 +22,7 @@ from .interface import function_assign, function_copy, function_get_values, \
     function_global_size, function_id, function_is_checkpointed, \
     function_is_replacement, function_local_indices, function_name, \
     function_new, function_new_tangent_linear, function_set_values, \
-    function_space, is_function, space_id, space_new
+    function_space, function_space_type, is_function, space_id, space_new
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
@@ -1224,6 +1224,7 @@ class EquationManager:
             h = open(cp_filename, "wb")
 
             pickle.dump({key: (self._checkpoint_space_id(F),
+                               function_space_type(F),
                                function_get_values(F))
                          for key, F in cp.items()},
                         h, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1252,6 +1253,10 @@ class EquationManager:
                                      dtype=values.dtype)
                 d[function_local_indices(F)] = values
                 del values
+
+                d = g.create_dataset("space_type", shape=(self._comm.size,),
+                                     dtype=np.uint8)
+                d[self._comm.rank] = {"primal": 0, "dual": 1}[function_space_type(F)]  # noqa: E501
 
                 d = g.create_dataset("space_id", shape=(self._comm.size,),
                                      dtype=np.int64)
@@ -1282,9 +1287,10 @@ class EquationManager:
                 self._comm.barrier()
 
             for key in tuple(cp.keys()):
-                space_id, values = cp.pop(key)
+                space_id, space_type, values = cp.pop(key)
                 if key in storage:
-                    F = space_new(self._cp_spaces[space_id])
+                    F = space_new(self._cp_spaces[space_id],
+                                  space_type=space_type)
                     function_set_values(F, values)
                     storage[key] = F
                 del space_id, values
@@ -1303,10 +1309,16 @@ class EquationManager:
                 d = g["key"]
                 key = int(d[self._comm.rank])
                 if key in storage:
+                    d = g["space_type"]
+                    space_type = {0: "primal", 1: "dual"}[d[self._comm.rank]]
+
                     d = g["space_id"]
-                    F = space_new(self._cp_spaces[d[self._comm.rank]])
+                    F = space_new(self._cp_spaces[d[self._comm.rank]],
+                                  space_type=space_type)
+
                     d = g["value"]
                     function_set_values(F, d[function_local_indices(F)])
+
                     storage[key] = F
                 del g, d
 
