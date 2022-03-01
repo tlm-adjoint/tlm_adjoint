@@ -303,7 +303,8 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return space_new(function_space(self), name=name, static=static,
+        return space_new(function_space(self), name=name,
+                         space_type=function_space_type(self), static=static,
                          cache=cache, checkpoint=checkpoint)
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
@@ -313,8 +314,9 @@ class FunctionInterface:
         if function_is_static(self):
             return None
         else:
-            return function_new(self, name=name, static=False,
-                                cache=function_is_cached(self),
+            return function_new(self, name=name,
+                                space_type=function_space_type(self),
+                                static=False, cache=function_is_cached(self),
                                 checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):

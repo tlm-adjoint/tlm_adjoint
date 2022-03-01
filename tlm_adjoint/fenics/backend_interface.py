@@ -28,8 +28,8 @@ from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
     add_time_system_eq, function_copy, function_new, function_space, \
-    new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action, weakref_method
+    function_space_type, new_function_id, new_space_id, space_id, space_new, \
+    subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -278,13 +278,10 @@ class FunctionInterface(_FunctionInterface):
             cache = static
         if checkpoint is None:
             checkpoint = not static
+        y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", function_space_type(self))  # noqa: E501
         y._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         y._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         y._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-        # Backwards compatibility
-        y.is_static = weakref_method(Function.is_static, y)
-        y.is_cached = weakref_method(Function.is_cached, y)
-        y.is_checkpointed = weakref_method(Function.is_checkpointed, y)
         return y
 
     def _replacement(self):

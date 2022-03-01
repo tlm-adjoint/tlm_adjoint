@@ -240,10 +240,10 @@ class ConstantInterface(_FunctionInterface):
             domain = None
         else:
             domain, = domains
-        space = self._tlm_adjoint__function_interface_attrs["space"]
-        comm = function_comm(self)
-        return Constant(value, name=name, domain=domain, space=space,
-                        comm=comm, static=static, cache=cache,
+        return Constant(value, name=name, domain=domain,
+                        space=function_space(self),
+                        space_type=function_space_type(self),
+                        comm=function_comm(self), static=static, cache=cache,
                         checkpoint=checkpoint)
 
     def _replacement(self):
@@ -316,24 +316,6 @@ class Constant(backend_Constant):
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-
-    def is_static(self):
-        warnings.warn("Constant.is_static is deprecated -- "
-                      "use function_is_static instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_static(self)
-
-    def is_cached(self):
-        warnings.warn("Constant.is_cached is deprecated -- "
-                      "use function_is_cached instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_cached(self)
-
-    def is_checkpointed(self):
-        warnings.warn("Constant.is_checkpointed is deprecated -- "
-                      "use function_is_checkpointed instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_checkpointed(self)
 
 
 class Zero(Constant):
@@ -421,24 +403,6 @@ class Function(backend_Function):
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-
-    def is_static(self):
-        warnings.warn("Function.is_static is deprecated -- "
-                      "use function_is_static instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_static(self)
-
-    def is_cached(self):
-        warnings.warn("Function.is_cached is deprecated -- "
-                      "use function_is_cached instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_cached(self)
-
-    def is_checkpointed(self):
-        warnings.warn("Function.is_checkpointed is deprecated -- "
-                      "use function_is_checkpointed instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_checkpointed(self)
 
 
 class DirichletBC(backend_DirichletBC):
