@@ -314,9 +314,8 @@ class FunctionInterface:
         if function_is_static(self):
             return None
         else:
-            return function_new(self, name=name,
-                                space_type=function_space_type(self),
-                                static=False, cache=function_is_cached(self),
+            return function_new(self, name=name, static=False,
+                                cache=function_is_cached(self),
                                 checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
