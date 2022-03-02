@@ -21,10 +21,10 @@
 from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
     TestFunction, TrialFunction, backend_Function, backend_ScalarType, \
     parameters
-from ..interface import function_assign, function_comm, function_get_values, \
-    function_is_scalar, function_local_size, function_new, function_new_dual, \
-    function_scalar_value, function_set_values, function_space, is_function, \
-    space_comm
+from ..interface import check_space_type, function_assign, function_comm, \
+    function_get_values, function_is_scalar, function_local_size, \
+    function_new, function_new_dual, function_scalar_value, \
+    function_set_values, function_space, is_function, space_comm
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -486,6 +486,9 @@ class InterpolationSolver(LinearEquation):
             warnings.warn("P_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
 
+        check_space_type(x, "primal")
+        check_space_type(y, "primal")
+
         if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
             raise EquationException("Solution must be a scalar-valued "
                                     "Function")
@@ -556,9 +559,12 @@ class PointInterpolationSolver(Equation):
         if is_function(X):
             X = (X,)
         for x in X:
+            check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise EquationException("Solution must be a scalar, or a "
                                         "sequence of scalars")
+        check_space_type(y, "primal")
+
         if X_coords is None:
             if P is None:
                 raise EquationException("X_coords required when P is not supplied")  # noqa: E501

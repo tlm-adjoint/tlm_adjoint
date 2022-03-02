@@ -1793,11 +1793,13 @@ class MatrixActionSolver(LinearEquation):
 
 class DotProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0):
+        check_space_type(x, "primal")
         super().__init__(DotProductRHS(y, z, alpha=alpha), x)
 
 
 class InnerProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0, M=None):
+        check_space_type(x, "primal")
         super().__init__(InnerProductRHS(y, z, alpha=alpha, M=M), x)
 
 
@@ -1808,6 +1810,7 @@ class NormSqSolver(InnerProductSolver):
 
 class SumSolver(LinearEquation):
     def __init__(self, y, x):
+        check_space_type(x, "primal")
         super().__init__(SumRHS(y), x)
 
 

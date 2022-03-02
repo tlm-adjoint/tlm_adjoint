@@ -20,10 +20,11 @@
 
 from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
     backend_assemble, backend_ScalarType
-from ..interface import function_assign, function_comm, function_dtype, \
-    function_get_values, function_is_scalar, function_local_size, \
-    function_new, function_new_dual, function_scalar_value, \
-    function_set_values, function_space, is_function, weakref_method
+from ..interface import check_space_type, function_assign, function_comm, \
+    function_dtype, function_get_values, function_is_scalar, \
+    function_local_size, function_new, function_new_dual, \
+    function_scalar_value, function_set_values, function_space, is_function, \
+    weakref_method
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -258,6 +259,7 @@ class PointInterpolationSolver(Equation):
 
         dtype = None
         for x in X:
+            check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise EquationException("Solution must be a scalar, or a "
                                         "sequence of scalars")
@@ -267,6 +269,7 @@ class PointInterpolationSolver(Equation):
                 raise EquationException("Invalid dtype")
         if dtype is None:
             dtype = backend_ScalarType
+        check_space_type(y, "primal")
 
         if X_coords is None:
             if P is None:

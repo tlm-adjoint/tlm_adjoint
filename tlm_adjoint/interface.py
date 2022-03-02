@@ -240,6 +240,7 @@ def no_space_type_checking(fn):
 
 
 def check_space_type(x, space_type):
+    assert space_type in ["primal", "dual"]
     if _check_space_types[0]:
         if function_space_type(x) != space_type:
             warnings.warn("Unexpected space type", stacklevel=2)

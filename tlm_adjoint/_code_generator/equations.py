@@ -20,8 +20,8 @@
 
 from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from ..interface import function_assign, function_comm, function_dtype, \
-    function_get_values, function_id, function_is_scalar, \
+from ..interface import check_space_type, function_assign, function_comm, \
+    function_dtype, function_get_values, function_id, function_is_scalar, \
     function_local_size, function_new, function_new_dual, \
     function_replacement, function_scalar_value, function_set_values, \
     function_space, function_update_caches, function_update_state, \
@@ -144,10 +144,11 @@ class AssembleSolver(ExprEquation):
 
         rank = len(rhs.arguments())
         if rank == 0:
+            check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise EquationException("Rank 0 forms can only be assigned to "
                                         "scalars")
-        elif rank != 1:
+        else:
             raise EquationException("Must be a rank 0 or 1 form")
 
         deps, nl_deps = extract_dependencies(rhs)
@@ -167,7 +168,6 @@ class AssembleSolver(ExprEquation):
                 form_form_compiler_parameters(rhs, form_compiler_parameters))
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
-        self._rank = rank
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
 
@@ -185,16 +185,10 @@ class AssembleSolver(ExprEquation):
         else:
             rhs = self._replace(self._rhs, deps)
 
-        if self._rank == 0:
-            function_assign(
-                x,
-                assemble(rhs,
-                         form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
-        else:
-            assert self._rank == 1
+        function_assign(
+            x,
             assemble(rhs,
-                     form_compiler_parameters=self._form_compiler_parameters,
-                     tensor=function_vector(x))
+                     form_compiler_parameters=self._form_compiler_parameters))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -216,18 +210,11 @@ class AssembleSolver(ExprEquation):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
-        if self._rank == 0:
-            dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                           for integral in dF.integrals()])  # dF = adjoint(dF)
-            dF = assemble(
-                dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-function_scalar_value(adj_x), dF)
-        else:
-            assert self._rank == 1
-            dF = assemble(
-                ufl.action(adjoint(dF), coefficient=adj_x),
-                form_compiler_parameters=self._form_compiler_parameters)
-            return (-1.0, dF)
+        dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
+                       for integral in dF.integrals()])  # dF = adjoint(dF)
+        dF = assemble(
+            dF, form_compiler_parameters=self._form_compiler_parameters)
+        return (-function_scalar_value(adj_x), dF)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -316,6 +303,8 @@ class EquationSolver(ExprEquation):
             defer_adjoint_assembly = parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"]  # noqa: E501
         if match_quadrature and defer_adjoint_assembly:
             raise EquationException("Cannot both match quadrature and defer adjoint assembly")  # noqa: E501
+
+        check_space_type(x, "primal")
 
         lhs, rhs = eq.lhs, eq.rhs
         del eq
@@ -831,6 +820,9 @@ class ProjectionSolver(EquationSolver):
 
 class DirichletBCSolver(Equation):
     def __init__(self, y, x, *args, **kwargs):
+        check_space_type(x, "primal")
+        check_space_type(y, "primal")
+
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
         self._bc_args = copy.copy(args)
         self._bc_kwargs = copy.copy(kwargs)

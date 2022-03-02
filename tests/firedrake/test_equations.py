@@ -495,15 +495,12 @@ def test_AssembleSolver(setup_test, test_leaks):
     test = TestFunction(space)
 
     def forward(F):
-        x = Function(space, name="x")
-        y = Constant(name="y")
+        x = Constant(name="x")
 
-        AssembleSolver(inner(F * F, test) * dx
-                       + inner(F, test) * dx, x).solve()
-        AssembleSolver(dot(F, x) * dx, y).solve()
+        AssembleSolver((dot(F, F) ** 2) * dx, x).solve()
 
         J = Functional(name="J")
-        J.assign(y)
+        J.assign(x)
         return J
 
     F = Function(space, name="F", static=True)
@@ -514,6 +511,7 @@ def test_AssembleSolver(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
+    assert abs(J_val - assemble((dot(F, F) ** 2) * dx)) == 0.0
 
     dJ = compute_gradient(J, F)
 
@@ -522,7 +520,7 @@ def test_AssembleSolver(setup_test, test_leaks):
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert min_order > 2.99
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
     assert min_order > 2.00
@@ -531,7 +529,7 @@ def test_AssembleSolver(setup_test, test_leaks):
     assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert min_order > 1.99
+    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
