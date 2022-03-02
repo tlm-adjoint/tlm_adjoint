@@ -34,6 +34,7 @@ except ImportError:
 
 
 @pytest.mark.numpy
+@no_space_type_checking
 @seed_test
 def test_AssignmentSolver(setup_test, test_leaks, test_default_dtypes):
     x = Constant(16.0, name="x", static=True)
@@ -96,6 +97,7 @@ def test_AssignmentSolver(setup_test, test_leaks, test_default_dtypes):
 
 
 @pytest.mark.numpy
+@no_space_type_checking
 @seed_test
 def test_AxpySolver(setup_test, test_leaks, test_default_dtypes):
     x = Constant(1.0, name="x", static=True)
@@ -175,6 +177,7 @@ def test_SumSolver(setup_test, test_leaks, test_default_dtypes):
 
 
 @pytest.mark.numpy
+@no_space_type_checking
 @seed_test
 def test_InnerProductSolver(setup_test, test_leaks):
     space = FunctionSpace(10)
@@ -204,6 +207,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
 
 @pytest.mark.numpy
+@no_space_type_checking
 @seed_test
 def test_ContractionSolver(setup_test, test_leaks, test_default_dtypes):
     dtype = default_dtype()

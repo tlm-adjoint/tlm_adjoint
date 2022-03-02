@@ -27,9 +27,9 @@ from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, function_assign, function_comm, function_dtype, \
-    function_is_scalar, function_new, function_scalar_value, function_space, \
-    function_space_type, new_function_id, new_space_id, space_id, space_new, \
+    add_time_system_eq, check_space_types, function_assign, function_comm, \
+    function_dtype, function_is_scalar, function_new, function_scalar_value, \
+    function_space, new_function_id, new_space_id, space_id, space_new, \
     subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
@@ -397,8 +397,7 @@ def _subtract_adjoint_derivative_action(x, y):
             alpha = dtype(alpha)
         else:
             return NotImplemented
-        if function_space_type(x) != function_space_type(y):
-            warnings.warn("Unexpected space type")
+        check_space_types(x, y)
         y_value = function_scalar_value(y)
         # annotate=False, tlm=False
         x.assign(dtype(x) - alpha * y_value)

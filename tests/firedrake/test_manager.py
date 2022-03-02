@@ -102,6 +102,7 @@ def test_long_range(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@no_space_type_checking
 @seed_test
 def test_EmptySolver(setup_test, test_leaks):
     class EmptySolver(Equation):
@@ -257,12 +258,14 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             def __init__(self):
                 super().__init__(nl_deps=[], ic=False, adj_ic=False)
 
+            @no_space_type_checking
             def forward_action(self, nl_deps, x, b, method="assign"):
                 if method == "assign":
                     function_assign(b, x)
                 else:
                     raise EquationException(f"Unexpected method '{method:s}'")
 
+            @no_space_type_checking
             def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                                method="assign"):
                 if b_index != 0:
@@ -276,16 +279,16 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 function_assign(x, b)
 
             def adjoint_solve(self, adj_x, nl_deps, b):
-                return b
+                return function_copy_dual(b)
 
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
                 return None
 
-        x = Constant(0.0, name="x")
+        x = Constant(0.0, name="x", space_type="dual")
 
         M = IdentityMatrix()
         b = NormSqRHS(m, M=M)
-        linear_eq = LinearEquation([b, b], x, A=M)
+        linear_eq = LinearEquation([b, b], x, A=M, adj_type="primal")
         linear_eq.solve()
 
         if forward_run:
@@ -322,10 +325,10 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert not function_is_replacement(dep)
 
-        y = Constant(0.0, name="y")
-        LinearEquation(b, y, A=M).solve()
+        y = Constant(0.0, name="y", space_type="dual")
+        LinearEquation(b, y, A=M, adj_type="primal").solve()
 
-        z = Constant(0.0, name="z")
+        z = Constant(0.0, name="z", space_type="dual")
         AxpySolver(x, 1.0, y, z).solve()
 
         if forward_run:
@@ -354,8 +357,10 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert function_is_replacement(dep)
 
+        M = IdentityMatrix()
+
         J = Functional(name="J")
-        NormSqSolver(z, J.fn()).solve()
+        NormSqSolver(z, J.fn(), M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -542,6 +547,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (200, 20),
                                                    (200, 50),
                                                    (1000, 50)])
+@no_space_type_checking
 @seed_test
 def test_binomial_checkpointing(setup_test, test_leaks,
                                 n_steps, snaps_in_ram):
@@ -614,6 +620,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+@no_space_type_checking
 @seed_test
 def test_TangentLinearMap_finalizes(setup_test, test_leaks,
                                     max_depth):

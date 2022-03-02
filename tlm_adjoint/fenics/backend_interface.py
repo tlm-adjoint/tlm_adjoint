@@ -27,9 +27,9 @@ from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, function_copy, function_new, function_space, \
-    function_space_type, new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action
+    add_time_system_eq, check_space_type, function_copy, function_new, \
+    function_space, function_space_type, new_function_id, new_space_id, \
+    space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -388,8 +388,7 @@ def _subtract_adjoint_derivative_action(x, y):
             and len(y) == 2 \
             and isinstance(y[0], (int, np.integer, float, np.floating)) \
             and isinstance(y[1], backend_Vector):
-        if function_space_type(x) != "dual":
-            warnings.warn("Unexpected space type")
+        check_space_type(x, "dual")
         alpha, y = y
         alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Constant):

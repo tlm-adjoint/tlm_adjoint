@@ -156,8 +156,7 @@ def test_CachedHessian(setup_test):
         zero.assign(0.0)
         _, _, ddJ = H.action(F, zeta)
 
-        error = Function(space, name="error")
-        function_assign(error, ddJ)
+        error = function_copy(ddJ)
         function_axpy(error, -1.0, ddJ_opt)
         assert function_linf_norm(error) == 0.0
 

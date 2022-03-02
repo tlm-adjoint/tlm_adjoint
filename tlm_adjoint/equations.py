@@ -18,15 +18,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import dual_space_type, finalize_adjoint_derivative_action, \
-    function_assign, function_axpy, function_comm, function_copy, \
-    function_copy_dual, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, \
+from .interface import check_space_type, check_space_types, \
+    check_space_types_dual, dual_space_type, \
+    finalize_adjoint_derivative_action, function_assign, function_axpy, \
+    function_comm, function_copy, function_copy_dual, function_dtype, \
+    function_get_values, function_global_size, function_id, function_inner, \
     function_is_checkpointed, function_local_indices, function_local_size, \
     function_new, function_new_dual, function_replacement, \
     function_set_values, function_space, function_space_type, function_sum, \
     function_update_caches, function_update_state, function_zero, \
-    is_function, space_new, subtract_adjoint_derivative_action
+    is_function, no_space_type_checking, space_new, \
+    subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
@@ -600,8 +602,7 @@ class Equation(Referrer):
             adj_X_space_type = self.adj_X_space_type()
             assert len(adj_X) == len(adj_X_space_type)
             for adj_x, adj_x_space_type in zip(adj_X, adj_X_space_type):
-                if function_space_type(adj_x) != adj_x_space_type:
-                    warnings.warn("Unexpected space type")
+                check_space_type(adj_x, adj_x_space_type)
 
         self.finalize_adjoint(J)
 
@@ -821,6 +822,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
+        check_space_types(x, y)
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, x, deps=None):
@@ -851,6 +853,8 @@ class LinearCombinationSolver(Equation):
     def __init__(self, x, *args):
         alpha = tuple(function_dtype(x)(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
+        for y in Y:
+            check_space_types(x, y)
 
         super().__init__(x, [x] + Y, nl_deps=[], ic=False, adj_ic=False)
         self._alpha = alpha
@@ -1112,6 +1116,7 @@ class FixedPointSolver(Equation):
         super().drop_references()
         self._eqs = tuple(WeakAlias(eq) for eq in self._eqs)
 
+    @no_space_type_checking
     def _forward_norm_sq(self, eq_X):
         assert len(eq_X) == len(self._eqs)
 
@@ -1898,6 +1903,8 @@ class DotProductRHS(RHS):
         alpha  (Optional) Scale the result of the dot product by alpha.
         """
 
+        check_space_types_dual(x, y)
+
         x_equals_y = x == y
         if x_equals_y:
             deps = [x]
@@ -2000,6 +2007,10 @@ class InnerProductRHS(RHS):
                non-linear dependencies. Defaults to an identity matrix.
         """
 
+        if M is None:
+            check_space_types_dual(x, y)
+        else:
+            check_space_types(x, y)
         if M is not None and len(M.nonlinear_dependencies()) > 0:
             raise EquationException("Non-linear matrix dependencies not supported")  # noqa: E501
 
@@ -2037,7 +2048,7 @@ class InnerProductRHS(RHS):
         if self._M is None:
             Y = y
         else:
-            Y = function_new(x)
+            Y = function_new_dual(x)
             self._M.adjoint_action(M_deps, y, Y, method="assign")
 
         function_set_values(b,
@@ -2055,7 +2066,7 @@ class InnerProductRHS(RHS):
                 if self._M is None:
                     X = x
                 else:
-                    X = function_new(x)
+                    X = function_new_dual(x)
                     self._M.adjoint_action(M_deps, x, X, method="assign")
 
                 function_axpy(
@@ -2064,7 +2075,7 @@ class InnerProductRHS(RHS):
                 if self._M is None:
                     X = x
                 else:
-                    X = function_new(x)
+                    X = function_new_dual(x)
                     self._M.forward_action(M_deps, x, X, method="assign")
 
                 function_axpy(
@@ -2078,7 +2089,7 @@ class InnerProductRHS(RHS):
             if self._M is None:
                 Y = y
             else:
-                Y = function_new(x)
+                Y = function_new_dual(x)
                 self._M.adjoint_action(M_deps, y, Y, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), Y)
@@ -2091,7 +2102,7 @@ class InnerProductRHS(RHS):
             if self._M is None:
                 X = x
             else:
-                X = function_new(y)
+                X = function_new_dual(y)
                 self._M.forward_action(M_deps, x, X, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), X)

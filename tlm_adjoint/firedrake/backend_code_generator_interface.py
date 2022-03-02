@@ -228,20 +228,22 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
             form._cache["parloops"] = \
                 (tuple([form, tensor] + list(cache_0)), cache_1)
 
-    return_value = backend_assemble(
+    b = backend_assemble(
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
 
-    if isinstance(return_value, backend_Function) \
-            and "parloops" in form._cache:
+    if isinstance(b, backend_Function) and "parloops" in form._cache:
         cache_0, cache_1 = form._cache.pop("parloops")
         assert cache_0[0] is form
-        assert cache_0[1] is return_value
+        assert cache_0[1] is b
         form._cache["_tlm_adjoint__parloops"] = \
             (function_id(cache_0[1]), cache_0[2:], cache_1)
 
-    return return_value
+    if tensor is None and isinstance(b, backend_Function):
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+
+    return b
 
 
 def _assemble_system(A_form, b_form=None, bcs=None,
@@ -338,10 +340,8 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
         *args, **kwargs)
     unbind_forms(form)
 
-    if tensor is None:
-        rank = len(form.arguments())
-        if rank == 1:
-            b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+    if tensor is None and isinstance(b, backend_Function):
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
 
     return b
 

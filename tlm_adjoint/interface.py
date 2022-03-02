@@ -21,6 +21,7 @@
 import numpy as np
 
 from collections.abc import Mapping
+import functools
 import logging
 import sys
 import warnings
@@ -41,7 +42,11 @@ __all__ = \
         "space_id",
         "space_new",
 
+        "check_space_type",
+        "check_space_types",
+        "check_space_types_dual",
         "dual_space_type",
+        "no_space_type_checking",
 
         "FunctionInterface",
         "is_function",
@@ -218,6 +223,40 @@ def dual_space_type(space_type):
     return {"primal": "dual", "dual": "primal"}[space_type]
 
 
+_check_space_types = [True]
+
+
+def no_space_type_checking(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
+        check_space_types = _check_space_types[0]
+        _check_space_types[0] = False
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _check_space_types[0] = check_space_types
+
+    return wrapped_fn
+
+
+def check_space_type(x, space_type):
+    if _check_space_types[0]:
+        if function_space_type(x) != space_type:
+            warnings.warn("Unexpected space type", stacklevel=2)
+
+
+def check_space_types(x, y):
+    if _check_space_types[0]:
+        if function_space_type(x) != function_space_type(y):
+            warnings.warn("Unexpected space type", stacklevel=2)
+
+
+def check_space_types_dual(x, y):
+    if _check_space_types[0]:
+        if function_space_type(x) != dual_space_type(function_space_type(y)):
+            warnings.warn("Unexpected space type", stacklevel=2)
+
+
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
@@ -327,6 +366,7 @@ class FunctionInterface:
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
 
+    @no_space_type_checking
     def _copy_dual(self, *, name=None, static=False, cache=None,
                    checkpoint=None):
         y = function_new_dual(self)
@@ -434,15 +474,21 @@ def function_zero(x):
 
 
 def function_assign(x, y):
+    if is_function(y):
+        check_space_types(x, y)
     x._tlm_adjoint__function_interface_assign(y)
 
 
 def function_axpy(*args):  # y, alpha, x
     y, alpha, x = args
+    if is_function(y):
+        check_space_types(x, y)
     y._tlm_adjoint__function_interface_axpy(alpha, x)
 
 
 def function_inner(x, y):
+    if is_function(y):
+        check_space_types_dual(x, y)
     return x._tlm_adjoint__function_interface_inner(y)
 
 
@@ -554,8 +600,7 @@ def subtract_adjoint_derivative_action(x, y):
         if y is None:
             pass
         elif is_function(y):
-            if function_space_type(x) != function_space_type(y):
-                warnings.warn("Unexpected space type")
+            check_space_types(x, y)
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -1.0, y)
@@ -571,8 +616,7 @@ def subtract_adjoint_derivative_action(x, y):
                 and is_function(y[1]):
             alpha, y = y
             alpha = function_dtype(x)(alpha)
-            if function_space_type(x) != function_space_type(y):
-                warnings.warn("Unexpected space type")
+            check_space_types(x, y)
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -alpha, y)

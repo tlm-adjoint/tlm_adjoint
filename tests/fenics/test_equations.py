@@ -37,6 +37,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_AssignmentSolver(setup_test, test_leaks):
     x = Constant(16.0, name="x", static=True)
@@ -99,6 +100,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_AxpySolver(setup_test, test_leaks):
     x = Constant(1.0, name="x", static=True)
@@ -599,6 +601,7 @@ def test_AssembleSolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_Storage(setup_test, test_leaks):
     comm = manager().comm()
@@ -727,6 +730,7 @@ def test_SumSolver(setup_test, test_leaks):
 @pytest.mark.skipif(issubclass(PETSc.ScalarType,
                                (complex, np.complexfloating)),
                     reason="real only")
+@no_space_type_checking
 @seed_test
 def test_InnerProductSolver(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
@@ -836,14 +840,15 @@ def test_initial_guess(setup_test, test_leaks):
 
         # test_adj_ic defined in test scope below
         if test_adj_ic:
-            adj_x_0 = Function(space_1, name="adj_x_0", static=True)
+            adj_x_0 = Function(space_1, name="adj_x_0", space_type="dual",
+                               static=True)
             solve(
                 inner(trial_1, test_1) * dx
                 == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
             NullSolver(x, adj_type="primal").solve()
-            J_term = space_new(J.space())
+            J_term = function_new(J.fn())
             InnerProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)
         else:
