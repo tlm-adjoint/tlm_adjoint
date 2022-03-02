@@ -1201,7 +1201,7 @@ where $A$ is a matrix and the $b_i$ are independent of $x$.
 
 The \texttt{LinearEquation} constructor has the form
 \begin{lstlisting}
-def __init__(self, B, X, A=None):
+def __init__(self, B, X, *, A=None, adj_type="dual"):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1210,6 +1210,7 @@ with constructor arguments
   \item \texttt{X}, a function, or a sequence of functions, defining $x$.
   \item \texttt{A}, a \texttt{Matrix}. If not provided $A$ is an identity
     matrix.
+  \item \texttt{adj\_type}, as for the \texttt{Equation} constructor.
 \end{itemize}
 
 \subsection{\texttt{Matrix}}

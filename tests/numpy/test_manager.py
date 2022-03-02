@@ -276,7 +276,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
                 if dep_index == 1:
                     x0, m = nl_deps
-                    F = function_new(x0)
+                    F = function_new_dual(x0)
                     function_set_values(
                         F,
                         0.5 * function_get_values(adj_x)
@@ -285,7 +285,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
-                    F = function_new(x0)
+                    F = function_new_dual(x0)
                     function_set_values(
                         F,
                         -0.5 * function_get_values(adj_x)

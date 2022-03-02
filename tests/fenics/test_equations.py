@@ -842,7 +842,7 @@ def test_initial_guess(setup_test, test_leaks):
                 == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
-            NullSolver(x).solve()
+            NullSolver(x, adj_type="primal").solve()
             J_term = space_new(J.space())
             InnerProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)

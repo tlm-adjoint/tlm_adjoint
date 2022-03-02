@@ -41,6 +41,8 @@ __all__ = \
         "space_id",
         "space_new",
 
+        "dual_space_type",
+
         "FunctionInterface",
         "is_function",
         "function_assign",
@@ -48,6 +50,7 @@ __all__ = \
         "function_caches",
         "function_comm",
         "function_copy",
+        "function_copy_dual",
         "function_dtype",
         "function_get_values",
         "function_global_size",
@@ -211,6 +214,10 @@ def space_new(space, *, name=None, space_type="primal", static=False,
         checkpoint=checkpoint)
 
 
+def dual_space_type(space_type):
+    return {"primal": "dual", "dual": "primal"}[space_type]
+
+
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
@@ -218,7 +225,7 @@ class FunctionInterface:
              "_is_checkpointed", "_caches", "_update_caches", "_zero",
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
-             "_set_values", "_new", "_new_dual", "_copy",
+             "_set_values", "_new", "_new_dual", "_copy", "_copy_dual",
              "_new_tangent_linear", "_replacement", "_is_replacement",
              "_is_scalar", "_scalar_value")
 
@@ -312,14 +319,19 @@ class FunctionInterface:
 
     def _new_dual(self, *, name=None, static=False, cache=None,
                   checkpoint=None):
-        space_type = function_space_type(self)
-        space_type = {"primal": "dual", "dual": "primal"}[space_type]
+        space_type = dual_space_type(function_space_type(self))
         return space_new(function_space(self), name=name,
                          space_type=space_type, static=static, cache=cache,
                          checkpoint=checkpoint)
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
+
+    def _copy_dual(self, *, name=None, static=False, cache=None,
+                   checkpoint=None):
+        y = function_new_dual(self)
+        function_assign(y, self)
+        return y
 
     def _new_tangent_linear(self, *, name=None):
         if function_is_static(self):
@@ -484,6 +496,12 @@ def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
+def function_copy_dual(x, *, name=None, static=False, cache=None,
+                       checkpoint=None):
+    return x._tlm_adjoint__function_interface_copy_dual(
+        name=name, static=static, cache=cache, checkpoint=checkpoint)
+
+
 def function_new_tangent_linear(x, *, name=None):
     return x._tlm_adjoint__function_interface_new_tangent_linear(name=name)
 
@@ -536,6 +554,8 @@ def subtract_adjoint_derivative_action(x, y):
         if y is None:
             pass
         elif is_function(y):
+            if function_space_type(x) != function_space_type(y):
+                warnings.warn("Unexpected space type")
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -1.0, y)
@@ -551,6 +571,8 @@ def subtract_adjoint_derivative_action(x, y):
                 and is_function(y[1]):
             alpha, y = y
             alpha = function_dtype(x)(alpha)
+            if function_space_type(x) != function_space_type(y):
+                warnings.warn("Unexpected space type")
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -alpha, y)

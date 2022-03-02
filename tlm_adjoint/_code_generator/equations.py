@@ -22,9 +22,10 @@ from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
 from ..interface import function_assign, function_comm, function_dtype, \
     function_get_values, function_id, function_is_scalar, \
-    function_local_size, function_new, function_replacement, \
-    function_scalar_value, function_set_values, function_space, \
-    function_update_caches, function_update_state, function_zero, is_function
+    function_local_size, function_new, function_new_dual, \
+    function_replacement, function_scalar_value, function_set_values, \
+    function_space, function_update_caches, function_update_state, \
+    function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -507,7 +508,8 @@ class EquationSolver(ExprEquation):
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
-                b = matrix_multiply(mat, function_vector(dep))
+                b = function_vector(function_new_dual(self.x()))
+                matrix_multiply(mat, function_vector(dep), tensor=b)
             else:
                 matrix_multiply(mat, function_vector(dep), tensor=b,
                                 addto=True)
@@ -706,7 +708,9 @@ class EquationSolver(ExprEquation):
                                 replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     else:
                         mat, _ = mat_bc
-                    dep_B.sub(matrix_multiply(mat, function_vector(adj_x)))
+                    F = function_vector(function_new_dual(self.dependencies()[dep_index]))  # noqa: E501
+                    matrix_multiply(mat, function_vector(adj_x), tensor=F)
+                    dep_B.sub(F)
                 else:
                     # Cached form, immediate assembly
                     assert isinstance(cache, ufl.classes.Form)
@@ -726,7 +730,7 @@ class EquationSolver(ExprEquation):
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if adj_x is None:
-            adj_x = function_new(b)
+            adj_x = self.new_adj_x()
 
         if self._cache_adjoint_jacobian:
             J_solver_mat_bc = self._adjoint_J_solver()
@@ -843,7 +847,7 @@ class DirichletBCSolver(Equation):
             return adj_x
         elif dep_index == 1:
             _, y = self.dependencies()
-            F = function_new(y)
+            F = function_new_dual(y)
             backend_DirichletBC(
                 function_space(y), adj_x,
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
@@ -982,7 +986,7 @@ class ExprEvaluationSolver(ExprEquation):
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
         dF_val = evaluate_expr(dF)
-        F = function_new(dep)
+        F = function_new_dual(dep)
         if isinstance(dF_val, (int, np.integer,
                                float, np.floating,
                                complex, np.complexfloating)):

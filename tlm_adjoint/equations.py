@@ -18,9 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import finalize_adjoint_derivative_action, function_assign, \
-    function_axpy, function_comm, function_copy, function_dtype, \
-    function_get_values, function_global_size, function_id, function_inner, \
+from .interface import dual_space_type, finalize_adjoint_derivative_action, \
+    function_assign, function_axpy, function_comm, function_copy, \
+    function_copy_dual, function_dtype, function_get_values, \
+    function_global_size, function_id, function_inner, \
     function_is_checkpointed, function_local_indices, function_local_size, \
     function_new, function_new_dual, function_replacement, \
     function_set_values, function_space, function_space_type, function_sum, \
@@ -90,9 +91,7 @@ class EquationException(Exception):
 class AdjointRHS:
     def __init__(self, x):
         self._space = function_space(x)
-        space_type = function_space_type(x)
-        space_type = {"primal": "dual", "dual": "primal"}[space_type]
-        self._space_type = space_type
+        self._space_type = dual_space_type(function_space_type(x))
         self._b = None
 
     def b(self, copy=False):
@@ -351,11 +350,19 @@ class Equation(Referrer):
         elif isinstance(adj_type, Sequence):
             if len(adj_type) != len(X):
                 raise EquationException("Invalid adjoint type")
-            for adj_x_type in adj_type:
-                if adj_x_type not in ["primal", "dual"]:
-                    raise EquationException("Invalid adjoint type")
         else:
             raise EquationException("Invalid adjoint type")
+
+        adj_X_space_type = []
+        assert len(X) == len(adj_type)
+        for x, adj_x_type in zip(X, adj_type):
+            space_type = function_space_type(x)
+            if adj_x_type == "primal":
+                adj_X_space_type.append(space_type)
+            elif adj_x_type == "dual":
+                adj_X_space_type.append(dual_space_type(space_type))
+            else:
+                raise EquationException("Invalid adjoint type")
 
         super().__init__()
         self._X = tuple(X)
@@ -364,7 +371,8 @@ class Equation(Referrer):
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
-        self._adj_type = tuple(adj_type)
+        self._adj_X_type = tuple(adj_type)
+        self._adj_X_space_type = tuple(adj_X_space_type)
 
     _reset_adjoint_warning = True
     _initialize_adjoint_warning = True
@@ -421,19 +429,14 @@ class Equation(Referrer):
                                   for dep in self._adj_ic_deps)
 
     def x(self):
-        """
-        If the equation solves for exactly one function, return it.
-        """
-
         x, = self._X
         return x
 
-    def X(self):
-        """
-        A tuple of functions. The solution to the equation.
-        """
-
-        return self._X
+    def X(self, m=None):
+        if m is None:
+            return self._X
+        else:
+            return self._X[m]
 
     def dependencies(self):
         return self._deps
@@ -451,37 +454,37 @@ class Equation(Referrer):
         return self._adj_ic_deps
 
     def adj_x_type(self):
-        adj_x_type, = self._adj_type
+        adj_x_type, = self.adj_X_type()
         return adj_x_type
 
-    def adj_X_type(self):
-        return self._adj_type
+    def adj_X_type(self, m=None):
+        if m is None:
+            return self._adj_X_type
+        else:
+            return self._adj_X_type[m]
+
+    def adj_X_space_type(self, m=None):
+        if m is None:
+            return self._adj_X_space_type
+        else:
+            return self._adj_X_space_type[m]
 
     def new_adj_x(self):
-        x = self.x()
-        adj_x_type = self.adj_x_type()
-        if adj_x_type == "primal":
-            adj_x = function_new(x)
-        elif adj_x_type == "dual":
-            adj_x = function_new_dual(x)
-        else:
-            raise EquationException("Invalid adjoint type")
+        adj_x, = self.new_adj_X()
         return adj_x
 
-    def new_adj_X(self):
-        X = self.X()
-        adj_X_type = self.adj_X_type()
-        adj_X = []
-        assert len(X) == len(adj_X_type)
-        for x, adj_x_type in zip(X, adj_X_type):
+    def new_adj_X(self, m=None):
+        if m is None:
+            return tuple(self.new_adj_X(m) for m in range(len(self.X())))
+        else:
+            x = self.X(m)
+            adj_x_type = self.adj_X_type(m)
             if adj_x_type == "primal":
-                adj_x = function_new(x)
+                return function_new(x)
             elif adj_x_type == "dual":
-                adj_x = function_new_dual(x)
+                return function_new_dual(x)
             else:
                 raise EquationException("Invalid adjoint type")
-            adj_X.append(adj_x)
-        return tuple(adj_X)
 
     def _pre_process(self, manager=None, annotate=None):
         if manager is None:
@@ -591,12 +594,19 @@ class Equation(Referrer):
         if adj_X is not None:
             self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
 
+            if is_function(adj_X):
+                adj_X = (adj_X,)
+
+            adj_X_space_type = self.adj_X_space_type()
+            assert len(adj_X) == len(adj_X_space_type)
+            for adj_x, adj_x_space_type in zip(adj_X, adj_X_space_type):
+                if function_space_type(adj_x) != adj_x_space_type:
+                    warnings.warn("Unexpected space type")
+
         self.finalize_adjoint(J)
 
         if adj_X is None:
             return None
-        elif is_function(adj_X):
-            return (adj_X,)
         else:
             return tuple(adj_X)
 
@@ -731,7 +741,9 @@ class ControlsMarker(Equation):
         self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
-        self._adj_type = tuple("dual" for m in M)
+        self._adj_X_type = tuple("dual" for m in M)
+        self._adj_X_space_type = tuple(dual_space_type(function_space_type(m))
+                                       for m in M)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -769,10 +781,11 @@ def get_tangent_linear(x, M, dM, tlm_map):
 
 
 class NullSolver(Equation):
-    def __init__(self, X):
+    def __init__(self, X, adj_type="dual"):
         if is_function(X):
             X = (X,)
-        super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False)
+        super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False,
+                         adj_type=adj_type)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -789,10 +802,21 @@ class NullSolver(Equation):
             raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
+        adj_X_type = self.adj_X_type()
+        if "primal" in adj_X_type:
+            if is_function(B):
+                B = [B]
+            else:
+                B = list(B)
+            assert len(B) == len(adj_X_type)
+            for i, (b, adj_x_type) in enumerate(zip(B, adj_X_type)):
+                if adj_x_type == "primal":
+                    B[i] = function_copy_dual(b)
         return B
 
     def tangent_linear(self, M, dM, tlm_map):
-        return NullSolver([tlm_map[x] for x in self.X()])
+        return NullSolver([tlm_map[x] for x in self.X()],
+                          adj_type=self.adj_X_type())
 
 
 class AssignmentSolver(Equation):
@@ -1197,7 +1221,7 @@ class FixedPointSolver(Equation):
         if is_function(B):
             B = (B,)
         if adj_X is None:
-            adj_X = [function_new(b) for b in B]
+            adj_X = list(self.new_adj_X())
         elif is_function(adj_X):
             adj_X = [adj_X]
         else:
@@ -1253,7 +1277,7 @@ class FixedPointSolver(Equation):
                     eq_B[0] if len(eq_B) == 1 else eq_B)
 
                 if eq_adj_X[i] is None:
-                    eq_adj_X[i] = tuple(function_new(b) for b in eq_B)
+                    eq_adj_X[i] = self.new_adj_X()
                 else:
                     if is_function(eq_adj_X[i]):
                         eq_adj_X[i] = (eq_adj_X[i],)
@@ -1338,7 +1362,7 @@ class FixedPointSolver(Equation):
 
 
 class LinearEquation(Equation):
-    def __init__(self, B, X, A=None):
+    def __init__(self, B, X, *, A=None, adj_type="dual"):
         if isinstance(B, RHS):
             B = (B,)
         if is_function(X):
@@ -1413,7 +1437,8 @@ class LinearEquation(Equation):
         super().__init__(
             X, deps, nl_deps=nl_deps,
             ic=A is not None and A.has_initial_condition(),
-            adj_ic=A is not None and A.adjoint_has_initial_condition())
+            adj_ic=A is not None and A.adjoint_has_initial_condition(),
+            adj_type=adj_type)
         self._B = tuple(B)
         self._b_dep_indices = b_dep_indices
         self._b_nl_dep_indices = b_nl_dep_indices
@@ -1495,7 +1520,7 @@ class LinearEquation(Equation):
                 return adj_X[dep_index]
             else:
                 dep = eq_deps[dep_index]
-                F = function_new(dep)
+                F = function_new_dual(dep)
                 self._A.adjoint_action([nl_deps[j]
                                         for j in self._A_nl_dep_indices],
                                        adj_X[0] if len(adj_X) == 1 else adj_X,
@@ -1504,7 +1529,7 @@ class LinearEquation(Equation):
         else:
             dep = eq_deps[dep_index]
             dep_id = function_id(dep)
-            F = function_new(dep)
+            F = function_new_dual(dep)
             assert len(self._B) == len(self._b_dep_ids)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
                 if dep_id in b_dep_ids:
@@ -1552,7 +1577,7 @@ class LinearEquation(Equation):
             return NullSolver([tlm_map[x] for x in self.X()])
         else:
             return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()],
-                                  A=self._A)
+                                  A=self._A, adj_type=self.adj_X_type())
 
 
 class Matrix(Referrer):

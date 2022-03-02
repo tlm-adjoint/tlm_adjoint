@@ -18,11 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_assign, function_copy, function_get_values, \
-    function_global_size, function_id, function_is_checkpointed, \
-    function_is_replacement, function_local_indices, function_name, \
-    function_new, function_new_tangent_linear, function_set_values, \
-    function_space, function_space_type, is_function, space_id, space_new
+from .interface import function_assign, function_copy, function_copy_dual, \
+    function_get_values, function_global_size, function_id, \
+    function_is_checkpointed, function_is_replacement, \
+    function_local_indices, function_name, function_new, \
+    function_new_tangent_linear, function_set_values, function_space, \
+    function_space_type, is_function, space_id, space_new
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
@@ -1731,11 +1732,13 @@ class EquationManager:
                         else:
                             adj_X = []
                             assert len(eq_X) == len(adj_X_ic)
-                            for x, adj_x_ic in zip(eq_X, adj_X_ic):
+                            for m, (x, adj_x_ic) in enumerate(zip(eq_X, adj_X_ic)):  # noqa: E501
                                 if adj_x_ic is None:
-                                    adj_X.append(function_new(x))
-                                else:
+                                    adj_X.append(eq.new_adj_X(m))
+                                elif eq.adj_X_space_type(m) == function_space_type(adj_x_ic):  # noqa: E501
                                     adj_X.append(adj_x_ic)
+                                else:
+                                    adj_X.append(function_copy_dual(adj_x_ic))
                         # Solve adjoint equation, add terms to adjoint
                         # equations
                         adj_X = eq.adjoint(
@@ -1782,7 +1785,7 @@ class EquationManager:
                     if n == 0 and i == 0:
                         # A requested derivative
                         if adj_X is None:
-                            dJ[J_i] = tuple(function_new(m) for m in M)
+                            dJ[J_i] = eq.new_adj_X()
                         else:
                             dJ[J_i] = tuple(function_copy(adj_x)
                                             for adj_x in adj_X)

@@ -333,11 +333,17 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
         form_compiler_parameters = {}
 
     bind_forms(form)
-    tensor = _assemble(
+    b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
     unbind_forms(form)
-    return tensor
+
+    if tensor is None:
+        rank = len(form.arguments())
+        if rank == 1:
+            b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+
+    return b
 
 
 def assemble_linear_solver(A_form, b_form=None, bcs=None,

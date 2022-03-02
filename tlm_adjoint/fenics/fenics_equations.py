@@ -22,7 +22,7 @@ from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
     TestFunction, TrialFunction, backend_Function, backend_ScalarType, \
     parameters
 from ..interface import function_assign, function_comm, function_get_values, \
-    function_is_scalar, function_local_size, function_new, \
+    function_is_scalar, function_local_size, function_new, function_new_dual, \
     function_scalar_value, function_set_values, function_space, is_function, \
     space_comm
 from .backend_code_generator_interface import assemble
@@ -309,7 +309,7 @@ class LocalProjectionSolver(EquationSolver):
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)
 
-        adj_x = function_new(b)
+        adj_x = self.new_adj_x()
         local_solver.solve_local(adj_x.vector(), b.vector(),
                                  function_space(adj_x).dofmap())
         return adj_x
@@ -612,7 +612,7 @@ class PointInterpolationSolver(Equation):
             adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
-            F = function_new(self.dependencies()[-1])
+            F = function_new_dual(self.dependencies()[-1])
             function_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)
         else:

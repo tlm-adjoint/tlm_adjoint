@@ -118,8 +118,6 @@ def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
         expr, tensor=tensor, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters,
         **kwargs)
-    if tensor is None:
-        tensor = b
 
     if isinstance(expr, ufl.classes.Form):
         rank = len(expr.arguments())
@@ -131,10 +129,13 @@ def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
             form_compiler_parameters = form_compiler_parameters_
 
             if rank != 2:
-                tensor._tlm_adjoint__form = expr
-            tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+                b._tlm_adjoint__form = expr
+            b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
-    return tensor
+        if rank == 1 and tensor is None:
+            b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+
+    return b
 
 
 # Aim for compatibility with Firedrake API, git master revision
