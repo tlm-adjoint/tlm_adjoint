@@ -22,8 +22,8 @@ from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
     backend_Constant, backend_DirichletBC, backend_Function, \
     backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
-from ..interface import InterfaceException, function_axpy, function_copy, \
-    function_id
+from ..interface import InterfaceException, check_space_type, function_axpy, \
+    function_copy, function_id
 
 from .functions import eliminate_zeros
 
@@ -228,6 +228,9 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
             form._cache["parloops"] = \
                 (tuple([form, tensor] + list(cache_0)), cache_1)
 
+    if tensor is not None and isinstance(tensor, backend_Function):
+        check_space_type(tensor, "conjugate_dual")
+
     b = backend_assemble(
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
@@ -333,6 +336,9 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
 
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
+
+    if tensor is not None and isinstance(tensor, backend_Function):
+        check_space_type(tensor, "conjugate_dual")
 
     bind_forms(form)
     b = _assemble(
@@ -470,10 +476,13 @@ def function_vector(x):
 
 
 def rhs_copy(x):
+    check_space_type(x, "conjugate_dual")
     return function_copy(x)
 
 
 def rhs_addto(x, y):
+    check_space_type(x, "conjugate_dual")
+    check_space_type(y, "conjugate_dual")
     function_axpy(x, 1.0, y)
 
 

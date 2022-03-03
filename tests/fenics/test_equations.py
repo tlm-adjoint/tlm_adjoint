@@ -970,14 +970,14 @@ def test_form_binding(setup_test, test_leaks,
                                             for j in range(dim)]),
                         space, solver_parameters=ls_parameters_cg)
         u_split = u.split()
-        assembled_form_ref = Function(space)
+        assembled_form_ref = Function(space, space_type="conjugate_dual")
         assemble(test_form(u, u_split, test),
                  tensor=function_vector(assembled_form_ref))
 
         assert "_tlm_adjoint__bindings" not in form._cache
         bind_form(form, test_form_deps(u, u_split))
         assert "_tlm_adjoint__bindings" in form._cache
-        assembled_form = Function(space)
+        assembled_form = Function(space, space_type="conjugate_dual")
         bind_assemble(form, tensor=function_vector(assembled_form))
         unbind_form(form)
         assert "_tlm_adjoint__bindings" not in form._cache

@@ -397,7 +397,7 @@ def _subtract_adjoint_derivative_action(x, y):
                 x.assign(backend_ScalarType(x) - alpha * y.max())
             else:
                 value = x.values()
-                y_fn = Function(r0_space(x))
+                y_fn = backend_Function(r0_space(x))
                 y_fn.vector().axpy(1.0, y)
                 for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
                     value[i] -= alpha * y_fn_c.vector().max()

@@ -1223,7 +1223,8 @@ matrices as used by a \texttt{LinearEquation}.
 A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
 define dependencies. The \texttt{Matrix} constructor has the form
 \begin{lstlisting}
-def __init__(self, nl_deps=None, *, ic=True, adj_ic=True):
+def __init__(self, nl_deps=None, *, ic=True, adj_ic=True,
+             col_space_type="conjugate_dual"):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1235,6 +1236,9 @@ with constructor arguments
   \item \texttt{adj\_ic}. If true then in solving an adjoint equation
     involving the matrix the solution variable is an adjoint initial
     condition dependency of the equation.
+  \item \texttt{col\_space\_type}, ``primal'', ``conjugate\_primal'',
+    ``dual'', or ``conjugate\_dual''. The space type for the result of a
+    matrix action, $A x$.
 \end{itemize}
 
 \subsubsection{Matrix action}

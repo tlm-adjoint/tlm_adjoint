@@ -155,6 +155,8 @@ def forward(psi_0, kappa):
             self._A_kappa = None
 
         def forward_action(self, nl_deps, x, b, method="assign"):
+            check_space_type(b, self.b_space_type())
+
             kappa, = nl_deps
             self._assemble_A(kappa)
             sb = self._A.dot(x.vector())
@@ -174,6 +176,8 @@ def forward(psi_0, kappa):
             self.forward_action(nl_deps, adj_x, b, method=method)
 
         def forward_solve(self, x, nl_deps, b):
+            check_space_type(b, self.b_space_type())
+
             kappa, = nl_deps
             self._assemble_A(kappa)
             x.vector()[:], fail = cg(self._A, b.vector(), x0=x.vector())

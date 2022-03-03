@@ -18,6 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+from ..interface import check_space_type
+
 from ..equations import EquationException, LinearEquation, Matrix, RHS
 
 import numpy as np
@@ -32,12 +34,14 @@ __all__ = \
 
 
 class ConstantMatrix(Matrix):
-    def __init__(self, A, A_T=None, *, ic=False, adj_ic=False):
+    def __init__(self, A, A_T=None, *, ic=False, adj_ic=False,
+                 col_space_type="conjugate_dual"):
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
 
-        super().__init__(nl_deps=[], ic=ic, adj_ic=adj_ic)
+        super().__init__(nl_deps=[], ic=ic, adj_ic=adj_ic,
+                         col_space_type=col_space_type)
         self._A = A.copy()
         self._A_H = A.conjugate().T
 
@@ -49,6 +53,8 @@ class ConstantMatrix(Matrix):
         return A
 
     def forward_action(self, nl_deps, x, b, method="assign"):
+        check_space_type(b, self.b_space_type())
+
         sb = self._A.dot(x.vector())
         if method == "assign":
             b.vector()[:] = sb
@@ -73,6 +79,8 @@ class ConstantMatrix(Matrix):
             raise EquationException(f"Invalid method: '{method:s}'")
 
     def forward_solve(self, x, nl_deps, b):
+        check_space_type(b, self.b_space_type())
+
         x.vector()[:] = np.linalg.solve(self._A, b.vector())
 
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,

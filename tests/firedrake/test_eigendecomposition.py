@@ -36,6 +36,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.firedrake
+@no_space_type_checking
 @seed_test
 def test_HEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
@@ -45,7 +46,7 @@ def test_HEP(setup_test, test_leaks):
     M = assemble(inner(trial, test) * dx)
 
     def M_action(x):
-        y = function_new(x)
+        y = function_new_conjugate_dual(x)
         assemble(inner(x, test) * dx, tensor=function_vector(y))
         return function_get_values(y).conjugate()
 
@@ -55,7 +56,7 @@ def test_HEP(setup_test, test_leaks):
 
     assert (lam > 0.0).all()
 
-    diff = Function(space)
+    diff = Function(space, space_type="conjugate_dual")
     assert len(lam) == len(V)
     for lam_val, v in zip(lam, V):
         matrix_multiply(M, function_vector(v),
@@ -65,6 +66,7 @@ def test_HEP(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@no_space_type_checking
 @seed_test
 def test_NHEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
@@ -74,7 +76,7 @@ def test_NHEP(setup_test, test_leaks):
     N = assemble(inner(trial.dx(0), test) * dx)
 
     def N_action(x):
-        y = function_new(x)
+        y = function_new_conjugate_dual(x)
         assemble(inner(x.dx(0), test) * dx, tensor=function_vector(y))
         return function_get_values(y).conjugate()
 
@@ -82,7 +84,7 @@ def test_NHEP(setup_test, test_leaks):
 
     assert abs(lam.real).max() < 1.0e-15
 
-    diff = Function(space)
+    diff = Function(space, space_type="conjugate_dual")
     if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
         assert len(lam) == len(V)
         for lam_val, v in zip(lam, V):

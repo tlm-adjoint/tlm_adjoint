@@ -253,8 +253,9 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
 def test_Referrers_LinearEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class IdentityMatrix(Matrix):
-            def __init__(self):
-                super().__init__(nl_deps=[], ic=False, adj_ic=False)
+            def __init__(self, col_space_type="conjugate_dual"):
+                super().__init__(nl_deps=[], ic=False, adj_ic=False,
+                                 col_space_type=col_space_type)
 
             @no_space_type_checking
             def forward_action(self, nl_deps, x, b, method="assign"):
@@ -274,6 +275,8 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                     raise EquationException(f"Unexpected method '{method:s}'")
 
             def forward_solve(self, x, nl_deps, b):
+                check_space_type(b, self.b_space_type())
+
                 function_assign(x, b)
 
             def adjoint_solve(self, adj_x, nl_deps, b):
@@ -355,7 +358,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert function_is_replacement(dep)
 
-        M = IdentityMatrix()
+        M = IdentityMatrix(col_space_type="primal")
 
         J = Functional(name="J")
         NormSqSolver(z, J.fn(), M=M).solve()

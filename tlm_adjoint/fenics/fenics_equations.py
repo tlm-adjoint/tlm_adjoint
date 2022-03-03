@@ -423,13 +423,16 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
     return P.tocsr()
 
 
-class InterpolationMatrix(Matrix):
-    def __init__(self, P):
-        super().__init__(nl_deps=[], ic=False, adj_ic=False)
+class LocalMatrix(Matrix):
+    def __init__(self, P, *, col_space_type="primal"):
+        super().__init__(nl_deps=[], ic=False, adj_ic=False,
+                         col_space_type=col_space_type)
         self._P = P.copy()
         self._P_T = P.T
 
     def forward_action(self, nl_deps, x, b, method="assign"):
+        check_space_type(b, self.b_space_type())
+
         if method == "assign":
             function_set_values(b, self._P.dot(function_get_values(x)))
         elif method == "add":
@@ -451,6 +454,14 @@ class InterpolationMatrix(Matrix):
             b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
         else:
             raise EquationException(f"Invalid method: '{method:s}'")
+
+
+class InterpolationMatrix(LocalMatrix):
+    def __init__(self, *args, **kwargs):
+        warnings.warn("InterpolationMatrix class is deprecated -- "
+                      "use LocalMatrix instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
 
 
 class InterpolationSolver(LinearEquation):
@@ -515,7 +526,7 @@ class InterpolationSolver(LinearEquation):
             P = P.copy()
 
         super().__init__(
-            MatrixActionRHS(InterpolationMatrix(P), y), x)
+            MatrixActionRHS(LocalMatrix(P), y), x)
 
 
 class PointInterpolationSolver(Equation):
