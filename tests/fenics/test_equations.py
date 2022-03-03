@@ -558,7 +558,6 @@ def test_AssembleSolver(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
-    test = TestFunction(space)
 
     def forward(F):
         x = Constant(name="x")
