@@ -1697,12 +1697,16 @@ class Matrix(Referrer):
             return b_space_type
 
     def B_space_type(self, m=None):
-        if isinstance(self._B_space_type, str):
-            raise EquationException("Unable to determine space type")
-        elif m is None:
-            return self._B_space_type
+        if m is None:
+            if isinstance(self._B_space_type, str):
+                raise EquationException("Unable to determine space type")
+            else:
+                return self._B_space_type
         else:
-            return self._B_space_type[m]
+            if isinstance(self._B_space_type, str):
+                return self._B_space_type
+            else:
+                return self._B_space_type[m]
 
     def forward_action(self, nl_deps, X, B, method="assign"):
         """
