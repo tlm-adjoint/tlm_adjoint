@@ -22,7 +22,7 @@ from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
     backend_assemble, backend_ScalarType
 from ..interface import check_space_type, function_assign, function_comm, \
     function_dtype, function_get_values, function_is_scalar, \
-    function_local_size, function_new, function_new_dual, \
+    function_local_size, function_new, function_new_conjugate_dual, \
     function_scalar_value, function_set_values, function_space, is_function, \
     weakref_method
 from .backend_code_generator_interface import assemble, matrix_multiply
@@ -342,7 +342,7 @@ class PointInterpolationSolver(Equation):
             adj_x_v = np.full(len(adj_X), np.NAN, dtype=self._dtype)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
-            F = function_new_dual(self.dependencies()[-1])
+            F = function_new_conjugate_dual(self.dependencies()[-1])
             function_set_values(F, self._P_H.dot(adj_x_v))
             return (-1.0, F)
         else:

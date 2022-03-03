@@ -19,12 +19,13 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import check_space_type, check_space_types, \
-    check_space_types_dual, dual_space_type, \
-    finalize_adjoint_derivative_action, function_assign, function_axpy, \
-    function_comm, function_copy, function_copy_dual, function_dtype, \
-    function_get_values, function_global_size, function_id, function_inner, \
+    check_space_types_dual, check_space_types_conjugate_dual, \
+    conjugate_dual_space_type, finalize_adjoint_derivative_action, \
+    function_assign, function_axpy, function_comm, function_copy, \
+    function_copy_conjugate_dual, function_dtype, function_get_values, \
+    function_global_size, function_id, function_inner, \
     function_is_checkpointed, function_local_indices, function_local_size, \
-    function_new, function_new_dual, function_replacement, \
+    function_new, function_new_conjugate_dual, function_replacement, \
     function_set_values, function_space, function_space_type, function_sum, \
     function_update_caches, function_update_state, function_zero, \
     is_function, no_space_type_checking, space_new, \
@@ -93,7 +94,7 @@ class EquationException(Exception):
 class AdjointRHS:
     def __init__(self, x):
         self._space = function_space(x)
-        self._space_type = dual_space_type(function_space_type(x))
+        self._space_type = conjugate_dual_space_type(function_space_type(x))
         self._b = None
 
     def b(self, copy=False):
@@ -254,7 +255,7 @@ class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None,
                  *, ic_deps=None, ic=None,
                  adj_ic_deps=None, adj_ic=None,
-                 adj_type="dual"):
+                 adj_type="conjugate_dual"):
         """
         An equation. The equation is expressed in the form:
             F ( X, y_0, y_1, ... ) = 0,
@@ -281,9 +282,10 @@ class Equation(Referrer):
         adj_ic       (Optional) If true then adj_ic_deps is set equal to X.
                      Defaults to true if adj_ic_deps is None, and false
                      otherwise.
-        adj_type  (Optional) "primal" or "dual", or a sequence of these,
-                  defining whether elements of the adjoint are in the
-                  dual space associated with corresponding elements of X.
+        adj_type  (Optional) "primal" or "conjugate_dual", or a sequence of
+                  these, defining whether elements of the adjoint are in the
+                  conjugate dual space associated with corresponding elements
+                  of X.
         """
 
         if is_function(X):
@@ -347,7 +349,7 @@ class Equation(Referrer):
         if adj_ic:
             adj_ic_deps = list(X)
 
-        if adj_type in ["primal", "dual"]:
+        if adj_type in ["primal", "conjugate_dual"]:
             adj_type = tuple(adj_type for x in X)
         elif isinstance(adj_type, Sequence):
             if len(adj_type) != len(X):
@@ -361,8 +363,8 @@ class Equation(Referrer):
             space_type = function_space_type(x)
             if adj_x_type == "primal":
                 adj_X_space_type.append(space_type)
-            elif adj_x_type == "dual":
-                adj_X_space_type.append(dual_space_type(space_type))
+            elif adj_x_type == "conjugate_dual":
+                adj_X_space_type.append(conjugate_dual_space_type(space_type))
             else:
                 raise EquationException("Invalid adjoint type")
 
@@ -483,8 +485,8 @@ class Equation(Referrer):
             adj_x_type = self.adj_X_type(m)
             if adj_x_type == "primal":
                 return function_new(x)
-            elif adj_x_type == "dual":
-                return function_new_dual(x)
+            elif adj_x_type == "conjugate_dual":
+                return function_new_conjugate_dual(x)
             else:
                 raise EquationException("Invalid adjoint type")
 
@@ -742,9 +744,9 @@ class ControlsMarker(Equation):
         self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
-        self._adj_X_type = tuple("dual" for m in M)
-        self._adj_X_space_type = tuple(dual_space_type(function_space_type(m))
-                                       for m in M)
+        self._adj_X_type = tuple("conjugate_dual" for m in M)
+        self._adj_X_space_type = tuple(
+            conjugate_dual_space_type(function_space_type(m)) for m in M)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -782,7 +784,7 @@ def get_tangent_linear(x, M, dM, tlm_map):
 
 
 class NullSolver(Equation):
-    def __init__(self, X, adj_type="dual"):
+    def __init__(self, X, adj_type="conjugate_dual"):
         if is_function(X):
             X = (X,)
         super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False,
@@ -812,7 +814,9 @@ class NullSolver(Equation):
             assert len(B) == len(adj_X_type)
             for i, (b, adj_x_type) in enumerate(zip(B, adj_X_type)):
                 if adj_x_type == "primal":
-                    B[i] = function_copy_dual(b)
+                    B[i] = function_copy_conjugate_dual(b)
+                else:
+                    assert adj_x_type == "conjugate_dual"
         return B
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -1367,7 +1371,7 @@ class FixedPointSolver(Equation):
 
 
 class LinearEquation(Equation):
-    def __init__(self, B, X, *, A=None, adj_type="dual"):
+    def __init__(self, B, X, *, A=None, adj_type="conjugate_dual"):
         if isinstance(B, RHS):
             B = (B,)
         if is_function(X):
@@ -1525,7 +1529,7 @@ class LinearEquation(Equation):
                 return adj_X[dep_index]
             else:
                 dep = eq_deps[dep_index]
-                F = function_new_dual(dep)
+                F = function_new_conjugate_dual(dep)
                 self._A.adjoint_action([nl_deps[j]
                                         for j in self._A_nl_dep_indices],
                                        adj_X[0] if len(adj_X) == 1 else adj_X,
@@ -1534,7 +1538,7 @@ class LinearEquation(Equation):
         else:
             dep = eq_deps[dep_index]
             dep_id = function_id(dep)
-            F = function_new_dual(dep)
+            F = function_new_conjugate_dual(dep)
             assert len(self._B) == len(self._b_dep_ids)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
                 if dep_id in b_dep_ids:
@@ -2011,7 +2015,7 @@ class InnerProductRHS(RHS):
         """
 
         if M is None:
-            check_space_types_dual(x, y)
+            check_space_types_conjugate_dual(x, y)
         else:
             check_space_types(x, y)
         if M is not None and len(M.nonlinear_dependencies()) > 0:
@@ -2051,7 +2055,7 @@ class InnerProductRHS(RHS):
         if self._M is None:
             Y = y
         else:
-            Y = function_new_dual(x)
+            Y = function_new_conjugate_dual(x)
             self._M.adjoint_action(M_deps, y, Y, method="assign")
 
         function_set_values(b,
@@ -2069,7 +2073,7 @@ class InnerProductRHS(RHS):
                 if self._M is None:
                     X = x
                 else:
-                    X = function_new_dual(x)
+                    X = function_new_conjugate_dual(x)
                     self._M.adjoint_action(M_deps, x, X, method="assign")
 
                 function_axpy(
@@ -2078,7 +2082,7 @@ class InnerProductRHS(RHS):
                 if self._M is None:
                     X = x
                 else:
-                    X = function_new_dual(x)
+                    X = function_new_conjugate_dual(x)
                     self._M.forward_action(M_deps, x, X, method="assign")
 
                 function_axpy(
@@ -2092,7 +2096,7 @@ class InnerProductRHS(RHS):
             if self._M is None:
                 Y = y
             else:
-                Y = function_new_dual(x)
+                Y = function_new_conjugate_dual(x)
                 self._M.adjoint_action(M_deps, y, Y, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), Y)
@@ -2105,7 +2109,7 @@ class InnerProductRHS(RHS):
             if self._M is None:
                 X = x
             else:
-                X = function_new_dual(y)
+                X = function_new_conjugate_dual(y)
                 self._M.forward_action(M_deps, x, X, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), X)

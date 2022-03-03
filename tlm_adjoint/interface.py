@@ -44,7 +44,9 @@ __all__ = \
 
         "check_space_type",
         "check_space_types",
+        "check_space_types_conjugate_dual",
         "check_space_types_dual",
+        "conjugate_dual_space_type",
         "dual_space_type",
         "no_space_type_checking",
 
@@ -55,7 +57,7 @@ __all__ = \
         "function_caches",
         "function_comm",
         "function_copy",
-        "function_copy_dual",
+        "function_copy_conjugate_dual",
         "function_dtype",
         "function_get_values",
         "function_global_size",
@@ -70,7 +72,7 @@ __all__ = \
         "function_local_size",
         "function_name",
         "function_new",
-        "function_new_dual",
+        "function_new_conjugate_dual",
         "function_new_tangent_linear",
         "function_replacement",
         "function_set_values",
@@ -220,7 +222,13 @@ def space_new(space, *, name=None, space_type="primal", static=False,
 
 
 def dual_space_type(space_type):
-    return {"primal": "dual", "dual": "primal"}[space_type]
+    return {"primal": "dual", "conjugate_primal": "conjugate_dual",
+            "dual": "primal", "conjugate_dual": "conjugate_primal"}[space_type]
+
+
+def conjugate_dual_space_type(space_type):
+    return {"primal": "conjugate_dual", "conjugate_primal": "dual",
+            "dual": "conjugate_primal", "conjugate_dual": "primal"}[space_type]
 
 
 _check_space_types = [True]
@@ -240,7 +248,7 @@ def no_space_type_checking(fn):
 
 
 def check_space_type(x, space_type):
-    assert space_type in ["primal", "dual"]
+    assert space_type in ["primal", "conjugate_primal", "dual", "conjugate_dual"]  # noqa: E501
     if _check_space_types[0]:
         if function_space_type(x) != space_type:
             warnings.warn("Unexpected space type", stacklevel=2)
@@ -258,6 +266,12 @@ def check_space_types_dual(x, y):
             warnings.warn("Unexpected space type", stacklevel=2)
 
 
+def check_space_types_conjugate_dual(x, y):
+    if _check_space_types[0]:
+        if function_space_type(x) != conjugate_dual_space_type(function_space_type(y)):  # noqa: E501
+            warnings.warn("Unexpected space type", stacklevel=2)
+
+
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
@@ -265,9 +279,9 @@ class FunctionInterface:
              "_is_checkpointed", "_caches", "_update_caches", "_zero",
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
-             "_set_values", "_new", "_new_dual", "_copy", "_copy_dual",
-             "_new_tangent_linear", "_replacement", "_is_replacement",
-             "_is_scalar", "_scalar_value")
+             "_set_values", "_new", "_new_conjugate_dual", "_copy",
+             "_copy_conjugate_dual", "_new_tangent_linear", "_replacement",
+             "_is_replacement", "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -357,9 +371,9 @@ class FunctionInterface:
                          space_type=space_type, static=static, cache=cache,
                          checkpoint=checkpoint)
 
-    def _new_dual(self, *, name=None, static=False, cache=None,
-                  checkpoint=None):
-        space_type = dual_space_type(function_space_type(self))
+    def _new_conjugate_dual(self, *, name=None, static=False, cache=None,
+                            checkpoint=None):
+        space_type = conjugate_dual_space_type(function_space_type(self))
         return space_new(function_space(self), name=name,
                          space_type=space_type, static=static, cache=cache,
                          checkpoint=checkpoint)
@@ -368,9 +382,9 @@ class FunctionInterface:
         raise InterfaceException("Method not overridden")
 
     @no_space_type_checking
-    def _copy_dual(self, *, name=None, static=False, cache=None,
-                   checkpoint=None):
-        y = function_new_dual(self)
+    def _copy_conjugate_dual(self, *, name=None, static=False, cache=None,
+                             checkpoint=None):
+        y = function_new_conjugate_dual(self)
         function_assign(y, self)
         return y
 
@@ -489,7 +503,7 @@ def function_axpy(*args):  # y, alpha, x
 
 def function_inner(x, y):
     if is_function(y):
-        check_space_types_dual(x, y)
+        check_space_types_conjugate_dual(x, y)
     return x._tlm_adjoint__function_interface_inner(y)
 
 
@@ -532,9 +546,9 @@ def function_new(x, *, name=None, static=False, cache=None, checkpoint=None):
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
-def function_new_dual(x, *, name=None, static=False, cache=None,
-                      checkpoint=None):
-    return x._tlm_adjoint__function_interface_new_dual(
+def function_new_conjugate_dual(x, *, name=None, static=False, cache=None,
+                                checkpoint=None):
+    return x._tlm_adjoint__function_interface_new_conjugate_dual(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
@@ -543,9 +557,9 @@ def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
-def function_copy_dual(x, *, name=None, static=False, cache=None,
-                       checkpoint=None):
-    return x._tlm_adjoint__function_interface_copy_dual(
+def function_copy_conjugate_dual(x, *, name=None, static=False, cache=None,
+                                 checkpoint=None):
+    return x._tlm_adjoint__function_interface_copy_conjugate_dual(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 

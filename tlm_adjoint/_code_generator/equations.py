@@ -22,7 +22,7 @@ from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
 from ..interface import check_space_type, function_assign, function_comm, \
     function_dtype, function_get_values, function_id, function_is_scalar, \
-    function_local_size, function_new, function_new_dual, \
+    function_local_size, function_new, function_new_conjugate_dual, \
     function_replacement, function_scalar_value, function_set_values, \
     function_space, function_update_caches, function_update_state, \
     function_zero, is_function
@@ -497,7 +497,7 @@ class EquationSolver(ExprEquation):
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
-                b = function_vector(function_new_dual(self.x()))
+                b = function_vector(function_new_conjugate_dual(self.x()))
                 matrix_multiply(mat, function_vector(dep), tensor=b)
             else:
                 matrix_multiply(mat, function_vector(dep), tensor=b,
@@ -697,7 +697,7 @@ class EquationSolver(ExprEquation):
                                 replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     else:
                         mat, _ = mat_bc
-                    F = function_vector(function_new_dual(self.dependencies()[dep_index]))  # noqa: E501
+                    F = function_vector(function_new_conjugate_dual(self.dependencies()[dep_index]))  # noqa: E501
                     matrix_multiply(mat, function_vector(adj_x), tensor=F)
                     dep_B.sub(F)
                 else:
@@ -839,7 +839,7 @@ class DirichletBCSolver(Equation):
             return adj_x
         elif dep_index == 1:
             _, y = self.dependencies()
-            F = function_new_dual(y)
+            F = function_new_conjugate_dual(y)
             backend_DirichletBC(
                 function_space(y), adj_x,
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
@@ -978,7 +978,7 @@ class ExprEvaluationSolver(ExprEquation):
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
         dF_val = evaluate_expr(dF)
-        F = function_new_dual(dep)
+        F = function_new_conjugate_dual(dep)
         if isinstance(dF_val, (int, np.integer,
                                float, np.floating,
                                complex, np.complexfloating)):

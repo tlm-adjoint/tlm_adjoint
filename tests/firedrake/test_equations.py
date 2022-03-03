@@ -775,8 +775,8 @@ def test_initial_guess(setup_test, test_leaks):
 
         # test_adj_ic defined in test scope below
         if test_adj_ic:
-            adj_x_0 = Function(space_1, name="adj_x_0", space_type="dual",
-                               static=True)
+            adj_x_0 = Function(space_1, name="adj_x_0",
+                               space_type="conjugate_dual", static=True)
             solve(
                 inner(trial_1, test_1) * dx
                 == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,

@@ -277,12 +277,12 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 function_assign(x, b)
 
             def adjoint_solve(self, adj_x, nl_deps, b):
-                return function_copy_dual(b)
+                return function_copy_conjugate_dual(b)
 
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
                 return None
 
-        x = Constant(0.0, name="x", space_type="dual")
+        x = Constant(0.0, name="x", space_type="conjugate_dual")
 
         M = IdentityMatrix()
         b = NormSqRHS(m, M=M)
@@ -323,10 +323,10 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert not function_is_replacement(dep)
 
-        y = Constant(0.0, name="y", space_type="dual")
+        y = Constant(0.0, name="y", space_type="conjugate_dual")
         LinearEquation(b, y, A=M, adj_type="primal").solve()
 
-        z = Constant(0.0, name="z", space_type="dual")
+        z = Constant(0.0, name="z", space_type="conjugate_dual")
         AxpySolver(x, 1.0, y, z).solve()
 
         if forward_run:
@@ -419,7 +419,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
                 if dep_index == 1:
                     x0, m = nl_deps
-                    F = function_new_dual(x0)
+                    F = function_new_conjugate_dual(x0)
                     function_set_values(
                         F,
                         0.5 * function_get_values(adj_x)
@@ -428,7 +428,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
-                    F = function_new_dual(x0)
+                    F = function_new_conjugate_dual(x0)
                     function_set_values(
                         F,
                         -0.5 * function_get_values(adj_x)

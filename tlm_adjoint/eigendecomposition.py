@@ -109,16 +109,16 @@ def wrapped_action(space, space_type, action_type, action):
 
     def action(x):
         x_a = x
-        if space_type == "dual":
-            x_a = x_a.conjugate()
         x = space_new(space, space_type=space_type)
         function_set_values(x, x_a)
 
         y = action_arg(x)
         if is_function(y):
             y = function_get_values(y)
-        if action_type == "dual":
+        if action_type == "conjugate_dual":
             y = y.conjugate()
+        else:
+            assert action_type == "primal"
 
         return y
 
@@ -126,9 +126,9 @@ def wrapped_action(space, space_type, action_type, action):
 
 
 def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
-                   action_type="dual", N_eigenvalues=None, solver_type=None,
-                   problem_type=None, which=None, tolerance=1.0e-12,
-                   configure=None):
+                   action_type="conjugate_dual", N_eigenvalues=None,
+                   solver_type=None, problem_type=None, which=None,
+                   tolerance=1.0e-12, configure=None):
     # First written 2018-03-01
     """
     Matrix-free interface with SLEPc via slepc4py, loosely following
@@ -144,11 +144,11 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     B_action       (Optional) Callable accepting a function and returning a
                    function or NumPy array, defining the action of the
                    right-hand-side matrix.
-    space_type     (Optional) "primal" or "dual", whether eigenvectors are in
-                   the primal or dual space.
-    action_type    (Optional) "primal" or "dual", whether the action is in the
-                   same space as the eigenvectors, or the associated dual
-                   space.
+    space_type     (Optional) "primal", "conjugate_primal", "dual", or
+                   "conjugate_dual", defining the eigenvector space type.
+    action_type    (Optional) "primal" or "conjugate_dual", whether the action
+                   is in the same space as the eigenvectors, or the associated
+                   conjugate dual space.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
                    Defaults to a full spectrum.
     solver_type    (Optional) The solver type.
@@ -174,9 +174,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
 
-    if space_type not in ["primal", "dual"]:
+    if space_type not in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
         raise EigendecompositionException("Invalid space type")
-    if action_type not in ["primal", "dual"]:
+    if action_type not in ["primal", "conjugate_dual"]:
         raise EigendecompositionException("Invalid action type")
 
     A_action = wrapped_action(space, space_type, action_type, A_action)
@@ -265,8 +265,6 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
             #     # Complex note: If v_i is None then v_r may be non-real
             #     pass
             with v_r as v_r_a:
-                if space_type == "dual":
-                    v_r_a = v_r_a.conjugate()
                 function_set_values(V_r[i], v_r_a)
         else:
             lam[i] = lam_i
@@ -274,8 +272,6 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
                 function_set_values(V_r[i], v_r_a)
             if v_i is not None:
                 with v_i as v_i_a:
-                    if space_type == "dual":
-                        v_i_a = -v_i_a
                     function_set_values(V_i[i], v_i_a)
 
     # comm.Free()

@@ -952,7 +952,7 @@ the form
 def __init__(self, x, deps, nl_deps=None,
              *, ic_deps=None, ic=None,
              adj_ic_deps=None, adj_ic=None,
-             adj_type="dual"):
+             adj_type="conjugate_dual"):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -974,9 +974,9 @@ with constructor arguments
   \item \texttt{adj\_ic}, if true sets \texttt{adj\_ic\_deps} to be the
     solution to the equation. Defaults to true if \texttt{adj\_ic\_deps} is
     \texttt{None}, and false otherwise.
-  \item \texttt{adj\_type}, ``primal'' or ``dual'', defining whether the
-    adjoint is in the dual space associated with the solution to the equation,
-    \texttt{x}.
+  \item \texttt{adj\_type}, ``primal'' or ``conjugate\_dual'', defining whether
+    the adjoint is in the primal or conjugate dual space associated with the
+    solution to the equation, \texttt{x}.
 \end{itemize}
 
 \subsection{Forward}
@@ -1176,7 +1176,7 @@ arguments \texttt{x}, \texttt{adj\_x}, and \texttt{b} in the above should be
 capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
 sequence of functions. The return value of \texttt{adjoint\_jacobian\_solve}
 should also be a sequence of functions. \texttt{adj\_type} may be a sequence
-with elements equal to ``primal'' or ``dual''.
+with elements equal to ``primal'' or ``conjugate\_dual''.
 
 \subsection{Dropping references}\label{sect:drop_references}
 
@@ -1201,7 +1201,7 @@ where $A$ is a matrix and the $b_i$ are independent of $x$.
 
 The \texttt{LinearEquation} constructor has the form
 \begin{lstlisting}
-def __init__(self, B, X, *, A=None, adj_type="dual"):
+def __init__(self, B, X, *, A=None, adj_type="conjugate_dual"):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1794,11 +1794,8 @@ controls can be computed via for example
 Note that the \texttt{compute\_gradient} method finalizes the internal
 \texttt{EquationManager} (see section \ref{sect:EquationManager_state}).
 
-\texttt{tlm\_adjoint} uses the convention that the values stored for linear
-sensitivity functionals are the complex conjugate of the coefficients
-appearing in their expansion using the dual basis. Hence the degrees of freedom
-associated with functions returned by \texttt{compute\_gradient} are the
-complex conjugate of linear sensitivities.
+The degrees of freedom associated with functions returned by
+\texttt{compute\_gradient} are the complex conjugate of linear sensitivities.
 
 \section{Tangent-linear and higher order adjoint}\label{sect:higher_order}
 
@@ -2649,9 +2646,9 @@ and associated eigenvectors $v$ where
 This has the interface
 \begin{lstlisting}
 def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
-                   action_type="dual", N_eigenvalues=None, solver_type=None,
-                   problem_type=None, which=None, tolerance=1.0e-12,
-                   configure=None):
+                   action_type="conjugate_dual", N_eigenvalues=None,
+                   solver_type=None, problem_type=None, which=None,
+                   tolerance=1.0e-12, configure=None):
 \end{lstlisting}
 with arguments
 \begin{itemize}
@@ -2663,8 +2660,8 @@ with arguments
     and computes the action of the matrix $B$. The result must be returned as a
     function or a NumPy array. If not provided then $B$ is considered an
     identity matrix.
-  \item \texttt{space\_type}, ``primal'' or ``dual'', whether eigenvectors
-    are in the primal or dual space.
+  \item \texttt{space\_type}, ``primal'', ``conjugate\_primal'', ``dual'', or
+    ``conjugate\_dual'', defining the space type for eigenvectors.
   \item \texttt{action\_type}, whether the action is in the same space as the
     eigenvectors, or the associated dual space. If ``dual'' then
     \texttt{A\_action} and \texttt{B\_action} return the complex conjugate of

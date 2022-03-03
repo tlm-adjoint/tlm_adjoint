@@ -133,7 +133,7 @@ def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
             b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
         if rank == 1 and tensor is None:
-            b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+            b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
     return b
 

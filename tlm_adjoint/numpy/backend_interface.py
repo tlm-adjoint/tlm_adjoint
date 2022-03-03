@@ -227,7 +227,7 @@ class FunctionInterface(_FunctionInterface):
 class Function:
     def __init__(self, space, *, name=None, space_type="primal", static=False,
                  cache=None, checkpoint=None, _data=None):
-        if space_type not in ["primal", "dual"]:
+        if space_type not in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
             raise InterfaceException("Invalid space type")
         id = new_function_id()
         if name is None:

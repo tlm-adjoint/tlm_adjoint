@@ -241,7 +241,7 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
             (function_id(cache_0[1]), cache_0[2:], cache_1)
 
     if tensor is None and isinstance(b, backend_Function):
-        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
     return b
 
@@ -341,7 +341,7 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     unbind_forms(form)
 
     if tensor is None and isinstance(b, backend_Function):
-        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "dual")  # noqa: E501
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
     return b
 
