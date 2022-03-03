@@ -1481,7 +1481,8 @@ class LinearEquation(Equation):
                 function_zero(x)
             B = X
         else:
-            B = tuple(space_new(function_space(x), space_type=self._A.B_space_type(m))
+            B = tuple(space_new(function_space(x),
+                                space_type=self._A.B_space_type(m))
                       for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):
