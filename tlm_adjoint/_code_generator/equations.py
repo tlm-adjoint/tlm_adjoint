@@ -149,7 +149,7 @@ class AssembleSolver(ExprEquation):
                 raise EquationException("Rank 0 forms can only be assigned to "
                                         "scalars")
         else:
-            raise EquationException("Must be a rank 0 or 1 form")
+            raise EquationException("Must be a rank 0 form")
 
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
