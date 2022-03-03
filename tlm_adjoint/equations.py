@@ -1286,7 +1286,7 @@ class FixedPointSolver(Equation):
                     eq_B[0] if len(eq_B) == 1 else eq_B)
 
                 if eq_adj_X[i] is None:
-                    eq_adj_X[i] = self.new_adj_X()
+                    eq_adj_X[i] = self._eqs[i].new_adj_X()
                 else:
                     if is_function(eq_adj_X[i]):
                         eq_adj_X[i] = (eq_adj_X[i],)
