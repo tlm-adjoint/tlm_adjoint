@@ -49,6 +49,7 @@ __all__ = \
         "conjugate_dual_space_type",
         "dual_space_type",
         "no_space_type_checking",
+        "space_type_warning",
 
         "FunctionInterface",
         "is_function",
@@ -247,29 +248,30 @@ def no_space_type_checking(fn):
     return wrapped_fn
 
 
+def space_type_warning(msg, *, stacklevel=1):
+    if _check_space_types[0]:
+        warnings.warn(msg, stacklevel=stacklevel + 1)
+
+
 def check_space_type(x, space_type):
     assert space_type in ["primal", "conjugate_primal", "dual", "conjugate_dual"]  # noqa: E501
-    if _check_space_types[0]:
-        if function_space_type(x) != space_type:
-            warnings.warn("Unexpected space type", stacklevel=2)
+    if function_space_type(x) != space_type:
+        space_type_warning("Unexpected space type", stacklevel=2)
 
 
 def check_space_types(x, y):
-    if _check_space_types[0]:
-        if function_space_type(x) != function_space_type(y):
-            warnings.warn("Unexpected space type", stacklevel=2)
+    if function_space_type(x) != function_space_type(y):
+        space_type_warning("Unexpected space type", stacklevel=2)
 
 
 def check_space_types_dual(x, y):
-    if _check_space_types[0]:
-        if function_space_type(x) != dual_space_type(function_space_type(y)):
-            warnings.warn("Unexpected space type", stacklevel=2)
+    if function_space_type(x) != dual_space_type(function_space_type(y)):
+        space_type_warning("Unexpected space type", stacklevel=2)
 
 
 def check_space_types_conjugate_dual(x, y):
-    if _check_space_types[0]:
-        if function_space_type(x) != conjugate_dual_space_type(function_space_type(y)):  # noqa: E501
-            warnings.warn("Unexpected space type", stacklevel=2)
+    if function_space_type(x) != conjugate_dual_space_type(function_space_type(y)):  # noqa: E501
+        space_type_warning("Unexpected space type", stacklevel=2)
 
 
 class FunctionInterface:

@@ -57,7 +57,7 @@
 
 from .interface import function_get_values, function_global_size, \
     function_local_size, function_set_values, is_function, space_comm, \
-    space_new
+    space_new, space_type_warning
 
 import numpy as np
 
@@ -180,7 +180,13 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         raise EigendecompositionException("Invalid action type")
 
     A_action = wrapped_action(space, space_type, action_type, A_action)
-    if B_action is not None:
+    if B_action is None:
+        if action_type == "conjugate_dual":
+            space_type_warning("'B_action' argument expected with action type "
+                               "'conjugate_dual'")
+        else:
+            assert action_type == "primal"
+    else:
         B_action = wrapped_action(space, space_type, action_type, B_action)
 
     if problem_type is None:
