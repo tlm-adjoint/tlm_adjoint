@@ -405,6 +405,10 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class NewtonIterationSolver(Equation):
             def __init__(self, m, x0, x):
+                check_space_type(m, "primal")
+                check_space_type(x0, "primal")
+                check_space_type(x, "primal")
+
                 super().__init__(x, deps=[x, x0, m], nl_deps=[x0, m],
                                  ic=False, adj_ic=False)
 

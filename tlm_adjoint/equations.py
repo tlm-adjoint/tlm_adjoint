@@ -1830,13 +1830,11 @@ class MatrixActionSolver(LinearEquation):
 
 class DotProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0):
-        check_space_type(x, "primal")
         super().__init__(DotProductRHS(y, z, alpha=alpha), x)
 
 
 class InnerProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0, M=None):
-        check_space_type(x, "primal")
         super().__init__(InnerProductRHS(y, z, alpha=alpha, M=M), x)
 
 
@@ -1847,7 +1845,6 @@ class NormSqSolver(InnerProductSolver):
 
 class SumSolver(LinearEquation):
     def __init__(self, y, x):
-        check_space_type(x, "primal")
         super().__init__(SumRHS(y), x)
 
 
@@ -1886,6 +1883,8 @@ class MatrixActionRHS(RHS):
     def add_forward(self, B, deps):
         if is_function(B):
             B = (B,)
+        for m, b in enumerate(B):
+            check_space_type(b, self._A.B_space_type(m))
         X = [deps[j] for j in self._x_indices]
         self._A.forward_action(deps[:len(self._A.nonlinear_dependencies())],
                                X[0] if len(X) == 1 else X,
@@ -1970,6 +1969,7 @@ class DotProductRHS(RHS):
 
         if function_local_size(y) != function_local_size(x):
             raise EquationException("Invalid space")
+        check_space_types_dual(x, y)
 
         d = (function_get_values(y) * function_get_values(x)).sum()
         comm = function_comm(b)
@@ -2090,6 +2090,7 @@ class InnerProductRHS(RHS):
         else:
             Y = function_new_conjugate_dual(x)
             self._M.adjoint_action(M_deps, y, Y, method="assign")
+        check_space_types_conjugate_dual(x, Y)
 
         function_set_values(b,
                             function_get_values(b) + self._alpha

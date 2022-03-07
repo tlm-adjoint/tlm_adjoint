@@ -317,6 +317,7 @@ class PointInterpolationSolver(Equation):
             X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
+        check_space_type(y, "primal")
         y_v = function_get_values(y)
         x_v_local = np.full(len(X), np.NAN, dtype=self._dtype)
         for i in range(len(X)):
