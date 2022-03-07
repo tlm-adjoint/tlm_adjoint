@@ -726,24 +726,6 @@ expression (for the second), and \texttt{x} is the \texttt{Function} being
 solved for. Remaining constructor arguments are as for the
 \texttt{EquationSolver} class.
 
-\subsubsection{\texttt{ExprEvaluationSolver}}
-
-An \texttt{ExprEvaluationSolver} represents an equation
-\begin{equation*}
-  \tilde{\psi}_i = F \left( \tilde{\xi}_i \right)
-    \quad \forall i \in \left\{ 1, \ldots, N \right\},
-\end{equation*}
-where the $\tilde{\psi}_i$ and $\tilde{\xi}_i$ are respectively the discrete
-degrees of freedom associated with scalar-valued functions $\psi, \xi \in V$,
-and $F$ is a given function.
-
-The \texttt{ExprEvaluationSolver} constructor has the form
-\begin{lstlisting}
-def __init__(self, rhs, x):
-\end{lstlisting}
-where \texttt{rhs} is a \texttt{ufl.classes.Expr} and \texttt{x} is the
-function being solved for.
-
 \subsubsection{\texttt{DirichletBCSolver}}
 
 A \texttt{DirichletBCSolver} represents the application of a strong Dirichlet
