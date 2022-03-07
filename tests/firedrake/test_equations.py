@@ -532,7 +532,6 @@ def test_AssembleSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
-@no_space_type_checking
 @seed_test
 def test_Storage(setup_test, test_leaks):
     comm = manager().comm()
@@ -555,7 +554,8 @@ def test_Storage(setup_test, test_leaks):
             d = {}
         MemoryStorage(x_s, d, function_name(x_s), save=True).solve()
 
-        ExprEvaluationSolver(x * x * x * x_s, y).solve()
+        ProjectionSolver(x * x * x * x_s, y,
+                         solver_parameters=ls_parameters_cg).solve()
 
         if h is None:
             function_assign(y_s, y)
@@ -577,7 +577,7 @@ def test_Storage(setup_test, test_leaks):
         HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 
         J = Functional(name="J")
-        DotProductSolver(y, y_s, J.fn()).solve()
+        J.assign(((dot(y, y_s) + 1.0) ** 2) * dx)
         return y, x_s, y_s, d, h, J
 
     x = Function(space, name="x", static=True)
@@ -605,7 +605,7 @@ def test_Storage(setup_test, test_leaks):
     dJ = compute_gradient(J, x)
 
     min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
@@ -621,7 +621,7 @@ def test_Storage(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 2.00
 
     h.close()
 

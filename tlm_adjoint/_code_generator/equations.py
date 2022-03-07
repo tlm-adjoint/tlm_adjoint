@@ -101,6 +101,11 @@ def extract_dependencies(expr):
                 if n_nl_deps > 0 and dep_id not in nl_deps:
                     nl_deps[dep_id] = dep
 
+    deps = {dep_id: deps[dep_id]
+            for dep_id in sorted(deps.keys())}
+    nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
+               for nl_dep_id in sorted(nl_deps.keys())}
+
     return deps, nl_deps
 
 
