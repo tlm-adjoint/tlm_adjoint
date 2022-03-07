@@ -376,7 +376,7 @@ def interpolate_expression(x, expr):
     class Expr(UserExpression):
         def eval(self, value, x):
             x = tuple(x)
-            value[:] = expr.evaluate(x, {dep: dep(x) for dep in deps}, (), ())
+            value[:] = expr(x, {dep: dep(x) for dep in deps})
 
         def value_shape(self):
             return x.ufl_shape
