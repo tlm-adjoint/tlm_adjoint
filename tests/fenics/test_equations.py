@@ -467,7 +467,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
                      - test_expression(function_get_values(y),
                                        assemble(y * dx))).max()
     info(f"Error norm = {error_norm:.16e}")
-    assert error_norm == 0.0
+    assert error_norm < 1.0e-15
 
     J_val = J.value()
 

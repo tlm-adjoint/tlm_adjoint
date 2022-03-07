@@ -19,14 +19,14 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
-    TestFunction, TrialFunction, as_backend_type, backend_Constant, \
-    backend_DirichletBC, backend_Function, backend_KrylovSolver, \
-    backend_LUSolver, backend_LinearVariationalSolver, \
+    TestFunction, TrialFunction, UserExpression, as_backend_type, \
+    backend_Constant, backend_DirichletBC, backend_Function, \
+    backend_KrylovSolver, backend_LUSolver, backend_LinearVariationalSolver, \
     backend_NonlinearVariationalSolver, backend_ScalarType, backend_assemble, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import InterfaceException, check_space_type
+from ..interface import InterfaceException, check_space_type, check_space_types
 
 from .functions import eliminate_zeros
 
@@ -47,6 +47,7 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
+        "interpolate_expression",
         "is_valid_r0_space",
         "linear_solver",
         "matrix_copy",
@@ -365,6 +366,30 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 
     if b is not None and not np.isposinf(b_tolerance):
         assert (b - b_debug).norm("linf") <= b_tolerance * b.norm("linf")
+
+
+def interpolate_expression(x, expr):
+    deps = ufl.algorithms.extract_coefficients(expr)
+    for dep in deps:
+        check_space_types(x, dep)
+
+    class Expr(UserExpression):
+        def eval(self, value, x):
+            x = tuple(x)
+            value[:] = expr.evaluate(x, {dep: dep(x) for dep in deps}, (), ())
+
+        def value_shape(self):
+            return x.ufl_shape
+
+    if isinstance(x, backend_Constant):
+        value = x.values()
+        Expr().eval(value, ())
+        x.assign(value)
+    elif isinstance(x, backend_Function):
+        x.interpolate(Expr())
+    else:
+        raise InterfaceException(f"Unexpected type: {type(x)}")
+
 
 # The following override assemble, assemble_system, and solve so that DOLFIN
 # Form objects are cached on UFL form objects

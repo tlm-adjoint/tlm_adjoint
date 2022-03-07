@@ -398,7 +398,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
                      - test_expression(function_get_values(y),
                                        assemble(y * dx))).max()
     info(f"Error norm = {error_norm:.16e}")
-    assert error_norm == 0.0
+    assert error_norm < 1.0e-15
 
     J_val = J.value()
 
@@ -605,7 +605,7 @@ def test_Storage(setup_test, test_leaks):
     dJ = compute_gradient(J, x)
 
     min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, seed=1.0e-3)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-3,

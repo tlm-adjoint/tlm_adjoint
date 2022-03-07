@@ -18,19 +18,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import TestFunction, TrialFunction, adjoint, \
+from .backend import TestFunction, TrialFunction, adjoint, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
 from ..interface import check_space_type, check_space_types, function_assign, \
-    function_id, function_is_scalar, function_new, \
-    function_new_conjugate_dual, function_replacement, function_scalar_value, \
-    function_space, function_update_caches, function_update_state, \
-    function_zero, is_function
+    function_get_values, function_id, function_inner, function_is_scalar, \
+    function_new, function_new_conjugate_dual, function_replacement, \
+    function_scalar_value, function_set_values, function_space, \
+    function_update_caches, function_update_state, function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
-    matrix_multiply, process_adjoint_solver_parameters, \
-    process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
-    update_parameters_dict, verify_assembly
+    interpolate_expression, matrix_multiply, \
+    process_adjoint_solver_parameters, process_solver_parameters, r0_space, \
+    rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
 from ..equations import AssignmentSolver, Equation, EquationException, \
@@ -889,10 +889,9 @@ class ExprEvaluationSolver(ExprEquation):
 
     def forward_solve(self, x, deps=None):
         if deps is None:
-            rhs = self._rhs
+            interpolate_expression(x, self._rhs)
         else:
-            rhs = self._replace(self._rhs, deps)
-        x.assign(rhs)
+            interpolate_expression(x, self._replace(self._rhs, deps))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
@@ -902,13 +901,21 @@ class ExprEvaluationSolver(ExprEquation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        dF = ufl.conj(derivative(self._rhs, dep, argument=ufl.conj(adj_x)))
+        dF = ufl.diff(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
 
+        dF_val = function_new_conjugate_dual(adj_x)
+        interpolate_expression(dF_val, dF)
+
         F = function_new_conjugate_dual(dep)
-        F.assign(dF)
+        if isinstance(F, backend_Constant):
+            function_assign(F, function_inner(adj_x, dF_val))
+        else:
+            assert isinstance(F, backend_Function)
+            function_set_values(
+                F, function_get_values(dF_val).conjugate() * function_get_values(adj_x))  # noqa: E501
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):

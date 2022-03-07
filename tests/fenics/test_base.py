@@ -22,6 +22,8 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
+from tlm_adjoint.fenics.backend_code_generator_interface import \
+    interpolate_expression
 
 import copy
 import functools
@@ -33,7 +35,6 @@ import numpy as np
 import os
 import pytest
 import runpy
-import ufl
 import weakref
 
 __all__ = \
@@ -192,49 +193,6 @@ def run_example(example, clear_forward_globals=True):
         # Clear objects created by the script. Requires the script to define a
         # 'forward' function.
         gl["forward"].__globals__.clear()
-
-
-def interpolate_expression(F, ex):
-    def cpp(ex):
-        if isinstance(ex, ufl.classes.Cos):
-            x, = ex.ufl_operands
-            return f"cos({cpp(x):s})"
-        elif isinstance(ex, ufl.classes.Division):
-            x, y = ex.ufl_operands
-            return f"({cpp(x):s}) / ({cpp(y):s})"
-        elif isinstance(ex, ufl.classes.Exp):
-            x, = ex.ufl_operands
-            return f"exp({cpp(x):s})"
-        elif isinstance(ex, ufl.classes.FloatValue):
-            return f"{float(ex):.16e}"
-        elif isinstance(ex, ufl.classes.Indexed):
-            x, i = ex.ufl_operands
-            i, = map(int, i)
-            return f"({cpp(x):s})[{i:d}]"
-        elif isinstance(ex, ufl.classes.IntValue):
-            return f"{int(ex):d}"
-        elif isinstance(ex, ufl.classes.Power):
-            x, y = ex.ufl_operands
-            return f"pow({cpp(x):s}, {cpp(y):s})"
-        elif isinstance(ex, ufl.classes.Product):
-            return " * ".join(map(lambda op: f"({cpp(op):s})",
-                                  ex.ufl_operands))
-        elif isinstance(ex, ufl.classes.Sin):
-            x, = ex.ufl_operands
-            return f"sin({cpp(x):s})"
-        elif isinstance(ex, ufl.classes.SpatialCoordinate):
-            return "x"
-        elif isinstance(ex, ufl.classes.Sqrt):
-            x, = ex.ufl_operands
-            return f"sqrt({cpp(x):s})"
-        elif isinstance(ex, ufl.classes.Sum):
-            return " + ".join(map(lambda op: f"({cpp(op):s})",
-                                  ex.ufl_operands))
-        else:
-            raise TypeError(f"Unsupported type: {type(ex)}")
-
-    F.interpolate(Expression(cpp(ex),
-                             element=F.function_space().ufl_element()))
 
 
 ls_parameters_cg = {"linear_solver": "cg",

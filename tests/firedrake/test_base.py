@@ -22,6 +22,8 @@ from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
+    interpolate_expression
 
 import copy
 import functools
@@ -195,10 +197,6 @@ def run_example(example, clear_forward_globals=True):
         # Clear objects created by the script. Requires the script to define a
         # 'forward' function.
         gl["forward"].__globals__.clear()
-
-
-def interpolate_expression(F, ex):
-    F.interpolate(ex)
 
 
 ls_parameters_cg = {"ksp_type": "cg",

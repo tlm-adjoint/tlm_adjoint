@@ -22,8 +22,8 @@ from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
     backend_Constant, backend_DirichletBC, backend_Function, \
     backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
-from ..interface import InterfaceException, check_space_type, function_axpy, \
-    function_copy, function_id
+from ..interface import InterfaceException, check_space_type, \
+    check_space_types, function_axpy, function_copy, function_id
 
 from .functions import eliminate_zeros
 
@@ -44,6 +44,7 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
+        "interpolate_expression",
         "is_valid_r0_space",
         "linear_solver",
         "matrix_copy",
@@ -526,6 +527,19 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         with b_error.dat.vec_ro as b_error_v, b.dat.vec_ro as b_v:
             assert b_error_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
                 <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
+
+
+def interpolate_expression(x, expr):
+    deps = ufl.algorithms.extract_coefficients(expr)
+    for dep in deps:
+        check_space_types(x, dep)
+
+    if isinstance(x, backend_Constant):
+        x.assign(expr)
+    elif isinstance(x, backend_Function):
+        x.interpolate(expr)
+    else:
+        raise InterfaceException(f"Unexpected type: {type(x)}")
 
 
 def solve(*args, **kwargs):
