@@ -427,17 +427,17 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                     F = function_new_conjugate_dual(x0)
                     function_set_values(
                         F,
-                        0.5 * function_get_values(adj_x)
-                        * (function_get_values(m)
-                           / (function_get_values(x0) ** 2) - 1.0))
+                        (0.5 * function_get_values(adj_x)
+                         * (function_get_values(m)
+                            / (function_get_values(x0) ** 2) - 1.0)).conjugate())  # noqa: E501
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
                     F = function_new_conjugate_dual(x0)
                     function_set_values(
                         F,
-                        -0.5 * function_get_values(adj_x)
-                        / function_get_values(x0))
+                        (-0.5 * function_get_values(adj_x)
+                         / function_get_values(x0)).conjugate())
                     return F
                 else:
                     raise EquationException("Unexpected dep_index")
