@@ -44,6 +44,7 @@ stop_manager()
 np.random.seed(48377229)
 
 dtype = default_dtype()
+assert issubclass(dtype, (float, np.floating))
 
 kappa_0 = 0.2
 dt = 0.01
