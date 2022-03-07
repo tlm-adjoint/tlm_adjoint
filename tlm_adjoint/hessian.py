@@ -18,9 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_axpy, function_copy, function_get_values, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_new
+from .interface import function_axpy, function_copy, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_name, function_new
 
 from .caches import clear_caches
 from .equations import InnerProductSolver
@@ -56,7 +55,7 @@ class Hessian:
     def action_fn(self, m, m0=None):
         """
         Return a callable which accepts a function defining dm, and returns the
-        Hessian action as a NumPy array.
+        Hessian action.
 
         Arguments:
 
@@ -66,7 +65,7 @@ class Hessian:
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
+            return ddJ
 
         return action
 
@@ -244,8 +243,7 @@ class GaussNewton:
 
     def action_fn(self, m, m0=None):
         def action(dm):
-            ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
+            return self.action(m, dm, M0=m0)
 
         return action
 

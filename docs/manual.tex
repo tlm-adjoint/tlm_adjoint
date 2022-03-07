@@ -2659,11 +2659,11 @@ with arguments
   \item \texttt{space}, a function space. Eigenvector discrete function space.
   \item \texttt{A\_action}, a callable which accepts a single input function,
     and computes the action of the matrix $A$. The result must be returned as a
-    function or a NumPy array.
+    function.
   \item \texttt{B\_action}, a callable which accepts a single input function,
     and computes the action of the matrix $B$. The result must be returned as a
-    function or a NumPy array. If not provided then $B$ is considered an
-    identity matrix.
+    function. If not provided then $B$ is considered an identity matrix. Should
+    be supplied if \texttt{action\_type} equals ``conjugate\_dual''.
   \item \texttt{space\_type}, ``primal'', ``conjugate\_primal'', ``dual'', or
     ``conjugate\_dual'', defining the space type for eigenvectors.
   \item \texttt{action\_type}, whether the action is in the same space as the
