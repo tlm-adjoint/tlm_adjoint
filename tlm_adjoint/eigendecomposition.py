@@ -126,11 +126,6 @@ def wrapped_action(space, space_type, action_type, action):
                           DeprecationWarning, stacklevel=2)
             y_a = y
 
-        if action_type == "conjugate_dual":
-            y_a = y_a.conjugate()
-        else:
-            assert action_type == "primal"
-
         return y_a
 
     return action
