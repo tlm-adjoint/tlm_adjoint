@@ -24,7 +24,8 @@ from ..interface import check_space_type, check_space_types, function_assign, \
     function_get_values, function_id, function_inner, function_is_scalar, \
     function_new, function_new_conjugate_dual, function_replacement, \
     function_scalar_value, function_set_values, function_space, \
-    function_update_caches, function_update_state, function_zero, is_function
+    function_update_caches, function_update_state, function_zero, \
+    is_function, space_id
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -878,6 +879,9 @@ class ExprEvaluationSolver(ExprEquation):
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
             check_space_types(x, dep)
+            if isinstance(dep, backend_Function) \
+                    and space_id(function_space(dep)) != space_id(function_space(x)):  # noqa: E501
+                raise EquationException("Invalid dependency")
         deps.insert(0, x)
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
