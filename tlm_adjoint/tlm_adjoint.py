@@ -1739,7 +1739,7 @@ class EquationManager:
                             for m, (x, adj_x_ic) in enumerate(zip(eq_X, adj_X_ic)):  # noqa: E501
                                 if adj_x_ic is None:
                                     adj_X.append(eq.new_adj_X(m))
-                                elif eq.adj_X_space_type(m) == function_space_type(adj_x_ic):  # noqa: E501
+                                else:
                                     adj_X.append(adj_x_ic)
                         # Solve adjoint equation, add terms to adjoint
                         # equations
