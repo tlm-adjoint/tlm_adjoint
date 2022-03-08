@@ -18,11 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_assign, function_copy, function_get_values, \
-    function_global_size, function_id, function_is_checkpointed, \
-    function_is_replacement, function_local_indices, function_name, \
-    function_new, function_new_tangent_linear, function_set_values, \
-    function_space, function_space_type, is_function, space_id, space_new
+from .interface import check_space_types, function_assign, function_copy, \
+    function_get_values, function_global_size, function_id, \
+    function_is_checkpointed, function_is_replacement, \
+    function_local_indices, function_name, function_new, \
+    function_new_tangent_linear, function_set_values, function_space, \
+    function_space_type, is_function, space_id, space_new
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
@@ -920,6 +921,8 @@ class EquationManager:
             raise ManagerException("Invalid tangent-linear model")
         if (M, dM) in self._tlm:
             raise ManagerException("Duplicate tangent-linear model")
+        for m, dm in zip(M, dM):
+            check_space_types(m, dm)
 
         if self._tlm_state == "initial":
             self._tlm_state = "deriving"

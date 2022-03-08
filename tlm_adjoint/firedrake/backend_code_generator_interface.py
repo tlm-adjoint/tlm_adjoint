@@ -530,6 +530,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 
 
 def interpolate_expression(x, expr):
+    check_space_type(x, "primal")
     deps = ufl.algorithms.extract_coefficients(expr)
     for dep in deps:
         check_space_types(x, dep)

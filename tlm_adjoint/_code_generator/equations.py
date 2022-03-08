@@ -106,6 +106,10 @@ def extract_dependencies(expr):
     nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
                for nl_dep_id in sorted(nl_deps.keys())}
 
+    assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
+    for dep in deps.values():
+        check_space_type(dep, "primal")
+
     return deps, nl_deps
 
 
