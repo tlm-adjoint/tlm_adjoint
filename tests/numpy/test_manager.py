@@ -115,9 +115,8 @@ def test_empty(setup_test, test_leaks, test_default_dtypes):
 def test_Referrers_LinearEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class IdentityMatrix(Matrix):
-            def __init__(self, col_space_type="conjugate_dual"):
-                super().__init__(nl_deps=[], ic=False, adj_ic=False,
-                                 col_space_type=col_space_type)
+            def __init__(self):
+                super().__init__(nl_deps=[], ic=False, adj_ic=False)
 
             @no_space_type_checking
             def forward_action(self, nl_deps, x, b, method="assign"):
@@ -136,9 +135,8 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 else:
                     raise EquationException(f"Unexpected method '{method:s}'")
 
+            @no_space_type_checking
             def forward_solve(self, x, nl_deps, b):
-                check_space_type(b, self.b_space_type())
-
                 function_assign(x, b)
 
             def adjoint_solve(self, adj_x, nl_deps, b):
@@ -147,11 +145,11 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
                 return None
 
-        x = Constant(0.0, name="x", space_type="conjugate_dual")
+        x = Constant(0.0, name="x")
 
         M = IdentityMatrix()
         b = NormSqRHS(m, M=M)
-        linear_eq = LinearEquation([b, b], x, A=M, adj_type="primal")
+        linear_eq = LinearEquation([b, b], x, A=M)
         linear_eq.solve()
 
         if forward_run:
@@ -188,10 +186,10 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert not function_is_replacement(dep)
 
-        y = Constant(0.0, name="y", space_type="conjugate_dual")
-        LinearEquation(b, y, A=M, adj_type="primal").solve()
+        y = Constant(0.0, name="y")
+        LinearEquation(b, y, A=M).solve()
 
-        z = Constant(0.0, name="z", space_type="conjugate_dual")
+        z = Constant(0.0, name="z")
         AxpySolver(x, 1.0, y, z).solve()
 
         if forward_run:
@@ -220,7 +218,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert function_is_replacement(dep)
 
-        M = IdentityMatrix(col_space_type="primal")
+        M = IdentityMatrix()
 
         J = Functional(name="J")
         NormSqSolver(z, J.fn(), M=M).solve()

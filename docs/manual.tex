@@ -1183,7 +1183,7 @@ where $A$ is a matrix and the $b_i$ are independent of $x$.
 
 The \texttt{LinearEquation} constructor has the form
 \begin{lstlisting}
-def __init__(self, B, X, *, A=None, adj_type="conjugate_dual"):
+def __init__(self, B, X, *, A=None, adj_type=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1192,7 +1192,8 @@ with constructor arguments
   \item \texttt{X}, a function, or a sequence of functions, defining $x$.
   \item \texttt{A}, a \texttt{Matrix}. If not provided $A$ is an identity
     matrix.
-  \item \texttt{adj\_type}, as for the \texttt{Equation} constructor.
+  \item \texttt{adj\_type}, as for the \texttt{Equation} constructor. Defaults
+    to ``primal'' if \texttt{A} is supplied, and ``conjugate\_dual'' otherwise.
 \end{itemize}
 
 \subsection{\texttt{Matrix}}
@@ -1205,8 +1206,7 @@ matrices as used by a \texttt{LinearEquation}.
 A subclass of \texttt{Matrix} must call the \texttt{Matrix} constructor to
 define dependencies. The \texttt{Matrix} constructor has the form
 \begin{lstlisting}
-def __init__(self, nl_deps=None, *, ic=True, adj_ic=True,
-             col_space_type="conjugate_dual"):
+def __init__(self, nl_deps=None, *, ic=True, adj_ic=True):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1218,9 +1218,6 @@ with constructor arguments
   \item \texttt{adj\_ic}. If true then in solving an adjoint equation
     involving the matrix the solution variable is an adjoint initial
     condition dependency of the equation.
-  \item \texttt{col\_space\_type}, ``primal'', ``conjugate\_primal'',
-    ``dual'', or ``conjugate\_dual''. The space type for the result of a
-    matrix action, $A x$.
 \end{itemize}
 
 \subsubsection{Matrix action}

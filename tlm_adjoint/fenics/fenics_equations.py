@@ -424,15 +424,12 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
 
 
 class LocalMatrix(Matrix):
-    def __init__(self, P, *, col_space_type="primal"):
-        super().__init__(nl_deps=[], ic=False, adj_ic=False,
-                         col_space_type=col_space_type)
+    def __init__(self, P):
+        super().__init__(nl_deps=[], ic=False, adj_ic=False)
         self._P = P.copy()
         self._P_T = P.T
 
     def forward_action(self, nl_deps, x, b, method="assign"):
-        check_space_type(b, self.b_space_type())
-
         if method == "assign":
             function_set_values(b, self._P.dot(function_get_values(x)))
         elif method == "add":

@@ -1371,11 +1371,16 @@ class FixedPointSolver(Equation):
 
 
 class LinearEquation(Equation):
-    def __init__(self, B, X, *, A=None, adj_type="conjugate_dual"):
+    def __init__(self, B, X, *, A=None, adj_type=None):
         if isinstance(B, RHS):
             B = (B,)
         if is_function(X):
             X = (X,)
+        if adj_type is None:
+            if A is None:
+                adj_type = "conjugate_dual"
+            else:
+                adj_type = "primal"
 
         deps = []
         dep_ids = {}
@@ -1481,9 +1486,10 @@ class LinearEquation(Equation):
                 function_zero(x)
             B = X
         else:
-            B = tuple(space_new(function_space(x),
-                                space_type=self._A.B_space_type(m))
-                      for m, x in enumerate(X))
+            B = tuple(
+                space_new(function_space(x),
+                          space_type=conjugate_dual_space_type(self.adj_X_space_type(m)))  # noqa: E501
+                for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):
             b.add_forward(B[0] if len(B) == 1 else B,
@@ -1592,8 +1598,7 @@ class LinearEquation(Equation):
 
 
 class Matrix(Referrer):
-    def __init__(self, nl_deps=None, *, has_ic_dep=None, ic=None, adj_ic=True,
-                 col_space_type="conjugate_dual"):
+    def __init__(self, nl_deps=None, *, has_ic_dep=None, ic=None, adj_ic=True):
         if nl_deps is None:
             nl_deps = []
         if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
@@ -1610,21 +1615,10 @@ class Matrix(Referrer):
         elif ic is None:
             ic = True
 
-        if col_space_type in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
-            pass
-        elif isinstance(col_space_type, Sequence):
-            for b_space_type in col_space_type:
-                if b_space_type not in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
-                    raise EquationException("Invalid space type")
-            col_space_type = tuple(col_space_type)
-        else:
-            raise EquationException("Invalid space type")
-
         super().__init__()
         self._nl_deps = tuple(nl_deps)
         self._ic = ic
         self._adj_ic = adj_ic
-        self._B_space_type = col_space_type
 
     _reset_adjoint_warning = True
     _initialize_adjoint_warning = True
@@ -1688,25 +1682,6 @@ class Matrix(Referrer):
 
     def adjoint_has_initial_condition(self):
         return self._adj_ic
-
-    def b_space_type(self):
-        if isinstance(self._B_space_type, str):
-            return self._B_space_type
-        else:
-            b_space_type, = self._B_space_type
-            return b_space_type
-
-    def B_space_type(self, m=None):
-        if m is None:
-            if isinstance(self._B_space_type, str):
-                raise EquationException("Unable to determine space type")
-            else:
-                return self._B_space_type
-        else:
-            if isinstance(self._B_space_type, str):
-                return self._B_space_type
-            else:
-                return self._B_space_type[m]
 
     def forward_action(self, nl_deps, X, B, method="assign"):
         """
@@ -1883,8 +1858,6 @@ class MatrixActionRHS(RHS):
     def add_forward(self, B, deps):
         if is_function(B):
             B = (B,)
-        for m, b in enumerate(B):
-            check_space_type(b, self._A.B_space_type(m))
         X = [deps[j] for j in self._x_indices]
         self._A.forward_action(deps[:len(self._A.nonlinear_dependencies())],
                                X[0] if len(X) == 1 else X,

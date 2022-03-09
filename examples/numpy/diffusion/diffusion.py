@@ -230,8 +230,7 @@ def forward(psi_0, kappa):
     AssignmentSolver(psi_0, psi_n).solve()
 
     eqs = [LinearEquation(ContractionRHS(B, (1,), (psi_n,)),
-                          psi_np1, A=DiffusionMatrix(kappa),
-                          adj_type="primal"),
+                          psi_np1, A=DiffusionMatrix(kappa)),
            AssignmentSolver(psi_np1, psi_n)]
 
     for n in range(N_t):
