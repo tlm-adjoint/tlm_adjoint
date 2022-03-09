@@ -1533,32 +1533,6 @@ eq = NormSqSolver(y, x, alpha=alpha, M=M)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{SumRHS} and \texttt{SumSolver}}
-
-A \texttt{SumRHS} is a \texttt{RHS} representing a right-hand-side term of the
-form
-\begin{equation*}
-  b_i = \sum_j y_j,
-\end{equation*}
-where the $y_j$ are the degrees of freedom for a function, and the $b_i$ are
-the degrees of freedom for the resulting right-hand-side term. A
-\texttt{SumSolver} is a \texttt{LinearEquation} representing
-\begin{equation*}
-  x_i = \sum_j y_j,
-\end{equation*}
-solving for $x$, whose degrees of freedom are the $x_i$.
-
-A \texttt{SumRHS} can be instantiated via
-\begin{lstlisting}
-b = SumRHS(y)
-\end{lstlisting}
-where \texttt{y} is the function whose degrees of freedom are the $y_j$. A
-\texttt{SumSolver} can be instantiated via
-\begin{lstlisting}
-eq = SumSolver(y, x)
-\end{lstlisting}
-where \texttt{x} is the function being solved for.
-
 \subsubsection{\texttt{MatrixActionRHS} and \texttt{MatrixActionSolver}}
 
 A \texttt{MatrixActionRHS} is a \texttt{RHS} representing a right-hand-side

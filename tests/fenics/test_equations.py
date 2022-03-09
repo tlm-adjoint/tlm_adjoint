@@ -692,37 +692,6 @@ def test_Storage(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-@seed_test
-def test_SumSolver(setup_test, test_leaks):
-    mesh = UnitIntervalMesh(10)
-    space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
-
-    def forward(F):
-        G = Function(space, name="G")
-        AssignmentSolver(F, G).solve()
-
-        J = Functional(name="J")
-        SumSolver(G, J.fn()).solve()
-        return J
-
-    F = Function(space, name="F", static=True)
-    F_arr = np.random.random(function_local_size(F))
-    if issubclass(function_dtype(F), (complex, np.complexfloating)):
-        F_arr = F_arr + 1.0j * np.random.random(function_local_size(F))
-    function_set_values(F, F_arr)
-    del F_arr
-
-    start_manager()
-    J = forward(F)
-    stop_manager()
-
-    assert J.value() == function_sum(F)
-
-    dJ = compute_gradient(J, F)
-    assert abs(function_get_values(dJ) - 1.0).max() == 0.0
-
-
-@pytest.mark.fenics
 @pytest.mark.skipif(issubclass(PETSc.ScalarType,
                                (complex, np.complexfloating)),
                     reason="real only")

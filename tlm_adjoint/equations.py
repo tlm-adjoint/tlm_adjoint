@@ -1820,6 +1820,9 @@ class NormSqSolver(InnerProductSolver):
 
 class SumSolver(LinearEquation):
     def __init__(self, y, x):
+        warnings.warn("SumSolver is deprecated",
+                      DeprecationWarning, stacklevel=2)
+
         super().__init__(SumRHS(y), x)
 
 
@@ -2161,6 +2164,9 @@ class NormSqRHS(InnerProductRHS):
 
 class SumRHS(RHS):
     def __init__(self, x):
+        warnings.warn("SumRHS is deprecated",
+                      DeprecationWarning, stacklevel=2)
+
         super().__init__([x], nl_deps=[])
 
     def add_forward(self, b, deps):
