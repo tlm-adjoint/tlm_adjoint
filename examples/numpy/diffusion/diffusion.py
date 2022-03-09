@@ -156,7 +156,8 @@ def forward(psi_0, kappa):
             self._A_kappa = None
 
         def forward_action(self, nl_deps, x, b, method="assign"):
-            check_space_type(b, self.b_space_type())
+            check_space_type(x, "primal")
+            check_space_type(b, "conjugate_dual")
 
             kappa, = nl_deps
             self._assemble_A(kappa)
@@ -177,7 +178,8 @@ def forward(psi_0, kappa):
             self.forward_action(nl_deps, adj_x, b, method=method)
 
         def forward_solve(self, x, nl_deps, b):
-            check_space_type(b, self.b_space_type())
+            check_space_type(x, "primal")
+            check_space_type(b, "conjugate_dual")
 
             kappa, = nl_deps
             self._assemble_A(kappa)
@@ -228,7 +230,8 @@ def forward(psi_0, kappa):
     AssignmentSolver(psi_0, psi_n).solve()
 
     eqs = [LinearEquation(ContractionRHS(B, (1,), (psi_n,)),
-                          psi_np1, A=DiffusionMatrix(kappa)),
+                          psi_np1, A=DiffusionMatrix(kappa),
+                          adj_type="primal"),
            AssignmentSolver(psi_np1, psi_n)]
 
     for n in range(N_t):

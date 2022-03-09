@@ -757,6 +757,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_initial_guess(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
@@ -836,8 +837,7 @@ def test_initial_guess(setup_test, test_leaks):
 
         # test_adj_ic defined in test scope below
         if test_adj_ic:
-            adj_x_0 = Function(space_1, name="adj_x_0",
-                               space_type="conjugate_dual", static=True)
+            adj_x_0 = Function(space_1, name="adj_x_0", static=True)
             solve(
                 inner(trial_1, test_1) * dx
                 == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,

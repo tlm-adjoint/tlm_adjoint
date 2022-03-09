@@ -512,6 +512,7 @@ def solve(*args, **kwargs):
 
     eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
         = extract_args(*args, **kwargs)
+    check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
