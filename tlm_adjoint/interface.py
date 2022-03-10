@@ -59,7 +59,6 @@ __all__ = \
         "function_caches",
         "function_comm",
         "function_copy",
-        "function_copy_conjugate_dual",
         "function_dtype",
         "function_get_values",
         "function_global_size",
@@ -289,8 +288,8 @@ class FunctionInterface:
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
              "_set_values", "_new", "_new_conjugate", "_new_conjugate_dual",
-             "_copy", "_copy_conjugate_dual", "_new_tangent_linear",
-             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value")
+             "_copy", "_new_tangent_linear", "_replacement", "_is_replacement",
+             "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -396,13 +395,6 @@ class FunctionInterface:
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         raise InterfaceException("Method not overridden")
-
-    @no_space_type_checking
-    def _copy_conjugate_dual(self, *, name=None, static=False, cache=None,
-                             checkpoint=None):
-        y = function_new_conjugate_dual(self)
-        function_assign(y, self)
-        return y
 
     def _new_tangent_linear(self, *, name=None):
         if function_is_static(self):
@@ -576,12 +568,6 @@ def function_new_conjugate_dual(x, *, name=None, static=False, cache=None,
 
 def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
     return x._tlm_adjoint__function_interface_copy(
-        name=name, static=static, cache=cache, checkpoint=checkpoint)
-
-
-def function_copy_conjugate_dual(x, *, name=None, static=False, cache=None,
-                                 checkpoint=None):
-    return x._tlm_adjoint__function_interface_copy_conjugate_dual(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 

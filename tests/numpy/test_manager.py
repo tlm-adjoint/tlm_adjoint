@@ -139,8 +139,12 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             def forward_solve(self, x, nl_deps, b):
                 function_assign(x, b)
 
+            @no_space_type_checking
             def adjoint_solve(self, adj_x, nl_deps, b):
-                return function_copy_conjugate_dual(b)
+                assert adj_x is None
+                adj_x = function_new_conjugate_dual(b)
+                function_assign(adj_x, b)
+                return adj_x
 
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
                 return None

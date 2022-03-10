@@ -22,14 +22,13 @@ from .interface import check_space_type, check_space_types, \
     check_space_types_dual, check_space_types_conjugate_dual, \
     conjugate_dual_space_type, finalize_adjoint_derivative_action, \
     function_assign, function_axpy, function_comm, function_copy, \
-    function_copy_conjugate_dual, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, \
-    function_is_checkpointed, function_local_indices, function_local_size, \
-    function_new, function_new_conjugate_dual, function_replacement, \
-    function_set_values, function_space, function_space_type, function_sum, \
-    function_update_caches, function_update_state, function_zero, \
-    is_function, no_space_type_checking, space_new, \
-    subtract_adjoint_derivative_action
+    function_dtype, function_get_values, function_global_size, function_id, \
+    function_inner, function_is_checkpointed, function_local_indices, \
+    function_local_size, function_new, function_new_conjugate_dual, \
+    function_replacement, function_set_values, function_space, \
+    function_space_type, function_sum, function_update_caches, \
+    function_update_state, function_zero, is_function, \
+    no_space_type_checking, space_new, subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
@@ -784,11 +783,10 @@ def get_tangent_linear(x, M, dM, tlm_map):
 
 
 class NullSolver(Equation):
-    def __init__(self, X, adj_type="conjugate_dual"):
+    def __init__(self, X):
         if is_function(X):
             X = (X,)
-        super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False,
-                         adj_type=adj_type)
+        super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -805,23 +803,10 @@ class NullSolver(Equation):
             raise EquationException("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
-        adj_X_type = self.adj_X_type()
-        if "primal" in adj_X_type:
-            if is_function(B):
-                B = [B]
-            else:
-                B = list(B)
-            assert len(B) == len(adj_X_type)
-            for i, (b, adj_x_type) in enumerate(zip(B, adj_X_type)):
-                if adj_x_type == "primal":
-                    B[i] = function_copy_conjugate_dual(b)
-                else:
-                    assert adj_x_type == "conjugate_dual"
         return B
 
     def tangent_linear(self, M, dM, tlm_map):
-        return NullSolver([tlm_map[x] for x in self.X()],
-                          adj_type=self.adj_X_type())
+        return NullSolver([tlm_map[x] for x in self.X()])
 
 
 class AssignmentSolver(Equation):
