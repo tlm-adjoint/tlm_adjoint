@@ -1590,7 +1590,7 @@ class EquationManager:
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
-        manager.
+        manager. Returns the complex conjugate of the derivative.
 
         Arguments:
 

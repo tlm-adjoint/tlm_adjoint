@@ -62,7 +62,8 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     M        A function, or a sequence of functions. The control parameters.
     J_val    The reference functional value.
     dJ       (Optional if ddJ is supplied) A function, or a sequence of
-             functions, storing the derivative of J with respect to M.
+             functions, storing the complex conjugate of the derivative of J
+             with respect to M.
     ddJ      (Optional) A Hessian used to compute Hessian actions associated
              with the second derivative of J with respect to M.
     seed     (Optional) The maximum scaling for the perturbation is seed

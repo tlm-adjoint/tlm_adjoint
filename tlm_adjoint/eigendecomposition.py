@@ -144,12 +144,11 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     Arguments:
 
     space          Eigenvector space.
-    A_action       Callable accepting a function and returning a function or
-                   NumPy array, defining the action of the left-hand-side
-                   matrix, e.g. as returned by Hessian.action_fn.
+    A_action       Callable accepting a function and returning a function,
+                   defining the action of the left-hand-side matrix, e.g. as
+                   returned by Hessian.action_fn.
     B_action       (Optional) Callable accepting a function and returning a
-                   function or NumPy array, defining the action of the
-                   right-hand-side matrix.
+                   function, defining the action of the right-hand-side matrix.
     space_type     (Optional) "primal", "conjugate_primal", "dual", or
                    "conjugate_dual", defining the eigenvector space type.
     action_type    (Optional) "primal" or "conjugate_dual", whether the action

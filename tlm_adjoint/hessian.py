@@ -86,7 +86,8 @@ class GeneralHessian(Hessian):
             (J, dJ)
         where
         - J is the functional value
-        - dJ is the derivative of J with respect to the parameters defined by M
+        - dJ is the complex conjugate of the derivative of J with respect to
+          the parameters defined by M
 
         Arguments:
 
@@ -135,8 +136,8 @@ class GeneralHessian(Hessian):
         - J is the functional value
         - dJ is the derivative of J with respect to the parameters defined by M
           in in the direction dM
-        - ddJ is the action, in the direction dM, of the second derivative of
-          the functional with respect to M
+        - ddJ is the complex conjugate of the action, in the direction dM, of
+          the second derivative of the functional with respect to M
 
         Arguments:
 

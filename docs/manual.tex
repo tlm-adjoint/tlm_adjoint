@@ -1882,7 +1882,7 @@ calculation. This method returns the value of the functional, the first
 derivative of the functional in the direction defined by \texttt{dm}, and the
 action of the Hessian in the direction defined by \texttt{dm}. The degrees of
 freedom associated with \texttt{ddJ} are the complex conjugate of
-sensitivities.
+the Hessian action degrees of freedom.
 
 \subsubsection{Hessian actions with caching}
 
@@ -2619,10 +2619,9 @@ with arguments
     be supplied if \texttt{action\_type} equals ``conjugate\_dual''.
   \item \texttt{space\_type}, ``primal'', ``conjugate\_primal'', ``dual'', or
     ``conjugate\_dual'', defining the space type for eigenvectors.
-  \item \texttt{action\_type}, whether the action is in the same space as the
-    eigenvectors, or the associated dual space. If ``dual'' then
-    \texttt{A\_action} and \texttt{B\_action} return the complex conjugate of
-    the matrix actions.
+  \item \texttt{action\_type}, ``primal'' or ``conjugate\_dual'', whether the
+    action is in the same space as the eigenvectors, or the associated
+    conjugate dual space.
   \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
     passed as the \texttt{nev} argument to \texttt{slepc4py.EPS.setDimensions}.
     If not provided then performs a full spectrum eigendecomposition.
