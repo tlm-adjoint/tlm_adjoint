@@ -2603,9 +2603,9 @@ and associated eigenvectors $v$ where
 This has the interface
 \begin{lstlisting}
 def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
-                   action_type="conjugate_dual", N_eigenvalues=None,
-                   solver_type=None, problem_type=None, which=None,
-                   tolerance=1.0e-12, configure=None):
+                   action_type="dual", N_eigenvalues=None, solver_type=None,
+                   problem_type=None, which=None, tolerance=1.0e-12,
+                   configure=None):
 \end{lstlisting}
 with arguments
 \begin{itemize}
@@ -2619,9 +2619,9 @@ with arguments
     be supplied if \texttt{action\_type} equals ``conjugate\_dual''.
   \item \texttt{space\_type}, ``primal'', ``conjugate\_primal'', ``dual'', or
     ``conjugate\_dual'', defining the space type for eigenvectors.
-  \item \texttt{action\_type}, ``primal'' or ``conjugate\_dual'', whether the
-    action is in the same space as the eigenvectors, or the associated
-    conjugate dual space.
+  \item \texttt{action\_type}, ``primal'', ``dual'', or ``conjugate\_dual'',
+    whether the action is in the same space as the eigenvectors, or the
+    associated dual or conjugate dual space.
   \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
     passed as the \texttt{nev} argument to \texttt{slepc4py.EPS.setDimensions}.
     If not provided then performs a full spectrum eigendecomposition.
@@ -2655,7 +2655,9 @@ used via
 \begin{lstlisting}
 A_action = ddJ.action_fn(m)
 \end{lstlisting}
-where \texttt{m} is a function defining the control.
+where \texttt{m} is a function defining the control. Note that the return
+value from \texttt{A\_action} is a Hessian action (\emph{not} the complex
+conjugate of a Hessian action).
 
 \section{Copyright and acknowledgements}
 

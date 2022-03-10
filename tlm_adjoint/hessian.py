@@ -19,8 +19,9 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import check_space_type_conjugate_dual, function_axpy, \
-    function_copy, function_is_cached, function_is_checkpointed, \
-    function_is_static, function_name, function_new
+    function_copy, function_get_values, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_name, \
+    function_new, function_new_conjugate, function_set_values, is_function
 
 from .caches import clear_caches
 from .equations import InnerProductSolver
@@ -41,6 +42,16 @@ __all__ = \
 
 class HessianException(Exception):
     pass
+
+
+def conjugate(X):
+    if is_function(X):
+        X = (X,)
+    X_conj = tuple(function_new_conjugate(x) for x in X)
+    assert len(X) == len(X_conj)
+    for x, x_conj in zip(X, X_conj):
+        function_set_values(x_conj, function_get_values(x).conjugate())
+    return X_conj[0] if len(X_conj) == 1 else X_conj
 
 
 class Hessian:
@@ -66,7 +77,7 @@ class Hessian:
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
-            return ddJ
+            return conjugate(ddJ)
 
         return action
 
@@ -251,7 +262,7 @@ class GaussNewton:
 
     def action_fn(self, m, m0=None):
         def action(dm):
-            return self.action(m, dm, M0=m0)
+            return conjugate(self.action(m, dm, M0=m0))
 
         return action
 
