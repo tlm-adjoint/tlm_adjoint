@@ -914,7 +914,7 @@ class ExprEvaluationSolver(ExprEquation):
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
 
-        dF_val = function_new_conjugate_dual(adj_x)
+        dF_val = function_new(self.x())
         interpolate_expression(dF_val, dF)
 
         F = function_new_conjugate_dual(dep)
