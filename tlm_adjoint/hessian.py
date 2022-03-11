@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import check_space_type_conjugate_dual, function_axpy, \
+from .interface import check_space_types_conjugate_dual, function_axpy, \
     function_copy, function_get_values, function_is_cached, \
     function_is_checkpointed, function_is_static, function_name, \
     function_new, function_new_conjugate, function_set_values, is_function
@@ -228,7 +228,7 @@ class GaussNewton:
             R_inv_tau_X = (R_inv_tau_X,)
         assert len(tau_X) == len(R_inv_tau_X)
         for tau_x, R_inv_tau_x in zip(tau_X, R_inv_tau_X):
-            check_space_type_conjugate_dual(tau_x, R_inv_tau_x)
+            check_space_types_conjugate_dual(tau_x, R_inv_tau_x)
 
         # This defines the adjoint right-hand-side appropriately to compute a
         # J^* action
@@ -253,7 +253,7 @@ class GaussNewton:
                 B_inv_dM = (B_inv_dM,)
             assert len(dM) == len(B_inv_dM)
             for dm, B_inv_dm in zip(dM, B_inv_dM):
-                check_space_type_conjugate_dual(dm, B_inv_dm)
+                check_space_types_conjugate_dual(dm, B_inv_dm)
             assert len(ddJ) == len(B_inv_dM)
             for i, B_inv_dm in enumerate(B_inv_dM):
                 function_axpy(ddJ[i], 1.0, B_inv_dm)

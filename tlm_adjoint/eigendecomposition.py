@@ -118,7 +118,7 @@ def wrapped_action(space, space_type, action_type, action):
         if is_function(y):
             if action_type == "primal":
                 check_space_types(x, y)
-            elif space_type == "dual":
+            elif action_type == "dual":
                 check_space_types_dual(x, y)
             else:
                 assert action_type == "conjugate_dual"
