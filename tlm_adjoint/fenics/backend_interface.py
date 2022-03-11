@@ -388,9 +388,10 @@ def _subtract_adjoint_derivative_action(x, y):
             and len(y) == 2 \
             and isinstance(y[0], (int, np.integer, float, np.floating)) \
             and isinstance(y[1], backend_Vector):
-        check_space_type(x, "conjugate_dual")
         alpha, y = y
         alpha = backend_ScalarType(alpha)
+        if hasattr(y, "_tlm_adjoint__function"):
+            check_space_type(y._tlm_adjoint__function, "conjugate_dual")
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) == 0:
                 # annotate=False, tlm=False

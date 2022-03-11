@@ -616,6 +616,7 @@ def add_subtract_adjoint_derivative_action(backend, fn):
 
 
 def subtract_adjoint_derivative_action(x, y):
+    check_space_type(x, "conjugate_dual")
     for fn in _subtract_adjoint_derivative_action.values():
         if fn(x, y) != NotImplemented:
             break
@@ -623,7 +624,7 @@ def subtract_adjoint_derivative_action(x, y):
         if y is None:
             pass
         elif is_function(y):
-            check_space_types(x, y)
+            check_space_type(y, "conjugate_dual")
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -1.0, y)
@@ -639,7 +640,7 @@ def subtract_adjoint_derivative_action(x, y):
                 and is_function(y[1]):
             alpha, y = y
             alpha = function_dtype(x)(alpha)
-            check_space_types(x, y)
+            check_space_type(y, "conjugate_dual")
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -alpha, y)
