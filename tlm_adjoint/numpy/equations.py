@@ -18,7 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from ..interface import function_get_values, function_new, function_set_values
+from ..interface import function_get_values, function_new_conjugate, \
+    function_set_values
 
 from ..equations import EquationException, LinearEquation, Matrix, RHS
 
@@ -180,7 +181,7 @@ class ContractionRHS(RHS):
                 assert len(I) == len(nl_deps)
                 for j, (i, nl_dep) in enumerate(zip(I, nl_deps)):
                     if j != dep_index:
-                        X[i] = function_new(nl_dep)
+                        X[i] = function_new_conjugate(nl_dep)
                         function_set_values(
                             X[i], function_get_values(nl_dep).conjugate())
             X[self._j] = adj_x
