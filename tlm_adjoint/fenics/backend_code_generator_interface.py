@@ -383,6 +383,8 @@ def interpolate_expression(x, expr):
             return x.ufl_shape
 
     if isinstance(x, backend_Constant):
+        if len(x.ufl_shape) > 0:
+            raise InterfaceException("Scalar Constant required")
         value = x.values()
         Expr().eval(value, ())
         x.assign(value)
