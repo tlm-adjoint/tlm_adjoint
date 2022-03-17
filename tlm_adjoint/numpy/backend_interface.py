@@ -23,8 +23,7 @@ from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    function_space, function_space_type, new_function_id, new_space_id, \
-    space_id, space_new
+    function_space, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 from ..tlm_adjoint import DEFAULT_COMM
 
@@ -203,12 +202,6 @@ class FunctionInterface(_FunctionInterface):
         if values.shape != self.vector().shape:
             raise InterfaceException("Invalid shape")
         self.vector()[:] = values
-
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return Function(function_space(self), name=name,
-                        space_type=function_space_type(self), static=static,
-                        cache=cache, checkpoint=checkpoint,
-                        _data=self.vector().copy())
 
     def _replacement(self):
         return self.replacement()

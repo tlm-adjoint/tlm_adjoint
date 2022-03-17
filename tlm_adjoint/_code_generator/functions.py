@@ -229,23 +229,6 @@ class ConstantInterface(_FunctionInterface):
             values.shape = self.ufl_shape
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        if len(self.ufl_shape) == 0:
-            value = function_dtype(self)(self)
-        else:
-            value = self.values().view()
-            value.shape = self.ufl_shape
-        domains = self.ufl_domains()
-        if len(domains) == 0:
-            domain = None
-        else:
-            domain, = domains
-        return Constant(value, name=name, domain=domain,
-                        space=function_space(self),
-                        space_type=function_space_type(self),
-                        comm=function_comm(self), static=static, cache=cache,
-                        checkpoint=checkpoint)
-
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
             self._tlm_adjoint__replacement = ReplacementConstant(self)

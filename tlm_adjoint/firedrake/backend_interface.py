@@ -27,9 +27,9 @@ from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, check_space_type, function_assign, function_comm, \
-    function_dtype, function_is_scalar, function_new, function_scalar_value, \
-    function_space, new_function_id, new_space_id, space_id, space_new, \
+    add_time_system_eq, check_space_type, function_comm, function_dtype, \
+    function_is_scalar, function_scalar_value, function_space, \
+    new_function_id, new_space_id, space_id, space_new, \
     subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
@@ -290,12 +290,6 @@ class FunctionInterface(_FunctionInterface):
             if values.shape != (x_v.getLocalSize(),):
                 raise InterfaceException("Invalid shape")
             x_v.setArray(values)
-
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        y = function_new(self, name=name, static=static, cache=cache,
-                         checkpoint=checkpoint)
-        function_assign(y, self)
-        return y
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):

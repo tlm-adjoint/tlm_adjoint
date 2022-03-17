@@ -408,7 +408,10 @@ class FunctionInterface:
                          checkpoint=checkpoint)
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        raise InterfaceException("Method not overridden")
+        y = function_new(self, name=name, static=static, cache=cache,
+                         checkpoint=checkpoint)
+        function_assign(y, self)
+        return y
 
     def _new_tangent_linear(self, *, name=None):
         if function_is_static(self):
