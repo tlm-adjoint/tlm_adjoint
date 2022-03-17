@@ -44,6 +44,7 @@ __all__ = \
 
         "check_space_type",
         "check_space_types",
+        "check_space_types_conjugate",
         "check_space_types_conjugate_dual",
         "check_space_types_dual",
         "conjugate_dual_space_type",
@@ -75,6 +76,7 @@ __all__ = \
         "function_new",
         "function_new_conjugate",
         "function_new_conjugate_dual",
+        "function_new_dual",
         "function_new_tangent_linear",
         "function_replacement",
         "function_set_values",
@@ -270,6 +272,11 @@ def check_space_types(x, y):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
+def check_space_types_conjugate(x, y):
+    if function_space_type(x) != conjugate_space_type(function_space_type(y)):
+        space_type_warning("Unexpected space type", stacklevel=2)
+
+
 def check_space_types_dual(x, y):
     if function_space_type(x) != dual_space_type(function_space_type(y)):
         space_type_warning("Unexpected space type", stacklevel=2)
@@ -287,9 +294,9 @@ class FunctionInterface:
              "_is_checkpointed", "_caches", "_update_caches", "_zero",
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
-             "_set_values", "_new", "_new_conjugate", "_new_conjugate_dual",
-             "_copy", "_new_tangent_linear", "_replacement", "_is_replacement",
-             "_is_scalar", "_scalar_value")
+             "_set_values", "_new", "_new_conjugate", "_new_dual",
+             "_new_conjugate_dual", "_copy", "_new_tangent_linear",
+             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -382,6 +389,13 @@ class FunctionInterface:
     def _new_conjugate(self, *, name=None, static=False, cache=None,
                        checkpoint=None):
         space_type = conjugate_space_type(function_space_type(self))
+        return space_new(function_space(self), name=name,
+                         space_type=space_type, static=static, cache=cache,
+                         checkpoint=checkpoint)
+
+    def _new_dual(self, *, name=None, static=False, cache=None,
+                  checkpoint=None):
+        space_type = dual_space_type(function_space_type(self))
         return space_new(function_space(self), name=name,
                          space_type=space_type, static=static, cache=cache,
                          checkpoint=checkpoint)
@@ -557,6 +571,12 @@ def function_new(x, *, name=None, static=False, cache=None, checkpoint=None):
 def function_new_conjugate(x, *, name=None, static=False, cache=None,
                            checkpoint=None):
     return x._tlm_adjoint__function_interface_new_conjugate(
+        name=name, static=static, cache=cache, checkpoint=checkpoint)
+
+
+def function_new_dual(x, *, name=None, static=False, cache=None,
+                      checkpoint=None):
+    return x._tlm_adjoint__function_interface_new_dual(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
