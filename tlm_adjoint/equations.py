@@ -18,17 +18,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import check_space_type, check_space_types, \
-    check_space_types_dual, check_space_types_conjugate_dual, \
-    conjugate_dual_space_type, finalize_adjoint_derivative_action, \
-    function_assign, function_axpy, function_comm, function_copy, \
-    function_dtype, function_get_values, function_global_size, function_id, \
-    function_inner, function_is_checkpointed, function_local_indices, \
-    function_local_size, function_new, function_new_conjugate_dual, \
-    function_replacement, function_set_values, function_space, \
-    function_space_type, function_sum, function_update_caches, \
-    function_update_state, function_zero, is_function, \
-    no_space_type_checking, space_new, subtract_adjoint_derivative_action
+from .interface import check_space_types, check_space_types_dual, \
+    check_space_types_conjugate_dual, conjugate_dual_space_type, \
+    finalize_adjoint_derivative_action, function_assign, function_axpy, \
+    function_comm, function_copy, function_dtype, function_get_values, \
+    function_global_size, function_id, function_inner, \
+    function_is_checkpointed, function_local_indices, function_local_size, \
+    function_new, function_new_conjugate_dual, function_replacement, \
+    function_set_values, function_space, function_space_type, function_sum, \
+    function_update_caches, function_update_state, function_zero, \
+    is_function, no_space_type_checking, space_new, \
+    subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
@@ -355,14 +355,9 @@ class Equation(Referrer):
                 raise EquationException("Invalid adjoint type")
         else:
             raise EquationException("Invalid adjoint type")
-
-        adj_X_space_type = []
-        assert len(X) == len(adj_type)
-        for x, adj_x_type in zip(X, adj_type):
+        for adj_x_type in adj_type:
             if adj_x_type not in ["primal", "conjugate_dual"]:
                 raise EquationException("Invalid adjoint type")
-            space_type = function_space_type(x, rel_space_type=adj_x_type)
-            adj_X_space_type.append(space_type)
 
         super().__init__()
         self._X = tuple(X)
@@ -372,7 +367,6 @@ class Equation(Referrer):
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
         self._adj_X_type = tuple(adj_type)
-        self._adj_X_space_type = tuple(adj_X_space_type)
 
     _reset_adjoint_warning = True
     _initialize_adjoint_warning = True
@@ -462,12 +456,6 @@ class Equation(Referrer):
             return self._adj_X_type
         else:
             return self._adj_X_type[m]
-
-    def adj_X_space_type(self, m=None):
-        if m is None:
-            return self._adj_X_space_type
-        else:
-            return self._adj_X_space_type[m]
 
     def new_adj_x(self):
         adj_x, = self.new_adj_X()
@@ -590,10 +578,9 @@ class Equation(Referrer):
             if is_function(adj_X):
                 adj_X = (adj_X,)
 
-            adj_X_space_type = self.adj_X_space_type()
-            assert len(adj_X) == len(adj_X_space_type)
-            for adj_x, adj_x_space_type in zip(adj_X, adj_X_space_type):
-                check_space_type(adj_x, adj_x_space_type)
+            for m, adj_x in enumerate(adj_X):
+                check_space_types(adj_x, self.X(m),
+                                  rel_space_type=self.adj_X_type(m))
 
         self.finalize_adjoint(J)
 
@@ -734,8 +721,6 @@ class ControlsMarker(Equation):
         self._ic_deps = ()
         self._adj_ic_deps = ()
         self._adj_X_type = tuple("conjugate_dual" for m in M)
-        self._adj_X_space_type = tuple(
-            function_space_type(m, rel_space_type="conjugate_dual") for m in M)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
