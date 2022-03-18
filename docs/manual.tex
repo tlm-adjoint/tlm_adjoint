@@ -2240,9 +2240,7 @@ F = Function(space, static=static, cache=cache, checkpoint=checkpoint)
 where the additional arguments are optional logicals
 \begin{itemize}
   \item \texttt{static}, default false. If true, declares the \texttt{Function}
-    to be static for the duration of the calculation. A
-    \texttt{TangentLinearMap} (see section \ref{sect:tangent_linear}) will
-    return \texttt{None} when supplied with a static \texttt{Function}.
+    to be static for the duration of the calculation.
   \item \texttt{cache}, default \texttt{static}. If true, results of
     calculations using the \texttt{Function} may be cached.
   \item \texttt{checkpoint}, default \texttt{not static}. If false then the
@@ -2250,7 +2248,9 @@ where the additional arguments are optional logicals
     \texttt{Function}, and it will not be considered when applying
     checkpointing strategies. \texttt{Function} objects with
     \texttt{checkpoint=False} may not appear as the solution of any
-    \texttt{Equation}.
+    \texttt{Equation}, and a \texttt{TangentLinearMap} (see section
+    \ref{sect:tangent_linear}) will return \texttt{None} when supplied with a
+    non-checkpointed function.
 \end{itemize}
 
 With the FEniCS or Firedrake backends, a \texttt{ZeroFunction} may be used in

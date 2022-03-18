@@ -295,8 +295,8 @@ class FunctionInterface:
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
              "_set_values", "_new", "_new_conjugate", "_new_dual",
-             "_new_conjugate_dual", "_copy", "_new_tangent_linear",
-             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value")
+             "_new_conjugate_dual", "_copy", "_replacement", "_is_replacement",
+             "_is_scalar", "_scalar_value")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -412,14 +412,6 @@ class FunctionInterface:
                          checkpoint=checkpoint)
         function_assign(y, self)
         return y
-
-    def _new_tangent_linear(self, *, name=None):
-        if function_is_static(self):
-            return None
-        else:
-            return function_new(self, name=name, static=False,
-                                cache=function_is_cached(self),
-                                checkpoint=function_is_checkpointed(self))
 
     def _replacement(self):
         raise InterfaceException("Method not overridden")
@@ -595,7 +587,12 @@ def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
 
 
 def function_new_tangent_linear(x, *, name=None):
-    return x._tlm_adjoint__function_interface_new_tangent_linear(name=name)
+    if function_is_checkpointed(x):
+        return function_new(x, name=name, static=function_is_static(x),
+                            cache=function_is_cached(x),
+                            checkpoint=True)
+    else:
+        return None
 
 
 def function_replacement(x):
