@@ -93,7 +93,7 @@ class EquationException(Exception):
 class AdjointRHS:
     def __init__(self, x):
         self._space = function_space(x)
-        self._space_type = conjugate_dual_space_type(function_space_type(x))
+        self._space_type = function_space_type(x, rel_space_type="conjugate_dual")  # noqa: E501
         self._b = None
 
     def b(self, copy=False):
@@ -359,13 +359,10 @@ class Equation(Referrer):
         adj_X_space_type = []
         assert len(X) == len(adj_type)
         for x, adj_x_type in zip(X, adj_type):
-            space_type = function_space_type(x)
-            if adj_x_type == "primal":
-                adj_X_space_type.append(space_type)
-            elif adj_x_type == "conjugate_dual":
-                adj_X_space_type.append(conjugate_dual_space_type(space_type))
-            else:
+            if adj_x_type not in ["primal", "conjugate_dual"]:
                 raise EquationException("Invalid adjoint type")
+            space_type = function_space_type(x, rel_space_type=adj_x_type)
+            adj_X_space_type.append(space_type)
 
         super().__init__()
         self._X = tuple(X)
@@ -480,14 +477,7 @@ class Equation(Referrer):
         if m is None:
             return tuple(self.new_adj_X(m) for m in range(len(self.X())))
         else:
-            x = self.X(m)
-            adj_x_type = self.adj_X_type(m)
-            if adj_x_type == "primal":
-                return function_new(x)
-            elif adj_x_type == "conjugate_dual":
-                return function_new_conjugate_dual(x)
-            else:
-                raise EquationException("Invalid adjoint type")
+            return function_new(self.X(m), rel_space_type=self.adj_X_type(m))
 
     def _pre_process(self, manager=None, annotate=None):
         if manager is None:
@@ -745,7 +735,7 @@ class ControlsMarker(Equation):
         self._adj_ic_deps = ()
         self._adj_X_type = tuple("conjugate_dual" for m in M)
         self._adj_X_space_type = tuple(
-            conjugate_dual_space_type(function_space_type(m)) for m in M)
+            function_space_type(m, rel_space_type="conjugate_dual") for m in M)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -1471,10 +1461,13 @@ class LinearEquation(Equation):
                 function_zero(x)
             B = X
         else:
-            B = tuple(
-                space_new(function_space(x),
-                          space_type=conjugate_dual_space_type(self.adj_X_space_type(m)))  # noqa: E501
-                for m, x in enumerate(X))
+            def b_space_type(m):
+                space_type = function_space_type(
+                    self.X(m), rel_space_type=self.adj_X_type(m))
+                return conjugate_dual_space_type(space_type)
+
+            B = tuple(space_new(function_space(x), space_type=b_space_type(m))
+                      for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):
             b.add_forward(B[0] if len(B) == 1 else B,

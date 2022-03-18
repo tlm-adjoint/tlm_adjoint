@@ -55,8 +55,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .interface import check_space_types, check_space_types_dual, \
-    check_space_types_conjugate_dual, function_get_values, \
+from .interface import check_space_types, function_get_values, \
     function_global_size, function_local_size, function_set_values, \
     is_function, space_comm, space_new, space_type_warning
 
@@ -116,13 +115,7 @@ def wrapped_action(space, space_type, action_type, action):
 
         y = action_arg(x)
         if is_function(y):
-            if action_type == "primal":
-                check_space_types(x, y)
-            elif action_type == "dual":
-                check_space_types_dual(x, y)
-            else:
-                assert action_type == "conjugate_dual"
-                check_space_types_conjugate_dual(x, y)
+            check_space_types(x, y, rel_space_type=action_type)
             y_a = function_get_values(y)
         else:
             warnings.warn("Action callable should return a function",

@@ -264,10 +264,13 @@ class FunctionInterface(_FunctionInterface):
         self.vector().set_local(values)
         self.vector().apply("insert")
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
+             rel_space_type="primal"):
         y = function_copy(self, name=name, static=static, cache=cache,
                           checkpoint=checkpoint)
         y.vector().zero()
+        space_type = function_space_type(self, rel_space_type=rel_space_type)
+        y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):

@@ -26,7 +26,7 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import InterfaceException, check_space_type, check_space_types
+from ..interface import InterfaceException, check_space_type
 
 from .functions import eliminate_zeros
 
@@ -372,7 +372,7 @@ def interpolate_expression(x, expr):
     check_space_type(x, "primal")
     deps = ufl.algorithms.extract_coefficients(expr)
     for dep in deps:
-        check_space_types(x, dep)
+        check_space_type(dep, "primal")
 
     class Expr(UserExpression):
         def eval(self, value, x):

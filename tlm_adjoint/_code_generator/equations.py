@@ -20,7 +20,7 @@
 
 from .backend import TestFunction, TrialFunction, adjoint, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from ..interface import check_space_type, check_space_types, function_assign, \
+from ..interface import check_space_type, function_assign, \
     function_get_values, function_id, function_inner, function_is_scalar, \
     function_new, function_new_conjugate_dual, function_replacement, \
     function_scalar_value, function_set_values, function_space, \
@@ -878,7 +878,6 @@ class ExprEvaluationSolver(ExprEquation):
         for dep in deps:
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
-            check_space_types(x, dep)
             if isinstance(dep, backend_Function) \
                     and space_id(function_space(dep)) != space_id(function_space(x)):  # noqa: E501
                 raise EquationException("Invalid dependency")

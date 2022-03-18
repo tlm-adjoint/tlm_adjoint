@@ -22,8 +22,8 @@ from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
     backend_Constant, backend_DirichletBC, backend_Function, \
     backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
-from ..interface import InterfaceException, check_space_type, \
-    check_space_types, function_axpy, function_copy, function_id
+from ..interface import InterfaceException, check_space_type, function_axpy, \
+    function_copy, function_id
 
 from .functions import eliminate_zeros
 
@@ -533,7 +533,7 @@ def interpolate_expression(x, expr):
     check_space_type(x, "primal")
     deps = ufl.algorithms.extract_coefficients(expr)
     for dep in deps:
-        check_space_types(x, dep)
+        check_space_type(dep, "primal")
 
     if isinstance(x, backend_Constant):
         x.assign(expr)
