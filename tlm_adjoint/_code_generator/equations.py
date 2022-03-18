@@ -504,8 +504,7 @@ class EquationSolver(ExprEquation):
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
-                b = function_vector(function_new_conjugate_dual(self.x()))
-                matrix_multiply(mat, function_vector(dep), tensor=b)
+                b = matrix_multiply(mat, function_vector(dep))
             else:
                 matrix_multiply(mat, function_vector(dep), tensor=b,
                                 addto=True)
@@ -704,9 +703,7 @@ class EquationSolver(ExprEquation):
                                 replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     else:
                         mat, _ = mat_bc
-                    F = function_vector(function_new_conjugate_dual(self.dependencies()[dep_index]))  # noqa: E501
-                    matrix_multiply(mat, function_vector(adj_x), tensor=F)
-                    dep_B.sub(F)
+                    dep_B.sub(matrix_multiply(mat, function_vector(adj_x)))
                 else:
                     # Cached form, immediate assembly
                     assert isinstance(cache, ufl.classes.Form)

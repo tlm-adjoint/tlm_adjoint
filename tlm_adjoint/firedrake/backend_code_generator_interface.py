@@ -22,8 +22,9 @@ from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
     backend_Constant, backend_DirichletBC, backend_Function, \
     backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
-from ..interface import InterfaceException, check_space_type, function_axpy, \
-    function_copy, function_id
+from ..interface import InterfaceException, check_space_type, \
+    check_space_types, function_axpy, function_copy, function_id, \
+    function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -426,15 +427,22 @@ def matrix_copy(A):
     return A_copy
 
 
-def matrix_multiply(A, x, tensor=None, addto=False):
+def matrix_multiply(A, x, *, tensor=None, addto=False,
+                    action_type="conjugate_dual"):
     if tensor is None:
-        tensor = backend_Function(A.a.arguments()[0].function_space())
+        tensor = space_new(
+            A.a.arguments()[0].function_space(),
+            space_type=function_space_type(x, rel_space_type=action_type))
+    else:
+        check_space_types(tensor, x, rel_space_type=action_type)
+
     if addto:
         with x.dat.vec_ro as x_v, tensor.dat.vec as tensor_v:
             A.petscmat.multAdd(x_v, tensor_v, tensor_v)
     else:
         with x.dat.vec_ro as x_v, tensor.dat.vec_wo as tensor_v:
             A.petscmat.mult(x_v, tensor_v)
+
     return tensor
 
 

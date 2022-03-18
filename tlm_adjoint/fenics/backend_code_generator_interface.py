@@ -26,7 +26,8 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import InterfaceException, check_space_type
+from ..interface import InterfaceException, check_space_type, \
+    check_space_types, function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -265,17 +266,29 @@ def matrix_copy(A):
     return A.copy()
 
 
-def matrix_multiply(A, x, tensor=None, addto=False):
+def matrix_multiply(A, x, *, tensor=None, addto=False,
+                    action_type="conjugate_dual"):
     if tensor is None:
-        return A * x
-    else:
-        x_v = as_backend_type(x).vec()
-        tensor_v = as_backend_type(tensor).vec()
-        if addto:
-            as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
+        if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+            tensor = function_vector(space_new(
+                A._tlm_adjoint__form.arguments()[0].function_space(),
+                space_type=function_space_type(x._tlm_adjoint__function,
+                                               rel_space_type=action_type)))
         else:
-            as_backend_type(A).mat().mult(x_v, tensor_v)
-        return tensor
+            return A * x
+    elif hasattr(tensor, "_tlm_adjoint__function") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+        check_space_types(tensor._tlm_adjoint__function,
+                          x._tlm_adjoint__function,
+                          rel_space_type=action_type)
+
+    x_v = as_backend_type(x).vec()
+    tensor_v = as_backend_type(tensor).vec()
+    if addto:
+        as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
+    else:
+        as_backend_type(A).mat().mult(x_v, tensor_v)
+
+    return tensor
 
 
 def is_valid_r0_space(space):
