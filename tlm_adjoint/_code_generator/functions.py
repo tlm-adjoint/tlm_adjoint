@@ -47,6 +47,7 @@ __all__ = \
         "bcs_is_cached",
         "bcs_is_homogeneous",
         "bcs_is_static",
+        "define_function_alias",
         "eliminate_zeros",
         "extract_coefficients",
         "new_count",
@@ -243,6 +244,9 @@ class ConstantInterface(_FunctionInterface):
     def _scalar_value(self):
         # assert function_is_scalar(self)
         return function_dtype(self)(self)
+
+    def _is_alias(self):
+        return "alias" in self._tlm_adjoint__function_interface_attrs
 
 
 class Constant(backend_Constant):
@@ -570,3 +574,21 @@ def replaced_form(form):
         if is_function(c):
             replace_map[c] = function_replacement(c)
     return ufl.replace(form, replace_map)
+
+
+def define_function_alias(x, parent, *, key):
+    if x is not parent:
+        if "alias" in x._tlm_adjoint__function_interface_attrs:
+            alias_parent, alias_key = x._tlm_adjoint__function_interface_attrs["alias"]  # noqa: E501
+            if alias_parent is not parent or alias_key != key:
+                raise InterfaceException("Invalid alias data")
+        else:
+            x._tlm_adjoint__function_interface_attrs["alias"] = (parent, key)
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "space_type", function_space_type(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "static", function_is_static(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "cache", function_is_cached(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "checkpoint", function_is_checkpointed(parent))

@@ -22,7 +22,7 @@ from .interface import check_space_types, check_space_types_dual, \
     check_space_types_conjugate_dual, conjugate_dual_space_type, \
     finalize_adjoint_derivative_action, function_assign, function_axpy, \
     function_comm, function_copy, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, \
+    function_global_size, function_id, function_inner, function_is_alias, \
     function_is_checkpointed, function_local_indices, function_local_size, \
     function_new, function_new_conjugate_dual, function_replacement, \
     function_set_values, function_space, function_space_type, function_sum, \
@@ -295,12 +295,17 @@ class Equation(Referrer):
                 raise EquationException("Solution must be a function")
             if not function_is_checkpointed(x):
                 raise EquationException("Solution must be checkpointed")
+            if function_is_alias(x):
+                raise EquationException("Solution cannot be an alias")
             if x not in deps:
                 raise EquationException("Solution must be a dependency")
 
         dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
+        for dep in deps:
+            if function_is_alias(dep):
+                raise EquationException("Dependency cannot be an alias")
 
         if nl_deps is None:
             nl_deps = tuple(deps)

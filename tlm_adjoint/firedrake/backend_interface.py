@@ -37,7 +37,8 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, ReplacementFunction, Zero
+    ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
+    define_function_alias
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -309,6 +310,9 @@ class FunctionInterface(_FunctionInterface):
             value = x_v.sum() / x_v.getSize()
         return value
 
+    def _is_alias(self):
+        return "alias" in self._tlm_adjoint__function_interface_attrs
+
 
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
@@ -331,6 +335,33 @@ def _Function__getattr__(self, key):
 assert not hasattr(backend_Function, "_tlm_adjoint__orig__getattr__")
 backend_Function._tlm_adjoint__orig__getattr__ = backend_Function.__getattr__
 backend_Function.__getattr__ = _Function__getattr__
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# ac22e4c55d6fad32ddc9e936cd3674fb8a75f1da, Mar 16 2022
+def _Function_split(self):
+    Y = backend_Function._tlm_adjoint__orig_split(self)
+    for i, y in enumerate(Y):
+        define_function_alias(y, self, key=("split", i))
+    return Y
+
+
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_split")
+backend_Function._tlm_adjoint__orig_split = backend_Function.split
+backend_Function.split = _Function_split
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# ac22e4c55d6fad32ddc9e936cd3674fb8a75f1da, Mar 16 2022
+def _Function_sub(self, i):
+    y = backend_Function._tlm_adjoint__orig_sub(self, i)
+    define_function_alias(y, self, key=("sub", i))
+    return y
+
+
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_sub")
+backend_Function._tlm_adjoint__orig_sub = backend_Function.sub
+backend_Function.sub = _Function_sub
 
 
 def new_scalar_function(*, name=None, comm=None, static=False, cache=None,

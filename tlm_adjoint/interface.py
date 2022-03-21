@@ -93,6 +93,8 @@ __all__ = \
         "function_is_scalar",
         "function_scalar_value",
 
+        "function_is_alias",
+
         "subtract_adjoint_derivative_action",
         "finalize_adjoint_derivative_action",
 
@@ -308,7 +310,7 @@ class FunctionInterface:
              "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
              "_local_size", "_global_size", "_local_indices", "_get_values",
              "_set_values", "_new", "_copy", "_replacement", "_is_replacement",
-             "_is_scalar", "_scalar_value")
+             "_is_scalar", "_scalar_value", "_is_alias")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -416,6 +418,9 @@ class FunctionInterface:
 
     def _scalar_value(self):
         raise InterfaceException("Method not overridden")
+
+    def _is_alias(self):
+        return False
 
 
 def is_function(x):
@@ -623,6 +628,10 @@ def function_scalar_value(x):
     if not function_is_scalar(x):
         raise InterfaceException("Invalid function")
     return x._tlm_adjoint__function_interface_scalar_value()
+
+
+def function_is_alias(x):
+    return x._tlm_adjoint__function_interface_is_alias()
 
 
 _subtract_adjoint_derivative_action = {}

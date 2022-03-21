@@ -37,7 +37,8 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space, \
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, ReplacementFunction, Zero
+    ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
+    define_function_alias
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -303,6 +304,9 @@ class FunctionInterface(_FunctionInterface):
         # assert function_is_scalar(self)
         return self.vector().max()
 
+    def _is_alias(self):
+        return "alias" in self._tlm_adjoint__function_interface_attrs
+
 
 @FunctionSpace_add_interface_disabled
 def _Function__init__(self, *args, **kwargs):
@@ -330,6 +334,7 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
+# Aim for compatibility with FEniCS 2019.1.0 API
 def _Function_function_space(self):
     if hasattr(self, "_tlm_adjoint__function_interface_attrs"):
         return self._tlm_adjoint__function_interface_attrs["space"]
@@ -340,6 +345,20 @@ def _Function_function_space(self):
 assert not hasattr(backend_Function, "_tlm_adjoint__orig_function_space")
 backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_space  # noqa: E501
 backend_Function.function_space = _Function_function_space
+
+
+# Aim for compatibility with FEniCS 2019.1.0 API
+def _Function_split(self, deepcopy=False):
+    Y = backend_Function._tlm_adjoint__orig_split(self, deepcopy=deepcopy)
+    if not deepcopy:
+        for i, y in enumerate(Y):
+            define_function_alias(y, self, key=("split", i))
+    return Y
+
+
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_split")
+backend_Function._tlm_adjoint__orig_split = backend_Function.split
+backend_Function.split = _Function_split
 
 
 def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
