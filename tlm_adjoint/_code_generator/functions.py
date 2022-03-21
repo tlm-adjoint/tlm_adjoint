@@ -32,6 +32,7 @@ from ..caches import Caches
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import weakref
 import warnings
 
 __all__ = \
@@ -580,10 +581,13 @@ def define_function_alias(x, parent, *, key):
     if x is not parent:
         if "alias" in x._tlm_adjoint__function_interface_attrs:
             alias_parent, alias_key = x._tlm_adjoint__function_interface_attrs["alias"]  # noqa: E501
-            if alias_parent is not parent or alias_key != key:
+            alias_parent = alias_parent()
+            if alias_parent is None or alias_parent is not parent \
+                    or alias_key != key:
                 raise InterfaceException("Invalid alias data")
         else:
-            x._tlm_adjoint__function_interface_attrs["alias"] = (parent, key)
+            x._tlm_adjoint__function_interface_attrs["alias"] \
+                = (weakref.ref(parent), key)
             x._tlm_adjoint__function_interface_attrs.d_setitem(
                 "space_type", function_space_type(parent))
             x._tlm_adjoint__function_interface_attrs.d_setitem(
