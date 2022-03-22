@@ -147,9 +147,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
                    function, defining the action of the right-hand-side matrix.
     space_type     (Optional) "primal", "conjugate", "dual", or
                    "conjugate_dual", defining the eigenvector space type.
-    action_type    (Optional) "primal", "dual", or "conjugate_dual", whether
-                   the action is in the same space as the eigenvectors, or the
-                   associated dual or conjugate dual space.
+    action_type    (Optional) "primal", "dual", or "conjugate_dual", whether a
+                   matrix action is in the same space as the eigenvectors, or
+                   the associated dual or conjugate dual space.
     N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
                    Defaults to a full spectrum.
     solver_type    (Optional) The solver type.
