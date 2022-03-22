@@ -254,7 +254,7 @@ class Constant(backend_Constant):
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
                  space_type="primal", shape=None, comm=None, static=False,
                  cache=None, checkpoint=None, **kwargs):
-        if space_type not in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
+        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
             raise InterfaceException("Invalid space type")
 
         if domain is None and space is not None:
@@ -379,7 +379,7 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
 class Function(backend_Function):
     def __init__(self, *args, space_type="primal", static=False, cache=None,
                  checkpoint=None, **kwargs):
-        if space_type not in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
+        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
             raise InterfaceException("Invalid space type")
         if cache is None:
             cache = static

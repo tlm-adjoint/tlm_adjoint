@@ -230,25 +230,25 @@ def space_new(space, *, name=None, space_type="primal", static=False,
 
 def relative_space_type(space_type, rel_space_type):
     space_type_fn = {"primal": lambda space_type: space_type,
-                     "conjugate_primal": conjugate_space_type,
+                     "conjugate": conjugate_space_type,
                      "dual": dual_space_type,
                      "conjugate_dual": conjugate_dual_space_type}[rel_space_type]  # noqa: E501
     return space_type_fn(space_type)
 
 
 def conjugate_space_type(space_type):
-    return {"primal": "conjugate_primal", "conjugate_primal": "primal",
+    return {"primal": "conjugate", "conjugate": "primal",
             "dual": "conjugate_dual", "conjugate_dual": "dual"}[space_type]
 
 
 def dual_space_type(space_type):
-    return {"primal": "dual", "conjugate_primal": "conjugate_dual",
-            "dual": "primal", "conjugate_dual": "conjugate_primal"}[space_type]
+    return {"primal": "dual", "conjugate": "conjugate_dual",
+            "dual": "primal", "conjugate_dual": "conjugate"}[space_type]
 
 
 def conjugate_dual_space_type(space_type):
-    return {"primal": "conjugate_dual", "conjugate_primal": "dual",
-            "dual": "conjugate_primal", "conjugate_dual": "primal"}[space_type]
+    return {"primal": "conjugate_dual", "conjugate": "dual",
+            "dual": "conjugate", "conjugate_dual": "primal"}[space_type]
 
 
 _check_space_types = [True]
@@ -273,7 +273,7 @@ def space_type_warning(msg, *, stacklevel=1):
 
 
 def check_space_type(x, space_type):
-    assert space_type in ["primal", "conjugate_primal", "dual", "conjugate_dual"]  # noqa: E501
+    assert space_type in ["primal", "conjugate", "dual", "conjugate_dual"]
     if function_space_type(x) != space_type:
         space_type_warning("Unexpected space type", stacklevel=2)
 
@@ -286,7 +286,7 @@ def check_space_types(x, y, *, rel_space_type="primal"):
 
 def check_space_types_conjugate(x, y):
     if function_space_type(x) != \
-            function_space_type(y, rel_space_type="conjugate_primal"):
+            function_space_type(y, rel_space_type="conjugate"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
@@ -567,7 +567,7 @@ def function_new_conjugate(x, *, name=None, static=False, cache=None,
                            checkpoint=None):
     return function_new(x, name=name, static=static, cache=cache,
                         checkpoint=checkpoint,
-                        rel_space_type="conjugate_primal")
+                        rel_space_type="conjugate")
 
 
 def function_new_dual(x, *, name=None, static=False, cache=None,

@@ -145,7 +145,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
                    returned by Hessian.action_fn.
     B_action       (Optional) Callable accepting a function and returning a
                    function, defining the action of the right-hand-side matrix.
-    space_type     (Optional) "primal", "conjugate_primal", "dual", or
+    space_type     (Optional) "primal", "conjugate", "dual", or
                    "conjugate_dual", defining the eigenvector space type.
     action_type    (Optional) "primal", "dual", or "conjugate_dual", whether
                    the action is in the same space as the eigenvectors, or the
@@ -175,7 +175,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
 
-    if space_type not in ["primal", "conjugate_primal", "dual", "conjugate_dual"]:  # noqa: E501
+    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
         raise EigendecompositionException("Invalid space type")
     if action_type not in ["primal", "dual", "conjugate_dual"]:
         raise EigendecompositionException("Invalid action type")

@@ -1259,7 +1259,7 @@ class EquationManager:
 
                 d = g.create_dataset("space_type", shape=(self._comm.size,),
                                      dtype=np.uint8)
-                d[self._comm.rank] = {"primal": 0, "conjugate_primal": 1,
+                d[self._comm.rank] = {"primal": 0, "conjugate": 1,
                                       "dual": 2, "conjugate_dual": 3}[function_space_type(F)]  # noqa: E501
 
                 d = g.create_dataset("space_id", shape=(self._comm.size,),
@@ -1314,7 +1314,7 @@ class EquationManager:
                 key = int(d[self._comm.rank])
                 if key in storage:
                     d = g["space_type"]
-                    space_type = {0: "primal", 1: "conjugate_primal",
+                    space_type = {0: "primal", 1: "conjugate",
                                   2: "dual", 3: "conjugate_dual"}[d[self._comm.rank]]  # noqa: E501
 
                     d = g["space_id"]
