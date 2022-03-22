@@ -223,6 +223,8 @@ def space_id(space):
 
 def space_new(space, *, name=None, space_type="primal", static=False,
               cache=None, checkpoint=None):
+    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        raise InterfaceException("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
         name=name, space_type=space_type, static=static, cache=cache,
         checkpoint=checkpoint)
@@ -273,7 +275,8 @@ def space_type_warning(msg, *, stacklevel=1):
 
 
 def check_space_type(x, space_type):
-    assert space_type in ["primal", "conjugate", "dual", "conjugate_dual"]
+    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        raise InterfaceException("Invalid space type")
     if function_space_type(x) != space_type:
         space_type_warning("Unexpected space type", stacklevel=2)
 
@@ -558,6 +561,8 @@ def function_set_values(x, values):
 
 def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
                  rel_space_type="primal"):
+    if rel_space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        raise InterfaceException("Invalid relative space type")
     return x._tlm_adjoint__function_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
         rel_space_type=rel_space_type)
