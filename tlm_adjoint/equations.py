@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import check_space_types, check_space_types_dual, \
-    check_space_types_conjugate_dual, conjugate_dual_space_type, \
+from .interface import check_space_types, check_space_types_conjugate_dual, \
+    check_space_types_dual, conjugate_dual_space_type, \
     finalize_adjoint_derivative_action, function_assign, function_axpy, \
     function_comm, function_copy, function_dtype, function_get_values, \
     function_global_size, function_id, function_inner, function_is_alias, \
