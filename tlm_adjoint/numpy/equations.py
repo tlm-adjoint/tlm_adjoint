@@ -18,7 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from ..interface import function_new
+from ..interface import function_get_values, function_new_conjugate, \
+    function_set_values
 
 from ..equations import EquationException, LinearEquation, Matrix, RHS
 
@@ -82,7 +83,7 @@ class ConstantMatrix(Matrix):
         raise EquationException("Unexpected call to adjoint_derivative_action")
 
     def adjoint_solve(self, adj_x, nl_deps, b):
-        adj_x = function_new(b)
+        adj_x = self.new_adj_x()
         adj_x.vector()[:] = np.linalg.solve(self._A_H, b.vector())
         return adj_x
 
@@ -180,7 +181,9 @@ class ContractionRHS(RHS):
                 assert len(I) == len(nl_deps)
                 for j, (i, nl_dep) in enumerate(zip(I, nl_deps)):
                     if j != dep_index:
-                        X[i] = nl_dep
+                        X[i] = function_new_conjugate(nl_dep)
+                        function_set_values(
+                            X[i], function_get_values(nl_dep).conjugate())
             X[self._j] = adj_x
 
             A_c = ContractionArray(A,

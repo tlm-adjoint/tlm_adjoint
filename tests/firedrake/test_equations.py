@@ -39,6 +39,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.firedrake
+@no_space_type_checking
 @seed_test
 def test_AssignmentSolver(setup_test, test_leaks):
     x = Constant(16.0, name="x", static=True)
@@ -101,6 +102,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@no_space_type_checking
 @seed_test
 def test_AxpySolver(setup_test, test_leaks):
     x = Constant(1.0, name="x", static=True)
@@ -396,7 +398,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
                      - test_expression(function_get_values(y),
                                        assemble(y * dx))).max()
     info(f"Error norm = {error_norm:.16e}")
-    assert error_norm == 0.0
+    assert error_norm < 1.0e-15
 
     J_val = J.value()
 
@@ -490,18 +492,14 @@ def test_AssembleSolver(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
-    test = TestFunction(space)
 
     def forward(F):
-        x = Function(space, name="x")
-        y = Constant(name="y")
+        x = Constant(name="x")
 
-        AssembleSolver(inner(F * F, test) * dx
-                       + inner(F, test) * dx, x).solve()
-        AssembleSolver(dot(F, x) * dx, y).solve()
+        AssembleSolver((dot(F, F) ** 2) * dx, x).solve()
 
         J = Functional(name="J")
-        J.assign(y)
+        J.assign(x)
         return J
 
     F = Function(space, name="F", static=True)
@@ -512,6 +510,7 @@ def test_AssembleSolver(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
+    assert abs(J_val - assemble((dot(F, F) ** 2) * dx)) == 0.0
 
     dJ = compute_gradient(J, F)
 
@@ -520,7 +519,7 @@ def test_AssembleSolver(setup_test, test_leaks):
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert min_order > 2.99
+    assert min_order > 3.00
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
     assert min_order > 2.00
@@ -529,7 +528,7 @@ def test_AssembleSolver(setup_test, test_leaks):
     assert min_order > 2.00
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert min_order > 1.99
+    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
@@ -555,7 +554,8 @@ def test_Storage(setup_test, test_leaks):
             d = {}
         MemoryStorage(x_s, d, function_name(x_s), save=True).solve()
 
-        ExprEvaluationSolver(x * x * x * x_s, y).solve()
+        ProjectionSolver(x * x * x * x_s, y,
+                         solver_parameters=ls_parameters_cg).solve()
 
         if h is None:
             function_assign(y_s, y)
@@ -577,7 +577,7 @@ def test_Storage(setup_test, test_leaks):
         HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 
         J = Functional(name="J")
-        DotProductSolver(y, y_s, J.fn()).solve()
+        J.assign(((dot(y, y_s) + 1.0) ** 2) * dx)
         return y, x_s, y_s, d, h, J
 
     x = Function(space, name="x", static=True)
@@ -621,46 +621,16 @@ def test_Storage(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 2.00
 
     h.close()
-
-
-@pytest.mark.firedrake
-@seed_test
-def test_SumSolver(setup_test, test_leaks):
-    mesh = UnitIntervalMesh(10)
-    space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
-
-    def forward(F):
-        G = Function(space, name="G")
-        AssignmentSolver(F, G).solve()
-
-        J = Functional(name="J")
-        SumSolver(G, J.fn()).solve()
-        return J
-
-    F = Function(space, name="F", static=True)
-    F_arr = np.random.random(function_local_size(F))
-    if issubclass(function_dtype(F), (complex, np.complexfloating)):
-        F_arr = F_arr + 1.0j * np.random.random(function_local_size(F))
-    function_set_values(F, F_arr)
-    del F_arr
-
-    start_manager()
-    J = forward(F)
-    stop_manager()
-
-    assert J.value() == function_sum(F)
-
-    dJ = compute_gradient(J, F)
-    assert abs(function_get_values(dJ) - 1.0).max() == 0.0
 
 
 @pytest.mark.firedrake
 @pytest.mark.skipif(issubclass(PETSc.ScalarType,
                                (complex, np.complexfloating)),
                     reason="real only")
+@no_space_type_checking
 @seed_test
 def test_InnerProductSolver(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
@@ -691,6 +661,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@no_space_type_checking
 @seed_test
 def test_initial_guess(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
@@ -780,7 +751,7 @@ def test_initial_guess(setup_test, test_leaks):
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
             NullSolver(x).solve()
-            J_term = space_new(J.space())
+            J_term = function_new(J.fn())
             InnerProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)
         else:
@@ -905,14 +876,14 @@ def test_form_binding(setup_test, test_leaks,
                                             for j in range(dim)]),
                         space, solver_parameters=ls_parameters_cg)
         u_split = u.split()
-        assembled_form_ref = Function(space)
+        assembled_form_ref = Function(space, space_type="conjugate_dual")
         assemble(test_form(u, u_split, test),
                  tensor=function_vector(assembled_form_ref))
 
         assert "_tlm_adjoint__bindings" not in form._cache
         bind_form(form, test_form_deps(u, u_split))
         assert "_tlm_adjoint__bindings" in form._cache
-        assembled_form = Function(space)
+        assembled_form = Function(space, space_type="conjugate_dual")
         bind_assemble(form, tensor=function_vector(assembled_form))
         unbind_form(form)
         assert "_tlm_adjoint__bindings" not in form._cache

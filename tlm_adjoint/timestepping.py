@@ -157,11 +157,11 @@ class TimeLevels:
 
 
 class TimeFunction:
-    def __init__(self, levels, space, *, name=None):
+    def __init__(self, levels, space, *, name=None, space_type="primal"):
         # Note that this keeps references to the functions on each time level
         self._fns = {}
         for level in levels:
-            fn = space_new(space, name=name)
+            fn = space_new(space, name=name, space_type=space_type)
             fn._tlm_adjoint__tfn = self
             fn._tlm_adjoint__level = level
             self._fns[level] = fn

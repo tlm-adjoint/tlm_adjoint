@@ -23,7 +23,7 @@ from .backend import Parameters, Projector, backend_DirichletBC, \
     backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
     backend_Vector, backend_assemble, backend_project, backend_solve, \
     extract_args, parameters
-from ..interface import InterfaceException, function_new, \
+from ..interface import InterfaceException, check_space_type, function_new, \
     function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
@@ -114,12 +114,16 @@ def packed_solver_parameters(solver_parameters, options_prefix=None,
 
 def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
              **kwargs):
+    if tensor is not None and isinstance(tensor, backend_Function):
+        check_space_type(tensor, "conjugate_dual")
+
     b = backend_assemble(
         expr, tensor=tensor, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters,
         **kwargs)
-    if tensor is None:
-        tensor = b
+
+    if tensor is None and isinstance(b, backend_Function):
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
     if isinstance(expr, ufl.classes.Form):
         rank = len(expr.arguments())
@@ -130,11 +134,11 @@ def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
                                        form_compiler_parameters)
             form_compiler_parameters = form_compiler_parameters_
 
-            if rank != 2:
-                tensor._tlm_adjoint__form = expr
-            tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+            if rank == 1:
+                b._tlm_adjoint__form = expr
+            b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
-    return tensor
+    return b
 
 
 # Aim for compatibility with Firedrake API, git master revision

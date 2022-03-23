@@ -18,17 +18,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import finalize_adjoint_derivative_action, function_assign, \
-    function_axpy, function_comm, function_copy, function_dtype, \
-    function_get_values, function_global_size, function_id, function_inner, \
+from .interface import check_space_types, check_space_types_conjugate_dual, \
+    check_space_types_dual, conjugate_dual_space_type, \
+    finalize_adjoint_derivative_action, function_assign, function_axpy, \
+    function_comm, function_copy, function_dtype, function_get_values, \
+    function_global_size, function_id, function_inner, function_is_alias, \
     function_is_checkpointed, function_local_indices, function_local_size, \
-    function_new, function_replacement, function_set_values, function_space, \
-    function_sum, function_update_caches, function_update_state, \
-    function_zero, is_function, space_new, subtract_adjoint_derivative_action
+    function_new, function_new_conjugate_dual, function_replacement, \
+    function_set_values, function_space, function_space_type, function_sum, \
+    function_update_caches, function_update_state, function_zero, \
+    is_function, no_space_type_checking, space_new, \
+    subtract_adjoint_derivative_action
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
 
+from collections.abc import Sequence
 import copy
 import inspect
 import logging
@@ -86,8 +91,9 @@ class EquationException(Exception):
 
 
 class AdjointRHS:
-    def __init__(self, space):
-        self._space = space
+    def __init__(self, x):
+        self._space = function_space(x)
+        self._space_type = function_space_type(x, rel_space_type="conjugate_dual")  # noqa: E501
         self._b = None
 
     def b(self, copy=False):
@@ -99,7 +105,7 @@ class AdjointRHS:
 
     def initialize(self):
         if self._b is None:
-            self._b = space_new(self._space)
+            self._b = space_new(self._space, space_type=self._space_type)
 
     def finalize(self):
         self.initialize()
@@ -116,7 +122,7 @@ class AdjointRHS:
 
 class AdjointEquationRHS:
     def __init__(self, eq):
-        self._B = tuple(AdjointRHS(function_space(x)) for x in eq.X())
+        self._B = tuple(AdjointRHS(x) for x in eq.X())
 
     def __getitem__(self, key):
         return self._B[key]
@@ -247,7 +253,8 @@ class Referrer:
 class Equation(Referrer):
     def __init__(self, X, deps, nl_deps=None,
                  *, ic_deps=None, ic=None,
-                 adj_ic_deps=None, adj_ic=None):
+                 adj_ic_deps=None, adj_ic=None,
+                 adj_type="conjugate_dual"):
         """
         An equation. The equation is expressed in the form:
             F ( X, y_0, y_1, ... ) = 0,
@@ -274,6 +281,10 @@ class Equation(Referrer):
         adj_ic       (Optional) If true then adj_ic_deps is set equal to X.
                      Defaults to true if adj_ic_deps is None, and false
                      otherwise.
+        adj_type  (Optional) "primal" or "conjugate_dual", or a sequence of
+                  these, defining whether elements of the adjoint are in the
+                  conjugate dual space associated with corresponding elements
+                  of X.
         """
 
         if is_function(X):
@@ -284,12 +295,17 @@ class Equation(Referrer):
                 raise EquationException("Solution must be a function")
             if not function_is_checkpointed(x):
                 raise EquationException("Solution must be checkpointed")
+            if function_is_alias(x):
+                raise EquationException("Solution cannot be an alias")
             if x not in deps:
                 raise EquationException("Solution must be a dependency")
 
         dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         if len(dep_ids) != len(deps):
             raise EquationException("Duplicate dependency")
+        for dep in deps:
+            if function_is_alias(dep):
+                raise EquationException("Dependency cannot be an alias")
 
         if nl_deps is None:
             nl_deps = tuple(deps)
@@ -337,6 +353,17 @@ class Equation(Referrer):
         if adj_ic:
             adj_ic_deps = list(X)
 
+        if adj_type in ["primal", "conjugate_dual"]:
+            adj_type = tuple(adj_type for x in X)
+        elif isinstance(adj_type, Sequence):
+            if len(adj_type) != len(X):
+                raise EquationException("Invalid adjoint type")
+        else:
+            raise EquationException("Invalid adjoint type")
+        for adj_x_type in adj_type:
+            if adj_x_type not in ["primal", "conjugate_dual"]:
+                raise EquationException("Invalid adjoint type")
+
         super().__init__()
         self._X = tuple(X)
         self._deps = tuple(deps)
@@ -344,6 +371,7 @@ class Equation(Referrer):
         self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
+        self._adj_X_type = tuple(adj_type)
 
     _reset_adjoint_warning = True
     _initialize_adjoint_warning = True
@@ -400,22 +428,14 @@ class Equation(Referrer):
                                   for dep in self._adj_ic_deps)
 
     def x(self):
-        """
-        If the equation solves for exactly one function, return it. Otherwise
-        raise an error.
-        """
+        x, = self._X
+        return x
 
-        if len(self._X) != 1:
-            raise EquationException("Equation does not solve for exactly one "
-                                    "function")
-        return self._X[0]
-
-    def X(self):
-        """
-        A tuple of functions. The solution to the equation.
-        """
-
-        return self._X
+    def X(self, m=None):
+        if m is None:
+            return self._X
+        else:
+            return self._X[m]
 
     def dependencies(self):
         return self._deps
@@ -431,6 +451,26 @@ class Equation(Referrer):
 
     def adjoint_initial_condition_dependencies(self):
         return self._adj_ic_deps
+
+    def adj_x_type(self):
+        adj_x_type, = self.adj_X_type()
+        return adj_x_type
+
+    def adj_X_type(self, m=None):
+        if m is None:
+            return self._adj_X_type
+        else:
+            return self._adj_X_type[m]
+
+    def new_adj_x(self):
+        adj_x, = self.new_adj_X()
+        return adj_x
+
+    def new_adj_X(self, m=None):
+        if m is None:
+            return tuple(self.new_adj_X(m) for m in range(len(self.X())))
+        else:
+            return function_new(self.X(m), rel_space_type=self.adj_X_type(m))
 
     def _pre_process(self, manager=None, annotate=None):
         if manager is None:
@@ -540,12 +580,17 @@ class Equation(Referrer):
         if adj_X is not None:
             self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
 
+            if is_function(adj_X):
+                adj_X = (adj_X,)
+
+            for m, adj_x in enumerate(adj_X):
+                check_space_types(adj_x, self.X(m),
+                                  rel_space_type=self.adj_X_type(m))
+
         self.finalize_adjoint(J)
 
         if adj_X is None:
             return None
-        elif is_function(adj_X):
-            return (adj_X,)
         else:
             return tuple(adj_X)
 
@@ -680,6 +725,7 @@ class ControlsMarker(Equation):
         self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
+        self._adj_X_type = tuple("conjugate_dual" for m in M)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -745,6 +791,7 @@ class NullSolver(Equation):
 
 class AssignmentSolver(Equation):
     def __init__(self, y, x):
+        check_space_types(x, y)
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, x, deps=None):
@@ -775,6 +822,8 @@ class LinearCombinationSolver(Equation):
     def __init__(self, x, *args):
         alpha = tuple(function_dtype(x)(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
+        for y in Y:
+            check_space_types(x, y)
 
         super().__init__(x, [x] + Y, nl_deps=[], ic=False, adj_ic=False)
         self._alpha = alpha
@@ -898,15 +947,21 @@ class FixedPointSolver(Equation):
         dep_ids = {}
         nl_deps = []
         nl_dep_ids = {}
+        adj_X_type = []
 
         eq_X_indices = tuple([] for eq in eqs)
         eq_dep_indices = tuple([] for eq in eqs)
         eq_nl_dep_indices = tuple([] for eq in eqs)
 
         for i, eq in enumerate(eqs):
-            for x in eq.X():
+            eq_X = eq.X()
+            eq_adj_X_type = eq.adj_X_type()
+            assert len(eq_X) == len(eq_adj_X_type)
+            for x, adj_x_type in zip(eq_X, eq_adj_X_type):
                 X.append(x)
                 eq_X_indices[i].append(len(X) - 1)
+                adj_X_type.append(adj_x_type)
+            del eq_X, eq_adj_X_type
 
             for dep in eq.dependencies():
                 dep_id = function_id(dep)
@@ -1013,7 +1068,8 @@ class FixedPointSolver(Equation):
         del dep_map
 
         super().__init__(X, deps, nl_deps=nl_deps,
-                         ic_deps=ic_deps, adj_ic_deps=adj_ic_deps)
+                         ic_deps=ic_deps, adj_ic_deps=adj_ic_deps,
+                         adj_type=adj_X_type)
         self._eqs = tuple(eqs)
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices
@@ -1029,6 +1085,7 @@ class FixedPointSolver(Equation):
         super().drop_references()
         self._eqs = tuple(WeakAlias(eq) for eq in self._eqs)
 
+    @no_space_type_checking
     def _forward_norm_sq(self, eq_X):
         assert len(eq_X) == len(self._eqs)
 
@@ -1138,7 +1195,7 @@ class FixedPointSolver(Equation):
         if is_function(B):
             B = (B,)
         if adj_X is None:
-            adj_X = [function_new(b) for b in B]
+            adj_X = list(self.new_adj_X())
         elif is_function(adj_X):
             adj_X = [adj_X]
         else:
@@ -1194,7 +1251,7 @@ class FixedPointSolver(Equation):
                     eq_B[0] if len(eq_B) == 1 else eq_B)
 
                 if eq_adj_X[i] is None:
-                    eq_adj_X[i] = tuple(function_new(b) for b in eq_B)
+                    eq_adj_X[i] = self._eqs[i].new_adj_X()
                 else:
                     if is_function(eq_adj_X[i]):
                         eq_adj_X[i] = (eq_adj_X[i],)
@@ -1279,11 +1336,16 @@ class FixedPointSolver(Equation):
 
 
 class LinearEquation(Equation):
-    def __init__(self, B, X, A=None):
+    def __init__(self, B, X, *, A=None, adj_type=None):
         if isinstance(B, RHS):
             B = (B,)
         if is_function(X):
             X = (X,)
+        if adj_type is None:
+            if A is None:
+                adj_type = "conjugate_dual"
+            else:
+                adj_type = "primal"
 
         deps = []
         dep_ids = {}
@@ -1354,7 +1416,8 @@ class LinearEquation(Equation):
         super().__init__(
             X, deps, nl_deps=nl_deps,
             ic=A is not None and A.has_initial_condition(),
-            adj_ic=A is not None and A.adjoint_has_initial_condition())
+            adj_ic=A is not None and A.adjoint_has_initial_condition(),
+            adj_type=adj_type)
         self._B = tuple(B)
         self._b_dep_indices = b_dep_indices
         self._b_nl_dep_indices = b_nl_dep_indices
@@ -1388,7 +1451,13 @@ class LinearEquation(Equation):
                 function_zero(x)
             B = X
         else:
-            B = tuple(function_new(x) for x in X)
+            def b_space_type(m):
+                space_type = function_space_type(
+                    self.X(m), rel_space_type=self.adj_X_type(m))
+                return conjugate_dual_space_type(space_type)
+
+            B = tuple(space_new(function_space(x), space_type=b_space_type(m))
+                      for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):
             b.add_forward(B[0] if len(B) == 1 else B,
@@ -1436,7 +1505,7 @@ class LinearEquation(Equation):
                 return adj_X[dep_index]
             else:
                 dep = eq_deps[dep_index]
-                F = function_new(dep)
+                F = function_new_conjugate_dual(dep)
                 self._A.adjoint_action([nl_deps[j]
                                         for j in self._A_nl_dep_indices],
                                        adj_X[0] if len(adj_X) == 1 else adj_X,
@@ -1445,7 +1514,7 @@ class LinearEquation(Equation):
         else:
             dep = eq_deps[dep_index]
             dep_id = function_id(dep)
-            F = function_new(dep)
+            F = function_new_conjugate_dual(dep)
             assert len(self._B) == len(self._b_dep_ids)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
                 if dep_id in b_dep_ids:
@@ -1493,7 +1562,7 @@ class LinearEquation(Equation):
             return NullSolver([tlm_map[x] for x in self.X()])
         else:
             return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()],
-                                  A=self._A)
+                                  A=self._A, adj_type=self.adj_X_type())
 
 
 class Matrix(Referrer):
@@ -1719,6 +1788,9 @@ class NormSqSolver(InnerProductSolver):
 
 class SumSolver(LinearEquation):
     def __init__(self, y, x):
+        warnings.warn("SumSolver is deprecated",
+                      DeprecationWarning, stacklevel=2)
+
         super().__init__(SumRHS(y), x)
 
 
@@ -1814,6 +1886,8 @@ class DotProductRHS(RHS):
         alpha  (Optional) Scale the result of the dot product by alpha.
         """
 
+        check_space_types_dual(x, y)
+
         x_equals_y = x == y
         if x_equals_y:
             deps = [x]
@@ -1839,6 +1913,7 @@ class DotProductRHS(RHS):
 
         if function_local_size(y) != function_local_size(x):
             raise EquationException("Invalid space")
+        check_space_types_dual(x, y)
 
         d = (function_get_values(y) * function_get_values(x)).sum()
         comm = function_comm(b)
@@ -1916,6 +1991,10 @@ class InnerProductRHS(RHS):
                non-linear dependencies. Defaults to an identity matrix.
         """
 
+        if M is None:
+            check_space_types_conjugate_dual(x, y)
+        else:
+            check_space_types(x, y)
         if M is not None and len(M.nonlinear_dependencies()) > 0:
             raise EquationException("Non-linear matrix dependencies not supported")  # noqa: E501
 
@@ -1953,8 +2032,9 @@ class InnerProductRHS(RHS):
         if self._M is None:
             Y = y
         else:
-            Y = function_new(x)
+            Y = function_new_conjugate_dual(x)
             self._M.adjoint_action(M_deps, y, Y, method="assign")
+        check_space_types_conjugate_dual(x, Y)
 
         function_set_values(b,
                             function_get_values(b) + self._alpha
@@ -1971,7 +2051,7 @@ class InnerProductRHS(RHS):
                 if self._M is None:
                     X = x
                 else:
-                    X = function_new(x)
+                    X = function_new_conjugate_dual(x)
                     self._M.adjoint_action(M_deps, x, X, method="assign")
 
                 function_axpy(
@@ -1980,7 +2060,7 @@ class InnerProductRHS(RHS):
                 if self._M is None:
                     X = x
                 else:
-                    X = function_new(x)
+                    X = function_new_conjugate_dual(x)
                     self._M.forward_action(M_deps, x, X, method="assign")
 
                 function_axpy(
@@ -1994,7 +2074,7 @@ class InnerProductRHS(RHS):
             if self._M is None:
                 Y = y
             else:
-                Y = function_new(x)
+                Y = function_new_conjugate_dual(x)
                 self._M.adjoint_action(M_deps, y, Y, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), Y)
@@ -2007,7 +2087,7 @@ class InnerProductRHS(RHS):
             if self._M is None:
                 X = x
             else:
-                X = function_new(y)
+                X = function_new_conjugate_dual(y)
                 self._M.forward_action(M_deps, x, X, method="assign")
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), X)
@@ -2052,6 +2132,9 @@ class NormSqRHS(InnerProductRHS):
 
 class SumRHS(RHS):
     def __init__(self, x):
+        warnings.warn("SumRHS is deprecated",
+                      DeprecationWarning, stacklevel=2)
+
         super().__init__([x], nl_deps=[])
 
     def add_forward(self, b, deps):

@@ -27,9 +27,9 @@ from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, function_copy, function_new, function_space, \
-    new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action, weakref_method
+    add_time_system_eq, check_space_type, function_copy, function_new, \
+    function_space, function_space_type, new_function_id, new_space_id, \
+    space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -37,7 +37,8 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space, \
 from .caches import form_neg
 from .equations import AssembleSolver, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, ReplacementFunction, Zero
+    ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
+    define_function_alias
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -82,8 +83,9 @@ def _Constant__init__(self, *args, domain=None, space=None,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "state": 0,
-                   "space": space, "dtype": backend_ScalarType,
-                   "static": False, "cache": False, "checkpoint": True})
+                   "space": space, "space_type": "primal",
+                   "dtype": backend_ScalarType, "static": False,
+                   "cache": False, "checkpoint": True})
 
 
 assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
@@ -101,9 +103,10 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint)
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
+        return Function(self, name=name, space_type=space_type, static=static,
+                        cache=cache, checkpoint=checkpoint)
 
 
 _FunctionSpace_add_interface = [True]
@@ -135,6 +138,9 @@ backend_FunctionSpace.__init__ = _FunctionSpace__init__
 class FunctionInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
 
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
@@ -259,10 +265,13 @@ class FunctionInterface(_FunctionInterface):
         self.vector().set_local(values)
         self.vector().apply("insert")
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
+             rel_space_type="primal"):
         y = function_copy(self, name=name, static=static, cache=cache,
                           checkpoint=checkpoint)
         y.vector().zero()
+        space_type = function_space_type(self, rel_space_type=rel_space_type)
+        y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
@@ -273,13 +282,10 @@ class FunctionInterface(_FunctionInterface):
             cache = static
         if checkpoint is None:
             checkpoint = not static
+        y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", function_space_type(self))  # noqa: E501
         y._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         y._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         y._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-        # Backwards compatibility
-        y.is_static = weakref_method(Function.is_static, y)
-        y.is_cached = weakref_method(Function.is_cached, y)
-        y.is_checkpointed = weakref_method(Function.is_checkpointed, y)
         return y
 
     def _replacement(self):
@@ -298,6 +304,9 @@ class FunctionInterface(_FunctionInterface):
         # assert function_is_scalar(self)
         return self.vector().max()
 
+    def _is_alias(self):
+        return "alias" in self._tlm_adjoint__function_interface_attrs
+
 
 @FunctionSpace_add_interface_disabled
 def _Function__init__(self, *args, **kwargs):
@@ -306,7 +315,7 @@ def _Function__init__(self, *args, **kwargs):
         raise InterfaceException("PETSc backend required")
 
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(), "state": 0,
+                  {"id": new_function_id(), "state": 0, "space_type": "primal",
                    "static": False, "cache": False, "checkpoint": True})
 
     space = backend_Function._tlm_adjoint__orig_function_space(self)
@@ -325,6 +334,7 @@ backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
+# Aim for compatibility with FEniCS 2019.1.0 API
 def _Function_function_space(self):
     if hasattr(self, "_tlm_adjoint__function_interface_attrs"):
         return self._tlm_adjoint__function_interface_attrs["space"]
@@ -335,6 +345,20 @@ def _Function_function_space(self):
 assert not hasattr(backend_Function, "_tlm_adjoint__orig_function_space")
 backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_space  # noqa: E501
 backend_Function.function_space = _Function_function_space
+
+
+# Aim for compatibility with FEniCS 2019.1.0 API
+def _Function_split(self, deepcopy=False):
+    Y = backend_Function._tlm_adjoint__orig_split(self, deepcopy=deepcopy)
+    if not deepcopy:
+        for i, y in enumerate(Y):
+            define_function_alias(y, self, key=("split", i))
+    return Y
+
+
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_split")
+backend_Function._tlm_adjoint__orig_split = backend_Function.split
+backend_Function.split = _Function_split
 
 
 def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
@@ -388,13 +412,15 @@ def _subtract_adjoint_derivative_action(x, y):
             and isinstance(y[1], backend_Vector):
         alpha, y = y
         alpha = backend_ScalarType(alpha)
+        if hasattr(y, "_tlm_adjoint__function"):
+            check_space_type(y._tlm_adjoint__function, "conjugate_dual")
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) == 0:
                 # annotate=False, tlm=False
                 x.assign(backend_ScalarType(x) - alpha * y.max())
             else:
                 value = x.values()
-                y_fn = Function(r0_space(x))
+                y_fn = backend_Function(r0_space(x))
                 y_fn.vector().axpy(1.0, y)
                 for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
                     value[i] -= alpha * y_fn_c.vector().max()

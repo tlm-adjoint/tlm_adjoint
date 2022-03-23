@@ -20,10 +20,11 @@
 
 from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
     backend_assemble, backend_ScalarType
-from ..interface import function_assign, function_comm, function_dtype, \
-    function_get_values, function_is_scalar, function_local_size, \
-    function_new, function_scalar_value, function_set_values, function_space, \
-    is_function, weakref_method
+from ..interface import check_space_type, function_assign, function_comm, \
+    function_dtype, function_get_values, function_is_scalar, \
+    function_local_size, function_new, function_new_conjugate_dual, \
+    function_scalar_value, function_set_values, function_space, is_function, \
+    weakref_method
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -176,7 +177,7 @@ class LocalProjectionSolver(EquationSolver):
                 self._lhs,
                 form_compiler_parameters=self._form_compiler_parameters)
 
-        adj_x = function_new(b)
+        adj_x = self.new_adj_x()
         local_solver.solve_local(adj_x, b)
         return adj_x
 
@@ -258,6 +259,7 @@ class PointInterpolationSolver(Equation):
 
         dtype = None
         for x in X:
+            check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise EquationException("Solution must be a scalar, or a "
                                         "sequence of scalars")
@@ -267,6 +269,7 @@ class PointInterpolationSolver(Equation):
                 raise EquationException("Invalid dtype")
         if dtype is None:
             dtype = backend_ScalarType
+        check_space_type(y, "primal")
 
         if X_coords is None:
             if P is None:
@@ -314,6 +317,7 @@ class PointInterpolationSolver(Equation):
             X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
+        check_space_type(y, "primal")
         y_v = function_get_values(y)
         x_v_local = np.full(len(X), np.NAN, dtype=self._dtype)
         for i in range(len(X)):
@@ -339,7 +343,7 @@ class PointInterpolationSolver(Equation):
             adj_x_v = np.full(len(adj_X), np.NAN, dtype=self._dtype)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
-            F = function_new(self.dependencies()[-1])
+            F = function_new_conjugate_dual(self.dependencies()[-1])
             function_set_values(F, self._P_H.dot(adj_x_v))
             return (-1.0, F)
         else:

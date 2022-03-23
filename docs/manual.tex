@@ -726,24 +726,6 @@ expression (for the second), and \texttt{x} is the \texttt{Function} being
 solved for. Remaining constructor arguments are as for the
 \texttt{EquationSolver} class.
 
-\subsubsection{\texttt{ExprEvaluationSolver}}
-
-An \texttt{ExprEvaluationSolver} represents an equation
-\begin{equation*}
-  \tilde{\psi}_i = F \left( \tilde{\xi}_i \right)
-    \quad \forall i \in \left\{ 1, \ldots, N \right\},
-\end{equation*}
-where the $\tilde{\psi}_i$ and $\tilde{\xi}_i$ are respectively the discrete
-degrees of freedom associated with scalar-valued functions $\psi, \xi \in V$,
-and $F$ is a given function.
-
-The \texttt{ExprEvaluationSolver} constructor has the form
-\begin{lstlisting}
-def __init__(self, rhs, x):
-\end{lstlisting}
-where \texttt{rhs} is a \texttt{ufl.classes.Expr} and \texttt{x} is the
-function being solved for.
-
 \subsubsection{\texttt{DirichletBCSolver}}
 
 A \texttt{DirichletBCSolver} represents the application of a strong Dirichlet
@@ -764,16 +746,16 @@ directly to the \texttt{DirichletBC} constructor.
 
 \subsubsection{\texttt{AssembleSolver}}\label{sect:AssembleSolver}
 
-An \texttt{AssembleSolver} represents the assembly of a rank zero or rank one
-form. The \texttt{AssembleSolver} constructor has the form
+An \texttt{AssembleSolver} represents the assembly of a rank zero form. The
+\texttt{AssembleSolver} constructor has the form
 \begin{lstlisting}
 def __init__(self, rhs, x, form_compiler_parameters=None,
              match_quadrature=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
-  \item \texttt{rhs}, a \texttt{ufl.classes.Form}, defining a form of rank zero
-    or rank one.
+  \item \texttt{rhs}, a \texttt{ufl.classes.Form}, defining a form of rank
+    zero.
   \item \texttt{x}, a function, the solution to the equation.
   \item \texttt{form\_compiler\_parameters}, a dictionary of parameters passed
     to the form compiler.
@@ -784,8 +766,8 @@ with constructor arguments
     which by default is false.
 \end{itemize}
 
-If the form is rank zero then the solution \texttt{x} must be a scalar, for
-example as returned by the \texttt{new\_scalar\_function} function
+The solution \texttt{x} must be a scalar, for example as returned by the
+\texttt{new\_scalar\_function} function
 \begin{lstlisting}
 x = new_scalar_function(comm=comm)
 \end{lstlisting}
@@ -951,7 +933,8 @@ the form
 \begin{lstlisting}
 def __init__(self, x, deps, nl_deps=None,
              *, ic_deps=None, ic=None,
-             adj_ic_deps=None, adj_ic=None):
+             adj_ic_deps=None, adj_ic=None,
+             adj_type="conjugate_dual"):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -973,6 +956,9 @@ with constructor arguments
   \item \texttt{adj\_ic}, if true sets \texttt{adj\_ic\_deps} to be the
     solution to the equation. Defaults to true if \texttt{adj\_ic\_deps} is
     \texttt{None}, and false otherwise.
+  \item \texttt{adj\_type}, ``primal'' or ``conjugate\_dual'', defining whether
+    the adjoint is in the primal or conjugate dual space associated with the
+    solution to the equation, \texttt{x}.
 \end{itemize}
 
 \subsection{Forward}
@@ -1171,7 +1157,8 @@ An \texttt{Equation} may solve for two or more functions. In this case the
 arguments \texttt{x}, \texttt{adj\_x}, and \texttt{b} in the above should be
 capitalized \texttt{X}, \texttt{adj\_X}, and \texttt{B}, and should each be a
 sequence of functions. The return value of \texttt{adjoint\_jacobian\_solve}
-should also be a sequence of functions.
+should also be a sequence of functions. \texttt{adj\_type} may be a sequence
+with elements equal to ``primal'' or ``conjugate\_dual''.
 
 \subsection{Dropping references}\label{sect:drop_references}
 
@@ -1196,7 +1183,7 @@ where $A$ is a matrix and the $b_i$ are independent of $x$.
 
 The \texttt{LinearEquation} constructor has the form
 \begin{lstlisting}
-def __init__(self, B, X, A=None):
+def __init__(self, B, X, *, A=None, adj_type=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1205,6 +1192,8 @@ with constructor arguments
   \item \texttt{X}, a function, or a sequence of functions, defining $x$.
   \item \texttt{A}, a \texttt{Matrix}. If not provided $A$ is an identity
     matrix.
+  \item \texttt{adj\_type}, as for the \texttt{Equation} constructor. Defaults
+    to ``primal'' if \texttt{A} is supplied, and ``conjugate\_dual'' otherwise.
 \end{itemize}
 
 \subsection{\texttt{Matrix}}
@@ -1544,32 +1533,6 @@ eq = NormSqSolver(y, x, alpha=alpha, M=M)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{SumRHS} and \texttt{SumSolver}}
-
-A \texttt{SumRHS} is a \texttt{RHS} representing a right-hand-side term of the
-form
-\begin{equation*}
-  b_i = \sum_j y_j,
-\end{equation*}
-where the $y_j$ are the degrees of freedom for a function, and the $b_i$ are
-the degrees of freedom for the resulting right-hand-side term. A
-\texttt{SumSolver} is a \texttt{LinearEquation} representing
-\begin{equation*}
-  x_i = \sum_j y_j,
-\end{equation*}
-solving for $x$, whose degrees of freedom are the $x_i$.
-
-A \texttt{SumRHS} can be instantiated via
-\begin{lstlisting}
-b = SumRHS(y)
-\end{lstlisting}
-where \texttt{y} is the function whose degrees of freedom are the $y_j$. A
-\texttt{SumSolver} can be instantiated via
-\begin{lstlisting}
-eq = SumSolver(y, x)
-\end{lstlisting}
-where \texttt{x} is the function being solved for.
-
 \subsubsection{\texttt{MatrixActionRHS} and \texttt{MatrixActionSolver}}
 
 A \texttt{MatrixActionRHS} is a \texttt{RHS} representing a right-hand-side
@@ -1788,11 +1751,8 @@ controls can be computed via for example
 Note that the \texttt{compute\_gradient} method finalizes the internal
 \texttt{EquationManager} (see section \ref{sect:EquationManager_state}).
 
-\texttt{tlm\_adjoint} uses the convention that the values stored for linear
-sensitivity functionals are the complex conjugate of the coefficients
-appearing in their expansion using the dual basis. Hence the degrees of freedom
-associated with functions returned by \texttt{compute\_gradient} are the
-complex conjugate of linear sensitivities.
+The degrees of freedom associated with functions returned by
+\texttt{compute\_gradient} are the complex conjugate of linear sensitivities.
 
 \section{Tangent-linear and higher order adjoint}\label{sect:higher_order}
 
@@ -1922,7 +1882,7 @@ calculation. This method returns the value of the functional, the first
 derivative of the functional in the direction defined by \texttt{dm}, and the
 action of the Hessian in the direction defined by \texttt{dm}. The degrees of
 freedom associated with \texttt{ddJ} are the complex conjugate of
-sensitivities.
+the Hessian action degrees of freedom.
 
 \subsubsection{Hessian actions with caching}
 
@@ -2280,9 +2240,7 @@ F = Function(space, static=static, cache=cache, checkpoint=checkpoint)
 where the additional arguments are optional logicals
 \begin{itemize}
   \item \texttt{static}, default false. If true, declares the \texttt{Function}
-    to be static for the duration of the calculation. A
-    \texttt{TangentLinearMap} (see section \ref{sect:tangent_linear}) will
-    return \texttt{None} when supplied with a static \texttt{Function}.
+    to be static for the duration of the calculation.
   \item \texttt{cache}, default \texttt{static}. If true, results of
     calculations using the \texttt{Function} may be cached.
   \item \texttt{checkpoint}, default \texttt{not static}. If false then the
@@ -2290,7 +2248,9 @@ where the additional arguments are optional logicals
     \texttt{Function}, and it will not be considered when applying
     checkpointing strategies. \texttt{Function} objects with
     \texttt{checkpoint=False} may not appear as the solution of any
-    \texttt{Equation}.
+    \texttt{Equation}, and a \texttt{TangentLinearMap} (see section
+    \ref{sect:tangent_linear}) will return \texttt{None} when supplied with a
+    non-checkpointed function.
 \end{itemize}
 
 With the FEniCS or Firedrake backends, a \texttt{ZeroFunction} may be used in
@@ -2642,20 +2602,27 @@ and associated eigenvectors $v$ where
 \end{equation*}
 This has the interface
 \begin{lstlisting}
-def eigendecompose(space, A_action, *, B_action=None, N_eigenvalues=None,
-                   solver_type=None, problem_type=None, which=None,
-                   tolerance=1.0e-12, configure=None):
+def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
+                   action_type="dual", N_eigenvalues=None, solver_type=None,
+                   problem_type=None, which=None, tolerance=1.0e-12,
+                   configure=None):
 \end{lstlisting}
 with arguments
 \begin{itemize}
   \item \texttt{space}, a function space. Eigenvector discrete function space.
   \item \texttt{A\_action}, a callable which accepts a single input function,
-    and computes the complex conjugate of the action of the matrix $A$. The
-    result must be returned as a function or a NumPy array.
+    and computes the action of the matrix $A$. The result must be returned as a
+    function.
   \item \texttt{B\_action}, a callable which accepts a single input function,
-    and computes the complex conjugate of the action of the matrix $B$. The
-    result must be returned as a function or a NumPy array. If not provided
-    then $B$ is considered an identity matrix.
+    and computes the action of the matrix $B$. The result must be returned as a
+    function. If not provided then $B$ is considered an identity matrix. Should
+    be supplied if \texttt{action\_type} equals ``dual'' or
+    ``conjugate\_dual''.
+  \item \texttt{space\_type}, ``primal'', ``conjugate'', ``dual'', or
+    ``conjugate\_dual'', defining the space type for eigenvectors.
+  \item \texttt{action\_type}, ``primal'', ``dual'', or ``conjugate\_dual'',
+    whether a matrix action is in the same space as the eigenvectors, or the
+    associated dual or conjugate dual space.
   \item \texttt{N\_eigenvalues}, requested number of eigenvalues to find,
     passed as the \texttt{nev} argument to \texttt{slepc4py.EPS.setDimensions}.
     If not provided then performs a full spectrum eigendecomposition.
@@ -2689,7 +2656,9 @@ used via
 \begin{lstlisting}
 A_action = ddJ.action_fn(m)
 \end{lstlisting}
-where \texttt{m} is a function defining the control.
+where \texttt{m} is a function defining the control. Note that the return
+value from \texttt{A\_action} is a Hessian action (\emph{not} the complex
+conjugate of a Hessian action).
 
 \section{Copyright and acknowledgements}
 

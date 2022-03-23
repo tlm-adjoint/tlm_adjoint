@@ -137,11 +137,11 @@ def info(message):
 
 
 class Constant(Function):
-    def __init__(self, value=0.0, *, name=None, static=False, cache=None,
-                 checkpoint=None):
+    def __init__(self, value=0.0, *, name=None, space_type="primal",
+                 static=False, cache=None, checkpoint=None):
         space = FunctionSpace(1)  # , dtype=default_dtype())
-        super().__init__(space, name=name, static=static, cache=cache,
-                         checkpoint=checkpoint)
+        super().__init__(space, name=name, space_type=space_type,
+                         static=static, cache=cache, checkpoint=checkpoint)
         self.assign(value)
 
     def assign(self, y):

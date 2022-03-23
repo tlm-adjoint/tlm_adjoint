@@ -24,7 +24,8 @@ from .backend import Parameters, backend_DirichletBC, backend_Function, \
     backend_NonlinearVariationalSolver, backend_assemble, \
     backend_assemble_system, backend_project, backend_solve, extract_args, \
     parameters
-from ..interface import function_new, function_update_state, space_new
+from ..interface import check_space_type, function_new, \
+    function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
@@ -80,13 +81,14 @@ def parameters_dict_equal(parameters_a, parameters_b):
 
 def assemble(form, tensor=None, form_compiler_parameters=None,
              add_values=False, *args, **kwargs):
+    if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
+        check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
+
     b = backend_assemble(form, tensor=tensor,
                          form_compiler_parameters=form_compiler_parameters,
                          add_values=add_values, *args, **kwargs)
-    if tensor is None:
-        tensor = b
 
-    if not isinstance(tensor, (float, np.floating)):
+    if not isinstance(b, (float, np.floating)):
         if not isinstance(form, ufl.classes.Form):
             raise OverrideException("form must be a UFL form")
 
@@ -96,20 +98,20 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
                                    form_compiler_parameters)
         form_compiler_parameters = form_compiler_parameters_
 
-        if add_values and hasattr(tensor, "_tlm_adjoint__form"):
-            if tensor._tlm_adjoint__bcs != []:
+        if add_values and hasattr(b, "_tlm_adjoint__form"):
+            if b._tlm_adjoint__bcs != []:
                 raise OverrideException("Non-matching boundary conditions")
             elif not parameters_dict_equal(
-                    tensor._tlm_adjoint__form_compiler_parameters,
+                    b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
-            tensor._tlm_adjoint__form += form
+            b._tlm_adjoint__form += form
         else:
-            tensor._tlm_adjoint__form = form
-            tensor._tlm_adjoint__bcs = []
-            tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+            b._tlm_adjoint__form = form
+            b._tlm_adjoint__bcs = []
+            b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
-    return tensor
+    return b
 
 
 def assemble_system(A_form, b_form, bcs=None, x0=None,
@@ -123,16 +125,16 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     if x0 is not None:
         raise OverrideException("Non-linear boundary condition case not supported")  # noqa: E501
 
+    if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
+        check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
+
     A, b = backend_assemble_system(
         A_form, b_form, bcs=bcs, x0=x0,
         form_compiler_parameters=form_compiler_parameters,
         add_values=add_values, finalize_tensor=finalize_tensor,
         keep_diagonal=keep_diagonal, A_tensor=A_tensor, b_tensor=b_tensor,
         *args, **kwargs)
-    if A_tensor is None:
-        A_tensor = A
-    if b_tensor is None:
-        b_tensor = b
+
     if bcs is None:
         bcs = []
     elif isinstance(bcs, backend_DirichletBC):
@@ -145,33 +147,33 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
                                form_compiler_parameters)
     form_compiler_parameters = form_compiler_parameters_
 
-    if add_values and hasattr(A_tensor, "_tlm_adjoint__form"):
-        if A_tensor._tlm_adjoint__bcs != bcs:
+    if add_values and hasattr(A, "_tlm_adjoint__form"):
+        if A._tlm_adjoint__bcs != bcs:
             raise OverrideException("Non-matching boundary conditions")
         elif not parameters_dict_equal(
-                A_tensor._tlm_adjoint__form_compiler_parameters,
+                A._tlm_adjoint__form_compiler_parameters,
                 form_compiler_parameters):
             raise OverrideException("Non-matching form compiler parameters")
-        A_tensor._tlm_adjoint__form += A_form
+        A._tlm_adjoint__form += A_form
     else:
-        A_tensor._tlm_adjoint__form = A_form
-        A_tensor._tlm_adjoint__bcs = list(bcs)
-        A_tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+        A._tlm_adjoint__form = A_form
+        A._tlm_adjoint__bcs = list(bcs)
+        A._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
-    if add_values and hasattr(b_tensor, "_tlm_adjoint__form"):
-        if b_tensor._tlm_adjoint__bcs != bcs:
+    if add_values and hasattr(b, "_tlm_adjoint__form"):
+        if b._tlm_adjoint__bcs != bcs:
             raise OverrideException("Non-matching boundary conditions")
         elif not parameters_dict_equal(
-                b_tensor._tlm_adjoint__form_compiler_parameters,
+                b._tlm_adjoint__form_compiler_parameters,
                 form_compiler_parameters):
             raise OverrideException("Non-matching form compiler parameters")
-        b_tensor._tlm_adjoint__form += b_form
+        b._tlm_adjoint__form += b_form
     else:
-        b_tensor._tlm_adjoint__form = b_form
-        b_tensor._tlm_adjoint__bcs = list(bcs)
-        b_tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+        b._tlm_adjoint__form = b_form
+        b._tlm_adjoint__bcs = list(bcs)
+        b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
-    return A_tensor, b_tensor
+    return A, b
 
 
 def extract_args_linear_solve(A, x, b,

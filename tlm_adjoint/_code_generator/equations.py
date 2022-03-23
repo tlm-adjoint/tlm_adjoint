@@ -18,19 +18,20 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import TestFunction, TrialFunction, adjoint, \
+from .backend import TestFunction, TrialFunction, adjoint, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from ..interface import function_assign, function_comm, function_dtype, \
-    function_get_values, function_id, function_is_scalar, \
-    function_local_size, function_new, function_replacement, \
+from ..interface import check_space_type, function_assign, \
+    function_get_values, function_id, function_inner, function_is_scalar, \
+    function_new, function_new_conjugate_dual, function_replacement, \
     function_scalar_value, function_set_values, function_space, \
-    function_update_caches, function_update_state, function_zero, is_function
+    function_update_caches, function_update_state, function_zero, \
+    is_function, space_id
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
-    matrix_multiply, process_adjoint_solver_parameters, \
-    process_solver_parameters, r0_space, rhs_addto, rhs_copy, solve, \
-    update_parameters_dict, verify_assembly
+    interpolate_expression, matrix_multiply, \
+    process_adjoint_solver_parameters, process_solver_parameters, r0_space, \
+    rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
 from ..equations import AssignmentSolver, Equation, EquationException, \
@@ -42,8 +43,6 @@ from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
     eliminate_zeros, extract_coefficients
 
 import copy
-import operator
-import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import warnings
@@ -103,6 +102,15 @@ def extract_dependencies(expr):
                 if n_nl_deps > 0 and dep_id not in nl_deps:
                     nl_deps[dep_id] = dep
 
+    deps = {dep_id: deps[dep_id]
+            for dep_id in sorted(deps.keys())}
+    nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
+               for nl_dep_id in sorted(nl_deps.keys())}
+
+    assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
+    for dep in deps.values():
+        check_space_type(dep, "primal")
+
     return deps, nl_deps
 
 
@@ -143,11 +151,12 @@ class AssembleSolver(ExprEquation):
 
         rank = len(rhs.arguments())
         if rank == 0:
+            check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise EquationException("Rank 0 forms can only be assigned to "
                                         "scalars")
-        elif rank != 1:
-            raise EquationException("Must be a rank 0 or 1 form")
+        else:
+            raise EquationException("Must be a rank 0 form")
 
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
@@ -166,7 +175,6 @@ class AssembleSolver(ExprEquation):
                 form_form_compiler_parameters(rhs, form_compiler_parameters))
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
-        self._rank = rank
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
 
@@ -184,16 +192,10 @@ class AssembleSolver(ExprEquation):
         else:
             rhs = self._replace(self._rhs, deps)
 
-        if self._rank == 0:
-            function_assign(
-                x,
-                assemble(rhs,
-                         form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
-        else:
-            assert self._rank == 1
+        function_assign(
+            x,
             assemble(rhs,
-                     form_compiler_parameters=self._form_compiler_parameters,
-                     tensor=function_vector(x))
+                     form_compiler_parameters=self._form_compiler_parameters))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -215,18 +217,11 @@ class AssembleSolver(ExprEquation):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
-        if self._rank == 0:
-            dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                           for integral in dF.integrals()])  # dF = adjoint(dF)
-            dF = assemble(
-                dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-function_scalar_value(adj_x), dF)
-        else:
-            assert self._rank == 1
-            dF = assemble(
-                ufl.action(adjoint(dF), coefficient=adj_x),
-                form_compiler_parameters=self._form_compiler_parameters)
-            return (-1.0, dF)
+        dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
+                       for integral in dF.integrals()])  # dF = adjoint(dF)
+        dF = assemble(
+            dF, form_compiler_parameters=self._form_compiler_parameters)
+        return (-function_scalar_value(adj_x), dF)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -316,6 +311,8 @@ class EquationSolver(ExprEquation):
         if match_quadrature and defer_adjoint_assembly:
             raise EquationException("Cannot both match quadrature and defer adjoint assembly")  # noqa: E501
 
+        check_space_type(x, "primal")
+
         lhs, rhs = eq.lhs, eq.rhs
         del eq
         lhs = ufl.classes.Form(lhs.integrals())
@@ -398,7 +395,7 @@ class EquationSolver(ExprEquation):
 
         super().__init__(x, deps, nl_deps=nl_deps,
                          ic=initial_guess is None and ic,
-                         adj_ic=adj_ic)
+                         adj_ic=adj_ic, adj_type="primal")
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = bcs
@@ -726,7 +723,7 @@ class EquationSolver(ExprEquation):
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if adj_x is None:
-            adj_x = function_new(b)
+            adj_x = self.new_adj_x()
 
         if self._cache_adjoint_jacobian:
             J_solver_mat_bc = self._adjoint_J_solver()
@@ -827,6 +824,9 @@ class ProjectionSolver(EquationSolver):
 
 class DirichletBCSolver(Equation):
     def __init__(self, y, x, *args, **kwargs):
+        check_space_type(x, "primal")
+        check_space_type(y, "primal")
+
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
         self._bc_args = copy.copy(args)
         self._bc_kwargs = copy.copy(kwargs)
@@ -843,7 +843,7 @@ class DirichletBCSolver(Equation):
             return adj_x
         elif dep_index == 1:
             _, y = self.dependencies()
-            F = function_new(y)
+            F = function_new_conjugate_dual(y)
             backend_DirichletBC(
                 function_space(y), adj_x,
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
@@ -865,81 +865,19 @@ class DirichletBCSolver(Equation):
                                      *self._bc_args, **self._bc_kwargs)
 
 
-def evaluate_expr_binary_operator(fn):
-    def evaluate_expr_binary_operator(x):
-        x_0, x_1 = map(evaluate_expr, x.ufl_operands)
-        return fn(x_0, x_1)
-    return evaluate_expr_binary_operator
-
-
-def evaluate_expr_function(fn):
-    def evaluate_expr_function(x):
-        x_0, = map(evaluate_expr, x.ufl_operands)
-        return fn(x_0)
-    return evaluate_expr_function
-
-
-evaluate_expr_types = \
-    {
-        ufl.classes.ComplexValue: (lambda x: complex(x)),
-        ufl.classes.FloatValue: (lambda x: float(x)),
-        ufl.classes.IntValue: (lambda x: float(x)),
-        ufl.classes.Zero: (lambda x: 0.0),
-    }
-
-for ufl_name, op_name in [("Division", "truediv"),
-                          ("Power", "pow"),
-                          ("Product", "mul"),
-                          ("Sum", "add")]:
-    evaluate_expr_types[getattr(ufl.classes, ufl_name)] \
-        = evaluate_expr_binary_operator(getattr(operator, op_name))
-del ufl_name, op_name
-
-for ufl_name, numpy_name in [("Abs", "abs"),
-                             ("Acos", "arccos"),
-                             ("Asin", "arcsin"),
-                             ("Atan", "arctan"),
-                             ("Atan2", "arctan2"),
-                             ("Conj", "conjugate"),
-                             ("Cos", "cos"),
-                             ("Cosh", "cosh"),
-                             ("Exp", "exp"),
-                             ("Ln", "log"),
-                             ("MaxValue", "max"),
-                             ("MinValue", "min"),
-                             ("Sin", "sin"),
-                             ("Sinh", "sinh"),
-                             ("Sqrt", "sqrt"),
-                             ("Tan", "tan"),
-                             ("Tanh", "tanh")]:
-    evaluate_expr_types[getattr(ufl.classes, ufl_name)] \
-        = evaluate_expr_function(getattr(np, numpy_name))
-del ufl_name, numpy_name
-
-
-def evaluate_expr(x):
-    if is_function(x):
-        if function_is_scalar(x):
-            return function_scalar_value(x)
-        else:
-            return function_get_values(x)
-    else:
-        return evaluate_expr_types[type(x)](x)
-
-
 class ExprEvaluationSolver(ExprEquation):
     def __init__(self, rhs, x):
         if isinstance(rhs, ufl.classes.Form):
             raise EquationException("rhs should not be a Form")
-        x_space = function_space(x)
-        if len(x_space.ufl_element().value_shape()) > 0:
-            raise EquationException("Solution must be a scalar")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         for dep in deps:
             if dep == x:
                 raise EquationException("Invalid non-linear dependency")
+            if isinstance(dep, backend_Function) \
+                    and space_id(function_space(dep)) != space_id(function_space(x)):  # noqa: E501
+                raise EquationException("Invalid dependency")
         deps.insert(0, x)
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
@@ -955,19 +893,9 @@ class ExprEvaluationSolver(ExprEquation):
 
     def forward_solve(self, x, deps=None):
         if deps is None:
-            rhs = self._rhs
+            interpolate_expression(x, self._rhs)
         else:
-            rhs = self._replace(self._rhs, deps)
-        rhs_val = evaluate_expr(rhs)
-        if isinstance(rhs_val, (int, np.integer,
-                                float, np.floating,
-                                complex, np.complexfloating)):
-            dtype = function_dtype(x)
-            function_set_values(
-                x, np.full(function_local_size(x), dtype(rhs_val), dtype=dtype))  # noqa: E501
-        else:
-            assert function_local_size(x) == len(rhs_val)
-            function_set_values(x, rhs_val)
+            interpolate_expression(x, self._replace(self._rhs, deps))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
@@ -977,29 +905,21 @@ class ExprEvaluationSolver(ExprEquation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        dF = ufl.conj(derivative(self._rhs, dep, argument=ufl.conj(adj_x)))
+        dF = ufl.diff(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
-        dF_val = evaluate_expr(dF)
-        F = function_new(dep)
-        if isinstance(dF_val, (int, np.integer,
-                               float, np.floating,
-                               complex, np.complexfloating)):
-            dtype = function_dtype(F)
-            function_set_values(
-                F, np.full(function_local_size(F), dtype(dF_val), dtype=dtype))
-        elif function_is_scalar(F):
-            dtype = function_dtype(F)
-            dF_val_local = np.array([dF_val.sum()], dtype=dtype)
-            dF_val = np.full((1,), np.NAN, dtype=dtype)
-            comm = function_comm(F)
-            comm.Allreduce(dF_val_local, dF_val, op=MPI.SUM)
-            dF_val = dF_val[0]
-            function_assign(F, dF_val)
+
+        dF_val = function_new(self.x())
+        interpolate_expression(dF_val, dF)
+
+        F = function_new_conjugate_dual(dep)
+        if isinstance(F, backend_Constant):
+            function_assign(F, function_inner(adj_x, dF_val))
         else:
-            assert function_local_size(F) == len(dF_val)
-            function_set_values(F, dF_val)
+            assert isinstance(F, backend_Function)
+            function_set_values(
+                F, function_get_values(dF_val).conjugate() * function_get_values(adj_x))  # noqa: E501
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):

@@ -22,8 +22,9 @@ from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
     backend_Constant, backend_DirichletBC, backend_Function, \
     backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
-from ..interface import InterfaceException, function_axpy, function_copy, \
-    function_id
+from ..interface import InterfaceException, check_space_type, \
+    check_space_types, function_axpy, function_copy, function_id, \
+    function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -44,6 +45,7 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
+        "interpolate_expression",
         "is_valid_r0_space",
         "linear_solver",
         "matrix_copy",
@@ -228,20 +230,25 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
             form._cache["parloops"] = \
                 (tuple([form, tensor] + list(cache_0)), cache_1)
 
-    return_value = backend_assemble(
+    if tensor is not None and isinstance(tensor, backend_Function):
+        check_space_type(tensor, "conjugate_dual")
+
+    b = backend_assemble(
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
 
-    if isinstance(return_value, backend_Function) \
-            and "parloops" in form._cache:
+    if isinstance(b, backend_Function) and "parloops" in form._cache:
         cache_0, cache_1 = form._cache.pop("parloops")
         assert cache_0[0] is form
-        assert cache_0[1] is return_value
+        assert cache_0[1] is b
         form._cache["_tlm_adjoint__parloops"] = \
             (function_id(cache_0[1]), cache_0[2:], cache_1)
 
-    return return_value
+    if tensor is None and isinstance(b, backend_Function):
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
+
+    return b
 
 
 def _assemble_system(A_form, b_form=None, bcs=None,
@@ -332,12 +339,19 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
+    if tensor is not None and isinstance(tensor, backend_Function):
+        check_space_type(tensor, "conjugate_dual")
+
     bind_forms(form)
-    tensor = _assemble(
+    b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
     unbind_forms(form)
-    return tensor
+
+    if tensor is None and isinstance(b, backend_Function):
+        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
+
+    return b
 
 
 def assemble_linear_solver(A_form, b_form=None, bcs=None,
@@ -413,15 +427,22 @@ def matrix_copy(A):
     return A_copy
 
 
-def matrix_multiply(A, x, tensor=None, addto=False):
+def matrix_multiply(A, x, *, tensor=None, addto=False,
+                    action_type="conjugate_dual"):
     if tensor is None:
-        tensor = backend_Function(A.a.arguments()[0].function_space())
+        tensor = space_new(
+            A.a.arguments()[0].function_space(),
+            space_type=function_space_type(x, rel_space_type=action_type))
+    else:
+        check_space_types(tensor, x, rel_space_type=action_type)
+
     if addto:
         with x.dat.vec_ro as x_v, tensor.dat.vec as tensor_v:
             A.petscmat.multAdd(x_v, tensor_v, tensor_v)
     else:
         with x.dat.vec_ro as x_v, tensor.dat.vec_wo as tensor_v:
             A.petscmat.mult(x_v, tensor_v)
+
     return tensor
 
 
@@ -464,10 +485,13 @@ def function_vector(x):
 
 
 def rhs_copy(x):
+    check_space_type(x, "conjugate_dual")
     return function_copy(x)
 
 
 def rhs_addto(x, y):
+    check_space_type(x, "conjugate_dual")
+    check_space_type(y, "conjugate_dual")
     function_axpy(x, 1.0, y)
 
 
@@ -513,6 +537,20 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                 <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
 
+def interpolate_expression(x, expr):
+    check_space_type(x, "primal")
+    deps = ufl.algorithms.extract_coefficients(expr)
+    for dep in deps:
+        check_space_type(dep, "primal")
+
+    if isinstance(x, backend_Constant):
+        x.assign(expr)
+    elif isinstance(x, backend_Function):
+        x.interpolate(expr)
+    else:
+        raise InterfaceException(f"Unexpected type: {type(x)}")
+
+
 def solve(*args, **kwargs):
     if not isinstance(args[0], ufl.classes.Equation):
         return backend_solve(*args, **kwargs)
@@ -520,6 +558,7 @@ def solve(*args, **kwargs):
     eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
         nullspace, transpose_nullspace, near_nullspace, options_prefix = \
         extract_args(*args, **kwargs)
+    check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):

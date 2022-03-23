@@ -21,6 +21,7 @@
 import numpy as np
 
 from collections.abc import Mapping
+import functools
 import logging
 import sys
 import warnings
@@ -40,6 +41,18 @@ __all__ = \
         "space_dtype",
         "space_id",
         "space_new",
+
+        "check_space_type",
+        "check_space_types",
+        "check_space_types_conjugate",
+        "check_space_types_conjugate_dual",
+        "check_space_types_dual",
+        "conjugate_dual_space_type",
+        "conjugate_space_type",
+        "dual_space_type",
+        "no_space_type_checking",
+        "relative_space_type",
+        "space_type_warning",
 
         "FunctionInterface",
         "is_function",
@@ -62,10 +75,14 @@ __all__ = \
         "function_local_size",
         "function_name",
         "function_new",
+        "function_new_conjugate",
+        "function_new_conjugate_dual",
+        "function_new_dual",
         "function_new_tangent_linear",
         "function_replacement",
         "function_set_values",
         "function_space",
+        "function_space_type",
         "function_state",
         "function_sum",
         "function_update_caches",
@@ -75,6 +92,8 @@ __all__ = \
 
         "function_is_scalar",
         "function_scalar_value",
+
+        "function_is_alias",
 
         "subtract_adjoint_derivative_action",
         "finalize_adjoint_derivative_action",
@@ -172,7 +191,8 @@ class SpaceInterface:
     def _id(self):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
         raise InterfaceException("Method not overridden")
 
 
@@ -201,20 +221,99 @@ def space_id(space):
     return space._tlm_adjoint__space_interface_id()
 
 
-def space_new(space, *, name=None, static=False, cache=None, checkpoint=None):
+def space_new(space, *, name=None, space_type="primal", static=False,
+              cache=None, checkpoint=None):
+    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        raise InterfaceException("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint)
+        name=name, space_type=space_type, static=static, cache=cache,
+        checkpoint=checkpoint)
+
+
+def relative_space_type(space_type, rel_space_type):
+    space_type_fn = {"primal": lambda space_type: space_type,
+                     "conjugate": conjugate_space_type,
+                     "dual": dual_space_type,
+                     "conjugate_dual": conjugate_dual_space_type}[rel_space_type]  # noqa: E501
+    return space_type_fn(space_type)
+
+
+def conjugate_space_type(space_type):
+    return {"primal": "conjugate", "conjugate": "primal",
+            "dual": "conjugate_dual", "conjugate_dual": "dual"}[space_type]
+
+
+def dual_space_type(space_type):
+    return {"primal": "dual", "conjugate": "conjugate_dual",
+            "dual": "primal", "conjugate_dual": "conjugate"}[space_type]
+
+
+def conjugate_dual_space_type(space_type):
+    return {"primal": "conjugate_dual", "conjugate": "dual",
+            "dual": "conjugate", "conjugate_dual": "primal"}[space_type]
+
+
+_check_space_types = [True]
+
+
+def no_space_type_checking(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
+        check_space_types = _check_space_types[0]
+        _check_space_types[0] = False
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _check_space_types[0] = check_space_types
+
+    return wrapped_fn
+
+
+def space_type_warning(msg, *, stacklevel=1):
+    if _check_space_types[0]:
+        warnings.warn(msg, stacklevel=stacklevel + 1)
+
+
+def check_space_type(x, space_type):
+    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        raise InterfaceException("Invalid space type")
+    if function_space_type(x) != space_type:
+        space_type_warning("Unexpected space type", stacklevel=2)
+
+
+def check_space_types(x, y, *, rel_space_type="primal"):
+    if function_space_type(x) != \
+            function_space_type(y, rel_space_type=rel_space_type):
+        space_type_warning("Unexpected space type", stacklevel=2)
+
+
+def check_space_types_conjugate(x, y):
+    if function_space_type(x) != \
+            function_space_type(y, rel_space_type="conjugate"):
+        space_type_warning("Unexpected space type", stacklevel=2)
+
+
+def check_space_types_dual(x, y):
+    if function_space_type(x) != \
+            function_space_type(y, rel_space_type="dual"):
+        space_type_warning("Unexpected space type", stacklevel=2)
+
+
+def check_space_types_conjugate_dual(x, y):
+    if function_space_type(x) != \
+            function_space_type(y, rel_space_type="conjugate_dual"):
+        space_type_warning("Unexpected space type", stacklevel=2)
 
 
 class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
-    names = ("_comm", "_space", "_dtype", "_id", "_name", "_state",
-             "_update_state", "_is_static", "_is_cached", "_is_checkpointed",
-             "_caches", "_update_caches", "_zero", "_assign", "_axpy",
-             "_inner", "_max_value", "_sum", "_linf_norm", "_local_size",
-             "_global_size", "_local_indices", "_get_values", "_set_values",
-             "_new", "_copy", "_new_tangent_linear", "_replacement",
-             "_is_replacement", "_is_scalar", "_scalar_value")
+    names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
+             "_state", "_update_state", "_is_static", "_is_cached",
+             "_is_checkpointed", "_caches", "_update_caches", "_zero",
+             "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
+             "_local_size", "_global_size", "_local_indices", "_get_values",
+             "_set_values", "_new", "_copy", "_replacement", "_is_replacement",
+             "_is_scalar", "_scalar_value", "_is_alias")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -223,6 +322,9 @@ class FunctionInterface:
         return space_comm(function_space(self))
 
     def _space(self):
+        raise InterfaceException("Method not overridden")
+
+    def _space_type(self):
         raise InterfaceException("Method not overridden")
 
     def _dtype(self):
@@ -295,20 +397,18 @@ class FunctionInterface:
     def _set_values(self, values):
         raise InterfaceException("Method not overridden")
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return space_new(function_space(self), name=name, static=static,
-                         cache=cache, checkpoint=checkpoint)
+    def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
+             rel_space_type="primal"):
+        space_type = function_space_type(self, rel_space_type=rel_space_type)
+        return space_new(function_space(self), name=name,
+                         space_type=space_type, static=static, cache=cache,
+                         checkpoint=checkpoint)
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        raise InterfaceException("Method not overridden")
-
-    def _new_tangent_linear(self, *, name=None):
-        if function_is_static(self):
-            return None
-        else:
-            return function_new(self, name=name, static=False,
-                                cache=function_is_cached(self),
-                                checkpoint=function_is_checkpointed(self))
+        y = function_new(self, name=name, static=static, cache=cache,
+                         checkpoint=checkpoint)
+        function_assign(y, self)
+        return y
 
     def _replacement(self):
         raise InterfaceException("Method not overridden")
@@ -322,6 +422,9 @@ class FunctionInterface:
     def _scalar_value(self):
         raise InterfaceException("Method not overridden")
 
+    def _is_alias(self):
+        return False
+
 
 def is_function(x):
     return hasattr(x, "_tlm_adjoint__function_interface")
@@ -333,6 +436,11 @@ def function_comm(x):
 
 def function_space(x):
     return x._tlm_adjoint__function_interface_space()
+
+
+def function_space_type(x, *, rel_space_type="primal"):
+    space_type = x._tlm_adjoint__function_interface_space_type()
+    return relative_space_type(space_type, rel_space_type)
 
 
 def function_dtype(x):
@@ -399,15 +507,21 @@ def function_zero(x):
 
 
 def function_assign(x, y):
+    if is_function(y):
+        check_space_types(x, y)
     x._tlm_adjoint__function_interface_assign(y)
 
 
 def function_axpy(*args):  # y, alpha, x
     y, alpha, x = args
+    if is_function(y):
+        check_space_types(x, y)
     y._tlm_adjoint__function_interface_axpy(alpha, x)
 
 
 def function_inner(x, y):
+    if is_function(y):
+        check_space_types_conjugate_dual(x, y)
     return x._tlm_adjoint__function_interface_inner(y)
 
 
@@ -445,9 +559,34 @@ def function_set_values(x, values):
     x._tlm_adjoint__function_interface_set_values(values)
 
 
-def function_new(x, *, name=None, static=False, cache=None, checkpoint=None):
+def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
+                 rel_space_type="primal"):
+    if rel_space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        raise InterfaceException("Invalid relative space type")
     return x._tlm_adjoint__function_interface_new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint)
+        name=name, static=static, cache=cache, checkpoint=checkpoint,
+        rel_space_type=rel_space_type)
+
+
+def function_new_conjugate(x, *, name=None, static=False, cache=None,
+                           checkpoint=None):
+    return function_new(x, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint,
+                        rel_space_type="conjugate")
+
+
+def function_new_dual(x, *, name=None, static=False, cache=None,
+                      checkpoint=None):
+    return function_new(x, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint,
+                        rel_space_type="dual")
+
+
+def function_new_conjugate_dual(x, *, name=None, static=False, cache=None,
+                                checkpoint=None):
+    return function_new(x, name=name, static=static, cache=cache,
+                        checkpoint=checkpoint,
+                        rel_space_type="conjugate_dual")
 
 
 def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
@@ -456,7 +595,12 @@ def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
 
 
 def function_new_tangent_linear(x, *, name=None):
-    return x._tlm_adjoint__function_interface_new_tangent_linear(name=name)
+    if function_is_checkpointed(x):
+        return function_new(x, name=name, static=function_is_static(x),
+                            cache=function_is_cached(x),
+                            checkpoint=True)
+    else:
+        return None
 
 
 def function_replacement(x):
@@ -491,6 +635,10 @@ def function_scalar_value(x):
     return x._tlm_adjoint__function_interface_scalar_value()
 
 
+def function_is_alias(x):
+    return x._tlm_adjoint__function_interface_is_alias()
+
+
 _subtract_adjoint_derivative_action = {}
 
 
@@ -500,6 +648,7 @@ def add_subtract_adjoint_derivative_action(backend, fn):
 
 
 def subtract_adjoint_derivative_action(x, y):
+    check_space_type(x, "conjugate_dual")
     for fn in _subtract_adjoint_derivative_action.values():
         if fn(x, y) != NotImplemented:
             break
@@ -507,6 +656,7 @@ def subtract_adjoint_derivative_action(x, y):
         if y is None:
             pass
         elif is_function(y):
+            check_space_type(y, "conjugate_dual")
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -1.0, y)
@@ -522,6 +672,7 @@ def subtract_adjoint_derivative_action(x, y):
                 and is_function(y[1]):
             alpha, y = y
             alpha = function_dtype(x)(alpha)
+            check_space_type(y, "conjugate_dual")
             if isinstance(y._tlm_adjoint__function_interface,
                           type(x._tlm_adjoint__function_interface)):
                 function_axpy(x, -alpha, y)

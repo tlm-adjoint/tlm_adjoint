@@ -23,8 +23,8 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
 from ..interface import InterfaceException, SpaceInterface, add_interface, \
     function_caches, function_comm, function_dtype, function_id, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_replacement, function_space, is_function, \
-    space_comm
+    function_name, function_replacement, function_space, function_space_type, \
+    is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -32,6 +32,7 @@ from ..caches import Caches
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
+import weakref
 import warnings
 
 __all__ = \
@@ -47,6 +48,7 @@ __all__ = \
         "bcs_is_cached",
         "bcs_is_homogeneous",
         "bcs_is_static",
+        "define_function_alias",
         "eliminate_zeros",
         "extract_coefficients",
         "new_count",
@@ -71,15 +73,20 @@ class ConstantSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
         domain = self._tlm_adjoint__space_interface_attrs["domain"]
-        return Constant(name=name, domain=domain, space=self, static=static,
-                        cache=cache, checkpoint=checkpoint)
+        return Constant(name=name, domain=domain, space=self,
+                        space_type=space_type, static=static, cache=cache,
+                        checkpoint=checkpoint)
 
 
 class ConstantInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
 
     def _dtype(self):
         return self._tlm_adjoint__function_interface_attrs["dtype"]
@@ -224,23 +231,6 @@ class ConstantInterface(_FunctionInterface):
             values.shape = self.ufl_shape
             self.assign(backend_Constant(values))  # annotate=False, tlm=False
 
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        if len(self.ufl_shape) == 0:
-            value = function_dtype(self)(self)
-        else:
-            value = self.values().view()
-            value.shape = self.ufl_shape
-        domains = self.ufl_domains()
-        if len(domains) == 0:
-            domain = None
-        else:
-            domain, = domains
-        space = self._tlm_adjoint__function_interface_attrs["space"]
-        comm = function_comm(self)
-        return Constant(value, name=name, domain=domain, space=space,
-                        comm=comm, static=static, cache=cache,
-                        checkpoint=checkpoint)
-
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):
             self._tlm_adjoint__replacement = ReplacementConstant(self)
@@ -256,11 +246,17 @@ class ConstantInterface(_FunctionInterface):
         # assert function_is_scalar(self)
         return function_dtype(self)(self)
 
+    def _is_alias(self):
+        return "alias" in self._tlm_adjoint__function_interface_attrs
+
 
 class Constant(backend_Constant):
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
-                 shape=None, comm=None, static=False, cache=None,
-                 checkpoint=None, **kwargs):
+                 space_type="primal", shape=None, comm=None, static=False,
+                 cache=None, checkpoint=None, **kwargs):
+        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+            raise InterfaceException("Invalid space type")
+
         if domain is None and space is not None:
             domains = space.ufl_domains()
             if len(domains) > 0:
@@ -304,34 +300,18 @@ class Constant(backend_Constant):
 
         super().__init__(value, *args, name=name, domain=domain, space=space,
                          comm=comm, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
-    def is_static(self):
-        warnings.warn("Constant.is_static is deprecated -- "
-                      "use function_is_static instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_static(self)
-
-    def is_cached(self):
-        warnings.warn("Constant.is_cached is deprecated -- "
-                      "use function_is_cached instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_cached(self)
-
-    def is_checkpointed(self):
-        warnings.warn("Constant.is_checkpointed is deprecated -- "
-                      "use function_is_checkpointed instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_checkpointed(self)
-
 
 class Zero(Constant):
-    def __init__(self, *, name=None, domain=None, space=None, shape=None,
-                 comm=None):
-        super().__init__(name=name, domain=domain, space=space, shape=shape,
-                         comm=comm, static=True)
+    def __init__(self, *, name=None, domain=None, space=None,
+                 space_type="primal", shape=None, comm=None):
+        super().__init__(name=name, domain=domain, space=space,
+                         space_type=space_type, shape=shape, comm=comm,
+                         static=True)
 
     def assign(self, *args, **kwargs):
         raise InterfaceException("Cannot call assign method of Zero")
@@ -347,14 +327,15 @@ class Zero(Constant):
 
 
 class ZeroConstant(Zero):
-    def __init__(self, *, name=None, domain=None, shape=None):
-        super().__init__(name=name, domain=domain, shape=shape,
-                         comm=MPI.COMM_NULL)
+    def __init__(self, *, name=None, domain=None, space_type="primal",
+                 shape=None):
+        super().__init__(name=name, domain=domain, space_type=space_type,
+                         shape=shape, comm=MPI.COMM_NULL)
 
 
 class ZeroFunction(Zero):
-    def __init__(self, space, *, name=None):
-        super().__init__(name=name, space=space)
+    def __init__(self, space, *, name=None, space_type="primal"):
+        super().__init__(name=name, space=space, space_type=space_type)
 
 
 def extract_coefficients(expr):
@@ -396,35 +377,20 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
 
 
 class Function(backend_Function):
-    def __init__(self, *args, static=False, cache=None, checkpoint=None,
-                 **kwargs):
+    def __init__(self, *args, space_type="primal", static=False, cache=None,
+                 checkpoint=None, **kwargs):
+        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+            raise InterfaceException("Invalid space type")
         if cache is None:
             cache = static
         if checkpoint is None:
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-
-    def is_static(self):
-        warnings.warn("Function.is_static is deprecated -- "
-                      "use function_is_static instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_static(self)
-
-    def is_cached(self):
-        warnings.warn("Function.is_cached is deprecated -- "
-                      "use function_is_cached instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_cached(self)
-
-    def is_checkpointed(self):
-        warnings.warn("Function.is_checkpointed is deprecated -- "
-                      "use function_is_checkpointed instead",
-                      DeprecationWarning, stacklevel=2)
-        return function_is_checkpointed(self)
 
 
 class DirichletBC(backend_DirichletBC):
@@ -523,6 +489,9 @@ class ReplacementInterface(_FunctionInterface):
     def _space(self):
         return self.ufl_function_space()
 
+    def _space_type(self):
+        return self._tlm_adjoint__function_interface_attrs["space_type"]
+
     def _id(self):
         return self._tlm_adjoint__function_interface_attrs["id"]
 
@@ -565,7 +534,9 @@ class Replacement(ufl.classes.Coefficient):
         self.__domain = domain
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
-                       "space": space, "static": function_is_static(x),
+                       "space": space,
+                       "space_type": function_space_type(x),
+                       "static": function_is_static(x),
                        "cache": function_is_cached(x),
                        "checkpoint": function_is_checkpointed(x),
                        "caches": function_caches(x)})
@@ -604,3 +575,24 @@ def replaced_form(form):
         if is_function(c):
             replace_map[c] = function_replacement(c)
     return ufl.replace(form, replace_map)
+
+
+def define_function_alias(x, parent, *, key):
+    if x is not parent:
+        if "alias" in x._tlm_adjoint__function_interface_attrs:
+            alias_parent, alias_key = x._tlm_adjoint__function_interface_attrs["alias"]  # noqa: E501
+            alias_parent = alias_parent()
+            if alias_parent is None or alias_parent is not parent \
+                    or alias_key != key:
+                raise InterfaceException("Invalid alias data")
+        else:
+            x._tlm_adjoint__function_interface_attrs["alias"] \
+                = (weakref.ref(parent), key)
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "space_type", function_space_type(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "static", function_is_static(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "cache", function_is_cached(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "checkpoint", function_is_checkpointed(parent))

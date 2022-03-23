@@ -18,9 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_axpy, function_copy, function_get_values, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_new
+from .interface import check_space_types_conjugate_dual, function_axpy, \
+    function_copy, function_get_values, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_name, \
+    function_new, function_new_conjugate, function_set_values, is_function
 
 from .caches import clear_caches
 from .equations import InnerProductSolver
@@ -43,6 +44,16 @@ class HessianException(Exception):
     pass
 
 
+def conjugate(X):
+    if is_function(X):
+        X = (X,)
+    X_conj = tuple(function_new_conjugate(x) for x in X)
+    assert len(X) == len(X_conj)
+    for x, x_conj in zip(X, X_conj):
+        function_set_values(x_conj, function_get_values(x).conjugate())
+    return X_conj[0] if len(X_conj) == 1 else X_conj
+
+
 class Hessian:
     def __init__(self):
         pass
@@ -56,7 +67,7 @@ class Hessian:
     def action_fn(self, m, m0=None):
         """
         Return a callable which accepts a function defining dm, and returns the
-        Hessian action as a NumPy array.
+        Hessian action.
 
         Arguments:
 
@@ -66,7 +77,7 @@ class Hessian:
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
+            return conjugate(ddJ)
 
         return action
 
@@ -87,7 +98,8 @@ class GeneralHessian(Hessian):
             (J, dJ)
         where
         - J is the functional value
-        - dJ is the derivative of J with respect to the parameters defined by M
+        - dJ is the complex conjugate of the derivative of J with respect to
+          the parameters defined by M
 
         Arguments:
 
@@ -136,8 +148,8 @@ class GeneralHessian(Hessian):
         - J is the functional value
         - dJ is the derivative of J with respect to the parameters defined by M
           in in the direction dM
-        - ddJ is the action, in the direction dM, of the second derivative of
-          the functional with respect to M
+        - ddJ is the complex conjugate of the action, in the direction dM, of
+          the second derivative of the functional with respect to M
 
         Arguments:
 
@@ -214,6 +226,9 @@ class GaussNewton:
             *tuple(function_copy(tau_x) for tau_x in tau_X))
         if not isinstance(R_inv_tau_X, Sequence):
             R_inv_tau_X = (R_inv_tau_X,)
+        assert len(tau_X) == len(R_inv_tau_X)
+        for tau_x, R_inv_tau_x in zip(tau_X, R_inv_tau_X):
+            check_space_types_conjugate_dual(tau_x, R_inv_tau_x)
 
         # This defines the adjoint right-hand-side appropriately to compute a
         # J^* action
@@ -236,6 +251,9 @@ class GaussNewton:
                 *tuple(function_copy(dm) for dm in dM))
             if not isinstance(B_inv_dM, Sequence):
                 B_inv_dM = (B_inv_dM,)
+            assert len(dM) == len(B_inv_dM)
+            for dm, B_inv_dm in zip(dM, B_inv_dM):
+                check_space_types_conjugate_dual(dm, B_inv_dm)
             assert len(ddJ) == len(B_inv_dM)
             for i, B_inv_dm in enumerate(B_inv_dM):
                 function_axpy(ddJ[i], 1.0, B_inv_dm)
@@ -244,8 +262,7 @@ class GaussNewton:
 
     def action_fn(self, m, m0=None):
         def action(dm):
-            ddJ = self.action(m, dm, M0=m0)
-            return function_get_values(ddJ)
+            return conjugate(self.action(m, dm, M0=m0))
 
         return action
 

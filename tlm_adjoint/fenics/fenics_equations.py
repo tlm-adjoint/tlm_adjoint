@@ -21,10 +21,10 @@
 from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
     TestFunction, TrialFunction, backend_Function, backend_ScalarType, \
     parameters
-from ..interface import function_assign, function_comm, function_get_values, \
-    function_is_scalar, function_local_size, function_new, \
-    function_scalar_value, function_set_values, function_space, is_function, \
-    space_comm
+from ..interface import check_space_type, function_assign, function_comm, \
+    function_get_values, function_is_scalar, function_local_size, \
+    function_new, function_new_conjugate_dual, function_scalar_value, \
+    function_set_values, function_space, is_function, space_comm
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -309,7 +309,7 @@ class LocalProjectionSolver(EquationSolver):
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)
 
-        adj_x = function_new(b)
+        adj_x = self.new_adj_x()
         local_solver.solve_local(adj_x.vector(), b.vector(),
                                  function_space(adj_x).dofmap())
         return adj_x
@@ -423,7 +423,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
     return P.tocsr()
 
 
-class InterpolationMatrix(Matrix):
+class LocalMatrix(Matrix):
     def __init__(self, P):
         super().__init__(nl_deps=[], ic=False, adj_ic=False)
         self._P = P.copy()
@@ -451,6 +451,14 @@ class InterpolationMatrix(Matrix):
             b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
         else:
             raise EquationException(f"Invalid method: '{method:s}'")
+
+
+class InterpolationMatrix(LocalMatrix):
+    def __init__(self, *args, **kwargs):
+        warnings.warn("InterpolationMatrix class is deprecated -- "
+                      "use LocalMatrix instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
 
 
 class InterpolationSolver(LinearEquation):
@@ -486,6 +494,9 @@ class InterpolationSolver(LinearEquation):
             warnings.warn("P_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
 
+        check_space_type(x, "primal")
+        check_space_type(y, "primal")
+
         if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
             raise EquationException("Solution must be a scalar-valued "
                                     "Function")
@@ -512,7 +523,7 @@ class InterpolationSolver(LinearEquation):
             P = P.copy()
 
         super().__init__(
-            MatrixActionRHS(InterpolationMatrix(P), y), x)
+            MatrixActionRHS(LocalMatrix(P), y), x)
 
 
 class PointInterpolationSolver(Equation):
@@ -556,9 +567,12 @@ class PointInterpolationSolver(Equation):
         if is_function(X):
             X = (X,)
         for x in X:
+            check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise EquationException("Solution must be a scalar, or a "
                                         "sequence of scalars")
+        check_space_type(y, "primal")
+
         if X_coords is None:
             if P is None:
                 raise EquationException("X_coords required when P is not supplied")  # noqa: E501
@@ -590,6 +604,7 @@ class PointInterpolationSolver(Equation):
             X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
+        check_space_type(y, "primal")
         y_v = function_get_values(y)
         x_v_local = np.full(len(X), np.NAN, dtype=backend_ScalarType)
         for i in range(len(X)):
@@ -612,7 +627,7 @@ class PointInterpolationSolver(Equation):
             adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
             for i, adj_x in enumerate(adj_X):
                 adj_x_v[i] = function_scalar_value(adj_x)
-            F = function_new(self.dependencies()[-1])
+            F = function_new_conjugate_dual(self.dependencies()[-1])
             function_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)
         else:

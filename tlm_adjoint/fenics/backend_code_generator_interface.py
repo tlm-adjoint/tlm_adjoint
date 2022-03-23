@@ -19,14 +19,15 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
-    TestFunction, TrialFunction, as_backend_type, backend_Constant, \
-    backend_DirichletBC, backend_Function, backend_KrylovSolver, \
-    backend_LUSolver, backend_LinearVariationalSolver, \
+    TestFunction, TrialFunction, UserExpression, as_backend_type, \
+    backend_Constant, backend_DirichletBC, backend_Function, \
+    backend_KrylovSolver, backend_LUSolver, backend_LinearVariationalSolver, \
     backend_NonlinearVariationalSolver, backend_ScalarType, backend_assemble, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import InterfaceException
+from ..interface import InterfaceException, check_space_type, \
+    check_space_types, function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -47,6 +48,7 @@ __all__ = \
         "form_form_compiler_parameters",
         "function_vector",
         "homogenize",
+        "interpolate_expression",
         "is_valid_r0_space",
         "linear_solver",
         "matrix_copy",
@@ -264,17 +266,29 @@ def matrix_copy(A):
     return A.copy()
 
 
-def matrix_multiply(A, x, tensor=None, addto=False):
+def matrix_multiply(A, x, *, tensor=None, addto=False,
+                    action_type="conjugate_dual"):
     if tensor is None:
-        return A * x
-    else:
-        x_v = as_backend_type(x).vec()
-        tensor_v = as_backend_type(tensor).vec()
-        if addto:
-            as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
+        if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+            tensor = function_vector(space_new(
+                A._tlm_adjoint__form.arguments()[0].function_space(),
+                space_type=function_space_type(x._tlm_adjoint__function,
+                                               rel_space_type=action_type)))
         else:
-            as_backend_type(A).mat().mult(x_v, tensor_v)
-        return tensor
+            return A * x
+    elif hasattr(tensor, "_tlm_adjoint__function") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+        check_space_types(tensor._tlm_adjoint__function,
+                          x._tlm_adjoint__function,
+                          rel_space_type=action_type)
+
+    x_v = as_backend_type(x).vec()
+    tensor_v = as_backend_type(tensor).vec()
+    if addto:
+        as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
+    else:
+        as_backend_type(A).mat().mult(x_v, tensor_v)
+
+    return tensor
 
 
 def is_valid_r0_space(space):
@@ -325,10 +339,16 @@ def function_vector(x):
 
 
 def rhs_copy(x):
+    if hasattr(x, "_tlm_adjoint__function"):
+        check_space_type(x._tlm_adjoint__function, "conjugate_dual")
     return x.copy()
 
 
 def rhs_addto(x, y):
+    if hasattr(x, "_tlm_adjoint__function"):
+        check_space_type(x._tlm_adjoint__function, "conjugate_dual")
+    if hasattr(y, "_tlm_adjoint__function"):
+        check_space_type(y._tlm_adjoint__function, "conjugate_dual")
     x.axpy(1.0, y)
 
 
@@ -359,6 +379,33 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 
     if b is not None and not np.isposinf(b_tolerance):
         assert (b - b_debug).norm("linf") <= b_tolerance * b.norm("linf")
+
+
+def interpolate_expression(x, expr):
+    check_space_type(x, "primal")
+    deps = ufl.algorithms.extract_coefficients(expr)
+    for dep in deps:
+        check_space_type(dep, "primal")
+
+    class Expr(UserExpression):
+        def eval(self, value, x):
+            x = tuple(x)
+            value[:] = expr(x)
+
+        def value_shape(self):
+            return x.ufl_shape
+
+    if isinstance(x, backend_Constant):
+        if len(x.ufl_shape) > 0:
+            raise InterfaceException("Scalar Constant required")
+        value = x.values()
+        Expr().eval(value, ())
+        x.assign(value)
+    elif isinstance(x, backend_Function):
+        x.interpolate(Expr())
+    else:
+        raise InterfaceException(f"Unexpected type: {type(x)}")
+
 
 # The following override assemble, assemble_system, and solve so that DOLFIN
 # Form objects are cached on UFL form objects
@@ -430,17 +477,23 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
+    if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
+        check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
+
     is_dolfin_form = isinstance(form, Form)
     if not is_dolfin_form:
         form = dolfin_form(form, form_compiler_parameters)
-    return_value = backend_assemble(form, tensor=tensor, *args, **kwargs)
+    b = backend_assemble(form, tensor=tensor, *args, **kwargs)
     if not is_dolfin_form:
         clear_dolfin_form(form)
-    return return_value
+
+    return b
 
 
 def assemble_system(A_form, b_form, bcs=None, x0=None,
-                    form_compiler_parameters=None, *args, **kwargs):
+                    form_compiler_parameters=None, add_values=False,
+                    finalize_tensor=True, keep_diagonal=False, A_tensor=None,
+                    b_tensor=None, *args, **kwargs):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -448,14 +501,19 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
+    if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
+        check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
+
     A_is_dolfin_form = isinstance(A_form, Form)
     b_is_dolfin_form = isinstance(b_form, Form)
     if not A_is_dolfin_form:
         A_form = dolfin_form(A_form, form_compiler_parameters)
     if not b_is_dolfin_form:
         b_form = dolfin_form(b_form, form_compiler_parameters)
-    return_value = backend_assemble_system(A_form, b_form, bcs=bcs, x0=x0,
-                                           *args, **kwargs)
+    return_value = backend_assemble_system(
+        A_form, b_form, bcs=bcs, x0=x0, add_values=add_values,
+        finalize_tensor=finalize_tensor, keep_diagonal=keep_diagonal,
+        A_tensor=A_tensor, b_tensor=b_tensor, *args, **kwargs)
     if not A_is_dolfin_form:
         clear_dolfin_form(A_form)
     if not b_is_dolfin_form:
@@ -469,6 +527,7 @@ def solve(*args, **kwargs):
 
     eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
         = extract_args(*args, **kwargs)
+    check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):

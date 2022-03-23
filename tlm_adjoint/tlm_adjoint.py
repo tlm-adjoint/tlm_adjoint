@@ -18,11 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_assign, function_copy, function_get_values, \
-    function_global_size, function_id, function_is_checkpointed, \
-    function_is_replacement, function_local_indices, function_name, \
-    function_new, function_new_tangent_linear, function_set_values, \
-    function_space, is_function, space_id, space_new
+from .interface import check_space_types, function_assign, function_copy, \
+    function_get_values, function_global_size, function_id, \
+    function_is_checkpointed, function_is_replacement, \
+    function_local_indices, function_name, function_new, \
+    function_new_tangent_linear, function_set_values, function_space, \
+    function_space_type, is_function, space_id, space_new
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
@@ -920,6 +921,8 @@ class EquationManager:
             raise ManagerException("Invalid tangent-linear model")
         if (M, dM) in self._tlm:
             raise ManagerException("Duplicate tangent-linear model")
+        for m, dm in zip(M, dM):
+            check_space_types(m, dm)
 
         if self._tlm_state == "initial":
             self._tlm_state = "deriving"
@@ -1224,6 +1227,7 @@ class EquationManager:
             h = open(cp_filename, "wb")
 
             pickle.dump({key: (self._checkpoint_space_id(F),
+                               function_space_type(F),
                                function_get_values(F))
                          for key, F in cp.items()},
                         h, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1252,6 +1256,11 @@ class EquationManager:
                                      dtype=values.dtype)
                 d[function_local_indices(F)] = values
                 del values
+
+                d = g.create_dataset("space_type", shape=(self._comm.size,),
+                                     dtype=np.uint8)
+                d[self._comm.rank] = {"primal": 0, "conjugate": 1,
+                                      "dual": 2, "conjugate_dual": 3}[function_space_type(F)]  # noqa: E501
 
                 d = g.create_dataset("space_id", shape=(self._comm.size,),
                                      dtype=np.int64)
@@ -1282,9 +1291,10 @@ class EquationManager:
                 self._comm.barrier()
 
             for key in tuple(cp.keys()):
-                space_id, values = cp.pop(key)
+                space_id, space_type, values = cp.pop(key)
                 if key in storage:
-                    F = space_new(self._cp_spaces[space_id])
+                    F = space_new(self._cp_spaces[space_id],
+                                  space_type=space_type)
                     function_set_values(F, values)
                     storage[key] = F
                 del space_id, values
@@ -1303,10 +1313,17 @@ class EquationManager:
                 d = g["key"]
                 key = int(d[self._comm.rank])
                 if key in storage:
+                    d = g["space_type"]
+                    space_type = {0: "primal", 1: "conjugate",
+                                  2: "dual", 3: "conjugate_dual"}[d[self._comm.rank]]  # noqa: E501
+
                     d = g["space_id"]
-                    F = space_new(self._cp_spaces[d[self._comm.rank]])
+                    F = space_new(self._cp_spaces[d[self._comm.rank]],
+                                  space_type=space_type)
+
                     d = g["value"]
                     function_set_values(F, d[function_local_indices(F)])
+
                     storage[key] = F
                 del g, d
 
@@ -1573,7 +1590,7 @@ class EquationManager:
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
-        manager.
+        manager. Returns the complex conjugate of the derivative.
 
         Arguments:
 
@@ -1719,9 +1736,9 @@ class EquationManager:
                         else:
                             adj_X = []
                             assert len(eq_X) == len(adj_X_ic)
-                            for x, adj_x_ic in zip(eq_X, adj_X_ic):
+                            for m, (x, adj_x_ic) in enumerate(zip(eq_X, adj_X_ic)):  # noqa: E501
                                 if adj_x_ic is None:
-                                    adj_X.append(function_new(x))
+                                    adj_X.append(eq.new_adj_X(m))
                                 else:
                                     adj_X.append(adj_x_ic)
                         # Solve adjoint equation, add terms to adjoint
@@ -1770,7 +1787,7 @@ class EquationManager:
                     if n == 0 and i == 0:
                         # A requested derivative
                         if adj_X is None:
-                            dJ[J_i] = tuple(function_new(m) for m in M)
+                            dJ[J_i] = eq.new_adj_X()
                         else:
                             dJ[J_i] = tuple(function_copy(adj_x)
                                             for adj_x in adj_X)

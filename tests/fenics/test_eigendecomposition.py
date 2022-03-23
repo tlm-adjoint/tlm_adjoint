@@ -36,6 +36,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_HEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
@@ -45,12 +46,12 @@ def test_HEP(setup_test, test_leaks):
     M = assemble(inner(trial, test) * dx)
 
     def M_action(x):
-        y = function_new(x)
+        y = function_new_conjugate_dual(x)
         assemble(inner(x, test) * dx, tensor=function_vector(y))
-        return function_get_values(y).conjugate()
+        return y
 
     import slepc4py.SLEPc as SLEPc
-    lam, V = eigendecompose(space, M_action,
+    lam, V = eigendecompose(space, M_action, action_type="conjugate_dual",
                             problem_type=SLEPc.EPS.ProblemType.HEP)
 
     assert (lam > 0.0).all()
@@ -65,6 +66,7 @@ def test_HEP(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_NHEP(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
@@ -74,11 +76,11 @@ def test_NHEP(setup_test, test_leaks):
     N = assemble(inner(trial.dx(0), test) * dx)
 
     def N_action(x):
-        y = function_new(x)
+        y = function_new_conjugate_dual(x)
         assemble(inner(x.dx(0), test) * dx, tensor=function_vector(y))
-        return function_get_values(y).conjugate()
+        return y
 
-    lam, V = eigendecompose(space, N_action)
+    lam, V = eigendecompose(space, N_action, action_type="conjugate_dual")
 
     assert abs(lam.real).max() < 1.0e-15
 
@@ -156,18 +158,21 @@ def test_CachedHessian(setup_test):
         zero.assign(0.0)
         _, _, ddJ = H.action(F, zeta)
 
-        error = Function(space, name="error")
-        function_assign(error, ddJ)
+        error = function_copy(ddJ)
         function_axpy(error, -1.0, ddJ_opt)
         assert function_linf_norm(error) == 0.0
 
     # Test consistency of eigenvalues
 
-    lam, _ = eigendecompose(space, H.action_fn(F))
+    @no_space_type_checking
+    def eigendecompose_H(H, *args, **kwargs):
+        return eigendecompose(space, H.action_fn(F), *args, **kwargs)
+
+    lam, _ = eigendecompose_H(H)
     if not issubclass(space_dtype(space), (complex, np.complexfloating)):
         assert max(abs(lam.imag)) == 0.0
 
-    lam_opt, _ = eigendecompose(space, H_opt.action_fn(F))
+    lam_opt, _ = eigendecompose_H(H_opt)
     if not issubclass(space_dtype(space), (complex, np.complexfloating)):
         assert max(abs(lam_opt.imag)) == 0.0
 

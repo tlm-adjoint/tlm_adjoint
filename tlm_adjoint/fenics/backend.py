@@ -49,9 +49,9 @@ from fenics import Cell, Constant, DirichletBC, Form, Function, \
     FunctionSpace, LocalSolver, Mesh, MeshEditor, KrylovSolver, LUSolver, \
     LinearVariationalSolver, NonlinearVariationalProblem, \
     NonlinearVariationalSolver, Parameters, Point, TensorFunctionSpace, \
-    TestFunction, TrialFunction, UnitIntervalMesh, adjoint, as_backend_type, \
-    assemble, assemble_system, has_lu_solver_method, info, parameters, \
-    project, solve
+    TestFunction, TrialFunction, UnitIntervalMesh, UserExpression, adjoint, \
+    as_backend_type, assemble, assemble_system, has_lu_solver_method, info, \
+    parameters, project, solve
 import fenics
 import numpy as np
 import petsc4py.PETSc as PETSc
@@ -125,6 +125,7 @@ __all__ = \
         "TestFunction",
         "TrialFunction",
         "UnitIntervalMesh",
+        "UserExpression",
         "adjoint",
         "as_backend_type",
         "has_lu_solver_method",

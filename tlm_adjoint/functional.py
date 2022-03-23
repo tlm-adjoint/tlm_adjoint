@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_is_scalar, function_name, function_new, \
-    function_scalar_value, function_space, functional_term_eq, is_function, \
-    space_id, space_new
+from .interface import check_space_type, function_is_scalar, function_name, \
+    function_new, function_scalar_value, function_space, functional_term_eq, \
+    is_function, space_id, space_new
 
 from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
@@ -60,7 +60,9 @@ class Functional:
                     and space_id(space) != space_id(function_space(fn)):
                 raise FunctionalException("Invalid function space")
         if not function_is_scalar(fn):
-            raise FunctionalException("fn must be a scalar")
+            raise FunctionalException("Functional must be a scalar")
+        check_space_type(fn, "primal")
+
         name = function_name(fn)
 
         self._name = name

@@ -102,6 +102,7 @@ def test_long_range(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@no_space_type_checking
 @seed_test
 def test_EmptySolver(setup_test, test_leaks):
     class EmptySolver(Equation):
@@ -255,12 +256,14 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             def __init__(self):
                 super().__init__(nl_deps=[], ic=False, adj_ic=False)
 
+            @no_space_type_checking
             def forward_action(self, nl_deps, x, b, method="assign"):
                 if method == "assign":
                     function_assign(b, x)
                 else:
                     raise EquationException(f"Unexpected method '{method:s}'")
 
+            @no_space_type_checking
             def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                                method="assign"):
                 if b_index != 0:
@@ -270,11 +273,16 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 else:
                     raise EquationException(f"Unexpected method '{method:s}'")
 
+            @no_space_type_checking
             def forward_solve(self, x, nl_deps, b):
                 function_assign(x, b)
 
+            @no_space_type_checking
             def adjoint_solve(self, adj_x, nl_deps, b):
-                return b
+                assert adj_x is None
+                adj_x = function_new_conjugate_dual(b)
+                function_assign(adj_x, b)
+                return adj_x
 
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
                 return None
@@ -352,8 +360,10 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             for dep in b.dependencies():
                 assert function_is_replacement(dep)
 
+        M = IdentityMatrix()
+
         J = Functional(name="J")
-        NormSqSolver(z, J.fn()).solve()
+        NormSqSolver(z, J.fn(), M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -397,6 +407,10 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
         class NewtonIterationSolver(Equation):
             def __init__(self, m, x0, x):
+                check_space_type(m, "primal")
+                check_space_type(x0, "primal")
+                check_space_type(x, "primal")
+
                 super().__init__(x, deps=[x, x0, m], nl_deps=[x0, m],
                                  ic=False, adj_ic=False)
 
@@ -414,20 +428,20 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
                 if dep_index == 1:
                     x0, m = nl_deps
-                    F = function_new(x0)
+                    F = function_new_conjugate_dual(x0)
                     function_set_values(
                         F,
-                        0.5 * function_get_values(adj_x)
-                        * (function_get_values(m)
-                           / (function_get_values(x0) ** 2) - 1.0))
+                        (0.5 * function_get_values(adj_x)
+                         * (function_get_values(m)
+                            / (function_get_values(x0) ** 2) - 1.0)).conjugate())  # noqa: E501
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
-                    F = function_new(x0)
+                    F = function_new_conjugate_dual(x0)
                     function_set_values(
                         F,
-                        -0.5 * function_get_values(adj_x)
-                        / function_get_values(x0))
+                        (-0.5 * function_get_values(adj_x)
+                         / function_get_values(x0)).conjugate())
                     return F
                 else:
                     raise EquationException("Unexpected dep_index")
@@ -540,6 +554,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (200, 20),
                                                    (200, 50),
                                                    (1000, 50)])
+@no_space_type_checking
 @seed_test
 def test_binomial_checkpointing(setup_test, test_leaks,
                                 n_steps, snaps_in_ram):
@@ -612,6 +627,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+@no_space_type_checking
 @seed_test
 def test_TangentLinearMap_finalizes(setup_test, test_leaks,
                                     max_depth):

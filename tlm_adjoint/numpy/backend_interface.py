@@ -75,9 +75,10 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self.id()
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint)
+    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
+             checkpoint=None):
+        return Function(self, name=name, space_type=space_type, static=static,
+                        cache=cache, checkpoint=checkpoint)
 
 
 class FunctionSpace:
@@ -110,6 +111,9 @@ class FunctionSpace:
 class FunctionInterface(_FunctionInterface):
     def _space(self):
         return self.space()
+
+    def _space_type(self):
+        return self.space_type()
 
     def _id(self):
         return self.id()
@@ -199,10 +203,6 @@ class FunctionInterface(_FunctionInterface):
             raise InterfaceException("Invalid shape")
         self.vector()[:] = values
 
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        return Function(self.space(), name=name, static=static, cache=cache,
-                        checkpoint=checkpoint, _data=self.vector().copy())
-
     def _replacement(self):
         return self.replacement()
 
@@ -218,8 +218,10 @@ class FunctionInterface(_FunctionInterface):
 
 
 class Function:
-    def __init__(self, space, *, name=None, static=False, cache=None,
-                 checkpoint=None, _data=None):
+    def __init__(self, space, *, name=None, space_type="primal", static=False,
+                 cache=None, checkpoint=None, _data=None):
+        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+            raise InterfaceException("Invalid space type")
         id = new_function_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
@@ -230,6 +232,7 @@ class Function:
             checkpoint = not static
 
         self._space = space
+        self._space_type = space_type
         self._id = id
         self._name = name
         self._state = 0
@@ -250,6 +253,9 @@ class Function:
 
     def space(self):
         return self._space
+
+    def space_type(self):
+        return self._space_type
 
     def dtype(self):
         return self._space.dtype()
@@ -291,6 +297,9 @@ class ReplacementInterface(_FunctionInterface):
     def _space(self):
         return self.space()
 
+    def _space_type(self):
+        return self.space_type()
+
     def _id(self):
         return self.id()
 
@@ -322,6 +331,7 @@ class ReplacementInterface(_FunctionInterface):
 class Replacement:
     def __init__(self, x):
         self._space = x.space()
+        self._space_type = x.space_type()
         self._id = x.id()
         self._name = x.name()
         self._static = x.is_static()
@@ -332,6 +342,9 @@ class Replacement:
 
     def space(self):
         return self._space
+
+    def space_type(self):
+        return self._space_type
 
     def id(self):
         return self._id
