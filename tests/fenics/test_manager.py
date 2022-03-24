@@ -37,11 +37,13 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.fenics
 @seed_test
-def test_long_range(setup_test, test_leaks):
+def test_long_range(setup_test, test_leaks,
+                    tmp_path):
     n_steps = 200
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 0,
-                             "snaps_in_ram": 2})
+                             "snaps_in_ram": 2,
+                             "path": str(tmp_path / "checkpoints~")})
 
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
@@ -557,7 +559,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
 @no_space_type_checking
 @seed_test
 def test_binomial_checkpointing(setup_test, test_leaks,
-                                n_steps, snaps_in_ram):
+                                tmp_path, n_steps, snaps_in_ram):
     _minimal_n_extra_steps = {}
 
     def minimal_n_extra_steps(n, s):
@@ -595,7 +597,8 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 0,
-                             "snaps_in_ram": snaps_in_ram})
+                             "snaps_in_ram": snaps_in_ram,
+                             "path": str(tmp_path / "checkpoints~")})
 
     def forward(m):
         for n in range(n_steps):

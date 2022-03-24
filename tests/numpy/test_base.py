@@ -36,6 +36,7 @@ __all__ = \
         "Constant",
         "info",
 
+        "chdir_tmp_path",
         "run_example",
         "seed_test",
         "setup_test",
@@ -118,6 +119,16 @@ def test_leaks():
 
     function_ids.clear()
     assert refs == 0
+
+
+@pytest.fixture
+def chdir_tmp_path(tmp_path):
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+
+    yield
+
+    os.chdir(cwd)
 
 
 def run_example(example, clear_forward_globals=True):
