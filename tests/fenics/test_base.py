@@ -48,6 +48,7 @@ __all__ = \
         "test_configurations",
         "test_ghost_modes",
         "test_leaks",
+        "tmp_path",
 
         "ls_parameters_cg",
         "ls_parameters_gmres",
@@ -188,6 +189,11 @@ def test_leaks():
 
     function_ids.clear()
     assert refs == 0
+
+
+@pytest.fixture
+def tmp_path(tmp_path):
+    return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 
 def run_example(example, clear_forward_globals=True):
