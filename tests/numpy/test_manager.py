@@ -419,7 +419,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
 @no_space_type_checking
 @seed_test
 def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
-                                n_steps, snaps_in_ram):
+                                tmp_path, n_steps, snaps_in_ram):
     _minimal_n_extra_steps = {}
 
     def minimal_n_extra_steps(n, s):
@@ -457,7 +457,8 @@ def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
 
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 0,
-                             "snaps_in_ram": snaps_in_ram})
+                             "snaps_in_ram": snaps_in_ram,
+                             "path": str(tmp_path / "checkpoints~")})
 
     def forward(m):
         for n in range(n_steps):

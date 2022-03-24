@@ -105,10 +105,12 @@ def diffusion_ref():
                      "snaps_in_ram": 2})])
 @seed_test
 def test_oscillator(setup_test, test_leaks,
-                    cp_method, cp_parameters):
+                    tmp_path, cp_method, cp_parameters):
     n_steps = 20
+    cp_parameters = copy.copy(cp_parameters)
+    if cp_method in ["periodic_disk", "multistage"]:
+        cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":
-        cp_parameters = copy.copy(cp_parameters)
         cp_parameters["blocks"] = n_steps
     configure_checkpointing(cp_method, cp_parameters)
 
@@ -179,10 +181,11 @@ def test_oscillator(setup_test, test_leaks,
 @pytest.mark.parametrize("n_steps", [1, 2, 5, 20])
 @seed_test
 def test_diffusion_1d_timestepping(setup_test, test_leaks,
-                                   n_steps):
+                                   tmp_path, n_steps):
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 2,
-                             "snaps_in_ram": 3})
+                             "snaps_in_ram": 3,
+                             "path": str(tmp_path / "checkpoints~")})
 
     mesh = UnitIntervalMesh(100)
     X = SpatialCoordinate(mesh)
@@ -270,11 +273,13 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @seed_test
-def test_diffusion_2d(setup_test, test_leaks):
+def test_diffusion_2d(setup_test, test_leaks,
+                      tmp_path):
     n_steps = 20
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 2,
-                             "snaps_in_ram": 3})
+                             "snaps_in_ram": 3,
+                             "path": str(tmp_path / "checkpoints~")})
 
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
