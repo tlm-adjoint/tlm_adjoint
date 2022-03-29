@@ -59,6 +59,7 @@ from .interface import check_space_types, function_get_values, \
     function_global_size, function_local_size, function_set_values, \
     is_function, space_comm, space_new, space_type_warning
 
+import functools
 import numpy as np
 import warnings
 
@@ -77,6 +78,7 @@ _flagged_error = [False]
 
 
 def flag_errors(fn):
+    @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
         try:
             return fn(*args, **kwargs)

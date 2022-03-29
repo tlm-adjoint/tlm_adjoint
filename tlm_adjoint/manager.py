@@ -18,6 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+import functools
 import warnings
 
 __all__ = \
@@ -56,6 +57,7 @@ def set_manager(manager):
 
 
 def restore_manager(fn):
+    @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
         old_manager = manager()
         try:

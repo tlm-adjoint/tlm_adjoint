@@ -18,6 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+import functools
 import gc
 
 __all__ = \
@@ -33,17 +34,17 @@ class AliasException(Exception):
     pass
 
 
-def gc_disabled(function):
-    def wrapped_function(*args, **kwargs):
+def gc_disabled(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
         gc_enabled = gc.isenabled()
         gc.disable()
         try:
-            return_value = function(*args, **kwargs)
+            return fn(*args, **kwargs)
         finally:
             if gc_enabled:
                 gc.enable()
-        return return_value
-    return wrapped_function
+    return wrapped_fn
 
 
 class Alias:

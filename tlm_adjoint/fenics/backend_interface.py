@@ -40,6 +40,7 @@ from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
     define_function_alias
 
+import functools
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
@@ -113,6 +114,7 @@ _FunctionSpace_add_interface = [True]
 
 
 def FunctionSpace_add_interface_disabled(fn):
+    @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
         add_interface = _FunctionSpace_add_interface[0]
         _FunctionSpace_add_interface[0] = False
