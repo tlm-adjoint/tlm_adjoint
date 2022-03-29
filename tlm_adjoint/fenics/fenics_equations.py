@@ -36,6 +36,7 @@ from .equations import EquationSolver, bind_form, derivative, unbind_form, \
     unbound_form
 from .functions import eliminate_zeros
 
+import functools
 import mpi4py.MPI as MPI
 import numpy as np
 import ufl
@@ -65,19 +66,19 @@ def has_ghost_cells(mesh):
     return False
 
 
-def reorder_gps_disabled(function):
-    def wrapped_function(*args, **kwargs):
+def reorder_gps_disabled(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
         reorder_vertices_gps = parameters["reorder_vertices_gps"]
         reorder_cells_gps = parameters["reorder_cells_gps"]
         parameters["reorder_vertices_gps"] = False
         parameters["reorder_cells_gps"] = False
         try:
-            return_value = function(*args, **kwargs)
+            return fn(*args, **kwargs)
         finally:
             parameters["reorder_vertices_gps"] = reorder_vertices_gps
             parameters["reorder_cells_gps"] = reorder_cells_gps
-        return return_value
-    return wrapped_function
+    return wrapped_fn
 
 
 @reorder_gps_disabled

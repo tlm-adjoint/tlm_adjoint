@@ -116,6 +116,7 @@ def weakref_method(fn, obj):
         obj._tlm_adjoint__weakref_method_self_ref = weakref.ref(obj)
     self_ref = obj._tlm_adjoint__weakref_method_self_ref
 
+    @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
         self = self_ref()
         if self is None:
@@ -265,7 +266,6 @@ def no_space_type_checking(fn):
             return fn(*args, **kwargs)
         finally:
             _check_space_types[0] = check_space_types
-
     return wrapped_fn
 
 
