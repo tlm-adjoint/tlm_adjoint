@@ -23,8 +23,8 @@ from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
     backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
     extract_args, homogenize, parameters
 from ..interface import InterfaceException, check_space_type, \
-    check_space_types, function_axpy, function_copy, function_id, \
-    function_space_type, space_new
+    check_space_types, function_axpy, function_copy, function_dtype, \
+    function_id, function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -185,6 +185,36 @@ def form_bindings(*forms):
                         yield dep, binding
 
 
+def strip_terminal_data(form):
+    # Replace constants with no domain with constants on the first domain
+    domain = form.ufl_domains()[0]
+
+    replace_map = {}
+    replace_map_inverse = {}
+    for dep in form.coefficients():
+        if isinstance(dep, backend_Constant) \
+                and dep.ufl_function_space().ufl_domain() is None:
+            dep_arr = np.zeros(dep.ufl_shape, dtype=function_dtype(dep))
+            replace_map[dep] = backend_Constant(dep_arr, domain=domain)
+            replace_map_inverse[replace_map[dep]] = dep
+
+    if len(replace_map) == 0:
+        return ufl.algorithms.strip_terminal_data(form)
+    else:
+        unbound_form, maps = \
+            ufl.algorithms.strip_terminal_data(ufl.replace(form, replace_map))
+
+        binding_map = copy.copy(maps[0])
+        for replacement_dep, dep in maps[0].items():
+            if dep in replace_map_inverse:
+                binding_map[replacement_dep] = replace_map_inverse[dep]
+
+        assert len(maps) == 2
+        maps = (binding_map, maps[1])
+
+        return (unbound_form, maps)
+
+
 def bind_forms(*forms):
     if hasattr(ufl.algorithms, "replace_terminal_data"):
         bound_forms = []
@@ -194,8 +224,8 @@ def bind_forms(*forms):
                 bindings = form._cache["_tlm_adjoint__bindings"]
 
                 if "_tlm_adjoint__unbound_form" not in form._cache:
-                    form._cache["_tlm_adjoint__unbound_form"] \
-                        = ufl.algorithms.strip_terminal_data(form)
+                    form._cache["_tlm_adjoint__unbound_form"] = \
+                        strip_terminal_data(form)
                 unbound_form, maps = form._cache["_tlm_adjoint__unbound_form"]
 
                 binding_map = copy.copy(maps[0])
