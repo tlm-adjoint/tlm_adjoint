@@ -164,10 +164,12 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
+# For backwards compatibility in bind_forms and unbind_forms
 _form_binding_names = ("dat",
                        "split")
 
 
+# For backwards compatibility in bind_forms and unbind_forms
 def form_bindings(*forms):
     if len(forms) == 1:
         if "_tlm_adjoint__bindings" in forms[0]._cache:
@@ -184,30 +186,62 @@ def form_bindings(*forms):
 
 
 def bind_forms(*forms):
-    for dep, binding in form_bindings(*forms):
-        for name in _form_binding_names:
-            if hasattr(dep, name):
-                old_name = f"_tlm_adjoint__bindings_old_{name:s}"
-                setattr(dep, old_name, getattr(dep, name))
-            setattr(dep, name, getattr(binding, name))
+    if hasattr(ufl.algorithms, "replace_terminal_data"):
+        bound_forms = []
 
-    for form in forms:
-        if _FORM_CACHE_KEY in form._cache:
-            raise InterfaceException("Unexpected cache")
+        for form in forms:
+            if "_tlm_adjoint__bindings" in form._cache:
+                bindings = form._cache["_tlm_adjoint__bindings"]
+
+                if "_tlm_adjoint__unbound_form" not in form._cache:
+                    form._cache["_tlm_adjoint__unbound_form"] \
+                        = ufl.algorithms.strip_terminal_data(form)
+                unbound_form, maps = form._cache["_tlm_adjoint__unbound_form"]
+
+                binding_map = copy.copy(maps[0])
+                for replacement_dep, dep in maps[0].items():
+                    if dep in bindings:
+                        binding_map[replacement_dep] = bindings[dep]
+
+                assert len(maps) == 2
+                maps = (binding_map, maps[1])
+
+                bound_forms.append(
+                    ufl.algorithms.replace_terminal_data(unbound_form, maps))
+            else:
+                bound_forms.append(form)
+
+        return tuple(bound_forms)
+    else:
+        # Backwards compatibility
+        for dep, binding in form_bindings(*forms):
+            for name in _form_binding_names:
+                if hasattr(dep, name):
+                    old_name = f"_tlm_adjoint__bindings_old_{name:s}"
+                    setattr(dep, old_name, getattr(dep, name))
+                setattr(dep, name, getattr(binding, name))
+
+        for form in forms:
+            if _FORM_CACHE_KEY in form._cache:
+                raise InterfaceException("Unexpected cache")
+
+        return forms
 
 
+# Backwards compatibility
 def unbind_forms(*forms):
-    for dep, binding in form_bindings(*forms):
-        for name in _form_binding_names:
-            delattr(dep, name)
-            old_name = f"_tlm_adjoint__bindings_old_{name:s}"
-            if hasattr(dep, old_name):
-                setattr(dep, name, getattr(dep, old_name))
-                delattr(dep, old_name)
+    if not hasattr(ufl.algorithms, "replace_terminal_data"):
+        for dep, binding in form_bindings(*forms):
+            for name in _form_binding_names:
+                delattr(dep, name)
+                old_name = f"_tlm_adjoint__bindings_old_{name:s}"
+                if hasattr(dep, old_name):
+                    setattr(dep, name, getattr(dep, old_name))
+                    delattr(dep, old_name)
 
-    for form in forms:
-        if _FORM_CACHE_KEY in form._cache:
-            del form._cache[_FORM_CACHE_KEY]
+        for form in forms:
+            if _FORM_CACHE_KEY in form._cache:
+                del form._cache[_FORM_CACHE_KEY]
 
 
 def _assemble(form, tensor=None, form_compiler_parameters=None,
@@ -261,9 +295,9 @@ def _assemble_system(A_form, b_form=None, bcs=None,
         form_compiler_parameters = {}
 
     if b_form is None:
-        bind_forms(A_form)
+        A_form, = bind_forms(A_form)
     else:
-        bind_forms(A_form, b_form)
+        A_form, b_form = bind_forms(A_form, b_form)
 
     A = _assemble(
         A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
@@ -342,7 +376,7 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
-    bind_forms(form)
+    form, = bind_forms(form)
     b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
