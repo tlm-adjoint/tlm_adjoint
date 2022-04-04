@@ -30,7 +30,7 @@ from .binomial_checkpointing import MultistageManager
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .functional import Functional
-from .manager import manager as _manager, set_manager
+from .manager import manager as _manager, restore_manager, set_manager
 
 from collections import OrderedDict, defaultdict, deque
 from collections.abc import Sequence
@@ -1585,6 +1585,7 @@ class EquationManager:
         for eq in self._eqs.values():
             eq.reset_adjoint()
 
+    @restore_manager
     def compute_gradient(self, Js, M, callback=None, prune_forward=True,
                          prune_adjoint=True, adj_ics=None, adj_cache=None):
         """
@@ -1635,6 +1636,7 @@ class EquationManager:
                 adj_cache=adj_cache)
             return dJ
 
+        set_manager(self)
         gc.collect()
         self.finalize()
         self.reset_adjoint(_warning=False)
