@@ -248,9 +248,9 @@ class AssembleSolver(ExprEquation):
 def unbound_form(form, deps):
     replacement_deps = tuple(function_replacement(dep) for dep in deps)
     assert len(deps) == len(replacement_deps)
-    return_value = ufl.replace(form, dict(zip(deps, replacement_deps)))
-    return_value._cache["_tlm_adjoint__replacement_deps"] = replacement_deps
-    return return_value
+    replaced_form = ufl.replace(form, dict(zip(deps, replacement_deps)))
+    replaced_form._cache["_tlm_adjoint__replacement_deps"] = replacement_deps
+    return replaced_form
 
 
 def bind_form(form, deps):
