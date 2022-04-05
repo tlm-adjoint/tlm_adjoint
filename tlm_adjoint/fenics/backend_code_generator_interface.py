@@ -375,10 +375,10 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
 
     if J_mat is not None and not np.isposinf(J_tolerance):
         assert (J_mat - J_mat_debug).norm("linf") \
-            <= J_tolerance * J_mat.norm("linf")
+            <= J_tolerance * J_mat_debug.norm("linf")
 
     if b is not None and not np.isposinf(b_tolerance):
-        assert (b - b_debug).norm("linf") <= b_tolerance * b.norm("linf")
+        assert (b - b_debug).norm("linf") <= b_tolerance * b_debug.norm("linf")
 
 
 def interpolate_expression(x, expr):

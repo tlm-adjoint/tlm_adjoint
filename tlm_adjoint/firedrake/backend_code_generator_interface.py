@@ -501,7 +501,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         J_error.axpy(-1.0, J_mat_debug.petscmat)
         assert J_error.assembled
         assert J_error.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
-            <= J_tolerance * J_mat.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
+            <= J_tolerance * J_mat_debug.petscmat.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
     if b is not None and not np.isposinf(b_tolerance):
         F = backend_Function(rhs.arguments()[0].function_space())
@@ -513,7 +513,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         b_error = b.copy(deepcopy=True)
         with b_error.dat.vec as b_error_v, b_debug.dat.vec_ro as b_debug_v:
             b_error_v.axpy(-1.0, b_debug_v)
-        with b_error.dat.vec_ro as b_error_v, b.dat.vec_ro as b_v:
+        with b_error.dat.vec_ro as b_error_v, b_debug.dat.vec_ro as b_v:
             assert b_error_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) \
                 <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
