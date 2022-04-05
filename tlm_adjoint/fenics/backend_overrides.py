@@ -33,6 +33,7 @@ from ..manager import annotation_enabled, tlm_enabled
 
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
+from .functions import eliminate_zeros
 
 import numpy as np
 import ufl
@@ -84,6 +85,7 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
+    form = eliminate_zeros(form, force_non_empty_form=True)
     b = backend_assemble(form, tensor=tensor,
                          form_compiler_parameters=form_compiler_parameters,
                          add_values=add_values, *args, **kwargs)
@@ -128,6 +130,8 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
         check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
 
+    A_form = eliminate_zeros(A_form, force_non_empty_form=True)
+    b_form = eliminate_zeros(b_form, force_non_empty_form=True)
     A, b = backend_assemble_system(
         A_form, b_form, bcs=bcs, x0=x0,
         form_compiler_parameters=form_compiler_parameters,

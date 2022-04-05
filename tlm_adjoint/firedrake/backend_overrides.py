@@ -33,6 +33,7 @@ from ..manager import annotation_enabled, tlm_enabled
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
+from .functions import eliminate_zeros
 
 import copy
 import ufl
@@ -117,6 +118,7 @@ def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
+    expr = eliminate_zeros(expr, force_non_empty_form=True)
     b = backend_assemble(
         expr, tensor=tensor, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters,

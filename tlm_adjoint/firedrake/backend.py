@@ -23,7 +23,6 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     NonlinearVariationalSolver, Parameters, Projector, Tensor, TestFunction, \
     TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
     info, parameters, project, solve
-from firedrake.assemble import _FORM_CACHE_KEY
 import firedrake
 
 backend = "Firedrake"
@@ -68,7 +67,6 @@ __all__ = \
         "backend_project",
         "backend_solve",
 
-        "_FORM_CACHE_KEY",
         "FunctionSpace",
         "Parameters",
         "Projector",

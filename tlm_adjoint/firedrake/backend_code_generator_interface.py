@@ -18,12 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import _FORM_CACHE_KEY, FunctionSpace, Parameters, \
-    backend_Constant, backend_DirichletBC, backend_Function, \
-    backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
-    extract_args, homogenize, parameters
+from .backend import FunctionSpace, Parameters, backend_Constant, \
+    backend_DirichletBC, backend_Function, backend_LinearSolver, \
+    backend_Matrix, backend_assemble, backend_solve, extract_args, \
+    homogenize, parameters
 from ..interface import InterfaceException, check_space_type, \
-    check_space_types, function_axpy, function_copy, function_id, \
+    check_space_types, function_axpy, function_copy, function_dtype, \
     function_space_type, space_new
 
 from .functions import eliminate_zeros
@@ -164,50 +164,58 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
-_form_binding_names = ("dat",
-                       "split")
+def strip_terminal_data(form):
+    # Replace constants with no domain with constants on the first domain
+    domain = form.ufl_domains()[0]
 
+    replace_map = {}
+    replace_map_inverse = {}
+    for dep in form.coefficients():
+        if isinstance(dep, backend_Constant) \
+                and dep.ufl_function_space().ufl_domain() is None:
+            dep_arr = np.zeros(dep.ufl_shape, dtype=function_dtype(dep))
+            replace_map[dep] = backend_Constant(dep_arr, domain=domain)
+            replace_map_inverse[replace_map[dep]] = dep
 
-def form_bindings(*forms):
-    if len(forms) == 1:
-        if "_tlm_adjoint__bindings" in forms[0]._cache:
-            for dep, binding in forms[0]._cache["_tlm_adjoint__bindings"].items():  # noqa: E501
-                yield dep, binding
+    if len(replace_map) == 0:
+        return ufl.algorithms.strip_terminal_data(form)
     else:
-        seen = set()
-        for form in forms:
-            if "_tlm_adjoint__bindings" in form._cache:
-                for dep, binding in form._cache["_tlm_adjoint__bindings"].items():  # noqa: E501
-                    if dep not in seen:
-                        seen.add(dep)
-                        yield dep, binding
+        unbound_form, maps = \
+            ufl.algorithms.strip_terminal_data(ufl.replace(form, replace_map))
+
+        binding_map = copy.copy(maps[0])
+        for replacement_dep, dep in maps[0].items():
+            if dep in replace_map_inverse:
+                binding_map[replacement_dep] = replace_map_inverse[dep]
+
+        assert len(maps) == 2
+        maps = (binding_map, maps[1])
+
+        return (unbound_form, maps)
 
 
-def bind_forms(*forms):
-    for dep, binding in form_bindings(*forms):
-        for name in _form_binding_names:
-            if hasattr(dep, name):
-                old_name = f"_tlm_adjoint__bindings_old_{name:s}"
-                setattr(dep, old_name, getattr(dep, name))
-            setattr(dep, name, getattr(binding, name))
+def bind_form(form):
+    if "_tlm_adjoint__bindings" in form._cache:
+        bindings = form._cache["_tlm_adjoint__bindings"]
+        if hasattr(ufl.algorithms, "replace_terminal_data"):
+            if "_tlm_adjoint__unbound_form" not in form._cache:
+                form._cache["_tlm_adjoint__unbound_form"] = \
+                    strip_terminal_data(eliminate_zeros(form, force_non_empty_form=True))  # noqa: E501
+            unbound_form, maps = form._cache["_tlm_adjoint__unbound_form"]
 
-    for form in forms:
-        if _FORM_CACHE_KEY in form._cache:
-            raise InterfaceException("Unexpected cache")
+            binding_map = copy.copy(maps[0])
+            for replacement_dep, dep in maps[0].items():
+                if dep in bindings:
+                    binding_map[replacement_dep] = bindings[dep]
 
+            assert len(maps) == 2
+            maps = (binding_map, maps[1])
 
-def unbind_forms(*forms):
-    for dep, binding in form_bindings(*forms):
-        for name in _form_binding_names:
-            delattr(dep, name)
-            old_name = f"_tlm_adjoint__bindings_old_{name:s}"
-            if hasattr(dep, old_name):
-                setattr(dep, name, getattr(dep, old_name))
-                delattr(dep, old_name)
-
-    for form in forms:
-        if _FORM_CACHE_KEY in form._cache:
-            del form._cache[_FORM_CACHE_KEY]
+            return ufl.algorithms.replace_terminal_data(unbound_form, maps)
+        else:
+            return ufl.replace(form, bindings)
+    else:
+        return form
 
 
 def _assemble(form, tensor=None, form_compiler_parameters=None,
@@ -215,35 +223,14 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    if "_tlm_adjoint__simplified_form" in form._cache:
-        simplified_form = form._cache["_tlm_adjoint__simplified_form"]
-    else:
-        simplified_form = form._cache["_tlm_adjoint__simplified_form"] = \
-            eliminate_zeros(form, force_non_empty_form=True)
-    form = simplified_form
-
-    if "_tlm_adjoint__parloops" in form._cache:
-        tensor_id, cache_0, cache_1 = form._cache.pop("_tlm_adjoint__parloops")
-        if "parloops" not in form._cache \
-                and tensor is not None \
-                and function_id(tensor) == tensor_id:
-            form._cache["parloops"] = \
-                (tuple([form, tensor] + list(cache_0)), cache_1)
-
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
+    form = eliminate_zeros(form, force_non_empty_form=True)
     b = backend_assemble(
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
-
-    if isinstance(b, backend_Function) and "parloops" in form._cache:
-        cache_0, cache_1 = form._cache.pop("parloops")
-        assert cache_0[0] is form
-        assert cache_0[1] is b
-        form._cache["_tlm_adjoint__parloops"] = \
-            (function_id(cache_0[1]), cache_0[2:], cache_1)
 
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
@@ -260,10 +247,9 @@ def _assemble_system(A_form, b_form=None, bcs=None,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    if b_form is None:
-        bind_forms(A_form)
-    else:
-        bind_forms(A_form, b_form)
+    A_form = bind_form(A_form)
+    if b_form is not None:
+        b_form = bind_form(b_form)
 
     A = _assemble(
         A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
@@ -299,10 +285,6 @@ def _assemble_system(A_form, b_form=None, bcs=None,
 
     A._tlm_adjoint__lift_bcs = False
 
-    if b_form is None:
-        unbind_forms(A_form)
-    else:
-        unbind_forms(A_form, b_form)
     return A, b
 
 
@@ -342,11 +324,10 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
-    bind_forms(form)
+    form = bind_form(form)
     b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
-    unbind_forms(form)
 
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
