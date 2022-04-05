@@ -378,7 +378,7 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
             simplified_expr = zero * ufl.ds
         elif len(arguments) == 1:
             test, = arguments
-            simplified_expr = zero * test * ufl.ds
+            simplified_expr = zero * ufl.conj(test) * ufl.ds
         else:
             test, trial = arguments
             simplified_expr = zero * ufl.inner(trial, test) * ufl.ds
