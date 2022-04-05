@@ -487,6 +487,7 @@ class LUSolver(backend_LUSolver):
                                    "lu_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
+            eq._pre_process(annotate=annotate)
             return_value = super().solve(*args)
             function_update_state(x)
             if hasattr(b, "_tlm_adjoint__function"):
