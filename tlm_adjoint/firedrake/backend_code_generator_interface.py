@@ -164,13 +164,6 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
-def simplify_form(form):
-    if "_tlm_adjoint__simplified_form" not in form._cache:
-        form._cache["_tlm_adjoint__simplified_form"] = \
-            eliminate_zeros(form, force_non_empty_form=True)
-    return form._cache["_tlm_adjoint__simplified_form"]
-
-
 def strip_terminal_data(form):
     # Replace constants with no domain with constants on the first domain
     domain = form.ufl_domains()[0]
@@ -207,7 +200,7 @@ def bind_form(form):
         if hasattr(ufl.algorithms, "replace_terminal_data"):
             if "_tlm_adjoint__unbound_form" not in form._cache:
                 form._cache["_tlm_adjoint__unbound_form"] = \
-                    strip_terminal_data(simplify_form(form))
+                    strip_terminal_data(eliminate_zeros(form, force_non_empty_form=True))  # noqa: E501
             unbound_form, maps = form._cache["_tlm_adjoint__unbound_form"]
 
             binding_map = copy.copy(maps[0])
@@ -230,11 +223,10 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    form = simplify_form(form)
-
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
+    form = eliminate_zeros(form, force_non_empty_form=True)
     b = backend_assemble(
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
