@@ -24,7 +24,7 @@ from .backend import FunctionSpace, Parameters, backend_Constant, \
     homogenize, parameters
 from ..interface import InterfaceException, check_space_type, \
     check_space_types, function_axpy, function_copy, function_dtype, \
-    function_id, function_space_type, space_new
+    function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -232,14 +232,6 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
 
     form = simplify_form(form)
 
-    if "_tlm_adjoint__parloops" in form._cache:
-        tensor_id, cache_0, cache_1 = form._cache.pop("_tlm_adjoint__parloops")
-        if "parloops" not in form._cache \
-                and tensor is not None \
-                and function_id(tensor) == tensor_id:
-            form._cache["parloops"] = \
-                (tuple([form, tensor] + list(cache_0)), cache_1)
-
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
@@ -247,13 +239,6 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
         form, tensor=tensor,
         form_compiler_parameters=form_compiler_parameters,
         *args, **kwargs)
-
-    if isinstance(b, backend_Function) and "parloops" in form._cache:
-        cache_0, cache_1 = form._cache.pop("parloops")
-        assert cache_0[0] is form
-        assert cache_0[1] is b
-        form._cache["_tlm_adjoint__parloops"] = \
-            (function_id(cache_0[1]), cache_0[2:], cache_1)
 
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
