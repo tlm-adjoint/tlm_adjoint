@@ -82,6 +82,9 @@ def parameters_dict_equal(parameters_a, parameters_b):
 
 def assemble(form, tensor=None, form_compiler_parameters=None,
              add_values=False, *args, **kwargs):
+    if not isinstance(form, ufl.classes.Form):
+        raise OverrideException("form must be a UFL form")
+
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
@@ -90,10 +93,10 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
                          form_compiler_parameters=form_compiler_parameters,
                          add_values=add_values, *args, **kwargs)
 
-    if not isinstance(b, (float, np.floating)):
-        if not isinstance(form, ufl.classes.Form):
-            raise OverrideException("form must be a UFL form")
+    if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
+        function_update_state(tensor._tlm_adjoint__function)
 
+    if not isinstance(b, (float, np.floating)):
         form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         if form_compiler_parameters is not None:
             update_parameters_dict(form_compiler_parameters_,
@@ -139,6 +142,9 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
         keep_diagonal=keep_diagonal, A_tensor=A_tensor, b_tensor=b_tensor,
         *args, **kwargs)
 
+    if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
+        function_update_state(b_tensor._tlm_adjoint__function)
+
     if bcs is None:
         bcs = []
     elif isinstance(bcs, backend_DirichletBC):
@@ -162,7 +168,7 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     else:
         A._tlm_adjoint__form = A_form
         A._tlm_adjoint__bcs = list(bcs)
-        A._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+        A._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
     if add_values and hasattr(b, "_tlm_adjoint__form"):
         if b._tlm_adjoint__bcs != bcs:
@@ -175,14 +181,14 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     else:
         b._tlm_adjoint__form = b_form
         b._tlm_adjoint__bcs = list(bcs)
-        b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+        b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
     return A, b
 
 
 def extract_args_linear_solve(A, x, b,
                               linear_solver="default",
-                              preconditioner="default"):
+                              preconditioner="default", /):  # noqa: E225
     solver_parameters = {"linear_solver": linear_solver,
                          "preconditioner": preconditioner}
     return A, x, b, solver_parameters
@@ -221,10 +227,8 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
-            if len(kwargs) > 0:
-                raise OverrideException("Unexpected keyword arguments")
             A, x, b, solver_parameters = \
-                extract_args_linear_solve(*args)
+                extract_args_linear_solve(*args, **kwargs)
             # if solver_parameters is None:
             #     solver_parameters = {}
 
@@ -255,11 +259,19 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
 
             return return_value
     else:
-        return backend_solve(*args, **kwargs)
+        return_value = backend_solve(*args, **kwargs)
+        if isinstance(args[0], ufl.classes.Equation):
+            x = extract_args(*args, **kwargs)[1]
+            function_update_state(x)
+        else:
+            x = extract_args_linear_solve(*args, **kwargs)[1]
+            if hasattr(x, "_tlm_adjoint__function"):
+                function_update_state(x._tlm_adjoint__function)
+        return return_value
 
 
 def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
-            preconditioner_type="default", form_compiler_parameters=None,
+            preconditioner_type="default", form_compiler_parameters=None, *,
             solver_parameters=None, annotate=None, tlm=None):
     if annotate is None:
         annotate = annotation_enabled()
@@ -297,38 +309,45 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
             form_compiler_parameters=form_compiler_parameters,
             cache_jacobian=False, cache_rhs_assembly=False)
         eq.solve(annotate=annotate, tlm=tlm)
-
-        return x
     else:
-        return backend_project(
+        x = backend_project(
             v, V=V, bcs=bcs, mesh=mesh, function=function,
             solver_type=solver_type,
             preconditioner_type=preconditioner_type,
             form_compiler_parameters=form_compiler_parameters)
+        function_update_state(x)
+    return x
 
 
 def _DirichletBC_apply(self, *args):
-    backend_DirichletBC._tlm_adjoint__orig_apply(self, *args)
-    if (len(args) > 1 and not isinstance(args[0], backend_Matrix)) \
-       or len(args) > 2:
-        return
-
-    if isinstance(args[0], backend_Matrix):
-        A = args[0]
-        if len(args) > 1:
-            b = args[1]
+    if len(args) == 1:
+        if isinstance(args[0], backend_Matrix):
+            (A,), b, x = args, None, None
         else:
-            b = None
+            (b,), A, x = args, None, None
+    elif len(args) == 2:
+        if isinstance(args[0], backend_Matrix):
+            (A, b), x = args, None
+        else:
+            (b, x), A = args, None
     else:
-        A = None
-        b = args[0]
+        A, b, x = args
 
-    if A is not None and hasattr(A, "_tlm_adjoint__bcs") \
-       and self not in A._tlm_adjoint__bcs:
-        A._tlm_adjoint__bcs.append(self)
-    if b is not None and hasattr(b, "_tlm_adjoint__bcs") \
-       and self not in b._tlm_adjoint__bcs:
-        b._tlm_adjoint__bcs.append(self)
+    backend_DirichletBC._tlm_adjoint__orig_apply(self, *args)
+
+    if b is not None:
+        if hasattr(b, "_tlm_adjoint__function"):
+            function_update_state(b._tlm_adjoint__function)
+    if x is None:
+        if A is not None and hasattr(A, "_tlm_adjoint__bcs") \
+                and self not in A._tlm_adjoint__bcs:
+            A._tlm_adjoint__bcs.append(self)
+        if b is not None and hasattr(b, "_tlm_adjoint__bcs") \
+                and self not in b._tlm_adjoint__bcs:
+            b._tlm_adjoint__bcs.append(self)
+    else:
+        if hasattr(x, "_tlm_adjoint__function"):
+            function_update_state(x._tlm_adjoint__function)
 
 
 assert not hasattr(backend_DirichletBC, "_tlm_adjoint__orig_apply")
@@ -336,17 +355,24 @@ backend_DirichletBC._tlm_adjoint__orig_apply = backend_DirichletBC.apply
 backend_DirichletBC.apply = _DirichletBC_apply
 
 
-def _Function_assign(self, rhs, annotate=None, tlm=None):
-    return_value = backend_Function._tlm_adjoint__orig_assign(self, rhs)
-    if not isinstance(rhs, backend_Function):
-        return return_value
+def _Function_assign(self, rhs, *, annotate=None, tlm=None):
+    eq = None
+    if isinstance(rhs, backend_Function):
+        if annotate is None:
+            annotate = annotation_enabled()
+        if tlm is None:
+            tlm = tlm_enabled()
+        if annotate or tlm:
+            eq = AssignmentSolver(rhs, self)
+            eq._pre_process(annotate=annotate)
 
-    if annotate is None:
-        annotate = annotation_enabled()
-    if tlm is None:
-        tlm = tlm_enabled()
-    if annotate or tlm:
-        AssignmentSolver(rhs, self).solve(annotate=annotate, tlm=tlm)
+    return_value = backend_Function._tlm_adjoint__orig_assign(
+        self, rhs)
+
+    function_update_state(self)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
+
     return return_value
 
 
@@ -402,20 +428,18 @@ class LUSolver(backend_LUSolver):
         self.__A = A
 
     def solve(self, *args, annotate=None, tlm=None):
-        return_value = super().solve(*args)
+        if isinstance(args[0], backend_Matrix):
+            A, x, b = args
+            self.__A = A
+        else:
+            A = self.__A
+            x, b = args
 
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if isinstance(args[0], backend_Matrix):
-                A, x, b = args
-                self.__A = A
-            else:
-                A = self.__A
-                x, b = args
-
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
                 raise OverrideException("Non-matching boundary conditions")
@@ -425,24 +449,29 @@ class LUSolver(backend_LUSolver):
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
 
-            A = A._tlm_adjoint__form
+            A_form = A._tlm_adjoint__form
             x = x._tlm_adjoint__function
-            b = b._tlm_adjoint__form
+            b_form = b._tlm_adjoint__form
 
             eq = EquationSolver(
-                linear_equation_new_x(A == b, x,
+                linear_equation_new_x(A_form == b_form, x,
                                       annotate=annotate, tlm=tlm),
                 x, bcs,
                 solver_parameters={"linear_solver": self.__linear_solver,
                                    "lu_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
+            return_value = super().solve(*args)
             function_update_state(x)
+            if hasattr(b, "_tlm_adjoint__function"):
+                function_update_state(b._tlm_adjoint__function)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
-            if isinstance(args[0], backend_Matrix):
-                A, x, b = args
-                self.__A = A
+            return_value = super().solve(*args)
+            if hasattr(x, "_tlm_adjoint__function"):
+                function_update_state(x._tlm_adjoint__function)
+            if hasattr(b, "_tlm_adjoint__function"):
+                function_update_state(b._tlm_adjoint__function)
 
         return return_value
 
@@ -470,18 +499,18 @@ class KrylovSolver(backend_KrylovSolver):
         raise OverrideException("Preconditioners not supported")
 
     def solve(self, *args, annotate=None, tlm=None):
+        if isinstance(args[0], backend_Matrix):
+            A, x, b = args
+            self.__A = None
+        else:
+            A = self.__A
+            x, b = args
+
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if isinstance(args[0], backend_Matrix):
-                A, x, b = args
-                self.__A = None
-            else:
-                A = self.__A
-                x, b = args
-
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
                 raise OverrideException("Non-matching boundary conditions")
@@ -491,12 +520,12 @@ class KrylovSolver(backend_KrylovSolver):
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
 
-            A = A._tlm_adjoint__form
+            A_form = A._tlm_adjoint__form
             x = x._tlm_adjoint__function
-            b = b._tlm_adjoint__form
+            b_form = b._tlm_adjoint__form
 
             eq = EquationSolver(
-                linear_equation_new_x(A == b, x,
+                linear_equation_new_x(A_form == b_form, x,
                                       annotate=annotate, tlm=tlm),
                 x, bcs,
                 solver_parameters={"linear_solver": self.__linear_solver,
@@ -508,11 +537,15 @@ class KrylovSolver(backend_KrylovSolver):
             eq._pre_process(annotate=annotate)
             return_value = super().solve(*args)
             function_update_state(x)
+            if hasattr(b, "_tlm_adjoint__function"):
+                function_update_state(b._tlm_adjoint__function)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             return_value = super().solve(*args)
-            if isinstance(args[0], backend_Matrix):
-                self.__A = None
+            if hasattr(x, "_tlm_adjoint__function"):
+                function_update_state(x._tlm_adjoint__function)
+            if hasattr(b, "_tlm_adjoint__function"):
+                function_update_state(b._tlm_adjoint__function)
 
         return return_value
 
@@ -522,14 +555,15 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
         super().__init__(problem)
         self.__problem = problem
 
-    def solve(self, annotate=None, tlm=None):
+    def solve(self, *, annotate=None, tlm=None):
+        x = self.__problem.u_ufl
+
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
             lhs, rhs = self.__problem.a_ufl, self.__problem.L_ufl
-            x = self.__problem.u_ufl
             eq = EquationSolver(
                 linear_equation_new_x(lhs == rhs, x,
                                       annotate=annotate, tlm=tlm),
@@ -540,6 +574,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
             eq.solve(annotate=annotate, tlm=tlm)
         else:
             super().solve()
+            function_update_state(x)
 
 
 class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
@@ -562,13 +597,14 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
         super().__init__(problem)
         self.__problem = problem
 
-    def solve(self, annotate=None, tlm=None):
+    def solve(self, *, annotate=None, tlm=None):
+        x = self.__problem.u_ufl
+
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            x = self.__problem.u_ufl
             eq = EquationSolver(
                 self.__problem.F_ufl == 0, x,
                 self.__problem._tlm_adjoint__bcs, J=self.__problem.J_ufl,
@@ -582,5 +618,6 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             return_value = super().solve()
+            function_update_state(x)
 
         return return_value

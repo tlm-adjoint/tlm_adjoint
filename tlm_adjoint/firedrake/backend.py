@@ -30,6 +30,7 @@ backend = "Firedrake"
 backend_ScalarType = firedrake.utils.ScalarType.type
 
 extract_args = firedrake.solving._extract_args
+extract_linear_solver_args = firedrake.solving._extract_linear_solver_args
 
 backend_Constant = Constant
 backend_DirichletBC = DirichletBC
@@ -52,6 +53,7 @@ __all__ = \
         "backend_ScalarType",
 
         "extract_args",
+        "extract_linear_solver_args",
 
         "backend_Constant",
         "backend_DirichletBC",
