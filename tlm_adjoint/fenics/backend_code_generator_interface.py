@@ -400,7 +400,7 @@ def interpolate_expression(x, expr):
             raise InterfaceException("Scalar Constant required")
         value = x.values()
         Expr().eval(value, ())
-        x.assign(value)
+        x.assign(value, annotate=False, tlm=False)
     elif isinstance(x, backend_Function):
         x.interpolate(Expr())
     else:

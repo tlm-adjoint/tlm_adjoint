@@ -18,11 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Parameters, Projector, backend_DirichletBC, \
-    backend_Function, backend_LinearSolver, backend_LinearVariationalProblem, \
-    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
-    backend_Vector, backend_assemble, backend_project, backend_solve, \
-    extract_args, extract_linear_solver_args, parameters
+from .backend import Parameters, Projector, backend_Constant, \
+    backend_DirichletBC, backend_Function, backend_LinearSolver, \
+    backend_LinearVariationalProblem, backend_LinearVariationalSolver, \
+    backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
+    backend_project, backend_solve, extract_args, extract_linear_solver_args, \
+    parameters
 from ..interface import InterfaceException, check_space_type, function_new, \
     function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
@@ -309,6 +310,34 @@ def project(v, V, bcs=None, solver_parameters=None,
             ad_block_tag=ad_block_tag)
         function_update_state(x)
     return x
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
+def _Constant_assign(self, value, *, annotate=None, tlm=None):
+    eq = None
+    if isinstance(value, backend_Constant):
+        if annotate is None:
+            annotate = annotation_enabled()
+        if tlm is None:
+            tlm = tlm_enabled()
+        if annotate or tlm:
+            eq = AssignmentSolver(value, self)
+            eq._pre_process(annotate=annotate)
+
+    return_value = backend_Constant._tlm_adjoint__orig_assign(
+        self, value)
+
+    function_update_state(self)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
+
+    return return_value
+
+
+assert not hasattr(backend_Constant, "_tlm_adjoint__orig_assign")
+backend_Constant._tlm_adjoint__orig_assign = backend_Constant.assign
+backend_Constant.assign = _Constant_assign
 
 
 # Aim for compatibility with Firedrake API, git master revision

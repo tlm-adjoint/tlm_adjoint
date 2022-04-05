@@ -418,8 +418,8 @@ def _subtract_adjoint_derivative_action(x, y):
             check_space_type(y._tlm_adjoint__function, "conjugate_dual")
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) == 0:
-                # annotate=False, tlm=False
-                x.assign(backend_ScalarType(x) - alpha * y.max())
+                x.assign(backend_ScalarType(x) - alpha * y.max(),
+                         annotate=False, tlm=False)
             else:
                 value = x.values()
                 y_fn = backend_Function(r0_space(x))
@@ -427,8 +427,8 @@ def _subtract_adjoint_derivative_action(x, y):
                 for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
                     value[i] -= alpha * y_fn_c.vector().max()
                 value.shape = x.ufl_shape
-                # annotate=False, tlm=False
-                x.assign(backend_Constant(value))
+                x.assign(backend_Constant(value),
+                         annotate=False, tlm=False)
         elif isinstance(x, backend_Function):
             if x.vector().local_size() != y.local_size():
                 raise InterfaceException("Invalid function space")

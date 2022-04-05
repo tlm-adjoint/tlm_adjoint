@@ -424,8 +424,7 @@ def _subtract_adjoint_derivative_action(x, y):
             return NotImplemented
         check_space_type(y, "conjugate_dual")
         y_value = function_scalar_value(y)
-        # annotate=False, tlm=False
-        x.assign(dtype(x) - alpha * y_value)
+        x.assign(dtype(x) - alpha * y_value, annotate=False, tlm=False)
     else:
         return NotImplemented
 

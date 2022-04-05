@@ -18,12 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Parameters, backend_DirichletBC, backend_Function, \
-    backend_KrylovSolver, backend_LUSolver, backend_LinearVariationalSolver, \
-    backend_Matrix, backend_NonlinearVariationalProblem, \
-    backend_NonlinearVariationalSolver, backend_assemble, \
-    backend_assemble_system, backend_project, backend_solve, extract_args, \
-    parameters
+from .backend import Parameters, backend_Constant, backend_DirichletBC, \
+    backend_Function, backend_KrylovSolver, backend_LUSolver, \
+    backend_LinearVariationalSolver, backend_Matrix, \
+    backend_NonlinearVariationalProblem, backend_NonlinearVariationalSolver, \
+    backend_assemble, backend_assemble_system, backend_project, \
+    backend_solve, extract_args, parameters
 from ..interface import check_space_type, function_new, \
     function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
@@ -353,6 +353,32 @@ def _DirichletBC_apply(self, *args):
 assert not hasattr(backend_DirichletBC, "_tlm_adjoint__orig_apply")
 backend_DirichletBC._tlm_adjoint__orig_apply = backend_DirichletBC.apply
 backend_DirichletBC.apply = _DirichletBC_apply
+
+
+def _Constant_assign(self, x, *, annotate=None, tlm=None):
+    eq = None
+    if isinstance(x, backend_Constant):
+        if annotate is None:
+            annotate = annotation_enabled()
+        if tlm is None:
+            tlm = tlm_enabled()
+        if annotate or tlm:
+            eq = AssignmentSolver(x, self)
+            eq._pre_process(annotate=annotate)
+
+    return_value = backend_Constant._tlm_adjoint__orig_assign(
+        self, x)
+
+    function_update_state(self)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
+
+    return return_value
+
+
+assert not hasattr(backend_Constant, "_tlm_adjoint__orig_assign")
+backend_Constant._tlm_adjoint__orig_assign = backend_Constant.assign
+backend_Constant.assign = _Constant_assign
 
 
 def _Function_assign(self, rhs, *, annotate=None, tlm=None):

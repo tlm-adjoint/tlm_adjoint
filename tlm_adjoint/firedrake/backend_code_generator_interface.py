@@ -525,7 +525,7 @@ def interpolate_expression(x, expr):
         check_space_type(dep, "primal")
 
     if isinstance(x, backend_Constant):
-        x.assign(expr)
+        x.assign(expr, annotate=False, tlm=False)
     elif isinstance(x, backend_Function):
         x.interpolate(expr)
     else:
