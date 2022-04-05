@@ -499,12 +499,14 @@ def function_update_caches(*X, value=None):
 
 def function_zero(x):
     x._tlm_adjoint__function_interface_zero()
+    function_update_state(x)
 
 
 def function_assign(x, y):
     if is_function(y):
         check_space_types(x, y)
     x._tlm_adjoint__function_interface_assign(y)
+    function_update_state(x)
 
 
 def function_axpy(*args):  # y, alpha, x
@@ -512,6 +514,7 @@ def function_axpy(*args):  # y, alpha, x
     if is_function(y):
         check_space_types(x, y)
     y._tlm_adjoint__function_interface_axpy(alpha, x)
+    function_update_state(y)
 
 
 def function_inner(x, y):
@@ -552,6 +555,7 @@ def function_get_values(x):
 
 def function_set_values(x, values):
     x._tlm_adjoint__function_interface_set_values(values)
+    function_update_state(x)
 
 
 def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
