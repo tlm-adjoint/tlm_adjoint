@@ -18,11 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Parameters, Projector, backend_DirichletBC, \
-    backend_Function, backend_LinearSolver, backend_LinearVariationalProblem, \
-    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver, \
-    backend_Vector, backend_assemble, backend_project, backend_solve, \
-    extract_args, parameters
+from .backend import Parameters, Projector, backend_Constant, \
+    backend_DirichletBC, backend_Function, backend_LinearSolver, \
+    backend_LinearVariationalProblem, backend_LinearVariationalSolver, \
+    backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
+    backend_project, backend_solve, extract_args, extract_linear_solver_args, \
+    parameters
 from ..interface import InterfaceException, check_space_type, function_new, \
     function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
@@ -33,7 +34,6 @@ from ..manager import annotation_enabled, tlm_enabled
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
-from .functions import eliminate_zeros
 
 import copy
 import ufl
@@ -74,7 +74,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
     return True
 
 
-def packed_solver_parameters(solver_parameters, options_prefix=None,
+def packed_solver_parameters(solver_parameters, *, options_prefix=None,
                              nullspace=None, transpose_nullspace=None,
                              near_nullspace=None):
     if options_prefix is not None or nullspace is not None \
@@ -109,48 +109,69 @@ def packed_solver_parameters(solver_parameters, options_prefix=None,
     return solver_parameters
 
 
+def extract_args_assemble_form(form, tensor=None, bcs=None, *,
+                               form_compiler_parameters=None, **kwargs):
+    return form, tensor, bcs, form_compiler_parameters, kwargs
+
+
 # Aim for compatibility with Firedrake API, git master revision
-# 5acf6500250f1b5eaee342c6e4032eca9f7c9d2e, Apr 16 2021
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
+def assemble(expr, *args, **kwargs):
+    if not isinstance(expr, ufl.classes.Form):
+        return backend_assemble(expr, *args, **kwargs)
 
+    form, tensor, bcs, form_compiler_parameters, kwargs = \
+        extract_args_assemble_form(expr, *args, **kwargs)
 
-def assemble(expr, tensor=None, bcs=None, *, form_compiler_parameters=None,
-             **kwargs):
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
-    expr = eliminate_zeros(expr, force_non_empty_form=True)
     b = backend_assemble(
-        expr, tensor=tensor, bcs=bcs,
+        form, tensor=tensor, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters,
         **kwargs)
 
+    if tensor is not None and isinstance(tensor, backend_Function):
+        function_update_state(tensor)
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
-    if isinstance(expr, ufl.classes.Form):
-        rank = len(expr.arguments())
-        if rank != 0:
-            form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-            if form_compiler_parameters is not None:
-                update_parameters_dict(form_compiler_parameters_,
-                                       form_compiler_parameters)
-            form_compiler_parameters = form_compiler_parameters_
+    rank = len(form.arguments())
+    if rank != 0:
+        form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
+        if form_compiler_parameters is not None:
+            update_parameters_dict(form_compiler_parameters_,
+                                   form_compiler_parameters)
+        form_compiler_parameters = form_compiler_parameters_
 
-            if rank == 1:
-                b._tlm_adjoint__form = expr
-            b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+        if rank == 1:
+            b._tlm_adjoint__form = form
+        b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
     return b
 
 
+def extract_args_linear_solve(A, x, b, *args, **kwargs):
+    (bcs,
+     solver_parameters,
+     nullspace, transpose_nullspace, near_nullspace,
+     options_prefix) = extract_linear_solver_args(A, x, b, *args, **kwargs)
+
+    if isinstance(x, backend_Vector):
+        x = x.function
+    if isinstance(b, backend_Vector):
+        b = b.function
+    if bcs is not None:
+        raise OverrideException("Unexpected boundary conditions")
+
+    return (A, x, b,
+            solver_parameters,
+            nullspace, transpose_nullspace, near_nullspace,
+            options_prefix)
+
+
 # Aim for compatibility with Firedrake API, git master revision
-# cf7b18cddacae582fd1e92e6d2148d9a538d131a, Jul 25 2019
-
-
-def extract_args_linear_solve(A, x, b, bcs=None, solver_parameters=None):
-    return A, x, b, bcs, solver_parameters
-
-
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def solve(*args, annotate=None, tlm=None, **kwargs):
     if annotate is None:
         annotate = annotation_enabled()
@@ -182,6 +203,7 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 solver_parameters, options_prefix=options_prefix,
                 nullspace=nullspace, transpose_nullspace=transpose_nullspace,
                 near_nullspace=near_nullspace)
+
             if isinstance(eq_arg.rhs, ufl.classes.Form):
                 eq_arg = linear_equation_new_x(eq_arg, x,
                                                annotate=annotate, tlm=tlm)
@@ -193,25 +215,27 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
             eq.solve(annotate=annotate, tlm=tlm)
         else:
             (A, x, b,
-             bcs,
-             solver_parameters) = extract_args_linear_solve(*args, **kwargs)
-            if bcs is None:
-                bcs = A.bcs
-            elif isinstance(bcs, backend_DirichletBC):
-                bcs = (bcs,)
+             solver_parameters,
+             nullspace, transpose_nullspace, near_nullspace,
+             options_prefix) = extract_args_linear_solve(*args, **kwargs)
             if solver_parameters is None:
                 solver_parameters = {}
+
+            A = A.a
+            b = b._tlm_adjoint__form
+
+            bcs = A.bcs
+
+            solver_parameters = packed_solver_parameters(
+                solver_parameters, options_prefix=options_prefix,
+                nullspace=nullspace, transpose_nullspace=transpose_nullspace,
+                near_nullspace=near_nullspace)
 
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
                 raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
-
-            A = A.a
-            if isinstance(x, backend_Vector):
-                x = x.function
-            b = b._tlm_adjoint__form
 
             eq = EquationSolver(
                 linear_equation_new_x(A == b, x,
@@ -222,11 +246,23 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
             eq.solve(annotate=annotate, tlm=tlm)
     else:
         backend_solve(*args, **kwargs)
+        if isinstance(args[0], ufl.classes.Equation):
+            x = extract_args(*args, **kwargs)[1]
+            function_update_state(x)
+        else:
+            (_, x, b,
+             _,
+             _, _, _,
+             _) = extract_args_linear_solve(*args, **kwargs)
+            function_update_state(x)
+            function_update_state(b)
 
 
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def project(v, V, bcs=None, solver_parameters=None,
             form_compiler_parameters=None, use_slate_for_inverse=True,
-            name=None, annotate=None, tlm=None):
+            name=None, ad_block_tag=None, *, annotate=None, tlm=None):
     if annotate is None:
         annotate = annotation_enabled()
     if tlm is None:
@@ -245,9 +281,9 @@ def project(v, V, bcs=None, solver_parameters=None,
         else:
             x = space_new(V, name=name)
         if bcs is None:
-            bcs = []
+            bcs = ()
         elif isinstance(bcs, backend_DirichletBC):
-            bcs = [bcs]
+            bcs = (bcs,)
         if solver_parameters is None:
             solver_parameters = {}
         if form_compiler_parameters is None:
@@ -269,26 +305,64 @@ def project(v, V, bcs=None, solver_parameters=None,
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
-        return x
     else:
-        return backend_project(
+        x = backend_project(
             v, V, bcs=bcs, solver_parameters=solver_parameters,
             form_compiler_parameters=form_compiler_parameters,
-            use_slate_for_inverse=use_slate_for_inverse, name=name)
+            use_slate_for_inverse=use_slate_for_inverse, name=name,
+            ad_block_tag=ad_block_tag)
+        function_update_state(x)
+    return x
 
 
-def _Function_assign(self, expr, subset=None, annotate=None, tlm=None):
-    return_value = backend_Function._tlm_adjoint__orig_assign(self, expr,
-                                                              subset=subset)
-    if not isinstance(expr, backend_Function) or subset is not None:
-        return return_value
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
+def _Constant_assign(self, value, *, annotate=None, tlm=None):
+    eq = None
+    if isinstance(value, backend_Constant):
+        if annotate is None:
+            annotate = annotation_enabled()
+        if tlm is None:
+            tlm = tlm_enabled()
+        if annotate or tlm:
+            eq = AssignmentSolver(value, self)
+            eq._pre_process(annotate=annotate)
 
-    if annotate is None:
-        annotate = annotation_enabled()
-    if tlm is None:
-        tlm = tlm_enabled()
-    if annotate or tlm:
-        AssignmentSolver(expr, self).solve(annotate=annotate, tlm=tlm)
+    return_value = backend_Constant._tlm_adjoint__orig_assign(
+        self, value)
+
+    function_update_state(self)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
+
+    return return_value
+
+
+assert not hasattr(backend_Constant, "_tlm_adjoint__orig_assign")
+backend_Constant._tlm_adjoint__orig_assign = backend_Constant.assign
+backend_Constant.assign = _Constant_assign
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
+def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
+    eq = None
+    if isinstance(expr, backend_Function) and subset is None:
+        if annotate is None:
+            annotate = annotation_enabled()
+        if tlm is None:
+            tlm = tlm_enabled()
+        if annotate or tlm:
+            eq = AssignmentSolver(expr, self)
+            eq._pre_process(annotate=annotate)
+
+    return_value = backend_Function._tlm_adjoint__orig_assign(
+        self, expr, subset=subset)
+
+    function_update_state(self)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
+
     return return_value
 
 
@@ -297,6 +371,8 @@ backend_Function._tlm_adjoint__orig_assign = backend_Function.assign
 backend_Function.assign = _Function_assign
 
 
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Function_project(self, b, *args, **kwargs):
     return project(b, self, *args, **kwargs)
 
@@ -306,29 +382,27 @@ backend_Function._tlm_adjoint__orig_project = backend_Function.project
 backend_Function.project = _Function_project
 
 
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 class LinearSolver(backend_LinearSolver):
-    def __init__(self, A, P=None, solver_parameters=None, nullspace=None,
-                 transpose_nullspace=None, near_nullspace=None,
-                 options_prefix=None):
+    def __init__(self, A, *, P=None, **kwargs):
         if P is not None:
             raise OverrideException("Preconditioners not supported")
 
-        super().__init__(
-            A, P=P, solver_parameters=solver_parameters,
-            nullspace=nullspace, transpose_nullspace=transpose_nullspace,
-            near_nullspace=near_nullspace, options_prefix=options_prefix)
+        super().__init__(A, P=P, **kwargs)
 
-    def solve(self, x, b, annotate=None, tlm=None):
+    def solve(self, x, b, *, annotate=None, tlm=None):
+        if isinstance(x, backend_Vector):
+            x = x.function
+        if isinstance(b, backend_Vector):
+            b = b.function
+
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
             A = self.A
-            if isinstance(x, backend_Vector):
-                x = x.function
-            if isinstance(b, backend_Vector):
-                b = b.function
             bcs = A.bcs
             solver_parameters = packed_solver_parameters(
                 self.parameters, options_prefix=self.options_prefix,
@@ -351,29 +425,49 @@ class LinearSolver(backend_LinearSolver):
             eq._pre_process(annotate=annotate)
             super().solve(x, b)
             function_update_state(x)
+            function_update_state(b)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             super().solve(x, b)
+            function_update_state(x)
+            function_update_state(b)
 
 
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 class LinearVariationalProblem(backend_LinearVariationalProblem):
     def __init__(self, a, L, *args, **kwargs):
         super().__init__(a, L, *args, **kwargs)
         self._tlm_adjoint__b = L
 
 
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 class LinearVariationalSolver(backend_LinearVariationalSolver):
-    def __init__(self, *args, **kwargs):
-        problem, = args
-        if "appctx" in kwargs:
+    def __init__(self, problem, *, appctx=None, pre_jacobian_callback=None,
+                 post_jacobian_callback=None, pre_function_callback=None,
+                 post_function_callback=None, **kwargs):
+        if appctx is not None:
             raise OverrideException("Preconditioners not supported")
+        if pre_jacobian_callback is not None \
+                or post_jacobian_callback is not None \
+                or pre_function_callback is not None \
+                or post_function_callback is not None:
+            raise OverrideException("Callbacks not supported")
 
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            problem, appctx=appctx,
+            pre_jacobian_callback=pre_jacobian_callback,
+            post_jacobian_callback=post_jacobian_callback,
+            pre_function_callback=pre_function_callback,
+            post_function_callback=post_function_callback, **kwargs)
 
-    def set_transfer_operators(self, *args, **kwargs):
-        raise OverrideException("Transfer operators not supported")
+    def set_transfer_manager(self, *args, **kwargs):
+        raise OverrideException("Transfer managers not supported")
 
-    def solve(self, bounds=None, annotate=None, tlm=None):
+    def solve(self, bounds=None, *, annotate=None, tlm=None):
+        x = self._problem.u
+
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
@@ -394,7 +488,6 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
                 form_compiler_parameters = {}
 
             A = self._problem.J
-            x = self._problem.u
             b = self._problem._tlm_adjoint__b
 
             eq = EquationSolver(
@@ -407,23 +500,34 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
             eq.solve(annotate=annotate, tlm=tlm)
         else:
             super().solve(bounds=bounds)
+            function_update_state(x)
 
 
+# Aim for compatibility with Firedrake API, git master revision
+# bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
-    def __init__(self, *args, **kwargs):
-        problem, = args
-        if "appctx" in kwargs:
+    def __init__(self, problem, *, appctx=None, pre_jacobian_callback=None,
+                 post_jacobian_callback=None, pre_function_callback=None,
+                 post_function_callback=None, **kwargs):
+        if appctx is not None:
             raise OverrideException("Preconditioners not supported")
-        if "pre_jacobian_callback" in kwargs \
-           or "pre_function_callback" in kwargs:
+        if pre_jacobian_callback is not None \
+                or post_jacobian_callback is not None \
+                or pre_function_callback is not None \
+                or post_function_callback is not None:
             raise OverrideException("Callbacks not supported")
 
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            problem, appctx=appctx,
+            pre_jacobian_callback=pre_jacobian_callback,
+            post_jacobian_callback=post_jacobian_callback,
+            pre_function_callback=pre_function_callback,
+            post_function_callback=post_function_callback, **kwargs)
 
-    def set_transfer_operators(self, *args, **kwargs):
-        raise OverrideException("Transfer operators not supported")
+    def set_transfer_manager(self, *args, **kwargs):
+        raise OverrideException("Transfer managers not supported")
 
-    def solve(self, bounds=None, annotate=None, tlm=None):
+    def solve(self, bounds=None, *, annotate=None, tlm=None):
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
@@ -451,3 +555,4 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
             eq.solve(annotate=annotate, tlm=tlm)
         else:
             super().solve(bounds=bounds)
+            function_update_state(self._problem.u)

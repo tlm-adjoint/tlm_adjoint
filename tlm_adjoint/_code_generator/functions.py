@@ -129,7 +129,7 @@ class ConstantInterface(_FunctionInterface):
         else:
             value = np.zeros(self.ufl_shape, dtype=function_dtype(self))
             value = backend_Constant(value)
-        self.assign(value)  # annotate=False, tlm=False
+        self.assign(value, annotate=False, tlm=False)
 
     def _assign(self, y):
         if isinstance(y, (int, np.integer,
@@ -144,7 +144,7 @@ class ConstantInterface(_FunctionInterface):
         else:
             assert isinstance(y, backend_Constant)
             value = y
-        self.assign(value)  # annotate=False, tlm=False
+        self.assign(value, annotate=False, tlm=False)
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
@@ -167,7 +167,7 @@ class ConstantInterface(_FunctionInterface):
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
-        self.assign(value)  # annotate=False, tlm=False
+        self.assign(value, annotate=False, tlm=False)
 
     def _inner(self, y):
         assert isinstance(y, backend_Constant)
@@ -226,10 +226,10 @@ class ConstantInterface(_FunctionInterface):
         values = comm.bcast(values, root=0)
         if len(self.ufl_shape) == 0:
             values.shape = (1,)
-            self.assign(values[0])  # annotate=False, tlm=False
+            self.assign(values[0], annotate=False, tlm=False)
         else:
             values.shape = self.ufl_shape
-            self.assign(backend_Constant(values))  # annotate=False, tlm=False
+            self.assign(backend_Constant(values), annotate=False, tlm=False)
 
     def _replacement(self):
         if not hasattr(self, "_tlm_adjoint__replacement"):

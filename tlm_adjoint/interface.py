@@ -309,11 +309,11 @@ class FunctionInterface:
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
              "_state", "_update_state", "_is_static", "_is_cached",
-             "_is_checkpointed", "_caches", "_update_caches", "_zero",
-             "_assign", "_axpy", "_inner", "_max_value", "_sum", "_linf_norm",
-             "_local_size", "_global_size", "_local_indices", "_get_values",
-             "_set_values", "_new", "_copy", "_replacement", "_is_replacement",
-             "_is_scalar", "_scalar_value", "_is_alias")
+             "_is_checkpointed", "_caches", "_zero", "_assign", "_axpy",
+             "_inner", "_max_value", "_sum", "_linf_norm", "_local_size",
+             "_global_size", "_local_indices", "_get_values", "_set_values",
+             "_new", "_copy", "_replacement", "_is_replacement", "_is_scalar",
+             "_scalar_value", "_is_alias")
 
     def __init__(self):
         raise InterfaceException("Cannot instantiate FunctionInterface object")
@@ -353,13 +353,6 @@ class FunctionInterface:
 
     def _caches(self):
         raise InterfaceException("Method not overridden")
-
-    def _update_caches(self, value=None):
-        if value is None:
-            if function_is_replacement(self):
-                raise InterfaceException("value required")
-            value = self
-        function_caches(self).update(value)
 
     def _zero(self):
         raise InterfaceException("Method not overridden")
@@ -493,23 +486,27 @@ def function_caches(x):
 def function_update_caches(*X, value=None):
     if value is None:
         for x in X:
-            x._tlm_adjoint__function_interface_update_caches()
+            if function_is_replacement(x):
+                raise InterfaceException("value required")
+            function_caches(x).update(x)
     else:
         if is_function(value):
             value = (value,)
         assert len(X) == len(value)
         for x, x_value in zip(X, value):
-            x._tlm_adjoint__function_interface_update_caches(value=x_value)
+            function_caches(x).update(x_value)
 
 
 def function_zero(x):
     x._tlm_adjoint__function_interface_zero()
+    function_update_state(x)
 
 
 def function_assign(x, y):
     if is_function(y):
         check_space_types(x, y)
     x._tlm_adjoint__function_interface_assign(y)
+    function_update_state(x)
 
 
 def function_axpy(*args):  # y, alpha, x
@@ -517,6 +514,7 @@ def function_axpy(*args):  # y, alpha, x
     if is_function(y):
         check_space_types(x, y)
     y._tlm_adjoint__function_interface_axpy(alpha, x)
+    function_update_state(y)
 
 
 def function_inner(x, y):
@@ -557,6 +555,7 @@ def function_get_values(x):
 
 def function_set_values(x, values):
     x._tlm_adjoint__function_interface_set_values(values)
+    function_update_state(x)
 
 
 def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
