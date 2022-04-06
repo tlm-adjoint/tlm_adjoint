@@ -34,7 +34,6 @@ from ..manager import annotation_enabled, tlm_enabled
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
-from .functions import eliminate_zeros
 
 import copy
 import ufl
@@ -118,7 +117,6 @@ def extract_args_assemble_form(form, tensor=None, bcs=None, *,
 # Aim for compatibility with Firedrake API, git master revision
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def assemble(expr, *args, **kwargs):
-    expr = eliminate_zeros(expr, force_non_empty_form=True)
     if not isinstance(expr, ufl.classes.Form):
         return backend_assemble(expr, *args, **kwargs)
 
@@ -247,12 +245,17 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
     else:
+        backend_solve(*args, **kwargs)
         if isinstance(args[0], ufl.classes.Equation):
             x = extract_args(*args, **kwargs)[1]
+            function_update_state(x)
         else:
-            x = extract_args_linear_solve(*args, **kwargs)[1]
-        backend_solve(*args, **kwargs)
-        function_update_state(x)
+            (_, x, b,
+             _,
+             _, _, _,
+             _) = extract_args_linear_solve(*args, **kwargs)
+            function_update_state(x)
+            function_update_state(b)
 
 
 # Aim for compatibility with Firedrake API, git master revision
@@ -278,9 +281,9 @@ def project(v, V, bcs=None, solver_parameters=None,
         else:
             x = space_new(V, name=name)
         if bcs is None:
-            bcs = []
+            bcs = ()
         elif isinstance(bcs, backend_DirichletBC):
-            bcs = [bcs]
+            bcs = (bcs,)
         if solver_parameters is None:
             solver_parameters = {}
         if form_compiler_parameters is None:

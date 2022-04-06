@@ -33,7 +33,6 @@ from ..manager import annotation_enabled, tlm_enabled
 
 from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
     linear_equation_new_x
-from .functions import eliminate_zeros
 
 import numpy as np
 import ufl
@@ -88,7 +87,6 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
-    form = eliminate_zeros(form, force_non_empty_form=True)
     b = backend_assemble(form, tensor=tensor,
                          form_compiler_parameters=form_compiler_parameters,
                          add_values=add_values, *args, **kwargs)
@@ -114,7 +112,7 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
         else:
             b._tlm_adjoint__form = form
             b._tlm_adjoint__bcs = []
-            b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+            b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
     return b
 
@@ -133,8 +131,6 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
     if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
         check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
 
-    A_form = eliminate_zeros(A_form, force_non_empty_form=True)
-    b_form = eliminate_zeros(b_form, force_non_empty_form=True)
     A, b = backend_assemble_system(
         A_form, b_form, bcs=bcs, x0=x0,
         form_compiler_parameters=form_compiler_parameters,
@@ -255,18 +251,22 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
             eq._pre_process(annotate=annotate)
             return_value = backend_solve(*args, **kwargs)
             function_update_state(x)
+            function_update_state(b)
             eq._post_process(annotate=annotate, tlm=tlm)
 
             return return_value
     else:
         return_value = backend_solve(*args, **kwargs)
+
         if isinstance(args[0], ufl.classes.Equation):
             x = extract_args(*args, **kwargs)[1]
             function_update_state(x)
         else:
-            x = extract_args_linear_solve(*args, **kwargs)[1]
+            _, x, b, _ = extract_args_linear_solve(*args, **kwargs)
             if hasattr(x, "_tlm_adjoint__function"):
                 function_update_state(x._tlm_adjoint__function)
+            if hasattr(b, "_tlm_adjoint__function"):
+                function_update_state(b._tlm_adjoint__function)
         return return_value
 
 
@@ -286,9 +286,9 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
             x = function
 
         if bcs is None:
-            bcs = []
+            bcs = ()
         elif isinstance(bcs, backend_DirichletBC):
-            bcs = [bcs]
+            bcs = (bcs,)
 
         solver_parameters_ = {"linear_solver": solver_type,
                               "preconditioner": preconditioner_type}
