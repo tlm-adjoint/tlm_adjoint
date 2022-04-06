@@ -387,6 +387,8 @@ def interpolate_expression(x, expr):
     for dep in deps:
         check_space_type(dep, "primal")
 
+    expr = eliminate_zeros(expr)
+
     class Expr(UserExpression):
         def eval(self, value, x):
             x = tuple(x)
