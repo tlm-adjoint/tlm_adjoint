@@ -532,8 +532,7 @@ class PointInterpolationSolver(Equation):
                  P=None, P_T=None, tolerance=0.0):
         """
         Defines an equation which interpolates the scalar-valued Function y at
-        the points X_coords. It is assumed that the given points are all within
-        the y mesh.
+        the points X_coords.
 
         Internally this builds (or uses a supplied) interpolation matrix for
         the *local process only*. This works correctly in parallel if y is in a
