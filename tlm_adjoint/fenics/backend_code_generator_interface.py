@@ -251,8 +251,12 @@ def form_form_compiler_parameters(form, form_compiler_parameters):
         = ffc.analysis.analyze_forms((form,), form_compiler_parameters)
     integral_metadata = tuple(integral_data.metadata
                               for integral_data in form_data.integral_data)
-    qr = ffc.analysis._extract_common_quadrature_rule(integral_metadata)
-    qd = ffc.analysis._extract_common_quadrature_degree(integral_metadata)
+    qr = form_compiler_parameters.get("quadrature_rule", "auto")
+    if qr in [None, "auto"]:
+        qr = ffc.analysis._extract_common_quadrature_rule(integral_metadata)
+    qd = form_compiler_parameters.get("quadrature_degree", "auto")
+    if qd in [None, "auto", -1]:
+        qd = ffc.analysis._extract_common_quadrature_degree(integral_metadata)
     return {"quadrature_rule": qr, "quadrature_degree": qd}
 
 

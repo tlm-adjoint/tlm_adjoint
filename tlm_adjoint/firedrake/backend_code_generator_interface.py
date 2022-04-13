@@ -379,7 +379,9 @@ def linear_solver(A, linear_solver_parameters):
 
 
 def form_form_compiler_parameters(form, form_compiler_parameters):
-    qd = ufl.algorithms.estimate_total_polynomial_degree(form)
+    qd = form_compiler_parameters.get("quadrature_degree", "auto")
+    if qd in [None, "auto", -1]:
+        qd = ufl.algorithms.estimate_total_polynomial_degree(form)
     return {"quadrature_degree": qd}
 
 
