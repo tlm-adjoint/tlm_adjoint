@@ -163,10 +163,10 @@ class CheckpointStorage:
     def store_data(self):
         return self._store_data
 
-    def clear(self, *, clear_cp=True, clear_data=True, clear_refs=False):
+    def clear(self, *, clear_ics=True, clear_data=True, clear_refs=False):
         if clear_refs:
             self._refs.clear()
-        if clear_cp:
+        if clear_ics:
             self._seen_ics.clear()
             self._cp.clear()
 
@@ -1812,7 +1812,7 @@ class EquationManager:
             assert len(adj_Xs[J_i]) == 0
 
         if self._cp_method == "multistage":
-            self._cp.clear(clear_cp=False, clear_data=True, clear_refs=False)
+            self._cp.clear(clear_ics=False, clear_data=True, clear_refs=False)
 
         return tuple(dJ)
 
