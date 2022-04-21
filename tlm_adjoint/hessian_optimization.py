@@ -87,7 +87,7 @@ class HessianOptimization:
                 manager._block.append(eq)
                 manager._cp.add_equation(
                     (len(manager._blocks), len(manager._block) - 1), eq,
-                    nl_deps=self._nl_deps[(n, i)], copy=lambda x: False)
+                    nl_deps=self._nl_deps[(n, i)], _copy=lambda x: False)
                 yield n, i, eq
 
     def _tangent_linear(self, manager, eq, M, dM):

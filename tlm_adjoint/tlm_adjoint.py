@@ -131,18 +131,19 @@ class Control(Alias):
 
 
 class CheckpointStorage:
-    def __init__(self, store_ics=True, store_data=True):
+    def __init__(self, *, store_ics=True, store_data=True):
         self._seen_ics = set()
         self._cp = {}
+        self._refs = {}
+
         self._indices = defaultdict(lambda: 0)
         self._dep_keys = {}
         self._data = {}
-        self._refs = {}
 
         self.configure(store_ics=store_ics,
                        store_data=store_data)
 
-    def configure(self, store_ics=None, store_data=None):
+    def configure(self, *, store_ics, store_data):
         """
         Configure storage.
 
@@ -153,10 +154,8 @@ class CheckpointStorage:
                     mode
         """
 
-        if store_ics is not None:
-            self._store_ics = store_ics
-        if store_data is not None:
-            self._store_data = store_data
+        self._store_ics = store_ics
+        self._store_data = store_data
 
     def store_ics(self):
         return self._store_ics
@@ -164,39 +163,40 @@ class CheckpointStorage:
     def store_data(self):
         return self._store_data
 
-    def clear(self, clear_cp=True, clear_data=True, clear_refs=False):
+    def clear(self, *, clear_cp=True, clear_data=True, clear_refs=False):
+        if clear_refs:
+            self._refs.clear()
         if clear_cp:
             self._seen_ics.clear()
             self._cp.clear()
+
+            for x_id in self._refs:
+                self._seen_ics.add(x_id)
+
         if clear_data:
             self._indices.clear()
             self._dep_keys.clear()
             self._data.clear()
-        if clear_refs:
-            self._refs.clear()
-        else:
-            for x_id, x in self._refs.items():
-                # May have been cleared above
-                self._seen_ics.add(x_id)
 
-                x_key = self._data_key(x_id)
-                if x_key not in self._data:
-                    self._data[x_key] = x
+            for x_id, x in self._cp.items():
+                self._data[self._data_key(x_id)] = x
+            for x_id, x in self._refs.items():
+                self._data[self._data_key(x_id)] = x
 
     def __getitem__(self, key):
         return tuple(self._data[dep_key] for dep_key in self._dep_keys[key])
 
-    def initial_condition(self, x, copy=True):
+    def initial_condition(self, x, *, copy=True):
         x_id = function_id(x)
-        if x_id in self._refs:
-            ic = self._refs[x_id]
-        else:
+        if x_id in self._cp:
             ic = self._cp[x_id]
+        else:
+            ic = self._refs[x_id]
         if copy:
             ic = function_copy(ic)
         return ic
 
-    def initial_conditions(self, cp=True, refs=False, copy=True):
+    def initial_conditions(self, *, cp=True, refs=False, copy=True):
         cp_d = {}
         if cp:
             for x_id, x in self._cp.items():
@@ -209,22 +209,29 @@ class CheckpointStorage:
     def _data_key(self, x_id):
         return (x_id, self._indices[x_id])
 
-    def add_initial_condition(self, x, value=None, copy=None):
+    def add_initial_condition(self, x, value=None, *, _copy=None):
+        copy = _copy
+        del _copy
+
         if value is None:
             value = x
         if copy is None:
             copy = function_is_checkpointed(x)
+
         self._add_initial_condition(x_id=function_id(x), value=value,
                                     copy=copy)
 
-    def _add_initial_condition(self, x_id, value, copy):
+    def _add_initial_condition(self, *, x_id, value, copy):
         if self._store_ics and x_id not in self._seen_ics:
+            assert x_id not in self._cp
+            assert x_id not in self._refs
+
             x_key = self._data_key(x_id)
             if x_key in self._data:
                 if copy:
                     self._cp[x_id] = self._data[x_key]
                 else:
-                    assert x_id in self._refs
+                    self._refs[x_id] = self._data[x_key]
             else:
                 if copy:
                     value = function_copy(value)
@@ -234,8 +241,14 @@ class CheckpointStorage:
                 self._data[x_key] = value
             self._seen_ics.add(x_id)
 
-    def add_equation(self, key, eq, deps=None, nl_deps=None,
-                     copy=lambda x: function_is_checkpointed(x)):
+    def add_equation(self, key, eq, *, deps=None, nl_deps=None, _copy=None):
+        if _copy is None:
+            def copy(x):
+                return function_is_checkpointed(x)
+        else:
+            copy = _copy
+        del _copy
+
         eq_X = eq.X()
         eq_deps = eq.dependencies()
         if deps is None:
@@ -250,7 +263,7 @@ class CheckpointStorage:
             assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
                 self.add_initial_condition(eq_dep, value=dep,
-                                           copy=copy(eq_dep))
+                                           _copy=copy(eq_dep))
 
         if self._store_data:
             if nl_deps is None:
@@ -261,19 +274,14 @@ class CheckpointStorage:
             eq_nl_deps = eq.nonlinear_dependencies()
             assert len(eq_nl_deps) == len(nl_deps)
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
-                eq_dep_id = function_id(eq_dep)
-                dep_key = self._data_key(eq_dep_id)
+                dep_key = self._data_key(function_id(eq_dep))
                 if dep_key not in self._data:
                     if copy(eq_dep):
                         self._data[dep_key] = function_copy(dep)
                     else:
                         self._data[dep_key] = dep
-                        if eq_dep_id not in self._seen_ics:
-                            self._seen_ics.add(eq_dep_id)
-                            self._refs[eq_dep_id] = dep
                 dep_keys.append(dep_key)
-            del eq_nl_deps
-            self._dep_keys[key] = dep_keys
+            self._dep_keys[key] = tuple(dep_keys)
 
 
 class TangentLinearMap:
@@ -1054,8 +1062,7 @@ class EquationManager:
         for eq in self._blocks[0]:
             if x_id in {function_id(dep) for dep in eq.dependencies()}:
                 self._restore_checkpoint(0)
-                return self._cp.initial_condition(
-                    x, copy=function_is_checkpointed(x))
+                return self._cp.initial_condition(x, copy=True)
         raise ManagerException("Initial condition not found")
 
     def add_equation(self, eq, annotate=None, tlm=None, tlm_skip=None):
