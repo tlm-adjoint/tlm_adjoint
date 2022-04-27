@@ -531,8 +531,22 @@ def solve(*args, **kwargs):
     if not isinstance(args[0], ufl.classes.Equation):
         return backend_solve(*args, **kwargs)
 
-    eq, x, bcs, J, tol, M, form_compiler_parameters, solver_parameters \
-        = extract_args(*args, **kwargs)
+    extracted_args = extract_args(*args, **kwargs)
+    if len(extracted_args) == 8:
+        (eq, x, bcs, J,
+         tol, M,
+         form_compiler_parameters,
+         solver_parameters) \
+            = extracted_args
+        preconditioner = None
+    else:
+        (eq, x, bcs, J,
+         tol, M,
+         preconditioner,
+         form_compiler_parameters,
+         solver_parameters) = extracted_args
+    del extracted_args
+
     check_space_type(x, "primal")
     if bcs is None:
         bcs = ()
@@ -543,7 +557,7 @@ def solve(*args, **kwargs):
     if solver_parameters is None:
         solver_parameters = {}
 
-    if tol is not None or M is not None:
+    if tol is not None or M is not None or preconditioner is not None:
         return backend_solve(*args, **kwargs)
 
     lhs, rhs = eq.lhs, eq.rhs
