@@ -197,10 +197,21 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
         tlm = tlm_enabled()
     if annotate or tlm:
         if isinstance(args[0], ufl.classes.Equation):
-            (eq_arg, x, bcs, J,
-             tol, M,
-             form_compiler_parameters,
-             solver_parameters) = extract_args(*args, **kwargs)
+            extracted_args = extract_args(*args, **kwargs)
+            if len(extracted_args) == 8:
+                (eq_arg, x, bcs, J,
+                 tol, M,
+                 form_compiler_parameters,
+                 solver_parameters) = extracted_args
+                preconditioner = None
+            else:
+                (eq_arg, x, bcs, J,
+                 tol, M,
+                 preconditioner,
+                 form_compiler_parameters,
+                 solver_parameters) = extracted_args
+            del extracted_args
+
             if bcs is None:
                 bcs = ()
             elif isinstance(bcs, backend_DirichletBC):
@@ -212,6 +223,8 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
 
             if tol is not None or M is not None:
                 raise OverrideException("Adaptive solves not supported")
+            if preconditioner is not None:
+                raise OverrideException("Preconditioners not supported")
 
             if isinstance(eq_arg.rhs, ufl.classes.Form):
                 eq_arg = linear_equation_new_x(eq_arg, x,
