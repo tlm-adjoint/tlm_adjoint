@@ -27,7 +27,7 @@ from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import InterfaceException, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, check_space_type, function_copy, function_new, \
+    add_time_system_eq, check_space_types, function_copy, function_new, \
     function_space, function_space_type, new_function_id, new_space_id, \
     space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
@@ -415,7 +415,7 @@ def _subtract_adjoint_derivative_action(x, y):
         alpha, y = y
         alpha = backend_ScalarType(alpha)
         if hasattr(y, "_tlm_adjoint__function"):
-            check_space_type(y._tlm_adjoint__function, "conjugate_dual")
+            check_space_types(x, y._tlm_adjoint__function)
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) == 0:
                 x.assign(backend_ScalarType(x) - alpha * y.max(),
