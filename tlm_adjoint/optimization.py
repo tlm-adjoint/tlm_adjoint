@@ -21,9 +21,10 @@
 from .interface import function_axpy, function_copy, function_get_values, \
     function_is_cached, function_is_checkpointed, function_is_static, \
     function_linf_norm, function_local_size, function_new, \
-    function_set_values
+    function_set_values, is_function
 
 from .caches import clear_caches
+from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
@@ -114,7 +115,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
                       cache=function_is_cached(m0),
                       checkpoint=function_is_checkpointed(m0))
          for m0 in M0]
-    J = [J0]
+    J = [Functional(_fn=J0) if is_function(J0) else J0]
     J_M = [tuple(function_copy(m0) for m0 in M0), M0]
 
     @restore_manager
@@ -144,6 +145,8 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         manager.start()
         J[0] = forward(*M)
+        if is_function(J[0]):
+            J[0] = Functional(_fn=J[0])
         manager.stop()
 
         J_M[1] = M
