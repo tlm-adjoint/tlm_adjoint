@@ -59,6 +59,7 @@ __all__ = \
 
         "AssignmentSolver",
         "AxpySolver",
+        "CustomNormsFixedPointSolver",
         "FixedPointSolver",
         "LinearCombinationSolver",
         "NullSolver",
@@ -1333,6 +1334,58 @@ class FixedPointSolver(Equation):
 
         return FixedPointSolver(tlm_eqs,
                                 solver_parameters=self._solver_parameters)
+
+
+class CustomNormsFixedPointSolver(FixedPointSolver):
+    def __init__(self, eqs, solver_parameters,
+                 *, norm_sqs, adj_norm_sqs):
+        norm_sqs = list(norm_sqs)
+        if len(eqs) != len(norm_sqs):
+            raise EquationException("Invalid squared norm callable(s)")
+        for i, (eq, X_norm_sq) in enumerate(zip(eqs, norm_sqs)):
+            if callable(X_norm_sq):
+                X_norm_sq = (X_norm_sq,)
+            if len(eq.X()) != len(X_norm_sq):
+                raise EquationException("Invalid squared norm callable(s)")
+            norm_sqs[i] = tuple(X_norm_sq)
+
+        adj_norm_sqs = list(adj_norm_sqs)
+        if len(eqs) != len(adj_norm_sqs):
+            raise EquationException("Invalid squared norm callable(s)")
+        for i, (eq, X_norm_sq) in enumerate(zip(eqs, adj_norm_sqs)):
+            if callable(X_norm_sq):
+                X_norm_sq = (X_norm_sq,)
+            if len(eq.X()) != len(X_norm_sq):
+                raise EquationException("Invalid squared norm callable(s)")
+            adj_norm_sqs[i] = tuple(X_norm_sq)
+
+        super().__init__(eqs, solver_parameters)
+        self._norm_sqs = tuple(norm_sqs)
+        self._adj_norm_sqs = tuple(adj_norm_sqs)
+
+    def _forward_norm_sq(self, eq_X):
+        norm_sq = 0.0
+        assert len(eq_X) == len(self._norm_sqs)
+        for X, X_norm_sq in zip(eq_X, self._norm_sqs):
+            assert len(X) == len(X_norm_sq)
+            for x, x_norm_sq in zip(X, X_norm_sq):
+                norm_sq_term = x_norm_sq(x)
+                assert norm_sq_term >= 0.0
+                norm_sq += norm_sq_term
+
+        return norm_sq
+
+    def _adjoint_norm_sq(self, eq_adj_X):
+        norm_sq = 0.0
+        assert len(eq_adj_X) == len(self._adj_norm_sqs)
+        for X, X_norm_sq in zip(eq_adj_X, self._adj_norm_sqs):
+            assert len(X) == len(X_norm_sq)
+            for x, x_norm_sq in zip(X, X_norm_sq):
+                norm_sq_term = x_norm_sq(x)
+                assert norm_sq_term >= 0.0
+                norm_sq += norm_sq_term
+
+        return norm_sq
 
 
 class LinearEquation(Equation):
