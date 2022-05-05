@@ -1338,7 +1338,7 @@ class FixedPointSolver(Equation):
 
 class CustomNormsFixedPointSolver(FixedPointSolver):
     def __init__(self, eqs, solver_parameters,
-                 *, norm_sqs, adjoint_norm_sqs):
+                 *, norm_sqs, adj_norm_sqs):
         norm_sqs = list(norm_sqs)
         if len(eqs) != len(norm_sqs):
             raise EquationException("Invalid squared norm callable(s)")
@@ -1349,19 +1349,19 @@ class CustomNormsFixedPointSolver(FixedPointSolver):
                 raise EquationException("Invalid squared norm callable(s)")
             norm_sqs[i] = tuple(X_norm_sq)
 
-        adjoint_norm_sqs = list(adjoint_norm_sqs)
-        if len(eqs) != len(adjoint_norm_sqs):
+        adj_norm_sqs = list(adj_norm_sqs)
+        if len(eqs) != len(adj_norm_sqs):
             raise EquationException("Invalid squared norm callable(s)")
-        for i, (eq, X_norm_sq) in enumerate(zip(eqs, adjoint_norm_sqs)):
+        for i, (eq, X_norm_sq) in enumerate(zip(eqs, adj_norm_sqs)):
             if callable(X_norm_sq):
                 X_norm_sq = (X_norm_sq,)
             if len(eq.X()) != len(X_norm_sq):
                 raise EquationException("Invalid squared norm callable(s)")
-            adjoint_norm_sqs[i] = tuple(X_norm_sq)
+            adj_norm_sqs[i] = tuple(X_norm_sq)
 
         super().__init__(eqs, solver_parameters)
         self._norm_sqs = tuple(norm_sqs)
-        self._adjoint_norm_sqs = tuple(adjoint_norm_sqs)
+        self._adj_norm_sqs = tuple(adj_norm_sqs)
 
     def _forward_norm_sq(self, eq_X):
         norm_sq = 0.0
@@ -1377,8 +1377,8 @@ class CustomNormsFixedPointSolver(FixedPointSolver):
 
     def _adjoint_norm_sq(self, eq_adj_X):
         norm_sq = 0.0
-        assert len(eq_adj_X) == len(self._adjoint_norm_sqs)
-        for X, X_norm_sq in zip(eq_adj_X, self._adjoint_norm_sqs):
+        assert len(eq_adj_X) == len(self._adj_norm_sqs)
+        for X, X_norm_sq in zip(eq_adj_X, self._adj_norm_sqs):
             assert len(X) == len(X_norm_sq)
             for x, x_norm_sq in zip(X, X_norm_sq):
                 norm_sq_term = x_norm_sq(x)
