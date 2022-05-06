@@ -59,7 +59,6 @@ __all__ = \
 
         "AssignmentSolver",
         "AxpySolver",
-        "CustomNormsFixedPointSolver",
         "FixedPointSolver",
         "LinearCombinationSolver",
         "NullSolver",
@@ -870,14 +869,79 @@ class AxpySolver(LinearCombinationSolver):
         super().__init__(y_new, (1.0, y_old), (alpha, x))
 
 
-class FixedPointSolver(Equation):
+@no_space_type_checking
+def l2_norm_sq(x):
+    return function_inner(x, x)
+
+
+class CustomNormSq:
+    def __init__(self, eqs, *, norm_sqs=None, adj_norm_sqs=None):
+        if norm_sqs is None:
+            norm_sqs = [l2_norm_sq for eq in eqs]
+        if adj_norm_sqs is None:
+            adj_norm_sqs = [l2_norm_sq for eq in eqs]
+
+        norm_sqs = list(norm_sqs)
+        if len(eqs) != len(norm_sqs):
+            raise EquationException("Invalid squared norm callable(s)")
+        for i, (eq, X_norm_sq) in enumerate(zip(eqs, norm_sqs)):
+            if callable(X_norm_sq):
+                X_norm_sq = (X_norm_sq,)
+            if len(eq.X()) != len(X_norm_sq):
+                raise EquationException("Invalid squared norm callable(s)")
+            norm_sqs[i] = tuple(X_norm_sq)
+
+        adj_norm_sqs = list(adj_norm_sqs)
+        if len(eqs) != len(adj_norm_sqs):
+            raise EquationException("Invalid squared norm callable(s)")
+        for i, (eq, X_norm_sq) in enumerate(zip(eqs, adj_norm_sqs)):
+            if callable(X_norm_sq):
+                X_norm_sq = (X_norm_sq,)
+            if len(eq.X()) != len(X_norm_sq):
+                raise EquationException("Invalid squared norm callable(s)")
+            adj_norm_sqs[i] = tuple(X_norm_sq)
+
+        self._norm_sqs = tuple(norm_sqs)
+        self._adj_norm_sqs = tuple(adj_norm_sqs)
+
+    def _forward_norm_sq(self, eq_X):
+        norm_sq = 0.0
+        assert len(eq_X) == len(self._norm_sqs)
+        for X, X_norm_sq in zip(eq_X, self._norm_sqs):
+            assert len(X) == len(X_norm_sq)
+            for x, x_norm_sq in zip(X, X_norm_sq):
+                norm_sq_term = complex(x_norm_sq(x))
+                assert norm_sq_term.imag == 0.0
+                norm_sq_term = norm_sq_term.real
+                assert norm_sq_term >= 0.0
+                norm_sq += norm_sq_term
+
+        return norm_sq
+
+    def _adjoint_norm_sq(self, eq_adj_X):
+        norm_sq = 0.0
+        assert len(eq_adj_X) == len(self._adj_norm_sqs)
+        for X, X_norm_sq in zip(eq_adj_X, self._adj_norm_sqs):
+            assert len(X) == len(X_norm_sq)
+            for x, x_norm_sq in zip(X, X_norm_sq):
+                norm_sq_term = complex(x_norm_sq(x))
+                assert norm_sq_term.imag == 0.0
+                norm_sq_term = norm_sq_term.real
+                assert norm_sq_term >= 0.0
+                norm_sq += norm_sq_term
+
+        return norm_sq
+
+
+class FixedPointSolver(Equation, CustomNormSq):
     # Derives tangent-linear and adjoint information using the approach
     # described in
     #   J. C. Gilbert, "Automatic differentiation and iterative processes",
     #     Optimization Methods and Software, 1(1), pp. 13--21, 1992
     #   B. Christianson, "Reverse accumulation and attractive fixed points",
     #     Optimization Methods and Software, 3(4), pp. 311--326, 1994
-    def __init__(self, eqs, solver_parameters):
+    def __init__(self, eqs, solver_parameters,
+                 *, norm_sqs=None, adj_norm_sqs=None):
         """
         A fixed point solver.
 
@@ -1068,9 +1132,11 @@ class FixedPointSolver(Equation):
                         dep_B_indices[i][j] = (k, m)
         del dep_map
 
-        super().__init__(X, deps, nl_deps=nl_deps,
-                         ic_deps=ic_deps, adj_ic_deps=adj_ic_deps,
-                         adj_type=adj_X_type)
+        Equation.__init__(self, X, deps, nl_deps=nl_deps,
+                          ic_deps=ic_deps, adj_ic_deps=adj_ic_deps,
+                          adj_type=adj_X_type)
+        CustomNormSq.__init__(self, eqs,
+                              norm_sqs=norm_sqs, adj_norm_sqs=adj_norm_sqs)
         self._eqs = tuple(eqs)
         self._eq_X_indices = eq_X_indices
         self._eq_dep_indices = eq_dep_indices
@@ -1085,17 +1151,6 @@ class FixedPointSolver(Equation):
     def drop_references(self):
         super().drop_references()
         self._eqs = tuple(WeakAlias(eq) for eq in self._eqs)
-
-    @no_space_type_checking
-    def _forward_norm_sq(self, eq_X):
-        assert len(eq_X) == len(self._eqs)
-
-        norm_sq = 0.0
-        for X in eq_X:
-            for x in X:
-                norm_sq += function_inner(x, x)
-
-        return norm_sq
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
@@ -1186,11 +1241,6 @@ class FixedPointSolver(Equation):
     def finalize_adjoint(self, J):
         for eq in self._eqs:
             eq.finalize_adjoint(J)
-
-    def _adjoint_norm_sq(self, eq_adj_X):
-        assert len(eq_adj_X) == len(self._eqs)
-
-        return self._forward_norm_sq(eq_adj_X)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if is_function(B):
@@ -1331,61 +1381,9 @@ class FixedPointSolver(Equation):
             if tlm_eq is None:
                 tlm_eq = NullSolver([tlm_map[x] for x in eq.X()])
             tlm_eqs.append(tlm_eq)
-
-        return FixedPointSolver(tlm_eqs,
-                                solver_parameters=self._solver_parameters)
-
-
-class CustomNormsFixedPointSolver(FixedPointSolver):
-    def __init__(self, eqs, solver_parameters,
-                 *, norm_sqs, adj_norm_sqs):
-        norm_sqs = list(norm_sqs)
-        if len(eqs) != len(norm_sqs):
-            raise EquationException("Invalid squared norm callable(s)")
-        for i, (eq, X_norm_sq) in enumerate(zip(eqs, norm_sqs)):
-            if callable(X_norm_sq):
-                X_norm_sq = (X_norm_sq,)
-            if len(eq.X()) != len(X_norm_sq):
-                raise EquationException("Invalid squared norm callable(s)")
-            norm_sqs[i] = tuple(X_norm_sq)
-
-        adj_norm_sqs = list(adj_norm_sqs)
-        if len(eqs) != len(adj_norm_sqs):
-            raise EquationException("Invalid squared norm callable(s)")
-        for i, (eq, X_norm_sq) in enumerate(zip(eqs, adj_norm_sqs)):
-            if callable(X_norm_sq):
-                X_norm_sq = (X_norm_sq,)
-            if len(eq.X()) != len(X_norm_sq):
-                raise EquationException("Invalid squared norm callable(s)")
-            adj_norm_sqs[i] = tuple(X_norm_sq)
-
-        super().__init__(eqs, solver_parameters)
-        self._norm_sqs = tuple(norm_sqs)
-        self._adj_norm_sqs = tuple(adj_norm_sqs)
-
-    def _forward_norm_sq(self, eq_X):
-        norm_sq = 0.0
-        assert len(eq_X) == len(self._norm_sqs)
-        for X, X_norm_sq in zip(eq_X, self._norm_sqs):
-            assert len(X) == len(X_norm_sq)
-            for x, x_norm_sq in zip(X, X_norm_sq):
-                norm_sq_term = x_norm_sq(x)
-                assert norm_sq_term >= 0.0
-                norm_sq += norm_sq_term
-
-        return norm_sq
-
-    def _adjoint_norm_sq(self, eq_adj_X):
-        norm_sq = 0.0
-        assert len(eq_adj_X) == len(self._adj_norm_sqs)
-        for X, X_norm_sq in zip(eq_adj_X, self._adj_norm_sqs):
-            assert len(X) == len(X_norm_sq)
-            for x, x_norm_sq in zip(X, X_norm_sq):
-                norm_sq_term = x_norm_sq(x)
-                assert norm_sq_term >= 0.0
-                norm_sq += norm_sq_term
-
-        return norm_sq
+        return FixedPointSolver(
+            tlm_eqs, solver_parameters=self._solver_parameters,
+            norm_sqs=self._norm_sqs, adj_norm_sqs=self._adj_norm_sqs)
 
 
 class LinearEquation(Equation):
