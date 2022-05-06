@@ -362,7 +362,8 @@ def parameters_key(parameters):
         sub_parameters = parameters[name]
         if isinstance(sub_parameters, (Parameters, dict)):
             key.append((name, parameters_key(sub_parameters)))
-        elif isinstance(sub_parameters, Sequence):
+        elif isinstance(sub_parameters, Sequence) \
+                and not isinstance(sub_parameters, str):
             key.append((name, tuple(sub_parameters)))
         else:
             key.append((name, sub_parameters))
