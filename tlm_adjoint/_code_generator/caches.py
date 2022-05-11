@@ -22,7 +22,7 @@ from .backend import TrialFunction, backend_DirichletBC, backend_Function
 from ..interface import function_id, function_is_cached, function_space, \
     is_function
 from .backend_code_generator_interface import assemble, assemble_arguments, \
-    assemble_matrix, linear_solver, matrix_copy, parameters_key
+    assemble_matrix, complex_mode, linear_solver, matrix_copy, parameters_key
 
 from ..caches import Cache, CacheException
 
@@ -116,6 +116,15 @@ def split_arity(form, x, argument):
         # UFL error encountered
         return ufl.classes.Form([]), form
 
+    try:
+        ufl.algorithms.check_arities.check_form_arity(
+            A, A.arguments(), complex_mode=complex_mode)
+        ufl.algorithms.check_arities.check_form_arity(
+            b, b.arguments(), complex_mode=complex_mode)
+    except ufl.algorithms.check_arities.ArityMismatch:
+        # Arity mismatch
+        return ufl.classes.Form([]), form
+
     if not is_cached(A):
         # Non-cached higher arity form
         return ufl.classes.Form([]), form
@@ -137,16 +146,20 @@ def split_terms(terms, base_integral,
         if is_cached(term):
             cached_terms.append(term)
         elif isinstance(term, ufl.classes.Conj):
-            x, = term.ufl_operands
-            cached_sub, mat_sub, non_cached_sub = split_terms(
-                [x], base_integral)
-            for term in cached_sub:
-                cached_terms.append(ufl.classes.Conj(term))
-            for dep_id in mat_sub:
-                mat_terms[dep_id].extend(ufl.classes.Conj(mat_term)
-                                         for mat_term in mat_sub[dep_id])
-            for term in non_cached_sub:
-                non_cached_terms.append(ufl.classes.Conj(term))
+            term_conj, = term.ufl_operands
+            if isinstance(term_conj, ufl.classes.Sum):
+                split_terms(
+                    tuple(map(ufl.conj, term_conj.ufl_operands)),
+                    base_integral,
+                    cached_terms, mat_terms, non_cached_terms)
+            elif isinstance(term_conj, ufl.classes.Product):
+                x, y = term_conj.ufl_operands
+                split_terms(
+                    (ufl.conj(x) * ufl.conj(y),),
+                    base_integral,
+                    cached_terms, mat_terms, non_cached_terms)
+            else:
+                non_cached_terms.append(term)
         elif isinstance(term, ufl.classes.Sum):
             split_terms(term.ufl_operands, base_integral,
                         cached_terms, mat_terms, non_cached_terms)
@@ -154,7 +167,7 @@ def split_terms(terms, base_integral,
             x, y = term.ufl_operands
             if is_cached(x):
                 cached_sub, mat_sub, non_cached_sub = split_terms(
-                    [y], base_integral)
+                    (y,), base_integral)
                 for term in cached_sub:
                     cached_terms.append(x * term)
                 for dep_id in mat_sub:
@@ -164,7 +177,7 @@ def split_terms(terms, base_integral,
                     non_cached_terms.append(x * term)
             elif is_cached(y):
                 cached_sub, mat_sub, non_cached_sub = split_terms(
-                    [x], base_integral)
+                    (x,), base_integral)
                 for term in cached_sub:
                     cached_terms.append(term * y)
                 for dep_id in mat_sub:
@@ -214,7 +227,7 @@ def split_form(form):
     non_cached_integrals = []
     for integral in form.integrals():
         cached_terms, mat_terms, non_cached_terms = \
-            split_terms([integral.integrand()], integral)
+            split_terms((integral.integrand(),), integral)
         add_integral(cached_integrals, integral, cached_terms)
         for dep_id in mat_terms:
             add_integral(mat_integrals[dep_id], integral, mat_terms[dep_id])
@@ -275,6 +288,8 @@ class AssemblyCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
+        if not complex_mode:
+            form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)  # noqa: E501
         rank = len(form.arguments())
         assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
                                              linear_solver_parameters)
@@ -325,6 +340,8 @@ class LinearSolverCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
+        if not complex_mode:
+            form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)  # noqa: E501
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 

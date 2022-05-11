@@ -27,7 +27,6 @@ from .test_base import *
 
 import mpi4py.MPI as MPI
 import numpy as np
-import petsc4py.PETSc as PETSc
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -248,9 +247,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_Referrers_LinearEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
