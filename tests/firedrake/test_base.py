@@ -224,7 +224,8 @@ ns_parameters_newton_cg = {"snes_type": "newtonls",
                            "ksp_rtol": 1.0e-14,
                            "ksp_atol": 1.0e-16,
                            "snes_rtol": 1.0e-13,
-                           "snes_atol": 1.0e-15}
+                           "snes_atol": 1.0e-15,
+                           "snes_stol": 0.0}
 
 ns_parameters_newton_gmres = {"snes_type": "newtonls",
                               "ksp_type": "gmres",
@@ -232,4 +233,5 @@ ns_parameters_newton_gmres = {"snes_type": "newtonls",
                               "ksp_rtol": 1.0e-14,
                               "ksp_atol": 1.0e-16,
                               "snes_rtol": 1.0e-13,
-                              "snes_atol": 1.0e-15}
+                              "snes_atol": 1.0e-15,
+                              "snes_stol": 0.0}
