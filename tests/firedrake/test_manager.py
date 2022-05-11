@@ -250,9 +250,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_Referrers_LinearEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):

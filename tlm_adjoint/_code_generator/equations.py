@@ -27,7 +27,7 @@ from ..interface import check_space_type, function_assign, \
     function_update_caches, function_update_state, function_zero, \
     is_function, space_id
 from .backend_code_generator_interface import assemble, \
-    assemble_linear_solver, copy_parameters_dict, \
+    assemble_linear_solver, complex_mode, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
     interpolate_expression, matrix_multiply, \
     process_adjoint_solver_parameters, process_solver_parameters, r0_space, \
@@ -462,6 +462,8 @@ class EquationSolver(ExprEquation):
 
         if self._forward_b_pa is None:
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
+            if not complex_mode:
+                rhs = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(rhs)  # noqa: E501
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
             mat_forms = {}
             for dep_index, dep in enumerate(eq_deps):

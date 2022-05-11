@@ -29,7 +29,6 @@ import firedrake
 import mpi4py.MPI as MPI
 import numpy as np
 import os
-import petsc4py.PETSc as PETSc
 import pytest
 import ufl
 
@@ -425,9 +424,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_LocalProjectionSolver(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
@@ -628,9 +625,7 @@ def test_Storage(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @no_space_type_checking
 @seed_test
 def test_InnerProductSolver(setup_test, test_leaks):

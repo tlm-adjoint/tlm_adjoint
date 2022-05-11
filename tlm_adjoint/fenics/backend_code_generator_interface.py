@@ -44,6 +44,7 @@ __all__ = \
         "assemble_arguments",
         "assemble_linear_solver",
         "assemble_matrix",
+        "complex_mode",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
         "function_vector",
@@ -91,6 +92,9 @@ if "jacobian_tolerance" not in _parameters["assembly_verification"]:
 if "rhs_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
 del _parameters
+
+
+complex_mode = False
 
 
 def copy_parameters_dict(parameters):

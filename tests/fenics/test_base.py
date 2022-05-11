@@ -23,7 +23,7 @@ from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
 from tlm_adjoint.fenics.backend_code_generator_interface import \
-    interpolate_expression
+    complex_mode, interpolate_expression
 
 import copy
 import functools
@@ -40,6 +40,7 @@ import weakref
 
 __all__ = \
     [
+        "complex_mode",
         "interpolate_expression",
 
         "run_example",

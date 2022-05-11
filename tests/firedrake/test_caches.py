@@ -20,11 +20,15 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend_code_generator_interface import \
+    function_vector
 
 from .test_base import *
 
 import mpi4py.MPI as MPI
+import numpy as np
 import pytest
+import ufl
 
 pytestmark = pytest.mark.skipif(
     MPI.COMM_WORLD.size not in [1, 4],
@@ -221,3 +225,55 @@ def test_cached_adjoint(setup_test, test_leaks,
 
     min_order = taylor_test(forward, G, J_val=J.value(), dJ=dJ)
     assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("x_conjugate", [False, True])
+@seed_test
+def test_mat_terms(setup_test, test_leaks,
+                   x_conjugate):
+    from tlm_adjoint.firedrake.backend_code_generator_interface import \
+        assemble_matrix, matrix_multiply
+
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+
+    x = Function(space, name="x")
+    x_expr = exp(X[0]) * X[1]
+    if issubclass(function_dtype(x), (complex, np.complexfloating)):
+        x_expr += X[0] * sin(X[1]) * 1.j
+    interpolate_expression(x, x_expr)
+
+    form = inner(ufl.conj(x) if x_conjugate else x, test) * dx
+
+    b_ref = Function(space, name="b_ref", space_type="conjugate_dual")
+    assemble(form, tensor=function_vector(b_ref))
+
+    if not complex_mode:
+        form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
+    cached_terms, mat_terms, non_cached_terms = split_form(form)
+
+    assert cached_terms.empty()
+    if not complex_mode or not x_conjugate:
+        assert len(mat_terms) == 1
+        assert non_cached_terms.empty()
+
+        assert tuple(mat_terms.keys()) == (function_id(x),)
+        A, = tuple(mat_terms.values())
+        A, b_bc = assemble_matrix(A)
+        b = Function(space, name="b", space_type="conjugate_dual")
+        matrix_multiply(A, function_vector(x), tensor=function_vector(b))
+        assert b_bc is None
+    else:
+        assert len(mat_terms) == 0
+        assert not non_cached_terms.empty()
+
+        b = Function(space, name="b", space_type="conjugate_dual")
+        assemble(non_cached_terms, tensor=function_vector(b))
+
+    b_error = function_copy(b_ref)
+    function_axpy(b_error, -1.0, b)
+    assert function_linf_norm(b_error) < 1.0e-17

@@ -24,8 +24,6 @@ from tlm_adjoint.fenics import *
 from .test_base import *
 
 import mpi4py.MPI as MPI
-import numpy as np
-import petsc4py.PETSc as PETSc
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -34,9 +32,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.fenics
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_minimize_project(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
@@ -81,9 +77,7 @@ def test_minimize_project(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_minimize_project_multiple(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)

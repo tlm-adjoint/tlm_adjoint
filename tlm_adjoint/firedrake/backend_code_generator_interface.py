@@ -20,8 +20,8 @@
 
 from .backend import FunctionSpace, Parameters, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_LinearSolver, \
-    backend_Matrix, backend_assemble, backend_solve, extract_args, \
-    homogenize, parameters
+    backend_Matrix, backend_assemble, backend_solve, complex_mode, \
+    extract_args, homogenize, parameters
 from ..interface import InterfaceException, check_space_type, \
     check_space_types, function_axpy, function_copy, function_dtype, \
     function_space_type, space_new
@@ -41,6 +41,7 @@ __all__ = \
         "assemble_arguments",
         "assemble_linear_solver",
         "assemble_matrix",
+        "complex_mode",
         "copy_parameters_dict",
         "form_form_compiler_parameters",
         "function_vector",

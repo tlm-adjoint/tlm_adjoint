@@ -23,6 +23,7 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     NonlinearVariationalSolver, Parameters, Projector, Tensor, TestFunction, \
     TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
     info, parameters, project, solve
+from firedrake.utils import complex_mode
 import firedrake
 
 backend = "Firedrake"
@@ -77,6 +78,7 @@ __all__ = \
         "TrialFunction",
         "UnitIntervalMesh",
         "adjoint",
+        "complex_mode",
         "homogenize",
         "info",
         "parameters"

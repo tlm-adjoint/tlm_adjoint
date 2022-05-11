@@ -23,8 +23,6 @@ from tlm_adjoint.firedrake import *
 from .test_base import *
 
 import mpi4py.MPI as MPI
-import numpy as np
-import petsc4py.PETSc as PETSc
 import os
 import pytest
 
@@ -84,9 +82,7 @@ def test_manual_override_forward(setup_test):
 @pytest.mark.firedrake
 @pytest.mark.example
 @pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
-@pytest.mark.skipif(issubclass(PETSc.ScalarType,
-                               (complex, np.complexfloating)),
-                    reason="real only")
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_manual_override_adjoint(setup_test, test_leaks):
     run_example(os.path.join("manual", "override_adjoint.py"))
