@@ -57,6 +57,10 @@ def setup_test():
 
     set_default_dtype(np.float64)
 
+    yield
+
+    reset_manager("memory", {"drop_references": False})
+
 
 def seed_test(fn):
     @functools.wraps(fn)
@@ -96,6 +100,23 @@ _Function__init__orig = Function.__init__
 Function.__init__ = _Function__init__
 
 
+def _EquationManager_configure_checkpointing(self, *args, **kwargs):
+    if hasattr(self, "_cp_method") \
+            and hasattr(self, "_cp_parameters") \
+            and hasattr(self, "_cp_manager"):
+        if self._cp_method == "multistage" \
+                and self._cp_manager.max_n() - self._cp_manager.r() == 0:
+            self._comm.barrier()
+            cp_path = self._cp_parameters["path"]
+            assert not os.path.exists(cp_path) or len(os.listdir(cp_path)) == 0  # noqa: E501
+
+    _EquationManager_configure_checkpointing__orig(self, *args, **kwargs)
+
+
+_EquationManager_configure_checkpointing__orig = EquationManager.configure_checkpointing  # noqa: E501
+EquationManager.configure_checkpointing = _EquationManager_configure_checkpointing  # noqa: E501
+
+
 @pytest.fixture
 def test_leaks():
     function_ids.clear()
@@ -127,6 +148,8 @@ def test_leaks():
 
     function_ids.clear()
     assert refs == 0
+
+    manager.reset("memory", {"drop_references": False})
 
 
 @pytest.fixture
