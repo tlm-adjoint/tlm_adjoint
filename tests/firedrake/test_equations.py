@@ -533,10 +533,6 @@ def test_AssembleSolver(setup_test, test_leaks):
 def test_Storage(setup_test, test_leaks,
                  tmp_path):
     comm = manager().comm()
-    if comm.rank == 0:
-        if not (tmp_path / "checkpoints~").exists():
-            (tmp_path / "checkpoints~").mkdir()
-    comm.barrier()
 
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -567,10 +563,10 @@ def test_Storage(setup_test, test_leaks,
 
             import h5py
             if comm.size > 1:
-                h = h5py.File(str(tmp_path / "checkpoints~" / filename),
+                h = h5py.File(str(tmp_path / filename),
                               "w", driver="mpio", comm=comm)
             else:
-                h = h5py.File(str(tmp_path / "checkpoints~" / filename),
+                h = h5py.File(str(tmp_path / filename),
                               "w")
         HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
 

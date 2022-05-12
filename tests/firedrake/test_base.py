@@ -24,6 +24,7 @@ from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
 from tlm_adjoint.firedrake.backend_code_generator_interface import \
     complex_mode, interpolate_expression
+from tlm_adjoint.alias import gc_disabled
 
 import copy
 import functools
@@ -45,8 +46,8 @@ __all__ = \
         "interpolate_expression",
 
         "run_example",
-        "setup_test",
         "seed_test",
+        "setup_test",
         "test_configurations",
         "test_leaks",
         "tmp_path",
@@ -63,6 +64,7 @@ _handler.setFormatter(logging.Formatter(fmt="%(message)s"))
 _logger.addHandler(_handler)
 
 
+@gc_disabled  # See Firedrake issue #1569
 @pytest.fixture
 def setup_test():
     parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
@@ -83,16 +85,9 @@ def setup_test():
     logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    if MPI.COMM_WORLD.size > 1:
-        # See Firedrake issue #1569
-        gc_enabled = gc.isenabled()
-        gc.disable()
-
     yield
 
-    if MPI.COMM_WORLD.size > 1:
-        if gc_enabled:
-            gc.enable()
+    reset_manager("memory", {"drop_references": False})
 
 
 def seed_test(fn):
@@ -162,6 +157,24 @@ _Function__init__orig = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
+def _EquationManager_configure_checkpointing(self, *args, **kwargs):
+    if hasattr(self, "_cp_method") \
+            and hasattr(self, "_cp_parameters") \
+            and hasattr(self, "_cp_manager"):
+        if self._cp_method == "multistage" \
+                and self._cp_manager.max_n() - self._cp_manager.r() == 0 \
+                and "path" in self._cp_parameters:
+            self._comm.barrier()
+            cp_path = self._cp_parameters["path"]
+            assert not os.path.exists(cp_path) or len(os.listdir(cp_path)) == 0
+
+    _EquationManager_configure_checkpointing__orig(self, *args, **kwargs)
+
+
+_EquationManager_configure_checkpointing__orig = EquationManager.configure_checkpointing  # noqa: E501
+EquationManager.configure_checkpointing = _EquationManager_configure_checkpointing  # noqa: E501
+
+
 @pytest.fixture
 def test_leaks():
     function_ids.clear()
@@ -194,6 +207,8 @@ def test_leaks():
 
     function_ids.clear()
     assert refs == 0
+
+    manager.reset("memory", {"drop_references": False})
 
 
 @pytest.fixture
