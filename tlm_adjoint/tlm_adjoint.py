@@ -1293,9 +1293,7 @@ class EquationManager:
             cp = pickle.load(h)
             h.close()
             if delete:
-                if self._comm.rank == 0:
-                    os.remove(cp_filename)
-                self._comm.barrier()
+                os.remove(cp_filename)
 
             for key in tuple(cp.keys()):
                 space_id, space_type, values = cp.pop(key)
