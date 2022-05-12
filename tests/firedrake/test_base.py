@@ -24,6 +24,7 @@ from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
 from tlm_adjoint.firedrake.backend_code_generator_interface import \
     complex_mode, interpolate_expression
+from tlm_adjoint.alias import gc_disabled
 
 import copy
 import functools
@@ -63,6 +64,7 @@ _handler.setFormatter(logging.Formatter(fmt="%(message)s"))
 _logger.addHandler(_handler)
 
 
+@gc_disabled  # See Firedrake issue #1569
 @pytest.fixture
 def setup_test():
     parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
@@ -83,16 +85,7 @@ def setup_test():
     logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    if MPI.COMM_WORLD.size > 1:
-        # See Firedrake issue #1569
-        gc_enabled = gc.isenabled()
-        gc.disable()
-
     yield
-
-    if MPI.COMM_WORLD.size > 1:
-        if gc_enabled:
-            gc.enable()
 
     reset_manager("memory", {"drop_references": False})
 
