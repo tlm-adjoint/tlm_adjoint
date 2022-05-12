@@ -167,10 +167,10 @@ def _EquationManager_configure_checkpointing(self, *args, **kwargs):
             and hasattr(self, "_cp_parameters") \
             and hasattr(self, "_cp_manager"):
         if self._cp_method == "multistage" \
-                and self._cp_manager.max_n() - self._cp_manager.r() == 0:
+                and self._cp_manager.max_n() - self._cp_manager.r() == 0 \
+                and "path" in self._cp_parameters:
             self._comm.barrier()
-            cp_path = self._cp_parameters["path"]
-            assert not os.path.exists(cp_path) or len(os.listdir(cp_path)) == 0  # noqa: E501
+            assert len(os.listdir(self._cp_parameters["path"])) == 0
 
     _EquationManager_configure_checkpointing__orig(self, *args, **kwargs)
 
