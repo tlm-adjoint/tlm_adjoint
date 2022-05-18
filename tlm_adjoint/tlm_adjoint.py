@@ -46,13 +46,8 @@ import weakref
 __all__ = \
     [
         "Control",
-        "EquationManager",
-        "ManagerException"
+        "EquationManager"
     ]
-
-
-class ManagerException(Exception):
-    pass
 
 
 try:
@@ -309,7 +304,7 @@ class TangentLinearMap:
     @gc_disabled
     def __getitem__(self, x):
         if not is_function(x):
-            raise ManagerException("x must be a function")
+            raise TypeError("x must be a function")
         assert not isinstance(x, WeakAlias)
 
         x_id = function_id(x)
@@ -372,7 +367,7 @@ class ReplayStorage:
         if isinstance(x, int):
             y = self._map[x]
             if y is None:
-                raise ManagerException("Unable to create new function")
+                raise RuntimeError("Unable to create new function")
         else:
             x_id = function_id(x)
             y = self._map[x_id]
@@ -773,8 +768,8 @@ class EquationManager:
             info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
             info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: "
-                                   f"{self._cp_method:s}")
+            raise ValueError(f"Unrecognized checkpointing method: "
+                             f"{self._cp_method:s}")
 
     def new(self, cp_method=None, cp_parameters=None):
         """
@@ -825,7 +820,8 @@ class EquationManager:
             cp_parameters = {}
 
         if self._annotation_state not in ["initial", "stopped_initial"]:
-            raise ManagerException("Cannot configure checkpointing after annotation has started, or after finalization")  # noqa: E501
+            raise RuntimeError("Cannot configure checkpointing after "
+                               "annotation has started, or after finalization")
 
         cp_parameters = copy.deepcopy(cp_parameters)
 
@@ -836,8 +832,8 @@ class EquationManager:
         elif cp_method == "multistage":
             disk_storage = cp_parameters.get("snaps_on_disk", 0) > 0
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: "
-                                   f"{cp_method:s}")
+            raise ValueError(f"Unrecognized checkpointing method: "
+                             f"{cp_method:s}")
 
         if disk_storage:
             cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
@@ -855,8 +851,7 @@ class EquationManager:
                               DeprecationWarning, stacklevel=2)
                 if "drop_references" in cp_parameters:
                     if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
-                        raise ManagerException("Conflicting cp_parameters "
-                                               "values")
+                        raise ValueError("Conflicting cp_parameters values")
                 else:
                     cp_parameters["drop_references"] = cp_parameters["replace"]
                 del cp_parameters["replace"]
@@ -872,8 +867,8 @@ class EquationManager:
             cp_manager = MultistageManager(cp_blocks,
                                            cp_snaps_in_ram, cp_snaps_on_disk)
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: "
-                                   f"{cp_method:s}")
+            raise ValueError(f"Unrecognized checkpointing method: "
+                             f"{cp_method:s}")
 
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
@@ -904,8 +899,8 @@ class EquationManager:
             self._cp_manager.forward()
             logger.debug(f"forward: forward advance to {self._cp_manager.n():d}")  # noqa: E501
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: "
-                                   f"{cp_method:s}")
+            raise ValueError(f"Unrecognized checkpointing method: "
+                             f"{cp_method:s}")
 
     def add_tlm(self, M, dM, max_depth=1):
         """
@@ -914,7 +909,8 @@ class EquationManager:
         """
 
         if self._tlm_state == "final":
-            raise ManagerException("Cannot add a tangent-linear model after finalization")  # noqa: E501
+            raise RuntimeError("Cannot add a tangent-linear model after "
+                               "finalization")
 
         if is_function(M):
             M = (M,)
@@ -926,9 +922,9 @@ class EquationManager:
             dM = tuple(dM)
 
         if len(M) != len(dM):
-            raise ManagerException("Invalid tangent-linear model")
+            raise ValueError("Invalid tangent-linear model")
         if (M, dM) in self._tlm:
-            raise ManagerException("Duplicate tangent-linear model")
+            raise RuntimeError("Duplicate tangent-linear model")
         for m, dm in zip(M, dM):
             check_space_types(m, dm)
 
@@ -974,7 +970,7 @@ class EquationManager:
                 x = self._tlm[(M, dM)][0][x]
             return x
         else:
-            raise ManagerException("Tangent-linear not found")
+            raise KeyError("Tangent-linear not found")
 
     def annotation_enabled(self):
         """
@@ -1046,7 +1042,8 @@ class EquationManager:
             elif self._annotation_state == "stopped_initial":
                 self._annotation_state = "stopped_annotating"
             elif self._annotation_state == "final":
-                raise ManagerException("Cannot add initial conditions after finalization")  # noqa: E501
+                raise RuntimeError("Cannot add initial conditions after "
+                                   "finalization")
 
             self._cp.add_initial_condition(x)
 
@@ -1063,7 +1060,7 @@ class EquationManager:
             if x_id in {function_id(dep) for dep in eq.dependencies()}:
                 self._restore_checkpoint(0)
                 return self._cp.initial_condition(x, copy=True)
-        raise ManagerException("Initial condition not found")
+        raise KeyError("Initial condition not found")
 
     def add_equation(self, eq, annotate=None, tlm=None, tlm_skip=None):
         """
@@ -1091,7 +1088,7 @@ class EquationManager:
             elif self._annotation_state == "stopped_initial":
                 self._annotation_state = "stopped_annotating"
             elif self._annotation_state == "final":
-                raise ManagerException("Cannot add equations after finalization")  # noqa: E501
+                raise RuntimeError("Cannot add equations after finalization")
 
             if self._cp_method in ["none", "memory"] \
                     and not self._cp_parameters["drop_references"]:
@@ -1113,7 +1110,8 @@ class EquationManager:
             tlm = self.tlm_enabled()
         if tlm:
             if self._tlm_state == "final":
-                raise ManagerException("Cannot add tangent-linear equations after finalization")  # noqa: E501
+                raise RuntimeError("Cannot add tangent-linear equations after "
+                                   "finalization")
 
             depth = 0 if tlm_skip is None else tlm_skip[1]
             for i, (M, dM) in enumerate(reversed(self._tlm)):
@@ -1138,15 +1136,15 @@ class EquationManager:
             dM = tuple(dM)
 
         if (M, dM) not in self._tlm:
-            raise ManagerException("Missing tangent-linear model")
+            raise KeyError("Missing tangent-linear model")
         tlm_map, max_depth = self._tlm[(M, dM)]
 
         eq_id = eq.id()
         X = eq.X()
         if len(set(X).intersection(set(M))) > 0:
-            raise ManagerException("Invalid tangent-linear parameter")
+            raise ValueError("Invalid tangent-linear parameter")
         if len(set(X).intersection(set(dM))) > 0:
-            raise ManagerException("Invalid tangent-linear direction")
+            raise ValueError("Invalid tangent-linear direction")
 
         eq_tlm_eqs = self._tlm_eqs.get(eq_id, None)
         if eq_tlm_eqs is None:
@@ -1202,7 +1200,7 @@ class EquationManager:
 
     def _save_memory_checkpoint(self, cp, n):
         if n in self._cp_memory or n in self._cp_disk:
-            raise ManagerException("Duplicate checkpoint")
+            raise RuntimeError("Duplicate checkpoint")
 
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
                                                          copy=False)
@@ -1215,7 +1213,7 @@ class EquationManager:
 
     def _save_disk_checkpoint(self, cp, n):
         if n in self._cp_memory or n in self._cp_disk:
-            raise ManagerException("Duplicate checkpoint")
+            raise RuntimeError("Duplicate checkpoint")
 
         cp_path = self._cp_parameters["path"]
         cp_format = self._cp_parameters["format"]
@@ -1279,7 +1277,8 @@ class EquationManager:
 
             h.close()
         else:
-            raise ManagerException(f"Unrecognized checkpointing format: {cp_format:s}")  # noqa: E501
+            raise ValueError(f"Unrecognized checkpointing format: "
+                             f"{cp_format:s}")
 
     def _load_disk_checkpoint(self, storage, n, delete=False):
         cp_format = self._cp_parameters["format"]
@@ -1338,7 +1337,8 @@ class EquationManager:
                     os.remove(cp_filename)
                 self._comm.barrier()
         else:
-            raise ManagerException(f"Unrecognized checkpointing format: {cp_format:s}")  # noqa: E501
+            raise ValueError(f"Unrecognized checkpointing format: "
+                             f"{cp_format:s}")
 
     def _checkpoint(self, final=False):
         if self._cp_method in ["none", "memory"]:
@@ -1348,8 +1348,8 @@ class EquationManager:
         elif self._cp_method == "multistage":
             self._multistage_checkpoint()
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: "
-                                   f"{self._cp_method:s}")
+            raise ValueError(f"Unrecognized checkpointing method: "
+                             f"{self._cp_method:s}")
 
     def _periodic_disk_checkpoint(self, final=False):
         cp_period = self._cp_parameters["period"]
@@ -1390,7 +1390,7 @@ class EquationManager:
         elif n == self._cp_manager.max_n():
             return
         elif n > self._cp_manager.max_n():
-            raise ManagerException("Unexpected number of blocks")
+            raise RuntimeError("Unexpected number of blocks")
 
         self._save_multistage_checkpoint()
         self._cp.clear()
@@ -1409,8 +1409,8 @@ class EquationManager:
 
     def _restore_checkpoint(self, n):
         if self._cp_method == "none":
-            raise ManagerException("Cannot restore from checkpoint with "
-                                   "checkpointing method 'none'")
+            raise RuntimeError("Cannot restore from checkpoint with "
+                               "checkpointing method 'none'")
         elif self._cp_method == "memory":
             pass
         elif self._cp_method == "periodic_disk":
@@ -1455,7 +1455,7 @@ class EquationManager:
             if n == 0 and self._cp_manager.max_n() - self._cp_manager.r() == 0:
                 return
             if n != self._cp_manager.max_n() - self._cp_manager.r() - 1:
-                raise ManagerException("Invalid checkpointing state")
+                raise RuntimeError("Invalid checkpointing state")
             if n == self._cp_manager.max_n() - 1:
                 logger.debug(f"reverse: adjoint step back to {n:d}")
                 assert n + 1 == self._cp_manager.n()
@@ -1527,8 +1527,8 @@ class EquationManager:
             self._cp_manager.reverse()
             assert n == self._cp_manager.max_n() - self._cp_manager.r()
         else:
-            raise ManagerException(f"Unrecognized checkpointing method: "
-                                   f"{self._cp_method:s}")
+            raise ValueError(f"Unrecognized checkpointing method: "
+                             f"{self._cp_method:s}")
 
     def new_block(self):
         """
@@ -1829,7 +1829,7 @@ class EquationManager:
                 for dep in eq.dependencies():
                     if function_name(dep) == x:
                         return dep
-        raise ManagerException("Initial condition not found")
+        raise KeyError("Initial condition not found")
 
 
 set_manager(EquationManager())
