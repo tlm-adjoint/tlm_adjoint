@@ -27,13 +27,8 @@ from .manager import manager as _manager
 
 __all__ = \
     [
-        "Functional",
-        "FunctionalException"
+        "Functional"
     ]
-
-
-class FunctionalException(Exception):
-    pass
 
 
 class Functional:
@@ -51,16 +46,16 @@ class Functional:
 
         if _fn is None:
             if space is None:
-                raise FunctionalException("Function space not defined")
+                raise TypeError("Function space not defined")
             fn = space_new(space, name=name)
         else:
             fn = _fn
             del _fn
             if space is not None \
                     and space_id(space) != space_id(function_space(fn)):
-                raise FunctionalException("Invalid function space")
+                raise ValueError("Invalid function space")
         if not function_is_scalar(fn):
-            raise FunctionalException("Functional must be a scalar")
+            raise ValueError("Functional must be a scalar")
         check_space_type(fn, "primal")
 
         name = function_name(fn)
