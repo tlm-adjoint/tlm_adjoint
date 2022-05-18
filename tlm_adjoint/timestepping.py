@@ -27,8 +27,6 @@ from collections import OrderedDict
 
 __all__ = \
     [
-        "TimesteppingException",
-
         "BaseTimeLevel",
         "InitialTimeLevel",
         "TimeLevel",
@@ -47,10 +45,6 @@ __all__ = \
 #   J. R. Maddison and P. E. Farrell, "Rapid development and adjoining of
 #   transient finite element models", Computer Methods in Applied Mechanics and
 #   Engineering, 276, pp. 95--121, 2014
-
-
-class TimesteppingException(Exception):
-    pass
 
 
 class BaseTimeLevel:
@@ -217,7 +211,7 @@ class TimeSystem:
 
     def add_solve(self, *args, **kwargs):
         if self._state != "initial":
-            raise TimesteppingException("Invalid state")
+            raise RuntimeError("Invalid state")
 
         if len(args) == 1 and isinstance(args[0], Equation):
             eq = args[0]
@@ -233,7 +227,7 @@ class TimeSystem:
         level = X[0]._tlm_adjoint__level
         for x in X[1:]:
             if x._tlm_adjoint__level != level:
-                raise TimesteppingException("Inconsistent time levels")
+                raise ValueError("Inconsistent time levels")
         if isinstance(level, InitialTimeLevel):
             self._initial_eqs.append(eq)
         elif isinstance(level, TimeLevel):
@@ -241,11 +235,11 @@ class TimeSystem:
         elif isinstance(level, FinalTimeLevel):
             self._final_eqs.append(eq)
         else:
-            raise TimesteppingException(f"Invalid time level: {level}")
+            raise TypeError(f"Invalid time level: {level}")
 
     def assemble(self, *, initialize=True, manager=None):
         if self._state != "initial":
-            raise TimesteppingException("Invalid state")
+            raise RuntimeError("Invalid state")
         self._state = "assembled"
         assert self._sorted_eqs is None
 
@@ -255,7 +249,7 @@ class TimeSystem:
                 for x in eq.X():
                     x_id = function_id(x)
                     if x_id in x_ids:
-                        raise TimesteppingException("Duplicate solve")
+                        raise RuntimeError("Duplicate solve")
                     x_ids.add(x_id)
             del x_ids
 
@@ -274,7 +268,7 @@ class TimeSystem:
             for dep in eq.dependencies():
                 if dep not in X and hasattr(dep, "_tlm_adjoint__tfn"):
                     if function_id(dep) in parent_ids:
-                        raise TimesteppingException("Circular dependency")
+                        raise RuntimeError("Circular dependency")
                     elif dep in eq_xs:
                         add_eq_deps(eq_xs[dep], eq_xs, eqs, parent_ids)
             eqs.append(eq)
@@ -311,7 +305,7 @@ class TimeSystem:
 
     def initialize(self, *, manager=None):
         if self._state != "assembled":
-            raise TimesteppingException("Invalid state")
+            raise RuntimeError("Invalid state")
         self._state = "initialized"
 
         for eq in self._sorted_eqs[0]:
@@ -324,7 +318,7 @@ class TimeSystem:
         if self._state == "initial":
             self.assemble(initialize=True, manager=manager)
         if self._state not in ["initialized", "timestepping"]:
-            raise TimesteppingException("Invalid state")
+            raise RuntimeError("Invalid state")
         self._state = "timestepping"
 
         for n in range(s):
@@ -339,7 +333,7 @@ class TimeSystem:
         if self._state == "initial":
             self.assemble(initialize=True, manager=manager)
         if self._state not in ["initialized", "timestepping"]:
-            raise TimesteppingException("Invalid state")
+            raise RuntimeError("Invalid state")
         self._state = "final"
 
         self._timestep_eqs = []
