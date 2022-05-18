@@ -24,7 +24,7 @@ from ..interface import function_id, function_is_cached, function_space, \
 from .backend_code_generator_interface import assemble, assemble_arguments, \
     assemble_matrix, complex_mode, linear_solver, matrix_copy, parameters_key
 
-from ..caches import Cache, CacheException
+from ..caches import Cache
 
 from .functions import eliminate_zeros, replaced_form
 
@@ -280,9 +280,8 @@ class AssemblyCache(Cache):
                           "'linear_solver_parameters' instead",
                           DeprecationWarning, stacklevel=2)
             if linear_solver_parameters is not None:
-                raise CacheException("Cannot pass both 'solver_parameters' "
-                                     "and 'linear_solver_parameters' "
-                                     "arguments")
+                raise TypeError("Cannot pass both 'solver_parameters' and "
+                                "'linear_solver_parameters' arguments")
             linear_solver_parameters = solver_parameters
         elif linear_solver_parameters is None:
             linear_solver_parameters = {}
@@ -302,7 +301,8 @@ class AssemblyCache(Cache):
                 assemble_form = ufl.replace(form, replace_map)
             if rank == 0:
                 if len(bcs) > 0:
-                    raise CacheException("Unexpected boundary conditions for rank 0 form")  # noqa: E501
+                    raise TypeError("Unexpected boundary conditions for rank "
+                                    "0 form")
                 b = assemble(assemble_form, **assemble_kwargs)
             elif rank == 1:
                 b = assemble(assemble_form, **assemble_kwargs)
@@ -311,7 +311,7 @@ class AssemblyCache(Cache):
             elif rank == 2:
                 b = assemble_matrix(assemble_form, bcs=bcs, **assemble_kwargs)
             else:
-                raise CacheException(f"Unexpected form rank {rank:d}")
+                raise ValueError(f"Unexpected form rank {rank:d}")
             return b
 
         return self.add(key, value,
