@@ -24,14 +24,9 @@ import gc
 __all__ = \
     [
         "Alias",
-        "AliasException",
         "WeakAlias",
         "gc_disabled"
     ]
-
-
-class AliasException(Exception):
-    pass
 
 
 def gc_disabled(fn):
@@ -54,7 +49,7 @@ class Alias:
 
     def __init__(self, obj):
         if isinstance(obj, Alias):
-            raise AliasException("Cannot alias Alias")
+            raise TypeError("Cannot alias Alias")
         super().__setattr__("_tlm_adjoint__alias", obj)
 
     def __new__(cls, obj):
@@ -90,10 +85,9 @@ class WeakAlias:
         if hasattr(obj, "__slots__"):
             # Weak references to obj not possible, has attributes not
             # accessible via __dict__ attribute
-            raise AliasException("Cannot alias object with __slots__ "
-                                 "attribute")
+            raise TypeError("Cannot alias object with __slots__ attribute")
         if isinstance(obj, WeakAlias):
-            raise AliasException("Cannot alias WeakAlias")
+            raise TypeError("Cannot alias WeakAlias")
         super().__setattr__("_tlm_adjoint__alias__dict__", obj.__dict__)
 
     def __new__(cls, obj):
