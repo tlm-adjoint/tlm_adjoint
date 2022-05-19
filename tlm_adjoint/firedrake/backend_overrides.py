@@ -40,8 +40,6 @@ import ufl
 
 __all__ = \
     [
-        "OverrideException",
-
         "LinearSolver",
         "LinearVariationalProblem",
         "LinearVariationalSolver",
@@ -50,10 +48,6 @@ __all__ = \
         "project",
         "solve"
     ]
-
-
-class OverrideException(Exception):
-    pass
 
 
 def parameters_dict_equal(parameters_a, parameters_b):
@@ -162,7 +156,7 @@ def extract_args_linear_solve(A, x, b, *args, **kwargs):
     if isinstance(b, backend_Vector):
         b = b.function
     if bcs is not None:
-        raise OverrideException("Unexpected boundary conditions")
+        raise TypeError("Unexpected boundary conditions")
 
     return (A, x, b,
             solver_parameters,
@@ -195,9 +189,9 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 solver_parameters = {}
 
             if Jp is not None:
-                raise OverrideException("Preconditioners not supported")
+                raise NotImplementedError("Preconditioners not supported")
             if M is not None:
-                raise OverrideException("Adaptive solves not supported")
+                raise NotImplementedError("Adaptive solves not supported")
 
             solver_parameters = packed_solver_parameters(
                 solver_parameters, options_prefix=options_prefix,
@@ -235,7 +229,7 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+                raise ValueError("Non-matching form compiler parameters")
 
             eq = EquationSolver(
                 linear_equation_new_x(A == b, x,
@@ -294,7 +288,7 @@ def project(v, V, bcs=None, solver_parameters=None,
             v = ufl.replace(v, {x: x_old})
         if use_slate_for_inverse:
             if len(bcs) > 0:
-                raise OverrideException("Boundary conditions not supported")
+                raise NotImplementedError("Boundary conditions not supported")
             eq = LocalProjectionSolver(
                 v, x, form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
@@ -387,7 +381,7 @@ backend_Function.project = _Function_project
 class LinearSolver(backend_LinearSolver):
     def __init__(self, A, *, P=None, **kwargs):
         if P is not None:
-            raise OverrideException("Preconditioners not supported")
+            raise NotImplementedError("Preconditioners not supported")
 
         super().__init__(A, P=P, **kwargs)
 
@@ -413,7 +407,7 @@ class LinearSolver(backend_LinearSolver):
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+                raise ValueError("Non-matching form compiler parameters")
 
             eq = EquationSolver(
                 linear_equation_new_x(A.a == b._tlm_adjoint__form, x,
@@ -448,12 +442,12 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
                  post_jacobian_callback=None, pre_function_callback=None,
                  post_function_callback=None, **kwargs):
         if appctx is not None:
-            raise OverrideException("Preconditioners not supported")
+            raise NotImplementedError("Preconditioners not supported")
         if pre_jacobian_callback is not None \
                 or post_jacobian_callback is not None \
                 or pre_function_callback is not None \
                 or post_function_callback is not None:
-            raise OverrideException("Callbacks not supported")
+            raise NotImplementedError("Callbacks not supported")
 
         super().__init__(
             problem, appctx=appctx,
@@ -463,7 +457,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
             post_function_callback=post_function_callback, **kwargs)
 
     def set_transfer_manager(self, *args, **kwargs):
-        raise OverrideException("Transfer managers not supported")
+        raise NotImplementedError("Transfer managers not supported")
 
     def solve(self, bounds=None, *, annotate=None, tlm=None):
         x = self._problem.u
@@ -474,9 +468,9 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
             tlm = tlm_enabled()
         if annotate or tlm:
             if bounds is not None:
-                raise OverrideException("Bounds not supported")
+                raise NotImplementedError("Bounds not supported")
             if self._problem.Jp is not None:
-                raise OverrideException("Preconditioners not supported")
+                raise NotImplementedError("Preconditioners not supported")
 
             solver_parameters = packed_solver_parameters(
                 self.parameters, options_prefix=self.options_prefix,
@@ -510,12 +504,12 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
                  post_jacobian_callback=None, pre_function_callback=None,
                  post_function_callback=None, **kwargs):
         if appctx is not None:
-            raise OverrideException("Preconditioners not supported")
+            raise NotImplementedError("Preconditioners not supported")
         if pre_jacobian_callback is not None \
                 or post_jacobian_callback is not None \
                 or pre_function_callback is not None \
                 or post_function_callback is not None:
-            raise OverrideException("Callbacks not supported")
+            raise NotImplementedError("Callbacks not supported")
 
         super().__init__(
             problem, appctx=appctx,
@@ -525,7 +519,7 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
             post_function_callback=post_function_callback, **kwargs)
 
     def set_transfer_manager(self, *args, **kwargs):
-        raise OverrideException("Transfer managers not supported")
+        raise NotImplementedError("Transfer managers not supported")
 
     def solve(self, bounds=None, *, annotate=None, tlm=None):
         if annotate is None:
@@ -534,9 +528,9 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
             tlm = tlm_enabled()
         if annotate or tlm:
             if bounds is not None:
-                raise OverrideException("Bounds not supported")
+                raise NotImplementedError("Bounds not supported")
             if self._problem.Jp is not None:
-                raise OverrideException("Preconditioners not supported")
+                raise NotImplementedError("Preconditioners not supported")
 
             solver_parameters = packed_solver_parameters(
                 self.parameters, options_prefix=self.options_prefix,
