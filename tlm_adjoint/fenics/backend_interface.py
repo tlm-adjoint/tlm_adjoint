@@ -24,7 +24,7 @@ from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
 from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..interface import InterfaceException, SpaceInterface, \
+from ..interface import SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
     add_time_system_eq, check_space_types, function_copy, function_new, \
@@ -78,7 +78,7 @@ def _Constant__init__(self, *args, domain=None, space=None,
     if space is None:
         space = self.ufl_function_space()
         if self.values().dtype.type != backend_ScalarType:
-            raise InterfaceException("Invalid dtype")
+            raise ValueError("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm, "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
@@ -178,7 +178,7 @@ class FunctionInterface(_FunctionInterface):
     def _assign(self, y):
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
-                raise InterfaceException("Invalid function space")
+                raise ValueError("Invalid function space")
             self.vector().zero()
             self.vector().axpy(1.0, y.vector())
         elif isinstance(y, (int, np.integer, float, np.floating)):
@@ -201,7 +201,7 @@ class FunctionInterface(_FunctionInterface):
         alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
-                raise InterfaceException("Invalid function space")
+                raise ValueError("Invalid function space")
             self.vector().axpy(alpha, x.vector())
         elif isinstance(x, (int, np.integer, float, np.floating)):
             x_ = function_new(self)
@@ -225,7 +225,7 @@ class FunctionInterface(_FunctionInterface):
     def _inner(self, y):
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
-                raise InterfaceException("Invalid function space")
+                raise ValueError("Invalid function space")
             inner = y.vector().inner(self.vector())
         elif isinstance(y, Zero):
             inner = 0.0
@@ -261,9 +261,9 @@ class FunctionInterface(_FunctionInterface):
 
     def _set_values(self, values):
         if not np.can_cast(values, backend_ScalarType):
-            raise InterfaceException("Invalid dtype")
+            raise ValueError("Invalid dtype")
         if values.shape != (self.vector().local_size(),):
-            raise InterfaceException("Invalid shape")
+            raise ValueError("Invalid shape")
         self.vector().set_local(values)
         self.vector().apply("insert")
 
@@ -314,7 +314,7 @@ class FunctionInterface(_FunctionInterface):
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
-        raise InterfaceException("PETSc backend required")
+        raise RuntimeError("PETSc backend required")
 
     add_interface(self, FunctionInterface,
                   {"id": new_function_id(), "state": 0, "space_type": "primal",
@@ -431,7 +431,7 @@ def _subtract_adjoint_derivative_action(x, y):
                          annotate=False, tlm=False)
         elif isinstance(x, backend_Function):
             if x.vector().local_size() != y.local_size():
-                raise InterfaceException("Invalid function space")
+                raise ValueError("Invalid function space")
             x.vector().axpy(-alpha, y)
         else:
             return NotImplemented

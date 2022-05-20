@@ -108,7 +108,10 @@ __all__ = \
 
 
 class InterfaceException(Exception):
-    pass
+    def __init__(self, *args, **kwargs):
+        warnings.warn("InterfaceException is deprecated",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
 
 
 def weakref_method(fn, obj):
@@ -120,7 +123,7 @@ def weakref_method(fn, obj):
     def wrapped_fn(*args, **kwargs):
         self = self_ref()
         if self is None:
-            raise InterfaceException("Referent must be alive")
+            raise RuntimeError("Referent must be alive")
         return fn(self, *args, **kwargs)
     return wrapped_fn
 
@@ -181,20 +184,20 @@ class SpaceInterface:
     names = ("_comm", "_dtype", "_id", "_new")
 
     def __init__(self):
-        raise InterfaceException("Cannot instantiate SpaceInterface object")
+        raise RuntimeError("Cannot instantiate SpaceInterface object")
 
     def _comm(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _dtype(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _id(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _new(self, *, name=None, space_type="primal", static=False, cache=None,
              checkpoint=None):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
 
 def is_space(x):
@@ -225,7 +228,7 @@ def space_id(space):
 def space_new(space, *, name=None, space_type="primal", static=False,
               cache=None, checkpoint=None):
     if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-        raise InterfaceException("Invalid space type")
+        raise ValueError("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
         name=name, space_type=space_type, static=static, cache=cache,
         checkpoint=checkpoint)
@@ -276,7 +279,7 @@ def space_type_warning(msg, *, stacklevel=1):
 
 def check_space_type(x, space_type):
     if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-        raise InterfaceException("Invalid space type")
+        raise ValueError("Invalid space type")
     if function_space_type(x) != space_type:
         space_type_warning("Unexpected space type", stacklevel=2)
 
@@ -316,79 +319,79 @@ class FunctionInterface:
              "_scalar_value", "_is_alias")
 
     def __init__(self):
-        raise InterfaceException("Cannot instantiate FunctionInterface object")
+        raise RuntimeError("Cannot instantiate FunctionInterface object")
 
     def _comm(self):
         return space_comm(function_space(self))
 
     def _space(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _space_type(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _dtype(self):
         return space_dtype(function_space(self))
 
     def _id(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _name(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _state(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _update_state(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _is_static(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _is_cached(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _is_checkpointed(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _caches(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _zero(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _assign(self, y):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _axpy(self, *args):  # self, alpha, x
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _inner(self, y):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _max_value(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _sum(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _linf_norm(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _local_size(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _global_size(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _local_indices(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _get_values(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _set_values(self, values):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
              rel_space_type="primal"):
@@ -404,16 +407,16 @@ class FunctionInterface:
         return y
 
     def _replacement(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _is_replacement(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _is_scalar(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _scalar_value(self):
-        raise InterfaceException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def _is_alias(self):
         return False
@@ -487,7 +490,7 @@ def function_update_caches(*X, value=None):
     if value is None:
         for x in X:
             if function_is_replacement(x):
-                raise InterfaceException("value required")
+                raise TypeError("value required")
             function_caches(x).update(x)
     else:
         if is_function(value):
@@ -561,7 +564,7 @@ def function_set_values(x, values):
 def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
                  rel_space_type="primal"):
     if rel_space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-        raise InterfaceException("Invalid relative space type")
+        raise ValueError("Invalid relative space type")
     return x._tlm_adjoint__function_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
         rel_space_type=rel_space_type)
@@ -630,7 +633,7 @@ def function_is_scalar(x):
 
 def function_scalar_value(x):
     if not function_is_scalar(x):
-        raise InterfaceException("Invalid function")
+        raise ValueError("Invalid function")
     return x._tlm_adjoint__function_interface_scalar_value()
 
 
@@ -679,8 +682,8 @@ def subtract_adjoint_derivative_action(x, y):
                                     function_get_values(x)
                                     - alpha * function_get_values(y))
         else:
-            raise InterfaceException("Unexpected case encountered in "
-                                     "subtract_adjoint_derivative_action")
+            raise RuntimeError("Unexpected case encountered in "
+                               "subtract_adjoint_derivative_action")
 
 
 _finalize_adjoint_derivative_action = {}
@@ -709,8 +712,7 @@ def functional_term_eq(term, x):
         eq = fn(term, x)
         if eq != NotImplemented:
             return eq
-    raise InterfaceException("Unexpected case encountered in "
-                             "functional_term_eq")
+    raise RuntimeError("Unexpected case encountered in functional_term_eq")
 
 
 _time_system_eq = {}
@@ -726,8 +728,7 @@ def time_system_eq(*args, **kwargs):
         eq = fn(*args, **kwargs)
         if eq != NotImplemented:
             return eq
-    raise InterfaceException("Unexpected case encountered in "
-                             "time_system_eq")
+    raise RuntimeError("Unexpected case encountered in time_system_eq")
 
 
 _logger = logging.getLogger("tlm_adjoint")

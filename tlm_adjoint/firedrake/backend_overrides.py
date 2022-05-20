@@ -24,7 +24,7 @@ from .backend import Parameters, Projector, backend_Constant, \
     backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
     backend_project, backend_solve, extract_args, extract_linear_solver_args, \
     parameters
-from ..interface import InterfaceException, check_space_type, function_new, \
+from ..interface import check_space_type, function_new, \
     function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
@@ -82,22 +82,26 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
 
         if options_prefix is not None:
             if "options_prefix" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both options_prefix argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both options_prefix argument and "
+                                "solver parameter")
             tlm_adjoint_parameters["options_prefix"] = options_prefix
 
         if nullspace is not None:
             if "nullspace" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both nullspace argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both nullspace argument and "
+                                "solver parameter")
             tlm_adjoint_parameters["nullspace"] = nullspace
 
         if transpose_nullspace is not None:
             if "transpose_nullspace" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both transpose_nullspace argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both transpose_nullspace "
+                                "argument and solver parameter")
             tlm_adjoint_parameters["transpose_nullspace"] = transpose_nullspace
 
         if near_nullspace is not None:
             if "near_nullspace" in tlm_adjoint_parameters:
-                raise InterfaceException("Cannot pass both near_nullspace argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both near_nullspace argument and "
+                                "solver parameter")
             tlm_adjoint_parameters["near_nullspace"] = near_nullspace
 
     return solver_parameters

@@ -24,7 +24,7 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend, \
 from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..interface import InterfaceException, SpaceInterface, \
+from ..interface import SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
     add_time_system_eq, check_space_types, function_comm, function_dtype, \
@@ -178,7 +178,7 @@ class FunctionInterface(_FunctionInterface):
         if isinstance(y, backend_Function):
             with self.dat.vec as x_v, y.dat.vec_ro as y_v:
                 if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise InterfaceException("Invalid function space")
+                    raise ValueError("Invalid function space")
                 y_v.copy(result=x_v)
         elif isinstance(y, (int, np.integer,
                             float, np.floating,
@@ -212,7 +212,7 @@ class FunctionInterface(_FunctionInterface):
         if isinstance(x, backend_Function):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 if y_v.getLocalSize() != x_v.getLocalSize():
-                    raise InterfaceException("Invalid function space")
+                    raise ValueError("Invalid function space")
                 y_v.axpy(alpha, x_v)
         elif isinstance(x, (int, np.integer,
                             float, np.floating,
@@ -236,7 +236,7 @@ class FunctionInterface(_FunctionInterface):
         if isinstance(y, backend_Function):
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
                 if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise InterfaceException("Invalid function space")
+                    raise ValueError("Invalid function space")
                 inner = x_v.dot(y_v)
         elif isinstance(y, Zero):
             inner = 0.0
@@ -286,10 +286,10 @@ class FunctionInterface(_FunctionInterface):
 
     def _set_values(self, values):
         if not np.can_cast(values, function_dtype(self)):
-            raise InterfaceException("Invalid dtype")
+            raise ValueError("Invalid dtype")
         with self.dat.vec as x_v:
             if values.shape != (x_v.getLocalSize(),):
-                raise InterfaceException("Invalid shape")
+                raise ValueError("Invalid shape")
             x_v.setArray(values)
 
     def _replacement(self):
