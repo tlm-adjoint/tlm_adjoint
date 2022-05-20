@@ -260,17 +260,17 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 if method == "assign":
                     function_assign(b, x)
                 else:
-                    raise EquationException(f"Unexpected method '{method:s}'")
+                    raise ValueError(f"Unexpected method '{method:s}'")
 
             @no_space_type_checking
             def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                                method="assign"):
                 if b_index != 0:
-                    raise EquationException("Invalid index")
+                    raise IndexError("Invalid index")
                 if method == "assign":
                     function_assign(b, adj_x)
                 else:
-                    raise EquationException(f"Unexpected method '{method:s}'")
+                    raise ValueError(f"Unexpected method '{method:s}'")
 
             @no_space_type_checking
             def forward_solve(self, x, nl_deps, b):
@@ -443,7 +443,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                          / function_get_values(x0)).conjugate())
                     return F
                 else:
-                    raise EquationException("Unexpected dep_index")
+                    raise IndexError("Unexpected dep_index")
 
         x0 = Constant(1.0, name="x0")
         x1 = Constant(0.0, name="x1")

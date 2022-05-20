@@ -28,8 +28,8 @@ from ..interface import check_space_type, function_assign, function_comm, \
 from .backend_code_generator_interface import assemble, complex_mode
 
 from ..caches import Cache
-from ..equations import Equation, EquationException, LinearEquation, Matrix, \
-    MatrixActionRHS, NullSolver, get_tangent_linear
+from ..equations import Equation, LinearEquation, Matrix, MatrixActionRHS, \
+    NullSolver, get_tangent_linear
 
 from .caches import form_dependencies, form_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
@@ -359,11 +359,10 @@ def point_owners(x_coords, y_space, tolerance=0.0):
 
     for i in range(x_coords.shape[0]):
         if owner[i] == -1:
-            raise EquationException("Unable to find owning process for point")
+            raise RuntimeError("Unable to find owning process for point")
         if owner[i] == rank:
             if distances_local[i] > tolerance:
-                raise EquationException("Unable to find owning process for "
-                                        "point")
+                raise RuntimeError("Unable to find owning process for point")
         else:
             y_cells[i] = -1
 
@@ -384,7 +383,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
                                     for i in y_dofmap.cell_dofs(y_cell)]],
                          dtype=bool)
         if owned.any() and not owned.all():
-            raise EquationException("Non-process-local node-node graph")
+            raise RuntimeError("Non-process-local node-node graph")
 
     y_colors_N = np.full((1,), -1, dtype=y_colors.dtype)
     comm = function_comm(y)
@@ -408,8 +407,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
                 # Skip -- x_node is owned by a different process
                 continue
             if Cell(y_mesh, y_cell).is_ghost():
-                raise EquationException("Cannot interpolate within a ghost "
-                                        "cell")
+                raise RuntimeError("Cannot interpolate within a ghost cell")
 
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
             y_cell_colors = y_colors[y_cell_nodes].tolist()
@@ -440,11 +438,11 @@ class LocalMatrix(Matrix):
         elif method == "sub":
             b.vector()[:] -= self._P.dot(function_get_values(x))
         else:
-            raise EquationException(f"Invalid method: '{method:s}'")
+            raise ValueError(f"Invalid method: '{method:s}'")
 
     def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
         if b_index != 0:
-            raise EquationException("Invalid index")
+            raise IndexError("Invalid index")
         if method == "assign":
             function_set_values(
                 b, self._P_T.dot(function_get_values(adj_x)))
@@ -453,7 +451,7 @@ class LocalMatrix(Matrix):
         elif method == "sub":
             b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
         else:
-            raise EquationException(f"Invalid method: '{method:s}'")
+            raise ValueError(f"Invalid method: '{method:s}'")
 
 
 class InterpolationMatrix(LocalMatrix):
@@ -500,13 +498,16 @@ class InterpolationSolver(LinearEquation):
         check_space_type(x, "primal")
         check_space_type(y, "primal")
 
-        if not isinstance(x, backend_Function) or len(x.ufl_shape) > 0:
-            raise EquationException("Solution must be a scalar-valued "
-                                    "Function")
-        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar-valued Function")
+        if not isinstance(x, backend_Function):
+            raise TypeError("Solution must be a Function")
+        if len(x.ufl_shape) > 0:
+            raise ValueError("Solution must be a scalar-valued Function")
+        if not isinstance(y, backend_Function):
+            raise TypeError("y must be a Function")
+        if len(y.ufl_shape) > 0:
+            raise ValueError("y must be a scalar-valued Function")
         if (x_coords is not None) and (function_comm(x).size > 1):
-            raise EquationException("Cannot prescribe x_coords in parallel")
+            raise TypeError("Cannot prescribe x_coords in parallel")
 
         if P is None:
             y_space = function_space(y)
@@ -516,7 +517,7 @@ class InterpolationSolver(LinearEquation):
 
             y_cells, y_distances = point_cells(x_coords, y_space.mesh())
             if (y_distances > tolerance).any():
-                raise EquationException("Unable to locate one or more cells")
+                raise RuntimeError("Unable to locate one or more cells")
 
             if y_colors is None:
                 y_colors = greedy_coloring(y_space)
@@ -571,18 +572,20 @@ class PointInterpolationSolver(Equation):
         for x in X:
             check_space_type(x, "primal")
             if not function_is_scalar(x):
-                raise EquationException("Solution must be a scalar, or a "
-                                        "sequence of scalars")
+                raise ValueError("Solution must be a scalar, or a sequence of "
+                                 "scalars")
         check_space_type(y, "primal")
 
         if X_coords is None:
             if P is None:
-                raise EquationException("X_coords required when P is not supplied")  # noqa: E501
+                raise TypeError("X_coords required when P is not supplied")
         else:
             if len(X) != X_coords.shape[0]:
-                raise EquationException("Invalid number of functions")
-        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar-valued Function")
+                raise ValueError("Invalid number of functions")
+        if not isinstance(y, backend_Function):
+            raise TypeError("y must be a Function")
+        if len(y.ufl_shape) > 0:
+            raise ValueError("y must be a scalar-valued Function")
 
         if P is None:
             y_space = function_space(y)
@@ -633,7 +636,7 @@ class PointInterpolationSolver(Equation):
             function_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B

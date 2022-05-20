@@ -34,8 +34,8 @@ from .backend_code_generator_interface import assemble, \
     rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
-from ..equations import AssignmentSolver, Equation, EquationException, \
-    NullSolver, get_tangent_linear
+from ..equations import AssignmentSolver, Equation, NullSolver, \
+    get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
@@ -153,14 +153,14 @@ class AssembleSolver(ExprEquation):
         if rank == 0:
             check_space_type(x, "primal")
             if not function_is_scalar(x):
-                raise EquationException("Rank 0 forms can only be assigned to "
-                                        "scalars")
+                raise ValueError("Rank 0 forms can only be assigned to "
+                                 "scalars")
         else:
-            raise EquationException("Must be a rank 0 form")
+            raise ValueError("Must be a rank 0 form")
 
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
-            raise EquationException("Invalid non-linear dependency")
+            raise ValueError("Invalid non-linear dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
 
@@ -205,7 +205,7 @@ class AssembleSolver(ExprEquation):
 
         eq_deps = self.dependencies()
         if dep_index < 0 or dep_index >= len(eq_deps):
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             return adj_x
 
@@ -309,7 +309,8 @@ class EquationSolver(ExprEquation):
         if defer_adjoint_assembly is None:
             defer_adjoint_assembly = parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"]  # noqa: E501
         if match_quadrature and defer_adjoint_assembly:
-            raise EquationException("Cannot both match quadrature and defer adjoint assembly")  # noqa: E501
+            raise ValueError("Cannot both match quadrature and defer adjoint "
+                             "assembly")
 
         check_space_type(x, "primal")
 
@@ -324,14 +325,14 @@ class EquationSolver(ExprEquation):
 
         if linear:
             if x in lhs.coefficients() or x in rhs.coefficients():
-                raise EquationException("Invalid non-linear dependency")
+                raise ValueError("Invalid non-linear dependency")
             F = ufl.action(lhs, coefficient=x) + form_neg(rhs)
             nl_solve_J = None
             J = lhs
         else:
             F = lhs
             if rhs != 0:
-                raise EquationException("Invalid right-hand-side")
+                raise ValueError("Invalid right-hand-side")
             nl_solve_J = J
             J = derivative(F, x)
             J = ufl.algorithms.expand_derivatives(J)
@@ -524,7 +525,7 @@ class EquationSolver(ExprEquation):
                 rhs_addto(b, cached_b)
 
         if b is None:
-            raise EquationException("Empty right-hand-side")
+            raise RuntimeError("Empty right-hand-side")
 
         apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
         return b
@@ -851,7 +852,7 @@ class DirichletBCSolver(Equation):
                 *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
             return (-1.0, F)
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -870,16 +871,16 @@ class DirichletBCSolver(Equation):
 class ExprEvaluationSolver(ExprEquation):
     def __init__(self, rhs, x):
         if isinstance(rhs, ufl.classes.Form):
-            raise EquationException("rhs should not be a Form")
+            raise TypeError("rhs should not be a Form")
 
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         for dep in deps:
             if dep == x:
-                raise EquationException("Invalid non-linear dependency")
+                raise ValueError("Invalid non-linear dependency")
             if isinstance(dep, backend_Function) \
                     and space_id(function_space(dep)) != space_id(function_space(x)):  # noqa: E501
-                raise EquationException("Invalid dependency")
+                raise ValueError("Invalid dependency")
         deps.insert(0, x)
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
@@ -902,7 +903,7 @@ class ExprEvaluationSolver(ExprEquation):
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
         if dep_index < 0 or dep_index >= len(eq_deps):
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             return adj_x
 
