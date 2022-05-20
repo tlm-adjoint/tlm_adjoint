@@ -22,7 +22,7 @@ from .interface import function_id, function_new, function_state
 
 from .caches import clear_caches
 from .functional import Functional
-from .hessian import GaussNewton, Hessian, HessianException
+from .hessian import GaussNewton, Hessian
 from .manager import manager as _manager
 from .tlm_adjoint import AdjointCache, EquationManager
 
@@ -33,7 +33,6 @@ __all__ = \
     [
         "CachedGaussNewton",
         "CachedHessian",
-        "HessianException",
         "SingleBlockHessian"
     ]
 
@@ -44,7 +43,7 @@ class HessianOptimization:
             manager = _manager()
         if manager._cp_method != "memory" \
                 or manager._cp_parameters["drop_references"]:
-            raise HessianException("Invalid equation manager state")
+            raise RuntimeError("Invalid equation manager state")
 
         comm = manager.comm()
 
@@ -174,7 +173,7 @@ class CachedHessian(Hessian, HessianOptimization):
             return J_val, dJ
 
         if function_state(self._J.fn()) != self._J_state:
-            raise HessianException("State has changed")
+            raise RuntimeError("State has changed")
 
         dM = tuple(function_new(m) for m in M)
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
@@ -194,7 +193,7 @@ class CachedHessian(Hessian, HessianOptimization):
             return J_val, dJ_val, ddJ
 
         if function_state(self._J.fn()) != self._J_state:
-            raise HessianException("State has changed")
+            raise RuntimeError("State has changed")
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
 
@@ -237,6 +236,6 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
 
     def action(self, M, dM, M0=None):
         if tuple(function_state(x) for x in self._X) != self._X_state:
-            raise HessianException("State has changed")
+            raise RuntimeError("State has changed")
 
         return GaussNewton.action(self, M, dM, M0=M0)

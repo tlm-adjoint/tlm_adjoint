@@ -26,8 +26,8 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import InterfaceException, check_space_type, \
-    check_space_types, function_space_type, space_new
+from ..interface import check_space_type, check_space_types, \
+    function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -39,8 +39,6 @@ import ufl
 
 __all__ = \
     [
-        "InterfaceException",
-
         "assemble_arguments",
         "assemble_linear_solver",
         "assemble_matrix",
@@ -141,7 +139,7 @@ def process_solver_parameters(solver_parameters, linear):
                 solver_parameters["snes_solver"] = {}
             linear_solver_parameters = solver_parameters["snes_solver"]
         else:
-            raise InterfaceException(f"Unsupported non-linear solver: {nl_solver}")  # noqa: E501
+            raise ValueError(f"Unsupported non-linear solver: {nl_solver}")
 
     if "linear_solver" not in linear_solver_parameters:
         linear_solver_parameters["linear_solver"] = "default"
@@ -327,10 +325,7 @@ def is_valid_r0_space(space):
 
 def r0_space(x):
     if not hasattr(x, "_tlm_adjoint__r0_space"):
-        x_domains = x.ufl_domains()
-        if len(x_domains) == 0:
-            raise InterfaceException("Domain not defined")
-        domain, = x_domains
+        domain, = x.ufl_domains()
         domain = domain.ufl_cargo()
         if len(x.ufl_shape) == 0:
             space = FunctionSpace(domain, "R", 0)
@@ -408,14 +403,14 @@ def interpolate_expression(x, expr):
 
     if isinstance(x, backend_Constant):
         if len(x.ufl_shape) > 0:
-            raise InterfaceException("Scalar Constant required")
+            raise ValueError("Scalar Constant required")
         value = x.values()
         Expr().eval(value, ())
         x.assign(value, annotate=False, tlm=False)
     elif isinstance(x, backend_Function):
         x.interpolate(Expr())
     else:
-        raise InterfaceException(f"Unexpected type: {type(x)}")
+        raise TypeError(f"Unexpected type: {type(x)}")
 
 
 # The following override assemble, assemble_system, and solve so that DOLFIN

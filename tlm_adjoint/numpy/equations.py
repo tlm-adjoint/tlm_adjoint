@@ -21,7 +21,7 @@
 from ..interface import function_get_values, function_new_conjugate, \
     function_set_values
 
-from ..equations import EquationException, LinearEquation, Matrix, RHS
+from ..equations import LinearEquation, Matrix, RHS
 
 import numpy as np
 import warnings
@@ -60,11 +60,11 @@ class ConstantMatrix(Matrix):
         elif method == "sub":
             b.vector()[:] -= sb
         else:
-            raise EquationException(f"Invalid method: '{method:s}'")
+            raise ValueError(f"Invalid method: '{method:s}'")
 
     def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
         if b_index != 0:
-            raise EquationException("Invalid index")
+            raise IndexError("Invalid index")
         sb = self._A_H.dot(adj_x.vector())
         if method == "assign":
             b.vector()[:] = sb
@@ -73,14 +73,15 @@ class ConstantMatrix(Matrix):
         elif method == "sub":
             b.vector()[:] -= sb
         else:
-            raise EquationException(f"Invalid method: '{method:s}'")
+            raise ValueError(f"Invalid method: '{method:s}'")
 
     def forward_solve(self, x, nl_deps, b):
         x.vector()[:] = np.linalg.solve(self._A, b.vector())
 
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
                                   method="assign"):
-        raise EquationException("Unexpected call to adjoint_derivative_action")
+        raise NotImplementedError("Unexpected call to "
+                                  "adjoint_derivative_action")
 
     def adjoint_solve(self, adj_x, nl_deps, b):
         adj_x = self.new_adj_x()
@@ -99,7 +100,7 @@ class ContractionArray:
 
         for i in range(len(I) - 1):
             if I[i + 1] <= I[i]:
-                raise EquationException("Axes must be in ascending order")
+                raise ValueError("Axes must be in ascending order")
 
         self._A = A.copy()
         self._A_conjugate = A.conjugate()
@@ -153,7 +154,7 @@ class ContractionRHS(RHS):
                           DeprecationWarning, stacklevel=2)
 
         if len(X) != len(A.shape) - 1:
-            raise EquationException("Contraction does not result in a vector")
+            raise ValueError("Contraction does not result in a vector")
         j = set(range(len(A.shape)))
         for i in I:
             # Raises an error if there is a duplicate element in I
@@ -192,7 +193,7 @@ class ContractionRHS(RHS):
                                    alpha=alpha)
             b.vector()[:] -= A_c.value(X[:k] + X[k + 1:])
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         X = list(self.dependencies())

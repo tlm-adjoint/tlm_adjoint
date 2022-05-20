@@ -35,13 +35,8 @@ __all__ = \
         "GaussNewton",
         "GeneralGaussNewton",
         "GeneralHessian",
-        "Hessian",
-        "HessianException"
+        "Hessian"
     ]
-
-
-class HessianException(Exception):
-    pass
 
 
 def conjugate(X):
@@ -59,10 +54,10 @@ class Hessian:
         pass
 
     def compute_gradient(self, M, M0=None):
-        raise HessianException("Abstract method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def action(self, M, dM, M0=None):
-        raise HessianException("Abstract method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def action_fn(self, m, m0=None):
         """
@@ -208,7 +203,7 @@ class GaussNewton:
         self._B_inv_action = B_inv_action
 
     def _setup_manager(self, M, dM, M0=None):
-        raise HessianException("Abstract method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def action(self, M, dM, M0=None):
         if not isinstance(M, Sequence):

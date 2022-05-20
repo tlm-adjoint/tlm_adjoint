@@ -86,8 +86,11 @@ __all__ = \
     ]
 
 
-class EquationException(Exception):
-    pass
+class EquationException(Exception):  # noqa: N818
+    def __init__(self, *args, **kwargs):
+        warnings.warn("EquationException is deprecated",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
 
 
 class AdjointRHS:
@@ -128,9 +131,8 @@ class AdjointEquationRHS:
         return self._B[key]
 
     def b(self, copy=False):
-        if len(self._B) != 1:
-            raise EquationException("Right-hand-side does not consist of exactly one function")  # noqa: E501
-        return self._B[0].b(copy=copy)
+        b, = self._B
+        return b.b(copy=copy)
 
     def B(self, copy=False):
         return tuple(B.b(copy=copy) for B in self._B)
@@ -217,8 +219,8 @@ class Referrer:
     @gc_disabled
     def add_referrer(self, *referrers):
         if self._references_dropped:
-            raise EquationException("Cannot call add_referrer method after "
-                                    "_drop_references method has been called")
+            raise RuntimeError("Cannot call add_referrer method after "
+                               "_drop_references method has been called")
         for referrer in referrers:
             referrer_id = referrer.id()
             assert self._referrers.get(referrer_id, referrer) is referrer
@@ -247,7 +249,7 @@ class Referrer:
             self._references_dropped = True
 
     def drop_references(self):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
 
 class Equation(Referrer):
@@ -292,30 +294,29 @@ class Equation(Referrer):
         X_ids = {function_id(x) for x in X}
         for x in X:
             if not is_function(x):
-                raise EquationException("Solution must be a function")
+                raise ValueError("Solution must be a function")
             if not function_is_checkpointed(x):
-                raise EquationException("Solution must be checkpointed")
+                raise ValueError("Solution must be checkpointed")
             if function_is_alias(x):
-                raise EquationException("Solution cannot be an alias")
+                raise ValueError("Solution cannot be an alias")
             if x not in deps:
-                raise EquationException("Solution must be a dependency")
+                raise ValueError("Solution must be a dependency")
 
         dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         if len(dep_ids) != len(deps):
-            raise EquationException("Duplicate dependency")
+            raise ValueError("Duplicate dependency")
         for dep in deps:
             if function_is_alias(dep):
-                raise EquationException("Dependency cannot be an alias")
+                raise ValueError("Dependency cannot be an alias")
 
         if nl_deps is None:
             nl_deps = tuple(deps)
         nl_dep_ids = {function_id(dep) for dep in nl_deps}
         if len(nl_dep_ids) != len(nl_deps):
-            raise EquationException("Duplicate non-linear dependency")
+            raise ValueError("Duplicate non-linear dependency")
         for dep in nl_deps:
             if function_id(dep) not in dep_ids:
-                raise EquationException("Non-linear dependency is not a "
-                                        "dependency")
+                raise ValueError("Non-linear dependency is not a dependency")
         nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
 
         if ic_deps is None:
@@ -327,11 +328,11 @@ class Equation(Referrer):
                 ic = False
         ic_dep_ids = {function_id(dep) for dep in ic_deps}
         if len(ic_dep_ids) != len(ic_deps):
-            raise EquationException("Duplicate initial condition dependency")
+            raise ValueError("Duplicate initial condition dependency")
         for dep in ic_deps:
             if function_id(dep) not in X_ids:
-                raise EquationException("Initial condition dependency is not "
-                                        "a solution")
+                raise ValueError("Initial condition dependency is not a "
+                                 "solution")
         if ic:
             ic_deps = list(X)
 
@@ -344,12 +345,11 @@ class Equation(Referrer):
                 adj_ic = False
         adj_ic_dep_ids = {function_id(dep) for dep in adj_ic_deps}
         if len(adj_ic_dep_ids) != len(adj_ic_deps):
-            raise EquationException("Duplicate adjoint initial condition "
-                                    "dependency")
+            raise ValueError("Duplicate adjoint initial condition dependency")
         for dep in adj_ic_deps:
             if function_id(dep) not in X_ids:
-                raise EquationException("Adjoint initial condition "
-                                        "dependency is not a solution")
+                raise ValueError("Adjoint initial condition dependency is not "
+                                 "a solution")
         if adj_ic:
             adj_ic_deps = list(X)
 
@@ -357,12 +357,12 @@ class Equation(Referrer):
             adj_type = tuple(adj_type for x in X)
         elif isinstance(adj_type, Sequence):
             if len(adj_type) != len(X):
-                raise EquationException("Invalid adjoint type")
+                raise ValueError("Invalid adjoint type")
         else:
-            raise EquationException("Invalid adjoint type")
+            raise ValueError("Invalid adjoint type")
         for adj_x_type in adj_type:
             if adj_x_type not in ["primal", "conjugate_dual"]:
-                raise EquationException("Invalid adjoint type")
+                raise ValueError("Invalid adjoint type")
 
         super().__init__()
         self._X = tuple(X)
@@ -544,7 +544,7 @@ class Equation(Referrer):
               supplied.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def adjoint(self, J, adj_X, nl_deps, B, dep_Bs):
         """
@@ -638,7 +638,7 @@ class Equation(Referrer):
         adj_x/adj_X  The direction of the adjoint derivative action.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
         """
@@ -687,7 +687,7 @@ class Equation(Referrer):
                        method.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def tangent_linear(self, M, dM, tlm_map):
         """
@@ -702,7 +702,7 @@ class Equation(Referrer):
         tlm_map  The TangentLinearMap.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
 
 class ControlsMarker(Equation):
@@ -748,7 +748,7 @@ class FunctionalMarker(Equation):
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:
-            raise EquationException("Unexpected dep_index")
+            raise IndexError("Unexpected dep_index")
         return (-1.0, adj_x)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
@@ -780,7 +780,7 @@ class NullSolver(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -804,7 +804,7 @@ class AssignmentSolver(Equation):
         elif dep_index == 1:
             return (-1.0, adj_x)
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -841,7 +841,7 @@ class LinearCombinationSolver(Equation):
         elif dep_index <= len(self._alpha):
             return (-self._alpha[dep_index - 1].conjugate(), adj_x)
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -883,22 +883,22 @@ class CustomNormSq:
 
         norm_sqs = list(norm_sqs)
         if len(eqs) != len(norm_sqs):
-            raise EquationException("Invalid squared norm callable(s)")
+            raise ValueError("Invalid squared norm callable(s)")
         for i, (eq, X_norm_sq) in enumerate(zip(eqs, norm_sqs)):
             if callable(X_norm_sq):
                 X_norm_sq = (X_norm_sq,)
             if len(eq.X()) != len(X_norm_sq):
-                raise EquationException("Invalid squared norm callable(s)")
+                raise ValueError("Invalid squared norm callable(s)")
             norm_sqs[i] = tuple(X_norm_sq)
 
         adj_norm_sqs = list(adj_norm_sqs)
         if len(eqs) != len(adj_norm_sqs):
-            raise EquationException("Invalid squared norm callable(s)")
+            raise ValueError("Invalid squared norm callable(s)")
         for i, (eq, X_norm_sq) in enumerate(zip(eqs, adj_norm_sqs)):
             if callable(X_norm_sq):
                 X_norm_sq = (X_norm_sq,)
             if len(eq.X()) != len(X_norm_sq):
-                raise EquationException("Invalid squared norm callable(s)")
+                raise ValueError("Invalid squared norm callable(s)")
             adj_norm_sqs[i] = tuple(X_norm_sq)
 
         self._norm_sqs = tuple(norm_sqs)
@@ -979,7 +979,7 @@ class FixedPointSolver(Equation, CustomNormSq):
             for x in eq.X():
                 x_id = function_id(x)
                 if x_id in X_ids:
-                    raise EquationException("Duplicate solve")
+                    raise ValueError("Duplicate solve")
                 X_ids.add(x_id)
 
         solver_parameters = copy.deepcopy(solver_parameters)
@@ -989,10 +989,10 @@ class FixedPointSolver(Equation, CustomNormSq):
                           "instead",
                           DeprecationWarning, stacklevel=2)
             if "adjoint_nonzero_initial_guess" in solver_parameters:
-                raise EquationException("Cannot supply both "
-                                        "'nonzero_adjoint_initial_guess' and "
-                                        "'adjoint_nonzero_initial_guess' "
-                                        "parameters")
+                raise ValueError("Cannot supply both "
+                                 "'nonzero_adjoint_initial_guess' and "
+                                 "'adjoint_nonzero_initial_guess' "
+                                 "parameters")
             solver_parameters["adjoint_nonzero_initial_guess"] = \
                 solver_parameters.pop("nonzero_adjoint_initial_guess")
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
@@ -1206,13 +1206,13 @@ class FixedPointSolver(Equation, CustomNormSq):
                              f"change norm {np.sqrt(R_norm_sq):.16e} "
                              f"(tolerance {np.sqrt(tolerance_sq):.16e})")
             if np.isnan(R_norm_sq):
-                raise EquationException(
+                raise RuntimeError(
                     f"Fixed point iteration, forward iteration {it:d}, "
                     f"NaN encountered")
             if R_norm_sq < tolerance_sq or R_norm_sq == 0.0:
                 break
             if it >= maximum_iterations:
-                raise EquationException(
+                raise RuntimeError(
                     f"Fixed point iteration, forward iteration {it:d}, "
                     f"failed to converge")
 
@@ -1337,13 +1337,13 @@ class FixedPointSolver(Equation, CustomNormSq):
                              f"change norm {np.sqrt(R_norm_sq):.16e} "
                              f"(tolerance {np.sqrt(tolerance_sq):.16e})")
             if np.isnan(R_norm_sq):
-                raise EquationException(
+                raise RuntimeError(
                     f"Fixed point iteration, adjoint iteration {it:d}, "
                     f"NaN encountered")
             if R_norm_sq < tolerance_sq or R_norm_sq == 0.0:
                 break
             if it >= maximum_iterations:
-                raise EquationException(
+                raise RuntimeError(
                     f"Fixed point iteration, adjoint iteration {it:d}, "
                     f"failed to converge")
 
@@ -1407,7 +1407,7 @@ class LinearEquation(Equation):
         for x in X:
             x_id = function_id(x)
             if x_id in x_ids:
-                raise EquationException("Duplicate solve")
+                raise ValueError("Duplicate solve")
             x_ids.add(x_id)
             deps.append(x)
             dep_ids[x_id] = len(deps) - 1
@@ -1419,7 +1419,7 @@ class LinearEquation(Equation):
             for dep in b.dependencies():
                 dep_id = function_id(dep)
                 if dep_id in x_ids:
-                    raise EquationException("Invalid dependency in linear Equation")  # noqa: E501
+                    raise ValueError("Invalid dependency in linear Equation")
                 if dep_id not in dep_ids:
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
@@ -1550,7 +1550,7 @@ class LinearEquation(Equation):
 
         eq_deps = self.dependencies()
         if dep_index < 0 or dep_index >= len(eq_deps):
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
         elif dep_index < len(self.X()):
             if self._A is None:
                 return adj_X[dep_index]
@@ -1621,15 +1621,15 @@ class Matrix(Referrer):
         if nl_deps is None:
             nl_deps = []
         if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
-            raise EquationException("Duplicate non-linear dependency")
+            raise ValueError("Duplicate non-linear dependency")
 
         if has_ic_dep is not None:
             warnings.warn("'has_ic_dep' argument is deprecated -- use 'ic' "
                           "instead",
                           DeprecationWarning, stacklevel=2)
             if ic is not None:
-                raise EquationException("Cannot pass both 'has_ic_dep' and "
-                                        "'ic' arguments")
+                raise TypeError("Cannot pass both 'has_ic_dep' and 'ic' "
+                                "arguments")
             ic = has_ic_dep
         elif ic is None:
             ic = True
@@ -1719,7 +1719,7 @@ class Matrix(Referrer):
         method       (Optional) One of {"assign", "add", "sub"}.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def adjoint_action(self, nl_deps, adj_X, b, b_index=0, method="assign"):
         """
@@ -1739,10 +1739,10 @@ class Matrix(Referrer):
         method       (Optional) One of {"assign", "add", "sub"}.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def forward_solve(self, X, nl_deps, B):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
                                   method="assign"):
@@ -1768,29 +1768,28 @@ class Matrix(Referrer):
         method       (Optional) One of {"assign", "add", "sub"}.
         """
 
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def adjoint_solve(self, adj_X, nl_deps, B):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def tangent_linear_rhs(self, M, dM, tlm_map, X):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
 
 class RHS(Referrer):
     def __init__(self, deps, nl_deps=None):
         dep_ids = {function_id(dep) for dep in deps}
         if len(dep_ids) != len(deps):
-            raise EquationException("Duplicate dependency")
+            raise ValueError("Duplicate dependency")
 
         if nl_deps is None:
             nl_deps = tuple(deps)
         nl_dep_ids = {function_id(dep) for dep in nl_deps}
         if len(nl_dep_ids) != len(nl_deps):
-            raise EquationException("Duplicate non-linear dependency")
+            raise ValueError("Duplicate non-linear dependency")
         if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
-            raise EquationException("Non-linear dependency is not a "
-                                    "dependency")
+            raise ValueError("Non-linear dependency is not a dependency")
 
         super().__init__()
         self._deps = tuple(deps)
@@ -1808,13 +1807,13 @@ class RHS(Referrer):
         return self._nl_deps
 
     def add_forward(self, B, deps):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
 
 class MatrixActionSolver(LinearEquation):
@@ -1850,7 +1849,7 @@ class MatrixActionRHS(RHS):
         if is_function(X):
             X = (X,)
         if len({function_id(x) for x in X}) != len(X):
-            raise EquationException("Invalid dependency")
+            raise ValueError("Invalid dependency")
 
         A_nl_deps = A.nonlinear_dependencies()
         if len(A_nl_deps) == 0:
@@ -1890,7 +1889,7 @@ class MatrixActionRHS(RHS):
         if is_function(adj_X):
             adj_X = (adj_X,)
         if dep_index < 0 or dep_index >= len(self.dependencies()):
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
         if dep_index < N_A_nl_deps:
             X = [nl_deps[j] for j in self._x_indices]
@@ -1963,7 +1962,7 @@ class DotProductRHS(RHS):
             x, y = deps
 
         if function_local_size(y) != function_local_size(x):
-            raise EquationException("Invalid space")
+            raise ValueError("Invalid space")
         check_space_types_dual(x, y)
 
         d = (function_get_values(y) * function_get_values(x)).sum()
@@ -1988,7 +1987,7 @@ class DotProductRHS(RHS):
                     function_get_values(b)
                     + alpha * function_get_values(x).conjugate())
             else:
-                raise EquationException("dep_index out of bounds")
+                raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps
             alpha = -self._alpha.conjugate() * function_sum(adj_x)
@@ -2004,7 +2003,7 @@ class DotProductRHS(RHS):
                 function_get_values(b)
                 + alpha * function_get_values(x).conjugate())
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         tlm_B = []
@@ -2047,7 +2046,8 @@ class InnerProductRHS(RHS):
         else:
             check_space_types(x, y)
         if M is not None and len(M.nonlinear_dependencies()) > 0:
-            raise EquationException("Non-linear matrix dependencies not supported")  # noqa: E501
+            raise NotImplementedError("Non-linear matrix dependencies not "
+                                      "supported")
 
         norm_sq = x == y
         if norm_sq:
@@ -2096,7 +2096,7 @@ class InnerProductRHS(RHS):
             if dep_index == 0:
                 x = nl_deps[0]
                 if not issubclass(function_dtype(x), (float, np.floating)):
-                    raise EquationException("Not complex differentiable")
+                    raise RuntimeError("Not complex differentiable")
                 M_deps = nl_deps[1:]
 
                 if self._M is None:
@@ -2117,7 +2117,7 @@ class InnerProductRHS(RHS):
                 function_axpy(
                     b, -self._alpha.conjugate() * function_sum(adj_x), X)
             else:
-                raise EquationException("dep_index out of bounds")
+                raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps[:2]
             M_deps = nl_deps[2:]
@@ -2132,7 +2132,7 @@ class InnerProductRHS(RHS):
         elif dep_index == 1:
             x, y = nl_deps[:2]
             if not issubclass(function_dtype(y), (float, np.floating)):
-                raise EquationException("Not complex differentiable")
+                raise RuntimeError("Not complex differentiable")
             M_deps = nl_deps[2:]
 
             if self._M is None:
@@ -2143,7 +2143,7 @@ class InnerProductRHS(RHS):
 
             function_axpy(b, -self._alpha.conjugate() * function_sum(adj_x), X)
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         tlm_B = []
@@ -2153,7 +2153,7 @@ class InnerProductRHS(RHS):
             tlm_x = get_tangent_linear(x, M, dM, tlm_map)
             if tlm_x is not None:
                 if not issubclass(function_dtype(x), (float, np.floating)):
-                    raise EquationException("Not complex differentiable")
+                    raise RuntimeError("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(tlm_x, x, alpha=self._alpha,
                                              M=self._M))
                 tlm_B.append(InnerProductRHS(x, tlm_x, alpha=self._alpha,
@@ -2169,7 +2169,7 @@ class InnerProductRHS(RHS):
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is not None:
                 if not issubclass(function_dtype(y), (float, np.floating)):
-                    raise EquationException("Not complex differentiable")
+                    raise RuntimeError("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(x, tlm_y, alpha=self._alpha,
                                              M=self._M))
 
@@ -2197,7 +2197,7 @@ class SumRHS(RHS):
             function_set_values(b,
                                 function_get_values(b) - function_sum(adj_x))
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         y, = self.dependencies()
@@ -2218,13 +2218,13 @@ class Storage(Equation):
         return self._key
 
     def is_saved(self):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def load(self, x):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def save(self, x):
-        raise EquationException("Method not overridden")
+        raise NotImplementedError("Method not overridden")
 
     def forward_solve(self, x, deps=None):
         if not self._save or self.is_saved():
@@ -2239,7 +2239,7 @@ class Storage(Equation):
         if dep_index == 0:
             return adj_x
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def tangent_linear(self, M, dM, tlm_map):
         return NullSolver(tlm_map[self.x()])

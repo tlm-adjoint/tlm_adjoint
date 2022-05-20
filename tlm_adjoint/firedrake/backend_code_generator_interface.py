@@ -22,9 +22,8 @@ from .backend import FunctionSpace, Parameters, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_LinearSolver, \
     backend_Matrix, backend_assemble, backend_solve, complex_mode, \
     extract_args, homogenize, parameters
-from ..interface import InterfaceException, check_space_type, \
-    check_space_types, function_axpy, function_copy, function_dtype, \
-    function_space_type, space_new
+from ..interface import check_space_type, check_space_types, function_axpy, \
+    function_copy, function_dtype, function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -36,8 +35,6 @@ import ufl
 
 __all__ = \
     [
-        "InterfaceException",
-
         "assemble_arguments",
         "assemble_linear_solver",
         "assemble_matrix",
@@ -391,7 +388,7 @@ def form_form_compiler_parameters(form, form_compiler_parameters):
 
 def matrix_copy(A):
     if not isinstance(A, backend_Matrix):
-        raise InterfaceException("Unexpected matrix type")
+        raise TypeError("Unexpected matrix type")
 
     options_prefix = A.petscmat.getOptionsPrefix()
     A_copy = backend_Matrix(A.a, A.bcs, A.mat_type,
@@ -450,15 +447,12 @@ def is_valid_r0_space(space):
 
 def r0_space(x):
     if not hasattr(x, "_tlm_adjoint__r0_space"):
-        x_domains = x.ufl_domains()
-        if len(x_domains) == 0:
-            raise InterfaceException("Domain not defined")
-        domain, = x_domains
+        domain, = x.ufl_domains()
         if len(x.ufl_shape) == 0:
             space = FunctionSpace(domain, "R", 0)
         else:
             # See Firedrake issue #1456
-            raise InterfaceException("Rank >= 1 Constant not implemented")
+            raise NotImplementedError("Rank >= 1 Constant not implemented")
         assert is_valid_r0_space(space)
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
@@ -535,7 +529,7 @@ def interpolate_expression(x, expr):
     elif isinstance(x, backend_Function):
         x.interpolate(expr)
     else:
-        raise InterfaceException(f"Unexpected type: {type(x)}")
+        raise TypeError(f"Unexpected type: {type(x)}")
 
 
 def solve(*args, **kwargs):
@@ -561,22 +555,26 @@ def solve(*args, **kwargs):
 
         if "options_prefix" in tlm_adjoint_parameters:
             if options_prefix is not None:
-                raise InterfaceException("Cannot pass both options_prefix argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both options_prefix argument and "
+                                "solver parameter")
             options_prefix = tlm_adjoint_parameters["options_prefix"]
 
         if "nullspace" in tlm_adjoint_parameters:
             if nullspace is not None:
-                raise InterfaceException("Cannot pass both nullspace argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both nullspace argument and "
+                                "solver parameter")
             nullspace = tlm_adjoint_parameters["nullspace"]
 
         if "transpose_nullspace" in tlm_adjoint_parameters:
             if transpose_nullspace is not None:
-                raise InterfaceException("Cannot pass both transpose_nullspace argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both transpose_nullspace "
+                                "argument and solver parameter")
             transpose_nullspace = tlm_adjoint_parameters["transpose_nullspace"]
 
         if "near_nullspace" in tlm_adjoint_parameters:
             if near_nullspace is not None:
-                raise InterfaceException("Cannot pass both near_nullspace argument and solver parameter")  # noqa: E501
+                raise TypeError("Cannot pass both near_nullspace argument and "
+                                "solver parameter")
             near_nullspace = tlm_adjoint_parameters["near_nullspace"]
 
     return backend_solve(eq, x, bcs, J=J, Jp=Jp, M=M,

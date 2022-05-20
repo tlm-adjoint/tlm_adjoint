@@ -169,12 +169,12 @@ def forward(psi_0, kappa):
             elif method == "sub":
                 b.vector()[:] -= sb
             else:
-                raise EquationException(f"Invalid method: '{method:s}'")
+                raise ValueError(f"Invalid method: '{method:s}'")
 
         def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
                            method="assign"):
             if b_index != 0:
-                raise EquationException("Invalid index")
+                raise IndexError("Invalid index")
             self.forward_action(nl_deps, adj_x, b, method=method)
 
         def forward_solve(self, x, nl_deps, b):
@@ -203,9 +203,9 @@ def forward(psi_0, kappa):
                 elif method == "sub":
                     b.vector()[:] -= sb
                 else:
-                    raise EquationException(f"Invalid method: '{method:s}'")
+                    raise ValueError(f"Invalid method: '{method:s}'")
             else:
-                raise EquationException("nl_dep_index out of bounds")
+                raise IndexError("nl_dep_index out of bounds")
 
         def adjoint_solve(self, adj_x, nl_deps, b):
             kappa, = nl_deps

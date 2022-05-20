@@ -20,11 +20,11 @@
 
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
-from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    function_caches, function_comm, function_dtype, function_id, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_replacement, function_space, function_space_type, \
-    is_function, space_comm
+from ..interface import SpaceInterface, add_interface, function_caches, \
+    function_comm, function_dtype, function_id, function_is_cached, \
+    function_is_checkpointed, function_is_static, function_name, \
+    function_replacement, function_space, function_space_type, is_function, \
+    space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -219,7 +219,7 @@ class ConstantInterface(_FunctionInterface):
 
     def _set_values(self, values):
         if not np.can_cast(values, function_dtype(self)):
-            raise InterfaceException("Invalid dtype")
+            raise ValueError("Invalid dtype")
         comm = function_comm(self)
         if comm.rank != 0:
             values = None
@@ -255,7 +255,7 @@ class Constant(backend_Constant):
                  space_type="primal", shape=None, comm=None, static=False,
                  cache=None, checkpoint=None, **kwargs):
         if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-            raise InterfaceException("Invalid space type")
+            raise ValueError("Invalid space type")
 
         if domain is None and space is not None:
             domains = space.ufl_domains()
@@ -267,7 +267,7 @@ class Constant(backend_Constant):
             if shape is None:
                 shape = space.ufl_element().value_shape()
             elif shape != space.ufl_element().value_shape():
-                raise InterfaceException("Invalid shape")
+                raise ValueError("Invalid shape")
         if value is None:
             if shape is None:
                 shape = tuple()
@@ -276,7 +276,7 @@ class Constant(backend_Constant):
             if not isinstance(value_, np.ndarray):
                 value_ = np.array(value_)
             if value_.shape != shape:
-                raise InterfaceException("Invalid shape")
+                raise ValueError("Invalid shape")
             del value_
 
         # Default value
@@ -314,16 +314,16 @@ class Zero(Constant):
                          static=True)
 
     def assign(self, *args, **kwargs):
-        raise InterfaceException("Cannot call assign method of Zero")
+        raise RuntimeError("Cannot call assign method of Zero")
 
     def _tlm_adjoint__function_interface_assign(self, y):
-        raise InterfaceException("Cannot call _assign interface of Zero")
+        raise RuntimeError("Cannot call _assign interface of Zero")
 
     def _tlm_adjoint__function_interface_axpy(self, *args):  # self, alpha, x
-        raise InterfaceException("Cannot call _axpy interface of Zero")
+        raise RuntimeError("Cannot call _axpy interface of Zero")
 
     def _tlm_adjoint__function_interface_set_values(self, values):
-        raise InterfaceException("Cannot call _set_values interface of Zero")
+        raise RuntimeError("Cannot call _set_values interface of Zero")
 
 
 class ZeroConstant(Zero):
@@ -392,7 +392,7 @@ class Function(backend_Function):
     def __init__(self, *args, space_type="primal", static=False, cache=None,
                  checkpoint=None, **kwargs):
         if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-            raise InterfaceException("Invalid space type")
+            raise ValueError("Invalid space type")
         if cache is None:
             cache = static
         if checkpoint is None:
@@ -429,8 +429,8 @@ class DirichletBC(backend_DirichletBC):
                           "use HomogeneousDirichletBC instead",
                           DeprecationWarning, stacklevel=2)
             if _homogeneous is not None:
-                raise InterfaceException("Cannot supply both homogeneous and "
-                                         "_homogeneous arguments")
+                raise TypeError("Cannot supply both homogeneous and "
+                                "_homogeneous arguments")
         elif _homogeneous is None:
             homogeneous = False
         else:
@@ -451,16 +451,16 @@ class DirichletBC(backend_DirichletBC):
 
     def homogenize(self):
         if self.is_static():
-            raise InterfaceException("Cannot call homogenize method for "
-                                     "static DirichletBC")
+            raise RuntimeError("Cannot call homogenize method for static "
+                               "DirichletBC")
         if not self.__homogeneous:
             super().homogenize()
             self.__homogeneous = True
 
     def set_value(self, *args, **kwargs):
         if self.is_static():
-            raise InterfaceException("Cannot call set_value method for "
-                                     "static DirichletBC")
+            raise RuntimeError("Cannot call set_value method for static "
+                               "DirichletBC")
         super().set_value(*args, **kwargs)
 
 
@@ -596,7 +596,7 @@ def define_function_alias(x, parent, *, key):
             alias_parent = alias_parent()
             if alias_parent is None or alias_parent is not parent \
                     or alias_key != key:
-                raise InterfaceException("Invalid alias data")
+                raise ValueError("Invalid alias data")
         else:
             x._tlm_adjoint__function_interface_attrs["alias"] \
                 = (weakref.ref(parent), key)

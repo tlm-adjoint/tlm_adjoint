@@ -22,8 +22,8 @@ from ..caches import Caches
 from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..interface import InterfaceException, SpaceInterface, add_interface, \
-    function_space, new_function_id, new_space_id, space_id, space_new
+from ..interface import SpaceInterface, add_interface, function_space, \
+    new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 from ..tlm_adjoint import DEFAULT_COMM
 
@@ -85,7 +85,7 @@ class FunctionSpace:
     def __init__(self, dim, *, dtype=None):
         comm = DEFAULT_COMM
         if comm.size > 1:
-            raise InterfaceException("Serial only")
+            raise RuntimeError("Serial only")
         if dtype is None:
             dtype = default_dtype()
 
@@ -149,10 +149,13 @@ class FunctionInterface(_FunctionInterface):
                           complex, np.complexfloating)) \
                 and np.can_cast(y, dtype):
             self.vector()[:] = dtype(y)
-        elif isinstance(y, Function) and np.can_cast(y.dtype(), dtype):
-            self.vector()[:] = y.vector()
+        elif isinstance(y, Function):
+            if np.can_cast(y.dtype(), dtype):
+                self.vector()[:] = y.vector()
+            else:
+                raise ValueError("Invalid dtype")
         else:
-            raise InterfaceException("Invalid type or dtype")
+            raise TypeError("Invalid type")
 
     def _axpy(self, *args):  # self, alpha, x
         alpha, x = args
@@ -163,10 +166,13 @@ class FunctionInterface(_FunctionInterface):
                           complex, np.complexfloating)) \
                 and np.can_cast(x, dtype):
             self.vector()[:] += alpha * dtype(x)
-        elif isinstance(x, Function) and np.can_cast(x.dtype(), dtype):
-            self.vector()[:] += alpha * x.vector()
+        elif isinstance(x, Function):
+            if np.can_cast(x.dtype(), dtype):
+                self.vector()[:] += alpha * x.vector()
+            else:
+                raise ValueError("Invalid dtype")
         else:
-            raise InterfaceException("Invalid type or dtype")
+            raise TypeError("Invalid type")
 
     def _inner(self, y):
         assert isinstance(y, Function)
@@ -198,9 +204,9 @@ class FunctionInterface(_FunctionInterface):
     def _set_values(self, values):
         dtype = self.dtype()
         if not np.can_cast(values, dtype):
-            raise InterfaceException("Invalid dtype")
+            raise ValueError("Invalid dtype")
         if values.shape != self.vector().shape:
-            raise InterfaceException("Invalid shape")
+            raise ValueError("Invalid shape")
         self.vector()[:] = values
 
     def _replacement(self):
@@ -221,7 +227,7 @@ class Function:
     def __init__(self, space, *, name=None, space_type="primal", static=False,
                  cache=None, checkpoint=None, _data=None):
         if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-            raise InterfaceException("Invalid space type")
+            raise ValueError("Invalid space type")
         id = new_function_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
@@ -244,9 +250,9 @@ class Function:
             self._data = np.zeros(space.dim(), dtype=space.dtype())
         else:
             if _data.dtype.type != space.dtype():
-                raise InterfaceException("Invalid dtype")
+                raise ValueError("Invalid dtype")
             elif _data.shape != (space.dim(),):
-                raise InterfaceException("Invalid shape")
+                raise ValueError("Invalid shape")
             self._data = _data
         add_interface(self, FunctionInterface)
         self._caches = Caches(self)

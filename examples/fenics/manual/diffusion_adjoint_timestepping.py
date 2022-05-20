@@ -49,7 +49,7 @@ def forward(psi_0, psi_n_file=None):
                 self._bc.apply(b.vector())
                 return (-1.0, b)
             else:
-                raise EquationException("dep_index out of bounds")
+                raise IndexError("dep_index out of bounds")
 
         def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
             return b

@@ -27,15 +27,10 @@ import weakref
 __all__ = \
     [
         "Cache",
-        "CacheException",
         "CacheRef",
         "Caches",
         "clear_caches"
     ]
-
-
-class CacheException(Exception):
-    pass
 
 
 class CacheRef:
@@ -154,7 +149,7 @@ class Cache:
             value_ref = self._cache[key]
             value = value_ref()
             if value is None:
-                raise CacheException("Unexpected cache value state")
+                raise RuntimeError("Unexpected cache value state")
             return value_ref, value
 
         value = value()

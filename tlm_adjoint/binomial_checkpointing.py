@@ -34,13 +34,8 @@ import numpy as np
 
 __all__ = \
     [
-        "CheckpointingException",
         "MultistageManager"
     ]
-
-
-class CheckpointingException(Exception):
-    pass
 
 
 def n_advance(n, snapshots):
@@ -55,9 +50,9 @@ def n_advance(n, snapshots):
     """
 
     if n < 1:
-        raise CheckpointingException("Require at least one block")
+        raise ValueError("Require at least one block")
     if snapshots <= 0:
-        raise CheckpointingException("Require at least one snapshot")
+        raise ValueError("Require at least one snapshot")
 
     # Discard excess snapshots
     snapshots = max(min(snapshots, n - 1), 1)
@@ -200,7 +195,7 @@ class MultistageManager:
 
     def forward(self):
         if self._n > self._max_n - self._r - 1:
-            raise CheckpointingException("Too many forward steps")
+            raise RuntimeError("Too many forward steps")
         if self._n == self._max_n - self._r - 1:
             self._n += 1
         else:
@@ -208,14 +203,14 @@ class MultistageManager:
                 - len(self._snapshots) + 1
             self._n += n_advance(self._max_n - self._n - self._r, snapshots)
         if self._n > self._max_n - self._r:
-            raise CheckpointingException("Too many forward steps")
+            raise RuntimeError("Too many forward steps")
 
     def reverse(self):
         if self._n != self._max_n - self._r:
-            raise CheckpointingException("Too few forward steps")
+            raise RuntimeError("Too few forward steps")
         self._r += 1
         if self._r > self._max_n:
-            raise CheckpointingException("Too many reverse steps")
+            raise RuntimeError("Too many reverse steps")
 
     def load_snapshot(self):
         self._n, storage = self._last_snapshot()

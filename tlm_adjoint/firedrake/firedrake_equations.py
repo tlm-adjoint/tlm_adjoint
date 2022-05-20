@@ -29,8 +29,7 @@ from .backend_code_generator_interface import assemble, complex_mode, \
     matrix_multiply
 
 from ..caches import Cache
-from ..equations import Equation, EquationException, NullSolver, \
-    get_tangent_linear
+from ..equations import Equation, NullSolver, get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
@@ -264,24 +263,26 @@ class PointInterpolationSolver(Equation):
         for x in X:
             check_space_type(x, "primal")
             if not function_is_scalar(x):
-                raise EquationException("Solution must be a scalar, or a "
-                                        "sequence of scalars")
+                raise ValueError("Solution must be a scalar, or a sequence of "
+                                 "scalars")
             if dtype is None:
                 dtype = function_dtype(x)
             elif function_dtype(x) != dtype:
-                raise EquationException("Invalid dtype")
+                raise ValueError("Invalid dtype")
         if dtype is None:
             dtype = backend_ScalarType
         check_space_type(y, "primal")
 
         if X_coords is None:
             if P is None:
-                raise EquationException("X_coords required when P is not supplied")  # noqa: E501
+                raise TypeError("X_coords required when P is not supplied")
         else:
             if len(X) != X_coords.shape[0]:
-                raise EquationException("Invalid number of functions")
-        if not isinstance(y, backend_Function) or len(y.ufl_shape) > 0:
-            raise EquationException("y must be a scalar-valued Function")
+                raise ValueError("Invalid number of functions")
+        if not isinstance(y, backend_Function):
+            raise TypeError("y must be a Function")
+        if len(y.ufl_shape) > 0:
+            raise ValueError("y must be a scalar-valued Function")
 
         if P is None:
             y_space = function_space(y)
@@ -304,7 +305,7 @@ class PointInterpolationSolver(Equation):
             comm = function_comm(y)
             comm.Allreduce(y_nodes_local, y_nodes, op=MPI.MAX)
             if (y_nodes < 0).any():
-                raise EquationException("Unable to locate one or more cells")
+                raise RuntimeError("Unable to locate one or more cells")
 
             P = interpolation_matrix(X_coords, y, y_nodes, dtype=dtype)
         else:
@@ -338,7 +339,7 @@ class PointInterpolationSolver(Equation):
             adj_X = (adj_X,)
         for adj_x in adj_X:
             if function_dtype(adj_x) != self._dtype:
-                raise EquationException("Invalid dtype")
+                raise ValueError("Invalid dtype")
 
         if dep_index < len(adj_X):
             return adj_X[dep_index]
@@ -350,7 +351,7 @@ class PointInterpolationSolver(Equation):
             function_set_values(F, self._P_H.dot(adj_x_v))
             return (-1.0, F)
         else:
-            raise EquationException("dep_index out of bounds")
+            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B

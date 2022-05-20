@@ -39,8 +39,6 @@ import ufl
 
 __all__ = \
     [
-        "OverrideException",
-
         "LinearVariationalSolver",
         "NonlinearVariationalProblem",
         "NonlinearVariationalSolver",
@@ -51,10 +49,6 @@ __all__ = \
         "project",
         "solve"
     ]
-
-
-class OverrideException(Exception):
-    pass
 
 
 def parameters_dict_equal(parameters_a, parameters_b):
@@ -82,7 +76,7 @@ def parameters_dict_equal(parameters_a, parameters_b):
 def assemble(form, tensor=None, form_compiler_parameters=None,
              add_values=False, *args, **kwargs):
     if not isinstance(form, ufl.classes.Form):
-        raise OverrideException("form must be a UFL form")
+        raise TypeError("form must be a UFL form")
 
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
@@ -103,11 +97,11 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
 
         if add_values and hasattr(b, "_tlm_adjoint__form"):
             if b._tlm_adjoint__bcs != []:
-                raise OverrideException("Non-matching boundary conditions")
+                raise ValueError("Non-matching boundary conditions")
             elif not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+                raise ValueError("Non-matching form compiler parameters")
             b._tlm_adjoint__form += form
         else:
             b._tlm_adjoint__form = form
@@ -122,11 +116,12 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
                     finalize_tensor=True, keep_diagonal=False, A_tensor=None,
                     b_tensor=None, *args, **kwargs):
     if not isinstance(A_form, ufl.classes.Form):
-        raise OverrideException("A_form must be a UFL form")
+        raise TypeError("A_form must be a UFL form")
     if not isinstance(b_form, ufl.classes.Form):
-        raise OverrideException("b_form must be a UFL form")
+        raise TypeError("b_form must be a UFL form")
     if x0 is not None:
-        raise OverrideException("Non-linear boundary condition case not supported")  # noqa: E501
+        raise NotImplementedError("Non-linear boundary condition case not "
+                                  "supported")
 
     if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
         check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
@@ -155,11 +150,11 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
 
     if add_values and hasattr(A, "_tlm_adjoint__form"):
         if A._tlm_adjoint__bcs != bcs:
-            raise OverrideException("Non-matching boundary conditions")
+            raise ValueError("Non-matching boundary conditions")
         elif not parameters_dict_equal(
                 A._tlm_adjoint__form_compiler_parameters,
                 form_compiler_parameters):
-            raise OverrideException("Non-matching form compiler parameters")
+            raise ValueError("Non-matching form compiler parameters")
         A._tlm_adjoint__form += A_form
     else:
         A._tlm_adjoint__form = A_form
@@ -168,11 +163,11 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
 
     if add_values and hasattr(b, "_tlm_adjoint__form"):
         if b._tlm_adjoint__bcs != bcs:
-            raise OverrideException("Non-matching boundary conditions")
+            raise ValueError("Non-matching boundary conditions")
         elif not parameters_dict_equal(
                 b._tlm_adjoint__form_compiler_parameters,
                 form_compiler_parameters):
-            raise OverrideException("Non-matching form compiler parameters")
+            raise ValueError("Non-matching form compiler parameters")
         b._tlm_adjoint__form += b_form
     else:
         b._tlm_adjoint__form = b_form
@@ -222,9 +217,9 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 solver_parameters = {}
 
             if tol is not None or M is not None:
-                raise OverrideException("Adaptive solves not supported")
+                raise NotImplementedError("Adaptive solves not supported")
             if preconditioner is not None:
-                raise OverrideException("Preconditioners not supported")
+                raise NotImplementedError("Preconditioners not supported")
 
             if isinstance(eq_arg.rhs, ufl.classes.Form):
                 eq_arg = linear_equation_new_x(eq_arg, x,
@@ -243,12 +238,12 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
 
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
-                raise OverrideException("Non-matching boundary conditions")
+                raise ValueError("Non-matching boundary conditions")
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+                raise ValueError("Non-matching form compiler parameters")
 
             A = A._tlm_adjoint__form
             x = x._tlm_adjoint__function
@@ -293,7 +288,7 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
     if annotate or tlm or solver_parameters is not None:
         if function is None:
             if V is None:
-                raise OverrideException("V or function required")
+                raise TypeError("V or function required")
             x = space_new(V)
         else:
             x = function
@@ -481,12 +476,12 @@ class LUSolver(backend_LUSolver):
         if annotate or tlm:
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
-                raise OverrideException("Non-matching boundary conditions")
+                raise ValueError("Non-matching boundary conditions")
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+                raise ValueError("Non-matching form compiler parameters")
 
             A_form = A._tlm_adjoint__form
             x = x._tlm_adjoint__function
@@ -536,7 +531,7 @@ class KrylovSolver(backend_KrylovSolver):
         self.__A = A
 
     def set_operators(self, *args, **kwargs):
-        raise OverrideException("Preconditioners not supported")
+        raise NotImplementedError("Preconditioners not supported")
 
     def solve(self, *args, annotate=None, tlm=None):
         if isinstance(args[0], backend_Matrix):
@@ -553,12 +548,12 @@ class KrylovSolver(backend_KrylovSolver):
         if annotate or tlm:
             bcs = A._tlm_adjoint__bcs
             if bcs != b._tlm_adjoint__bcs:
-                raise OverrideException("Non-matching boundary conditions")
+                raise ValueError("Non-matching boundary conditions")
             form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
             if not parameters_dict_equal(
                     b._tlm_adjoint__form_compiler_parameters,
                     form_compiler_parameters):
-                raise OverrideException("Non-matching form compiler parameters")  # noqa: E501
+                raise ValueError("Non-matching form compiler parameters")
 
             A_form = A._tlm_adjoint__form
             x = x._tlm_adjoint__function
@@ -629,7 +624,7 @@ class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
             self._tlm_adjoint__bcs = list(bcs)
 
     def set_bounds(self, *args, **kwargs):
-        raise OverrideException("Bounds not supported")
+        raise NotImplementedError("Bounds not supported")
 
 
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):

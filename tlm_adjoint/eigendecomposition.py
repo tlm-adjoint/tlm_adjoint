@@ -65,13 +65,8 @@ import warnings
 
 __all__ = \
     [
-        "EigendecompositionException",
         "eigendecompose"
     ]
-
-
-class EigendecompositionException(Exception):
-    pass
 
 
 _flagged_error = [False]
@@ -100,9 +95,9 @@ class PythonMatrix:
             y_a = self._action(x_a)
 
         if not np.can_cast(y_a, PETSc.ScalarType):
-            raise EigendecompositionException("Invalid dtype")
+            raise ValueError("Invalid dtype")
         if y_a.shape != (y.getLocalSize(),):
-            raise EigendecompositionException("Invalid shape")
+            raise ValueError("Invalid shape")
 
         y.setArray(y_a)
 
@@ -178,9 +173,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     import slepc4py.SLEPc as SLEPc
 
     if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-        raise EigendecompositionException("Invalid space type")
+        raise ValueError("Invalid space type")
     if action_type not in ["primal", "dual", "conjugate_dual"]:
-        raise EigendecompositionException("Invalid action type")
+        raise ValueError("Invalid action type")
 
     A_action = wrapped_action(space, space_type, action_type, A_action)
     if B_action is None:
@@ -240,11 +235,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     assert not _flagged_error[0]
     esolver.solve()
     if _flagged_error[0]:
-        raise EigendecompositionException("Error encountered in "
-                                          "SLEPc.EPS.solve")
+        raise RuntimeError("Error encountered in SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
-        raise EigendecompositionException("Not all requested eigenpairs "
-                                          "converged")
+        raise RuntimeError("Not all requested eigenpairs converged")
 
     lam = np.full(N_ev, np.NAN,
                   dtype=PETSc.RealType if esolver.isHermitian()

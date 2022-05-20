@@ -29,6 +29,7 @@ from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
 import numpy as np
+import warnings
 
 __all__ = \
     [
@@ -38,8 +39,11 @@ __all__ = \
     ]
 
 
-class OptimizationException(Exception):
-    pass
+class OptimizationException(Exception):  # noqa: N818
+    def __init__(self, *args, **kwargs):
+        warnings.warn("OptimizationException is deprecated",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(*args, **kwargs)
 
 
 def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
@@ -88,7 +92,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         for i, f in enumerate(F):
             f_vals = function_get_values(f)
             if not np.can_cast(f_vals, x.dtype):
-                raise OptimizationException("Invalid dtype")
+                raise ValueError("Invalid dtype")
             x[N[i]:N[i + 1]] = f_vals
 
         if comm.rank == 0:
@@ -133,7 +137,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
             if change_norm == 0.0:
                 J_val = J[0].value()
                 if not isinstance(J_val, (float, np.floating)):
-                    raise OptimizationException("Unexpected type")
+                    raise TypeError("Unexpected type")
                 return J_val
 
         J_M[0] = tuple(function_copy(m) for m in M)
@@ -153,7 +157,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         J_val = J[0].value()
         if not isinstance(J_val, (float, np.floating)):
-            raise OptimizationException("Unexpected type")
+            raise TypeError("Unexpected type")
         return J_val
 
     def fun_bcast(x):
@@ -194,7 +198,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
                 return_value = data
                 break
             else:
-                raise OptimizationException(f"Unexpected action '{action:s}'")
+                raise ValueError(f"Unexpected action '{action:s}'")
         set(M, None)
 
     clear_caches(*M)
