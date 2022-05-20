@@ -107,7 +107,7 @@ __all__ = \
     ]
 
 
-class InterfaceException(Exception):
+class InterfaceException(Exception):  # noqa: N818
     def __init__(self, *args, **kwargs):
         warnings.warn("InterfaceException is deprecated",
                       DeprecationWarning, stacklevel=2)

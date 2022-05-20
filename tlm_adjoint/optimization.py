@@ -39,7 +39,7 @@ __all__ = \
     ]
 
 
-class OptimizationException(Exception):
+class OptimizationException(Exception):  # noqa: N818
     def __init__(self, *args, **kwargs):
         warnings.warn("OptimizationException is deprecated",
                       DeprecationWarning, stacklevel=2)

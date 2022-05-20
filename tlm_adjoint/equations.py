@@ -86,7 +86,7 @@ __all__ = \
     ]
 
 
-class EquationException(Exception):
+class EquationException(Exception):  # noqa: N818
     def __init__(self, *args, **kwargs):
         warnings.warn("EquationException is deprecated",
                       DeprecationWarning, stacklevel=2)
