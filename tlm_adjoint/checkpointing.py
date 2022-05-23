@@ -252,7 +252,7 @@ class ReplayStorage:
         if x_id in self._map:
             self._map[x_id] = y
 
-    def update(self, d, copy=True):
+    def update(self, d, *, copy=True):
         for key, value in d.items():
             if key in self:
                 self[key] = function_copy(value) if copy else value
