@@ -31,7 +31,7 @@ __all__ = \
 
 
 class CheckpointStorage:
-    def __init__(self, *, store_ics=True, store_data=True):
+    def __init__(self, *, store_ics, store_data):
         self._seen_ics = set()
         self._cp = {}
         self._refs = {}
