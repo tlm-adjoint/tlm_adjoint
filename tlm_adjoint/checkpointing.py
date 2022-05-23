@@ -18,15 +18,27 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_copy, function_id, function_is_checkpointed, \
-    function_new
+from .interface import function_copy, function_get_values, \
+    function_global_size, function_id, function_is_checkpointed, \
+    function_local_indices, function_new, function_set_values, \
+    function_space, function_space_type, space_id, space_new
 
+from abc import ABC, abstractmethod
 from collections import defaultdict, deque
+import mpi4py.MPI as MPI
+import numpy as np
+import os
+import pickle
+import weakref
 
 __all__ = \
     [
         "CheckpointStorage",
-        "ReplayStorage"
+        "ReplayStorage",
+
+        "Checkpoints",
+        "PickleCheckpoints",
+        "HDF5Checkpoints"
     ]
 
 
@@ -250,3 +262,222 @@ class ReplayStorage:
         for dep_id in dep_ids:
             del self._map[dep_id]
         return (n, i)
+
+
+class Checkpoints(ABC):
+    @abstractmethod
+    def __contains__(self, n):
+        pass
+
+    @abstractmethod
+    def write(self, n, cp):
+        pass
+
+    @abstractmethod
+    def read(self, n, storage):
+        pass
+
+    @abstractmethod
+    def delete(self, n):
+        pass
+
+
+def root_py2f(comm, *, root=0):
+    if comm.rank == root:
+        py2f = comm.py2f()
+    else:
+        py2f = None
+    return comm.bcast(py2f, root=root)
+
+
+def root_pid(comm, *, root=0):
+    if comm.rank == root:
+        pid = os.getpid()
+    else:
+        pid = None
+    return comm.bcast(pid, root=root)
+
+
+class PickleCheckpoints(Checkpoints):
+    def __init__(self, prefix, *, comm=MPI.COMM_WORLD):
+        comm = comm.Dup()
+        cp_filenames = {}
+
+        def finalize_callback(comm, cp_filenames):
+            comm.Free()
+            for filename in cp_filenames.values():
+                os.remove(filename)
+
+        finalize = weakref.finalize(self, finalize_callback,
+                                    comm, cp_filenames)
+        finalize.atexit = True
+
+        self._prefix = prefix
+        self._comm = comm
+        self._root_pid = root_pid(comm)
+        self._root_py2f = root_py2f(comm)
+
+        self._cp_filenames = cp_filenames
+        self._cp_spaces = {}
+
+    def __contains__(self, n):
+        assert (n in self._cp_filenames) == (n in self._cp_spaces)
+        return n in self._cp_filenames
+
+    def write(self, n, cp):
+        if n in self:
+            raise RuntimeError("Duplicate checkpoint")
+
+        filename = f"{self._prefix:s}{n:d}_{self._root_pid:d}_" \
+                   f"{self._root_py2f:d}_{self._comm.rank:d}.pickle"
+        spaces = {}
+
+        cp_data = {}
+        for key, F in cp.items():
+            F_space = function_space(F)
+            F_space_id = space_id(F_space)
+            if F_space_id not in spaces:
+                spaces[F_space_id] = F_space
+
+            cp_data[key] = (F_space_id,
+                            function_space_type(F),
+                            function_get_values(F))
+
+        with open(filename, "wb") as h:
+            pickle.dump(cp_data, h, protocol=pickle.HIGHEST_PROTOCOL)
+
+        self._cp_filenames[n] = filename
+        self._cp_spaces[n] = spaces
+
+    def read(self, n, storage):
+        filename = self._cp_filenames[n]
+        spaces = self._cp_spaces[n]
+
+        with open(filename, "rb") as h:
+            cp_data = pickle.load(h)
+
+        for key in tuple(cp_data.keys()):
+            F_space_id, F_space_type, F_values = cp_data.pop(key)
+            if key in storage:
+                F = space_new(spaces[F_space_id], space_type=F_space_type)
+                function_set_values(F, F_values)
+                storage[key] = F
+
+    def delete(self, n):
+        filename = self._cp_filenames[n]
+        os.remove(filename)
+        del self._cp_filenames[n]
+        del self._cp_spaces[n]
+
+
+class HDF5Checkpoints(Checkpoints):
+    def __init__(self, prefix, *, comm=MPI.COMM_WORLD):
+        comm = comm.Dup()
+        cp_filenames = {}
+
+        def finalize_callback(comm, rank, cp_filenames):
+            try:
+                if not MPI.Is_finalized():
+                    comm.barrier()
+                if rank == 0:
+                    for filename in cp_filenames.values():
+                        os.remove(filename)
+                if not MPI.Is_finalized():
+                    comm.barrier()
+            finally:
+                comm.Free()
+
+        finalize = weakref.finalize(self, finalize_callback,
+                                    comm, comm.rank, cp_filenames)
+        finalize.atexit = True
+
+        self._prefix = prefix
+        self._comm = comm
+        self._root_pid = root_pid(comm)
+        self._root_py2f = root_py2f(comm)
+
+        self._cp_filenames = cp_filenames
+        self._cp_spaces = {}
+
+        if comm.size > 1:
+            self._File_kwargs = {"driver": "mpio", "comm": self._comm}
+        else:
+            self._File_kwargs = {}
+
+    def __contains__(self, n):
+        assert (n in self._cp_filenames) == (n in self._cp_spaces)
+        return n in self._cp_filenames
+
+    def write(self, n, cp):
+        if n in self:
+            raise RuntimeError("Duplicate checkpoint")
+
+        filename = f"{self._prefix:s}{n:d}_{self._root_pid:d}_" \
+                   f"{self._root_py2f:d}.hdf5"
+        spaces = {}
+
+        import h5py
+        with h5py.File(filename, "w", **self._File_kwargs) as h:
+            h.create_group("/ics")
+            for i, (key, F) in enumerate(cp.items()):
+                F_space = function_space(F)
+                F_space_id = space_id(F_space)
+                if F_space_id not in spaces:
+                    spaces[F_space_id] = F_space
+
+                g = h.create_group(f"/ics/{i:d}")
+
+                F_values = function_get_values(F)
+                d = g.create_dataset("value", shape=(function_global_size(F),),
+                                     dtype=F_values.dtype)
+                d[function_local_indices(F)] = F_values
+
+                d = g.create_dataset("space_type", shape=(self._comm.size,),
+                                     dtype=np.uint8)
+                d[self._comm.rank] = {"primal": 0, "conjugate": 1,
+                                      "dual": 2, "conjugate_dual": 3}[function_space_type(F)]  # noqa: E501
+
+                d = g.create_dataset("space_id", shape=(self._comm.size,),
+                                     dtype=np.int64)
+                d[self._comm.rank] = F_space_id
+
+                d = g.create_dataset("key", shape=(self._comm.size,),
+                                     dtype=np.int64)
+                d[self._comm.rank] = key
+
+        self._cp_filenames[n] = filename
+        self._cp_spaces[n] = spaces
+
+    def read(self, n, storage):
+        filename = self._cp_filenames[n]
+        spaces = self._cp_spaces[n]
+
+        import h5py
+        with h5py.File(filename, "r", **self._File_kwargs) as h:
+            for i, (name, g) in enumerate(h["/ics"].items()):
+                assert name == f"{i:d}"
+
+                d = g["key"]
+                key = int(d[self._comm.rank])
+                if key in storage:
+                    d = g["space_type"]
+                    F_space_type = {0: "primal", 1: "conjugate",
+                                    2: "dual", 3: "conjugate_dual"}[d[self._comm.rank]]  # noqa: E501
+
+                    d = g["space_id"]
+                    F = space_new(spaces[d[self._comm.rank]],
+                                  space_type=F_space_type)
+
+                    d = g["value"]
+                    function_set_values(F, d[function_local_indices(F)])
+
+                    storage[key] = F
+
+    def delete(self, n):
+        filename = self._cp_filenames[n]
+        self._comm.barrier()
+        if self._comm.rank == 0:
+            os.remove(filename)
+        self._comm.barrier()
+        del self._cp_filenames[n]
+        del self._cp_spaces[n]

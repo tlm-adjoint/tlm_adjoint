@@ -19,14 +19,13 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import check_space_types, function_assign, function_copy, \
-    function_get_values, function_global_size, function_id, \
-    function_is_replacement, function_local_indices, function_name, \
-    function_new_tangent_linear, function_set_values, function_space, \
-    function_space_type, is_function, space_id, space_new
+    function_id, function_is_replacement, function_name, \
+    function_new_tangent_linear, is_function
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
-from .checkpointing import CheckpointStorage, ReplayStorage
+from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
+    PickleCheckpoints, ReplayStorage
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .functional import Functional
@@ -38,7 +37,6 @@ import copy
 import gc
 import logging
 import numpy as np
-import pickle
 import os
 import warnings
 import weakref
@@ -456,23 +454,8 @@ class EquationManager:
         comm = comm.Dup()
 
         self._comm = comm
-        if self._comm.rank == 0:
-            id = self._id_counter[0]
-            self._id_counter[0] += 1
-            pid = os.getpid()
-            comm_py2f = self._comm.py2f()
-        else:
-            id = None
-            pid = None
-            comm_py2f = None
-        self._id = self._comm.bcast(id, root=0)
-        self._root_pid = self._comm.bcast(pid, root=0)
-        self._root_comm_py2f = self._comm.bcast(comm_py2f, root=0)
-
         self._to_drop_references = []
         self._finalizes = {}
-
-        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
         @gc_disabled
         def finalize_callback(comm,
@@ -489,6 +472,15 @@ class EquationManager:
                                     self._comm,
                                     self._to_drop_references, self._finalizes)
         finalize.atexit = False
+
+        if self._comm.rank == 0:
+            id = self._id_counter[0]
+            self._id_counter[0] += 1
+        else:
+            id = None
+        self._id = self._comm.bcast(id, root=0)
+
+        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
     def comm(self):
         return self._comm
@@ -537,12 +529,9 @@ class EquationManager:
         info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
         info("Checkpointing:")
         info(f"  Method: {self._cp_method:s}")
-        if self._cp_method in ["none", "memory"]:
+        if self._cp_method in ["none", "memory", "periodic_disk"]:
             pass
-        elif self._cp_method == "periodic_disk":
-            info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
         elif self._cp_method == "multistage":
-            info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
             info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
             info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
         else:
@@ -615,12 +604,27 @@ class EquationManager:
 
         if disk_storage:
             cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
-            cp_parameters["format"] = cp_parameters.get("format", "hdf5")
+            cp_parameters["format"] = cp_format = cp_parameters.get("format", "hdf5")  # noqa: E501
 
+            self._comm.barrier()
             if self._comm.rank == 0:
                 if not os.path.exists(cp_path):
                     os.makedirs(cp_path)
             self._comm.barrier()
+
+            if cp_format == "pickle":
+                self._cp_disk = PickleCheckpoints(
+                    os.path.join(cp_path, f"checkpoint_{self._id:d}_"),
+                    comm=self._comm)
+            elif cp_format == "hdf5":
+                self._cp_disk = HDF5Checkpoints(
+                    os.path.join(cp_path, f"checkpoint_{self._id:d}_"),
+                    comm=self._comm)
+            else:
+                raise ValueError(f"Unrecognized checkpointing format: "
+                                 f"{cp_format:s}")
+        else:
+            self._cp_disk = None
 
         if cp_method in ["none", "memory"]:
             cp_manager = None
@@ -651,9 +655,7 @@ class EquationManager:
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
         self._cp_manager = cp_manager
-        self._cp_spaces = {}
         self._cp_memory = {}
-        self._cp_disk = {}
 
         if cp_method == "none":
             self._cp = CheckpointStorage(store_ics=False, store_data=False)
@@ -969,15 +971,9 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _checkpoint_space_id(self, fn):
-        space = function_space(fn)
-        id = space_id(space)
-        if id not in self._cp_spaces:
-            self._cp_spaces[id] = space
-        return id
-
     def _save_memory_checkpoint(self, cp, n):
-        if n in self._cp_memory or n in self._cp_disk:
+        if n in self._cp_memory or \
+                (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
 
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
@@ -993,130 +989,14 @@ class EquationManager:
         if n in self._cp_memory or n in self._cp_disk:
             raise RuntimeError("Duplicate checkpoint")
 
-        cp_path = self._cp_parameters["path"]
-        cp_format = self._cp_parameters["format"]
-
         cp = self._cp.initial_conditions(cp=True, refs=False, copy=False)
 
-        if cp_format == "pickle":
-            cp_filename = os.path.join(
-                cp_path,
-                "checkpoint_%i_%i_%i_%i_%i.pickle" % (self._id,
-                                                      n,
-                                                      self._root_pid,
-                                                      self._root_comm_py2f,
-                                                      self._comm.rank))
-            self._cp_disk[n] = cp_filename
-            h = open(cp_filename, "wb")
-
-            pickle.dump({key: (self._checkpoint_space_id(F),
-                               function_space_type(F),
-                               function_get_values(F))
-                         for key, F in cp.items()},
-                        h, protocol=pickle.HIGHEST_PROTOCOL)
-
-            h.close()
-        elif cp_format == "hdf5":
-            cp_filename = os.path.join(
-                cp_path,
-                "checkpoint_%i_%i_%i_%i.hdf5" % (self._id,
-                                                 n,
-                                                 self._root_pid,
-                                                 self._root_comm_py2f))
-            self._cp_disk[n] = cp_filename
-            import h5py
-            if self._comm.size > 1:
-                h = h5py.File(cp_filename, "w", driver="mpio", comm=self._comm)
-            else:
-                h = h5py.File(cp_filename, "w")
-
-            h.create_group("/ics")
-            for i, (key, F) in enumerate(cp.items()):
-                g = h.create_group(f"/ics/{i:d}")
-
-                values = function_get_values(F)
-                d = g.create_dataset("value", shape=(function_global_size(F),),
-                                     dtype=values.dtype)
-                d[function_local_indices(F)] = values
-                del values
-
-                d = g.create_dataset("space_type", shape=(self._comm.size,),
-                                     dtype=np.uint8)
-                d[self._comm.rank] = {"primal": 0, "conjugate": 1,
-                                      "dual": 2, "conjugate_dual": 3}[function_space_type(F)]  # noqa: E501
-
-                d = g.create_dataset("space_id", shape=(self._comm.size,),
-                                     dtype=np.int64)
-                d[self._comm.rank] = self._checkpoint_space_id(F)
-
-                d = g.create_dataset("key", shape=(self._comm.size,),
-                                     dtype=np.int64)
-                d[self._comm.rank] = key
-
-            h.close()
-        else:
-            raise ValueError(f"Unrecognized checkpointing format: "
-                             f"{cp_format:s}")
+        self._cp_disk.write(n, cp)
 
     def _load_disk_checkpoint(self, storage, n, delete=False):
-        cp_format = self._cp_parameters["format"]
-
-        if cp_format == "pickle":
-            if delete:
-                cp_filename = self._cp_disk.pop(n)
-            else:
-                cp_filename = self._cp_disk[n]
-            h = open(cp_filename, "rb")
-            cp = pickle.load(h)
-            h.close()
-            if delete:
-                os.remove(cp_filename)
-
-            for key in tuple(cp.keys()):
-                space_id, space_type, values = cp.pop(key)
-                if key in storage:
-                    F = space_new(self._cp_spaces[space_id],
-                                  space_type=space_type)
-                    function_set_values(F, values)
-                    storage[key] = F
-                del space_id, values
-        elif cp_format == "hdf5":
-            if delete:
-                cp_filename = self._cp_disk.pop(n)
-            else:
-                cp_filename = self._cp_disk[n]
-            import h5py
-            if self._comm.size > 1:
-                h = h5py.File(cp_filename, "r", driver="mpio", comm=self._comm)
-            else:
-                h = h5py.File(cp_filename, "r")
-
-            for name, g in h["/ics"].items():
-                d = g["key"]
-                key = int(d[self._comm.rank])
-                if key in storage:
-                    d = g["space_type"]
-                    space_type = {0: "primal", 1: "conjugate",
-                                  2: "dual", 3: "conjugate_dual"}[d[self._comm.rank]]  # noqa: E501
-
-                    d = g["space_id"]
-                    F = space_new(self._cp_spaces[d[self._comm.rank]],
-                                  space_type=space_type)
-
-                    d = g["value"]
-                    function_set_values(F, d[function_local_indices(F)])
-
-                    storage[key] = F
-                del g, d
-
-            h.close()
-            if delete:
-                if self._comm.rank == 0:
-                    os.remove(cp_filename)
-                self._comm.barrier()
-        else:
-            raise ValueError(f"Unrecognized checkpointing format: "
-                             f"{cp_format:s}")
+        self._cp_disk.read(n, storage)
+        if delete:
+            self._cp_disk.delete(n)
 
     def _checkpoint(self, final=False):
         if self._cp_method in ["none", "memory"]:
