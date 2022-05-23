@@ -19,26 +19,24 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import check_space_types, function_assign, function_copy, \
-    function_get_values, function_global_size, function_id, \
-    function_is_checkpointed, function_is_replacement, \
-    function_local_indices, function_name, function_new, \
-    function_new_tangent_linear, function_set_values, function_space, \
-    function_space_type, is_function, space_id, space_new
+    function_id, function_is_replacement, function_name, \
+    function_new_tangent_linear, is_function
 
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
+from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
+    PickleCheckpoints, ReplayStorage
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
-from collections import OrderedDict, defaultdict, deque
+from collections import OrderedDict
 from collections.abc import Sequence
 import copy
 import gc
 import logging
 import numpy as np
-import pickle
 import os
 import warnings
 import weakref
@@ -125,160 +123,6 @@ class Control(Alias):
         return self
 
 
-class CheckpointStorage:
-    def __init__(self, *, store_ics=True, store_data=True):
-        self._seen_ics = set()
-        self._cp = {}
-        self._refs = {}
-
-        self._indices = defaultdict(lambda: 0)
-        self._dep_keys = {}
-        self._data = {}
-
-        self.configure(store_ics=store_ics,
-                       store_data=store_data)
-
-    def configure(self, *, store_ics, store_data):
-        """
-        Configure storage.
-
-        Arguments:
-
-        store_ics   Store initial condition data, used by checkpointing
-        store_data  Store equation non-linear dependency data, used in reverse
-                    mode
-        """
-
-        self._store_ics = store_ics
-        self._store_data = store_data
-
-    def store_ics(self):
-        return self._store_ics
-
-    def store_data(self):
-        return self._store_data
-
-    def clear(self, *, clear_ics=True, clear_data=True, clear_refs=False):
-        if clear_refs:
-            self._refs.clear()
-        if clear_ics:
-            self._seen_ics.clear()
-            self._cp.clear()
-
-            for x_id in self._refs:
-                self._seen_ics.add(x_id)
-
-        if clear_data:
-            self._indices.clear()
-            self._dep_keys.clear()
-            self._data.clear()
-
-            for x_id, x in self._cp.items():
-                self._data[self._data_key(x_id)] = x
-            for x_id, x in self._refs.items():
-                self._data[self._data_key(x_id)] = x
-
-    def __getitem__(self, key):
-        return tuple(self._data[dep_key] for dep_key in self._dep_keys[key])
-
-    def initial_condition(self, x, *, copy=True):
-        x_id = function_id(x)
-        if x_id in self._cp:
-            ic = self._cp[x_id]
-        else:
-            ic = self._refs[x_id]
-        if copy:
-            ic = function_copy(ic)
-        return ic
-
-    def initial_conditions(self, *, cp=True, refs=False, copy=True):
-        cp_d = {}
-        if cp:
-            for x_id, x in self._cp.items():
-                cp_d[x_id] = function_copy(x) if copy else x
-        if refs:
-            for x_id, x in self._refs.items():
-                cp_d[x_id] = function_copy(x) if copy else x
-        return cp_d
-
-    def _data_key(self, x_id):
-        return (x_id, self._indices[x_id])
-
-    def add_initial_condition(self, x, value=None, *, _copy=None):
-        copy = _copy
-        del _copy
-
-        if value is None:
-            value = x
-        if copy is None:
-            copy = function_is_checkpointed(x)
-
-        self._add_initial_condition(x_id=function_id(x), value=value,
-                                    copy=copy)
-
-    def _add_initial_condition(self, *, x_id, value, copy):
-        if self._store_ics and x_id not in self._seen_ics:
-            assert x_id not in self._cp
-            assert x_id not in self._refs
-
-            x_key = self._data_key(x_id)
-            if x_key in self._data:
-                if copy:
-                    self._cp[x_id] = self._data[x_key]
-                else:
-                    self._refs[x_id] = self._data[x_key]
-            else:
-                if copy:
-                    value = function_copy(value)
-                    self._cp[x_id] = value
-                else:
-                    self._refs[x_id] = value
-                self._data[x_key] = value
-            self._seen_ics.add(x_id)
-
-    def add_equation(self, key, eq, *, deps=None, nl_deps=None, _copy=None):
-        if _copy is None:
-            def copy(x):
-                return function_is_checkpointed(x)
-        else:
-            copy = _copy
-        del _copy
-
-        eq_X = eq.X()
-        eq_deps = eq.dependencies()
-        if deps is None:
-            deps = eq_deps
-
-        for eq_x in eq_X:
-            self._indices[function_id(eq_x)] += 1
-
-        if self._store_ics:
-            for eq_x in eq_X:
-                self._seen_ics.add(function_id(eq_x))
-            assert len(eq_deps) == len(deps)
-            for eq_dep, dep in zip(eq_deps, deps):
-                self.add_initial_condition(eq_dep, value=dep,
-                                           _copy=copy(eq_dep))
-
-        if self._store_data:
-            if nl_deps is None:
-                nl_deps = tuple(deps[i]
-                                for i in eq.nonlinear_dependencies_map())
-
-            dep_keys = []
-            eq_nl_deps = eq.nonlinear_dependencies()
-            assert len(eq_nl_deps) == len(nl_deps)
-            for eq_dep, dep in zip(eq_nl_deps, nl_deps):
-                dep_key = self._data_key(function_id(eq_dep))
-                if dep_key not in self._data:
-                    if copy(eq_dep):
-                        self._data[dep_key] = function_copy(dep)
-                    else:
-                        self._data[dep_key] = dep
-                dep_keys.append(dep_key)
-            self._dep_keys[key] = tuple(dep_keys)
-
-
 class TangentLinearMap:
     """
     A map from forward to tangent-linear variables.
@@ -325,74 +169,6 @@ class TangentLinearMap:
             self._finalizes[x_id] = finalize
 
         return self._map[x_id]
-
-
-class ReplayStorage:
-    def __init__(self, blocks, N0, N1):
-        # Map from dep (id) to (indices of) last equation which depends on dep
-        last_eq = {}
-        for n in range(N0, N1):
-            for i, eq in enumerate(blocks[n]):
-                for dep in eq.dependencies():
-                    last_eq[function_id(dep)] = (n, i)
-
-        # Ordered container, with each element containing a set of dep ids for
-        # which the corresponding equation is the last equation to depend on
-        # dep
-        eq_last_q = deque()
-        eq_last_d = {}
-        for n in range(N0, N1):
-            for i in range(len(blocks[n])):
-                dep_ids = set()
-                eq_last_q.append((n, i, dep_ids))
-                eq_last_d[(n, i)] = dep_ids
-        for dep_id, (n, i) in last_eq.items():
-            eq_last_d[(n, i)].add(dep_id)
-        del eq_last_d
-
-        self._eq_last = eq_last_q
-        self._map = {dep_id: None for dep_id in last_eq.keys()}
-
-    def __len__(self):
-        return len(self._map)
-
-    def __contains__(self, x):
-        if isinstance(x, int):
-            x_id = x
-        else:
-            x_id = function_id(x)
-        return x_id in self._map
-
-    def __getitem__(self, x):
-        if isinstance(x, int):
-            y = self._map[x]
-            if y is None:
-                raise RuntimeError("Unable to create new function")
-        else:
-            x_id = function_id(x)
-            y = self._map[x_id]
-            if y is None:
-                y = self._map[x_id] = function_new(x)
-        return y
-
-    def __setitem__(self, x, y):
-        if isinstance(x, int):
-            x_id = x
-        else:
-            x_id = function_id(x)
-        if x_id in self._map:
-            self._map[x_id] = y
-
-    def update(self, d, copy=True):
-        for key, value in d.items():
-            if key in self:
-                self[key] = function_copy(value) if copy else value
-
-    def pop(self):
-        n, i, dep_ids = self._eq_last.popleft()
-        for dep_id in dep_ids:
-            del self._map[dep_id]
-        return (n, i)
 
 
 class DependencyGraphTranspose:
@@ -678,23 +454,8 @@ class EquationManager:
         comm = comm.Dup()
 
         self._comm = comm
-        if self._comm.rank == 0:
-            id = self._id_counter[0]
-            self._id_counter[0] += 1
-            pid = os.getpid()
-            comm_py2f = self._comm.py2f()
-        else:
-            id = None
-            pid = None
-            comm_py2f = None
-        self._id = self._comm.bcast(id, root=0)
-        self._root_pid = self._comm.bcast(pid, root=0)
-        self._root_comm_py2f = self._comm.bcast(comm_py2f, root=0)
-
         self._to_drop_references = []
         self._finalizes = {}
-
-        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
         @gc_disabled
         def finalize_callback(comm,
@@ -711,6 +472,15 @@ class EquationManager:
                                     self._comm,
                                     self._to_drop_references, self._finalizes)
         finalize.atexit = False
+
+        if self._comm.rank == 0:
+            id = self._id_counter[0]
+            self._id_counter[0] += 1
+        else:
+            id = None
+        self._id = self._comm.bcast(id, root=0)
+
+        self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
     def comm(self):
         return self._comm
@@ -759,12 +529,9 @@ class EquationManager:
         info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
         info("Checkpointing:")
         info(f"  Method: {self._cp_method:s}")
-        if self._cp_method in ["none", "memory"]:
+        if self._cp_method in ["none", "memory", "periodic_disk"]:
             pass
-        elif self._cp_method == "periodic_disk":
-            info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
         elif self._cp_method == "multistage":
-            info(f"  Function spaces referenced: {len(self._cp_spaces):d}")
             info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
             info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
         else:
@@ -837,12 +604,27 @@ class EquationManager:
 
         if disk_storage:
             cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
-            cp_parameters["format"] = cp_parameters.get("format", "hdf5")
+            cp_parameters["format"] = cp_format = cp_parameters.get("format", "hdf5")  # noqa: E501
 
+            self._comm.barrier()
             if self._comm.rank == 0:
                 if not os.path.exists(cp_path):
                     os.makedirs(cp_path)
             self._comm.barrier()
+
+            if cp_format == "pickle":
+                self._cp_disk = PickleCheckpoints(
+                    os.path.join(cp_path, f"checkpoint_{self._id:d}_"),
+                    comm=self._comm)
+            elif cp_format == "hdf5":
+                self._cp_disk = HDF5Checkpoints(
+                    os.path.join(cp_path, f"checkpoint_{self._id:d}_"),
+                    comm=self._comm)
+            else:
+                raise ValueError(f"Unrecognized checkpointing format: "
+                                 f"{cp_format:s}")
+        else:
+            self._cp_disk = None
 
         if cp_method in ["none", "memory"]:
             cp_manager = None
@@ -873,9 +655,7 @@ class EquationManager:
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
         self._cp_manager = cp_manager
-        self._cp_spaces = {}
         self._cp_memory = {}
-        self._cp_disk = {}
 
         if cp_method == "none":
             self._cp = CheckpointStorage(store_ics=False, store_data=False)
@@ -1191,15 +971,9 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _checkpoint_space_id(self, fn):
-        space = function_space(fn)
-        id = space_id(space)
-        if id not in self._cp_spaces:
-            self._cp_spaces[id] = space
-        return id
-
     def _save_memory_checkpoint(self, cp, n):
-        if n in self._cp_memory or n in self._cp_disk:
+        if n in self._cp_memory or \
+                (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
 
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
@@ -1215,130 +989,14 @@ class EquationManager:
         if n in self._cp_memory or n in self._cp_disk:
             raise RuntimeError("Duplicate checkpoint")
 
-        cp_path = self._cp_parameters["path"]
-        cp_format = self._cp_parameters["format"]
-
         cp = self._cp.initial_conditions(cp=True, refs=False, copy=False)
 
-        if cp_format == "pickle":
-            cp_filename = os.path.join(
-                cp_path,
-                "checkpoint_%i_%i_%i_%i_%i.pickle" % (self._id,
-                                                      n,
-                                                      self._root_pid,
-                                                      self._root_comm_py2f,
-                                                      self._comm.rank))
-            self._cp_disk[n] = cp_filename
-            h = open(cp_filename, "wb")
-
-            pickle.dump({key: (self._checkpoint_space_id(F),
-                               function_space_type(F),
-                               function_get_values(F))
-                         for key, F in cp.items()},
-                        h, protocol=pickle.HIGHEST_PROTOCOL)
-
-            h.close()
-        elif cp_format == "hdf5":
-            cp_filename = os.path.join(
-                cp_path,
-                "checkpoint_%i_%i_%i_%i.hdf5" % (self._id,
-                                                 n,
-                                                 self._root_pid,
-                                                 self._root_comm_py2f))
-            self._cp_disk[n] = cp_filename
-            import h5py
-            if self._comm.size > 1:
-                h = h5py.File(cp_filename, "w", driver="mpio", comm=self._comm)
-            else:
-                h = h5py.File(cp_filename, "w")
-
-            h.create_group("/ics")
-            for i, (key, F) in enumerate(cp.items()):
-                g = h.create_group(f"/ics/{i:d}")
-
-                values = function_get_values(F)
-                d = g.create_dataset("value", shape=(function_global_size(F),),
-                                     dtype=values.dtype)
-                d[function_local_indices(F)] = values
-                del values
-
-                d = g.create_dataset("space_type", shape=(self._comm.size,),
-                                     dtype=np.uint8)
-                d[self._comm.rank] = {"primal": 0, "conjugate": 1,
-                                      "dual": 2, "conjugate_dual": 3}[function_space_type(F)]  # noqa: E501
-
-                d = g.create_dataset("space_id", shape=(self._comm.size,),
-                                     dtype=np.int64)
-                d[self._comm.rank] = self._checkpoint_space_id(F)
-
-                d = g.create_dataset("key", shape=(self._comm.size,),
-                                     dtype=np.int64)
-                d[self._comm.rank] = key
-
-            h.close()
-        else:
-            raise ValueError(f"Unrecognized checkpointing format: "
-                             f"{cp_format:s}")
+        self._cp_disk.write(n, cp)
 
     def _load_disk_checkpoint(self, storage, n, delete=False):
-        cp_format = self._cp_parameters["format"]
-
-        if cp_format == "pickle":
-            if delete:
-                cp_filename = self._cp_disk.pop(n)
-            else:
-                cp_filename = self._cp_disk[n]
-            h = open(cp_filename, "rb")
-            cp = pickle.load(h)
-            h.close()
-            if delete:
-                os.remove(cp_filename)
-
-            for key in tuple(cp.keys()):
-                space_id, space_type, values = cp.pop(key)
-                if key in storage:
-                    F = space_new(self._cp_spaces[space_id],
-                                  space_type=space_type)
-                    function_set_values(F, values)
-                    storage[key] = F
-                del space_id, values
-        elif cp_format == "hdf5":
-            if delete:
-                cp_filename = self._cp_disk.pop(n)
-            else:
-                cp_filename = self._cp_disk[n]
-            import h5py
-            if self._comm.size > 1:
-                h = h5py.File(cp_filename, "r", driver="mpio", comm=self._comm)
-            else:
-                h = h5py.File(cp_filename, "r")
-
-            for name, g in h["/ics"].items():
-                d = g["key"]
-                key = int(d[self._comm.rank])
-                if key in storage:
-                    d = g["space_type"]
-                    space_type = {0: "primal", 1: "conjugate",
-                                  2: "dual", 3: "conjugate_dual"}[d[self._comm.rank]]  # noqa: E501
-
-                    d = g["space_id"]
-                    F = space_new(self._cp_spaces[d[self._comm.rank]],
-                                  space_type=space_type)
-
-                    d = g["value"]
-                    function_set_values(F, d[function_local_indices(F)])
-
-                    storage[key] = F
-                del g, d
-
-            h.close()
-            if delete:
-                if self._comm.rank == 0:
-                    os.remove(cp_filename)
-                self._comm.barrier()
-        else:
-            raise ValueError(f"Unrecognized checkpointing format: "
-                             f"{cp_format:s}")
+        self._cp_disk.read(n, storage)
+        if delete:
+            self._cp_disk.delete(n)
 
     def _checkpoint(self, final=False):
         if self._cp_method in ["none", "memory"]:
