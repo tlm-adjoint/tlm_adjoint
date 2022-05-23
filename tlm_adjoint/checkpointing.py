@@ -249,8 +249,9 @@ class ReplayStorage:
             x_id = x
         else:
             x_id = function_id(x)
-        if x_id in self._map:
-            self._map[x_id] = y
+        if self._map[x_id] is not None:  # KeyError if unexpected id
+            raise KeyError(f"Key '{x_id:d}' already set")
+        self._map[x_id] = y
 
     def update(self, d, *, copy=True):
         for key, value in d.items():
