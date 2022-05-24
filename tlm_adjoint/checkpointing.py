@@ -305,9 +305,12 @@ class PickleCheckpoints(Checkpoints):
         cp_filenames = {}
 
         def finalize_callback(comm, cp_filenames):
-            comm.Free()
-            for filename in cp_filenames.values():
-                os.remove(filename)
+            try:
+                for filename in cp_filenames.values():
+                    os.remove(filename)
+            finally:
+                if not MPI.Is_finalized():
+                    comm.Free()
 
         finalize = weakref.finalize(self, finalize_callback,
                                     comm, cp_filenames)
@@ -386,7 +389,8 @@ class HDF5Checkpoints(Checkpoints):
                 if not MPI.Is_finalized():
                     comm.barrier()
             finally:
-                comm.Free()
+                if not MPI.Is_finalized():
+                    comm.Free()
 
         finalize = weakref.finalize(self, finalize_callback,
                                     comm, comm.rank, cp_filenames)
