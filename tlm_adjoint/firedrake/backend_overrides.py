@@ -344,23 +344,20 @@ backend_Constant.assign = _Constant_assign
 # Aim for compatibility with Firedrake API, git master revision
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
-    eq = None
-    if isinstance(expr, backend_Function) and subset is None:
+    if isinstance(expr, backend_Function) \
+            and subset is None \
+            and self.function_space() == expr.function_space():
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            eq = AssignmentSolver(expr, self)
-            eq._pre_process(annotate=annotate)
+            AssignmentSolver(expr, self).solve(annotate=annotate, tlm=tlm)
+            return self
 
     return_value = backend_Function._tlm_adjoint__orig_assign(
         self, expr, subset=subset)
-
     function_update_state(self)
-    if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
-
     return return_value
 
 

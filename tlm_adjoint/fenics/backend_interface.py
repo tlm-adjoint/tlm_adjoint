@@ -313,6 +313,7 @@ class FunctionInterface(_FunctionInterface):
 @FunctionSpace_add_interface_disabled
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
+    self._tlm_adjoint__vector = self._tlm_adjoint__orig_vector()
     if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
         raise RuntimeError("PETSc backend required")
 

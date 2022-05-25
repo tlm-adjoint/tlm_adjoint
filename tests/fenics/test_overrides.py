@@ -169,3 +169,48 @@ def test_overrides(setup_test, test_leaks):
 
         min_order = taylor_test_tlm_adjoint(forward_J, F, adjoint_order=2)
         assert min_order > 1.99
+
+
+@pytest.mark.fenics
+@seed_test
+def test_Function_assign(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(m):
+        u = Function(space, name="m")
+        u_v = u.vector()
+        u.assign(m)
+        assert u.vector() is u_v
+
+        J = Functional(name="J")
+        J.assign(((u - 1.0) ** 4) * dx)
+        return J
+
+    m = Function(space, name="m")
+    m.assign(Constant(2.0))
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value()
+    assert abs(J_val - 1.0) < 1.0e-15
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 2.00
