@@ -24,8 +24,8 @@ from .backend import Parameters, backend_Constant, backend_DirichletBC, \
     backend_NonlinearVariationalProblem, backend_NonlinearVariationalSolver, \
     backend_assemble, backend_assemble_system, backend_project, \
     backend_solve, extract_args, parameters
-from ..interface import check_space_type, function_new, \
-    function_update_state, space_new
+from ..interface import check_space_type, function_assign, function_new, \
+    function_space, function_update_state, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
@@ -389,24 +389,29 @@ backend_Constant._tlm_adjoint__orig_assign = backend_Constant.assign
 backend_Constant.assign = _Constant_assign
 
 
+def function_spaces_equal(x, y):
+    x_space = function_space(x)
+    y_space = function_space(y)
+    return (x_space.ufl_domains() == y_space.ufl_domains()
+            and x_space.ufl_element() == y_space.ufl_element())
+
+
 def _Function_assign(self, rhs, *, annotate=None, tlm=None):
-    eq = None
-    if isinstance(rhs, backend_Function):
+    if isinstance(rhs, backend_Function) and function_spaces_equal(self, rhs):
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            eq = AssignmentSolver(rhs, self)
-            eq._pre_process(annotate=annotate)
+            AssignmentSolver(rhs, self).solve(annotate=annotate, tlm=tlm)
+        else:
+            function_assign(self, rhs)
+            function_update_state(self)
+        return
 
     return_value = backend_Function._tlm_adjoint__orig_assign(
         self, rhs)
-
     function_update_state(self)
-    if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
-
     return return_value
 
 
@@ -416,9 +421,11 @@ backend_Function.assign = _Function_assign
 
 
 def _Function_vector(self):
-    return_value = backend_Function._tlm_adjoint__orig_vector(self)
-    return_value._tlm_adjoint__function = self
-    return return_value
+    vector = backend_Function._tlm_adjoint__orig_vector(self)
+    vector._tlm_adjoint__function = self
+    if vector is not self._tlm_adjoint__vector:
+        raise RuntimeError("Vector has changed")
+    return vector
 
 
 assert not hasattr(backend_Function, "_tlm_adjoint__orig_vector")
