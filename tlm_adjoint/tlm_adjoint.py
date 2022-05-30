@@ -971,7 +971,7 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _save_memory_checkpoint(self, cp, n):
+    def _save_memory_checkpoint(self, n, cp):
         if n in self._cp_memory or \
                 (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
@@ -979,13 +979,13 @@ class EquationManager:
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
                                                          copy=False)
 
-    def _load_memory_checkpoint(self, storage, n, delete=False):
+    def _load_memory_checkpoint(self, n, storage, *, delete=False):
         if delete:
             storage.update(self._cp_memory.pop(n), copy=False)
         else:
             storage.update(self._cp_memory[n], copy=True)
 
-    def _save_disk_checkpoint(self, cp, n):
+    def _save_disk_checkpoint(self, n, cp):
         if n in self._cp_memory or n in self._cp_disk:
             raise RuntimeError("Duplicate checkpoint")
 
@@ -993,7 +993,7 @@ class EquationManager:
 
         self._cp_disk.write(n, cp)
 
-    def _load_disk_checkpoint(self, storage, n, delete=False):
+    def _load_disk_checkpoint(self, n, storage, *, delete=False):
         self._cp_disk.read(n, storage)
         if delete:
             self._cp_disk.delete(n)
@@ -1014,8 +1014,7 @@ class EquationManager:
 
         n = len(self._blocks) - 1
         if final or n % cp_period == cp_period - 1:
-            self._save_disk_checkpoint(self._cp,
-                                       n=(n // cp_period) * cp_period)
+            self._save_disk_checkpoint((n // cp_period) * cp_period, self._cp)
             self._cp.clear()
             self._cp.configure(store_ics=True,
                                store_data=False)
@@ -1031,13 +1030,13 @@ class EquationManager:
                     logger.debug(f"forward: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
                 else:
                     logger.debug(f"reverse: save snapshot at {snapshot_n:d} on disk")  # noqa: E501
-                self._save_disk_checkpoint(self._cp, snapshot_n)
+                self._save_disk_checkpoint(snapshot_n, self._cp)
             else:
                 if self._cp_manager.r() == 0:
                     logger.debug(f"forward: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
                 else:
                     logger.debug(f"reverse: save snapshot at {snapshot_n:d} in RAM")  # noqa: E501
-                self._save_memory_checkpoint(self._cp, snapshot_n)
+                self._save_memory_checkpoint(snapshot_n, self._cp)
 
     def _multistage_checkpoint(self):
         logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
@@ -1084,7 +1083,7 @@ class EquationManager:
                 storage.update(self._cp.initial_conditions(cp=False, refs=True,
                                                            copy=False),
                                copy=False)
-                self._load_disk_checkpoint(storage, N0, delete=False)
+                self._load_disk_checkpoint(N0, storage, delete=False)
 
                 for n1 in range(N0, N1):
                     self._cp.configure(store_ics=n1 == 0,
@@ -1132,11 +1131,11 @@ class EquationManager:
                            copy=False)
             if snapshot_storage == "disk":
                 logger.debug(f'reverse: load snapshot at {snapshot_n:d} from disk and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
-                self._load_disk_checkpoint(storage, snapshot_n,
+                self._load_disk_checkpoint(snapshot_n, storage,
                                            delete=snapshot_delete)
             else:
                 logger.debug(f'reverse: load snapshot at {snapshot_n:d} from RAM and {"delete" if snapshot_delete else "keep":s}')  # noqa: E501
-                self._load_memory_checkpoint(storage, snapshot_n,
+                self._load_memory_checkpoint(snapshot_n, storage,
                                              delete=snapshot_delete)
 
             if snapshot_n < n:
