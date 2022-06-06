@@ -268,19 +268,19 @@ class ReplayStorage:
 class Checkpoints(ABC):
     @abstractmethod
     def __contains__(self, n):
-        pass
+        raise NotImplementedError("Method not overridden")
 
     @abstractmethod
     def write(self, n, cp):
-        pass
+        raise NotImplementedError("Method not overridden")
 
     @abstractmethod
     def read(self, n, storage):
-        pass
+        raise NotImplementedError("Method not overridden")
 
     @abstractmethod
     def delete(self, n):
-        pass
+        raise NotImplementedError("Method not overridden")
 
 
 def root_py2f(comm, *, root=0):
