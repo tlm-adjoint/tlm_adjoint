@@ -30,6 +30,8 @@
 #           checkpointing", SIAM Journal on Scientific Computing, 31(3),
 #           pp. 1946--1967, 2009
 
+from .checkpointing import CheckpointingManager
+
 import numpy as np
 
 __all__ = \
@@ -42,10 +44,10 @@ def n_advance(n, snapshots):
     """
     Determine an optimal offline snapshot interval, taking n steps and with the
     given number of snapshots, using the approach of
-        GW2000  A. Griewank and A. Walther, "Algorithm 799: Revolve: An
-                implementation of checkpointing for the reverse or adjoint mode
-                of computational differentiation", ACM Transactions on
-                Mathematical Software, 26(1), pp. 19--45, 2000
+       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
+       of checkpointing for the reverse or adjoint mode of computational
+       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
+       19--45, 2000
     and choosing the maximal possible step size.
     """
 
@@ -91,14 +93,14 @@ def n_advance(n, snapshots):
         return b_s_tm1
 
 
-def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk,
+def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
                        write_weight=1.0, read_weight=1.0, delete_weight=0.0):
     """
     Allocate a stack of snapshots based upon the number of read/writes,
     preferentially allocating to RAM. Yields the approach described in
-        SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal
-                offline checkpointing", SIAM Journal on Scientific Computing,
-                31(3), pp. 1946--1967, 2009
+       P. Stumm and A. Walther, "MultiStage approaches for optimal offline
+       checkpointing", SIAM Journal on Scientific Computing, 31(3), pp.
+       1946--1967, 2009
     but applies a brute force approach to determine the allocation.
     """
 
@@ -136,36 +138,138 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk,
                                    reverse=True)][:snapshots_in_ram]:
         allocation[i] = "RAM"
 
-    return weights, allocation
+    return tuple(weights), tuple(allocation)
 
 
-class MultistageManager:
+class MultistageManager(CheckpointingManager):
+    """
+    Implements binomial checkpointing using the approach described in
+       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
+       of checkpointing for the reverse or adjoint mode of computational
+       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
+       19--45, 2000
+    Uses a multistage allocation as described in
+       P. Stumm and A. Walther, "MultiStage approaches for optimal offline
+       checkpointing", SIAM Journal on Scientific Computing, 31(3), pp.
+       1946--1967, 2009
+    but applies a brute force approach to determine the allocation.
+    """
+
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk):
         if snapshots_in_ram == 0:
-            storage = ["disk" for i in range(snapshots_on_disk)]
+            storage = tuple("disk" for i in range(snapshots_on_disk))
         elif snapshots_on_disk == 0:
-            storage = ["RAM" for i in range(snapshots_in_ram)]
+            storage = tuple("RAM" for i in range(snapshots_in_ram))
         else:
-            storage = allocate_snapshots(max_n, snapshots_in_ram,
-                                         snapshots_on_disk)[1]
+            _, storage = allocate_snapshots(
+                max_n, snapshots_in_ram, snapshots_on_disk)
 
-        self._n = 0
-        self._r = 0
-        self._max_n = max_n
+        super().__init__(max_n=max_n)
         self._snapshots_in_ram = snapshots_in_ram
         self._snapshots_on_disk = snapshots_on_disk
         self._snapshots = []
         self._storage = storage
-        self._deferred_snapshot = None
 
-    def n(self):
-        return self._n
+    def __iter__(self):
+        if self._max_n is None:
+            raise RuntimeError("Invalid checkpointing state")
 
-    def r(self):
-        return self._r
+        while True:
+            if self._r == 0:
+                # Forward
 
-    def max_n(self):
-        return self._max_n
+                n = self._n
+
+                yield "clear", (True, True)
+
+                if n < self._max_n - 1:
+                    yield "configure", (True, False)
+
+                    snapshots = (self._snapshots_in_ram
+                                 + self._snapshots_on_disk
+                                 - len(self._snapshots))
+                    n0 = n
+                    n1 = n0 + n_advance(self._max_n - n0, snapshots)
+                    assert n1 > n0
+                    self._n = n1
+                    yield "forward", (n0, n1)
+
+                    cp_storage = self._snapshot(n0)
+                    yield "write", (n0, cp_storage)
+                elif n == self._max_n - 1:
+                    # Forward -> reverse
+
+                    yield "configure", (n == 0, True)
+
+                    self._n = n + 1
+                    yield "forward", (n, n + 1)
+
+                    self._r += 1
+                    yield "reverse", (n + 1, n)
+                else:
+                    raise RuntimeError("Invalid checkpointing state")
+            elif self._r < self._max_n:
+                # Reverse
+
+                if len(self._snapshots) == 0:
+                    raise RuntimeError("Invalid checkpointing state")
+
+                n = self._max_n - self._r - 1
+
+                yield "clear", (True, True)
+
+                cp_n = self._snapshots[-1]
+                cp_storage = self._storage[len(self._snapshots) - 1]
+                cp_delete = cp_n == n
+                if cp_delete:
+                    self._snapshots.pop()
+                self._n = cp_n
+                yield "read", (cp_n, cp_storage, cp_delete)
+
+                n0 = cp_n
+                while n0 < n:
+                    if n0 == cp_n:
+                        yield "configure", (False, False)
+                    elif n0 > cp_n:
+                        yield "clear", (True, True)
+                        yield "configure", (True, False)
+                    else:
+                        raise RuntimeError("Invalid checkpointing state")
+
+                    snapshots = (self._snapshots_in_ram
+                                 + self._snapshots_on_disk
+                                 - len(self._snapshots))
+                    if n0 == cp_n:
+                        # Count the snapshot at cp_n
+                        snapshots += 1
+                    n1 = n0 + n_advance(n + 1 - n0, snapshots)
+                    assert n1 > n0
+                    self._n = n1
+                    yield "forward", (n0, n1)
+
+                    if n0 > cp_n:
+                        cp_storage = self._snapshot(n0)
+                        yield "write", (n0, cp_storage)
+
+                    n0 = n1
+                if n0 != n:
+                    raise RuntimeError("Invalid checkpointing state")
+
+                yield "clear", (True, True)
+                yield "configure", (n == 0, True)
+
+                self._n = n + 1
+                yield "forward", (n, n + 1)
+
+                self._r += 1
+                yield "reverse", (n + 1, n)
+            elif self._r == self._max_n:
+                break
+            else:
+                raise RuntimeError("Invalid checkpointing state")
+
+    def uses_disk_storage(self):
+        return self._snapshots_on_disk > 0
 
     def snapshots_in_ram(self):
         snapshots = 0
@@ -181,40 +285,10 @@ class MultistageManager:
                 snapshots += 1
         return snapshots
 
-    def snapshot(self):
-        self._snapshots.append(self._n)
-        self._deferred_snapshot = self._last_snapshot()
-
-    def _last_snapshot(self):
-        return self._snapshots[-1], self._storage[len(self._snapshots) - 1]
-
-    def deferred_snapshot(self):
-        deferred_snapshot = self._deferred_snapshot
-        self._deferred_snapshot = None
-        return deferred_snapshot
-
-    def forward(self):
-        if self._n > self._max_n - self._r - 1:
-            raise RuntimeError("Too many forward steps")
-        if self._n == self._max_n - self._r - 1:
-            self._n += 1
-        else:
-            snapshots = self._snapshots_in_ram + self._snapshots_on_disk \
-                - len(self._snapshots) + 1
-            self._n += n_advance(self._max_n - self._n - self._r, snapshots)
-        if self._n > self._max_n - self._r:
-            raise RuntimeError("Too many forward steps")
-
-    def reverse(self):
-        if self._n != self._max_n - self._r:
-            raise RuntimeError("Too few forward steps")
-        self._r += 1
-        if self._r > self._max_n:
-            raise RuntimeError("Too many reverse steps")
-
-    def load_snapshot(self):
-        self._n, storage = self._last_snapshot()
-        delete = self._n == self._max_n - self._r - 1
-        if delete:
-            self._snapshots.pop()
-        return self._n, storage, delete
+    def _snapshot(self, n):
+        assert n >= 0 and n < self._max_n
+        if len(self._snapshots) >= \
+                self._snapshots_in_ram + self._snapshots_on_disk:
+            raise RuntimeError("Invalid checkpointing state")
+        self._snapshots.append(n)
+        return self._storage[len(self._snapshots) - 1]
