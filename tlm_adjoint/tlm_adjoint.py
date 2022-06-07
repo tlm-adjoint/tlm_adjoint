@@ -25,7 +25,7 @@ from .interface import check_space_types, function_assign, function_copy, \
 from .alias import Alias, WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageManager
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
-    PickleCheckpoints, ReplayStorage
+    PeriodicDiskManager, PickleCheckpoints, ReplayStorage
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .functional import Functional
@@ -593,10 +593,33 @@ class EquationManager:
         cp_parameters = copy.deepcopy(cp_parameters)
 
         if cp_method in ["none", "memory"]:
+            if "replace" in cp_parameters:
+                warnings.warn("'replace' cp_parameters key is deprecated",
+                              DeprecationWarning, stacklevel=2)
+                if "drop_references" in cp_parameters:
+                    if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
+                        raise ValueError("Conflicting cp_parameters values")
+                else:
+                    cp_parameters["drop_references"] = cp_parameters["replace"]
+                del cp_parameters["replace"]
+            else:
+                cp_parameters["drop_references"] = cp_parameters.get("drop_references", False)  # noqa: E501
+
+            cp_manager = None
+            cp_iter = None
             disk_storage = False
         elif cp_method == "periodic_disk":
-            disk_storage = True
+            cp_manager = PeriodicDiskManager(cp_parameters["period"])
+            cp_iter = iter(cp_manager)
+            disk_storage = cp_manager.uses_disk_storage()
         elif cp_method == "multistage":
+            cp_blocks = cp_parameters["blocks"]
+            cp_parameters["snaps_in_ram"] = cp_snaps_in_ram = cp_parameters.get("snaps_in_ram", 0)  # noqa: E501
+            cp_parameters["snaps_on_disk"] = cp_snaps_on_disk = cp_parameters.get("snaps_on_disk", 0)  # noqa: E501
+
+            cp_manager = MultistageManager(cp_blocks,
+                                           cp_snaps_in_ram, cp_snaps_on_disk)
+            cp_iter = None
             disk_storage = cp_parameters.get("snaps_on_disk", 0) > 0
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
@@ -626,35 +649,10 @@ class EquationManager:
         else:
             self._cp_disk = None
 
-        if cp_method in ["none", "memory"]:
-            cp_manager = None
-            if "replace" in cp_parameters:
-                warnings.warn("'replace' cp_parameters key is deprecated",
-                              DeprecationWarning, stacklevel=2)
-                if "drop_references" in cp_parameters:
-                    if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
-                        raise ValueError("Conflicting cp_parameters values")
-                else:
-                    cp_parameters["drop_references"] = cp_parameters["replace"]
-                del cp_parameters["replace"]
-            else:
-                cp_parameters["drop_references"] = cp_parameters.get("drop_references", False)  # noqa: E501
-        elif cp_method == "periodic_disk":
-            cp_manager = set()
-        elif cp_method == "multistage":
-            cp_blocks = cp_parameters["blocks"]
-            cp_parameters["snaps_in_ram"] = cp_snaps_in_ram = cp_parameters.get("snaps_in_ram", 0)  # noqa: E501
-            cp_parameters["snaps_on_disk"] = cp_snaps_on_disk = cp_parameters.get("snaps_on_disk", 0)  # noqa: E501
-
-            cp_manager = MultistageManager(cp_blocks,
-                                           cp_snaps_in_ram, cp_snaps_on_disk)
-        else:
-            raise ValueError(f"Unrecognized checkpointing method: "
-                             f"{cp_method:s}")
-
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
         self._cp_manager = cp_manager
+        self._cp_iter = cp_iter
         self._cp_memory = {}
 
         if cp_method == "none":
@@ -662,7 +660,9 @@ class EquationManager:
         elif cp_method == "memory":
             self._cp = CheckpointStorage(store_ics=True, store_data=True)
         elif cp_method == "periodic_disk":
-            self._cp = CheckpointStorage(store_ics=True, store_data=False)
+            self._cp = CheckpointStorage(store_ics=False, store_data=False)
+            assert len(self._blocks) == 0
+            self._checkpoint()
         elif cp_method == "multistage":
             logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
@@ -1002,22 +1002,62 @@ class EquationManager:
         if self._cp_method in ["none", "memory"]:
             pass
         elif self._cp_method == "periodic_disk":
-            self._periodic_disk_checkpoint(final=final)
+            assert len(self._block) == 0
+            n = len(self._blocks)
+            if final:
+                self._cp_manager.finalize(n)
+            if n < self._cp_manager.n():
+                return
+            if self._cp_manager.max_n() is not None:
+                if n == self._cp_manager.max_n():
+                    return
+                elif n > self._cp_manager.max_n():
+                    raise RuntimeError("Invalid checkpointing state")
+
+            logger = logging.getLogger("tlm_adjoint.checkpointing")
+
+            while True:
+                cp_action, cp_data = next(self._cp_iter)
+
+                if cp_action == "clear":
+                    clear_ics, clear_data = cp_data
+                    self._cp.clear(clear_ics=clear_ics,
+                                   clear_data=clear_data)
+                elif cp_action == "configure":
+                    store_ics, store_data = cp_data
+                    self._cp.configure(store_ics=store_ics,
+                                       store_data=store_data)
+                elif cp_action == "forward":
+                    cp_n0, cp_n1 = cp_data
+                    logger.debug(f"forward: forward advance to {cp_n1:d}")
+                    if cp_n0 != n:
+                        raise RuntimeError("Invalid checkpointing state")
+                    if cp_n1 <= n:
+                        raise RuntimeError("Invalid checkpointing state")
+                    break
+                elif cp_action == "write":
+                    cp_w_n, cp_storage = cp_data
+                    if cp_w_n >= n:
+                        raise RuntimeError("Invalid checkpointing state")
+                    if cp_storage == "disk":
+                        logger.debug(f"forward: save snapshot at {cp_w_n:d} "
+                                     f"on disk")
+                        self._save_disk_checkpoint(cp_w_n, self._cp)
+                    elif cp_storage == "RAM":
+                        logger.debug(f"forward: save snapshot at {cp_w_n:d} "
+                                     f"in RAM")
+                        self._save_memory_checkpoint(cp_w_n, self._cp)
+                    else:
+                        raise ValueError(f"Unrecognized checkpointing "
+                                         f"storage: {cp_storage:s}")
+                else:
+                    raise ValueError(f"Unexpected checkpointing action: "
+                                     f"{cp_action:s}")
         elif self._cp_method == "multistage":
             self._multistage_checkpoint()
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{self._cp_method:s}")
-
-    def _periodic_disk_checkpoint(self, final=False):
-        cp_period = self._cp_parameters["period"]
-
-        n = len(self._blocks) - 1
-        if final or n % cp_period == cp_period - 1:
-            self._save_disk_checkpoint((n // cp_period) * cp_period, self._cp)
-            self._cp.clear()
-            self._cp.configure(store_ics=True,
-                               store_data=False)
 
     def _save_multistage_checkpoint(self):
         logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
@@ -1071,41 +1111,106 @@ class EquationManager:
         elif self._cp_method == "memory":
             pass
         elif self._cp_method == "periodic_disk":
-            if n not in self._cp_manager:
-                cp_period = self._cp_parameters["period"]
+            if self._cp_manager.max_n() is None:
+                raise RuntimeError("Invalid checkpointing state")
+            if n >= self._cp_manager.max_n() - self._cp_manager.r():
+                return
 
-                N0 = (n // cp_period) * cp_period
-                N1 = min(((n // cp_period) + 1) * cp_period, len(self._blocks))
+            logger = logging.getLogger("tlm_adjoint.checkpointing")
 
-                self._cp.clear()
-                self._cp_manager.clear()
-                storage = ReplayStorage(self._blocks, N0, N1)
-                storage.update(self._cp.initial_conditions(cp=False, refs=True,
-                                                           copy=False),
-                               copy=False)
-                self._load_disk_checkpoint(N0, storage, delete=False)
+            storage = None
+            cp_n = None
 
-                for n1 in range(N0, N1):
-                    self._cp.configure(store_ics=n1 == 0,
-                                       store_data=True)
+            while True:
+                cp_action, cp_data = next(self._cp_iter)
 
-                    for i, eq in enumerate(self._blocks[n1]):
-                        eq_deps = eq.dependencies()
+                if cp_action == "clear":
+                    clear_ics, clear_data = cp_data
+                    self._cp.clear(clear_ics=clear_ics,
+                                   clear_data=clear_data)
+                elif cp_action == "configure":
+                    store_ics, store_data = cp_data
+                    self._cp.configure(store_ics=store_ics,
+                                       store_data=store_data)
+                elif cp_action == "forward":
+                    if storage is None or cp_n is None:
+                        raise RuntimeError("Invalid checkpointing state")
 
-                        X = tuple(storage[eq_x] for eq_x in eq.X())
-                        deps = tuple(storage[eq_dep] for eq_dep in eq_deps)
+                    cp_n0, cp_n1 = cp_data
+                    logger.debug(f"reverse: forward advance to {cp_n1:d}")
+                    if cp_n0 != cp_n:
+                        raise RuntimeError("Invalid checkpointing state")
+                    if cp_n1 > n + 1:
+                        raise RuntimeError("Invalid checkpointing state")
 
-                        for eq_dep in eq.initial_condition_dependencies():
-                            self._cp.add_initial_condition(
-                                eq_dep, value=storage[eq_dep])
-                        eq.forward(X, deps=deps)
-                        self._cp.add_equation((n1, i), eq, deps=deps)
+                    for n1 in range(cp_n0, cp_n1):
+                        for i, eq in enumerate(self._blocks[n1]):
+                            eq_deps = eq.dependencies()
 
-                        storage_state = storage.pop()
-                        assert storage_state == (n1, i)
+                            X = tuple(storage[eq_x] for eq_x in eq.X())
+                            deps = tuple(storage[eq_dep] for eq_dep in eq_deps)
 
-                    self._cp_manager.add(n1)
-                assert len(storage) == 0
+                            for eq_dep in eq.initial_condition_dependencies():
+                                self._cp.add_initial_condition(
+                                    eq_dep, value=storage[eq_dep])
+                            eq.forward(X, deps=deps)
+                            self._cp.add_equation((n1, i), eq, deps=deps)
+
+                            storage_state = storage.pop()
+                            assert storage_state == (n1, i)
+                    cp_n = cp_n1
+                elif cp_action == "reverse":
+                    cp_n1, cp_n0 = cp_data
+                    logger.debug(f"reverse: adjoint step back to {cp_n0:d}")
+                    if cp_n1 != n + 1:
+                        raise RuntimeError("Invalid checkpointing state")
+                    if cp_n0 > n:
+                        raise RuntimeError("Invalid checkpointing state")
+                    if storage is not None:
+                        assert len(storage) == 0
+                    break
+                elif cp_action == "read":
+                    if storage is not None or cp_n is not None:
+                        raise RuntimeError("Invalid checkpointing state")
+
+                    cp_n, cp_storage, cp_delete = cp_data
+                    logger.debug(f'reverse: load snapshot at {cp_n:d} from '
+                                 f'{cp_storage:s} and '
+                                 f'{"delete" if cp_delete else "keep":s}')
+
+                    storage = ReplayStorage(self._blocks, cp_n, n + 1)
+                    storage.update(self._cp.initial_conditions(cp=False,
+                                                               refs=True,
+                                                               copy=False),
+                                   copy=False)
+
+                    if cp_storage == "disk":
+                        self._load_disk_checkpoint(cp_n, storage,
+                                                   delete=cp_delete)
+                    elif cp_storage == "RAM":
+                        self._load_memory_checkpoint(cp_n, storage,
+                                                     delete=cp_delete)
+                    else:
+                        raise ValueError(f"Unrecognized checkpointing "
+                                         f"storage: {cp_storage:s}")
+                elif cp_action == "write":
+                    cp_w_n, cp_storage = cp_data
+                    if cp_w_n > n:
+                        raise RuntimeError("Invalid checkpointing state")
+                    if cp_storage == "disk":
+                        logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
+                                     f"on disk")
+                        self._save_disk_checkpoint(cp_w_n, self._cp)
+                    elif cp_storage == "RAM":
+                        logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
+                                     f"in RAM")
+                        self._save_memory_checkpoint(cp_w_n, self._cp)
+                    else:
+                        raise ValueError(f"Unrecognized checkpointing "
+                                         f"storage: {cp_storage:s}")
+                else:
+                    raise ValueError(f"Unexpected checkpointing action: "
+                                     f"{cp_action:s}")
         elif self._cp_method == "multistage":
             logger = logging.getLogger("tlm_adjoint.multistage_checkpointing")
 
