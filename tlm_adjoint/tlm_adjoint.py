@@ -953,7 +953,7 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _save_memory_checkpoint(self, n, cp):
+    def _write_memory_checkpoint(self, n, cp):
         if n in self._cp_memory or \
                 (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
@@ -961,13 +961,13 @@ class EquationManager:
         self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
                                                          copy=False)
 
-    def _load_memory_checkpoint(self, n, storage, *, delete=False):
+    def _read_memory_checkpoint(self, n, storage, *, delete=False):
         if delete:
             storage.update(self._cp_memory.pop(n), copy=False)
         else:
             storage.update(self._cp_memory[n], copy=True)
 
-    def _save_disk_checkpoint(self, n, cp):
+    def _write_disk_checkpoint(self, n, cp):
         if n in self._cp_memory or n in self._cp_disk:
             raise RuntimeError("Duplicate checkpoint")
 
@@ -975,7 +975,7 @@ class EquationManager:
 
         self._cp_disk.write(n, cp)
 
-    def _load_disk_checkpoint(self, n, storage, *, delete=False):
+    def _read_disk_checkpoint(self, n, storage, *, delete=False):
         self._cp_disk.read(n, storage)
         if delete:
             self._cp_disk.delete(n)
@@ -1025,11 +1025,11 @@ class EquationManager:
                     if cp_storage == "disk":
                         logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                      f"on disk")
-                        self._save_disk_checkpoint(cp_w_n, self._cp)
+                        self._write_disk_checkpoint(cp_w_n, self._cp)
                     elif cp_storage == "RAM":
                         logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                      f"in RAM")
-                        self._save_memory_checkpoint(cp_w_n, self._cp)
+                        self._write_memory_checkpoint(cp_w_n, self._cp)
                     else:
                         raise ValueError(f"Unrecognized checkpointing "
                                          f"storage: {cp_storage:s}")
@@ -1119,10 +1119,10 @@ class EquationManager:
                                    copy=False)
 
                     if cp_storage == "disk":
-                        self._load_disk_checkpoint(cp_n, storage,
+                        self._read_disk_checkpoint(cp_n, storage,
                                                    delete=cp_delete)
                     elif cp_storage == "RAM":
-                        self._load_memory_checkpoint(cp_n, storage,
+                        self._read_memory_checkpoint(cp_n, storage,
                                                      delete=cp_delete)
                     else:
                         raise ValueError(f"Unrecognized checkpointing "
@@ -1134,11 +1134,11 @@ class EquationManager:
                     if cp_storage == "disk":
                         logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                      f"on disk")
-                        self._save_disk_checkpoint(cp_w_n, self._cp)
+                        self._write_disk_checkpoint(cp_w_n, self._cp)
                     elif cp_storage == "RAM":
                         logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                      f"in RAM")
-                        self._save_memory_checkpoint(cp_w_n, self._cp)
+                        self._write_memory_checkpoint(cp_w_n, self._cp)
                     else:
                         raise ValueError(f"Unrecognized checkpointing "
                                          f"storage: {cp_storage:s}")
