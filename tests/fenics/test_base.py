@@ -166,8 +166,10 @@ def _EquationManager_configure_checkpointing(self, *args, **kwargs):
     if hasattr(self, "_cp_method") \
             and hasattr(self, "_cp_parameters") \
             and hasattr(self, "_cp_manager"):
-        if self._cp_method == "multistage" \
-                and self._cp_manager.max_n() - self._cp_manager.r() == 0 \
+        if self._cp_manager is not None \
+                and self._cp_manager.single_reverse_run() \
+                and self._cp_manager.max_n() is not None \
+                and self._cp_manager.r() == self._cp_manager.max_n() \
                 and "path" in self._cp_parameters:
             self._comm.barrier()
             cp_path = self._cp_parameters["path"]

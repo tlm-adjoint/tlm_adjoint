@@ -168,8 +168,10 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     def jac(x):
         fun(x, force=J_M[1] is None)
         dJ = manager.compute_gradient(J[0], J_M[1])
-        if manager._cp_method not in ["memory", "periodic_disk"]:
-            J_M[1] = None
+        if manager._cp_method != "memory":
+            assert manager._cp_manager is not None
+            if manager._cp_manager.single_reverse_run():
+                J_M[1] = None
         return get(dJ)
 
     def jac_bcast(x):

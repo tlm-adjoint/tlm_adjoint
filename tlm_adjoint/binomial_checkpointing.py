@@ -271,6 +271,9 @@ class MultistageManager(CheckpointingManager):
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
 
+    def single_reverse_run(self):
+        return True
+
     def snapshots_in_ram(self):
         snapshots = 0
         for i in range(len(self._snapshots)):

@@ -494,7 +494,7 @@ class HDF5Checkpoints(Checkpoints):
 class CheckpointingManager(ABC):
     """
     A checkpointing schedule.
-    
+
     The schedule is defined by __iter__, which yields actions in a similar
     manner to the approach used in
        A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
@@ -552,6 +552,10 @@ class CheckpointingManager(ABC):
 
     @abstractmethod
     def uses_disk_storage(self):
+        raise NotImplementedError("Method not overridden")
+
+    @abstractmethod
+    def single_reverse_run(self):
         raise NotImplementedError("Method not overridden")
 
     def n(self):
@@ -643,3 +647,6 @@ class PeriodicDiskManager(CheckpointingManager):
 
     def uses_disk_storage(self):
         return True
+
+    def single_reverse_run(self):
+        return False
