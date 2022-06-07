@@ -509,7 +509,7 @@ class CheckpointingManager(ABC):
     action: 'clear'
     data:   (clear_ics, clear_data)
     Clear checkpoint storage. clear_ics indicates whether stored initial
-    condition data should be cleared. clear_data indiates whether stored
+    condition data should be cleared. clear_data indicates whether stored
     non-linear dependency data should be cleared.
 
     action: 'configure'
