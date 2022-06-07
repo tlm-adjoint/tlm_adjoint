@@ -32,8 +32,6 @@
 
 from .checkpointing import CheckpointingManager
 
-import numpy as np
-
 __all__ = \
     [
         "MultistageManager"
@@ -105,34 +103,32 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     """
 
     snapshots = snapshots_in_ram + snapshots_on_disk
-    snapshots_n = []
-    weights = np.zeros(snapshots, dtype=np.float64)
-    n = 0
-    i = 0
-    snapshots_n.append(n)
-    weights[i] += write_weight
-    while True:
-        n += n_advance(max_n - n, snapshots - i)
-        if n == max_n - 1:
-            break
-        i += 1
-        snapshots_n.append(n)
-        weights[i] += write_weight
-    while n > 0:
-        snapshot_n_0 = snapshot_n = snapshots_n[-1]
-        weights[i] += read_weight
-        while True:
-            snapshot_n += n_advance(n - snapshot_n, snapshots - i)
-            if snapshot_n == n - 1:
-                break
-            i += 1
-            snapshots_n.append(snapshot_n)
-            weights[i] += write_weight
-        if snapshot_n_0 == n - 1:
-            snapshots_n.pop()
-            weights[i] += delete_weight
-            i -= 1
-        n -= 1
+    weights = [0.0 for i in range(snapshots)]
+
+    cp_manager = MultistageManager(max_n, snapshots, 0)
+    cp_iter = iter(cp_manager)
+
+    snapshot_i = -1
+    while cp_manager.r() != cp_manager.max_n():
+        cp_action, cp_data = next(cp_iter)
+
+        if cp_action == "read":
+            _, _, cp_delete = cp_data
+            if snapshot_i < 0:
+                raise RuntimeError("Invalid checkpointing state")
+            weights[snapshot_i] += read_weight
+            if cp_delete:
+                weights[snapshot_i] += delete_weight
+                snapshot_i -= 1
+        elif cp_action == "write":
+            snapshot_i += 1
+            if snapshot_i >= snapshots:
+                raise RuntimeError("Invalid checkpointing state")
+            weights[snapshot_i] += write_weight
+        elif cp_action not in ["clear", "configure", "forward", "reverse"]:
+            raise ValueError(f"Unexpected checkpointing action: {cp_action:s}")
+    assert snapshot_i == -1
+
     allocation = ["disk" for i in range(snapshots)]
     for i in [p[0] for p in sorted(enumerate(weights), key=lambda p: p[1],
                                    reverse=True)][:snapshots_in_ram]:
