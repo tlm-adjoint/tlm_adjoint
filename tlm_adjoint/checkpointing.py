@@ -40,7 +40,8 @@ __all__ = \
         "PickleCheckpoints",
         "HDF5Checkpoints",
 
-        "CheckpointingManager"
+        "CheckpointingManager",
+        "PeriodicDiskManager"
     ]
 
 
@@ -571,3 +572,74 @@ class CheckpointingManager(ABC):
                 raise RuntimeError("Invalid checkpointing state")
         elif self._n != n:
             raise RuntimeError("Invalid checkpointing state")
+
+
+class PeriodicDiskManager(CheckpointingManager):
+    def __init__(self, period):
+        if period < 1:
+            raise ValueError("period must be positive")
+
+        super().__init__()
+        self._period = period
+
+    def __iter__(self):
+        while True:
+            if self._max_n is None:
+                # Forward
+
+                yield "clear", (True, True)
+
+                if self._max_n is not None:
+                    # Unexpected finalize
+                    raise RuntimeError("Invalid checkpointing state")
+                yield "configure", (True, False)
+                if self._max_n is not None:
+                    # Unexpected finalize
+                    raise RuntimeError("Invalid checkpointing state")
+                n0 = self._n
+                n1 = n0 + self._period
+                self._n = n1
+                yield "forward", (n0, n1)
+
+                # Finalize permitted here
+                yield "write", (n0, "disk")
+            elif self._r < self._max_n:
+                # Reverse
+
+                n = self._max_n - self._r - 1
+                n0 = (n // self._period) * self._period
+                del n
+                n1 = min(n0 + self._period, self._max_n)
+                if self._r != self._max_n - n1:
+                    raise RuntimeError("Invalid checkpointing state")
+
+                yield "clear", (True, True)
+
+                self._n = n0
+                yield "read", (n0, "disk", False)
+
+                if n0 == 0:
+                    yield "configure", (True, True)
+                    self._n = n0 + 1
+                    yield "forward", (n0, n0 + 1)
+
+                    if n1 > n0 + 1:
+                        yield "configure", (False, True)
+                        self._n = n1
+                        yield "forward", (n0 + 1, n1)
+                else:
+                    yield "configure", (False, True)
+                    self._n = n1
+                    yield "forward", (n0, n1)
+
+                self._r = self._max_n - n0
+                yield "reverse", (n1, n0)
+            elif self._r == self._max_n:
+                # Reset for new reverse
+
+                self._r = 0
+            else:
+                raise RuntimeError("Invalid checkpointing state")
+
+    def uses_disk_storage(self):
+        return True
