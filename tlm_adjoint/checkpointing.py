@@ -38,7 +38,9 @@ __all__ = \
 
         "Checkpoints",
         "PickleCheckpoints",
-        "HDF5Checkpoints"
+        "HDF5Checkpoints",
+
+        "CheckpointingManager"
     ]
 
 
@@ -486,3 +488,86 @@ class HDF5Checkpoints(Checkpoints):
         self._comm.barrier()
         del self._cp_filenames[n]
         del self._cp_spaces[n]
+
+
+class CheckpointingManager(ABC):
+    """
+    A checkpointing schedule.
+    
+    The schedule is defined by __iter__, which yields actions in a similar
+    manner to the approach used in
+       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
+       of checkpointing for the reverse or adjoint mode of computational
+       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
+       19--45, 2000
+    e.g. 'forward', 'read', and 'write' correspond to ADVANCE, RESTORE, and
+    TAKESHOT in Griewank and Walther 2000.
+
+    __iter__ yields (action, data), with:
+
+    action: 'clear'
+    data:   (clear_ics, clear_data)
+    Clear checkpoint storage. clear_ics indicates whether stored initial
+    condition data should be cleared. clear_data indiates whether stored
+    non-linear dependency data should be cleared.
+
+    action: 'configure'
+    data:   (store_ics, store_data)
+    Configure checkpoint storage. store_ics indicates whether initial condition
+    data should be stored. store_data indicates whether non-linear dependency
+    data should be stored.
+
+    action: 'forward'
+    data:   (n0, n1)
+    Run the forward from the start of block n0 to the start of block n1.
+
+    action: 'reverse'
+    data:   (n1, n0)
+    Run the adjoint from the start of block n1 to the start of block n0.
+
+    action: 'read'
+    data:   (n, storage, delete)
+    Read checkpoint data associated with the start of block n from the
+    indicated storage. delete indicates whether the checkpoint data should be
+    deleted.
+
+    action: 'write'
+    data:   (n, storage)
+    Write checkpoint data associated with the start of block n to the indicated
+    storage.
+    """
+
+    def __init__(self, max_n=None):
+        if max_n is not None and max_n < 1:
+            raise ValueError("max_n must be positive")
+
+        self._n = 0
+        self._r = 0
+        self._max_n = max_n
+
+    @abstractmethod
+    def __iter__(self):
+        raise NotImplementedError("Method not overridden")
+
+    @abstractmethod
+    def uses_disk_storage(self):
+        raise NotImplementedError("Method not overridden")
+
+    def n(self):
+        return self._n
+
+    def r(self):
+        return self._r
+
+    def max_n(self):
+        return self._max_n
+
+    def finalize(self, n):
+        if self._max_n is None:
+            if self._n >= n:
+                self._n = n
+                self._max_n = n
+            else:
+                raise RuntimeError("Invalid checkpointing state")
+        elif self._n != n:
+            raise RuntimeError("Invalid checkpointing state")
