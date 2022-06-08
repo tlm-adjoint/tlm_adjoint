@@ -164,6 +164,7 @@ class MultistageManager(CheckpointingManager):
         self._snapshots_on_disk = snapshots_on_disk
         self._snapshots = []
         self._storage = storage
+        self._exhausted = False
 
     def iter(self):
         if self._max_n is None:
@@ -259,15 +260,17 @@ class MultistageManager(CheckpointingManager):
                 self._r += 1
                 yield "reverse", (n + 1, n)
             elif self._r == self._max_n:
+                self._exhausted = True
+                yield "clear", (False, True)
                 break
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
+    def is_exhausted(self):
+        return self._exhausted
+
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
-
-    def single_reverse_run(self):
-        return True
 
     def snapshots_in_ram(self):
         snapshots = 0

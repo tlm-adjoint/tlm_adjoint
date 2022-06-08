@@ -170,7 +170,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         dJ = manager.compute_gradient(J[0], J_M[1])
         if manager._cp_method != "memory":
             assert manager._cp_manager is not None
-            if manager._cp_manager.single_reverse_run():
+            if manager._cp_manager.is_exhausted():
                 J_M[1] = None
         return get(dJ)
 

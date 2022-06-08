@@ -817,7 +817,6 @@ class EquationManager:
         x_id = function_id(x)
         for eq in self._blocks[0]:
             if x_id in {function_id(dep) for dep in eq.dependencies()}:
-                self._restore_checkpoint(0)
                 return self._cp.initial_condition(x, copy=True)
         raise KeyError("Initial condition not found")
 
@@ -1422,8 +1421,15 @@ class EquationManager:
         for J_i in range(len(adj_Xs)):
             assert len(adj_Xs[J_i]) == 0
 
-        if self._cp_method != "memory":
-            self._cp.clear(clear_ics=False, clear_data=True, clear_refs=False)
+        if self._cp_manager is not None:
+            cp_action, cp_data = next(self._cp_manager)
+            if cp_action == "clear":
+                clear_ics, clear_data = cp_data
+                self._cp.clear(clear_ics=clear_ics,
+                               clear_data=clear_data)
+            else:
+                raise ValueError(f"Unexpected checkpointing action: "
+                                 f"{cp_action:s}")
 
         return tuple(dJ)
 

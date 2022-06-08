@@ -559,11 +559,11 @@ class CheckpointingManager(ABC):
         raise NotImplementedError("Method not overridden")
 
     @abstractmethod
-    def uses_disk_storage(self):
+    def is_exhausted(self):
         raise NotImplementedError("Method not overridden")
 
     @abstractmethod
-    def single_reverse_run(self):
+    def uses_disk_storage(self):
         raise NotImplementedError("Method not overridden")
 
     def n(self):
@@ -650,11 +650,12 @@ class PeriodicDiskManager(CheckpointingManager):
                 # Reset for new reverse
 
                 self._r = 0
+                yield "clear", (False, True)
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
+    def is_exhausted(self):
+        return False
+
     def uses_disk_storage(self):
         return True
-
-    def single_reverse_run(self):
-        return False
