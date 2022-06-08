@@ -504,7 +504,7 @@ class CheckpointingManager(ABC):
     e.g. 'forward', 'read', and 'write' correspond to ADVANCE, RESTORE, and
     TAKESHOT in Griewank and Walther 2000.
 
-    __iter__ yields (action, data), with:
+    The iter method yields (action, data), with:
 
     action: 'clear'
     data:   (clear_ics, clear_data)
@@ -546,8 +546,16 @@ class CheckpointingManager(ABC):
         self._r = 0
         self._max_n = max_n
 
-    @abstractmethod
+        self._iter = iter(self.iter())
+
     def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._iter)
+
+    @abstractmethod
+    def iter(self):
         raise NotImplementedError("Method not overridden")
 
     @abstractmethod
@@ -586,7 +594,7 @@ class PeriodicDiskManager(CheckpointingManager):
         super().__init__()
         self._period = period
 
-    def __iter__(self):
+    def iter(self):
         while True:
             if self._max_n is None:
                 # Forward

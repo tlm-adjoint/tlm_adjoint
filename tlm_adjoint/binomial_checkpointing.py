@@ -106,11 +106,10 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     weights = [0.0 for i in range(snapshots)]
 
     cp_manager = MultistageManager(max_n, snapshots, 0)
-    cp_iter = iter(cp_manager)
 
     snapshot_i = -1
     while cp_manager.r() != cp_manager.max_n():
-        cp_action, cp_data = next(cp_iter)
+        cp_action, cp_data = next(cp_manager)
 
         if cp_action == "read":
             _, _, cp_delete = cp_data
@@ -166,7 +165,7 @@ class MultistageManager(CheckpointingManager):
         self._snapshots = []
         self._storage = storage
 
-    def __iter__(self):
+    def iter(self):
         if self._max_n is None:
             raise RuntimeError("Invalid checkpointing state")
 

@@ -606,7 +606,6 @@ class EquationManager:
                 cp_parameters["drop_references"] = cp_parameters.get("drop_references", False)  # noqa: E501
 
             cp_manager = None
-            cp_iter = None
             disk_storage = False
         elif cp_method == "periodic_disk":
             cp_manager = PeriodicDiskManager(cp_parameters["period"])
@@ -621,7 +620,6 @@ class EquationManager:
                              f"{cp_method:s}")
 
         if cp_manager is not None:
-            cp_iter = iter(cp_manager)
             disk_storage = cp_manager.uses_disk_storage()
 
         if disk_storage:
@@ -651,7 +649,6 @@ class EquationManager:
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
         self._cp_manager = cp_manager
-        self._cp_iter = cp_iter
         self._cp_memory = {}
         self._cp_disk = cp_disk
 
@@ -984,7 +981,7 @@ class EquationManager:
         if self._cp_method in ["none", "memory"]:
             pass
         else:
-            assert self._cp_manager is not None and self._cp_iter is not None
+            assert self._cp_manager is not None
             assert len(self._block) == 0
             n = len(self._blocks)
             if final:
@@ -1000,7 +997,7 @@ class EquationManager:
             logger = logging.getLogger("tlm_adjoint.checkpointing")
 
             while True:
-                cp_action, cp_data = next(self._cp_iter)
+                cp_action, cp_data = next(self._cp_manager)
 
                 if cp_action == "clear":
                     clear_ics, clear_data = cp_data
@@ -1044,7 +1041,7 @@ class EquationManager:
         elif self._cp_method == "memory":
             pass
         else:
-            assert self._cp_manager is not None and self._cp_iter is not None
+            assert self._cp_manager is not None
             if self._cp_manager.max_n() is None:
                 raise RuntimeError("Invalid checkpointing state")
             if n >= self._cp_manager.max_n() - self._cp_manager.r():
@@ -1056,7 +1053,7 @@ class EquationManager:
             cp_n = None
 
             while True:
-                cp_action, cp_data = next(self._cp_iter)
+                cp_action, cp_data = next(self._cp_manager)
 
                 if cp_action == "clear":
                     clear_ics, clear_data = cp_data
