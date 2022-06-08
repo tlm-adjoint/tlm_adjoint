@@ -274,19 +274,19 @@ class ReplayStorage:
 class Checkpoints(ABC):
     @abstractmethod
     def __contains__(self, n):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
     @abstractmethod
     def write(self, n, cp):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
     @abstractmethod
     def read(self, n, storage):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
     @abstractmethod
     def delete(self, n):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
 
 def root_py2f(comm, *, root=0):
@@ -559,15 +559,15 @@ class CheckpointingManager(ABC):
 
     @abstractmethod
     def iter(self):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
     @abstractmethod
     def is_exhausted(self):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
     @abstractmethod
     def uses_disk_storage(self):
-        raise NotImplementedError("Method not overridden")
+        raise NotImplementedError
 
     def n(self):
         return self._n
