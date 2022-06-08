@@ -41,8 +41,7 @@ class HessianOptimization:
     def __init__(self, *, manager=None, cache_adjoint=True):
         if manager is None:
             manager = _manager()
-        if manager._cp_method != "memory" \
-                or manager._cp_parameters["drop_references"]:
+        if manager._alias_eqs:
             raise RuntimeError("Invalid equation manager state")
 
         comm = manager.comm()

@@ -600,11 +600,11 @@ class EquationManager:
                 if "drop_references" in cp_parameters:
                     if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
                         raise ValueError("Conflicting cp_parameters values")
-                else:
-                    cp_parameters["drop_references"] = cp_parameters["replace"]
-                del cp_parameters["replace"]
+                alias_eqs = cp_parameters["replace"]
             else:
-                cp_parameters["drop_references"] = cp_parameters.get("drop_references", False)  # noqa: E501
+                alias_eqs = cp_parameters.get("drop_references", False)
+        else:
+            alias_eqs = True
 
         if cp_method == "none":
             cp_manager = NoneCheckpointingManager()
@@ -614,18 +614,17 @@ class EquationManager:
             cp_manager = PeriodicDiskCheckpointingManager(
                 cp_parameters["period"])
         elif cp_method == "multistage":
-            cp_parameters["snaps_in_ram"] = cp_snaps_in_ram = cp_parameters.get("snaps_in_ram", 0)  # noqa: E501
-            cp_parameters["snaps_on_disk"] = cp_snaps_on_disk = cp_parameters.get("snaps_on_disk", 0)  # noqa: E501
-
             cp_manager = MultistageCheckpointingManager(
-                cp_parameters["blocks"], cp_snaps_in_ram, cp_snaps_on_disk)
+                cp_parameters["blocks"],
+                cp_parameters.get("snaps_in_ram", 0),
+                cp_parameters.get("snaps_on_disk", 0))
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{cp_method:s}")
 
         if cp_manager.uses_disk_storage():
-            cp_parameters["path"] = cp_path = cp_parameters.get("path", "checkpoints~")  # noqa: E501
-            cp_parameters["format"] = cp_format = cp_parameters.get("format", "hdf5")  # noqa: E501
+            cp_path = cp_parameters.get("path", "checkpoints~")
+            cp_format = cp_parameters.get("format", "hdf5")
 
             self._comm.barrier()
             if self._comm.rank == 0:
@@ -645,12 +644,15 @@ class EquationManager:
                 raise ValueError(f"Unrecognized checkpointing format: "
                                  f"{cp_format:s}")
         else:
+            cp_path = None
             cp_disk = None
 
         self._cp_method = cp_method
         self._cp_parameters = cp_parameters
+        self._alias_eqs = alias_eqs
         self._cp_manager = cp_manager
         self._cp_memory = {}
+        self._cp_path = cp_path
         self._cp_disk = cp_disk
 
         self._cp = CheckpointStorage(store_ics=False, store_data=False)
@@ -844,19 +846,18 @@ class EquationManager:
             elif self._annotation_state == "final":
                 raise RuntimeError("Cannot add equations after finalization")
 
-            if self._cp_method in ["none", "memory"] \
-                    and not self._cp_parameters["drop_references"]:
-                eq_id = eq.id()
-                if eq_id not in self._eqs:
-                    self._eqs[eq_id] = eq
-                self._block.append(eq)
-            else:
+            if self._alias_eqs:
                 self._add_equation_finalizes(eq)
                 eq_alias = WeakAlias(eq)
                 eq_id = eq.id()
                 if eq_id not in self._eqs:
                     self._eqs[eq_id] = eq_alias
                 self._block.append(eq_alias)
+            else:
+                eq_id = eq.id()
+                if eq_id not in self._eqs:
+                    self._eqs[eq_id] = eq
+                self._block.append(eq)
             self._cp.add_equation(
                 (len(self._blocks), len(self._block) - 1), eq)
 
