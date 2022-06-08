@@ -162,7 +162,8 @@ def _EquationManager_configure_checkpointing(self, *args, **kwargs):
             and hasattr(self, "_cp_path"):
         if self._cp_manager.is_exhausted() \
                 and self._cp_manager.max_n() is not None \
-                and self._cp_manager.r() == self._cp_manager.max_n():
+                and self._cp_manager.r() == self._cp_manager.max_n() \
+                and self._cp_path is not None:
             self._comm.barrier()
             if os.path.exists(self._cp_path):
                 assert len(os.listdir(self._cp_path)) == 0
