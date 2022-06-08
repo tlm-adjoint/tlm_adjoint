@@ -34,7 +34,7 @@ from .checkpointing import CheckpointingManager
 
 __all__ = \
     [
-        "MultistageManager"
+        "MultistageCheckpointingManager"
     ]
 
 
@@ -105,7 +105,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     snapshots = snapshots_in_ram + snapshots_on_disk
     weights = [0.0 for i in range(snapshots)]
 
-    cp_manager = MultistageManager(max_n, snapshots, 0)
+    cp_manager = MultistageCheckpointingManager(max_n, snapshots, 0)
 
     snapshot_i = -1
     while cp_manager.r() != cp_manager.max_n():
@@ -136,7 +136,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     return tuple(weights), tuple(allocation)
 
 
-class MultistageManager(CheckpointingManager):
+class MultistageCheckpointingManager(CheckpointingManager):
     """
     Implements binomial checkpointing using the approach described in
        A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation

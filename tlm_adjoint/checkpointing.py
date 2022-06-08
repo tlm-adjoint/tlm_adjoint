@@ -29,6 +29,7 @@ import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pickle
+import sys
 import weakref
 
 __all__ = \
@@ -41,7 +42,9 @@ __all__ = \
         "HDF5Checkpoints",
 
         "CheckpointingManager",
-        "PeriodicDiskManager"
+        "NoneCheckpointingManager",
+        "MemoryCheckpointingManager",
+        "PeriodicDiskCheckpointingManager"
     ]
 
 
@@ -586,7 +589,75 @@ class CheckpointingManager(ABC):
             raise RuntimeError("Invalid checkpointing state")
 
 
-class PeriodicDiskManager(CheckpointingManager):
+class NoneCheckpointingManager(CheckpointingManager):
+    def iter(self):
+        # Forward
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "clear", (True, True)
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "configure", (False, False)
+
+        while self._max_n is None:
+            n0 = self._n
+            n1 = n0 + sys.maxsize
+            self._n = n1
+            yield "forward", (n0, n1)
+
+    def is_exhausted(self):
+        return self._max_n is not None
+
+    def uses_disk_storage(self):
+        return False
+
+
+class MemoryCheckpointingManager(CheckpointingManager):
+    def iter(self):
+        # Forward
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "clear", (True, True)
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "configure", (True, True)
+
+        while self._max_n is None:
+            n0 = self._n
+            n1 = n0 + sys.maxsize
+            self._n = n1
+            yield "forward", (n0, n1)
+
+        while True:
+            if self._r == 0:
+                # Reverse
+
+                self._r = self._max_n
+                yield "reverse", (self._max_n, 0)
+            elif self._r == self._max_n:
+                # Reset for new reverse
+
+                self._r = 0
+                yield "clear", (False, False)
+            else:
+                raise RuntimeError("Invalid checkpointing state")
+
+    def is_exhausted(self):
+        return False
+
+    def uses_disk_storage(self):
+        return False
+
+
+class PeriodicDiskCheckpointingManager(CheckpointingManager):
     def __init__(self, period):
         if period < 1:
             raise ValueError("period must be positive")

@@ -103,8 +103,7 @@ Function.__init__ = _Function__init__
 def _EquationManager_configure_checkpointing(self, *args, **kwargs):
     if hasattr(self, "_cp_parameters") \
             and hasattr(self, "_cp_manager"):
-        if self._cp_manager is not None \
-                and self._cp_manager.is_exhausted() \
+        if self._cp_manager.is_exhausted() \
                 and self._cp_manager.max_n() is not None \
                 and self._cp_manager.r() == self._cp_manager.max_n() \
                 and "path" in self._cp_parameters:
