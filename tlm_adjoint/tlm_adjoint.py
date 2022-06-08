@@ -547,9 +547,14 @@ class EquationManager:
         """
 
         if cp_method is None:
+            if cp_parameters is not None:
+                raise TypeError("cp_parameters can only be supplied if "
+                                "cp_method is supplied")
             cp_method = self._cp_method
-        if cp_parameters is None:
             cp_parameters = self._cp_parameters
+        elif cp_parameters is None:
+            raise TypeError("cp_parameters must be supplied if cp_method is "
+                            "supplied")
 
         return EquationManager(comm=self._comm, cp_method=cp_method,
                                cp_parameters=cp_parameters)
@@ -561,12 +566,17 @@ class EquationManager:
         configuration can be provided.
         """
 
-        self.drop_references()
-
         if cp_method is None:
+            if cp_parameters is not None:
+                raise TypeError("cp_parameters can only be supplied if "
+                                "cp_method is supplied")
             cp_method = self._cp_method
-        if cp_parameters is None:
             cp_parameters = self._cp_parameters
+        elif cp_parameters is None:
+            raise TypeError("cp_parameters must be supplied if cp_method is "
+                            "supplied")
+
+        self.drop_references()
 
         self._annotation_state = "initial"
         self._tlm_state = "initial"
@@ -579,13 +589,10 @@ class EquationManager:
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
-    def configure_checkpointing(self, cp_method, cp_parameters=None):
+    def configure_checkpointing(self, cp_method, cp_parameters):
         """
         Provide a new checkpointing configuration.
         """
-
-        if cp_parameters is None:
-            cp_parameters = {}
 
         if self._annotation_state not in ["initial", "stopped_initial"]:
             raise RuntimeError("Cannot configure checkpointing after "
