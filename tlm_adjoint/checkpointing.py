@@ -498,14 +498,15 @@ class CheckpointingManager(ABC):
     """
     A checkpointing schedule.
 
-    The schedule is defined by __iter__, which yields actions in a similar
-    manner to the approach used in
+    The schedule is defined by iter, which yields actions in a similar manner
+    to the approach used in
        A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
        of checkpointing for the reverse or adjoint mode of computational
        differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
        19--45, 2000
     e.g. 'forward', 'read', and 'write' correspond to ADVANCE, RESTORE, and
-    TAKESHOT in Griewank and Walther 2000.
+    TAKESHOT respectively in Griewank and Walther 2000 (although here 'write'
+    actions occur *after* forward advancement from snapshots).
 
     The iter method yields (action, data), with:
 
@@ -539,6 +540,12 @@ class CheckpointingManager(ABC):
     data:   (n, storage)
     Write checkpoint data associated with the start of block n to the indicated
     storage.
+
+    action: 'end_reverse'
+    data:   (clear_ics, clear_data, exhausted)
+    End a reverse calculation. clear_ics and clear_data are as for the 'clear'
+    action. If exhausted is False then a further reverse calculation can be
+    performed.
     """
 
     def __init__(self, max_n=None):
@@ -579,6 +586,8 @@ class CheckpointingManager(ABC):
         return self._max_n
 
     def finalize(self, n):
+        if n < 1:
+            raise ValueError("n must be positive")
         if self._max_n is None:
             if self._n >= n:
                 self._n = n
@@ -646,7 +655,7 @@ class MemoryCheckpointingManager(CheckpointingManager):
                 # Reset for new reverse
 
                 self._r = 0
-                yield "clear", (False, False)
+                yield "end_reverse", (False, False, False)
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
@@ -725,7 +734,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
             # Reset for new reverse
 
             self._r = 0
-            yield "clear", (False, True)
+            yield "end_reverse", (False, True, False)
 
     def is_exhausted(self):
         return False

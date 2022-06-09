@@ -533,8 +533,8 @@ class EquationManager:
         if self._cp_method in ["none", "memory", "periodic_disk"]:
             pass
         elif self._cp_method == "multistage":
-            info(f"  Snapshots in RAM: {self._cp_manager.snapshots_in_ram():d}")  # noqa: E501
-            info(f"  Snapshots on disk: {self._cp_manager.snapshots_on_disk():d}")  # noqa: E501
+            info(f"  Snapshots in RAM: {self._cp_manager.used_snapshots_in_ram():d}")  # noqa: E501
+            info(f"  Snapshots on disk: {self._cp_manager.used_snapshots_on_disk():d}")  # noqa: E501
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{self._cp_method:s}")
@@ -662,7 +662,8 @@ class EquationManager:
         self._cp_path = cp_path
         self._cp_disk = cp_disk
 
-        self._cp = CheckpointStorage(store_ics=False, store_data=False)
+        self._cp = CheckpointStorage(store_ics=False,
+                                     store_data=False)
         assert len(self._blocks) == 0
         self._checkpoint()
 
@@ -1412,9 +1413,13 @@ class EquationManager:
         for J_i in range(len(adj_Xs)):
             assert len(adj_Xs[J_i]) == 0
 
+        if self._cp_manager.max_n() is None \
+                or self._cp_manager.r() != self._cp_manager.max_n():
+            raise RuntimeError("Invalid checkpointing state")
+
         cp_action, cp_data = next(self._cp_manager)
-        if cp_action == "clear":
-            clear_ics, clear_data = cp_data
+        if cp_action == "end_reverse":
+            clear_ics, clear_data, _ = cp_data
             self._cp.clear(clear_ics=clear_ics,
                            clear_data=clear_data)
         else:

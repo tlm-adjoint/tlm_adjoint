@@ -108,7 +108,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     cp_manager = MultistageCheckpointingManager(max_n, snapshots, 0)
 
     snapshot_i = -1
-    while cp_manager.r() != cp_manager.max_n():
+    while True:
         cp_action, cp_data = next(cp_manager)
 
         if cp_action == "read":
@@ -124,6 +124,11 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
             if snapshot_i >= snapshots:
                 raise RuntimeError("Invalid checkpointing state")
             weights[snapshot_i] += write_weight
+        elif cp_action == "end_reverse":
+            if cp_manager.max_n() is None \
+                    or cp_manager.r() != cp_manager.max_n():
+                raise RuntimeError("Invalid checkpointing state")
+            break
         elif cp_action not in ["clear", "configure", "forward", "reverse"]:
             raise ValueError(f"Unexpected checkpointing action: {cp_action:s}")
     assert snapshot_i == -1
@@ -257,7 +262,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield "clear", (False, True)
+        yield "end_reverse", (False, True, True)
 
     def is_exhausted(self):
         return self._exhausted
@@ -265,14 +270,14 @@ class MultistageCheckpointingManager(CheckpointingManager):
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
 
-    def snapshots_in_ram(self):
+    def used_snapshots_in_ram(self):
         snapshots = 0
         for i in range(len(self._snapshots)):
             if self._storage[i] == "RAM":
                 snapshots += 1
         return snapshots
 
-    def snapshots_on_disk(self):
+    def used_snapshots_on_disk(self):
         snapshots = 0
         for i in range(len(self._snapshots)):
             if self._storage[i] == "disk":
