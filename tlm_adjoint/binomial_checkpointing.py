@@ -167,104 +167,97 @@ class MultistageCheckpointingManager(CheckpointingManager):
         self._exhausted = False
 
     def iter(self):
+        # Forward
+
         if self._max_n is None:
             raise RuntimeError("Invalid checkpointing state")
+        while self._n < self._max_n - 1:
+            yield "clear", (True, True)
+            yield "configure", (True, False)
 
-        while True:
-            if self._r == 0:
-                # Forward
+            snapshots = (self._snapshots_in_ram
+                         + self._snapshots_on_disk
+                         - len(self._snapshots))
+            n0 = self._n
+            n1 = n0 + n_advance(self._max_n - n0, snapshots)
+            assert n1 > n0
+            self._n = n1
+            yield "forward", (n0, n1)
 
-                n = self._n
+            cp_storage = self._snapshot(n0)
+            yield "write", (n0, cp_storage)
 
-                yield "clear", (True, True)
+        # Forward -> reverse
 
-                if n < self._max_n - 1:
+        yield "clear", (True, True)
+        yield "configure", (self._n == 0, True)
+
+        self._n += 1
+        yield "forward", (self._n - 1, self._n)
+
+        self._r += 1
+        yield "reverse", (self._n, self._n - 1)
+
+        # Reverse
+
+        while self._r < self._max_n:
+            yield "clear", (True, True)
+
+            if len(self._snapshots) == 0:
+                raise RuntimeError("Invalid checkpointing state")
+            cp_n = self._snapshots[-1]
+            cp_storage = self._storage[len(self._snapshots) - 1]
+            if cp_n == self._max_n - self._r - 1:
+                self._snapshots.pop()
+                self._n = cp_n
+                yield "read", (cp_n, cp_storage, True)
+            else:
+                self._n = cp_n
+                yield "read", (cp_n, cp_storage, False)
+
+                yield "configure", (False, False)
+
+                snapshots = (self._snapshots_in_ram
+                             + self._snapshots_on_disk
+                             - len(self._snapshots) + 1)
+                n0 = self._n
+                n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots)
+                assert n1 > n0
+                self._n = n1
+                yield "forward", (n0, n1)
+
+                while self._n < self._max_n - self._r - 1:
+                    yield "clear", (True, True)
                     yield "configure", (True, False)
 
                     snapshots = (self._snapshots_in_ram
                                  + self._snapshots_on_disk
                                  - len(self._snapshots))
-                    n0 = n
-                    n1 = n0 + n_advance(self._max_n - n0, snapshots)
+                    n0 = self._n
+                    n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots)
                     assert n1 > n0
                     self._n = n1
                     yield "forward", (n0, n1)
 
                     cp_storage = self._snapshot(n0)
                     yield "write", (n0, cp_storage)
-                elif n == self._max_n - 1:
-                    # Forward -> reverse
-
-                    yield "configure", (n == 0, True)
-
-                    self._n = n + 1
-                    yield "forward", (n, n + 1)
-
-                    self._r += 1
-                    yield "reverse", (n + 1, n)
-                else:
-                    raise RuntimeError("Invalid checkpointing state")
-            elif self._r < self._max_n:
-                # Reverse
-
-                if len(self._snapshots) == 0:
-                    raise RuntimeError("Invalid checkpointing state")
-
-                n = self._max_n - self._r - 1
 
                 yield "clear", (True, True)
 
-                cp_n = self._snapshots[-1]
-                cp_storage = self._storage[len(self._snapshots) - 1]
-                cp_delete = cp_n == n
-                if cp_delete:
-                    self._snapshots.pop()
-                self._n = cp_n
-                yield "read", (cp_n, cp_storage, cp_delete)
+            yield "configure", (self._n == 0, True)
 
-                n0 = cp_n
-                while n0 < n:
-                    if n0 == cp_n:
-                        yield "configure", (False, False)
-                    elif n0 > cp_n:
-                        yield "clear", (True, True)
-                        yield "configure", (True, False)
-                    else:
-                        raise RuntimeError("Invalid checkpointing state")
+            self._n += 1
+            yield "forward", (self._n - 1, self._n)
 
-                    snapshots = (self._snapshots_in_ram
-                                 + self._snapshots_on_disk
-                                 - len(self._snapshots))
-                    if n0 == cp_n:
-                        # Count the snapshot at cp_n
-                        snapshots += 1
-                    n1 = n0 + n_advance(n + 1 - n0, snapshots)
-                    assert n1 > n0
-                    self._n = n1
-                    yield "forward", (n0, n1)
+            self._r += 1
+            yield "reverse", (self._n, self._n - 1)
+        if self._r != self._max_n:
+            raise RuntimeError("Invalid checkpointing state")
+        if len(self._snapshots) != 0:
+            raise RuntimeError("Invalid checkpointing state")
 
-                    if n0 > cp_n:
-                        cp_storage = self._snapshot(n0)
-                        yield "write", (n0, cp_storage)
-
-                    n0 = n1
-                if n0 != n:
-                    raise RuntimeError("Invalid checkpointing state")
-
-                yield "clear", (True, True)
-                yield "configure", (n == 0, True)
-
-                self._n = n + 1
-                yield "forward", (n, n + 1)
-
-                self._r += 1
-                yield "reverse", (n + 1, n)
-            elif self._r == self._max_n:
-                self._exhausted = True
-                yield "clear", (False, True)
-                break
-            else:
-                raise RuntimeError("Invalid checkpointing state")
+        self._exhausted = True
+        yield "clear", (False, True)
 
     def is_exhausted(self):
         return self._exhausted
