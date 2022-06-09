@@ -29,6 +29,7 @@ import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pickle
+import sys
 import weakref
 
 __all__ = \
@@ -38,7 +39,12 @@ __all__ = \
 
         "Checkpoints",
         "PickleCheckpoints",
-        "HDF5Checkpoints"
+        "HDF5Checkpoints",
+
+        "CheckpointingManager",
+        "NoneCheckpointingManager",
+        "MemoryCheckpointingManager",
+        "PeriodicDiskCheckpointingManager"
     ]
 
 
@@ -268,19 +274,19 @@ class ReplayStorage:
 class Checkpoints(ABC):
     @abstractmethod
     def __contains__(self, n):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def write(self, n, cp):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def read(self, n, storage):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def delete(self, n):
-        pass
+        raise NotImplementedError
 
 
 def root_py2f(comm, *, root=0):
@@ -486,3 +492,252 @@ class HDF5Checkpoints(Checkpoints):
         self._comm.barrier()
         del self._cp_filenames[n]
         del self._cp_spaces[n]
+
+
+class CheckpointingManager(ABC):
+    """
+    A checkpointing schedule.
+
+    The schedule is defined by iter, which yields actions in a similar manner
+    to the approach used in
+       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
+       of checkpointing for the reverse or adjoint mode of computational
+       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
+       19--45, 2000
+    e.g. 'forward', 'read', and 'write' correspond to ADVANCE, RESTORE, and
+    TAKESHOT respectively in Griewank and Walther 2000 (although here 'write'
+    actions occur *after* forward advancement from snapshots).
+
+    The iter method yields (action, data), with:
+
+    action: 'clear'
+    data:   (clear_ics, clear_data)
+    Clear checkpoint storage. clear_ics indicates whether stored initial
+    condition data should be cleared. clear_data indicates whether stored
+    non-linear dependency data should be cleared.
+
+    action: 'configure'
+    data:   (store_ics, store_data)
+    Configure checkpoint storage. store_ics indicates whether initial condition
+    data should be stored. store_data indicates whether non-linear dependency
+    data should be stored.
+
+    action: 'forward'
+    data:   (n0, n1)
+    Run the forward from the start of block n0 to the start of block n1.
+
+    action: 'reverse'
+    data:   (n1, n0)
+    Run the adjoint from the start of block n1 to the start of block n0.
+
+    action: 'read'
+    data:   (n, storage, delete)
+    Read checkpoint data associated with the start of block n from the
+    indicated storage. delete indicates whether the checkpoint data should be
+    deleted.
+
+    action: 'write'
+    data:   (n, storage)
+    Write checkpoint data associated with the start of block n to the indicated
+    storage.
+
+    action: 'end_reverse'
+    data:   (clear_ics, clear_data, exhausted)
+    End a reverse calculation. clear_ics and clear_data are as for the 'clear'
+    action. If exhausted is False then a further reverse calculation can be
+    performed.
+    """
+
+    def __init__(self, max_n=None):
+        if max_n is not None and max_n < 1:
+            raise ValueError("max_n must be positive")
+
+        self._n = 0
+        self._r = 0
+        self._max_n = max_n
+
+        self._iter = iter(self.iter())
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._iter)
+
+    @abstractmethod
+    def iter(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_exhausted(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def uses_disk_storage(self):
+        raise NotImplementedError
+
+    def n(self):
+        return self._n
+
+    def r(self):
+        return self._r
+
+    def max_n(self):
+        return self._max_n
+
+    def finalize(self, n):
+        if n < 1:
+            raise ValueError("n must be positive")
+        if self._max_n is None:
+            if self._n >= n:
+                self._n = n
+                self._max_n = n
+            else:
+                raise RuntimeError("Invalid checkpointing state")
+        elif self._n != n:
+            raise RuntimeError("Invalid checkpointing state")
+
+
+class NoneCheckpointingManager(CheckpointingManager):
+    def iter(self):
+        # Forward
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "clear", (True, True)
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "configure", (False, False)
+
+        while self._max_n is None:
+            n0 = self._n
+            n1 = n0 + sys.maxsize
+            self._n = n1
+            yield "forward", (n0, n1)
+
+    def is_exhausted(self):
+        return self._max_n is not None
+
+    def uses_disk_storage(self):
+        return False
+
+
+class MemoryCheckpointingManager(CheckpointingManager):
+    def iter(self):
+        # Forward
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "clear", (True, True)
+
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "configure", (True, True)
+
+        while self._max_n is None:
+            n0 = self._n
+            n1 = n0 + sys.maxsize
+            self._n = n1
+            yield "forward", (n0, n1)
+
+        while True:
+            if self._r == 0:
+                # Reverse
+
+                self._r = self._max_n
+                yield "reverse", (self._max_n, 0)
+            elif self._r == self._max_n:
+                # Reset for new reverse
+
+                self._r = 0
+                yield "end_reverse", (False, False, False)
+            else:
+                raise RuntimeError("Invalid checkpointing state")
+
+    def is_exhausted(self):
+        return False
+
+    def uses_disk_storage(self):
+        return False
+
+
+class PeriodicDiskCheckpointingManager(CheckpointingManager):
+    def __init__(self, period):
+        if period < 1:
+            raise ValueError("period must be positive")
+
+        super().__init__()
+        self._period = period
+
+    def iter(self):
+        # Forward
+
+        while self._max_n is None:
+            yield "clear", (True, True)
+
+            if self._max_n is not None:
+                # Unexpected finalize
+                raise RuntimeError("Invalid checkpointing state")
+            yield "configure", (True, False)
+            if self._max_n is not None:
+                # Unexpected finalize
+                raise RuntimeError("Invalid checkpointing state")
+            n0 = self._n
+            n1 = n0 + self._period
+            self._n = n1
+            yield "forward", (n0, n1)
+
+            # Finalize permitted here
+
+            yield "write", (n0, "disk")
+
+        while True:
+            # Reverse
+
+            while self._r < self._max_n:
+                n = self._max_n - self._r - 1
+                n0 = (n // self._period) * self._period
+                del n
+                n1 = min(n0 + self._period, self._max_n)
+                if self._r != self._max_n - n1:
+                    raise RuntimeError("Invalid checkpointing state")
+
+                yield "clear", (True, True)
+
+                self._n = n0
+                yield "read", (n0, "disk", False)
+
+                if n0 == 0:
+                    yield "configure", (True, True)
+                    self._n = n0 + 1
+                    yield "forward", (n0, n0 + 1)
+
+                    if n1 > n0 + 1:
+                        yield "configure", (False, True)
+                        self._n = n1
+                        yield "forward", (n0 + 1, n1)
+                else:
+                    yield "configure", (False, True)
+                    self._n = n1
+                    yield "forward", (n0, n1)
+
+                self._r = self._max_n - n0
+                yield "reverse", (n1, n0)
+            if self._r != self._max_n:
+                raise RuntimeError("Invalid checkpointing state")
+
+            # Reset for new reverse
+
+            self._r = 0
+            yield "end_reverse", (False, True, False)
+
+    def is_exhausted(self):
+        return False
+
+    def uses_disk_storage(self):
+        return True
