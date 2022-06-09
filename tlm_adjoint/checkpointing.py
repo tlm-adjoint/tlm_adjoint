@@ -666,29 +666,31 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
         self._period = period
 
     def iter(self):
+        # Forward
+
+        while self._max_n is None:
+            yield "clear", (True, True)
+
+            if self._max_n is not None:
+                # Unexpected finalize
+                raise RuntimeError("Invalid checkpointing state")
+            yield "configure", (True, False)
+            if self._max_n is not None:
+                # Unexpected finalize
+                raise RuntimeError("Invalid checkpointing state")
+            n0 = self._n
+            n1 = n0 + self._period
+            self._n = n1
+            yield "forward", (n0, n1)
+
+            # Finalize permitted here
+
+            yield "write", (n0, "disk")
+
         while True:
-            if self._max_n is None:
-                # Forward
+            # Reverse
 
-                yield "clear", (True, True)
-
-                if self._max_n is not None:
-                    # Unexpected finalize
-                    raise RuntimeError("Invalid checkpointing state")
-                yield "configure", (True, False)
-                if self._max_n is not None:
-                    # Unexpected finalize
-                    raise RuntimeError("Invalid checkpointing state")
-                n0 = self._n
-                n1 = n0 + self._period
-                self._n = n1
-                yield "forward", (n0, n1)
-
-                # Finalize permitted here
-                yield "write", (n0, "disk")
-            elif self._r < self._max_n:
-                # Reverse
-
+            while self._r < self._max_n:
                 n = self._max_n - self._r - 1
                 n0 = (n // self._period) * self._period
                 del n
@@ -717,13 +719,13 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
 
                 self._r = self._max_n - n0
                 yield "reverse", (n1, n0)
-            elif self._r == self._max_n:
-                # Reset for new reverse
-
-                self._r = 0
-                yield "clear", (False, True)
-            else:
+            if self._r != self._max_n:
                 raise RuntimeError("Invalid checkpointing state")
+
+            # Reset for new reverse
+
+            self._r = 0
+            yield "clear", (False, True)
 
     def is_exhausted(self):
         return False
