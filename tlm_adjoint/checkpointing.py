@@ -25,6 +25,7 @@ from .interface import function_copy, function_get_values, \
 
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
+import functools
 import mpi4py.MPI as MPI
 import numpy as np
 import os
@@ -557,6 +558,20 @@ class CheckpointingManager(ABC):
         self._max_n = max_n
 
         self._iter = iter(self.iter())
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        cls_iter = cls.iter
+
+        @functools.wraps(cls_iter)
+        def iter(self):
+            if getattr(self, "_iter_running", False):
+                raise RuntimeError("iter already running")
+            self._iter_running = True
+            return cls_iter(self)
+
+        cls.iter = iter
 
     def __iter__(self):
         return self
