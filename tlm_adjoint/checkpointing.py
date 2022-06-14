@@ -557,8 +557,6 @@ class CheckpointingManager(ABC):
         self._r = 0
         self._max_n = max_n
 
-        self._iter = iter(self.iter())
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -566,10 +564,9 @@ class CheckpointingManager(ABC):
 
         @functools.wraps(cls_iter)
         def iter(self):
-            if getattr(self, "_iter_running", False):
-                raise RuntimeError("iter already running")
-            self._iter_running = True
-            return cls_iter(self)
+            if not hasattr(self, "_iter"):
+                self._iter = cls_iter(self)
+            return self._iter
 
         cls.iter = iter
 
@@ -577,7 +574,7 @@ class CheckpointingManager(ABC):
         return self
 
     def __next__(self):
-        return next(self._iter)
+        return next(self.iter())
 
     @abstractmethod
     def iter(self):
@@ -599,6 +596,9 @@ class CheckpointingManager(ABC):
 
     def max_n(self):
         return self._max_n
+
+    def is_running(self):
+        return hasattr(self, "_iter")
 
     def finalize(self, n):
         if n < 1:
