@@ -232,7 +232,6 @@ class MultistageCheckpointingManager(CheckpointingManager):
                 yield "forward", (n0, n1)
 
                 while self._n < self._max_n - self._r - 1:
-                    yield "clear", (True, True)
                     yield "configure", (True, False)
 
                     snapshots = (self._snapshots_in_ram
@@ -247,7 +246,9 @@ class MultistageCheckpointingManager(CheckpointingManager):
                     cp_storage = self._snapshot(n0)
                     yield "write", (n0, cp_storage)
 
-                yield "clear", (True, True)
+                    yield "clear", (True, True)
+                if self._n != self._max_n - self._r - 1:
+                    raise RuntimeError("Invalid checkpointing state")
 
             yield "configure", (self._n == 0, True)
 
