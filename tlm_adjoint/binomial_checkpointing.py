@@ -33,12 +33,12 @@
 # This file further implements the two-level mixed periodic/binomial
 # checkpointing approach described in
 #   Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
-#   Narayanan, and Daniel Goldberg, Providing the ARCHER community with adjoint
-#   modelling tools for high-performance oceanographic and cryospheric
-#   computation, version 1.1, EPCC, 2016
+#   Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
+#   adjoint modelling tools for high-performance oceanographic and cryospheric
+#   computation", version 1.1, EPCC, 2016
 # and
 #   D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
-#   M. Morlighem, Bathymetric influences on Antarctic ice-shelf melt rates,
+#   M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt rates",
 #   Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020
 
 from .checkpointing import CheckpointingManager
@@ -324,13 +324,13 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
         """
         The two-level mixed periodic/binomial checkpointing approach of
           Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
-          Narayanan, and Daniel Goldberg, Providing the ARCHER community with
+          Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
           adjoint modelling tools for high-performance oceanographic and
-          cryospheric computation, version 1.1, EPCC, 2016
+          cryospheric computation", version 1.1, EPCC, 2016
         and
           D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
-          M. Morlighem, Bathymetric influences on Antarctic ice-shelf melt
-          rates, Journal of Geophysical Research: Oceans, 125(11),
+          M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt
+          rates", Journal of Geophysical Research: Oceans, 125(11),
           e2020JC016370, 2020
         """
 
