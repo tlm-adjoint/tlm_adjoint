@@ -155,7 +155,8 @@ class MultistageCheckpointingManager(CheckpointingManager):
     but applies a brute force approach to determine the allocation.
     """
 
-    def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk):
+    def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
+                 keep_block_0_ics=False):
         if snapshots_in_ram == 0:
             storage = tuple("disk" for i in range(snapshots_on_disk))
         elif snapshots_on_disk == 0:
@@ -170,6 +171,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
         self._snapshots = []
         self._storage = storage
         self._exhausted = False
+        self._keep_block_0_ics = keep_block_0_ics
 
     def iter(self):
         # Forward
@@ -195,7 +197,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
         # Forward -> reverse
 
         yield "clear", (True, True)
-        yield "configure", (self._n == 0, True)
+        yield "configure", (self._keep_block_0_ics and self._n == 0, True)
 
         self._n += 1
         yield "forward", (self._n - 1, self._n)
@@ -250,7 +252,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
                 if self._n != self._max_n - self._r - 1:
                     raise RuntimeError("Invalid checkpointing state")
 
-            yield "configure", (self._n == 0, True)
+            yield "configure", (self._keep_block_0_ics and self._n == 0, True)
 
             self._n += 1
             yield "forward", (self._n - 1, self._n)
@@ -263,7 +265,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield "end_reverse", (False, True, True)
+        yield "end_reverse", (not self._keep_block_0_ics, True, True)
 
     def is_exhausted(self):
         return self._exhausted

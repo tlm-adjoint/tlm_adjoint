@@ -682,12 +682,13 @@ class MemoryCheckpointingManager(CheckpointingManager):
 
 
 class PeriodicDiskCheckpointingManager(CheckpointingManager):
-    def __init__(self, period):
+    def __init__(self, period, *, keep_block_0_ics=False):
         if period < 1:
             raise ValueError("period must be positive")
 
         super().__init__()
         self._period = period
+        self._keep_block_0_ics = keep_block_0_ics
 
     def iter(self):
         # Forward
@@ -727,7 +728,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                 self._n = n0
                 yield "read", (n0, "disk", False)
 
-                if n0 == 0:
+                if self._keep_block_0_ics and n0 == 0:
                     yield "configure", (True, True)
                     self._n = n0 + 1
                     yield "forward", (n0, n0 + 1)
@@ -749,7 +750,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
             # Reset for new reverse
 
             self._r = 0
-            yield "end_reverse", (False, True, False)
+            yield "end_reverse", (not self._keep_block_0_ics, True, False)
 
     def is_exhausted(self):
         return False

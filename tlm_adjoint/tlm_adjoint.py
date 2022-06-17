@@ -621,12 +621,14 @@ class EquationManager:
             cp_manager = MemoryCheckpointingManager()
         elif cp_method == "periodic_disk":
             cp_manager = PeriodicDiskCheckpointingManager(
-                cp_parameters["period"])
+                cp_parameters["period"],
+                keep_block_0_ics=True)
         elif cp_method == "multistage":
             cp_manager = MultistageCheckpointingManager(
                 cp_parameters["blocks"],
                 cp_parameters.get("snaps_in_ram", 0),
-                cp_parameters.get("snaps_on_disk", 0))
+                cp_parameters.get("snaps_on_disk", 0),
+                keep_block_0_ics=True)
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{cp_method:s}")
