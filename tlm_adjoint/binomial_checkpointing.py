@@ -23,17 +23,30 @@
 #           implementation of checkpointing for the reverse or adjoint mode of
 #           computational differentiation", ACM Transactions on Mathematical
 #           Software, 26(1), pp. 19--45, 2000
+
 # This file further implements multi-stage offline checkpointing, determined
 # via a brute force search to yield behaviour described in
 #   SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
 #           checkpointing", SIAM Journal on Scientific Computing, 31(3),
 #           pp. 1946--1967, 2009
 
+# This file further implements the two-level mixed periodic/binomial
+# checkpointing approach described in
+#   Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
+#   Narayanan, and Daniel Goldberg, Providing the ARCHER community with adjoint
+#   modelling tools for high-performance oceanographic and cryospheric
+#   computation, version 1.1, EPCC, 2016
+# and
+#   D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
+#   M. Morlighem, Bathymetric influences on Antarctic ice-shelf melt rates,
+#   Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020
+
 from .checkpointing import CheckpointingManager
 
 __all__ = \
     [
-        "MultistageCheckpointingManager"
+        "MultistageCheckpointingManager",
+        "TwoLevelCheckpointingManager"
     ]
 
 
@@ -302,3 +315,147 @@ class MultistageCheckpointingManager(CheckpointingManager):
             raise RuntimeError("Invalid checkpointing state")
         self._snapshots.append(n)
         return self._storage[len(self._snapshots) - 1]
+
+
+class TwoLevelCheckpointingManager(CheckpointingManager):
+    def __init__(self, disk_period, binomial_snapshots, *,
+                 binomial_storage="disk", keep_block_0_ics=False,
+                 binomial_trajectory="maximum"):
+        """
+        The two-level mixed periodic/binomial checkpointing approach of
+          Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
+          Narayanan, and Daniel Goldberg, Providing the ARCHER community with
+          adjoint modelling tools for high-performance oceanographic and
+          cryospheric computation, version 1.1, EPCC, 2016
+        and
+          D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
+          M. Morlighem, Bathymetric influences on Antarctic ice-shelf melt
+          rates, Journal of Geophysical Research: Oceans, 125(11),
+          e2020JC016370, 2020
+        """
+
+        if disk_period < 1:
+            raise ValueError("disk_period must be positive")
+        if binomial_storage not in ["RAM", "disk"]:
+            raise ValueError("Invalid storage")
+
+        super().__init__()
+
+        self._period = disk_period
+        self._binomial_snapshots = binomial_snapshots
+        self._binomial_storage = binomial_storage
+        self._keep_block_0_ics = keep_block_0_ics
+        self._trajectory = binomial_trajectory
+
+    def iter(self):
+        # Forward
+
+        while self._max_n is None:
+            yield "clear", (True, True)
+
+            if self._max_n is not None:
+                # Unexpected finalize
+                raise RuntimeError("Invalid checkpointing state")
+            yield "configure", (True, False)
+            if self._max_n is not None:
+                # Unexpected finalize
+                raise RuntimeError("Invalid checkpointing state")
+            n0 = self._n
+            n1 = n0 + self._period
+            self._n = n1
+            yield "forward", (n0, n1)
+
+            # Finalize permitted here
+
+            yield "write", (n0, "disk")
+
+        while True:
+            # Reverse
+
+            while self._r < self._max_n:
+                n = self._max_n - self._r - 1
+                n0s = (n // self._period) * self._period
+                n1s = min(n0s + self._period, self._max_n)
+                if self._r != self._max_n - n1s:
+                    raise RuntimeError("Invalid checkpointing state")
+                del n, n1s
+
+                yield "clear", (True, True)
+
+                snapshots = [n0s]
+                while self._r < self._max_n - n0s:
+                    if len(snapshots) == 0:
+                        raise RuntimeError("Invalid checkpointing state")
+                    cp_n = snapshots[-1]
+                    if cp_n == self._max_n - self._r - 1:
+                        snapshots.pop()
+                        if cp_n == n0s:
+                            self._n = cp_n
+                            yield "read", (cp_n, "disk", False)
+                        else:
+                            self._n = cp_n
+                            yield "read", (cp_n, self._binomial_storage, True)
+                    else:
+                        if cp_n == n0s:
+                            self._n = cp_n
+                            yield "read", (cp_n, "disk", False)
+                        else:
+                            self._n = cp_n
+                            yield "read", (cp_n, self._binomial_storage, False)
+
+                        yield "configure", (False, False)
+
+                        n_snapshots = (self._binomial_snapshots
+                                       - len(snapshots) + 1)
+                        n0 = self._n
+                        n1 = n0 + n_advance(self._max_n - self._r - n0,
+                                            n_snapshots,
+                                            trajectory=self._trajectory)
+                        assert n1 > n0
+                        self._n = n1
+                        yield "forward", (n0, n1)
+
+                        while self._n < self._max_n - self._r - 1:
+                            yield "configure", (True, False)
+
+                            n_snapshots = (self._binomial_snapshots
+                                           - len(snapshots))
+                            n0 = self._n
+                            n1 = n0 + n_advance(self._max_n - self._r - n0,
+                                                n_snapshots,
+                                                trajectory=self._trajectory)
+                            assert n1 > n0
+                            self._n = n1
+                            yield "forward", (n0, n1)
+
+                            snapshots.append(n0)
+                            yield "write", (n0, self._binomial_storage)
+
+                            yield "clear", (True, True)
+                        if self._n != self._max_n - self._r - 1:
+                            raise RuntimeError("Invalid checkpointing state")
+
+                    yield "configure", (self._keep_block_0_ics and self._n == 0, True)  # noqa: E501
+
+                    self._n += 1
+                    yield "forward", (self._n - 1, self._n)
+
+                    self._r += 1
+                    yield "reverse", (self._n, self._n - 1)
+                if self._r != self._max_n - n0s:
+                    raise RuntimeError("Invalid checkpointing state")
+                if len(snapshots) != 0:
+                    raise RuntimeError("Invalid checkpointing state")
+            if self._r != self._max_n:
+                raise RuntimeError("Invalid checkpointing state")
+
+            # Reset for new reverse
+
+            self._r = 0
+            yield "end_reverse", (not self._keep_block_0_ics, True, False)
+
+    def is_exhausted(self):
+        return False
+
+    def uses_disk_storage(self):
+        return True
