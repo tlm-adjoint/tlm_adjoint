@@ -110,8 +110,7 @@ and adjoint information using the approach described in [1, 2].
 
 ===============================================================================
 
-tlm_adjoint implements the binomial checkpointing strategy described in [3],
-choosing the maximum step size permitted when choosing the next snapshot block.
+tlm_adjoint implements the binomial checkpointing strategy described in [3].
 tlm_adjoint further implements multi-stage offline checkpointing, using a brute
 force approach to yield behaviour described in [4].
 

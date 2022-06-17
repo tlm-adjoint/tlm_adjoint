@@ -23,9 +23,8 @@
 #           implementation of checkpointing for the reverse or adjoint mode of
 #           computational differentiation", ACM Transactions on Mathematical
 #           Software, 26(1), pp. 19--45, 2000
-# choosing the maximum step size permitted when choosing the next snapshot
-# block. This file further implements multi-stage offline checkpointing,
-# determined via a brute force search to yield behaviour described in
+# This file further implements multi-stage offline checkpointing, determined
+# via a brute force search to yield behaviour described in
 #   SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
 #           checkpointing", SIAM Journal on Scientific Computing, 31(3),
 #           pp. 1946--1967, 2009
@@ -38,15 +37,18 @@ __all__ = \
     ]
 
 
-def n_advance(n, snapshots):
+def n_advance(n, snapshots, *, trajectory="maximum"):
     """
     Determine an optimal offline snapshot interval, taking n steps and with the
     given number of snapshots, using the approach of
-       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
-       of checkpointing for the reverse or adjoint mode of computational
-       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
-       19--45, 2000
-    and choosing the maximal possible step size.
+       GW2000 A. Griewank and A. Walther, "Algorithm 799: Revolve: An
+              implementation of checkpointing for the reverse or adjoint mode
+              of computational differentiation", ACM Transactions on
+              Mathematical Software, 26(1), pp. 19--45, 2000
+
+    trajectory:  "maximum"   Choose the maximum permitted step size.
+                 "revolve"   Choose the step size as in GW2000, bottom of
+                             p. 34.
     """
 
     if n < 1:
@@ -77,22 +79,36 @@ def n_advance(n, snapshots):
         b_s_tm1 = b_s_t
         b_s_t = (b_s_t * (snapshots + t)) // t
 
-    # Return the maximal step size compatible with Fig. 4 of GW2000
-    b_sm1_tm2 = (b_s_tm2 * snapshots) // (snapshots + t - 2)
-    if n <= b_s_tm1 + b_sm1_tm2:
-        return n - b_s_tm1 + b_s_tm2
-    b_sm1_tm1 = (b_s_tm1 * snapshots) // (snapshots + t - 1)
-    b_sm2_tm1 = (b_sm1_tm1 * (snapshots - 1)) // (snapshots + t - 2)
-    if n <= b_s_tm1 + b_sm2_tm1 + b_sm1_tm2:
-        return b_s_tm2 + b_sm1_tm2
-    elif n <= b_s_tm1 + b_sm1_tm1 + b_sm2_tm1:
-        return n - b_sm1_tm1 - b_sm2_tm1
+    if trajectory == "maximum":
+        # Return the maximal step size compatible with Fig. 4 of GW2000
+        b_sm1_tm2 = (b_s_tm2 * snapshots) // (snapshots + t - 2)
+        if n <= b_s_tm1 + b_sm1_tm2:
+            return n - b_s_tm1 + b_s_tm2
+        b_sm1_tm1 = (b_s_tm1 * snapshots) // (snapshots + t - 1)
+        b_sm2_tm1 = (b_sm1_tm1 * (snapshots - 1)) // (snapshots + t - 2)
+        if n <= b_s_tm1 + b_sm2_tm1 + b_sm1_tm2:
+            return b_s_tm2 + b_sm1_tm2
+        elif n <= b_s_tm1 + b_sm1_tm1 + b_sm2_tm1:
+            return n - b_sm1_tm1 - b_sm2_tm1
+        else:
+            return b_s_tm1
+    elif trajectory == "revolve":
+        # GW2000, equation at the bottom of p. 34
+        b_sm1_tm1 = (b_s_tm1 * snapshots) // (snapshots + t - 1)
+        b_sm2_tm1 = (b_sm1_tm1 * (snapshots - 1)) // (snapshots + t - 2)
+        if n <= b_s_tm1 + b_sm2_tm1:
+            return b_s_tm2
+        elif n < b_s_tm1 + b_sm1_tm1 + b_sm2_tm1:
+            return n - b_sm1_tm1 - b_sm2_tm1
+        else:
+            return b_s_tm1
     else:
-        return b_s_tm1
+        raise ValueError("Unexpected trajectory: '{trajectory:s}'")
 
 
 def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
-                       write_weight=1.0, read_weight=1.0, delete_weight=0.0):
+                       write_weight=1.0, read_weight=1.0, delete_weight=0.0,
+                       trajectory="maximum"):
     """
     Allocate a stack of snapshots based upon the number of read/writes,
     preferentially allocating to RAM. Yields the approach described in
@@ -105,7 +121,8 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     snapshots = snapshots_in_ram + snapshots_on_disk
     weights = [0.0 for i in range(snapshots)]
 
-    cp_manager = MultistageCheckpointingManager(max_n, snapshots, 0)
+    cp_manager = MultistageCheckpointingManager(max_n, snapshots, 0,
+                                                trajectory=trajectory)
 
     snapshot_i = -1
     while True:
@@ -156,14 +173,15 @@ class MultistageCheckpointingManager(CheckpointingManager):
     """
 
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
-                 keep_block_0_ics=False):
+                 keep_block_0_ics=False, trajectory="maximum"):
         if snapshots_in_ram == 0:
             storage = tuple("disk" for i in range(snapshots_on_disk))
         elif snapshots_on_disk == 0:
             storage = tuple("RAM" for i in range(snapshots_in_ram))
         else:
             _, storage = allocate_snapshots(
-                max_n, snapshots_in_ram, snapshots_on_disk)
+                max_n, snapshots_in_ram, snapshots_on_disk,
+                trajectory=trajectory)
 
         super().__init__(max_n=max_n)
         self._snapshots_in_ram = snapshots_in_ram
@@ -172,6 +190,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
         self._storage = storage
         self._exhausted = False
         self._keep_block_0_ics = keep_block_0_ics
+        self._trajectory = trajectory
 
     def iter(self):
         # Forward
@@ -186,7 +205,8 @@ class MultistageCheckpointingManager(CheckpointingManager):
                          + self._snapshots_on_disk
                          - len(self._snapshots))
             n0 = self._n
-            n1 = n0 + n_advance(self._max_n - n0, snapshots)
+            n1 = n0 + n_advance(self._max_n - n0, snapshots,
+                                trajectory=self._trajectory)
             assert n1 > n0
             self._n = n1
             yield "forward", (n0, n1)
@@ -228,7 +248,8 @@ class MultistageCheckpointingManager(CheckpointingManager):
                              + self._snapshots_on_disk
                              - len(self._snapshots) + 1)
                 n0 = self._n
-                n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots)
+                n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots,
+                                    trajectory=self._trajectory)
                 assert n1 > n0
                 self._n = n1
                 yield "forward", (n0, n1)
@@ -240,7 +261,8 @@ class MultistageCheckpointingManager(CheckpointingManager):
                                  + self._snapshots_on_disk
                                  - len(self._snapshots))
                     n0 = self._n
-                    n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots)
+                    n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots,
+                                        trajectory=self._trajectory)
                     assert n1 > n0
                     self._n = n1
                     yield "forward", (n0, n1)

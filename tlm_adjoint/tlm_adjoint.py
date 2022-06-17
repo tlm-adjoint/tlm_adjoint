@@ -628,7 +628,8 @@ class EquationManager:
                 cp_parameters["blocks"],
                 cp_parameters.get("snaps_in_ram", 0),
                 cp_parameters.get("snaps_on_disk", 0),
-                keep_block_0_ics=True)
+                keep_block_0_ics=True,
+                trajectory="maximum")
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{cp_method:s}")
