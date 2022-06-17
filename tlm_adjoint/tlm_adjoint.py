@@ -529,15 +529,10 @@ class EquationManager:
         info(f"  Initial conditions stored: {len(self._cp._cp):d}")
         info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
         info("Checkpointing:")
-        info(f"  Method: {self._cp_method:s}")
-        if self._cp_method in ["none", "memory", "periodic_disk"]:
-            pass
-        elif self._cp_method == "multistage":
-            info(f"  Snapshots in RAM: {self._cp_manager.used_snapshots_in_ram():d}")  # noqa: E501
-            info(f"  Snapshots on disk: {self._cp_manager.used_snapshots_on_disk():d}")  # noqa: E501
+        if callable(self._cp_method):
+            info("  Method: custom")
         else:
-            raise ValueError(f"Unrecognized checkpointing method: "
-                             f"{self._cp_method:s}")
+            info(f"  Method: {self._cp_method:s}")
 
     def new(self, cp_method=None, cp_parameters=None):
         """
@@ -598,9 +593,9 @@ class EquationManager:
             raise RuntimeError("Cannot configure checkpointing after "
                                "annotation has started, or after finalization")
 
-        cp_parameters = copy.deepcopy(cp_parameters)
+        cp_parameters = copy.copy(cp_parameters)
 
-        if cp_method in ["none", "memory"]:
+        if not callable(cp_method) and cp_method in ["none", "memory"]:
             if "replace" in cp_parameters:
                 warnings.warn("'replace' cp_parameters key is deprecated",
                               DeprecationWarning, stacklevel=2)
@@ -613,18 +608,28 @@ class EquationManager:
         else:
             alias_eqs = True
 
-        if cp_method == "none":
+        if callable(cp_method):
+            cp_manager_kwargs = copy.copy(cp_parameters)
+            if "path" in cp_manager_kwargs:
+                del cp_manager_kwargs["path"]
+            if "format" in cp_manager_kwargs:
+                del cp_manager_kwargs["format"]
+            cp_manager = cp_method(**cp_manager_kwargs)
+        elif cp_method == "none":
             cp_manager = NoneCheckpointingManager()
         elif cp_method == "memory":
             cp_manager = MemoryCheckpointingManager()
         elif cp_method == "periodic_disk":
             cp_manager = PeriodicDiskCheckpointingManager(
-                cp_parameters["period"])
+                cp_parameters["period"],
+                keep_block_0_ics=True)
         elif cp_method == "multistage":
             cp_manager = MultistageCheckpointingManager(
                 cp_parameters["blocks"],
                 cp_parameters.get("snaps_in_ram", 0),
-                cp_parameters.get("snaps_on_disk", 0))
+                cp_parameters.get("snaps_on_disk", 0),
+                keep_block_0_ics=True,
+                trajectory="maximum")
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{cp_method:s}")
