@@ -428,6 +428,9 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                             self._n = n1
                             yield "forward", (n0, n1)
 
+                            if len(snapshots) >= self._binomial_snapshots:
+                                raise RuntimeError("Invalid checkpointing "
+                                                   "state")
                             snapshots.append(n0)
                             yield "write", (n0, self._binomial_storage)
 
