@@ -405,7 +405,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
 
                         yield "configure", (False, False)
 
-                        n_snapshots = (self._binomial_snapshots
+                        n_snapshots = (self._binomial_snapshots + 1
                                        - len(snapshots) + 1)
                         n0 = self._n
                         n1 = n0 + n_advance(self._max_n - self._r - n0,
@@ -418,7 +418,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                         while self._n < self._max_n - self._r - 1:
                             yield "configure", (True, False)
 
-                            n_snapshots = (self._binomial_snapshots
+                            n_snapshots = (self._binomial_snapshots + 1
                                            - len(snapshots))
                             n0 = self._n
                             n1 = n0 + n_advance(self._max_n - self._r - n0,
@@ -428,7 +428,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                             self._n = n1
                             yield "forward", (n0, n1)
 
-                            if len(snapshots) >= self._binomial_snapshots:
+                            if len(snapshots) >= self._binomial_snapshots + 1:
                                 raise RuntimeError("Invalid checkpointing "
                                                    "state")
                             snapshots.append(n0)
