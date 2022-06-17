@@ -271,20 +271,6 @@ class MultistageCheckpointingManager(CheckpointingManager):
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
 
-    def used_snapshots_in_ram(self):
-        snapshots = 0
-        for i in range(len(self._snapshots)):
-            if self._storage[i] == "RAM":
-                snapshots += 1
-        return snapshots
-
-    def used_snapshots_on_disk(self):
-        snapshots = 0
-        for i in range(len(self._snapshots)):
-            if self._storage[i] == "disk":
-                snapshots += 1
-        return snapshots
-
     def _snapshot(self, n):
         assert n >= 0 and n < self._max_n
         if len(self._snapshots) >= \
