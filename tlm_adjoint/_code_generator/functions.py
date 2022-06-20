@@ -346,44 +346,45 @@ def extract_coefficients(expr):
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):
-    if isinstance(expr, ufl.classes.Form):
-        if force_non_empty_form:
-            if "_tlm_adjoint__simplified_form_non_empty" in expr._cache:
-                return expr._cache["_tlm_adjoint__simplified_form_non_empty"]
-        else:
-            if "_tlm_adjoint__simplified_form" in expr._cache:
-                return expr._cache["_tlm_adjoint__simplified_form"]
-
-    replace_map = {}
-    for c in extract_coefficients(expr):
-        if isinstance(c, Zero):
-            replace_map[c] = ufl.classes.Zero(shape=c.ufl_shape)
-
-    if len(replace_map) == 0:
-        simplified_expr = expr
+    if isinstance(expr, ufl.classes.Form) \
+            and "_tlm_adjoint__simplified_form" in expr._cache:
+        simplified_expr = expr._cache["_tlm_adjoint__simplified_form"]
     else:
-        simplified_expr = ufl.replace(expr, replace_map)
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__simplified_form"] = simplified_expr
+        replace_map = {}
+        for c in extract_coefficients(expr):
+            if isinstance(c, Zero):
+                replace_map[c] = ufl.classes.Zero(shape=c.ufl_shape)
+
+        if len(replace_map) == 0:
+            simplified_expr = expr
+        else:
+            simplified_expr = ufl.replace(expr, replace_map)
+
+        if isinstance(expr, ufl.classes.Form):
+            expr._cache["_tlm_adjoint__simplified_form"] = simplified_expr
 
     if force_non_empty_form \
             and isinstance(simplified_expr, ufl.classes.Form) \
             and simplified_expr.empty():
-        # Inefficient, but it is very difficult to generate a non-empty but
-        # zero valued form
-        arguments = expr.arguments()
-        domain = expr.ufl_domains()[0]
-        zero = ZeroConstant(domain=domain)
-        if len(arguments) == 0:
-            simplified_expr = zero * ufl.ds
-        elif len(arguments) == 1:
-            test, = arguments
-            simplified_expr = zero * ufl.conj(test) * ufl.ds
+        if "_tlm_adjoint__simplified_form_non_empty" in expr._cache:
+            simplified_expr = expr._cache["_tlm_adjoint__simplified_form_non_empty"]  # noqa: E501
         else:
-            test, trial = arguments
-            simplified_expr = zero * ufl.inner(trial, test) * ufl.ds
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501
+            # Inefficient, but it is very difficult to generate a non-empty but
+            # zero valued form
+            arguments = expr.arguments()
+            domain = expr.ufl_domains()[0]
+            zero = ZeroConstant(domain=domain)
+            if len(arguments) == 0:
+                simplified_expr = zero * ufl.ds
+            elif len(arguments) == 1:
+                test, = arguments
+                simplified_expr = zero * ufl.conj(test) * ufl.ds
+            else:
+                test, trial = arguments
+                simplified_expr = zero * ufl.inner(trial, test) * ufl.ds
+
+            if isinstance(expr, ufl.classes.Form):
+                expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501
 
     return simplified_expr
 
