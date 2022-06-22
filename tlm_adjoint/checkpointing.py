@@ -24,7 +24,7 @@ from .interface import function_copy, function_get_values, \
     function_space, function_space_type, space_id, space_new
 
 from abc import ABC, abstractmethod
-from collections import defaultdict, deque
+from collections import deque
 import functools
 import mpi4py.MPI as MPI
 import numpy as np
@@ -51,28 +51,22 @@ __all__ = \
 
 class CheckpointStorage:
     def __init__(self, *, store_ics, store_data):
-        self._seen_ics = set()
+        self._cp_keys = set()
         self._cp = {}
+        self._refs_keys = set()
         self._refs = {}
+        self._seen_ics = set()
 
-        self._indices = defaultdict(lambda: 0)
-        self._dep_keys = {}
+        self._eq_x_keys = {}
+        self._data_keys = set()
         self._data = {}
+
+        self._storage = {}
 
         self.configure(store_ics=store_ics,
                        store_data=store_data)
 
     def configure(self, *, store_ics, store_data):
-        """
-        Configure storage.
-
-        Arguments:
-
-        store_ics   Store initial condition data, used by checkpointing
-        store_data  Store equation non-linear dependency data, used in reverse
-                    mode
-        """
-
         self._store_ics = store_ics
         self._store_data = store_data
 
@@ -83,50 +77,54 @@ class CheckpointStorage:
         return self._store_data
 
     def clear(self, *, clear_ics=True, clear_data=True, clear_refs=False):
-        if clear_refs:
-            self._refs.clear()
         if clear_ics:
-            self._seen_ics.clear()
+            for key in self._cp_keys:
+                if key not in self._data_keys:
+                    del self._storage[key]
+            self._cp_keys.clear()
             self._cp.clear()
-
-            for x_id in self._refs:
-                self._seen_ics.add(x_id)
+            self._seen_ics.clear()
+            self._seen_ics.update(self._refs.keys())
+        if clear_refs:
+            for key in self._refs_keys:
+                if key not in self._data_keys:
+                    del self._storage[key]
+            self._refs_keys.clear()
+            self._refs.clear()
+            self._seen_ics.clear()
+            self._seen_ics.update(self._cp.keys())
 
         if clear_data:
-            self._indices.clear()
-            self._dep_keys.clear()
+            for key in self._data_keys:
+                if key not in self._cp_keys and key not in self._refs_keys:
+                    del self._storage[key]
+            self._eq_x_keys.clear()
+            self._data_keys.clear()
             self._data.clear()
 
-            for x_id, x in self._cp.items():
-                self._data[self._data_key(x_id)] = x
-            for x_id, x in self._refs.items():
-                self._data[self._data_key(x_id)] = x
-
     def __getitem__(self, key):
-        return tuple(self._data[dep_key] for dep_key in self._dep_keys[key])
+        return tuple(self._storage[nl_dep_key]
+                     for nl_dep_key in self._data[key])
 
     def initial_condition(self, x, *, copy=True):
         x_id = function_id(x)
         if x_id in self._cp:
-            ic = self._cp[x_id]
+            ic = self._storage[self._cp[x_id]]
         else:
-            ic = self._refs[x_id]
-        if copy:
-            ic = function_copy(ic)
-        return ic
+            ic = self._storage[self._refs[x_id]]
+        return function_copy(ic) if copy else ic
 
     def initial_conditions(self, *, cp=True, refs=False, copy=True):
         cp_d = {}
         if cp:
-            for x_id, x in self._cp.items():
+            for x_id, x_key in self._cp.items():
+                x = self._storage[x_key]
                 cp_d[x_id] = function_copy(x) if copy else x
         if refs:
-            for x_id, x in self._refs.items():
+            for x_id, x_key in self._refs.items():
+                x = self._storage[x_key]
                 cp_d[x_id] = function_copy(x) if copy else x
         return cp_d
-
-    def _data_key(self, x_id):
-        return (x_id, self._indices[x_id])
 
     def add_initial_condition(self, x, value=None, *, _copy=None):
         copy = _copy
@@ -140,24 +138,21 @@ class CheckpointStorage:
         self._add_initial_condition(x_id=function_id(x), value=value,
                                     copy=copy)
 
+    def _store(self, *, x_id, value, copy):
+        key = self._eq_x_keys.get(x_id, (x_id, None))
+        if key not in self._storage:
+            self._storage[key] = function_copy(value) if copy else value
+        return key, self._storage[key]
+
     def _add_initial_condition(self, *, x_id, value, copy):
         if self._store_ics and x_id not in self._seen_ics:
-            assert x_id not in self._cp
-            assert x_id not in self._refs
-
-            x_key = self._data_key(x_id)
-            if x_key in self._data:
-                if copy:
-                    self._cp[x_id] = self._data[x_key]
-                else:
-                    self._refs[x_id] = self._data[x_key]
+            key, value = self._store(x_id=x_id, value=value, copy=copy)
+            if copy:
+                self._cp_keys.add(key)
+                self._cp[x_id] = key
             else:
-                if copy:
-                    value = function_copy(value)
-                    self._cp[x_id] = value
-                else:
-                    self._refs[x_id] = value
-                self._data[x_key] = value
+                self._refs_keys.add(key)
+                self._refs[x_id] = key
             self._seen_ics.add(x_id)
 
     def add_equation(self, n, i, eq, *, deps=None, nl_deps=None, _copy=None):
@@ -173,36 +168,36 @@ class CheckpointStorage:
         if deps is None:
             deps = eq_deps
 
-        for eq_x in eq_X:
-            self._indices[function_id(eq_x)] += 1
-
         if self._store_ics:
             for eq_x in eq_X:
                 self._seen_ics.add(function_id(eq_x))
             assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
-                self.add_initial_condition(eq_dep, value=dep,
-                                           _copy=copy(eq_dep))
+                if function_id(eq_dep) not in self._seen_ics:
+                    self.add_initial_condition(eq_dep, value=dep,
+                                               _copy=copy(eq_dep))
 
         if self._store_data:
+            if (n, i) in self._data:
+                raise KeyError("Duplicate key")
+
+            for m, eq_x in enumerate(eq_X):
+                eq_x_id = function_id(eq_x)
+                self._eq_x_keys[eq_x_id] = (eq_x_id, (n, i, m))
+
             if nl_deps is None:
                 nl_deps = tuple(deps[j]
                                 for j in eq.nonlinear_dependencies_map())
 
-            dep_keys = []
+            eq_data = []
             eq_nl_deps = eq.nonlinear_dependencies()
             assert len(eq_nl_deps) == len(nl_deps)
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
-                dep_key = self._data_key(function_id(eq_dep))
-                if dep_key not in self._data:
-                    if copy(eq_dep):
-                        self._data[dep_key] = function_copy(dep)
-                    else:
-                        self._data[dep_key] = dep
-                dep_keys.append(dep_key)
-            if (n, i) in self._dep_keys:
-                raise KeyError("Duplicate key")
-            self._dep_keys[(n, i)] = tuple(dep_keys)
+                key, value = self._store(x_id=function_id(eq_dep), value=dep,
+                                         copy=copy(eq_dep))
+                self._data_keys.add(key)
+                eq_data.append(key)
+            self._data[(n, i)] = tuple(eq_data)
 
 
 class ReplayStorage:
