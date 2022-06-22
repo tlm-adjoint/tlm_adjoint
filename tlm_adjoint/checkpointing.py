@@ -160,7 +160,7 @@ class CheckpointStorage:
                 self._data[x_key] = value
             self._seen_ics.add(x_id)
 
-    def add_equation(self, key, eq, *, deps=None, nl_deps=None, _copy=None):
+    def add_equation(self, n, i, eq, *, deps=None, nl_deps=None, _copy=None):
         if _copy is None:
             def copy(x):
                 return function_is_checkpointed(x)
@@ -186,8 +186,8 @@ class CheckpointStorage:
 
         if self._store_data:
             if nl_deps is None:
-                nl_deps = tuple(deps[i]
-                                for i in eq.nonlinear_dependencies_map())
+                nl_deps = tuple(deps[j]
+                                for j in eq.nonlinear_dependencies_map())
 
             dep_keys = []
             eq_nl_deps = eq.nonlinear_dependencies()
@@ -200,7 +200,9 @@ class CheckpointStorage:
                     else:
                         self._data[dep_key] = dep
                 dep_keys.append(dep_key)
-            self._dep_keys[key] = tuple(dep_keys)
+            if (n, i) in self._dep_keys:
+                raise KeyError("Duplicate key")
+            self._dep_keys[(n, i)] = tuple(dep_keys)
 
 
 class ReplayStorage:

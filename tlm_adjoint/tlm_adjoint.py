@@ -872,7 +872,7 @@ class EquationManager:
                     self._eqs[eq_id] = eq
                 self._block.append(eq)
             self._cp.add_equation(
-                (len(self._blocks), len(self._block) - 1), eq)
+                len(self._blocks), len(self._block) - 1, eq)
 
         if tlm is None:
             tlm = self.tlm_enabled()
@@ -1083,7 +1083,7 @@ class EquationManager:
                             self._cp.add_initial_condition(
                                 eq_dep, value=storage[eq_dep])
                         eq.forward(X, deps=deps)
-                        self._cp.add_equation((n1, i), eq, deps=deps)
+                        self._cp.add_equation(n1, i, eq, deps=deps)
 
                         storage_state = storage.pop()
                         assert storage_state == (n1, i)
