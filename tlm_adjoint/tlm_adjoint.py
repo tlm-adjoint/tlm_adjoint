@@ -959,19 +959,25 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _write_memory_checkpoint(self, n, cp):
+    def _write_memory_checkpoint(self, n):
         if n in self._cp_memory or \
                 (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
 
-        self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
-                                                         copy=False)
+        self._cp_memory[n] = self._cp.checkpoint_data(copy=False)
 
-    def _read_memory_checkpoint(self, n, storage, *, delete=False):
+    def _read_memory_checkpoint(self, n, storage, *,
+                                read_ics=True, read_data=True, delete=False):
+        read_cp, data, read_storage = self._cp_memory[n]
         if delete:
-            storage.update(self._cp_memory.pop(n), copy=False)
-        else:
-            storage.update(self._cp_memory[n], copy=True)
+            self._cp_memory.pop(n)
+        if read_ics:
+            storage.update({key[0]: read_storage[key] for key in read_cp},
+                           copy=True)
+        if read_data:
+            # Need not, and in some cases should not, pass read_cp here
+            self._cp.update((), data, read_storage,
+                            copy=False)
 
     def _write_disk_checkpoint(self, n, cp):
         if n in self._cp_memory or n in self._cp_disk:
@@ -1031,7 +1037,7 @@ class EquationManager:
                 elif cp_storage == "RAM":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n, self._cp)
+                    self._write_memory_checkpoint(cp_w_n)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")
@@ -1133,7 +1139,7 @@ class EquationManager:
                 elif cp_storage == "RAM":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n, self._cp)
+                    self._write_memory_checkpoint(cp_w_n)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")

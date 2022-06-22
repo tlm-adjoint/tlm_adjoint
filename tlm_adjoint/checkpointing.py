@@ -58,7 +58,8 @@ class CheckpointStorage:
         self._seen_ics = set()
 
         self._eq_x_keys = {}
-        self._data_keys = set()
+        # Ordering needed in checkpoint_data method
+        self._data_keys = {}  # self._data_keys = set()
         self._data = {}
 
         self._storage = {}
@@ -138,8 +139,9 @@ class CheckpointStorage:
         self._add_initial_condition(x_id=function_id(x), value=value,
                                     copy=copy)
 
-    def _store(self, *, x_id, value, copy):
-        key = self._eq_x_keys.get(x_id, (x_id, None))
+    def _store(self, *, x_id, value, copy, key=None):
+        if key is None:
+            key = self._eq_x_keys.get(x_id, (x_id, None))
         if key not in self._storage:
             self._storage[key] = function_copy(value) if copy else value
         return key, self._storage[key]
@@ -179,7 +181,7 @@ class CheckpointStorage:
 
         if self._store_data:
             if (n, i) in self._data:
-                raise KeyError("Duplicate key")
+                raise KeyError("Non-linear dependency data already stored")
 
             for m, eq_x in enumerate(eq_X):
                 eq_x_id = function_id(eq_x)
@@ -195,8 +197,59 @@ class CheckpointStorage:
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 key, value = self._store(x_id=function_id(eq_dep), value=dep,
                                          copy=copy(eq_dep))
-                self._data_keys.add(key)
+                self._data_keys[key] = None  # self._data_keys.add(key)
                 eq_data.append(key)
+            self._data[(n, i)] = tuple(eq_data)
+
+    def checkpoint_data(self, *, copy=True):
+        cp = tuple(self._cp.values())
+        data = dict(self._data)
+
+        storage = {}
+        for key in cp:
+            value = self._storage[key]
+            storage[key] = function_copy(value) if copy else value
+        for key in self._data_keys:
+            if key not in storage:
+                value = self._storage[key]
+                storage[key] = function_copy(value) if copy else value
+
+        return (cp, data, storage)
+
+    def update(self, cp, data, storage, *, copy=True):
+        keys = set(cp)
+        for eq_data in data.values():
+            keys.update(eq_data)
+
+        for key, value in storage.items():
+            if key in keys:
+                if key in self._storage:
+                    raise KeyError("Duplicate key")
+                x_id, x_indices = key
+                self._store(x_id=x_id, value=value, copy=copy,
+                            key=key)
+
+        for key in cp:
+            if key in self._cp_keys or key in self._refs_keys:
+                raise KeyError("Duplicate key")
+            if key not in self._storage:
+                raise KeyError("Invalid key")
+            x_id, x_indices = key
+            if x_id in self._seen_ics:
+                raise KeyError("Initial condition already stored")
+            self._cp_keys.add(key)
+            self._cp[x_id] = key
+            self._seen_ics.add(x_id)
+
+        for (n, i), eq_data in data.items():
+            for key in eq_data:
+                if key in self._data_keys:
+                    raise KeyError("Duplicate key")
+                if key not in self._storage:
+                    raise KeyError("Invalid key")
+                self._data_keys[key] = None  # self._data_keys.add(key)
+            if (n, i) in self._data:
+                raise KeyError("Non-linear dependency data already stored")
             self._data[(n, i)] = tuple(eq_data)
 
 
