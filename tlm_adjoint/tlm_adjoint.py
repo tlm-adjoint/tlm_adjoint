@@ -1055,17 +1055,19 @@ class EquationManager:
                     raise RuntimeError("Invalid checkpointing state")
                 break
             elif cp_action == "write":
-                cp_w_n, cp_storage = cp_data
+                cp_w_n, cp_storage, ics, data = cp_data
                 if cp_w_n >= n:
                     raise RuntimeError("Invalid checkpointing state")
                 if cp_storage == "disk":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"on disk")
-                    self._write_disk_checkpoint(cp_w_n)
+                    self._write_disk_checkpoint(cp_w_n,
+                                                ics=ics, data=data)
                 elif cp_storage == "RAM":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n)
+                    self._write_memory_checkpoint(cp_w_n,
+                                                  ics=ics, data=data)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")
@@ -1136,7 +1138,7 @@ class EquationManager:
                 if storage is not None or cp_n is not None:
                     raise RuntimeError("Invalid checkpointing state")
 
-                cp_n, cp_storage, cp_delete = cp_data
+                cp_n, cp_storage, ics, data, cp_delete = cp_data
                 logger.debug(f'reverse: load snapshot at {cp_n:d} from '
                              f'{cp_storage:s} and '
                              f'{"delete" if cp_delete else "keep":s}')
@@ -1149,25 +1151,29 @@ class EquationManager:
 
                 if cp_storage == "disk":
                     self._read_disk_checkpoint(cp_n, storage,
+                                               ics=ics, data=data,
                                                delete=cp_delete)
                 elif cp_storage == "RAM":
                     self._read_memory_checkpoint(cp_n, storage,
+                                                 ics=ics, data=data,
                                                  delete=cp_delete)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")
             elif cp_action == "write":
-                cp_w_n, cp_storage = cp_data
+                cp_w_n, cp_storage, ics, data = cp_data
                 if cp_w_n > n:
                     raise RuntimeError("Invalid checkpointing state")
                 if cp_storage == "disk":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"on disk")
-                    self._write_disk_checkpoint(cp_w_n)
+                    self._write_disk_checkpoint(cp_w_n,
+                                                ics=ics, data=data)
                 elif cp_storage == "RAM":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n)
+                    self._write_memory_checkpoint(cp_w_n,
+                                                  ics=ics, data=data)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")

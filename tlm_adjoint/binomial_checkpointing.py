@@ -142,7 +142,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
         cp_action, cp_data = next(cp_manager)
 
         if cp_action == "read":
-            _, _, cp_delete = cp_data
+            _, _, _, _, cp_delete = cp_data
             if snapshot_i < 0:
                 raise RuntimeError("Invalid checkpointing state")
             weights[snapshot_i] += read_weight
@@ -225,7 +225,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
             yield "forward", (n0, n1)
 
             cp_storage = self._snapshot(n0)
-            yield "write", (n0, cp_storage)
+            yield "write", (n0, cp_storage, True, False)
 
         # Forward -> reverse
 
@@ -250,10 +250,10 @@ class MultistageCheckpointingManager(CheckpointingManager):
             if cp_n == self._max_n - self._r - 1:
                 self._snapshots.pop()
                 self._n = cp_n
-                yield "read", (cp_n, cp_storage, True)
+                yield "read", (cp_n, cp_storage, True, False, True)
             else:
                 self._n = cp_n
-                yield "read", (cp_n, cp_storage, False)
+                yield "read", (cp_n, cp_storage, True, False, False)
 
                 yield "configure", (False, False)
 
@@ -281,7 +281,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
                     yield "forward", (n0, n1)
 
                     cp_storage = self._snapshot(n0)
-                    yield "write", (n0, cp_storage)
+                    yield "write", (n0, cp_storage, True, False)
 
                     yield "clear", (True, True)
                 if self._n != self._max_n - self._r - 1:
@@ -367,7 +367,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
 
             # Finalize permitted here
 
-            yield "write", (n0, "disk")
+            yield "write", (n0, "disk", True, False)
 
         while True:
             # Reverse
@@ -391,17 +391,18 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                         snapshots.pop()
                         if cp_n == n0s:
                             self._n = cp_n
-                            yield "read", (cp_n, "disk", False)
+                            yield "read", (cp_n, "disk", True, False, False)
                         else:
                             self._n = cp_n
                             yield "read", (cp_n, self._binomial_storage, True)
                     else:
                         if cp_n == n0s:
                             self._n = cp_n
-                            yield "read", (cp_n, "disk", False)
+                            yield "read", (cp_n, "disk", True, False, False)
                         else:
                             self._n = cp_n
-                            yield "read", (cp_n, self._binomial_storage, False)
+                            yield "read", (cp_n, self._binomial_storage,
+                                           True, False, False)
 
                         yield "configure", (False, False)
 
@@ -432,7 +433,8 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                                 raise RuntimeError("Invalid checkpointing "
                                                    "state")
                             snapshots.append(n0)
-                            yield "write", (n0, self._binomial_storage)
+                            yield "write", (n0, self._binomial_storage,
+                                            True, False)
 
                             yield "clear", (True, True)
                         if self._n != self._max_n - self._r - 1:

@@ -686,15 +686,18 @@ class CheckpointingManager(ABC):
     Run the adjoint from the start of block n1 to the start of block n0.
 
     action: 'read'
-    data:   (n, storage, delete)
+    data:   (n, storage, ics, data, delete)
     Read checkpoint data associated with the start of block n from the
-    indicated storage. delete indicates whether the checkpoint data should be
-    deleted.
+    indicated storage. ics indicates whether data required to run the forward
+    should be read. data indicates whether non-linear dependency data should be
+    read. delete indicates whether the checkpoint data should be deleted.
 
     action: 'write'
-    data:   (n, storage)
+    data:   (n, storage, ics, data)
     Write checkpoint data associated with the start of block n to the indicated
-    storage.
+    storage. ics indicates whether data required to run the forward should be
+    written. data indicates whether non-linear dependency data should be
+    written.
 
     action: 'end_reverse'
     data:   (clear_ics, clear_data, exhausted)
@@ -864,7 +867,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
 
             # Finalize permitted here
 
-            yield "write", (n0, "disk")
+            yield "write", (n0, "disk", True, False)
 
         while True:
             # Reverse
@@ -880,7 +883,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                 yield "clear", (True, True)
 
                 self._n = n0
-                yield "read", (n0, "disk", False)
+                yield "read", (n0, "disk", True, False, False)
 
                 if self._keep_block_0_ics and n0 == 0:
                     yield "configure", (True, True)
