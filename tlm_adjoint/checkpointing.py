@@ -201,20 +201,28 @@ class CheckpointStorage:
                 eq_data.append(key)
             self._data[(n, i)] = tuple(eq_data)
 
-    def checkpoint_data(self, *, copy=True):
-        cp = tuple(self._cp.values())
-        data = dict(self._data)
+    def checkpoint_data(self, *, ics=True, data=True, copy=True):
+        if ics:
+            cp_cp = tuple(self._cp.values())
+        else:
+            cp_cp = ()
+        if data:
+            cp_data = dict(self._data)
+        else:
+            cp_data = {}
+        cp_storage = {}
 
-        storage = {}
-        for key in cp:
-            value = self._storage[key]
-            storage[key] = function_copy(value) if copy else value
-        for key in self._data_keys:
-            if key not in storage:
+        if ics:
+            for key in cp_cp:
                 value = self._storage[key]
-                storage[key] = function_copy(value) if copy else value
+                cp_storage[key] = function_copy(value) if copy else value
+        if data:
+            for key in self._data_keys:
+                if key not in self._refs_keys and key not in cp_storage:
+                    value = self._storage[key]
+                    cp_storage[key] = function_copy(value) if copy else value
 
-        return (cp, data, storage)
+        return (cp_cp, cp_data, cp_storage)
 
     def update(self, cp, data, storage, *, copy=True):
         keys = set(cp)
@@ -243,8 +251,6 @@ class CheckpointStorage:
 
         for (n, i), eq_data in data.items():
             for key in eq_data:
-                if key in self._data_keys:
-                    raise KeyError("Duplicate key")
                 if key not in self._storage:
                     raise KeyError("Invalid key")
                 self._data_keys[key] = None  # self._data_keys.add(key)
@@ -278,6 +284,9 @@ class ReplayStorage:
 
         self._eq_last = eq_last_q
         self._map = {dep_id: None for dep_id in last_eq.keys()}
+
+    def __iter__(self):
+        return iter(self._map)
 
     def __len__(self):
         return len(self._map)
@@ -328,11 +337,11 @@ class Checkpoints(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def write(self, n, cp):
+    def write(self, n, cp, data, storage):
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, n, storage):
+    def read(self, n, *, ics=True, data=True, ic_ids=None):
         raise NotImplementedError
 
     @abstractmethod
@@ -385,7 +394,7 @@ class PickleCheckpoints(Checkpoints):
         assert (n in self._cp_filenames) == (n in self._cp_spaces)
         return n in self._cp_filenames
 
-    def write(self, n, cp):
+    def write(self, n, cp, data, storage):
         if n in self:
             raise RuntimeError("Duplicate checkpoint")
 
@@ -393,36 +402,52 @@ class PickleCheckpoints(Checkpoints):
                    f"{self._root_py2f:d}_{self._comm.rank:d}.pickle"
         spaces = {}
 
-        cp_data = {}
-        for key, F in cp.items():
+        write_storage = {}
+        for key, F in storage.items():
             F_space = function_space(F)
             F_space_id = space_id(F_space)
             if F_space_id not in spaces:
                 spaces[F_space_id] = F_space
 
-            cp_data[key] = (F_space_id,
-                            function_space_type(F),
-                            function_get_values(F))
+            write_storage[key] = (F_space_id,
+                                  function_space_type(F),
+                                  function_get_values(F))
 
         with open(filename, "wb") as h:
-            pickle.dump(cp_data, h, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump((cp, data, write_storage),
+                        h, protocol=pickle.HIGHEST_PROTOCOL)
 
         self._cp_filenames[n] = filename
         self._cp_spaces[n] = spaces
 
-    def read(self, n, storage):
+    def read(self, n, *, ics=True, data=True, ic_ids=None):
         filename = self._cp_filenames[n]
         spaces = self._cp_spaces[n]
 
         with open(filename, "rb") as h:
-            cp_data = pickle.load(h)
+            read_cp, read_data, read_storage = pickle.load(h)
 
-        for key in tuple(cp_data.keys()):
-            F_space_id, F_space_type, F_values = cp_data.pop(key)
-            if key in storage:
-                F = space_new(spaces[F_space_id], space_type=F_space_type)
-                function_set_values(F, F_values)
-                storage[key] = F
+        if ics:
+            if ic_ids is not None:
+                read_cp = tuple(key for key in read_cp if key[0] in ic_ids)
+        else:
+            read_cp = ()
+        if not data:
+            read_data = {}
+
+        keys = set(read_cp)
+        for eq_data in read_data.values():
+            keys.update(eq_data)
+        keys = keys.intersection(read_storage)
+        read_storage = {key: read_storage[key] for key in keys}
+
+        for key in read_storage:
+            F_space_id, F_space_type, F_values = read_storage[key]
+            F = space_new(spaces[F_space_id], space_type=F_space_type)
+            function_set_values(F, F_values)
+            read_storage[key] = F
+
+        return read_cp, read_data, read_storage
 
     def delete(self, n):
         filename = self._cp_filenames[n]
@@ -470,7 +495,7 @@ class HDF5Checkpoints(Checkpoints):
         assert (n in self._cp_filenames) == (n in self._cp_spaces)
         return n in self._cp_filenames
 
-    def write(self, n, cp):
+    def write(self, n, cp, data, storage):
         if n in self:
             raise RuntimeError("Duplicate checkpoint")
 
@@ -479,52 +504,129 @@ class HDF5Checkpoints(Checkpoints):
         spaces = {}
 
         import h5py
-        with h5py.File(filename, "w", **self._File_kwargs) as h:
-            h.create_group("/ics")
-            for i, (key, F) in enumerate(cp.items()):
+        with h5py.File(filename, "w", **dict(self._File_kwargs)) as h:
+            g = h.create_group("/cp")
+
+            d = g.create_dataset(
+                "keys", shape=(len(cp), 4, self._comm.size),
+                dtype=np.int64)
+            for j, (x_id, x_indices) in enumerate(cp):
+                d[j, 0, self._comm.rank] = x_id
+                if x_indices is None:
+                    d[j, 1:, self._comm.rank] = -1
+                else:
+                    d[j, 1:, self._comm.rank] = x_indices
+
+            h.create_group("/data")
+
+            for j, (eq_indices, eq_data) in enumerate(data.items()):
+                g = h.create_group(f"/data/{j:d}")
+
+                g.attrs["n"], g.attrs["i"] = eq_indices
+
+                d = g.create_dataset(
+                    "keys", shape=(len(eq_data), 4, self._comm.size),
+                    dtype=np.int64)
+                for j, (x_id, x_indices) in enumerate(eq_data):
+                    d[j, 0, self._comm.rank] = x_id
+                    if x_indices is None:
+                        d[j, 1:, self._comm.rank] = -1
+                    else:
+                        d[j, 1:, self._comm.rank] = x_indices
+
+            h.create_group("/storage")
+            for j, ((x_id, x_indices), F) in enumerate(storage.items()):
                 F_space = function_space(F)
                 F_space_id = space_id(F_space)
                 if F_space_id not in spaces:
                     spaces[F_space_id] = F_space
 
-                g = h.create_group(f"/ics/{i:d}")
+                g = h.create_group(f"/storage/{j:d}")
 
-                F_values = function_get_values(F)
-                d = g.create_dataset("value", shape=(function_global_size(F),),
-                                     dtype=F_values.dtype)
-                d[function_local_indices(F)] = F_values
+                d = g.create_dataset(
+                    "key", shape=(4, self._comm.size),
+                    dtype=np.int64)
+                d[0, self._comm.rank] = x_id
+                if x_indices is None:
+                    d[1:, self._comm.rank] = -1
+                else:
+                    d[1:, self._comm.rank] = x_indices
 
-                d = g.create_dataset("space_type", shape=(self._comm.size,),
-                                     dtype=np.uint8)
-                d[self._comm.rank] = {"primal": 0, "conjugate": 1,
-                                      "dual": 2, "conjugate_dual": 3}[function_space_type(F)]  # noqa: E501
+                g.attrs["space_type"] = function_space_type(F)
 
-                d = g.create_dataset("space_id", shape=(self._comm.size,),
-                                     dtype=np.int64)
+                d = g.create_dataset(
+                    "space_id", shape=(self._comm.size,),
+                    dtype=np.int64)
                 d[self._comm.rank] = F_space_id
 
-                d = g.create_dataset("key", shape=(self._comm.size,),
-                                     dtype=np.int64)
-                d[self._comm.rank] = key
+                F_values = function_get_values(F)
+                d = g.create_dataset(
+                    "value", shape=(function_global_size(F),),
+                    dtype=F_values.dtype)
+                d[function_local_indices(F)] = F_values
 
         self._cp_filenames[n] = filename
         self._cp_spaces[n] = spaces
 
-    def read(self, n, storage):
+    def read(self, n, *, ics=True, data=True, ic_ids=None):
         filename = self._cp_filenames[n]
         spaces = self._cp_spaces[n]
 
         import h5py
-        with h5py.File(filename, "r", **self._File_kwargs) as h:
-            for i, (name, g) in enumerate(h["/ics"].items()):
-                assert name == f"{i:d}"
+        with h5py.File(filename, "r", **dict(self._File_kwargs)) as h:
+            read_cp = []
+            if ics:
+                d = h["/cp/keys"]
+                for j in range(d.shape[0]):
+                    x_id = int(d[j, 0, self._comm.rank])
+                    x_indices = tuple(map(int, d[j, 1:, self._comm.rank]))
+                    if x_indices == (-1, -1, -1):
+                        x_indices = None
+                    key = (x_id, x_indices)
+
+                    if ic_ids is None or x_id in ic_ids:
+                        read_cp.append(key)
+            read_cp = tuple(read_cp)
+
+            read_data = {}
+            if data:
+                for j, (name, g) in enumerate(
+                        sorted(h["/data"].items(), key=lambda e: int(e[0]))):
+                    if name != f"{j:d}":
+                        raise RuntimeError("Invalid checkpoint data")
+
+                    eq_indices = (g.attrs["n"], g.attrs["i"])
+
+                    d = g["keys"]
+                    eq_data = []
+                    for k in range(d.shape[0]):
+                        x_id = int(d[k, 0, self._comm.rank])
+                        x_indices = tuple(map(int, d[k, 1:, self._comm.rank]))
+                        if x_indices == (-1, -1, -1):
+                            x_indices = None
+                        eq_data.append((x_id, x_indices))
+
+                    read_data[eq_indices] = tuple(eq_data)
+
+            keys = set(read_cp)
+            for eq_data in read_data.values():
+                keys.update(eq_data)
+
+            read_storage = {}
+            for j, (name, g) in enumerate(
+                    sorted(h["/storage"].items(), key=lambda e: int(e[0]))):
+                if name != f"{j:d}":
+                    raise RuntimeError("Invalid checkpoint data")
 
                 d = g["key"]
-                key = int(d[self._comm.rank])
-                if key in storage:
-                    d = g["space_type"]
-                    F_space_type = {0: "primal", 1: "conjugate",
-                                    2: "dual", 3: "conjugate_dual"}[d[self._comm.rank]]  # noqa: E501
+                x_id = int(d[0, self._comm.rank])
+                x_indices = tuple(map(int, d[1:, self._comm.rank]))
+                if x_indices == (-1, -1, -1):
+                    x_indices = None
+                key = (x_id, x_indices)
+
+                if key in keys:
+                    F_space_type = g.attrs["space_type"]
 
                     d = g["space_id"]
                     F = space_new(spaces[d[self._comm.rank]],
@@ -533,7 +635,9 @@ class HDF5Checkpoints(Checkpoints):
                     d = g["value"]
                     function_set_values(F, d[function_local_indices(F)])
 
-                    storage[key] = F
+                    read_storage[key] = F
+
+        return read_cp, read_data, read_storage
 
     def delete(self, n):
         filename = self._cp_filenames[n]

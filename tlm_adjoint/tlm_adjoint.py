@@ -959,36 +959,64 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _write_memory_checkpoint(self, n):
+    def _write_memory_checkpoint(self, n, *, ics=True, data=True):
         if n in self._cp_memory or \
                 (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
 
-        self._cp_memory[n] = self._cp.checkpoint_data(copy=False)
+        self._cp_memory[n] = self._cp.checkpoint_data(
+            ics=ics, data=data, copy=False)
 
-    def _read_memory_checkpoint(self, n, storage, *,
-                                read_ics=True, read_data=True, delete=False):
-        read_cp, data, read_storage = self._cp_memory[n]
+    def _read_memory_checkpoint(self, n, storage, *, ics=True, data=True,
+                                delete=False):
+        if ics or data:
+            read_cp, read_data, read_storage = self._cp_memory[n]
+
+            if ics:
+                read_cp = tuple(key for key in read_cp if key[0] in storage)
+            else:
+                read_cp = ()
+            if not data:
+                read_data = {}
+
+            keys = set(read_cp)
+            for eq_data in read_data.values():
+                keys.update(eq_data)
+            keys = keys.intersection(read_storage)
+            read_storage = {key: read_storage[key] for key in keys}
+
+            if ics:
+                storage.update({key[0]: read_storage[key] for key in read_cp},
+                               copy=not delete)
+            if data:
+                # Need not, and in some cases should not, pass read_cp here
+                self._cp.update((), read_data, read_storage,
+                                copy=True)
+
         if delete:
             self._cp_memory.pop(n)
-        if read_ics:
-            storage.update({key[0]: read_storage[key] for key in read_cp},
-                           copy=True)
-        if read_data:
-            # Need not, and in some cases should not, pass read_cp here
-            self._cp.update((), data, read_storage,
-                            copy=False)
 
-    def _write_disk_checkpoint(self, n, cp):
+    def _write_disk_checkpoint(self, n, *, ics=True, data=True):
         if n in self._cp_memory or n in self._cp_disk:
             raise RuntimeError("Duplicate checkpoint")
 
-        cp = self._cp.initial_conditions(cp=True, refs=False, copy=False)
+        self._cp_disk.write(
+            n, *self._cp.checkpoint_data(ics=ics, data=data, copy=False))
 
-        self._cp_disk.write(n, cp)
+    def _read_disk_checkpoint(self, n, storage, *, ics=True, data=True,
+                              delete=False):
+        if ics or data:
+            read_cp, read_data, read_storage = \
+                self._cp_disk.read(n, ics=ics, data=data, ic_ids=set(storage))
 
-    def _read_disk_checkpoint(self, n, storage, *, delete=False):
-        self._cp_disk.read(n, storage)
+            if ics:
+                storage.update({key[0]: read_storage[key] for key in read_cp},
+                               copy=False)
+            if data:
+                # Need not, and in some cases should not, pass read_cp here
+                self._cp.update((), read_data, read_storage,
+                                copy=True)
+
         if delete:
             self._cp_disk.delete(n)
 
@@ -1033,7 +1061,7 @@ class EquationManager:
                 if cp_storage == "disk":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"on disk")
-                    self._write_disk_checkpoint(cp_w_n, self._cp)
+                    self._write_disk_checkpoint(cp_w_n)
                 elif cp_storage == "RAM":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
@@ -1135,7 +1163,7 @@ class EquationManager:
                 if cp_storage == "disk":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"on disk")
-                    self._write_disk_checkpoint(cp_w_n, self._cp)
+                    self._write_disk_checkpoint(cp_w_n)
                 elif cp_storage == "RAM":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
