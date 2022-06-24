@@ -1002,6 +1002,28 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @seed_test
+def test_eliminate_zeros(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+
+    F = ZeroFunction(space, name="F")
+
+    L = inner(F, test) * dx
+
+    for i in range(3):
+        L_z = eliminate_zeros(L, force_non_empty_form=False)
+        assert L_z.empty()
+
+        L_z = eliminate_zeros(L, force_non_empty_form=True)
+        assert not L_z.empty()
+        b = Function(space, space_type="conjugate_dual")
+        assemble(L_z, tensor=function_vector(b))
+        assert function_linf_norm(b) == 0.0
+
+
+@pytest.mark.fenics
+@seed_test
 def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
