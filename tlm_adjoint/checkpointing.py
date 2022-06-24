@@ -57,7 +57,7 @@ class CheckpointStorage:
         self._refs = {}
         self._seen_ics = set()
 
-        self._eq_x_keys = {}
+        self._keys = {}
         # Ordering needed in checkpoint_data method
         self._data_keys = {}  # self._data_keys = set()
         self._data = {}
@@ -99,16 +99,19 @@ class CheckpointStorage:
             for key in self._data_keys:
                 if key not in self._cp_keys and key not in self._refs_keys:
                     del self._storage[key]
-            self._eq_x_keys.clear()
+            self._keys.clear()
             self._data_keys.clear()
             self._data.clear()
 
     def __getitem__(self, key):
-        return tuple(self._storage[nl_dep_key]
-                     for nl_dep_key in self._data[key])
+        return tuple(self._storage[dep_key] for dep_key in self._data[key])
 
     def initial_condition(self, x, *, copy=True):
-        x_id = function_id(x)
+        if isinstance(x, int):
+            x_id = x
+        else:
+            x_id = function_id(x)
+
         if x_id in self._cp:
             ic = self._storage[self._cp[x_id]]
         else:
@@ -127,35 +130,51 @@ class CheckpointStorage:
                 cp_d[x_id] = function_copy(x) if copy else x
         return cp_d
 
-    def add_initial_condition(self, x, value=None, *, _copy=None):
-        copy = _copy
-        del _copy
-
+    def add_initial_condition(self, x, value=None):
         if value is None:
             value = x
-        if copy is None:
-            copy = function_is_checkpointed(x)
 
-        self._add_initial_condition(x_id=function_id(x), value=value,
-                                    copy=copy)
+        self._add_initial_condition(
+            x_id=function_id(x), value=value,
+            copy=function_is_checkpointed(x))
 
-    def _store(self, *, x_id, value, copy, key=None):
+    def _update_keys(self, n, i, eq):
+        for m, x in enumerate(eq.X()):
+            x_id = function_id(x)
+            self._keys[x_id] = (x_id, (n, i, m))
+
+    def _store(self, *, x_id=None, key=None, value, copy):
         if key is None:
-            key = self._eq_x_keys.get(x_id, (x_id, None))
+            if x_id is None:
+                raise TypeError("Require exactly one of x_id or key")
+            key = self._keys.setdefault(x_id, (x_id, None))
+        else:
+            if x_id is not None:
+                raise TypeError("Require exactly one of x_id or key")
+            x_id = key[0]
+
         if key not in self._storage:
-            self._storage[key] = function_copy(value) if copy else value
+            if copy:
+                self._storage[key] = function_copy(value)
+            else:
+                assert key not in self._refs_keys
+                self._storage[key] = value
+                self._refs_keys.add(key)
+                self._refs[x_id] = key
+                self._seen_ics.add(x_id)
+
         return key, self._storage[key]
 
     def _add_initial_condition(self, *, x_id, value, copy):
         if self._store_ics and x_id not in self._seen_ics:
             key, value = self._store(x_id=x_id, value=value, copy=copy)
             if copy:
+                assert key not in self._refs_keys
                 self._cp_keys.add(key)
                 self._cp[x_id] = key
+                self._seen_ics.add(x_id)
             else:
-                self._refs_keys.add(key)
-                self._refs[x_id] = key
-            self._seen_ics.add(x_id)
+                assert key in self._refs_keys
 
     def add_equation(self, n, i, eq, *, deps=None, nl_deps=None, _copy=None):
         if _copy is None:
@@ -165,34 +184,33 @@ class CheckpointStorage:
             copy = _copy
         del _copy
 
-        eq_X = eq.X()
         eq_deps = eq.dependencies()
         if deps is None:
             deps = eq_deps
 
         if self._store_ics:
-            for eq_x in eq_X:
+            for eq_x in eq.X():
                 self._seen_ics.add(function_id(eq_x))
             assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
-                if function_id(eq_dep) not in self._seen_ics:
-                    self.add_initial_condition(eq_dep, value=dep,
-                                               _copy=copy(eq_dep))
+                self._add_initial_condition(
+                    x_id=function_id(eq_dep), value=dep, copy=copy(eq_dep))
 
         if self._store_data:
             if (n, i) in self._data:
                 raise KeyError("Non-linear dependency data already stored")
 
-            for m, eq_x in enumerate(eq_X):
-                eq_x_id = function_id(eq_x)
-                self._eq_x_keys[eq_x_id] = (eq_x_id, (n, i, m))
+            self._update_keys(n, i, eq)
 
+            eq_nl_deps = eq.nonlinear_dependencies()
             if nl_deps is None:
-                nl_deps = tuple(deps[j]
-                                for j in eq.nonlinear_dependencies_map())
+                assert len(eq_deps) == len(deps)
+                deps_map = {function_id(eq_dep): dep
+                            for eq_dep, dep in zip(eq_deps, deps)}
+                nl_deps = tuple(deps_map[function_id(eq_dep)]
+                                for eq_dep in eq_nl_deps)
 
             eq_data = []
-            eq_nl_deps = eq.nonlinear_dependencies()
             assert len(eq_nl_deps) == len(nl_deps)
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 key, value = self._store(x_id=function_id(eq_dep), value=dep,
@@ -233,29 +251,24 @@ class CheckpointStorage:
             if key in keys:
                 if key in self._storage:
                     raise KeyError("Duplicate key")
-                x_id, x_indices = key
-                self._store(x_id=x_id, value=value, copy=copy,
-                            key=key)
+                self._store(key=key, value=value, copy=copy)
 
         for key in cp:
             if key in self._cp_keys or key in self._refs_keys:
                 raise KeyError("Duplicate key")
             if key not in self._storage:
                 raise KeyError("Invalid key")
-            x_id, x_indices = key
-            if x_id in self._seen_ics:
-                raise KeyError("Initial condition already stored")
             self._cp_keys.add(key)
-            self._cp[x_id] = key
-            self._seen_ics.add(x_id)
+            self._cp[key[0]] = key
+            self._seen_ics.add(key[0])
 
         for (n, i), eq_data in data.items():
+            if (n, i) in self._data:
+                raise KeyError("Non-linear dependency data already stored")
             for key in eq_data:
                 if key not in self._storage:
                     raise KeyError("Invalid key")
                 self._data_keys[key] = None  # self._data_keys.add(key)
-            if (n, i) in self._data:
-                raise KeyError("Non-linear dependency data already stored")
             self._data[(n, i)] = tuple(eq_data)
 
 
@@ -406,8 +419,7 @@ class PickleCheckpoints(Checkpoints):
         for key, F in storage.items():
             F_space = function_space(F)
             F_space_id = space_id(F_space)
-            if F_space_id not in spaces:
-                spaces[F_space_id] = F_space
+            spaces.setdefault(F_space_id, F_space)
 
             write_storage[key] = (F_space_id,
                                   function_space_type(F),
@@ -504,7 +516,7 @@ class HDF5Checkpoints(Checkpoints):
         spaces = {}
 
         import h5py
-        with h5py.File(filename, "w", **dict(self._File_kwargs)) as h:
+        with h5py.File(filename, "w", **self._File_kwargs) as h:
             g = h.create_group("/cp")
 
             d = g.create_dataset(
@@ -538,8 +550,7 @@ class HDF5Checkpoints(Checkpoints):
             for j, ((x_id, x_indices), F) in enumerate(storage.items()):
                 F_space = function_space(F)
                 F_space_id = space_id(F_space)
-                if F_space_id not in spaces:
-                    spaces[F_space_id] = F_space
+                spaces.setdefault(F_space_id, F_space)
 
                 g = h.create_group(f"/storage/{j:d}")
 
@@ -573,7 +584,7 @@ class HDF5Checkpoints(Checkpoints):
         spaces = self._cp_spaces[n]
 
         import h5py
-        with h5py.File(filename, "r", **dict(self._File_kwargs)) as h:
+        with h5py.File(filename, "r", **self._File_kwargs) as h:
             read_cp = []
             if ics:
                 d = h["/cp/keys"]

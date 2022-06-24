@@ -317,7 +317,6 @@ class Equation(Referrer):
         for dep in nl_deps:
             if function_id(dep) not in dep_ids:
                 raise ValueError("Non-linear dependency is not a dependency")
-        nl_deps_map = tuple(dep_ids[function_id(dep)] for dep in nl_deps)
 
         if ic_deps is None:
             ic_deps = []
@@ -368,7 +367,6 @@ class Equation(Referrer):
         self._X = tuple(X)
         self._deps = tuple(deps)
         self._nl_deps = tuple(nl_deps)
-        self._nl_deps_map = nl_deps_map
         self._ic_deps = tuple(ic_deps)
         self._adj_ic_deps = tuple(adj_ic_deps)
         self._adj_X_type = tuple(adj_type)
@@ -442,9 +440,6 @@ class Equation(Referrer):
 
     def nonlinear_dependencies(self):
         return self._nl_deps
-
-    def nonlinear_dependencies_map(self):
-        return self._nl_deps_map
 
     def initial_condition_dependencies(self):
         return self._ic_deps
@@ -722,7 +717,6 @@ class ControlsMarker(Equation):
         self._X = tuple(M)
         self._deps = tuple(M)
         self._nl_deps = ()
-        self._nl_deps_map = ()
         self._ic_deps = ()
         self._adj_ic_deps = ()
         self._adj_X_type = tuple("conjugate_dual" for m in M)
