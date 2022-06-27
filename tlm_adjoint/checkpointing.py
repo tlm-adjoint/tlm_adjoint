@@ -676,10 +676,8 @@ class CheckpointingManager(ABC):
     The iter method yields (action, data), with:
 
     action: 'clear'
-    data:   (clear_ics, clear_data)
-    Clear checkpoint storage. clear_ics indicates whether stored initial
-    condition data should be cleared. clear_data indicates whether stored
-    non-linear dependency data should be cleared.
+    data:   ()
+    Clear checkpoint storage.
 
     action: 'configure'
     data:   (store_ics, store_data)
@@ -703,17 +701,14 @@ class CheckpointingManager(ABC):
     read. delete indicates whether the checkpoint data should be deleted.
 
     action: 'write'
-    data:   (n, storage, ics, data)
+    data:   (n, storage)
     Write checkpoint data associated with the start of block n to the indicated
-    storage. ics indicates whether data required to run the forward should be
-    written. data indicates whether non-linear dependency data should be
-    written.
+    storage.
 
     action: 'end_reverse'
-    data:   (clear_ics, clear_data, exhausted)
-    End a reverse calculation. clear_ics and clear_data are as for the 'clear'
-    action. If exhausted is False then a further reverse calculation can be
-    performed.
+    data:   (exhausted,)
+    End a reverse calculation. If exhausted is False then a further reverse
+    calculation can be performed.
     """
 
     def __init__(self, max_n=None):
