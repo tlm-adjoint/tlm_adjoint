@@ -538,12 +538,12 @@ class HDF5Checkpoints(Checkpoints):
                 d = g.create_dataset(
                     "keys", shape=(len(eq_data), 4, self._comm.size),
                     dtype=np.int64)
-                for j, (x_id, x_indices) in enumerate(eq_data):
-                    d[j, 0, self._comm.rank] = x_id
+                for k, (x_id, x_indices) in enumerate(eq_data):
+                    d[k, 0, self._comm.rank] = x_id
                     if x_indices is None:
-                        d[j, 1:, self._comm.rank] = -1
+                        d[k, 1:, self._comm.rank] = -1
                     else:
-                        d[j, 1:, self._comm.rank] = x_indices
+                        d[k, 1:, self._comm.rank] = x_indices
 
             h.create_group("/storage")
             for j, ((x_id, x_indices), F) in enumerate(storage.items()):
@@ -605,7 +605,7 @@ class HDF5Checkpoints(Checkpoints):
                     if name != f"{j:d}":
                         raise RuntimeError("Invalid checkpoint data")
 
-                    eq_indices = (g.attrs["n"], g.attrs["i"])
+                    eq_indices = tuple(map(int, (g.attrs["n"], g.attrs["i"])))
 
                     d = g["keys"]
                     eq_data = []
