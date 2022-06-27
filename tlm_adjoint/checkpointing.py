@@ -676,8 +676,10 @@ class CheckpointingManager(ABC):
     The iter method yields (action, data), with:
 
     action: 'clear'
-    data:   ()
-    Clear checkpoint storage.
+    data:   (clear_ics, clear_data)
+    Clear checkpoint storage. clear_ics indicates whether stored initial
+    condition data should be cleared. clear_data indicates whether stored
+    non-linear dependency data should be cleared.
 
     action: 'configure'
     data:   (store_ics, store_data)
@@ -779,16 +781,6 @@ class NoneCheckpointingManager(CheckpointingManager):
     def iter(self):
         # Forward
 
-        if self._max_n is not None:
-            # Unexpected finalize
-            raise RuntimeError("Invalid checkpointing state")
-        yield "clear", ()
-
-        if self._max_n is not None:
-            # Unexpected finalize
-            raise RuntimeError("Invalid checkpointing state")
-        yield "configure", (False, False)
-
         while self._max_n is None:
             n0 = self._n
             n1 = n0 + sys.maxsize
@@ -805,11 +797,6 @@ class NoneCheckpointingManager(CheckpointingManager):
 class MemoryCheckpointingManager(CheckpointingManager):
     def iter(self):
         # Forward
-
-        if self._max_n is not None:
-            # Unexpected finalize
-            raise RuntimeError("Invalid checkpointing state")
-        yield "clear", ()
 
         if self._max_n is not None:
             # Unexpected finalize
@@ -856,11 +843,6 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
         # Forward
 
         while self._max_n is None:
-            yield "clear", ()
-
-            if self._max_n is not None:
-                # Unexpected finalize
-                raise RuntimeError("Invalid checkpointing state")
             yield "configure", (True, False)
             if self._max_n is not None:
                 # Unexpected finalize
@@ -873,6 +855,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
             # Finalize permitted here
 
             yield "write", (n0, "disk")
+            yield "clear", (True, True)
 
         while True:
             # Reverse
@@ -884,8 +867,6 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                 n1 = min(n0 + self._period, self._max_n)
                 if self._r != self._max_n - n1:
                     raise RuntimeError("Invalid checkpointing state")
-
-                yield "clear", ()
 
                 self._n = n0
                 yield "read", (n0, "disk", True, False, False)
@@ -906,6 +887,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
 
                 self._r = self._max_n - n0
                 yield "reverse", (n1, n0)
+                yield "clear", (not self._keep_block_0_ics or n0 != 0, True)
             if self._r != self._max_n:
                 raise RuntimeError("Invalid checkpointing state")
 
