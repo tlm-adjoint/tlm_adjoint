@@ -157,7 +157,6 @@ class CheckpointStorage:
             if copy:
                 self._storage[key] = function_copy(value)
             else:
-                assert key not in self._refs_keys
                 self._storage[key] = value
                 self._refs_keys.add(key)
                 self._refs[x_id] = key
