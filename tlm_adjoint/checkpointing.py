@@ -787,7 +787,7 @@ class NoneCheckpointingManager(CheckpointingManager):
         if self._max_n is not None:
             # Unexpected finalize
             raise RuntimeError("Invalid checkpointing state")
-        yield "clear", (True, True)
+        yield "clear", ()
 
         if self._max_n is not None:
             # Unexpected finalize
@@ -814,7 +814,7 @@ class MemoryCheckpointingManager(CheckpointingManager):
         if self._max_n is not None:
             # Unexpected finalize
             raise RuntimeError("Invalid checkpointing state")
-        yield "clear", (True, True)
+        yield "clear", ()
 
         if self._max_n is not None:
             # Unexpected finalize
@@ -861,7 +861,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
         # Forward
 
         while self._max_n is None:
-            yield "clear", (True, True)
+            yield "clear", ()
 
             if self._max_n is not None:
                 # Unexpected finalize
@@ -890,7 +890,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                 if self._r != self._max_n - n1:
                     raise RuntimeError("Invalid checkpointing state")
 
-                yield "clear", (True, True)
+                yield "clear", ()
 
                 self._n = n0
                 yield "read", (n0, "disk", True, False, False)

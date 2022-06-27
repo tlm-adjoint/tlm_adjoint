@@ -1039,9 +1039,7 @@ class EquationManager:
             cp_action, cp_data = next(self._cp_manager)
 
             if cp_action == "clear":
-                clear_ics, clear_data = cp_data
-                self._cp.clear(clear_ics=clear_ics,
-                               clear_data=clear_data)
+                self._cp.clear()
             elif cp_action == "configure":
                 store_ics, store_data = cp_data
                 self._cp.configure(store_ics=store_ics,
@@ -1088,9 +1086,7 @@ class EquationManager:
             cp_action, cp_data = next(self._cp_manager)
 
             if cp_action == "clear":
-                clear_ics, clear_data = cp_data
-                self._cp.clear(clear_ics=clear_ics,
-                               clear_data=clear_data)
+                self._cp.clear()
             elif cp_action == "configure":
                 store_ics, store_data = cp_data
                 self._cp.configure(store_ics=store_ics,
