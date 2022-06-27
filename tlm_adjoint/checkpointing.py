@@ -837,7 +837,7 @@ class MemoryCheckpointingManager(CheckpointingManager):
                 # Reset for new reverse
 
                 self._r = 0
-                yield "end_reverse", (False, False, False)
+                yield "end_reverse", (False,)
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
@@ -917,7 +917,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
             # Reset for new reverse
 
             self._r = 0
-            yield "end_reverse", (not self._keep_block_0_ics, True, False)
+            yield "end_reverse", (False,)
 
     def is_exhausted(self):
         return False

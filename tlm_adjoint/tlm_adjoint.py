@@ -1456,9 +1456,8 @@ class EquationManager:
 
         cp_action, cp_data = next(self._cp_manager)
         if cp_action == "end_reverse":
-            clear_ics, clear_data, _ = cp_data
-            self._cp.clear(clear_ics=clear_ics,
-                           clear_data=clear_data)
+            self._cp.clear(clear_ics=False,
+                           clear_data=True)
         else:
             raise ValueError(f"Unexpected checkpointing action: "
                              f"{cp_action:s}")

@@ -300,7 +300,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield "end_reverse", (not self._keep_block_0_ics, True, True)
+        yield "end_reverse", (True,)
 
     def is_exhausted(self):
         return self._exhausted
@@ -456,7 +456,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
             # Reset for new reverse
 
             self._r = 0
-            yield "end_reverse", (not self._keep_block_0_ics, True, False)
+            yield "end_reverse", (False,)
 
     def is_exhausted(self):
         return False
