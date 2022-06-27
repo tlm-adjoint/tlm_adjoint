@@ -439,7 +439,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
 
                     self._r += 1
                     yield "reverse", (self._n, self._n - 1)
-                    yield "clear", (not self._keep_block_0_ics or self._n != 1, True)
+                    yield "clear", (not self._keep_block_0_ics or self._n != 1, True)  # noqa: E501
                 if self._r != self._max_n - n0s:
                     raise RuntimeError("Invalid checkpointing state")
                 if len(snapshots) != 0:
