@@ -225,7 +225,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
             yield "forward", (n0, n1)
 
             cp_storage = self._snapshot(n0)
-            yield "write", (n0, cp_storage, True, False)
+            yield "write", (n0, cp_storage)
 
         # Forward -> reverse
 
@@ -281,7 +281,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
                     yield "forward", (n0, n1)
 
                     cp_storage = self._snapshot(n0)
-                    yield "write", (n0, cp_storage, True, False)
+                    yield "write", (n0, cp_storage)
 
                     yield "clear", (True, True)
                 if self._n != self._max_n - self._r - 1:
@@ -367,7 +367,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
 
             # Finalize permitted here
 
-            yield "write", (n0, "disk", True, False)
+            yield "write", (n0, "disk")
 
         while True:
             # Reverse
@@ -433,8 +433,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                                 raise RuntimeError("Invalid checkpointing "
                                                    "state")
                             snapshots.append(n0)
-                            yield "write", (n0, self._binomial_storage,
-                                            True, False)
+                            yield "write", (n0, self._binomial_storage)
 
                             yield "clear", (True, True)
                         if self._n != self._max_n - self._r - 1:

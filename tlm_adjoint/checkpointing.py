@@ -877,7 +877,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
 
             # Finalize permitted here
 
-            yield "write", (n0, "disk", True, False)
+            yield "write", (n0, "disk")
 
         while True:
             # Reverse
