@@ -983,7 +983,8 @@ class EquationManager:
             for eq_data in read_data.values():
                 keys.update(eq_data)
             keys = keys.intersection(read_storage)
-            read_storage = {key: read_storage[key] for key in keys}
+            read_storage = {key: read_storage[key] for key in read_storage
+                            if key in keys}
 
             if ics:
                 storage.update({key[0]: read_storage[key] for key in read_cp},
