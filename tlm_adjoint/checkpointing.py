@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_copy, function_get_values, \
+from .interface import DEFAULT_COMM, function_copy, function_get_values, \
     function_global_size, function_id, function_is_checkpointed, \
     function_local_indices, function_new, function_set_values, \
     function_space, function_space_type, space_id, space_new
@@ -26,7 +26,10 @@ from .interface import function_copy, function_get_values, \
 from abc import ABC, abstractmethod
 from collections import deque
 import functools
-import mpi4py.MPI as MPI
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
 import numpy as np
 import os
 import pickle
@@ -378,7 +381,7 @@ def root_pid(comm, *, root=0):
 
 
 class PickleCheckpoints(Checkpoints):
-    def __init__(self, prefix, *, comm=MPI.COMM_WORLD):
+    def __init__(self, prefix, *, comm=DEFAULT_COMM):
         comm = comm.Dup()
         cp_filenames = {}
 
@@ -387,7 +390,7 @@ class PickleCheckpoints(Checkpoints):
                 for filename in cp_filenames.values():
                     os.remove(filename)
             finally:
-                if not MPI.Is_finalized():
+                if MPI is not None and not MPI.Is_finalized():
                     comm.Free()
 
         finalize = weakref.finalize(self, finalize_callback,
@@ -469,21 +472,21 @@ class PickleCheckpoints(Checkpoints):
 
 
 class HDF5Checkpoints(Checkpoints):
-    def __init__(self, prefix, *, comm=MPI.COMM_WORLD):
+    def __init__(self, prefix, *, comm=DEFAULT_COMM):
         comm = comm.Dup()
         cp_filenames = {}
 
         def finalize_callback(comm, rank, cp_filenames):
             try:
-                if not MPI.Is_finalized():
+                if MPI is not None and not MPI.Is_finalized():
                     comm.barrier()
                 if rank == 0:
                     for filename in cp_filenames.values():
                         os.remove(filename)
-                if not MPI.Is_finalized():
+                if MPI is not None and not MPI.Is_finalized():
                     comm.barrier()
             finally:
-                if not MPI.Is_finalized():
+                if MPI is not None and not MPI.Is_finalized():
                     comm.Free()
 
         finalize = weakref.finalize(self, finalize_callback,
