@@ -870,7 +870,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                     raise RuntimeError("Invalid checkpointing state")
 
                 self._n = n0
-                yield "read", (n0, "disk", True, False, False)
+                yield "read", (n0, "disk", False)
 
                 if self._keep_block_0_ics and n0 == 0:
                     yield "configure", (True, True)

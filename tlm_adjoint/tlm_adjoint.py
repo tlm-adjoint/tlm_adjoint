@@ -1137,7 +1137,7 @@ class EquationManager:
                 if storage is not None or cp_n is not None:
                     raise RuntimeError("Invalid checkpointing state")
 
-                cp_n, cp_storage, ics, data, cp_delete = cp_data
+                cp_n, cp_storage, cp_delete = cp_data
                 logger.debug(f'reverse: load snapshot at {cp_n:d} from '
                              f'{cp_storage:s} and '
                              f'{"delete" if cp_delete else "keep":s}')
@@ -1150,11 +1150,9 @@ class EquationManager:
 
                 if cp_storage == "disk":
                     self._read_disk_checkpoint(cp_n, storage,
-                                               ics=ics, data=data,
                                                delete=cp_delete)
                 elif cp_storage == "RAM":
                     self._read_memory_checkpoint(cp_n, storage,
-                                                 ics=ics, data=data,
                                                  delete=cp_delete)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "

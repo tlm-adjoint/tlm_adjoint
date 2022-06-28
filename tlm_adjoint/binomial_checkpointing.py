@@ -142,7 +142,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
         cp_action, cp_data = next(cp_manager)
 
         if cp_action == "read":
-            _, _, _, _, cp_delete = cp_data
+            _, _, cp_delete = cp_data
             if snapshot_i < 0:
                 raise RuntimeError("Invalid checkpointing state")
             weights[snapshot_i] += read_weight
@@ -250,10 +250,10 @@ class MultistageCheckpointingManager(CheckpointingManager):
             if cp_n == self._max_n - self._r - 1:
                 self._snapshots.pop()
                 self._n = cp_n
-                yield "read", (cp_n, cp_storage, True, False, True)
+                yield "read", (cp_n, cp_storage, True)
             else:
                 self._n = cp_n
-                yield "read", (cp_n, cp_storage, True, False, False)
+                yield "read", (cp_n, cp_storage, False)
 
                 yield "configure", (False, False)
 
@@ -385,18 +385,18 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                         snapshots.pop()
                         if cp_n == n0s:
                             self._n = cp_n
-                            yield "read", (cp_n, "disk", True, False, False)
+                            yield "read", (cp_n, "disk", False)
                         else:
                             self._n = cp_n
                             yield "read", (cp_n, self._binomial_storage, True)
                     else:
                         if cp_n == n0s:
                             self._n = cp_n
-                            yield "read", (cp_n, "disk", True, False, False)
+                            yield "read", (cp_n, "disk", False)
                         else:
                             self._n = cp_n
                             yield "read", (cp_n, self._binomial_storage,
-                                           True, False, False)
+                                           False)
 
                         yield "configure", (False, False)
 
