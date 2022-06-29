@@ -21,6 +21,7 @@
 import numpy as np
 
 from collections.abc import Mapping
+import copy
 import functools
 import logging
 import sys
@@ -30,6 +31,8 @@ import weakref
 __all__ = \
     [
         "InterfaceException",
+
+        "DEFAULT_COMM",
 
         "add_interface",
         "weakref_method",
@@ -112,6 +115,55 @@ class InterfaceException(Exception):  # noqa: N818
         warnings.warn("InterfaceException is deprecated",
                       DeprecationWarning, stacklevel=2)
         super().__init__(*args, **kwargs)
+
+
+try:
+    from mpi4py.MPI import COMM_WORLD as DEFAULT_COMM
+except ImportError:
+    # As for mpi4py 3.0.3 API
+    class SerialComm:
+        _id_counter = [-1]
+
+        def __init__(self):
+            self._id = self._id_counter[0]
+            self._id_counter[0] -= 1
+
+        @property
+        def rank(self):
+            return 0
+
+        @property
+        def size(self):
+            return 1
+
+        def Dup(self, info=None):
+            return SerialComm()
+
+        def Free(self):
+            pass
+
+        def allgather(self, sendobj):
+            return [copy.deepcopy(sendobj)]
+
+        def barrier(self):
+            pass
+
+        def bcast(self, obj, root=0):
+            return copy.deepcopy(obj)
+
+        def gather(self, sendobj, root=0):
+            assert root == 0
+            return [copy.deepcopy(sendobj)]
+
+        def py2f(self):
+            return self._id
+
+        def scatter(self, sendobj, root=0):
+            assert root == 0
+            sendobj, = sendobj
+            return copy.deepcopy(sendobj)
+
+    DEFAULT_COMM = SerialComm()
 
 
 def weakref_method(fn, obj):

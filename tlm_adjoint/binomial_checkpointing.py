@@ -211,7 +211,6 @@ class MultistageCheckpointingManager(CheckpointingManager):
         if self._max_n is None:
             raise RuntimeError("Invalid checkpointing state")
         while self._n < self._max_n - 1:
-            yield "clear", (True, True)
             yield "configure", (True, False)
 
             snapshots = (self._snapshots_in_ram
@@ -226,10 +225,12 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
             cp_storage = self._snapshot(n0)
             yield "write", (n0, cp_storage)
+            yield "clear", (True, True)
+        if self._n != self._max_n - 1:
+            raise RuntimeError("Invalid checkpointing state")
 
         # Forward -> reverse
 
-        yield "clear", (True, True)
         yield "configure", (self._keep_block_0_ics and self._n == 0, True)
 
         self._n += 1
@@ -237,12 +238,11 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
         self._r += 1
         yield "reverse", (self._n, self._n - 1)
+        yield "clear", (True, True)
 
         # Reverse
 
         while self._r < self._max_n:
-            yield "clear", (True, True)
-
             if len(self._snapshots) == 0:
                 raise RuntimeError("Invalid checkpointing state")
             cp_n = self._snapshots[-1]
@@ -282,7 +282,6 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
                     cp_storage = self._snapshot(n0)
                     yield "write", (n0, cp_storage)
-
                     yield "clear", (True, True)
                 if self._n != self._max_n - self._r - 1:
                     raise RuntimeError("Invalid checkpointing state")
@@ -294,13 +293,14 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
             self._r += 1
             yield "reverse", (self._n, self._n - 1)
+            yield "clear", (not self._keep_block_0_ics or self._n != 1, True)
         if self._r != self._max_n:
             raise RuntimeError("Invalid checkpointing state")
         if len(self._snapshots) != 0:
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield "end_reverse", (not self._keep_block_0_ics, True, True)
+        yield "end_reverse", (True,)
 
     def is_exhausted(self):
         return self._exhausted
@@ -351,11 +351,6 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
         # Forward
 
         while self._max_n is None:
-            yield "clear", (True, True)
-
-            if self._max_n is not None:
-                # Unexpected finalize
-                raise RuntimeError("Invalid checkpointing state")
             yield "configure", (True, False)
             if self._max_n is not None:
                 # Unexpected finalize
@@ -368,6 +363,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
             # Finalize permitted here
 
             yield "write", (n0, "disk")
+            yield "clear", (True, True)
 
         while True:
             # Reverse
@@ -379,8 +375,6 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                 if self._r != self._max_n - n1s:
                     raise RuntimeError("Invalid checkpointing state")
                 del n, n1s
-
-                yield "clear", (True, True)
 
                 snapshots = [n0s]
                 while self._r < self._max_n - n0s:
@@ -433,7 +427,6 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                                                    "state")
                             snapshots.append(n0)
                             yield "write", (n0, self._binomial_storage)
-
                             yield "clear", (True, True)
                         if self._n != self._max_n - self._r - 1:
                             raise RuntimeError("Invalid checkpointing state")
@@ -445,6 +438,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
 
                     self._r += 1
                     yield "reverse", (self._n, self._n - 1)
+                    yield "clear", (not self._keep_block_0_ics or self._n != 1, True)  # noqa: E501
                 if self._r != self._max_n - n0s:
                     raise RuntimeError("Invalid checkpointing state")
                 if len(snapshots) != 0:
@@ -455,7 +449,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
             # Reset for new reverse
 
             self._r = 0
-            yield "end_reverse", (not self._keep_block_0_ics, True, False)
+            yield "end_reverse", (False,)
 
     def is_exhausted(self):
         return False

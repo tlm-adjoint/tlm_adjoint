@@ -18,8 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import check_space_types, function_assign, function_copy, \
-    function_id, function_is_replacement, function_name, \
+from .interface import DEFAULT_COMM, check_space_types, function_assign, \
+    function_copy, function_id, function_is_replacement, function_name, \
     function_new_tangent_linear, is_function
 
 from .alias import Alias, WeakAlias, gc_disabled
@@ -47,55 +47,6 @@ __all__ = \
         "Control",
         "EquationManager"
     ]
-
-
-try:
-    from mpi4py.MPI import COMM_WORLD as DEFAULT_COMM
-except ImportError:
-    # As for mpi4py 3.0.3 API
-    class SerialComm:
-        _id_counter = [-1]
-
-        def __init__(self):
-            self._id = self._id_counter[0]
-            self._id_counter[0] -= 1
-
-        @property
-        def rank(self):
-            return 0
-
-        @property
-        def size(self):
-            return 1
-
-        def Dup(self, info=None):
-            return SerialComm()
-
-        def Free(self):
-            pass
-
-        def allgather(self, sendobj):
-            return [copy.deepcopy(sendobj)]
-
-        def barrier(self):
-            pass
-
-        def bcast(self, obj, root=0):
-            return copy.deepcopy(obj)
-
-        def gather(self, sendobj, root=0):
-            assert root == 0
-            return [copy.deepcopy(sendobj)]
-
-        def py2f(self):
-            return self._id
-
-        def scatter(self, sendobj, root=0):
-            assert root == 0
-            sendobj, = sendobj
-            return copy.deepcopy(sendobj)
-
-    DEFAULT_COMM = SerialComm()
 
 
 class Control(Alias):
@@ -872,7 +823,7 @@ class EquationManager:
                     self._eqs[eq_id] = eq
                 self._block.append(eq)
             self._cp.add_equation(
-                (len(self._blocks), len(self._block) - 1), eq)
+                len(self._blocks), len(self._block) - 1, eq)
 
         if tlm is None:
             tlm = self.tlm_enabled()
@@ -959,30 +910,63 @@ class EquationManager:
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 
-    def _write_memory_checkpoint(self, n, cp):
+    def _write_memory_checkpoint(self, n, *, ics=True, data=True):
         if n in self._cp_memory or \
                 (self._cp_disk is not None and n in self._cp_disk):
             raise RuntimeError("Duplicate checkpoint")
 
-        self._cp_memory[n] = self._cp.initial_conditions(cp=True, refs=False,
-                                                         copy=False)
+        self._cp_memory[n] = self._cp.checkpoint_data(
+            ics=ics, data=data, copy=False)
 
-    def _read_memory_checkpoint(self, n, storage, *, delete=False):
+    def _read_memory_checkpoint(self, n, storage, *, ics=True, data=True,
+                                delete=False):
+        read_cp, read_data, read_storage = self._cp_memory[n]
         if delete:
-            storage.update(self._cp_memory.pop(n), copy=False)
-        else:
-            storage.update(self._cp_memory[n], copy=True)
+            self._cp_memory.pop(n)
 
-    def _write_disk_checkpoint(self, n, cp):
+        if ics or data:
+            if ics:
+                read_cp = tuple(key for key in read_cp if key[0] in storage)
+            else:
+                read_cp = ()
+            if not data:
+                read_data = {}
+
+            keys = set(read_cp)
+            for eq_data in read_data.values():
+                keys.update(eq_data)
+            read_storage = {key: read_storage[key] for key in read_storage
+                            if key in keys}
+
+            if ics:
+                storage.update({key[0]: read_storage[key] for key in read_cp},
+                               copy=not delete)
+            if data:
+                # Need not, and in some cases should not, pass read_cp here
+                self._cp.update((), read_data, read_storage,
+                                copy=True)
+
+    def _write_disk_checkpoint(self, n, *, ics=True, data=True):
         if n in self._cp_memory or n in self._cp_disk:
             raise RuntimeError("Duplicate checkpoint")
 
-        cp = self._cp.initial_conditions(cp=True, refs=False, copy=False)
+        self._cp_disk.write(
+            n, *self._cp.checkpoint_data(ics=ics, data=data, copy=False))
 
-        self._cp_disk.write(n, cp)
+    def _read_disk_checkpoint(self, n, storage, *, ics=True, data=True,
+                              delete=False):
+        if ics or data:
+            read_cp, read_data, read_storage = \
+                self._cp_disk.read(n, ics=ics, data=data, ic_ids=set(storage))
 
-    def _read_disk_checkpoint(self, n, storage, *, delete=False):
-        self._cp_disk.read(n, storage)
+            if ics:
+                storage.update({key[0]: read_storage[key] for key in read_cp},
+                               copy=False)
+            if data:
+                # Need not, and in some cases should not, pass read_cp here
+                self._cp.update((), read_data, read_storage,
+                                copy=True)
+
         if delete:
             self._cp_disk.delete(n)
 
@@ -1027,11 +1011,11 @@ class EquationManager:
                 if cp_storage == "disk":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"on disk")
-                    self._write_disk_checkpoint(cp_w_n, self._cp)
+                    self._write_disk_checkpoint(cp_w_n)
                 elif cp_storage == "RAM":
                     logger.debug(f"forward: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n, self._cp)
+                    self._write_memory_checkpoint(cp_w_n)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")
@@ -1083,7 +1067,7 @@ class EquationManager:
                             self._cp.add_initial_condition(
                                 eq_dep, value=storage[eq_dep])
                         eq.forward(X, deps=deps)
-                        self._cp.add_equation((n1, i), eq, deps=deps)
+                        self._cp.add_equation(n1, i, eq, deps=deps)
 
                         storage_state = storage.pop()
                         assert storage_state == (n1, i)
@@ -1129,11 +1113,11 @@ class EquationManager:
                 if cp_storage == "disk":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"on disk")
-                    self._write_disk_checkpoint(cp_w_n, self._cp)
+                    self._write_disk_checkpoint(cp_w_n)
                 elif cp_storage == "RAM":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
                                  f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n, self._cp)
+                    self._write_memory_checkpoint(cp_w_n)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
                                      f"{cp_storage:s}")
@@ -1422,14 +1406,18 @@ class EquationManager:
                 or self._cp_manager.r() != self._cp_manager.max_n():
             raise RuntimeError("Invalid checkpointing state")
 
-        cp_action, cp_data = next(self._cp_manager)
-        if cp_action == "end_reverse":
-            clear_ics, clear_data, _ = cp_data
-            self._cp.clear(clear_ics=clear_ics,
-                           clear_data=clear_data)
-        else:
-            raise ValueError(f"Unexpected checkpointing action: "
-                             f"{cp_action:s}")
+        while True:
+            cp_action, cp_data = next(self._cp_manager)
+
+            if cp_action == "clear":
+                clear_ics, clear_data = cp_data
+                self._cp.clear(clear_ics=clear_ics,
+                               clear_data=clear_data)
+            elif cp_action == "end_reverse":
+                break
+            else:
+                raise ValueError(f"Unexpected checkpointing action: "
+                                 f"{cp_action:s}")
 
         return tuple(dJ)
 

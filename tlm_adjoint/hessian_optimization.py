@@ -84,7 +84,7 @@ class HessianOptimization:
                     manager._eqs[eq_id] = eq
                 manager._block.append(eq)
                 manager._cp.add_equation(
-                    (len(manager._blocks), len(manager._block) - 1), eq,
+                    len(manager._blocks), len(manager._block) - 1, eq,
                     nl_deps=self._nl_deps[(n, i)], _copy=lambda x: False)
                 yield n, i, eq
 
@@ -118,7 +118,7 @@ class HessianOptimization:
             manager._eqs[tlm_eq_id] = tlm_eq
         manager._block.append(tlm_eq)
         manager._cp.add_equation(
-            (len(manager._blocks), len(manager._block) - 1), tlm_eq,
+            len(manager._blocks), len(manager._block) - 1, tlm_eq,
             deps=tlm_deps)
 
         if self._adj_cache is not None:

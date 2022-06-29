@@ -585,11 +585,9 @@ def test_Storage(setup_test, test_leaks,
     assert tuple(manager()._cp._refs.keys()) == (function_id(x),)
     assert len(manager()._cp._cp) == 0
     assert len(manager()._cp._data) == 4
-    assert tuple(manager()._cp._data.keys()) \
-        == ((function_id(x), 0),
-            (function_id(x_s), 1),
-            (function_id(y), 1),
-            (function_id(y_s), 1))
+    assert tuple(len(nl_deps) for nl_deps in manager()._cp._data.values()) \
+        == (0, 2, 0, 2)
+    assert len(manager()._cp._storage) == 4
 
     J_val = J.value()
 
@@ -780,13 +778,10 @@ def test_initial_guess(setup_test, test_leaks):
                                                  function_id(adj_x_0),
                                                  function_id(zero))
     assert len(manager()._cp._cp) == 0
-    assert len(manager()._cp._data) == 6
-    assert tuple(manager()._cp._data.keys()) == ((function_id(y), 0),
-                                                 (function_id(x), 2),
-                                                 (function_id(adj_x_0), 0),
-                                                 (function_id(x), 3),
-                                                 (function_id(zero), 0),
-                                                 (function_id(z), 1))
+    assert len(manager()._cp._data) == 10
+    assert tuple(len(nl_deps) for nl_deps in manager()._cp._data.values()) \
+        == (0, 0, 0, 1, 0, 2, 0, 2, 1, 0)
+    assert len(manager()._cp._storage) == 6
 
     dJdx_0, dJdy = compute_gradient(
         J, [x_0, y], adj_ics={z: ZeroFunction(space_1)})

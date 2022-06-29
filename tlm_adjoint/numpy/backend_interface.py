@@ -22,10 +22,9 @@ from ..caches import Caches
 from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..interface import SpaceInterface, add_interface, function_space, \
-    new_function_id, new_space_id, space_id, space_new
+from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
+    function_space, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
-from ..tlm_adjoint import DEFAULT_COMM
 
 import copy
 import numpy as np
