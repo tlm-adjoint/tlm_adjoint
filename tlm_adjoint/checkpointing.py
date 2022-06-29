@@ -190,6 +190,8 @@ class CheckpointStorage:
         if deps is None:
             deps = eq_deps
 
+        self._update_keys(n, i, eq)
+
         if self._store_ics:
             for eq_x in eq.X():
                 self._seen_ics.add(function_id(eq_x))
@@ -201,8 +203,6 @@ class CheckpointStorage:
         if self._store_data:
             if (n, i) in self._data:
                 raise KeyError("Non-linear dependency data already stored")
-
-            self._update_keys(n, i, eq)
 
             eq_nl_deps = eq.nonlinear_dependencies()
             if nl_deps is None:
