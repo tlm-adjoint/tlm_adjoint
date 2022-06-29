@@ -920,9 +920,11 @@ class EquationManager:
 
     def _read_memory_checkpoint(self, n, storage, *, ics=True, data=True,
                                 delete=False):
-        if ics or data:
-            read_cp, read_data, read_storage = self._cp_memory[n]
+        read_cp, read_data, read_storage = self._cp_memory[n]
+        if delete:
+            self._cp_memory.pop(n)
 
+        if ics or data:
             if ics:
                 read_cp = tuple(key for key in read_cp if key[0] in storage)
             else:
@@ -933,7 +935,6 @@ class EquationManager:
             keys = set(read_cp)
             for eq_data in read_data.values():
                 keys.update(eq_data)
-            keys = keys.intersection(read_storage)
             read_storage = {key: read_storage[key] for key in read_storage
                             if key in keys}
 
@@ -944,9 +945,6 @@ class EquationManager:
                 # Need not, and in some cases should not, pass read_cp here
                 self._cp.update((), read_data, read_storage,
                                 copy=True)
-
-        if delete:
-            self._cp_memory.pop(n)
 
     def _write_disk_checkpoint(self, n, *, ics=True, data=True):
         if n in self._cp_memory or n in self._cp_disk:

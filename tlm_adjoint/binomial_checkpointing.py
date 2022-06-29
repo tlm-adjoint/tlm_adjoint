@@ -395,8 +395,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                             yield "read", (cp_n, "disk", False)
                         else:
                             self._n = cp_n
-                            yield "read", (cp_n, self._binomial_storage,
-                                           False)
+                            yield "read", (cp_n, self._binomial_storage, False)
 
                         yield "configure", (False, False)
 

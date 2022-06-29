@@ -169,7 +169,7 @@ class CheckpointStorage:
 
     def _add_initial_condition(self, *, x_id, value, copy):
         if self._store_ics and x_id not in self._seen_ics:
-            key, value = self._store(x_id=x_id, value=value, copy=copy)
+            key, _ = self._store(x_id=x_id, value=value, copy=copy)
             if copy:
                 assert key not in self._refs_keys
                 self._cp_keys.add(key)
@@ -452,7 +452,6 @@ class PickleCheckpoints(Checkpoints):
         keys = set(read_cp)
         for eq_data in read_data.values():
             keys.update(eq_data)
-        keys = keys.intersection(read_storage)
         read_storage = {key: read_storage[key] for key in read_storage
                         if key in keys}
 
@@ -700,11 +699,10 @@ class CheckpointingManager(ABC):
     Run the adjoint from the start of block n1 to the start of block n0.
 
     action: 'read'
-    data:   (n, storage, ics, data, delete)
+    data:   (n, storage, delete)
     Read checkpoint data associated with the start of block n from the
-    indicated storage. ics indicates whether data required to run the forward
-    should be read. data indicates whether non-linear dependency data should be
-    read. delete indicates whether the checkpoint data should be deleted.
+    indicated storage. delete indicates whether the checkpoint data should be
+    deleted.
 
     action: 'write'
     data:   (n, storage)
