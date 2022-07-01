@@ -1108,7 +1108,7 @@ class EquationManager:
                                      f"{cp_storage:s}")
             elif cp_action == "write":
                 cp_w_n, cp_storage = cp_data
-                if cp_w_n > n:
+                if cp_w_n >= n:
                     raise RuntimeError("Invalid checkpointing state")
                 if cp_storage == "disk":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
