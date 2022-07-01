@@ -1026,8 +1026,10 @@ class EquationManager:
     def _restore_checkpoint(self, n):
         if self._cp_manager.max_n() is None:
             raise RuntimeError("Invalid checkpointing state")
-        if n >= self._cp_manager.max_n() - self._cp_manager.r():
+        if n > self._cp_manager.max_n() - self._cp_manager.r() - 1:
             return
+        elif n != self._cp_manager.max_n() - self._cp_manager.r() - 1:
+            raise RuntimeError("Invalid checkpointing state")
 
         logger = logging.getLogger("tlm_adjoint.checkpointing")
 
@@ -1108,7 +1110,7 @@ class EquationManager:
                                      f"{cp_storage:s}")
             elif cp_action == "write":
                 cp_w_n, cp_storage = cp_data
-                if cp_w_n > n:
+                if cp_w_n >= n:
                     raise RuntimeError("Invalid checkpointing state")
                 if cp_storage == "disk":
                     logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
