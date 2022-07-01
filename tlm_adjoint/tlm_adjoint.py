@@ -1026,8 +1026,10 @@ class EquationManager:
     def _restore_checkpoint(self, n):
         if self._cp_manager.max_n() is None:
             raise RuntimeError("Invalid checkpointing state")
-        if n >= self._cp_manager.max_n() - self._cp_manager.r():
+        if n > self._cp_manager.max_n() - self._cp_manager.r() - 1:
             return
+        elif n != self._cp_manager.max_n() - self._cp_manager.r() - 1:
+            raise RuntimeError("Invalid checkpointing state")
 
         logger = logging.getLogger("tlm_adjoint.checkpointing")
 
