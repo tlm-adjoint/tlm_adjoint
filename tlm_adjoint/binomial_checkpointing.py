@@ -266,6 +266,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
                 assert n1 > n0
                 self._n = n1
                 yield "forward", (n0, n1)
+                yield "clear", (True, True)
 
                 while self._n < self._max_n - self._r - 1:
                     yield "configure", (True, False)
@@ -408,6 +409,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                         assert n1 > n0
                         self._n = n1
                         yield "forward", (n0, n1)
+                        yield "clear", (True, True)
 
                         while self._n < self._max_n - self._r - 1:
                             yield "configure", (True, False)

@@ -942,7 +942,7 @@ class EquationManager:
                 storage.update({key[0]: read_storage[key] for key in read_cp},
                                copy=not delete)
             if data:
-                # Need not, and in some cases should not, pass read_cp here
+                # Need not pass read_cp here
                 self._cp.update((), read_data, read_storage,
                                 copy=True)
 
@@ -963,7 +963,7 @@ class EquationManager:
                 storage.update({key[0]: read_storage[key] for key in read_cp},
                                copy=False)
             if data:
-                # Need not, and in some cases should not, pass read_cp here
+                # Need not pass read_cp here
                 self._cp.update((), read_data, read_storage,
                                 copy=True)
 
