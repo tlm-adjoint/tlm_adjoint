@@ -365,7 +365,8 @@ backend_DirichletBC.apply = _DirichletBC_apply
 
 def _Constant_assign(self, x, *, annotate=None, tlm=None):
     eq = None
-    if isinstance(x, backend_Constant):
+    if isinstance(x, backend_Constant) \
+            and x is not self:
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
@@ -397,7 +398,9 @@ def function_spaces_equal(x, y):
 
 
 def _Function_assign(self, rhs, *, annotate=None, tlm=None):
-    if isinstance(rhs, backend_Function) and function_spaces_equal(self, rhs):
+    if isinstance(rhs, backend_Function) \
+            and rhs is not self \
+            and function_spaces_equal(self, rhs):
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:

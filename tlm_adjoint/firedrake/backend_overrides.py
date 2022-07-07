@@ -317,7 +317,8 @@ def project(v, V, bcs=None, solver_parameters=None,
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Constant_assign(self, value, *, annotate=None, tlm=None):
     eq = None
-    if isinstance(value, backend_Constant):
+    if isinstance(value, backend_Constant) \
+            and value is not self:
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
@@ -345,6 +346,7 @@ backend_Constant.assign = _Constant_assign
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
     if isinstance(expr, backend_Function) \
+            and expr is not self \
             and subset is None \
             and self.function_space() == expr.function_space():
         if annotate is None:
