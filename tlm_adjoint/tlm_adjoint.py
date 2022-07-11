@@ -80,47 +80,44 @@ class TangentLinearMap:
     A map from forward to tangent-linear variables.
     """
 
+    _id_counter = [0]
+
     def __init__(self, name_suffix=" (tangent-linear)"):
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
         self._name_suffix = name_suffix
-        self._map = {}
-        self._finalizes = {}
+        self._tangent_linears = []
 
         @gc_disabled
-        def finalize_callback(finalizes):
-            for finalize in finalizes.values():
-                finalize.detach()
-            finalizes.clear()
-        finalize = weakref.finalize(self, finalize_callback, self._finalizes)
+        def finalize_callback(tangent_linears, id):
+            for x_tangent_linears in tangent_linears:
+                del x_tangent_linears[id]
+        finalize = weakref.finalize(self, finalize_callback,
+                                    self._tangent_linears, self._id)
         finalize.atexit = False
 
     @gc_disabled
     def __contains__(self, x):
-        return function_id(x) in self._map
+        if hasattr(x, "_tlm_adjoint__tangent_linears"):
+            return self._id in x._tlm_adjoint__tangent_linears
+        else:
+            return False
 
     @gc_disabled
     def __getitem__(self, x):
         if not is_function(x):
             raise TypeError("x must be a function")
-        assert not isinstance(x, WeakAlias)
+        if isinstance(x, WeakAlias):
+            raise TypeError("x cannot be a WeakAlias")
 
-        x_id = function_id(x)
-        if x_id not in self._map:
-            self._map[x_id] = function_new_tangent_linear(
-                x, name=f"{function_name(x):s}{self._name_suffix:s}")
-
-            @gc_disabled
-            def finalize_callback(self_ref, x_id):
-                self = self_ref()
-                if self is not None:
-                    del self._finalizes[x_id]
-                    del self._map[x_id]
-            finalize = weakref.finalize(
-                x, finalize_callback, weakref.ref(self), x_id)
-            finalize.atexit = False
-            assert x_id not in self._finalizes
-            self._finalizes[x_id] = finalize
-
-        return self._map[x_id]
+        if not hasattr(x, "_tlm_adjoint__tangent_linears"):
+            x._tlm_adjoint__tangent_linears = {}
+        if self._id not in x._tlm_adjoint__tangent_linears:
+            x._tlm_adjoint__tangent_linears[self._id] = \
+                function_new_tangent_linear(
+                    x, name=f"{function_name(x):s}{self._name_suffix:s}")
+            self._tangent_linears.append(x._tlm_adjoint__tangent_linears)
+        return x._tlm_adjoint__tangent_linears[self._id]
 
 
 class DependencyGraphTranspose:
