@@ -14,4 +14,4 @@ setup(
               "tlm_adjoint.fenics",
               "tlm_adjoint.firedrake",
               "tlm_adjoint.numpy"],
-    python_requires=">=3.6")
+    python_requires=">=3.8")

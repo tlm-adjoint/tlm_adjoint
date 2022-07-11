@@ -196,8 +196,7 @@ class FunctionInterface(_FunctionInterface):
             assert isinstance(y, backend_Constant)
             self.assign(y, annotate=False, tlm=False)
 
-    def _axpy(self, *args):  # self, alpha, x
-        alpha, x = args
+    def _axpy(self, alpha, x, /):
         alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
