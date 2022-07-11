@@ -205,8 +205,7 @@ class FunctionInterface(_FunctionInterface):
             values = function_comm(self).bcast(values, root=0)
             self.dat.data[:] = values
 
-    def _axpy(self, *args):  # self, alpha, x
-        alpha, x = args
+    def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
         if isinstance(x, backend_Function):

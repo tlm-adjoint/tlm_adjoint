@@ -415,7 +415,7 @@ class FunctionInterface:
     def _assign(self, y):
         raise NotImplementedError("Method not overridden")
 
-    def _axpy(self, *args):  # self, alpha, x
+    def _axpy(self, alpha, x, /):
         raise NotImplementedError("Method not overridden")
 
     def _inner(self, y):
@@ -564,8 +564,7 @@ def function_assign(x, y):
     function_update_state(x)
 
 
-def function_axpy(*args):  # y, alpha, x
-    y, alpha, x = args
+def function_axpy(y, alpha, x, /):
     if is_function(y):
         check_space_types(x, y)
     y._tlm_adjoint__function_interface_axpy(alpha, x)

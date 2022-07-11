@@ -156,8 +156,7 @@ class FunctionInterface(_FunctionInterface):
         else:
             raise TypeError("Invalid type")
 
-    def _axpy(self, *args):  # self, alpha, x
-        alpha, x = args
+    def _axpy(self, alpha, x, /):
         dtype = self.dtype()
         alpha = dtype(alpha)
         if isinstance(x, (int, np.integer,

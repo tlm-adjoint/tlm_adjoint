@@ -146,8 +146,7 @@ class ConstantInterface(_FunctionInterface):
             value = y
         self.assign(value, annotate=False, tlm=False)
 
-    def _axpy(self, *args):  # self, alpha, x
-        alpha, x = args
+    def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
         if isinstance(x, (int, np.integer,
