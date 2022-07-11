@@ -31,8 +31,8 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 
 from ..manager import annotation_enabled, tlm_enabled
 
-from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
-    linear_equation_new_x
+from .equations import AssignmentSolver, EquationSolver, \
+    ExprEvaluationSolver, ProjectionSolver, linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
 
 import copy
@@ -317,7 +317,8 @@ def project(v, V, bcs=None, solver_parameters=None,
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Constant_assign(self, value, *, annotate=None, tlm=None):
     eq = None
-    if isinstance(value, backend_Constant):
+    if isinstance(value, backend_Constant) \
+            and value is not self:
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
@@ -344,16 +345,28 @@ backend_Constant.assign = _Constant_assign
 # Aim for compatibility with Firedrake API, git master revision
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
-    if isinstance(expr, backend_Function) \
-            and subset is None \
-            and self.function_space() == expr.function_space():
+    if subset is None:
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            AssignmentSolver(expr, self).solve(annotate=annotate, tlm=tlm)
-            return self
+            if isinstance(expr, backend_Function):
+                # Function.assign(Function)
+                if expr is not self:
+                    AssignmentSolver(expr, self).solve(annotate=annotate,
+                                                       tlm=tlm)
+                    return self
+            else:
+                # Function.assign(Expr)
+                if self in ufl.algorithms.extract_coefficients(expr):
+                    self_old = function_new(self)
+                    AssignmentSolver(self, self_old).solve(
+                        annotate=annotate, tlm=tlm)
+                    expr = ufl.replace(expr, {self: self_old})
+                ExprEvaluationSolver(expr, self).solve(
+                    annotate=annotate, tlm=tlm)
+                return self
 
     return_value = backend_Function._tlm_adjoint__orig_assign(
         self, expr, subset=subset)

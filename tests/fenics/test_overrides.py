@@ -178,10 +178,11 @@ def test_Function_assign(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def forward(m):
-        u = Function(space, name="m")
+        u = Function(space, name="u")
         u_v = u.vector()
         u.assign(m)
         assert u.vector() is u_v
+        u.assign(u)
 
         J = Functional(name="J")
         J.assign(((u - 1.0) ** 4) * dx)
