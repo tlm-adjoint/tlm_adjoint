@@ -565,8 +565,8 @@ def function_assign(x, y):
 
 
 def function_axpy(y, alpha, x, /):
-    if is_function(y):
-        check_space_types(x, y)
+    if is_function(x):
+        check_space_types(y, x)
     y._tlm_adjoint__function_interface_axpy(alpha, x)
     function_update_state(y)
 
