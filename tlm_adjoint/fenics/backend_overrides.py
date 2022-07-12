@@ -31,8 +31,8 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 
 from ..manager import annotation_enabled, tlm_enabled
 
-from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
-    linear_equation_new_x
+from .equations import AssignmentSolver, EquationSolver, \
+    ExprEvaluationSolver, ProjectionSolver, linear_equation_new_x
 
 import numpy as np
 import ufl
@@ -364,24 +364,32 @@ backend_DirichletBC.apply = _DirichletBC_apply
 
 
 def _Constant_assign(self, x, *, annotate=None, tlm=None):
-    eq = None
-    if isinstance(x, backend_Constant) \
-            and x is not self:
-        if annotate is None:
-            annotate = annotation_enabled()
-        if tlm is None:
-            tlm = tlm_enabled()
-        if annotate or tlm:
-            eq = AssignmentSolver(x, self)
-            eq._pre_process(annotate=annotate)
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(x, (int, np.integer,
+                          float, np.floating)):
+            AssignmentSolver(backend_Constant(x), self).solve(
+                annotate=annotate, tlm=tlm)
+            return
+        elif isinstance(x, backend_Constant):
+            if x is not self:
+                AssignmentSolver(x, self).solve(annotate=annotate, tlm=tlm)
+                return
+        elif isinstance(x, ufl.classes.Expr):
+            if self in ufl.algorithms.extract_coefficients(x):
+                self_old = function_new(self)
+                AssignmentSolver(self, self_old).solve(
+                    annotate=annotate, tlm=tlm)
+                x = ufl.replace(x, {self: self_old})
+            ExprEvaluationSolver(x, self).solve(annotate=annotate, tlm=tlm)
+            return
 
     return_value = backend_Constant._tlm_adjoint__orig_assign(
         self, x)
-
     function_update_state(self)
-    if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
-
     return return_value
 
 
