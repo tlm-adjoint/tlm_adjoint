@@ -421,7 +421,7 @@ def _Function_assign(self, rhs, *, annotate=None, tlm=None):
                 AssignmentSolver(rhs, self).solve(
                     annotate=annotate, tlm=tlm)
                 return
-        elif isinstance(rhs, ufl.classes.rhs):
+        elif isinstance(rhs, ufl.classes.Expr):
             if self in ufl.algorithms.extract_coefficients(rhs):
                 self_old = function_new(self)
                 AssignmentSolver(self, self_old).solve(
