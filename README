@@ -44,7 +44,6 @@ tlm_adjoint requires:
 
     Firedrake backend:
         Firedrake
-        pyadjoint
 
 tlm_adjoint optionally uses
 
