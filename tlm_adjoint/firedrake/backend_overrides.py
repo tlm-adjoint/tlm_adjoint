@@ -361,14 +361,18 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if isinstance(expr, backend_Function):
-                # Function.assign(Function)
+            if isinstance(expr, (int, np.integer,
+                                 float, np.floating,
+                                 complex, np.complexfloating)):
+                AssignmentSolver(backend_Constant(expr), self).solve(
+                    annotate=annotate, tlm=tlm)
+                return self
+            elif isinstance(expr, backend_Function):
                 if expr is not self:
-                    AssignmentSolver(expr, self).solve(annotate=annotate,
-                                                       tlm=tlm)
+                    AssignmentSolver(expr, self).solve(
+                        annotate=annotate, tlm=tlm)
                     return self
-            else:
-                # Function.assign(Expr)
+            elif isinstance(expr, ufl.classes.Expr):
                 if self in ufl.algorithms.extract_coefficients(expr):
                     self_old = function_new(self)
                     AssignmentSolver(self, self_old).solve(

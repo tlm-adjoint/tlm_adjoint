@@ -406,18 +406,32 @@ def function_spaces_equal(x, y):
 
 
 def _Function_assign(self, rhs, *, annotate=None, tlm=None):
-    if isinstance(rhs, backend_Function) \
-            and rhs is not self \
-            and function_spaces_equal(self, rhs):
-        if annotate is None:
-            annotate = annotation_enabled()
-        if tlm is None:
-            tlm = tlm_enabled()
-        if annotate or tlm:
-            AssignmentSolver(rhs, self).solve(annotate=annotate, tlm=tlm)
-        else:
-            function_assign(self, rhs)
-            function_update_state(self)
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(rhs, (int, np.integer,
+                            float, np.floating)):
+            AssignmentSolver(backend_Constant(rhs), self).solve(
+                annotate=annotate, tlm=tlm)
+            return
+        elif isinstance(rhs, backend_Function):
+            if rhs is not self:
+                AssignmentSolver(rhs, self).solve(
+                    annotate=annotate, tlm=tlm)
+                return
+        elif isinstance(rhs, ufl.classes.rhs):
+            if self in ufl.algorithms.extract_coefficients(rhs):
+                self_old = function_new(self)
+                AssignmentSolver(self, self_old).solve(
+                    annotate=annotate, tlm=tlm)
+                rhs = ufl.replace(rhs, {self: self_old})
+            ExprEvaluationSolver(rhs, self).solve(
+                annotate=annotate, tlm=tlm)
+            return
+    elif isinstance(rhs, backend_Function) and rhs is not self:
+        function_assign(self, rhs)
         return
 
     return_value = backend_Function._tlm_adjoint__orig_assign(
