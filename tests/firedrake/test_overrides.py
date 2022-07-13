@@ -136,13 +136,16 @@ def test_Function_assign(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def forward(m):
-        u = Function(space, name="u")
+        u = Constant(0.0, name="u")
         u.assign(m)
-        u.assign(u)
+        u.assign(-2.0)
+        u.assign(u + 2.0 * m)
 
         v = Function(space, name="v")
         v.assign(u)
         v.assign(u + Constant(1.0))
+        v.assign(0.0)
+        v.assign(u + v + Constant(1.0))
         v.assign(2.5 * u + 3.6 * v + 4.7 * m)
 
         J = Functional(name="J")
@@ -156,7 +159,7 @@ def test_Function_assign(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
-    assert abs(J_val - 342974.2096) < 1.0e-9
+    assert abs(J_val - 342974.2096) < 1.0e-10
 
     dJ = compute_gradient(J, m)
 
