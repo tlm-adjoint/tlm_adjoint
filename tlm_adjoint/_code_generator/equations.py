@@ -24,8 +24,7 @@ from ..interface import check_space_type, function_assign, \
     function_get_values, function_id, function_inner, function_is_scalar, \
     function_new, function_new_conjugate_dual, function_replacement, \
     function_scalar_value, function_set_values, function_space, \
-    function_update_caches, function_update_state, function_zero, \
-    is_function, space_id
+    function_update_caches, function_update_state, function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, complex_mode, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -873,14 +872,17 @@ class ExprEvaluationSolver(ExprEquation):
         if isinstance(rhs, ufl.classes.Form):
             raise TypeError("rhs should not be a Form")
 
+        x_space = function_space(x)
         deps, nl_deps = extract_dependencies(rhs)
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         for dep in deps:
             if dep == x:
                 raise ValueError("Invalid non-linear dependency")
-            if isinstance(dep, backend_Function) \
-                    and space_id(function_space(dep)) != space_id(function_space(x)):  # noqa: E501
-                raise ValueError("Invalid dependency")
+            if isinstance(dep, backend_Function):
+                dep_space = function_space(dep)
+                if dep_space.ufl_domains() != x_space.ufl_domains() \
+                        or dep_space.ufl_element() != x_space.ufl_element():
+                    raise ValueError("Invalid dependency")
         deps.insert(0, x)
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)

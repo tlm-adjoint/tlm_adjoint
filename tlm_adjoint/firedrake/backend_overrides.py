@@ -24,8 +24,8 @@ from .backend import Parameters, Projector, backend_Constant, \
     backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
     backend_project, backend_solve, extract_args, extract_linear_solver_args, \
     parameters
-from ..interface import check_space_type, function_new, \
-    function_update_state, space_new
+from ..interface import check_space_type, function_new, function_space, \
+    function_update_state, space_id, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
@@ -365,7 +365,8 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
                                  float, np.floating,
                                  complex, np.complexfloating)):
                 expr = backend_Constant(expr)
-            if isinstance(expr, backend_Function):
+            if isinstance(expr, backend_Function) \
+                    and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
                 if expr is not self:
                     AssignmentSolver(expr, self).solve(
                         annotate=annotate, tlm=tlm)
