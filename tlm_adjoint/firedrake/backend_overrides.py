@@ -364,10 +364,8 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
             if isinstance(expr, (int, np.integer,
                                  float, np.floating,
                                  complex, np.complexfloating)):
-                AssignmentSolver(backend_Constant(expr), self).solve(
-                    annotate=annotate, tlm=tlm)
-                return self
-            elif isinstance(expr, backend_Function):
+                expr = backend_Constant(expr)
+            if isinstance(expr, backend_Function):
                 if expr is not self:
                     AssignmentSolver(expr, self).solve(
                         annotate=annotate, tlm=tlm)

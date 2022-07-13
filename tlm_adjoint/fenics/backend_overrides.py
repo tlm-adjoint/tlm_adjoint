@@ -411,12 +411,7 @@ def _Function_assign(self, rhs, *, annotate=None, tlm=None):
     if tlm is None:
         tlm = tlm_enabled()
     if annotate or tlm:
-        if isinstance(rhs, (int, np.integer,
-                            float, np.floating)):
-            AssignmentSolver(backend_Constant(rhs), self).solve(
-                annotate=annotate, tlm=tlm)
-            return
-        elif isinstance(rhs, backend_Function):
+        if isinstance(rhs, backend_Function):
             if rhs is not self:
                 AssignmentSolver(rhs, self).solve(
                     annotate=annotate, tlm=tlm)
