@@ -24,10 +24,10 @@ from .backend import Parameters, backend_Constant, backend_DirichletBC, \
     backend_NonlinearVariationalProblem, backend_NonlinearVariationalSolver, \
     backend_assemble, backend_assemble_system, backend_project, \
     backend_solve, extract_args, parameters
-from ..interface import check_space_type, function_new, function_space, \
-    function_update_state, space_id, space_new
+from ..interface import check_space_type, function_assign, function_new, \
+    function_space, function_update_state, space_id, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
-    interpolate_expression, update_parameters_dict
+    update_parameters_dict
 
 from ..manager import annotation_enabled, tlm_enabled
 
@@ -428,7 +428,12 @@ def _Function_assign(self, rhs, *, annotate=None, tlm=None):
                     annotate=annotate, tlm=tlm)
                 return
     elif isinstance(rhs, backend_Function) and rhs is not self:
-        interpolate_expression(self, rhs)
+        if space_id(function_space(rhs)) == space_id(function_space(self)):
+            value = rhs
+        else:
+            value = function_new(self)
+            backend_Function._tlm_adjoint__orig_assign(value, rhs)
+        function_assign(self, value)
         return
 
     return_value = backend_Function._tlm_adjoint__orig_assign(
