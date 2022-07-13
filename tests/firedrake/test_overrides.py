@@ -159,7 +159,7 @@ def test_Function_assign(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
-    assert abs(J_val - 342974.2096) < 1.0e-10
+    assert abs(J_val - 342974.2096) < 1.0e-9
 
     dJ = compute_gradient(J, m)
 

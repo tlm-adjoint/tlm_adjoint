@@ -26,7 +26,7 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import check_space_type, check_space_types, \
+from ..interface import check_space_type, check_space_types, function_assign, \
     function_space_type, space_new
 
 from .functions import eliminate_zeros
@@ -419,7 +419,7 @@ def interpolate_expression(x, expr):
                 value.assign(expr, annotate=False, tlm=False)
             except RuntimeError:
                 value.interpolate(Expr())
-        x.assign(value, annotate=False, tlm=False)
+        function_assign(x, value)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 

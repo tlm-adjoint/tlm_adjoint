@@ -414,10 +414,11 @@ def _Function_assign(self, rhs, *, annotate=None, tlm=None):
             x_space = function_space(self)
             deps = ufl.algorithms.extract_coefficients(rhs)
             for dep in deps:
-                dep_space = function_space(dep)
-                if dep_space.ufl_domains() != x_space.ufl_domains() \
-                        or dep_space.ufl_element() != x_space.ufl_element():
-                    break
+                if isinstance(dep, backend_Function):
+                    dep_space = function_space(dep)
+                    if dep_space.ufl_domains() != x_space.ufl_domains() \
+                            or dep_space.ufl_element() != x_space.ufl_element():  # noqa: E501
+                        break
             else:
                 if self in deps:
                     self_old = function_new(self)
