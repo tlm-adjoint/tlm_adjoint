@@ -26,7 +26,7 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
-from ..interface import check_space_type, check_space_types, \
+from ..interface import check_space_type, check_space_types, function_assign, \
     function_space_type, space_new
 
 from .functions import eliminate_zeros
@@ -402,13 +402,24 @@ def interpolate_expression(x, expr):
             return x.ufl_shape
 
     if isinstance(x, backend_Constant):
-        if len(x.ufl_shape) > 0:
-            raise ValueError("Scalar Constant required")
-        value = x.values()
-        Expr().eval(value, ())
+        if isinstance(expr, backend_Constant):
+            value = expr
+        else:
+            if len(x.ufl_shape) > 0:
+                raise ValueError("Scalar Constant required")
+            value = x.values()
+            Expr().eval(value, ())
         x.assign(value, annotate=False, tlm=False)
     elif isinstance(x, backend_Function):
-        x.interpolate(Expr())
+        if isinstance(expr, backend_Constant):
+            value = expr
+        else:
+            value = backend_Function(x.function_space())
+            try:
+                value.assign(expr, annotate=False, tlm=False)
+            except RuntimeError:
+                value.interpolate(Expr())
+        function_assign(x, value)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 

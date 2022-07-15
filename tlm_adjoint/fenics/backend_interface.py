@@ -137,6 +137,15 @@ backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init
 backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
+def check_vector_size(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(self, *args, **kwargs):
+        if self.vector().size() != self.function_space().dofmap().global_dimension():  # noqa: E501
+            raise RuntimeError("Unexpected vector size")
+        return fn(self, *args, **kwargs)
+    return wrapped_fn
+
+
 class FunctionInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
@@ -172,9 +181,11 @@ class FunctionInterface(_FunctionInterface):
                 = Caches(self)
         return self._tlm_adjoint__function_interface_attrs["caches"]
 
+    @check_vector_size
     def _zero(self):
         self.vector().zero()
 
+    @check_vector_size
     def _assign(self, y):
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
@@ -196,6 +207,7 @@ class FunctionInterface(_FunctionInterface):
             assert isinstance(y, backend_Constant)
             self.assign(y, annotate=False, tlm=False)
 
+    @check_vector_size
     def _axpy(self, alpha, x, /):
         alpha = backend_ScalarType(alpha)
         if isinstance(x, backend_Function):
@@ -221,6 +233,7 @@ class FunctionInterface(_FunctionInterface):
             x_.assign(x, annotate=False, tlm=False)
             self.vector().axpy(alpha, x_.vector())
 
+    @check_vector_size
     def _inner(self, y):
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
@@ -235,29 +248,37 @@ class FunctionInterface(_FunctionInterface):
             inner = y_.vector().inner(self.vector())
         return inner
 
+    @check_vector_size
     def _max_value(self):
         return self.vector().max()
 
+    @check_vector_size
     def _sum(self):
         return self.vector().sum()
 
+    @check_vector_size
     def _linf_norm(self):
         return self.vector().norm("linf")
 
+    @check_vector_size
     def _local_size(self):
         return self.vector().local_size()
 
+    @check_vector_size
     def _global_size(self):
         return self.function_space().dofmap().global_dimension()
 
+    @check_vector_size
     def _local_indices(self):
         return slice(*self.function_space().dofmap().ownership_range())
 
+    @check_vector_size
     def _get_values(self):
         values = self.vector().get_local().view()
         values.setflags(write=False)
         return values
 
+    @check_vector_size
     def _set_values(self, values):
         if not np.can_cast(values, backend_ScalarType):
             raise ValueError("Invalid dtype")
@@ -266,6 +287,7 @@ class FunctionInterface(_FunctionInterface):
         self.vector().set_local(values)
         self.vector().apply("insert")
 
+    @check_vector_size
     def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
              rel_space_type="primal"):
         y = function_copy(self, name=name, static=static, cache=cache,
@@ -275,6 +297,7 @@ class FunctionInterface(_FunctionInterface):
         y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
+    @check_vector_size
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         y = self.copy(deepcopy=True)
         if name is not None:
@@ -301,6 +324,7 @@ class FunctionInterface(_FunctionInterface):
         return (is_valid_r0_space(self.function_space())
                 and len(self.ufl_shape) == 0)
 
+    @check_vector_size
     def _scalar_value(self):
         # assert function_is_scalar(self)
         return self.vector().max()

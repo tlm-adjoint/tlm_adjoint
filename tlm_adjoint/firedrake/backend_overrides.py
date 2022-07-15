@@ -24,8 +24,8 @@ from .backend import Parameters, Projector, backend_Constant, \
     backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
     backend_project, backend_solve, extract_args, extract_linear_solver_args, \
     parameters
-from ..interface import check_space_type, function_new, \
-    function_update_state, space_new
+from ..interface import check_space_type, function_new, function_space, \
+    function_update_state, space_id, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
@@ -36,6 +36,7 @@ from .equations import AssignmentSolver, EquationSolver, \
 from .firedrake_equations import LocalProjectionSolver
 
 import copy
+import numpy as np
 import ufl
 
 __all__ = \
@@ -316,24 +317,33 @@ def project(v, V, bcs=None, solver_parameters=None,
 # Aim for compatibility with Firedrake API, git master revision
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
 def _Constant_assign(self, value, *, annotate=None, tlm=None):
-    eq = None
-    if isinstance(value, backend_Constant) \
-            and value is not self:
-        if annotate is None:
-            annotate = annotation_enabled()
-        if tlm is None:
-            tlm = tlm_enabled()
-        if annotate or tlm:
-            eq = AssignmentSolver(value, self)
-            eq._pre_process(annotate=annotate)
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(value, (int, np.integer,
+                              float, np.floating,
+                              complex, np.complexfloating)):
+            AssignmentSolver(backend_Constant(value), self).solve(
+                annotate=annotate, tlm=tlm)
+            return
+        elif isinstance(value, backend_Constant):
+            if value is not self:
+                AssignmentSolver(value, self).solve(annotate=annotate, tlm=tlm)
+                return
+        elif isinstance(value, ufl.classes.Expr):
+            if self in ufl.algorithms.extract_coefficients(value):
+                self_old = function_new(self)
+                AssignmentSolver(self, self_old).solve(
+                    annotate=annotate, tlm=tlm)
+                value = ufl.replace(value, {self: self_old})
+            ExprEvaluationSolver(value, self).solve(annotate=annotate, tlm=tlm)
+            return
 
     return_value = backend_Constant._tlm_adjoint__orig_assign(
         self, value)
-
     function_update_state(self)
-    if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
-
     return return_value
 
 
@@ -351,14 +361,17 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if isinstance(expr, backend_Function):
-                # Function.assign(Function)
+            if isinstance(expr, (int, np.integer,
+                                 float, np.floating,
+                                 complex, np.complexfloating)):
+                expr = backend_Constant(expr)
+            if isinstance(expr, backend_Function) \
+                    and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
                 if expr is not self:
-                    AssignmentSolver(expr, self).solve(annotate=annotate,
-                                                       tlm=tlm)
+                    AssignmentSolver(expr, self).solve(
+                        annotate=annotate, tlm=tlm)
                     return self
-            else:
-                # Function.assign(Expr)
+            elif isinstance(expr, ufl.classes.Expr):
                 if self in ufl.algorithms.extract_coefficients(expr):
                     self_old = function_new(self)
                     AssignmentSolver(self, self_old).solve(

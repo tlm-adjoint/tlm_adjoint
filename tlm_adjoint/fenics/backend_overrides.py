@@ -25,14 +25,14 @@ from .backend import Parameters, backend_Constant, backend_DirichletBC, \
     backend_assemble, backend_assemble_system, backend_project, \
     backend_solve, extract_args, parameters
 from ..interface import check_space_type, function_assign, function_new, \
-    function_space, function_update_state, space_new
+    function_space, function_update_state, space_id, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
 from ..manager import annotation_enabled, tlm_enabled
 
-from .equations import AssignmentSolver, EquationSolver, ProjectionSolver, \
-    linear_equation_new_x
+from .equations import AssignmentSolver, EquationSolver, \
+    ExprEvaluationSolver, ProjectionSolver, linear_equation_new_x
 
 import numpy as np
 import ufl
@@ -364,24 +364,32 @@ backend_DirichletBC.apply = _DirichletBC_apply
 
 
 def _Constant_assign(self, x, *, annotate=None, tlm=None):
-    eq = None
-    if isinstance(x, backend_Constant) \
-            and x is not self:
-        if annotate is None:
-            annotate = annotation_enabled()
-        if tlm is None:
-            tlm = tlm_enabled()
-        if annotate or tlm:
-            eq = AssignmentSolver(x, self)
-            eq._pre_process(annotate=annotate)
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(x, (int, np.integer,
+                          float, np.floating)):
+            AssignmentSolver(backend_Constant(x), self).solve(
+                annotate=annotate, tlm=tlm)
+            return
+        elif isinstance(x, backend_Constant):
+            if x is not self:
+                AssignmentSolver(x, self).solve(annotate=annotate, tlm=tlm)
+                return
+        elif isinstance(x, ufl.classes.Expr):
+            if self in ufl.algorithms.extract_coefficients(x):
+                self_old = function_new(self)
+                AssignmentSolver(self, self_old).solve(
+                    annotate=annotate, tlm=tlm)
+                x = ufl.replace(x, {self: self_old})
+            ExprEvaluationSolver(x, self).solve(annotate=annotate, tlm=tlm)
+            return
 
     return_value = backend_Constant._tlm_adjoint__orig_assign(
         self, x)
-
     function_update_state(self)
-    if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
-
     return return_value
 
 
@@ -390,26 +398,43 @@ backend_Constant._tlm_adjoint__orig_assign = backend_Constant.assign
 backend_Constant.assign = _Constant_assign
 
 
-def function_spaces_equal(x, y):
-    x_space = function_space(x)
-    y_space = function_space(y)
-    return (x_space.ufl_domains() == y_space.ufl_domains()
-            and x_space.ufl_element() == y_space.ufl_element())
-
-
 def _Function_assign(self, rhs, *, annotate=None, tlm=None):
-    if isinstance(rhs, backend_Function) \
-            and rhs is not self \
-            and function_spaces_equal(self, rhs):
-        if annotate is None:
-            annotate = annotation_enabled()
-        if tlm is None:
-            tlm = tlm_enabled()
-        if annotate or tlm:
-            AssignmentSolver(rhs, self).solve(annotate=annotate, tlm=tlm)
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(rhs, backend_Function) \
+                and space_id(function_space(rhs)) == space_id(function_space(self)):  # noqa: E501
+            if rhs is not self:
+                AssignmentSolver(rhs, self).solve(
+                    annotate=annotate, tlm=tlm)
+                return
+        elif isinstance(rhs, ufl.classes.Expr):
+            x_space = function_space(self)
+            deps = ufl.algorithms.extract_coefficients(rhs)
+            for dep in deps:
+                if isinstance(dep, backend_Function):
+                    dep_space = function_space(dep)
+                    if dep_space.ufl_domains() != x_space.ufl_domains() \
+                            or dep_space.ufl_element() != x_space.ufl_element():  # noqa: E501
+                        break
+            else:
+                if self in deps:
+                    self_old = function_new(self)
+                    AssignmentSolver(self, self_old).solve(
+                        annotate=annotate, tlm=tlm)
+                    rhs = ufl.replace(rhs, {self: self_old})
+                ExprEvaluationSolver(rhs, self).solve(
+                    annotate=annotate, tlm=tlm)
+                return
+    elif isinstance(rhs, backend_Function) and rhs is not self:
+        if space_id(function_space(rhs)) == space_id(function_space(self)):
+            value = rhs
         else:
-            function_assign(self, rhs)
-            function_update_state(self)
+            value = function_new(self)
+            backend_Function._tlm_adjoint__orig_assign(value, rhs)
+        function_assign(self, value)
         return
 
     return_value = backend_Function._tlm_adjoint__orig_assign(
