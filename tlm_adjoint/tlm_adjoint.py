@@ -109,12 +109,20 @@ class DependencyGraphTranspose:
     def __init__(self, Js, M, blocks,
                  prune_forward=True, prune_adjoint=True,
                  prune=None):
+        if isinstance(blocks, Sequence):
+            # Sequence
+            blocks_n = tuple(range(len(blocks)))
+        else:
+            # Mapping
+            blocks_n = tuple(sorted(blocks.keys()))
+
         # Transpose dependency graph
         last_eq = {}
-        transpose_deps = tuple(tuple([None for dep in eq.dependencies()]
-                                     for eq in block)
-                               for block in blocks)
-        for n, block in enumerate(blocks):
+        transpose_deps = {n: tuple([None for dep in eq.dependencies()]
+                                   for eq in blocks[n])
+                          for n in blocks_n}
+        for n in blocks_n:
+            block = blocks[n]
             for i, eq in enumerate(block):
                 for m, x in enumerate(eq.X()):
                     last_eq[function_id(x)] = (n, i, m)
@@ -131,7 +139,7 @@ class DependencyGraphTranspose:
             # initial conditions
             last_eq = {}
             transpose_deps_ics = copy.deepcopy(transpose_deps)
-            for p in range(len(blocks) - 1, -1, -1):
+            for p in reversed(blocks_n):
                 block = blocks[p]
                 for k in range(len(block) - 1, -1, -1):
                     eq = block[k]
@@ -151,9 +159,10 @@ class DependencyGraphTranspose:
 
             # Pruning, forward traversal
             active_M = {function_id(dep) for dep in M}
-            active_forward = tuple(np.full(len(block), False, dtype=bool)
-                                   for block in blocks)
-            for n, block in enumerate(blocks):
+            active_forward = {n: np.full(len(blocks[n]), False, dtype=bool)
+                              for n in blocks_n}
+            for n in blocks_n:
+                block = blocks[n]
                 for i, eq in enumerate(block):
                     if len(active_M) > 0:
                         X_ids = {function_id(x) for x in eq.X()}
@@ -170,8 +179,8 @@ class DependencyGraphTranspose:
                                     active_forward[n][i] = True
                                     break
         else:
-            active_forward = tuple(np.full(len(block), True, dtype=bool)
-                                   for block in blocks)
+            active_forward = {n: np.full(len(blocks[n]), True, dtype=bool)
+                              for n in blocks_n}
 
         active = {function_id(J): copy.deepcopy(active_forward) for J in Js}
 
@@ -179,9 +188,9 @@ class DependencyGraphTranspose:
             # Pruning, reverse traversal
             for J_id in active:
                 active_J = True
-                active_adjoint = tuple(np.full(len(block), False, dtype=bool)
-                                       for block in blocks)
-                for n in range(len(blocks) - 1, -1, -1):
+                active_adjoint = {n: np.full(len(blocks[n]), False, dtype=bool)
+                                  for n in blocks_n}
+                for n in reversed(blocks_n):
                     block = blocks[n]
                     for i in range(len(block) - 1, -1, -1):
                         eq = block[i]
@@ -202,18 +211,20 @@ class DependencyGraphTranspose:
         if prune is not None:
             for J in Js:
                 J_id = function_id(J)
-                for n, block in enumerate(blocks):
+                for n in blocks_n:
+                    block = blocks[n]
                     for i, eq in enumerate(block):
                         if prune(J, n, i):
                             active[J_id][n][i] = False
 
-        stored_adj_ics = {function_id(J): tuple(tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
-                                                      for eq in block)
-                                                for block in blocks) for J in Js}  # noqa: E501
+        stored_adj_ics = {function_id(J): {n: tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
+                                                    for eq in blocks[n])
+                                           for n in blocks_n} for J in Js}
         adj_ics = {function_id(J): {} for J in Js}
         for J_id in stored_adj_ics:
             stored = {}
-            for n, block in enumerate(blocks):
+            for n in blocks_n:
+                block = blocks[n]
                 for i, eq in enumerate(block):
                     if active[J_id][n][i]:
                         for m, x in enumerate(eq.X()):
