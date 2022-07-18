@@ -1247,26 +1247,26 @@ class EquationManager:
         # forward:
         #   Control block   :  Represents the equation "controls = inputs"
         #   Functional block:  Represents the equations "outputs = functionals"
-        blocks = ([[ControlsMarker(M)]]
-                  + self._blocks
-                  + [[FunctionalMarker(J) for J in Js]])
-        J_markers = tuple(eq.x() for eq in blocks[-1])
+        blocks_N = len(self._blocks)
+        blocks = {-1: [ControlsMarker(M)]}
+        blocks.update({n: block for n, block in enumerate(self._blocks)})
+        blocks[blocks_N] = [FunctionalMarker(J) for J in Js]
+        J_markers = tuple(eq.x() for eq in blocks[blocks_N])
 
         # Adjoint equation right-hand-sides
         Bs = tuple(AdjointModelRHS(blocks) for J in Js)
         # Adjoint initial condition
         for J_i in range(len(Js)):
-            function_assign(Bs[J_i][-1][J_i].b(), 1.0)
+            function_assign(Bs[J_i][blocks_N][J_i].b(), 1.0)
 
         # Transpose dependency graph
         if adj_cache is None:
             prune = None
         else:
             def prune(J, n, i):
-                cp_n = n - 1
-                cp_block = cp_n >= 0 and cp_n < len(self._blocks)
+                cp_block = n >= 0 and n < blocks_N
                 J_i = prune.J_is[function_id(J)]  # noqa: F821
-                return cp_block and adj_cache.has_cached(J_i, cp_n, i)
+                return cp_block and adj_cache.has_cached(J_i, n, i)
             prune.J_is = {function_id(J): J_i
                           for J_i, J in enumerate(J_markers)}
         transpose_deps = DependencyGraphTranspose(
@@ -1286,19 +1286,18 @@ class EquationManager:
                         adj_Xs[J_i][x_id] = function_copy(adj_x)
 
         # Reverse (blocks)
-        for n in range(len(blocks) - 1, -1, -1):
-            cp_n = n - 1  # Forward model block, ignoring the control block
-            cp_block = cp_n >= 0 and cp_n < len(self._blocks)
+        for n in range(blocks_N, -2, -1):
+            cp_block = n >= 0 and n < blocks_N
             if cp_block:
                 # Load/restore forward model data
-                self._restore_checkpoint(cp_n)
+                self._restore_checkpoint(n)
 
             # Reverse (equations in block n)
             for i in range(len(blocks[n]) - 1, -1, -1):
                 eq = blocks[n][i]
                 eq_X = eq.X()
                 # Non-linear dependency data
-                nl_deps = self._cp[(cp_n, i)] if cp_block else ()
+                nl_deps = self._cp[(n, i)] if cp_block else ()
 
                 assert len(Js) == len(J_markers)
                 for J_i, (J, J_marker) in enumerate(zip(Js, J_markers)):
@@ -1343,9 +1342,9 @@ class EquationManager:
                             eq_B.B(),
                             transpose_deps.adj_Bs(J_marker, n, i, eq, Bs[J_i]))
                     elif adj_cache is not None and cp_block \
-                            and adj_cache.has_cached(J_i, cp_n, i):
+                            and adj_cache.has_cached(J_i, n, i):
                         # Extract adjoint solution from the cache
-                        adj_X = adj_cache.get_cached(J_i, cp_n, i, copy=False)
+                        adj_X = adj_cache.get_cached(J_i, n, i, copy=False)
                         # Add terms to adjoint equations
                         eq.adjoint_cached(
                             J, adj_X, nl_deps,
@@ -1363,23 +1362,23 @@ class EquationManager:
 
                         if adj_cache is not None and cp_block:
                             # Store adjoint solution in the cache, if needed
-                            adj_cache.cache(J_i, cp_n, i, adj_X,
+                            adj_cache.cache(J_i, n, i, adj_X,
                                             copy=True, replace=False)
 
                     if callback is not None and cp_block:
                         # Diagnostic callback
                         if adj_X is None:
-                            callback(J_i, cp_n, i, eq,
+                            callback(J_i, n, i, eq,
                                      None)
                         elif len(adj_X) == 1:
-                            callback(J_i, cp_n, i, eq,
+                            callback(J_i, n, i, eq,
                                      function_copy(adj_X[0]))
                         else:
-                            callback(J_i, cp_n, i, eq,
+                            callback(J_i, n, i, eq,
                                      tuple(function_copy(adj_x)
                                            for adj_x in adj_X))
 
-                    if n == 0 and i == 0:
+                    if n == -1 and i == 0:
                         # A requested derivative
                         if adj_X is None:
                             dJ[J_i] = eq.new_adj_X()
@@ -1387,10 +1386,10 @@ class EquationManager:
                             dJ[J_i] = tuple(function_copy(adj_x)
                                             for adj_x in adj_X)
 
-            if n > 0:
+            if n > -1:
                 # Force finalization of right-hand-sides in the control block
                 for B in Bs:
-                    B[0].finalize()
+                    B[-1].finalize()
 
         for B in Bs:
             assert B.is_empty()
