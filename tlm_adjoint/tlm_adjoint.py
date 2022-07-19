@@ -261,6 +261,12 @@ class DependencyGraphTranspose:
             J_id = function_id(J)
         return self._active[J_id][n][i]
 
+    def any_is_active(self, n, i):
+        for J_id in self._active:
+            if self._active[J_id][n][i]:
+                return True
+        return False
+
     def is_solved(self, J, n, i):
         if isinstance(J, int):
             J_id = J
@@ -1023,7 +1029,7 @@ class EquationManager:
                 raise ValueError(f"Unexpected checkpointing action: "
                                  f"{cp_action:s}")
 
-    def _restore_checkpoint(self, n):
+    def _restore_checkpoint(self, n, transpose_deps=None):
         if self._cp_manager.max_n() is None:
             raise RuntimeError("Invalid checkpointing state")
         if n > self._cp_manager.max_n() - self._cp_manager.r() - 1:
@@ -1060,16 +1066,22 @@ class EquationManager:
 
                 for n1 in range(cp_n0, cp_n1):
                     for i, eq in enumerate(self._blocks[n1]):
-                        eq_deps = eq.dependencies()
+                        if storage.is_active(n1, i):
+                            X = tuple(storage[eq_x] for eq_x in eq.X())
+                            deps = tuple(storage[eq_dep]
+                                         for eq_dep in eq.dependencies())
 
-                        X = tuple(storage[eq_x] for eq_x in eq.X())
-                        deps = tuple(storage[eq_dep] for eq_dep in eq_deps)
+                            for eq_dep in eq.initial_condition_dependencies():
+                                self._cp.add_initial_condition(
+                                    eq_dep, value=storage[eq_dep])
+                            eq.forward(X, deps=deps)
+                            self._cp.add_equation(n1, i, eq, deps=deps)
+                        elif transpose_deps.any_is_active(n1, i):
+                            nl_deps = tuple(storage[eq_dep]
+                                            for eq_dep in eq.nonlinear_dependencies())  # noqa: E501
 
-                        for eq_dep in eq.initial_condition_dependencies():
-                            self._cp.add_initial_condition(
-                                eq_dep, value=storage[eq_dep])
-                        eq.forward(X, deps=deps)
-                        self._cp.add_equation(n1, i, eq, deps=deps)
+                            self._cp.add_equation_data(
+                                n1, i, eq, nl_deps=nl_deps)
 
                         storage_state = storage.pop()
                         assert storage_state == (n1, i)
@@ -1093,7 +1105,8 @@ class EquationManager:
                              f'{cp_storage:s} and '
                              f'{"delete" if cp_delete else "keep":s}')
 
-                storage = ReplayStorage(self._blocks, cp_n, n + 1)
+                storage = ReplayStorage(self._blocks, cp_n, n + 1,
+                                        transpose_deps=transpose_deps)
                 storage.update(self._cp.initial_conditions(cp=False,
                                                            refs=True,
                                                            copy=False),
@@ -1187,7 +1200,8 @@ class EquationManager:
 
     @restore_manager
     def compute_gradient(self, Js, M, callback=None, prune_forward=True,
-                         prune_adjoint=True, adj_ics=None, adj_cache=None):
+                         prune_adjoint=True, prune_replay=True, adj_ics=None,
+                         adj_cache=None):
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
@@ -1208,6 +1222,8 @@ class EquationManager:
                        should be applied.
         prune_adjoint  (Optional) Whether reverse traversal graph pruning
                        should be applied.
+        prune_replay   (Optional) Whether graph pruning should be applied in
+                       forward replay.
         adj_ics    (Optional) Map, or a sequence of maps, from forward
                    functions or function IDs to adjoint initial conditions.
         adj_cache  (Optional) An AdjointCache.
@@ -1218,6 +1234,7 @@ class EquationManager:
                 ((dJ,),) = self.compute_gradient(
                     (Js,), (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+                    prune_replay=prune_replay,
                     adj_ics=None if adj_ics is None else (adj_ics,),
                     adj_cache=adj_cache)
                 return dJ
@@ -1225,6 +1242,7 @@ class EquationManager:
                 dJs = self.compute_gradient(
                     Js, (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+                    prune_replay=prune_replay,
                     adj_ics=adj_ics,
                     adj_cache=adj_cache)
                 return tuple(dJ for (dJ,) in dJs)
@@ -1232,6 +1250,7 @@ class EquationManager:
             dJ, = self.compute_gradient(
                 (Js,), M, callback=callback,
                 prune_forward=prune_forward, prune_adjoint=prune_adjoint,
+                prune_replay=prune_replay,
                 adj_ics=None if adj_ics is None else (adj_ics,),
                 adj_cache=adj_cache)
             return dJ
@@ -1287,14 +1306,13 @@ class EquationManager:
             cp_block = n >= 0 and n < blocks_N
             if cp_block:
                 # Load/restore forward model data
-                self._restore_checkpoint(n)
+                self._restore_checkpoint(
+                    n, transpose_deps=transpose_deps if prune_replay else None)
 
             # Reverse (equations in block n)
             for i in range(len(blocks[n]) - 1, -1, -1):
                 eq = blocks[n][i]
                 eq_X = eq.X()
-                # Non-linear dependency data
-                nl_deps = self._cp[(n, i)] if cp_block else ()
 
                 assert len(Js) == len(J_markers)
                 for J_i, (J, J_marker) in enumerate(zip(Js, J_markers)):
@@ -1328,6 +1346,10 @@ class EquationManager:
                                     adj_X.append(eq.new_adj_X(m))
                                 else:
                                     adj_X.append(adj_x_ic)
+
+                        # Non-linear dependency data
+                        nl_deps = self._cp[(n, i)] if cp_block else ()
+
                         # Solve adjoint equation, add terms to adjoint
                         # equations
                         adj_X = eq.adjoint(
@@ -1337,6 +1359,10 @@ class EquationManager:
                     elif transpose_deps.is_active(J_marker, n, i):
                         # Extract adjoint solution from the cache
                         adj_X = adj_cache.get_cached(J_i, n, i, copy=False)
+
+                        # Non-linear dependency data
+                        nl_deps = self._cp[(n, i)] if cp_block else ()
+
                         # Add terms to adjoint equations
                         eq.adjoint_cached(
                             J, adj_X, nl_deps,

@@ -164,12 +164,14 @@ def reset_adjoint(manager=None):
 
 
 def compute_gradient(Js, M, callback=None, prune_forward=True,
-                     prune_adjoint=True, adj_ics=None, manager=None):
+                     prune_adjoint=True, prune_replay=True, adj_ics=None,
+                     manager=None):
     if manager is None:
         manager = globals()["manager"]()
     return manager.compute_gradient(Js, M, callback=callback,
                                     prune_forward=prune_forward,
                                     prune_adjoint=prune_adjoint,
+                                    prune_replay=prune_replay,
                                     adj_ics=adj_ics)
 
 
