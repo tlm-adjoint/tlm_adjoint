@@ -1383,7 +1383,7 @@ class EquationManager:
                             adj_cache.cache(J_i, n, i, adj_X,
                                             copy=True, replace=False)
 
-                    if callback is not None and cp_block:
+                    if callback is not None:
                         # Diagnostic callback
                         if adj_X is None:
                             callback(J_i, n, i, eq,
