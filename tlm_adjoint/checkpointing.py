@@ -331,7 +331,7 @@ class ReplayStorage:
                             dep_id = function_id(dep)
                             if dep_id in last_eq:
                                 p, k = last_eq[dep_id][-1]
-                                assert n > p or (n == p and i > k)
+                                assert n > p or (n == p and i >= k)
                                 active[p][k] = True
 
                     for x in eq.X():
