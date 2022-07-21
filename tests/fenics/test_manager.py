@@ -221,8 +221,9 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
     active_eqs = {(0, 0, 1), (0, 0, 2), (0, 0, 5), (0, 0, 6)}
 
     def callback(J_i, n, i, eq, adj_X):
-        eqs.remove((J_i, n, i))
-        assert adj_X is None or (J_i, n, i) in active_eqs
+        if n == 0:
+            eqs.remove((J_i, n, i))
+            assert adj_X is None or (J_i, n, i) in active_eqs
 
     dJ = compute_gradient(J, y, callback=callback)
     assert len(eqs) == 0
