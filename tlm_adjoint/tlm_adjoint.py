@@ -1303,6 +1303,8 @@ class EquationManager:
 
         # Reverse (blocks)
         for n in range(blocks_N, -2, -1):
+            block = blocks[n]
+
             cp_block = n >= 0 and n < blocks_N
             if cp_block:
                 # Load/restore forward model data
@@ -1310,8 +1312,8 @@ class EquationManager:
                     n, transpose_deps=transpose_deps if prune_replay else None)
 
             # Reverse (equations in block n)
-            for i in range(len(blocks[n]) - 1, -1, -1):
-                eq = blocks[n][i]
+            for i in range(len(block) - 1, -1, -1):
+                eq = block[i]
                 eq_X = eq.X()
 
                 assert len(Js) == len(J_markers)
@@ -1396,18 +1398,17 @@ class EquationManager:
                                      tuple(function_copy(adj_x)
                                            for adj_x in adj_X))
 
-                    if n == -1 and i == 0:
+                    if n == -1:
+                        assert i == 0
                         # A requested derivative
                         if adj_X is None:
                             dJ[J_i] = eq.new_adj_X()
                         else:
                             dJ[J_i] = tuple(function_copy(adj_x)
                                             for adj_x in adj_X)
-
-            if n > -1:
-                # Force finalization of right-hand-sides in the control block
-                for B in Bs:
-                    B[-1].finalize()
+                    else:
+                        # Finalize right-hand-sides in the control block
+                        Bs[J_i][-1].finalize()
 
         for B in Bs:
             assert B.is_empty()
