@@ -2373,15 +2373,18 @@ def tlm(M, dM, x, max_depth=1, manager=None):
 Calls \texttt{EquationManager.tlm}. Accesses a tangent-linear variable.
 \begin{lstlisting}
 def compute_gradient(Js, M, callback=None, prune_forward=True,
-                     prune_adjoint=True, adj_ics=None, manager=None):
+                     prune_adjoint=True, prune_replay=True, adj_ics=None,
+                     manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
 constrained derivative (see sections \ref{sect:first_order_adjoint} and
 \ref{sect:higher_order_adjoint}). \texttt{prune\_forward} and
 \texttt{prune\_adjoint} control pruning of the transpose dependency graph via
-forward and reverse traversal respectively. The optional \texttt{adj\_ics} is a
-map, or a sequence of maps, from forward functions or function IDs to adjoint
-initial conditions. The optional \texttt{callback} argument takes the form
+forward and reverse traversal respectively. \texttt{prune\_replay} controls
+pruning of the dependency graph during rerunning of the forward. The optional
+\texttt{adj\_ics} is a map, or a sequence of maps, from forward functions or
+function IDs to adjoint initial conditions. The optional \texttt{callback}
+argument takes the form
 \begin{lstlisting}
 def callback(J_i, n, i, eq, adj_X)
 \end{lstlisting}

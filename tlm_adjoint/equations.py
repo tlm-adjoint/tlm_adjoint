@@ -172,7 +172,13 @@ class AdjointBlockRHS:
 
 class AdjointModelRHS:
     def __init__(self, blocks):
-        self._B = [AdjointBlockRHS(block) for block in blocks]
+        if isinstance(blocks, Sequence):
+            # Sequence
+            self._blocks_n = list(range(len(blocks)))
+        else:
+            # Mapping
+            self._blocks_n = sorted(blocks.keys())
+        self._B = {n: AdjointBlockRHS(blocks[n]) for n in self._blocks_n}
         self._pop_empty()
 
     def __getitem__(self, key):
@@ -186,14 +192,14 @@ class AdjointModelRHS:
             return self._B[p][k][m]
 
     def pop(self):
-        i, B = self._B[-1].pop()
-        n = len(self._B) - 1
+        n = self._blocks_n[-1]
+        i, B = self._B[n].pop()
         self._pop_empty()
         return (n, i), B
 
     def _pop_empty(self):
-        while len(self._B) > 0 and self._B[-1].is_empty():
-            self._B.pop()
+        while len(self._B) > 0 and self._B[self._blocks_n[-1]].is_empty():
+            del self._B[self._blocks_n.pop()]
 
     def is_empty(self):
         return len(self._B) == 0

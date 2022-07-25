@@ -195,16 +195,42 @@ class CheckpointStorage:
         if self._store_ics:
             for eq_x in eq.X():
                 self._seen_ics.add(function_id(eq_x))
+
             assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
                 self._add_initial_condition(
                     x_id=function_id(eq_dep), value=dep, copy=copy(eq_dep))
 
+        self._add_equation_data(
+            n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps,
+            copy=copy)
+
+    def add_equation_data(self, n, i, eq, *, nl_deps=None, _copy=None):
+        if _copy is None:
+            def copy(x):
+                return function_is_checkpointed(x)
+        else:
+            copy = _copy
+        del _copy
+
+        eq_nl_deps = eq.nonlinear_dependencies()
+        if nl_deps is None:
+            nl_deps = eq_nl_deps
+
+        if self._store_ics:
+            for eq_dep, dep in zip(eq_nl_deps, nl_deps):
+                self._add_initial_condition(
+                    x_id=function_id(eq_dep), value=dep, copy=copy(eq_dep))
+
+        self._add_equation_data(n, i, eq_nl_deps, nl_deps, eq_nl_deps, nl_deps,
+                                copy=copy)
+
+    def _add_equation_data(self, n, i, eq_deps, deps, eq_nl_deps, nl_deps=None,
+                           *, copy):
         if self._store_data:
             if (n, i) in self._data:
                 raise KeyError("Non-linear dependency data already stored")
 
-            eq_nl_deps = eq.nonlinear_dependencies()
             if nl_deps is None:
                 assert len(eq_deps) == len(deps)
                 deps_map = {function_id(eq_dep): dep
@@ -275,21 +301,87 @@ class CheckpointStorage:
 
 
 class ReplayStorage:
-    def __init__(self, blocks, N0, N1):
-        # Map from dep (id) to (indices of) last equation which depends on dep
+    def __init__(self, blocks, N0, N1, *, transpose_deps=None):
+        if transpose_deps is None:
+            active = {n: np.full(len(blocks[n]), True, dtype=bool)
+                      for n in range(N0, N1)}
+        else:
+            last_eq = {}
+            for n in range(N0, N1):
+                block = blocks[n]
+                for i, eq in enumerate(block):
+                    for x in eq.X():
+                        x_id = function_id(x)
+                        if x_id in last_eq:
+                            last_eq[x_id].append((n, i))
+                        else:
+                            last_eq[x_id] = [(n, i)]
+
+            active = {n: np.full(len(blocks[n]), False, dtype=bool)
+                      for n in range(N0, N1)}
+            for n in range(N1 - 1, N0 - 1, -1):
+                block = blocks[n]
+                for i in range(len(block) - 1, - 1, -1):
+                    eq = block[i]
+
+                    if transpose_deps.any_is_active(n, i):
+                        # Adjoint equation is active, mark forward equations
+                        # solving for non-linear dependencies as active
+                        for dep in eq.nonlinear_dependencies():
+                            dep_id = function_id(dep)
+                            if dep_id in last_eq:
+                                p, k = last_eq[dep_id][-1]
+                                assert n > p or (n == p and i >= k)
+                                active[p][k] = True
+
+                    for x in eq.X():
+                        x_id = function_id(x)
+                        last_eq[x_id].pop()
+                        if len(last_eq[x_id]) == 0:
+                            del last_eq[x_id]
+
+                    if active[n][i]:
+                        # Forward equation is active, mark forward equations
+                        # solving for dependencies as active
+                        X_ids = {function_id(x) for x in eq.X()}
+                        ic_ids = {function_id(dep)
+                                  for dep in eq.initial_condition_dependencies()}  # noqa: E501
+                        for dep in eq.dependencies():
+                            dep_id = function_id(dep)
+                            if dep_id in X_ids:
+                                if dep_id in ic_ids and dep_id in last_eq:
+                                    p, k = last_eq[dep_id][-1]
+                                    assert n > p or (n == p and i > k)
+                                    active[p][k] = True
+                            elif dep_id in last_eq:
+                                p, k = last_eq[dep_id][-1]
+                                assert n > p or (n == p and i > k)
+                                active[p][k] = True
+
+            assert len(last_eq) == 0
+            del last_eq
+
+        # Map from dep (id) to (indices of) last equation which needs dep
         last_eq = {}
         for n in range(N0, N1):
-            for i, eq in enumerate(blocks[n]):
-                for dep in eq.dependencies():
-                    last_eq[function_id(dep)] = (n, i)
+            block = blocks[n]
+            for i, eq in enumerate(block):
+                if active[n][i]:
+                    for dep in eq.dependencies():
+                        last_eq[function_id(dep)] = (n, i)
+                # transpose_deps cannot be None here
+                elif transpose_deps.any_is_active(n, i):
+                    for dep in eq.nonlinear_dependencies():
+                        last_eq[function_id(dep)] = (n, i)
 
         # Ordered container, with each element containing a set of dep ids for
-        # which the corresponding equation is the last equation to depend on
-        # dep
+        # which the corresponding equation is the last equation where dep is
+        # needed
         eq_last_q = deque()
         eq_last_d = {}
         for n in range(N0, N1):
-            for i in range(len(blocks[n])):
+            block = blocks[n]
+            for i in range(len(block)):
                 dep_ids = set()
                 eq_last_q.append((n, i, dep_ids))
                 eq_last_d[(n, i)] = dep_ids
@@ -297,6 +389,7 @@ class ReplayStorage:
             eq_last_d[(n, i)].add(dep_id)
         del eq_last_d
 
+        self._active = active
         self._eq_last = eq_last_q
         self._map = {dep_id: None for dep_id in last_eq.keys()}
 
@@ -333,6 +426,9 @@ class ReplayStorage:
         if self._map[x_id] is not None:  # KeyError if unexpected id
             raise KeyError(f"Key '{x_id:d}' already set")
         self._map[x_id] = y
+
+    def is_active(self, n, i):
+        return self._active[n][i]
 
     def update(self, d, *, copy=True):
         for key, value in d.items():
