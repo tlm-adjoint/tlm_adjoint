@@ -251,9 +251,11 @@ class MultistageCheckpointingManager(CheckpointingManager):
                 self._snapshots.pop()
                 self._n = cp_n
                 yield "read", (cp_n, cp_storage, True)
+                yield "clear", (True, True)
             else:
                 self._n = cp_n
                 yield "read", (cp_n, cp_storage, False)
+                yield "clear", (True, True)
 
                 yield "configure", (False, False)
 
@@ -384,19 +386,19 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                     cp_n = snapshots[-1]
                     if cp_n == self._max_n - self._r - 1:
                         snapshots.pop()
+                        self._n = cp_n
                         if cp_n == n0s:
-                            self._n = cp_n
                             yield "read", (cp_n, "disk", False)
                         else:
-                            self._n = cp_n
                             yield "read", (cp_n, self._binomial_storage, True)
+                        yield "clear", (True, True)
                     else:
+                        self._n = cp_n
                         if cp_n == n0s:
-                            self._n = cp_n
                             yield "read", (cp_n, "disk", False)
                         else:
-                            self._n = cp_n
                             yield "read", (cp_n, self._binomial_storage, False)
+                        yield "clear", (True, True)
 
                         yield "configure", (False, False)
 

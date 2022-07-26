@@ -961,6 +961,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
 
                 self._n = n0
                 yield "read", (n0, "disk", False)
+                yield "clear", (True, True)
 
                 if self._keep_block_0_ics and n0 == 0:
                     yield "configure", (True, True)
