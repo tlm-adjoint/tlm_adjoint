@@ -141,7 +141,7 @@ class CheckpointStorage:
             x_id=function_id(x), value=value,
             copy=function_is_checkpointed(x))
 
-    def _update_keys(self, n, i, eq):
+    def update_keys(self, n, i, eq):
         for m, x in enumerate(eq.X()):
             x_id = function_id(x)
             self._keys[x_id] = (x_id, (n, i, m))
@@ -181,7 +181,7 @@ class CheckpointStorage:
         if deps is None:
             deps = eq_deps
 
-        self._update_keys(n, i, eq)
+        self.update_keys(n, i, eq)
 
         if self._store_ics:
             for eq_x in eq.X():
@@ -197,6 +197,8 @@ class CheckpointStorage:
             n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps)
 
     def add_equation_data(self, n, i, eq, *, nl_deps=None):
+        self.update_keys(n, i, eq)
+
         eq_nl_deps = eq.nonlinear_dependencies()
         if nl_deps is None:
             nl_deps = eq_nl_deps

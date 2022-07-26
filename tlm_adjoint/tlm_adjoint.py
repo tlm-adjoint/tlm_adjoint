@@ -1091,6 +1091,9 @@ class EquationManager:
 
                             self._cp.add_equation_data(
                                 n1, i, eq, nl_deps=nl_deps)
+                        else:
+                            self._cp.update_keys(
+                                n1, i, eq)
 
                         storage_state = storage.pop()
                         assert storage_state == (n1, i)

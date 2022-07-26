@@ -85,6 +85,9 @@ class HessianOptimization:
                 manager._block.append(eq)
                 eq_nl_deps = eq.nonlinear_dependencies()
                 nl_deps = self._nl_deps[(n, i)]
+                manager._cp.update_keys(
+                    len(manager._blocks), len(manager._block) - 1,
+                    eq)
                 manager._cp._add_equation_data(
                     len(manager._blocks), len(manager._block) - 1,
                     eq_nl_deps, nl_deps, eq_nl_deps, nl_deps,
