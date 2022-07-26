@@ -18,29 +18,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-# This file implements binomial checkpointing using the approach described in
-#   GW2000  A. Griewank and A. Walther, "Algorithm 799: Revolve: An
-#           implementation of checkpointing for the reverse or adjoint mode of
-#           computational differentiation", ACM Transactions on Mathematical
-#           Software, 26(1), pp. 19--45, 2000
-
-# This file further implements multi-stage offline checkpointing, determined
-# via a brute force search to yield behaviour described in
-#   SW2009  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
-#           checkpointing", SIAM Journal on Scientific Computing, 31(3),
-#           pp. 1946--1967, 2009
-
-# This file further implements the two-level mixed periodic/binomial
-# checkpointing approach described in
-#   Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
-#   Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
-#   adjoint modelling tools for high-performance oceanographic and cryospheric
-#   computation", version 1.1, EPCC, 2016
-# and
-#   D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
-#   M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt rates",
-#   Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020
-
 from .checkpointing import CheckpointingManager
 
 __all__ = \
