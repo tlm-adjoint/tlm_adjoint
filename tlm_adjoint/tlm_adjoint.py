@@ -32,7 +32,7 @@ from .equations import AdjointModelRHS, ControlsMarker, Equation, \
 from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
-from collections import OrderedDict
+from collections import deque
 from collections.abc import Sequence
 import copy
 import gc
@@ -73,6 +73,51 @@ class Control(Alias):
 
     def m(self):
         return self
+
+
+def tlm_key(M, dM):
+    if is_function(M):
+        M = (M,)
+    else:
+        M = tuple(M)
+    if is_function(dM):
+        dM = (dM,)
+    else:
+        dM = tuple(dM)
+
+    if len(M) != len(dM):
+        raise ValueError("Invalid tangent-linear model")
+    for m, dm in zip(M, dM):
+        check_space_types(m, dm)
+
+    return ((M, dM),
+            (tuple(function_id(m) for m in M),
+             tuple(function_id(dm) for dm in dM)))
+
+
+class TangentLinear:
+    def __init__(self):
+        self._children = {}
+
+    def __contains__(self, key):
+        _, key = tlm_key(*key)
+        return key in self._children
+
+    def __getitem__(self, key):
+        _, key = tlm_key(*key)
+        return self._children[key][1]
+
+    def __iter__(self):
+        for (M, dM), _ in self._children.values():
+            yield (M, dM)
+
+    def add(self, M, dM):
+        (M, dM), key = tlm_key(M, dM)
+        if key not in self._children:
+            self._children[key] = ((M, dM), TangentLinear())
+
+    def clear(self):
+        self._children.clear()
 
 
 class TangentLinearMap:
@@ -536,7 +581,8 @@ class EquationManager:
         self._blocks = []
         self._block = []
 
-        self._tlm = OrderedDict()
+        self._tlm = TangentLinear()
+        self._tlm_map = {}
         self._tlm_eqs = {}
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
@@ -650,8 +696,6 @@ class EquationManager:
 
         if len(M) != len(dM):
             raise ValueError("Invalid tangent-linear model")
-        if (M, dM) in self._tlm:
-            raise RuntimeError("Duplicate tangent-linear model")
         for m, dm in zip(M, dM):
             check_space_types(m, dm)
 
@@ -660,15 +704,24 @@ class EquationManager:
         elif self._tlm_state == "stopped_initial":
             self._tlm_state = "stopped_deriving"
 
-        if len(M) == 1:
-            tlm_map_name_suffix = \
-                "_tlm(%s,%s)" % (function_name(M[0]),
-                                 function_name(dM[0]))
-        else:
-            tlm_map_name_suffix = \
-                "_tlm((%s),(%s))" % (",".join(function_name(m) for m in M),
-                                     ",".join(function_name(dm) for dm in dM))
-        self._tlm[(M, dM)] = (TangentLinearMap(tlm_map_name_suffix), max_depth)
+        for depth in range(max_depth):
+            remaining_tlms = deque([self._tlm])
+            while len(remaining_tlms) > 0:
+                base_tlm = remaining_tlms.popleft()
+                remaining_tlms.extend([base_tlm[(tlm_M, tlm_dM)]
+                                       for tlm_M, tlm_dM in base_tlm])
+                base_tlm.add(M, dM)
+
+        if (M, dM) not in self._tlm_map:
+            if len(M) == 1:
+                tlm_map_name_suffix = \
+                    "_tlm(%s,%s)" % (function_name(M[0]),
+                                     function_name(dM[0]))
+            else:
+                tlm_map_name_suffix = \
+                    "_tlm((%s),(%s))" % (",".join(function_name(m) for m in M),
+                                         ",".join(function_name(dm) for dm in dM))  # noqa: E501
+            self._tlm_map[(M, dM)] = TangentLinearMap(tlm_map_name_suffix)
 
     def tlm_enabled(self):
         """
@@ -692,12 +745,9 @@ class EquationManager:
         else:
             dM = tuple(dM)
 
-        if (M, dM) in self._tlm:
-            for depth in range(max_depth):
-                x = self._tlm[(M, dM)][0][x]
-            return x
-        else:
-            raise KeyError("Tangent-linear not found")
+        for depth in range(max_depth):
+            x = self._tlm_map[(M, dM)][x]
+        return x
 
     def annotation_enabled(self):
         """
@@ -788,7 +838,7 @@ class EquationManager:
                 return self._cp.initial_condition(x, copy=True)
         raise KeyError("Initial condition not found")
 
-    def add_equation(self, eq, annotate=None, tlm=None, tlm_skip=None):
+    def add_equation(self, eq, annotate=None, tlm=None):
         """
         Process the provided equation, annotating and / or deriving (and
         solving) tangent-linear equations as required. Assumes that the
@@ -800,8 +850,6 @@ class EquationManager:
             for checkpointing as required.
         tlm (default self.tlm_enabled()):
             Whether to derive (and solve) associated tangent-linear equations.
-        tlm_skip (default None):
-            Used for the derivation of higher order tangent-linear equations.
         """
 
         self.drop_references()
@@ -838,17 +886,19 @@ class EquationManager:
                 raise RuntimeError("Cannot add tangent-linear equations after "
                                    "finalization")
 
-            depth = 0 if tlm_skip is None else tlm_skip[1]
-            for i, (M, dM) in enumerate(reversed(self._tlm)):
-                if tlm_skip is not None and i >= tlm_skip[0]:
-                    break
-                tlm_eq = self._tangent_linear(eq, M, dM)
+            remaining_eqs = deque([(eq, (M, dM), self._tlm[(M, dM)])
+                                   for M, dM in self._tlm])
+            while len(remaining_eqs) > 0:
+                base_eq, (base_M, base_dM), base_tlm = remaining_eqs.popleft()
+
+                tlm_eq = self._tangent_linear(base_eq, base_M, base_dM)
                 if tlm_eq is not None:
-                    tlm_map, max_depth = self._tlm[(M, dM)]
                     tlm_eq.solve(
-                        manager=self, annotate=annotate, tlm=True,
-                        _tlm_skip=([i + 1, depth + 1] if max_depth - depth > 1
-                                   else [i, 0]))
+                        manager=self, annotate=annotate, tlm=False)
+
+                    remaining_eqs.extend(
+                        [(tlm_eq, (tlm_M, tlm_dM), base_tlm[(tlm_M, tlm_dM)])
+                         for tlm_M, tlm_dM in base_tlm])
 
     def _tangent_linear(self, eq, M, dM):
         if is_function(M):
@@ -859,10 +909,6 @@ class EquationManager:
             dM = (dM,)
         else:
             dM = tuple(dM)
-
-        if (M, dM) not in self._tlm:
-            raise KeyError("Missing tangent-linear model")
-        tlm_map, max_depth = self._tlm[(M, dM)]
 
         eq_id = eq.id()
         X = eq.X()
@@ -876,6 +922,7 @@ class EquationManager:
             eq_tlm_eqs = {}
             self._tlm_eqs[eq_id] = eq_tlm_eqs
 
+        tlm_map = self._tlm_map[(M, dM)]
         tlm_eq = eq_tlm_eqs.get((M, dM), None)
         if tlm_eq is None:
             for dep in eq.dependencies():
