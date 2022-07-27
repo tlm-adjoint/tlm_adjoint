@@ -926,16 +926,14 @@ class EquationManager:
 
     def _read_memory_checkpoint(self, n, *, ic_ids=None, ics=True, data=True,
                                 delete=False):
-        if ic_ids is None:
-            ic_ids = set()
-
         read_cp, read_data, read_storage = self._cp_memory[n]
         if delete:
             self._cp_memory.pop(n)
 
         if ics or data:
             if ics:
-                read_cp = tuple(key for key in read_cp if key[0] in ic_ids)
+                read_cp = tuple(key for key in read_cp
+                                if ic_ids is None or key[0] in ic_ids)
             else:
                 read_cp = ()
             if not data:
@@ -959,9 +957,6 @@ class EquationManager:
 
     def _read_disk_checkpoint(self, n, *, ic_ids=None, ics=True, data=True,
                               delete=False):
-        if ic_ids is None:
-            ic_ids = set()
-
         if ics or data:
             read_cp, read_data, read_storage = \
                 self._cp_disk.read(n, ics=ics, data=data, ic_ids=ic_ids)
