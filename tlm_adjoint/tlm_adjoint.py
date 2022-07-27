@@ -685,19 +685,7 @@ class EquationManager:
             raise RuntimeError("Cannot add a tangent-linear model after "
                                "finalization")
 
-        if is_function(M):
-            M = (M,)
-        else:
-            M = tuple(M)
-        if is_function(dM):
-            dM = (dM,)
-        else:
-            dM = tuple(dM)
-
-        if len(M) != len(dM):
-            raise ValueError("Invalid tangent-linear model")
-        for m, dm in zip(M, dM):
-            check_space_types(m, dm)
+        (M, dM), key = tlm_key(M, dM)
 
         if self._tlm_state == "initial":
             self._tlm_state = "deriving"
@@ -712,7 +700,7 @@ class EquationManager:
                                        for tlm_M, tlm_dM in base_tlm])
                 base_tlm.add(M, dM)
 
-        if (M, dM) not in self._tlm_map:
+        if key not in self._tlm_map:
             if len(M) == 1:
                 tlm_map_name_suffix = \
                     "_tlm(%s,%s)" % (function_name(M[0]),
@@ -721,7 +709,7 @@ class EquationManager:
                 tlm_map_name_suffix = \
                     "_tlm((%s),(%s))" % (",".join(function_name(m) for m in M),
                                          ",".join(function_name(dm) for dm in dM))  # noqa: E501
-            self._tlm_map[(M, dM)] = TangentLinearMap(tlm_map_name_suffix)
+            self._tlm_map[key] = TangentLinearMap(tlm_map_name_suffix)
 
     def tlm_enabled(self):
         """
@@ -736,17 +724,9 @@ class EquationManager:
         x, for the tangent-linear model defined by M and dM.
         """
 
-        if is_function(M):
-            M = (M,)
-        else:
-            M = tuple(M)
-        if is_function(dM):
-            dM = (dM,)
-        else:
-            dM = tuple(dM)
-
+        _, key = tlm_key(M, dM)
         for depth in range(max_depth):
-            x = self._tlm_map[(M, dM)][x]
+            x = self._tlm_map[key][x]
         return x
 
     def annotation_enabled(self):
@@ -922,15 +902,16 @@ class EquationManager:
             eq_tlm_eqs = {}
             self._tlm_eqs[eq_id] = eq_tlm_eqs
 
-        tlm_map = self._tlm_map[(M, dM)]
-        tlm_eq = eq_tlm_eqs.get((M, dM), None)
+        (M, dM), key = tlm_key(M, dM)
+        tlm_map = self._tlm_map[key]
+        tlm_eq = eq_tlm_eqs.get(key, None)
         if tlm_eq is None:
             for dep in eq.dependencies():
                 if dep in M or dep in tlm_map:
                     tlm_eq = eq.tangent_linear(M, dM, tlm_map)
                     if tlm_eq is None:
                         tlm_eq = NullSolver([tlm_map[x] for x in X])
-                    eq_tlm_eqs[(M, dM)] = tlm_eq
+                    eq_tlm_eqs[key] = tlm_eq
                     break
 
         return tlm_eq
