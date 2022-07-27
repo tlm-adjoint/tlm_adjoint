@@ -141,12 +141,12 @@ class CheckpointStorage:
             x_id=function_id(x), value=value,
             copy=function_is_checkpointed(x))
 
-    def _update_keys(self, n, i, eq):
+    def update_keys(self, n, i, eq):
         for m, x in enumerate(eq.X()):
             x_id = function_id(x)
             self._keys[x_id] = (x_id, (n, i, m))
 
-    def _store(self, *, x_id=None, key=None, value, copy):
+    def _store(self, *, x_id=None, key=None, value, refs=True, copy):
         if key is None:
             if x_id is None:
                 raise TypeError("Require exactly one of x_id or key")
@@ -161,36 +161,27 @@ class CheckpointStorage:
                 self._storage[key] = function_copy(value)
             else:
                 self._storage[key] = value
-                self._refs_keys.add(key)
-                self._refs[x_id] = key
-                self._seen_ics.add(x_id)
+                if refs:
+                    self._refs_keys.add(key)
+                    self._refs[x_id] = key
+                    self._seen_ics.add(x_id)
 
         return key, self._storage[key]
 
-    def _add_initial_condition(self, *, x_id, value, copy):
+    def _add_initial_condition(self, *, x_id, value, refs=True, copy):
         if self._store_ics and x_id not in self._seen_ics:
-            key, _ = self._store(x_id=x_id, value=value, copy=copy)
-            if copy:
-                assert key not in self._refs_keys
+            key, _ = self._store(x_id=x_id, value=value, refs=refs, copy=copy)
+            if key not in self._refs_keys:
                 self._cp_keys.add(key)
                 self._cp[x_id] = key
                 self._seen_ics.add(x_id)
-            else:
-                assert key in self._refs_keys
 
-    def add_equation(self, n, i, eq, *, deps=None, nl_deps=None, _copy=None):
-        if _copy is None:
-            def copy(x):
-                return function_is_checkpointed(x)
-        else:
-            copy = _copy
-        del _copy
-
+    def add_equation(self, n, i, eq, *, deps=None, nl_deps=None):
         eq_deps = eq.dependencies()
         if deps is None:
             deps = eq_deps
 
-        self._update_keys(n, i, eq)
+        self.update_keys(n, i, eq)
 
         if self._store_ics:
             for eq_x in eq.X():
@@ -199,19 +190,14 @@ class CheckpointStorage:
             assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
                 self._add_initial_condition(
-                    x_id=function_id(eq_dep), value=dep, copy=copy(eq_dep))
+                    x_id=function_id(eq_dep), value=dep,
+                    copy=function_is_checkpointed(eq_dep))
 
         self._add_equation_data(
-            n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps,
-            copy=copy)
+            n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps)
 
-    def add_equation_data(self, n, i, eq, *, nl_deps=None, _copy=None):
-        if _copy is None:
-            def copy(x):
-                return function_is_checkpointed(x)
-        else:
-            copy = _copy
-        del _copy
+    def add_equation_data(self, n, i, eq, *, nl_deps=None):
+        self.update_keys(n, i, eq)
 
         eq_nl_deps = eq.nonlinear_dependencies()
         if nl_deps is None:
@@ -220,13 +206,22 @@ class CheckpointStorage:
         if self._store_ics:
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 self._add_initial_condition(
-                    x_id=function_id(eq_dep), value=dep, copy=copy(eq_dep))
+                    x_id=function_id(eq_dep), value=dep,
+                    copy=function_is_checkpointed(eq_dep))
 
-        self._add_equation_data(n, i, eq_nl_deps, nl_deps, eq_nl_deps, nl_deps,
-                                copy=copy)
+        self._add_equation_data(n, i, eq_nl_deps, nl_deps, eq_nl_deps, nl_deps)
 
     def _add_equation_data(self, n, i, eq_deps, deps, eq_nl_deps, nl_deps=None,
-                           *, copy):
+                           *, refs=True, copy=None):
+        if copy is None:
+            def copy(x):
+                return function_is_checkpointed(x)
+        else:
+            _copy = copy
+
+            def copy(x):
+                return _copy
+
         if self._store_data:
             if (n, i) in self._data:
                 raise KeyError("Non-linear dependency data already stored")
@@ -242,7 +237,7 @@ class CheckpointStorage:
             assert len(eq_nl_deps) == len(nl_deps)
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 key, value = self._store(x_id=function_id(eq_dep), value=dep,
-                                         copy=copy(eq_dep))
+                                         refs=refs, copy=copy(eq_dep))
                 self._data_keys[key] = None  # self._data_keys.add(key)
                 eq_data.append(key)
             self._data[(n, i)] = tuple(eq_data)
@@ -279,7 +274,7 @@ class CheckpointStorage:
             if key in keys:
                 if key in self._storage:
                     raise KeyError("Duplicate key")
-                self._store(key=key, value=value, copy=copy)
+                self._store(key=key, value=value, refs=False, copy=copy)
 
         for key in cp:
             if key in self._cp_keys or key in self._refs_keys:
@@ -774,38 +769,36 @@ class CheckpointingManager(ABC):
 
     The iter method yields (action, data), with:
 
-    action: 'clear'
+    action: "clear"
     data:   (clear_ics, clear_data)
     Clear checkpoint storage. clear_ics indicates whether stored initial
     condition data should be cleared. clear_data indicates whether stored
     non-linear dependency data should be cleared.
 
-    action: 'configure'
+    action: "configure"
     data:   (store_ics, store_data)
     Configure checkpoint storage. store_ics indicates whether initial condition
     data should be stored. store_data indicates whether non-linear dependency
     data should be stored.
 
-    action: 'forward'
+    action: "forward"
     data:   (n0, n1)
     Run the forward from the start of block n0 to the start of block n1.
 
-    action: 'reverse'
+    action: "reverse"
     data:   (n1, n0)
     Run the adjoint from the start of block n1 to the start of block n0.
 
-    action: 'read'
+    action: "read"
     data:   (n, storage, delete)
-    Read checkpoint data associated with the start of block n from the
-    indicated storage. delete indicates whether the checkpoint data should be
-    deleted.
+    Read checkpoint data associated with block n from the indicated storage.
+    delete indicates whether the checkpoint data should be deleted.
 
-    action: 'write'
+    action: "write"
     data:   (n, storage)
-    Write checkpoint data associated with the start of block n to the indicated
-    storage.
+    Write checkpoint data associated with block n to the indicated storage.
 
-    action: 'end_reverse'
+    action: "end_reverse"
     data:   (exhausted,)
     End a reverse calculation. If exhausted is False then a further reverse
     calculation can be performed.
@@ -871,7 +864,7 @@ class CheckpointingManager(ABC):
                 self._max_n = n
             else:
                 raise RuntimeError("Invalid checkpointing state")
-        elif self._n != n:
+        elif self._n != n or self._max_n != n:
             raise RuntimeError("Invalid checkpointing state")
 
 
@@ -968,6 +961,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
 
                 self._n = n0
                 yield "read", (n0, "disk", False)
+                yield "clear", (True, True)
 
                 if self._keep_block_0_ics and n0 == 0:
                     yield "configure", (True, True)

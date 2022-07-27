@@ -72,7 +72,7 @@ class HessianOptimization:
 
         for x_id, value in self._ics.items():
             manager._cp._add_initial_condition(
-                x_id=x_id, value=value, copy=False)
+                x_id=x_id, value=value, refs=False, copy=False)
 
         return manager
 
@@ -83,9 +83,15 @@ class HessianOptimization:
                 if eq_id not in manager._eqs:
                     manager._eqs[eq_id] = eq
                 manager._block.append(eq)
-                manager._cp.add_equation(
-                    len(manager._blocks), len(manager._block) - 1, eq,
-                    nl_deps=self._nl_deps[(n, i)], _copy=lambda x: False)
+                eq_nl_deps = eq.nonlinear_dependencies()
+                nl_deps = self._nl_deps[(n, i)]
+                manager._cp.update_keys(
+                    len(manager._blocks), len(manager._block) - 1,
+                    eq)
+                manager._cp._add_equation_data(
+                    len(manager._blocks), len(manager._block) - 1,
+                    eq_nl_deps, nl_deps, eq_nl_deps, nl_deps,
+                    refs=False, copy=False)
                 yield n, i, eq
 
     def _tangent_linear(self, manager, eq, M, dM):

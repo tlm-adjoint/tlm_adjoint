@@ -924,7 +924,7 @@ class EquationManager:
         self._cp_memory[n] = self._cp.checkpoint_data(
             ics=ics, data=data, copy=False)
 
-    def _read_memory_checkpoint(self, n, storage, *, ics=True, data=True,
+    def _read_memory_checkpoint(self, n, *, ic_ids=None, ics=True, data=True,
                                 delete=False):
         read_cp, read_data, read_storage = self._cp_memory[n]
         if delete:
@@ -932,7 +932,8 @@ class EquationManager:
 
         if ics or data:
             if ics:
-                read_cp = tuple(key for key in read_cp if key[0] in storage)
+                read_cp = tuple(key for key in read_cp
+                                if ic_ids is None or key[0] in ic_ids)
             else:
                 read_cp = ()
             if not data:
@@ -944,13 +945,8 @@ class EquationManager:
             read_storage = {key: read_storage[key] for key in read_storage
                             if key in keys}
 
-            if ics:
-                storage.update({key[0]: read_storage[key] for key in read_cp},
-                               copy=not delete)
-            if data:
-                # Need not pass read_cp here
-                self._cp.update((), read_data, read_storage,
-                                copy=True)
+            self._cp.update(read_cp, read_data, read_storage,
+                            copy=not delete)
 
     def _write_disk_checkpoint(self, n, *, ics=True, data=True):
         if n in self._cp_memory or n in self._cp_disk:
@@ -959,19 +955,14 @@ class EquationManager:
         self._cp_disk.write(
             n, *self._cp.checkpoint_data(ics=ics, data=data, copy=False))
 
-    def _read_disk_checkpoint(self, n, storage, *, ics=True, data=True,
+    def _read_disk_checkpoint(self, n, *, ic_ids=None, ics=True, data=True,
                               delete=False):
         if ics or data:
             read_cp, read_data, read_storage = \
-                self._cp_disk.read(n, ics=ics, data=data, ic_ids=set(storage))
+                self._cp_disk.read(n, ics=ics, data=data, ic_ids=ic_ids)
 
-            if ics:
-                storage.update({key[0]: read_storage[key] for key in read_cp},
-                               copy=False)
-            if data:
-                # Need not pass read_cp here
-                self._cp.update((), read_data, read_storage,
-                                copy=True)
+            self._cp.update(read_cp, read_data, read_storage,
+                            copy=False)
 
         if delete:
             self._cp_disk.delete(n)
@@ -1040,6 +1031,7 @@ class EquationManager:
         logger = logging.getLogger("tlm_adjoint.checkpointing")
 
         storage = None
+        initialize_storage_cp = False
         cp_n = None
 
         while True:
@@ -1047,6 +1039,12 @@ class EquationManager:
 
             if cp_action == "clear":
                 clear_ics, clear_data = cp_data
+                if initialize_storage_cp:
+                    storage.update(self._cp.initial_conditions(cp=True,
+                                                               refs=False,
+                                                               copy=False),
+                                   copy=not clear_ics or not clear_data)
+                    initialize_storage_cp = False
                 self._cp.clear(clear_ics=clear_ics,
                                clear_data=clear_data)
             elif cp_action == "configure":
@@ -1056,6 +1054,12 @@ class EquationManager:
             elif cp_action == "forward":
                 if storage is None or cp_n is None:
                     raise RuntimeError("Invalid checkpointing state")
+                if initialize_storage_cp:
+                    storage.update(self._cp.initial_conditions(cp=True,
+                                                               refs=False,
+                                                               copy=False),
+                                   copy=True)
+                    initialize_storage_cp = False
 
                 cp_n0, cp_n1 = cp_data
                 logger.debug(f"reverse: forward advance to {cp_n1:d}")
@@ -1082,6 +1086,9 @@ class EquationManager:
 
                             self._cp.add_equation_data(
                                 n1, i, eq, nl_deps=nl_deps)
+                        else:
+                            self._cp.update_keys(
+                                n1, i, eq)
 
                         storage_state = storage.pop()
                         assert storage_state == (n1, i)
@@ -1107,16 +1114,17 @@ class EquationManager:
 
                 storage = ReplayStorage(self._blocks, cp_n, n + 1,
                                         transpose_deps=transpose_deps)
+                initialize_storage_cp = True
                 storage.update(self._cp.initial_conditions(cp=False,
                                                            refs=True,
                                                            copy=False),
                                copy=False)
 
                 if cp_storage == "disk":
-                    self._read_disk_checkpoint(cp_n, storage,
+                    self._read_disk_checkpoint(cp_n, ic_ids=set(storage),
                                                delete=cp_delete)
                 elif cp_storage == "RAM":
-                    self._read_memory_checkpoint(cp_n, storage,
+                    self._read_memory_checkpoint(cp_n, ic_ids=set(storage),
                                                  delete=cp_delete)
                 else:
                     raise ValueError(f"Unrecognized checkpointing storage: "
