@@ -881,28 +881,21 @@ class EquationManager:
                          for tlm_M, tlm_dM in base_tlm])
 
     def _tangent_linear(self, eq, M, dM):
-        if is_function(M):
-            M = (M,)
-        else:
-            M = tuple(M)
-        if is_function(dM):
-            dM = (dM,)
-        else:
-            dM = tuple(dM)
+        (M, dM), key = tlm_key(M, dM)
 
-        eq_id = eq.id()
         X = eq.X()
-        if len(set(X).intersection(set(M))) > 0:
+        X_ids = {function_id(x) for x in X}
+        if not X_ids.isdisjoint(key[0]):
             raise ValueError("Invalid tangent-linear parameter")
-        if len(set(X).intersection(set(dM))) > 0:
+        if not X_ids.isdisjoint(key[1]):
             raise ValueError("Invalid tangent-linear direction")
 
+        eq_id = eq.id()
         eq_tlm_eqs = self._tlm_eqs.get(eq_id, None)
         if eq_tlm_eqs is None:
             eq_tlm_eqs = {}
             self._tlm_eqs[eq_id] = eq_tlm_eqs
 
-        (M, dM), key = tlm_key(M, dM)
         tlm_map = self._tlm_map[key]
         tlm_eq = eq_tlm_eqs.get(key, None)
         if tlm_eq is None:
