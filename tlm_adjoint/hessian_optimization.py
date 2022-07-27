@@ -60,10 +60,10 @@ class HessianOptimization:
         self._blocks = blocks
         self._ics = ics
         self._nl_deps = nl_deps
+        self._cache_adjoint = cache_adjoint
+        self._adj_cache = None
         if cache_adjoint:
-            self._adj_cache = AdjointCache()
-        else:
-            self._adj_cache = None
+            self._M_ids = None
 
     def _new_manager(self):
         manager = EquationManager(comm=self._comm,
@@ -137,6 +137,12 @@ class HessianOptimization:
         # M0 ignored
 
         clear_caches(*dM)
+
+        if self._cache_adjoint:
+            M_ids = {function_id(m) for m in M}
+            if self._M_ids is None or self._M_ids != M_ids:
+                self._M_ids = M_ids
+                self._adj_cache = AdjointCache()
 
         manager = self._new_manager()
         manager.add_tlm(M, dM)
