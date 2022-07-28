@@ -28,6 +28,7 @@ from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
 import warnings
+import weakref
 
 __all__ = \
     [
@@ -44,7 +45,14 @@ class HessianOptimization:
         if manager._alias_eqs:
             raise RuntimeError("Invalid equation manager state")
 
-        comm = manager.comm()
+        comm = manager.comm().Dup()
+
+        def finalize_callback(comm):
+            comm.Free()
+
+        finalize = weakref.finalize(self, finalize_callback,
+                                    comm)
+        finalize.atexit = False
 
         blocks = list(manager._blocks) + [list(manager._block)]
 
