@@ -696,8 +696,8 @@ class EquationManager:
             remaining_tlms = deque([self._tlm])
             while len(remaining_tlms) > 0:
                 base_tlm = remaining_tlms.popleft()
-                remaining_tlms.extend([base_tlm[(tlm_M, tlm_dM)]
-                                       for tlm_M, tlm_dM in base_tlm])
+                remaining_tlms.extend(base_tlm[(tlm_M, tlm_dM)]
+                                      for tlm_M, tlm_dM in base_tlm)
                 base_tlm.add(M, dM)
 
         if key not in self._tlm_map:
@@ -866,8 +866,8 @@ class EquationManager:
                 raise RuntimeError("Cannot add tangent-linear equations after "
                                    "finalization")
 
-            remaining_eqs = deque([(eq, (M, dM), self._tlm[(M, dM)])
-                                   for M, dM in self._tlm])
+            remaining_eqs = deque((eq, (M, dM), self._tlm[(M, dM)])
+                                  for M, dM in self._tlm)
             while len(remaining_eqs) > 0:
                 base_eq, (base_M, base_dM), base_tlm = remaining_eqs.popleft()
 
@@ -877,17 +877,17 @@ class EquationManager:
                         manager=self, annotate=annotate, tlm=False)
 
                     remaining_eqs.extend(
-                        [(tlm_eq, (tlm_M, tlm_dM), base_tlm[(tlm_M, tlm_dM)])
-                         for tlm_M, tlm_dM in base_tlm])
+                        (tlm_eq, (tlm_M, tlm_dM), base_tlm[(tlm_M, tlm_dM)])
+                        for tlm_M, tlm_dM in base_tlm)
 
     def _tangent_linear(self, eq, M, dM):
         (M, dM), key = tlm_key(M, dM)
 
         X = eq.X()
         X_ids = {function_id(x) for x in X}
-        if not X_ids.isdisjoint(key[0]):
+        if not X_ids.isdisjoint(set(key[0])):
             raise ValueError("Invalid tangent-linear parameter")
-        if not X_ids.isdisjoint(key[1]):
+        if not X_ids.isdisjoint(set(key[1])):
             raise ValueError("Invalid tangent-linear direction")
 
         eq_id = eq.id()
