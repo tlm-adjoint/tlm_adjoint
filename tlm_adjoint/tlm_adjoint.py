@@ -22,7 +22,7 @@ from .interface import DEFAULT_COMM, check_space_types, function_assign, \
     function_copy, function_id, function_is_replacement, function_name, \
     function_new_tangent_linear, is_function
 
-from .alias import Alias, WeakAlias, gc_disabled
+from .alias import WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageCheckpointingManager
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     MemoryCheckpointingManager, NoneCheckpointingManager, \
@@ -30,7 +30,7 @@ from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .functional import Functional
-from .manager import manager as _manager, restore_manager, set_manager
+from .manager import restore_manager, set_manager
 
 from collections import deque
 from collections.abc import Sequence
@@ -44,35 +44,8 @@ import weakref
 
 __all__ = \
     [
-        "Control",
         "EquationManager"
     ]
-
-
-class Control(Alias):
-    def __init__(self, m, manager=None):
-        if manager is None:
-            manager = _manager()
-
-        if isinstance(m, str):
-            m = manager.find_initial_condition(m)
-
-        super().__init__(m)
-
-    def __new__(cls, m, manager=None):
-        warnings.warn("Control class is deprecated",
-                      DeprecationWarning, stacklevel=2)
-
-        if manager is None:
-            manager = _manager()
-
-        if isinstance(m, str):
-            m = manager.find_initial_condition(m)
-
-        return super().__new__(cls, m)
-
-    def m(self):
-        return self
 
 
 def tlm_key(M, dM):
@@ -1462,23 +1435,6 @@ class EquationManager:
                                  f"{cp_action:s}")
 
         return tuple(dJ)
-
-    def find_initial_condition(self, x):
-        """
-        Find the initial condition function associated with the given function
-        name.
-        """
-
-        warnings.warn("EquationManager.find_initial_condition method is "
-                      "deprecated",
-                      DeprecationWarning, stacklevel=2)
-
-        for block in self._blocks + [self._block]:
-            for eq in block:
-                for dep in eq.dependencies():
-                    if function_name(dep) == x:
-                        return dep
-        raise KeyError("Initial condition not found")
 
 
 set_manager(EquationManager())
