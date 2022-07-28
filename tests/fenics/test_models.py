@@ -117,7 +117,7 @@ def test_oscillator(setup_test, test_leaks,
                     tmp_path, cp_method, cp_parameters):
     n_steps = 20
     cp_parameters = copy.copy(cp_parameters)
-    if cp_method in ["periodic_disk", "multistage"]:
+    if cp_method in ["periodic_disk", "multistage", "H-Revolve"]:
         cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":
         cp_parameters["blocks"] = n_steps
