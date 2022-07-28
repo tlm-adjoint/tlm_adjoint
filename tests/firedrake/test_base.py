@@ -189,10 +189,7 @@ def test_leaks():
     manager.drop_references()
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
-    tlm_values = list(manager._tlm.values())  # noqa: F841
     manager._tlm.clear()
-    tlm_eqs_values = [list(eq_tlm_eqs.values()) for eq_tlm_eqs in manager._tlm_eqs.values()]  # noqa: E501,F841
-    manager._tlm_eqs.clear()
 
     gc.collect()
 

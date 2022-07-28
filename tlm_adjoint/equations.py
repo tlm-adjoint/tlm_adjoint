@@ -479,14 +479,12 @@ class Equation(Referrer):
         for dep in self.initial_condition_dependencies():
             manager.add_initial_condition(dep, annotate=annotate)
 
-    def _post_process(self, manager=None, annotate=None, tlm=None,
-                      tlm_skip=None):
+    def _post_process(self, manager=None, annotate=None, tlm=None):
         if manager is None:
             manager = _manager()
-        manager.add_equation(self, annotate=annotate, tlm=tlm,
-                             tlm_skip=tlm_skip)
+        manager.add_equation(self, annotate=annotate, tlm=tlm)
 
-    def solve(self, manager=None, annotate=None, tlm=None, _tlm_skip=None):
+    def solve(self, manager=None, annotate=None, tlm=None):
         """
         Solve the equation.
 
@@ -509,8 +507,7 @@ class Equation(Referrer):
         finally:
             manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
 
-        self._post_process(manager=manager, annotate=annotate, tlm=tlm,
-                           tlm_skip=_tlm_skip)
+        self._post_process(manager=manager, annotate=annotate, tlm=tlm)
 
     def forward(self, X, deps=None):
         """
