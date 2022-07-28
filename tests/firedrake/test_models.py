@@ -100,7 +100,8 @@ def diffusion_ref():
      ("multistage", {"format": "pickle", "snaps_on_disk": 1,
                      "snaps_in_ram": 2}),
      ("multistage", {"format": "hdf5", "snaps_on_disk": 1,
-                     "snaps_in_ram": 2})])
+                     "snaps_in_ram": 2}),
+     ("H-Revolve", {"snapshots_on_disk": 1, "snapshots_in_ram": 2})])
 @seed_test
 def test_oscillator(setup_test, test_leaks,
                     tmp_path, cp_method, cp_parameters):
@@ -110,7 +111,13 @@ def test_oscillator(setup_test, test_leaks,
         cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":
         cp_parameters["blocks"] = n_steps
-    configure_checkpointing(cp_method, cp_parameters)
+    if cp_method in ["memory", "periodic_disk", "multistage"]:
+        configure_checkpointing(cp_method, cp_parameters)
+    else:
+        from tlm_adjoint.checkpointing import HRevolveCheckpointingManager
+        configure_checkpointing(
+            lambda **cp_parameters: HRevolveCheckpointingManager(max_n=n_steps, keep_block_0_ics=True, **cp_parameters),  # noqa: E501
+            cp_parameters)
 
     mesh = UnitSquareMesh(5, 5)
     r0 = FiniteElement("Discontinuous Lagrange", mesh.ufl_cell(), 0)
