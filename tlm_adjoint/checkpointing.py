@@ -36,6 +36,7 @@ import os
 import pickle
 import sys
 import weakref
+import string
 
 __all__ = \
     [
@@ -753,6 +754,95 @@ class HDF5Checkpoints(Checkpoints):
         self._comm.barrier()
         del self._cp_filenames[n]
         del self._cp_spaces[n]
+
+
+class CheckpointAction:
+    def __init__(self, *args):
+        self.args = args
+
+    def __repr__(self):
+        return f"{type(self).__name__}{self.args!r}"
+
+
+class Clear(CheckpointAction):
+    def __init__(self, clear_ics, clear_data):
+        super().__init__(clear_ics, clear_data)
+
+    @property
+    def clear_ics(self):
+        return self.args[0]
+
+    @property
+    def clear_data(self):
+        return self.args[1]
+
+
+class Configure(CheckpointAction):
+    def __init__(self, store_ics, store_data):
+        super().__init__(store_ics, store_data)
+
+    @property
+    def store_ics(self):
+        return self.args[0]
+
+    @property
+    def store_data(self):
+        return self.args[1]
+
+
+class Forward(CheckpointAction):
+    def __init__(self, n0, n1):
+        super().__init__(n0, n1)
+
+    def __iter__(self):
+        return range(self.args[0], self.args[1])
+
+
+class Reverse(CheckpointAction):
+    def __init__(self, n1, n0):
+        super().__init__(n1, n0)
+
+    def __iter__(self):
+        return range(self.args[0]-1, self.args[1]-1)
+
+
+class Read(CheckpointAction):
+    def __init__(self, n, storage, delete):
+        super().__init__(n, storage, delete)
+
+    @property
+    def n(self):
+        return self.args[0]
+
+    @property
+    def storage(self):
+        return self.args[1]
+
+    @property
+    def delete(self):
+        return self.args[2]
+
+
+class Write(CheckpointAction):
+    def __init__(self, n, storage):
+        super().__init__(n, storage)
+
+    @property
+    def n(self):
+        return self.args[0]
+
+    @property
+    def storage(self):
+        return self.args[1]
+
+
+class EndReverse(CheckpointAction):
+    def __init__(self, exhausted):
+        super().__init__(self, exhausted)
+
+    @property
+    def exhausted(self):
+        return self.args[0]
 
 
 class CheckpointingManager(ABC):
