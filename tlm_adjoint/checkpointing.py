@@ -794,7 +794,7 @@ class Forward(CheckpointAction):
         super().__init__(n0, n1)
 
     def __iter__(self):
-        return range(self.args[0], self.args[1])
+        yield from range(self.args[0], self.args[1])
 
 
 class Reverse(CheckpointAction):
@@ -802,7 +802,7 @@ class Reverse(CheckpointAction):
         super().__init__(n1, n0)
 
     def __iter__(self):
-        return range(self.args[0] - 1, self.args[1] - 1)
+        yield from range(self.args[0] - 1, self.args[1] - 1, -1)
 
 
 class Read(CheckpointAction):
