@@ -124,7 +124,7 @@ force approach to yield behaviour described in [4].
 
 ===============================================================================
 
-The TwoLevelCheckpointingManager class in tlm_adjoint/binomial_checkpointing.py
+The TwoLevelCheckpointSchedule class in tlm_adjoint/binomial_checkpointing.py
 implements the two-level mixed periodic/binomial checkpointing approach
 described in [5, 6].
 

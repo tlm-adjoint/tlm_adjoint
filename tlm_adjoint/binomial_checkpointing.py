@@ -20,14 +20,14 @@
 
 from .checkpointing import Clear, Configure, Forward, Reverse, Read, Write, \
     EndReverse
-from .checkpointing import CheckpointingManager
+from .checkpointing import CheckpointSchedule
 
 import functools
 
 __all__ = \
     [
-        "MultistageCheckpointingManager",
-        "TwoLevelCheckpointingManager"
+        "MultistageCheckpointSchedule",
+        "TwoLevelCheckpointSchedule"
     ]
 
 
@@ -115,8 +115,8 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     snapshots = snapshots_in_ram + snapshots_on_disk
     weights = [0.0 for i in range(snapshots)]
 
-    cp_manager = MultistageCheckpointingManager(max_n, snapshots, 0,
-                                                trajectory=trajectory)
+    cp_schedule = MultistageCheckpointSchedule(max_n, snapshots, 0,
+                                               trajectory=trajectory)
 
     snapshot_i = -1
 
@@ -153,7 +153,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
         pass
 
     while True:
-        cp_action = next(cp_manager)
+        cp_action = next(cp_schedule)
         action(cp_action)
         if isinstance(cp_action, EndReverse):
             break
@@ -168,7 +168,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     return tuple(weights), tuple(allocation)
 
 
-class MultistageCheckpointingManager(CheckpointingManager):
+class MultistageCheckpointSchedule(CheckpointSchedule):
     """
     Implements binomial checkpointing using the approach described in
        A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
@@ -317,7 +317,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
         return self._storage[len(self._snapshots) - 1]
 
 
-class TwoLevelCheckpointingManager(CheckpointingManager):
+class TwoLevelCheckpointSchedule(CheckpointSchedule):
     def __init__(self, disk_period, binomial_snapshots, *,
                  binomial_storage="disk", keep_block_0_ics=False,
                  binomial_trajectory="maximum"):

@@ -55,11 +55,11 @@ __all__ = \
         "Write",
         "EndReverse",
 
-        "CheckpointingManager",
-        "HRevolveCheckpointingManager",
-        "NoneCheckpointingManager",
-        "MemoryCheckpointingManager",
-        "PeriodicDiskCheckpointingManager"
+        "CheckpointSchedule",
+        "HRevolveCheckpointSchedule",
+        "NoneCheckpointSchedule",
+        "MemoryCheckpointSchedule",
+        "PeriodicDiskCheckpointSchedule"
     ]
 
 
@@ -869,7 +869,7 @@ class EndReverse(CheckpointAction):
         return self.args[0]
 
 
-class CheckpointingManager(ABC):
+class CheckpointSchedule(ABC):
     """
     A checkpointing schedule.
 
@@ -984,7 +984,7 @@ class CheckpointingManager(ABC):
             raise RuntimeError("Invalid checkpointing state")
 
 
-class NoneCheckpointingManager(CheckpointingManager):
+class NoneCheckpointSchedule(CheckpointSchedule):
     def iter(self):
         # Forward
 
@@ -1001,7 +1001,7 @@ class NoneCheckpointingManager(CheckpointingManager):
         return False
 
 
-class MemoryCheckpointingManager(CheckpointingManager):
+class MemoryCheckpointSchedule(CheckpointSchedule):
     def iter(self):
         # Forward
 
@@ -1037,7 +1037,7 @@ class MemoryCheckpointingManager(CheckpointingManager):
         return False
 
 
-class PeriodicDiskCheckpointingManager(CheckpointingManager):
+class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
     def __init__(self, period, *, keep_block_0_ics=False):
         if period < 1:
             raise ValueError("period must be positive")
@@ -1111,7 +1111,7 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
         return True
 
 
-class HRevolveCheckpointingManager(CheckpointingManager):
+class HRevolveCheckpointSchedule(CheckpointSchedule):
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
                  keep_block_0_ics=False,
                  wvect=(0.0, 0.1), rvect=(0.0, 0.1), uf=1.0, ub=2.0, **kwargs):
