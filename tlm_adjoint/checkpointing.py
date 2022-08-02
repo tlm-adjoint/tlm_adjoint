@@ -802,7 +802,7 @@ class Reverse(CheckpointAction):
         super().__init__(n1, n0)
 
     def __iter__(self):
-        return range(self.args[0]-1, self.args[1]-1)
+        return range(self.args[0] - 1, self.args[1] - 1)
 
 
 class Read(CheckpointAction):
