@@ -36,7 +36,6 @@ import os
 import pickle
 import sys
 import weakref
-import string
 
 __all__ = \
     [
