@@ -24,6 +24,8 @@ from .interface import DEFAULT_COMM, check_space_types, function_assign, \
 
 from .alias import WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageCheckpointingManager
+from .checkpointing import Clear, Configure, Forward, Reverse, Read, Write, \
+    EndReverse
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     MemoryCheckpointingManager, NoneCheckpointingManager, \
     PeriodicDiskCheckpointingManager, PickleCheckpoints, ReplayStorage
@@ -35,6 +37,7 @@ from .manager import restore_manager, set_manager
 from collections import deque
 from collections.abc import Sequence
 import copy
+import functools
 import gc
 import logging
 import numpy as np
@@ -976,43 +979,49 @@ class EquationManager:
 
         logger = logging.getLogger("tlm_adjoint.checkpointing")
 
-        while True:
-            cp_action, cp_data = next(self._cp_manager)
+        @functools.singledispatch
+        def action(cp_action):
+            raise TypeError(f"Unexpected checkpointing action: {cp_action}")
 
-            if cp_action == "clear":
-                clear_ics, clear_data = cp_data
-                self._cp.clear(clear_ics=clear_ics,
-                               clear_data=clear_data)
-            elif cp_action == "configure":
-                store_ics, store_data = cp_data
-                self._cp.configure(store_ics=store_ics,
-                                   store_data=store_data)
-            elif cp_action == "forward":
-                cp_n0, cp_n1 = cp_data
-                logger.debug(f"forward: forward advance to {cp_n1:d}")
-                if cp_n0 != n:
-                    raise RuntimeError("Invalid checkpointing state")
-                if cp_n1 <= n:
-                    raise RuntimeError("Invalid checkpointing state")
-                break
-            elif cp_action == "write":
-                cp_w_n, cp_storage = cp_data
-                if cp_w_n >= n:
-                    raise RuntimeError("Invalid checkpointing state")
-                if cp_storage == "disk":
-                    logger.debug(f"forward: save snapshot at {cp_w_n:d} "
-                                 f"on disk")
-                    self._write_disk_checkpoint(cp_w_n)
-                elif cp_storage == "RAM":
-                    logger.debug(f"forward: save snapshot at {cp_w_n:d} "
-                                 f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n)
-                else:
-                    raise ValueError(f"Unrecognized checkpointing storage: "
-                                     f"{cp_storage:s}")
+        @action.register(Clear)
+        def action_clear(cp_action):
+            self._cp.clear(clear_ics=cp_action.clear_ics,
+                           clear_data=cp_action.clear_data)
+
+        @action.register(Configure)
+        def action_configure(cp_action):
+            self._cp.configure(store_ics=cp_action.store_ics,
+                               store_data=cp_action.store_data)
+
+        @action.register(Forward)
+        def action_forward(cp_action):
+            logger.debug(f"forward: forward advance to {cp_action.n1:d}")
+            if cp_action.n0 != n:
+                raise RuntimeError("Invalid checkpointing state")
+            if cp_action.n1 <= n:
+                raise RuntimeError("Invalid checkpointing state")
+
+        @action.register(Write)
+        def action_write(cp_action):
+            if cp_action.n >= n:
+                raise RuntimeError("Invalid checkpointing state")
+            if cp_action.storage == "disk":
+                logger.debug(f"forward: save snapshot at {cp_action.n:d} "
+                             f"on disk")
+                self._write_disk_checkpoint(cp_action.n)
+            elif cp_action.storage == "RAM":
+                logger.debug(f"forward: save snapshot at {cp_action.n:d} "
+                             f"in RAM")
+                self._write_memory_checkpoint(cp_action.n)
             else:
-                raise ValueError(f"Unexpected checkpointing action: "
-                                 f"{cp_action:s}")
+                raise ValueError(f"Unrecognized checkpointing storage: "
+                                 f"{cp_action.storage:s}")
+
+        while True:
+            cp_action = next(self._cp_manager)
+            action(cp_action)
+            if isinstance(cp_action, Forward):
+                break
 
     def _restore_checkpoint(self, n, transpose_deps=None):
         if self._cp_manager.max_n() is None:
@@ -1028,119 +1037,134 @@ class EquationManager:
         initialize_storage_cp = False
         cp_n = None
 
-        while True:
-            cp_action, cp_data = next(self._cp_manager)
+        @functools.singledispatch
+        def action(cp_action):
+            raise TypeError(f"Unexpected checkpointing action: {cp_action}")
 
-            if cp_action == "clear":
-                clear_ics, clear_data = cp_data
-                if initialize_storage_cp:
-                    storage.update(self._cp.initial_conditions(cp=True,
-                                                               refs=False,
-                                                               copy=False),
-                                   copy=not clear_ics or not clear_data)
-                    initialize_storage_cp = False
-                self._cp.clear(clear_ics=clear_ics,
-                               clear_data=clear_data)
-            elif cp_action == "configure":
-                store_ics, store_data = cp_data
-                self._cp.configure(store_ics=store_ics,
-                                   store_data=store_data)
-            elif cp_action == "forward":
-                if storage is None or cp_n is None:
-                    raise RuntimeError("Invalid checkpointing state")
-                if initialize_storage_cp:
-                    storage.update(self._cp.initial_conditions(cp=True,
-                                                               refs=False,
-                                                               copy=False),
-                                   copy=True)
-                    initialize_storage_cp = False
+        @action.register(Clear)
+        def action_clear(cp_action):
+            nonlocal initialize_storage_cp
 
-                cp_n0, cp_n1 = cp_data
-                logger.debug(f"reverse: forward advance to {cp_n1:d}")
-                if cp_n0 != cp_n:
-                    raise RuntimeError("Invalid checkpointing state")
-                if cp_n1 > n + 1:
-                    raise RuntimeError("Invalid checkpointing state")
-
-                for n1 in range(cp_n0, cp_n1):
-                    for i, eq in enumerate(self._blocks[n1]):
-                        if storage.is_active(n1, i):
-                            X = tuple(storage[eq_x] for eq_x in eq.X())
-                            deps = tuple(storage[eq_dep]
-                                         for eq_dep in eq.dependencies())
-
-                            for eq_dep in eq.initial_condition_dependencies():
-                                self._cp.add_initial_condition(
-                                    eq_dep, value=storage[eq_dep])
-                            eq.forward(X, deps=deps)
-                            self._cp.add_equation(n1, i, eq, deps=deps)
-                        elif transpose_deps.any_is_active(n1, i):
-                            nl_deps = tuple(storage[eq_dep]
-                                            for eq_dep in eq.nonlinear_dependencies())  # noqa: E501
-
-                            self._cp.add_equation_data(
-                                n1, i, eq, nl_deps=nl_deps)
-                        else:
-                            self._cp.update_keys(
-                                n1, i, eq)
-
-                        storage_state = storage.pop()
-                        assert storage_state == (n1, i)
-                cp_n = cp_n1
-            elif cp_action == "reverse":
-                cp_n1, cp_n0 = cp_data
-                logger.debug(f"reverse: adjoint step back to {cp_n0:d}")
-                if cp_n1 != n + 1:
-                    raise RuntimeError("Invalid checkpointing state")
-                if cp_n0 > n:
-                    raise RuntimeError("Invalid checkpointing state")
-                if storage is not None:
-                    assert len(storage) == 0
-                break
-            elif cp_action == "read":
-                if storage is not None or cp_n is not None:
-                    raise RuntimeError("Invalid checkpointing state")
-
-                cp_n, cp_storage, cp_delete = cp_data
-                logger.debug(f'reverse: load snapshot at {cp_n:d} from '
-                             f'{cp_storage:s} and '
-                             f'{"delete" if cp_delete else "keep":s}')
-
-                storage = ReplayStorage(self._blocks, cp_n, n + 1,
-                                        transpose_deps=transpose_deps)
-                initialize_storage_cp = True
-                storage.update(self._cp.initial_conditions(cp=False,
-                                                           refs=True,
+            if initialize_storage_cp:
+                storage.update(self._cp.initial_conditions(cp=True,
+                                                           refs=False,
                                                            copy=False),
-                               copy=False)
+                               copy=not cp_action.clear_ics or not cp_action.clear_data)  # noqa: E501
+                initialize_storage_cp = False
+            self._cp.clear(clear_ics=cp_action.clear_ics,
+                           clear_data=cp_action.clear_data)
 
-                if cp_storage == "disk":
-                    self._read_disk_checkpoint(cp_n, ic_ids=set(storage),
-                                               delete=cp_delete)
-                elif cp_storage == "RAM":
-                    self._read_memory_checkpoint(cp_n, ic_ids=set(storage),
-                                                 delete=cp_delete)
-                else:
-                    raise ValueError(f"Unrecognized checkpointing storage: "
-                                     f"{cp_storage:s}")
-            elif cp_action == "write":
-                cp_w_n, cp_storage = cp_data
-                if cp_w_n >= n:
-                    raise RuntimeError("Invalid checkpointing state")
-                if cp_storage == "disk":
-                    logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
-                                 f"on disk")
-                    self._write_disk_checkpoint(cp_w_n)
-                elif cp_storage == "RAM":
-                    logger.debug(f"reverse: save snapshot at {cp_w_n:d} "
-                                 f"in RAM")
-                    self._write_memory_checkpoint(cp_w_n)
-                else:
-                    raise ValueError(f"Unrecognized checkpointing storage: "
-                                     f"{cp_storage:s}")
+        @action.register(Configure)
+        def action_configure(cp_action):
+            self._cp.configure(store_ics=cp_action.store_ics,
+                               store_data=cp_action.store_data)
+
+        @action.register(Forward)
+        def action_forward(cp_action):
+            nonlocal initialize_storage_cp, cp_n
+
+            if storage is None or cp_n is None:
+                raise RuntimeError("Invalid checkpointing state")
+            if initialize_storage_cp:
+                storage.update(self._cp.initial_conditions(cp=True,
+                                                           refs=False,
+                                                           copy=False),
+                               copy=True)
+                initialize_storage_cp = False
+
+            logger.debug(f"reverse: forward advance to {cp_action.n1:d}")
+            if cp_action.n0 != cp_n:
+                raise RuntimeError("Invalid checkpointing state")
+            if cp_action.n1 > n + 1:
+                raise RuntimeError("Invalid checkpointing state")
+
+            for n1 in cp_action:
+                for i, eq in enumerate(self._blocks[n1]):
+                    if storage.is_active(n1, i):
+                        X = tuple(storage[eq_x] for eq_x in eq.X())
+                        deps = tuple(storage[eq_dep]
+                                     for eq_dep in eq.dependencies())
+
+                        for eq_dep in eq.initial_condition_dependencies():
+                            self._cp.add_initial_condition(
+                                eq_dep, value=storage[eq_dep])
+                        eq.forward(X, deps=deps)
+                        self._cp.add_equation(n1, i, eq, deps=deps)
+                    elif transpose_deps.any_is_active(n1, i):
+                        nl_deps = tuple(storage[eq_dep]
+                                        for eq_dep in eq.nonlinear_dependencies())  # noqa: E501
+
+                        self._cp.add_equation_data(
+                            n1, i, eq, nl_deps=nl_deps)
+                    else:
+                        self._cp.update_keys(
+                            n1, i, eq)
+
+                    storage_state = storage.pop()
+                    assert storage_state == (n1, i)
+            cp_n = cp_action.n1
+
+        @action.register(Reverse)
+        def action_reverse(cp_action):
+            logger.debug(f"reverse: adjoint step back to {cp_action.n0:d}")
+            if cp_action.n1 != n + 1:
+                raise RuntimeError("Invalid checkpointing state")
+            if cp_action.n0 > n:
+                raise RuntimeError("Invalid checkpointing state")
+            if storage is not None:
+                assert len(storage) == 0
+
+        @action.register(Read)
+        def action_read(cp_action):
+            nonlocal storage, initialize_storage_cp, cp_n
+
+            if storage is not None or cp_n is not None:
+                raise RuntimeError("Invalid checkpointing state")
+
+            cp_n = cp_action.n
+            logger.debug(f'reverse: load snapshot at {cp_n:d} from '
+                         f'{cp_action.storage:s} and '
+                         f'{"delete" if cp_action.delete else "keep":s}')
+
+            storage = ReplayStorage(self._blocks, cp_n, n + 1,
+                                    transpose_deps=transpose_deps)
+            initialize_storage_cp = True
+            storage.update(self._cp.initial_conditions(cp=False,
+                                                       refs=True,
+                                                       copy=False),
+                           copy=False)
+
+            if cp_action.storage == "disk":
+                self._read_disk_checkpoint(cp_n, ic_ids=set(storage),
+                                           delete=cp_action.delete)
+            elif cp_action.storage == "RAM":
+                self._read_memory_checkpoint(cp_n, ic_ids=set(storage),
+                                             delete=cp_action.delete)
             else:
-                raise ValueError(f"Unexpected checkpointing action: "
-                                 f"{cp_action:s}")
+                raise ValueError(f"Unrecognized checkpointing storage: "
+                                 f"{cp_action.storage:s}")
+
+        @action.register(Write)
+        def action_write(cp_action):
+            if cp_action.n >= n:
+                raise RuntimeError("Invalid checkpointing state")
+            if cp_action.storage == "disk":
+                logger.debug(f"reverse: save snapshot at {cp_action.n:d} "
+                             f"on disk")
+                self._write_disk_checkpoint(cp_action.n)
+            elif cp_action.storage == "RAM":
+                logger.debug(f"reverse: save snapshot at {cp_action.n:d} "
+                             f"in RAM")
+                self._write_memory_checkpoint(cp_action.n)
+            else:
+                raise ValueError(f"Unrecognized checkpointing storage: "
+                                 f"{cp_action.storage:s}")
+
+        while True:
+            cp_action = next(self._cp_manager)
+            action(cp_action)
+            if isinstance(cp_action, Reverse):
+                break
 
     def new_block(self):
         """
@@ -1421,18 +1445,24 @@ class EquationManager:
                 or self._cp_manager.r() != self._cp_manager.max_n():
             raise RuntimeError("Invalid checkpointing state")
 
-        while True:
-            cp_action, cp_data = next(self._cp_manager)
+        @functools.singledispatch
+        def action(cp_action):
+            raise TypeError(f"Unexpected checkpointing action: {cp_action}")
 
-            if cp_action == "clear":
-                clear_ics, clear_data = cp_data
-                self._cp.clear(clear_ics=clear_ics,
-                               clear_data=clear_data)
-            elif cp_action == "end_reverse":
+        @action.register(Clear)
+        def action_clear(cp_action):
+            self._cp.clear(clear_ics=cp_action.clear_ics,
+                           clear_data=cp_action.clear_data)
+
+        @action.register(EndReverse)
+        def action_end_reverse(cp_action):
+            pass
+
+        while True:
+            cp_action = next(self._cp_manager)
+            action(cp_action)
+            if isinstance(cp_action, EndReverse):
                 break
-            else:
-                raise ValueError(f"Unexpected checkpointing action: "
-                                 f"{cp_action:s}")
 
         return tuple(dJ)
 

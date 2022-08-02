@@ -46,6 +46,15 @@ __all__ = \
         "PickleCheckpoints",
         "HDF5Checkpoints",
 
+        "CheckpointAction",
+        "Clear",
+        "Configure",
+        "Forward",
+        "Reverse",
+        "Read",
+        "Write",
+        "EndReverse",
+
         "CheckpointingManager",
         "HRevolveCheckpointingManager",
         "NoneCheckpointingManager",
@@ -794,7 +803,15 @@ class Forward(CheckpointAction):
         super().__init__(n0, n1)
 
     def __iter__(self):
-        yield from range(self.args[0], self.args[1])
+        yield from range(self.n0, self.n1)
+
+    @property
+    def n0(self):
+        return self.args[0]
+
+    @property
+    def n1(self):
+        return self.args[1]
 
 
 class Reverse(CheckpointAction):
@@ -802,7 +819,15 @@ class Reverse(CheckpointAction):
         super().__init__(n1, n0)
 
     def __iter__(self):
-        yield from range(self.args[0] - 1, self.args[1] - 1, -1)
+        yield from range(self.n1 - 1, self.n0 - 1, -1)
+
+    @property
+    def n0(self):
+        return self.args[1]
+
+    @property
+    def n1(self):
+        return self.args[0]
 
 
 class Read(CheckpointAction):
@@ -967,7 +992,7 @@ class NoneCheckpointingManager(CheckpointingManager):
             n0 = self._n
             n1 = n0 + sys.maxsize
             self._n = n1
-            yield "forward", (n0, n1)
+            yield Forward(n0, n1)
 
     def is_exhausted(self):
         return self._max_n is not None
@@ -983,25 +1008,25 @@ class MemoryCheckpointingManager(CheckpointingManager):
         if self._max_n is not None:
             # Unexpected finalize
             raise RuntimeError("Invalid checkpointing state")
-        yield "configure", (True, True)
+        yield Configure(True, True)
 
         while self._max_n is None:
             n0 = self._n
             n1 = n0 + sys.maxsize
             self._n = n1
-            yield "forward", (n0, n1)
+            yield Forward(n0, n1)
 
         while True:
             if self._r == 0:
                 # Reverse
 
                 self._r = self._max_n
-                yield "reverse", (self._max_n, 0)
+                yield Reverse(self._max_n, 0)
             elif self._r == self._max_n:
                 # Reset for new reverse
 
                 self._r = 0
-                yield "end_reverse", (False,)
+                yield EndReverse(False,)
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
@@ -1025,19 +1050,19 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
         # Forward
 
         while self._max_n is None:
-            yield "configure", (True, False)
+            yield Configure(True, False)
             if self._max_n is not None:
                 # Unexpected finalize
                 raise RuntimeError("Invalid checkpointing state")
             n0 = self._n
             n1 = n0 + self._period
             self._n = n1
-            yield "forward", (n0, n1)
+            yield Forward(n0, n1)
 
             # Finalize permitted here
 
-            yield "write", (n0, "disk")
-            yield "clear", (True, True)
+            yield Write(n0, "disk")
+            yield Clear(True, True)
 
         while True:
             # Reverse
@@ -1051,33 +1076,33 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                     raise RuntimeError("Invalid checkpointing state")
 
                 self._n = n0
-                yield "read", (n0, "disk", False)
-                yield "clear", (True, True)
+                yield Read(n0, "disk", False)
+                yield Clear(True, True)
 
                 if self._keep_block_0_ics and n0 == 0:
-                    yield "configure", (True, True)
+                    yield Configure(True, True)
                     self._n = n0 + 1
-                    yield "forward", (n0, n0 + 1)
+                    yield Forward(n0, n0 + 1)
 
                     if n1 > n0 + 1:
-                        yield "configure", (False, True)
+                        yield Configure(False, True)
                         self._n = n1
-                        yield "forward", (n0 + 1, n1)
+                        yield Forward(n0 + 1, n1)
                 else:
-                    yield "configure", (False, True)
+                    yield Configure(False, True)
                     self._n = n1
-                    yield "forward", (n0, n1)
+                    yield Forward(n0, n1)
 
                 self._r = self._max_n - n0
-                yield "reverse", (n1, n0)
-                yield "clear", (not self._keep_block_0_ics or n0 != 0, True)
+                yield Reverse(n1, n0)
+                yield Clear(not self._keep_block_0_ics or n0 != 0, True)
             if self._r != self._max_n:
                 raise RuntimeError("Invalid checkpointing state")
 
             # Reset for new reverse
 
             self._r = 0
-            yield "end_reverse", (False,)
+            yield EndReverse(False,)
 
     def is_exhausted(self):
         return False
@@ -1140,10 +1165,10 @@ class HRevolveCheckpointingManager(CheckpointingManager):
                 if n_0 != self._n:
                     raise RuntimeError("Invalid checkpointing state")
 
-                yield "clear", (True, True)
-                yield "configure", (n_0 not in snapshots, False)
+                yield Clear(True, True)
+                yield Configure(n_0 not in snapshots, False)
                 self._n = n_1
-                yield "forward", (n_0, n_1)
+                yield Forward(n_0, n_1)
             elif cp_action == "Backward":
                 if n_0 != self._n:
                     raise RuntimeError("Invalid checkpointing state")
@@ -1152,15 +1177,15 @@ class HRevolveCheckpointingManager(CheckpointingManager):
 
                 if deferred_cp is not None:
                     snapshots.add(deferred_cp[0])
-                    yield "write", deferred_cp
+                    yield Write(*deferred_cp)
                     deferred_cp = None
 
-                yield "clear", (True, True)
-                yield "configure", (self._keep_block_0_ics and n_0 == 0, True)
+                yield Clear(True, True)
+                yield Configure(self._keep_block_0_ics and n_0 == 0, True)
                 self._n = n_0 + 1
-                yield "forward", (n_0, n_0 + 1)
+                yield Forward(n_0, n_0 + 1)
                 self._r += 1
-                yield "reverse", (n_0 + 1, n_0)
+                yield Reverse(n_0 + 1, n_0)
             elif cp_action == "Read":
                 if deferred_cp is not None:
                     raise RuntimeError("Invalid checkpointing state")
@@ -1176,18 +1201,18 @@ class HRevolveCheckpointingManager(CheckpointingManager):
                     else:
                         cp_delete = False
 
-                yield "clear", (True, True)
+                yield Clear(True, True)
                 if cp_delete:
                     snapshots.remove(n_0)
                 self._n = n_0
-                yield "read", (n_0, storage, cp_delete)
+                yield Read(n_0, storage, cp_delete)
             elif cp_action == "Write":
                 if n_0 != self._n:
                     raise RuntimeError("Invalid checkpointing state")
 
                 if deferred_cp is not None:
                     snapshots.add(deferred_cp[0])
-                    yield "write", deferred_cp
+                    yield Write(*deferred_cp)
                     deferred_cp = None
 
                 deferred_cp = (n_0, storage)
@@ -1206,7 +1231,7 @@ class HRevolveCheckpointingManager(CheckpointingManager):
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield "end_reverse", (True,)
+        yield EndReverse(True,)
 
     def is_exhausted(self):
         return self._exhausted
