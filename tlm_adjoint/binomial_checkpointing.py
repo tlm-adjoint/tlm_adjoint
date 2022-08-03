@@ -238,7 +238,7 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
 
         self._r += 1
         yield Reverse(self._n, self._n - 1)
-        yield Clear(True, True)
+        yield Clear(not self._keep_block_0_ics or self._n != 1, True)
 
         # Reverse
 

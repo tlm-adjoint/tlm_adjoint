@@ -1257,6 +1257,8 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
             else:
                 raise RuntimeError(f"Unexpected action: {cp_action:s}")
 
+        yield Clear(not self._keep_block_0_ics or self._n != 1, True)
+
         if len(snapshots) != 0:
             raise RuntimeError("Invalid checkpointing state")
 
