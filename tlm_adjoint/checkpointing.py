@@ -53,6 +53,7 @@ __all__ = \
         "Reverse",
         "Read",
         "Write",
+        "EndForward"
         "EndReverse",
 
         "CheckpointSchedule",
@@ -771,6 +772,13 @@ class CheckpointAction:
     def __repr__(self):
         return f"{type(self).__name__}{self.args!r}"
 
+    def __len__(self):
+        """The number of forward or reverse steps evaluated by this action."""
+        return 0
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.args == other.args
+
 
 class Clear(CheckpointAction):
     def __init__(self, clear_ics, clear_data):
@@ -805,6 +813,12 @@ class Forward(CheckpointAction):
     def __iter__(self):
         yield from range(self.n0, self.n1)
 
+    def __len__(self):
+        return self.n1 - self.n0
+
+    def __contains__(self, step):
+        return self.n0 <= step < self.n1
+
     @property
     def n0(self):
         return self.args[0]
@@ -820,6 +834,12 @@ class Reverse(CheckpointAction):
 
     def __iter__(self):
         yield from range(self.n1 - 1, self.n0 - 1, -1)
+
+    def __len__(self):
+        return self.n1 - self.n0
+
+    def __contains__(self, step):
+        return self.n0 <= step < self.n1
 
     @property
     def n0(self):
@@ -860,9 +880,13 @@ class Write(CheckpointAction):
         return self.args[1]
 
 
+class EndForward(CheckpointAction):
+    pass
+
+
 class EndReverse(CheckpointAction):
     def __init__(self, exhausted):
-        super().__init__(self, exhausted)
+        super().__init__(exhausted)
 
     @property
     def exhausted(self):
@@ -994,6 +1018,8 @@ class NoneCheckpointSchedule(CheckpointSchedule):
             self._n = n1
             yield Forward(n0, n1)
 
+        yield EndForward()
+
     def is_exhausted(self):
         return self._max_n is not None
 
@@ -1015,6 +1041,8 @@ class MemoryCheckpointSchedule(CheckpointSchedule):
             n1 = n0 + sys.maxsize
             self._n = n1
             yield Forward(n0, n1)
+
+        yield EndForward()
 
         while True:
             if self._r == 0:
@@ -1063,6 +1091,8 @@ class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
 
             yield Write(n0, "disk")
             yield Clear(True, True)
+
+        yield EndForward()
 
         while True:
             # Reverse
@@ -1184,6 +1214,8 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
                 yield Configure(self._keep_block_0_ics and n_0 == 0, True)
                 self._n = n_0 + 1
                 yield Forward(n_0, n_0 + 1)
+                if self._n == self._max_n and self._r == 0:
+                    yield EndForward()
                 self._r += 1
                 yield Reverse(n_0 + 1, n_0)
             elif cp_action == "Read":
