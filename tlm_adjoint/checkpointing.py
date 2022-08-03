@@ -1210,7 +1210,9 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
                 yield Configure(self._keep_block_0_ics and n_0 == 0, True)
                 self._n = n_0 + 1
                 yield Forward(n_0, n_0 + 1)
-                if self._n == self._max_n and self._r == 0:
+                if self._n == self._max_n:
+                    if self._r != 0:
+                        raise RuntimeError("Invalid checkpointing state")
                     yield EndForward()
                 self._r += 1
                 yield Reverse(n_0 + 1, n_0)
