@@ -53,7 +53,7 @@ __all__ = \
         "Reverse",
         "Read",
         "Write",
-        "EndForward"
+        "EndForward",
         "EndReverse",
 
         "CheckpointSchedule",

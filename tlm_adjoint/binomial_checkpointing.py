@@ -19,7 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .checkpointing import Clear, Configure, Forward, Reverse, Read, Write, \
-    EndReverse
+    EndForward, EndReverse
 from .checkpointing import CheckpointSchedule
 
 import functools
@@ -148,6 +148,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     @action.register(Configure)
     @action.register(Forward)
     @action.register(Reverse)
+    @action.register(EndForward)
     @action.register(EndReverse)
     def action_end_reverse(cp_action):
         pass
@@ -232,6 +233,8 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
 
         self._n += 1
         yield Forward(self._n - 1, self._n)
+
+        yield EndForward()
 
         self._r += 1
         yield Reverse(self._n, self._n - 1)
@@ -364,6 +367,8 @@ class TwoLevelCheckpointSchedule(CheckpointSchedule):
 
             yield Write(n0, "disk")
             yield Clear(True, True)
+
+        yield EndForward()
 
         while True:
             # Reverse

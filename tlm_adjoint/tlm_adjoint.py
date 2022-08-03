@@ -25,7 +25,7 @@ from .interface import DEFAULT_COMM, check_space_types, function_assign, \
 from .alias import WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageCheckpointSchedule
 from .checkpointing import Clear, Configure, Forward, Reverse, Read, Write, \
-    EndReverse
+    EndForward, EndReverse
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     MemoryCheckpointSchedule, NoneCheckpointSchedule, \
     PeriodicDiskCheckpointSchedule, PickleCheckpoints, ReplayStorage
@@ -972,11 +972,6 @@ class EquationManager:
             self._cp_schedule.finalize(n)
         if n < self._cp_schedule.n():
             return
-        if self._cp_schedule.max_n() is not None:
-            if n == self._cp_schedule.max_n():
-                return
-            elif n > self._cp_schedule.max_n():
-                raise RuntimeError("Invalid checkpointing state")
 
         logger = logging.getLogger("tlm_adjoint.checkpointing")
 
@@ -1018,10 +1013,16 @@ class EquationManager:
                 raise ValueError(f"Unrecognized checkpointing storage: "
                                  f"{cp_action.storage:s}")
 
+        @action.register(EndForward)
+        def action_end_forward(cp_action):
+            if self._cp_schedule.max_n() is None \
+                    or n != self._cp_schedule.max_n():
+                raise RuntimeError("Invalid checkpointing state")
+
         while True:
             cp_action = next(self._cp_schedule)
             action(cp_action)
-            if isinstance(cp_action, Forward):
+            if isinstance(cp_action, (Forward, EndForward)):
                 break
 
     def _restore_checkpoint(self, n, transpose_deps=None):
