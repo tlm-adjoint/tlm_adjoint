@@ -18,9 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .checkpointing import Clear, Configure, Forward, Reverse, Read, Write, \
-    EndForward, EndReverse
-from .checkpointing import CheckpointSchedule
+from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
+    Read, Write, EndForward, EndReverse
 
 import functools
 
