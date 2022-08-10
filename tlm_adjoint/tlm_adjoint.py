@@ -234,28 +234,25 @@ class DependencyGraphTranspose:
                         if adj_cache.has_cached(J_i, n, i):
                             solved[J_id][n][i] = False
 
-        stored_adj_ics = {function_id(J): {n: tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
+        stored_adj_ics = {function_id(J): {n: tuple([None for x in eq.X()]
                                                     for eq in blocks[n])
                                            for n in blocks_n} for J in Js}
         adj_ics = {function_id(J): {} for J in Js}
         for J_id in stored_adj_ics:
-            stored = {}
             for n in blocks_n:
                 block = blocks[n]
                 for i, eq in enumerate(block):
-                    if active[J_id][n][i]:
-                        for m, x in enumerate(eq.X()):
-                            stored_adj_ics[J_id][n][i][m] = \
-                                stored.get(function_id(x), False)
-
-                    adj_ic_ids = {function_id(dep)
-                                  for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
-                    for x in eq.X():
+                    adj_ic_ids = set(function_id(dep)
+                                     for dep in eq.adjoint_initial_condition_dependencies())  # noqa: E501
+                    for m, x in enumerate(eq.X()):
                         x_id = function_id(x)
-                        store_x = solved[J_id][n][i] and x_id in adj_ic_ids
-                        stored[x_id] = store_x
-                        if x_id not in adj_ics[J_id]:
-                            adj_ics[J_id][x_id] = store_x
+
+                        stored_adj_ics[J_id][n][i][m] = adj_ics[J_id].get(x_id, None)  # noqa: E501
+
+                        if x_id in adj_ic_ids:
+                            adj_ics[J_id][x_id] = (n, i)
+                        elif x_id in adj_ics[J_id]:
+                            del adj_ics[J_id][x_id]
 
         self._transpose_deps = transpose_deps
         self._active = active
@@ -301,14 +298,25 @@ class DependencyGraphTranspose:
             x_id = x
         else:
             x_id = function_id(x)
-        return self._adj_ics[J_id].get(x_id, False)
+
+        if x_id in self._adj_ics[J_id]:
+            n, i = self._adj_ics[J_id][x_id]
+            return self.is_solved(J_id, n, i)
+        else:
+            return False
 
     def is_stored_adj_ic(self, J, n, i, m):
         if isinstance(J, int):
             J_id = J
         else:
             J_id = function_id(J)
-        return self._stored_adj_ics[J_id][n][i][m]
+
+        stored_adj_ics = self._stored_adj_ics[J_id][n][i][m]
+        if stored_adj_ics is None:
+            return False
+        else:
+            p, k = stored_adj_ics
+            return self.is_solved(J_id, p, k)
 
     def adj_Bs(self, J, n, i, eq, B):
         if isinstance(J, int):
