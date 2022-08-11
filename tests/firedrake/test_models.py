@@ -122,7 +122,8 @@ def test_oscillator(setup_test, test_leaks,
     if cp_method in ["memory", "periodic_disk", "multistage"]:
         configure_checkpointing(cp_method, cp_parameters)
     else:
-        from tlm_adjoint.checkpointing import HRevolveCheckpointSchedule
+        assert cp_method == "H-Revolve"
+        from tlm_adjoint.check_schedules import HRevolveCheckpointSchedule
         configure_checkpointing(
             lambda **cp_parameters: HRevolveCheckpointSchedule(max_n=n_steps, keep_block_0_ics=True, **cp_parameters),  # noqa: E501
             cp_parameters)

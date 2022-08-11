@@ -23,12 +23,13 @@ from .interface import DEFAULT_COMM, check_space_types, function_assign, \
     function_new_tangent_linear, is_function
 
 from .alias import WeakAlias, gc_disabled
-from .binomial_checkpointing import MultistageCheckpointSchedule
-from .checkpointing import Clear, Configure, Forward, Reverse, Read, Write, \
-    EndForward, EndReverse
+from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
+    Write, EndForward, EndReverse
+from .checkpoint_schedules import MemoryCheckpointSchedule, \
+    MultistageCheckpointSchedule, NoneCheckpointSchedule, \
+    PeriodicDiskCheckpointSchedule
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
-    MemoryCheckpointSchedule, NoneCheckpointSchedule, \
-    PeriodicDiskCheckpointSchedule, PickleCheckpoints, ReplayStorage
+    PickleCheckpoints, ReplayStorage
 from .equations import AdjointModelRHS, ControlsMarker, Equation, \
     FunctionalMarker, NullSolver
 from .functional import Functional
