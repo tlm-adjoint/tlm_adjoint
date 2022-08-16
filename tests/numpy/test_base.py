@@ -133,6 +133,7 @@ def test_leaks():
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
     manager._tlm.clear()
+    manager._adj_cache.clear()
 
     gc.collect()
 
