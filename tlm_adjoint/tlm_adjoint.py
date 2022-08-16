@@ -366,7 +366,6 @@ class FirstOrderAdjointCache:
     def __init__(self):
         self._cache = {}
         self._keys = {}
-        self._store = False
         self._J_root_ids = None
 
     def __len__(self):
@@ -379,34 +378,37 @@ class FirstOrderAdjointCache:
     def clear(self):
         self._cache.clear()
         self._keys.clear()
-        self._store = False
         self._J_root_ids = None
 
-    def get_cached(self, J_i, n, i, *, copy=True):
+    def get(self, J_i, n, i, *, copy=True):
         adj_X = self._cache[(J_i, n, i)]
-        if not self._store:
-            del self._cache[(J_i, n, i)]
         if copy:
             adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
         return adj_X
 
-    def cache(self, J_i, n, i, adj_X, *, copy=True):
-        if (J_i, n, i) in self._keys:
+    def pop(self, J_i, n, i, *, copy=True):
+        adj_X = self._cache.pop((J_i, n, i))
+        if copy:
+            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+        return adj_X
+
+    def cache(self, J_i, n, i, adj_X, *, copy=True, store=False):
+        if (J_i, n, i) in self._keys \
+                and (store or len(self._keys[(J_i, n, i)]) > 0):
             if (J_i, n, i) in self._cache:
                 adj_X = self._cache[(J_i, n, i)]
+            elif copy:
+                adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
             else:
-                if copy:
-                    adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-                else:
-                    adj_X = tuple(adj_X)
-                if self._store:
-                    self._cache[(J_i, n, i)] = adj_X
+                adj_X = tuple(adj_X)
 
+            if store:
+                self._cache[(J_i, n, i)] = adj_X
             for J_j, p, k in self._keys[(J_i, n, i)]:
                 self._cache[(J_j, p, k)] = adj_X
 
     def initialize(self, Js, blocks, transpose_deps, *,
-                   cache=True, store=False):
+                   cache=True):
 
         J_roots, tlm_key_Js = J_tangent_linears(Js, blocks)
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
@@ -415,7 +417,6 @@ class FirstOrderAdjointCache:
             self.clear()
 
         self._keys.clear()
-        self._store = store
         self._J_root_ids = None
 
         if cache:
@@ -453,9 +454,9 @@ class FirstOrderAdjointCache:
                         J_root_id = J_root_ids[J_j]
                         if J_root_id in eq_root:
                             self._keys[eq_root[J_root_id]].append((J_j, p, k))
-                            if (J_j, p, k) in self._cache:
-                                if eq_root[J_root_id] not in self._cache:
-                                    self._cache[eq_root[J_root_id]] = self._cache[(J_j, p, k)]  # noqa: E501
+                            if (J_j, p, k) in self._cache \
+                                    and eq_root[J_root_id] not in self._cache:
+                                self._cache[eq_root[J_root_id]] = self._cache[(J_j, p, k)]  # noqa: E501
                         else:
                             eq_root[J_root_id] = (J_j, p, k)
                             self._keys[eq_root[J_root_id]] = []
@@ -1419,8 +1420,10 @@ class EquationManager:
         transpose_deps = DependencyGraphTranspose(
             J_markers, M, blocks,
             prune_forward=prune_forward, prune_adjoint=prune_adjoint)
+
+        # Initialize the adjoint cache
         self._adj_cache.initialize(J_markers, blocks, transpose_deps,
-                                   cache=cache_adjoint, store=store_adjoint)
+                                   cache=cache_adjoint)
 
         # Adjoint variables
         adj_Xs = tuple({} for J in Js)
@@ -1491,11 +1494,13 @@ class EquationManager:
                             eq_B.B(),
                             transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     elif transpose_deps.is_active(J_i, n, i):
-                        assert (J_i, n, i) in self._adj_cache
-
                         # Extract adjoint solution from the cache
-                        adj_X = self._adj_cache.get_cached(J_i, n, i,
-                                                           copy=False)
+                        if store_adjoint:
+                            adj_X = self._adj_cache.get(J_i, n, i,
+                                                        copy=False)
+                        else:
+                            adj_X = self._adj_cache.pop(J_i, n, i,
+                                                        copy=False)
 
                         # Non-linear dependency data
                         nl_deps = self._cp[(n, i)] if cp_block else ()
@@ -1505,8 +1510,6 @@ class EquationManager:
                             J, adj_X, nl_deps,
                             transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     else:
-                        assert (J_i, n, i) not in self._adj_cache
-
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
 
@@ -1517,9 +1520,9 @@ class EquationManager:
                             if transpose_deps.is_stored_adj_ic(J_i, n, i, m):
                                 adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
 
-                        # Store adjoint solution in the cache, if needed
+                        # Store adjoint solution in the cache
                         self._adj_cache.cache(J_i, n, i, adj_X,
-                                              copy=True)
+                                              copy=True, store=store_adjoint)
 
                     if callback is not None:
                         # Diagnostic callback
