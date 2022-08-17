@@ -881,11 +881,14 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     adj_cache = manager()._adj_cache
     assert tuple(adj_cache._keys.keys()) == ((3, 0, 25), (3, 0, 9),
+                                             (1, 0, 4), (3, 0, 4),
                                              (2, 0, 2), (3, 0, 2))
     # First order
     assert tuple(adj_cache._keys[(3, 0, 25)]) == ((2, 0, 24), (1, 0, 23), (0, 0, 22))  # noqa: E501
     assert tuple(adj_cache._keys[(3, 0, 9)]) == ((2, 0, 8), (1, 0, 7), (0, 0, 6))  # noqa: E501
     # Second order
+    assert tuple(adj_cache._keys[(1, 0, 4)]) == ((0, 0, 3),)
+    assert tuple(adj_cache._keys[(3, 0, 4)]) == ((2, 0, 3),)
     assert tuple(adj_cache._keys[(2, 0, 2)]) == ((0, 0, 1),)
     assert tuple(adj_cache._keys[(3, 0, 2)]) == ((1, 0, 1),)
 

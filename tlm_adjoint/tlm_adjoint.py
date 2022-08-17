@@ -350,10 +350,14 @@ def J_tangent_linears(Js, blocks):
             for J_i, J in remaining_Js.items():
                 if J_root_ids[function_id(J)] in eq_X_ids:
                     found_Js.append(J_i)
+                    seen_tlm_keys = set()
                     for ks in itertools.chain.from_iterable(
                             itertools.combinations(range(len(eq_tlm_key)), j)
                             for j in range(len(eq_tlm_key) + 1)):
                         tlm_key = tuple(eq_tlm_key[k] for k in ks)
+                        if tlm_key in seen_tlm_keys:
+                            continue
+                        seen_tlm_keys.add(tlm_key)
                         ks = set(ks)
                         adj_tlm_key = tuple(eq_tlm_key[k]
                                             for k in range(len(eq_tlm_key))
@@ -1009,10 +1013,9 @@ class EquationManager:
                         tlm_eq = NullSolver([tlm_map[x] for x in X])
                     tlm_eq._tlm_adjoint__tlm_root_id = getattr(
                         eq, "_tlm_adjoint__tlm_root_id", eq.id())
-                    parent_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
                     tlm_eq._tlm_adjoint__tlm_key = tuple(
-                        list(parent_tlm_key)
-                        + [(len(parent_tlm_key), key)])
+                        list(getattr(eq, "_tlm_adjoint__tlm_key", ()))
+                        + [key])
 
                     eq_tlm_eqs[key] = tlm_eq
                     break
