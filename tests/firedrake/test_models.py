@@ -123,7 +123,7 @@ def test_oscillator(setup_test, test_leaks,
         configure_checkpointing(cp_method, cp_parameters)
     else:
         assert cp_method == "H-Revolve"
-        from tlm_adjoint.check_schedules import HRevolveCheckpointSchedule
+        from tlm_adjoint.checkpoint_schedules import HRevolveCheckpointSchedule
         configure_checkpointing(
             lambda **cp_parameters: HRevolveCheckpointSchedule(max_n=n_steps, keep_block_0_ics=True, **cp_parameters),  # noqa: E501
             cp_parameters)
