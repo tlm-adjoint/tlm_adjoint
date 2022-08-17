@@ -199,7 +199,7 @@ class CachedHessian(Hessian, HessianOptimization):
         J_val = self._J.value()
         dJ = manager.compute_gradient(
             dJ, dM,
-            cache_adjoint_degree={True: 1, False: 0}[self._cache_adjoint],
+            cache_adjoint_degree=1 if self._cache_adjoint else 0,
             store_adjoint=self._cache_adjoint)
 
         return J_val, dJ
@@ -222,7 +222,7 @@ class CachedHessian(Hessian, HessianOptimization):
         dJ_val = dJ.value()
         ddJ = manager.compute_gradient(
             dJ, M,
-            cache_adjoint_degree={True: 1, False: 0}[self._cache_adjoint],
+            cache_adjoint_degree=1 if self._cache_adjoint else 0,
             store_adjoint=self._cache_adjoint)
 
         return J_val, dJ_val, ddJ
