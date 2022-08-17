@@ -24,7 +24,7 @@ from .caches import clear_caches
 from .functional import Functional
 from .hessian import GaussNewton, Hessian
 from .manager import manager as _manager
-from .tlm_adjoint import EquationManager, FirstOrderAdjointCache
+from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
 import warnings
@@ -69,7 +69,7 @@ class HessianOptimization:
         self._ics = ics
         self._nl_deps = nl_deps
         self._cache_adjoint = cache_adjoint
-        self._adj_cache = FirstOrderAdjointCache()
+        self._adj_cache = AdjointCache()
         if cache_adjoint:
             self._M_ids = None
 
@@ -197,8 +197,10 @@ class CachedHessian(Hessian, HessianOptimization):
         dJ = self._J.tlm(M, dM, manager=manager)
 
         J_val = self._J.value()
-        dJ = manager.compute_gradient(dJ, dM,
-                                      store_adjoint=self._cache_adjoint)
+        dJ = manager.compute_gradient(
+            dJ, dM,
+            cache_adjoint_degree={True: 1, False: 0}[self._cache_adjoint],
+            store_adjoint=self._cache_adjoint)
 
         return J_val, dJ
 
@@ -218,8 +220,10 @@ class CachedHessian(Hessian, HessianOptimization):
 
         J_val = self._J.value()
         dJ_val = dJ.value()
-        ddJ = manager.compute_gradient(dJ, M,
-                                       store_adjoint=self._cache_adjoint)
+        ddJ = manager.compute_gradient(
+            dJ, M,
+            cache_adjoint_degree={True: 1, False: 0}[self._cache_adjoint],
+            store_adjoint=self._cache_adjoint)
 
         return J_val, dJ_val, ddJ
 

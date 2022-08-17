@@ -36,6 +36,7 @@ from collections import defaultdict, deque
 from collections.abc import Sequence
 import copy
 import gc
+import itertools
 import logging
 import numpy as np
 import os
@@ -322,7 +323,7 @@ def J_tangent_linears(Js, blocks):
     J_roots = list(Js)
     J_root_ids = {J_id: J_id for J_id in map(function_id, Js)}
     remaining_Js = dict(enumerate(Js))
-    tlm_key_Js = defaultdict(lambda: [])
+    tlm_adj = defaultdict(lambda: [])
 
     for n in reversed(blocks_n):
         block = blocks[n]
@@ -349,7 +350,15 @@ def J_tangent_linears(Js, blocks):
             for J_i, J in remaining_Js.items():
                 if J_root_ids[function_id(J)] in eq_X_ids:
                     found_Js.append(J_i)
-                    tlm_key_Js[eq_tlm_key].append(J_i)
+                    for ks in itertools.chain.from_iterable(
+                            itertools.combinations(range(len(eq_tlm_key)), j)
+                            for j in range(len(eq_tlm_key) + 1)):
+                        tlm_key = tuple(eq_tlm_key[k] for k in ks)
+                        ks = set(ks)
+                        adj_tlm_key = tuple(eq_tlm_key[k]
+                                            for k in range(len(eq_tlm_key))
+                                            if k not in ks)
+                        tlm_adj[tlm_key].append((J_i, adj_tlm_key))
             for J_i in found_Js:
                 del remaining_Js[J_i]
 
@@ -359,10 +368,11 @@ def J_tangent_linears(Js, blocks):
             break
 
     return (tuple(J_roots),
-            {tlm_key: tuple(sorted(key_Js)) for tlm_key, key_Js in tlm_key_Js.items()})  # noqa: E501
+            {tlm_key: tuple(sorted(adj_key, key=lambda e: e[0]))
+             for tlm_key, adj_key in tlm_adj.items()})
 
 
-class FirstOrderAdjointCache:
+class AdjointCache:
     def __init__(self):
         self._cache = {}
         self._keys = {}
@@ -408,9 +418,9 @@ class FirstOrderAdjointCache:
                 self._cache[(J_j, p, k)] = adj_X
 
     def initialize(self, Js, blocks, transpose_deps, *,
-                   cache=True):
+                   cache_degree=None):
 
-        J_roots, tlm_key_Js = J_tangent_linears(Js, blocks)
+        J_roots, tlm_adj = J_tangent_linears(Js, blocks)
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
                            for J in J_roots)
         if self._J_root_ids is None or self._J_root_ids != J_root_ids:
@@ -419,7 +429,7 @@ class FirstOrderAdjointCache:
         self._keys.clear()
         self._J_root_ids = None
 
-        if cache:
+        if cache_degree is None or cache_degree > 0:
             self._J_root_ids = J_root_ids
 
             if isinstance(blocks, Sequence):
@@ -442,24 +452,26 @@ class FirstOrderAdjointCache:
                     eq_tlm_root_id = getattr(eq, "_tlm_adjoint__tlm_root_id", eq_id)  # noqa: E501
                     eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
 
-                    for J_i in tlm_key_Js.get(eq_tlm_key, ()):
+                    for J_i, adj_tlm_key in tlm_adj.get(eq_tlm_key, ()):
                         if transpose_deps.is_solved(J_i, n, i) \
                                 or (J_i, n, i) in self._cache:
-                            eqs[eq_tlm_root_id].append((J_i, n, i))
+                            if cache_degree is None or len(adj_tlm_key) < cache_degree:  # noqa: E501
+                                eqs[eq_tlm_root_id].append(
+                                    ((J_i, n, i),
+                                     (J_root_ids[J_i], adj_tlm_key)))
 
                     eq_root = {}
-                    for J_j, p, k in eqs.pop(eq_id, []):
+                    for (J_j, p, k), adj_key in eqs.pop(eq_id, []):
                         assert transpose_deps.is_solved(J_j, p, k) \
                             or (J_j, p, k) in self._cache
-                        J_root_id = J_root_ids[J_j]
-                        if J_root_id in eq_root:
-                            self._keys[eq_root[J_root_id]].append((J_j, p, k))
+                        if adj_key in eq_root:
+                            self._keys[eq_root[adj_key]].append((J_j, p, k))
                             if (J_j, p, k) in self._cache \
-                                    and eq_root[J_root_id] not in self._cache:
-                                self._cache[eq_root[J_root_id]] = self._cache[(J_j, p, k)]  # noqa: E501
+                                    and eq_root[adj_key] not in self._cache:
+                                self._cache[eq_root[adj_key]] = self._cache[(J_j, p, k)]  # noqa: E501
                         else:
-                            eq_root[J_root_id] = (J_j, p, k)
-                            self._keys[eq_root[J_root_id]] = []
+                            eq_root[adj_key] = (J_j, p, k)
+                            self._keys[eq_root[adj_key]] = []
             assert len(eqs) == 0
 
         for (J_i, n, i) in self._cache:
@@ -674,7 +686,7 @@ class EquationManager:
         self._tlm_map = {}
         self._tlm_eqs = {}
 
-        self._adj_cache = FirstOrderAdjointCache()
+        self._adj_cache = AdjointCache()
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
@@ -997,9 +1009,10 @@ class EquationManager:
                         tlm_eq = NullSolver([tlm_map[x] for x in X])
                     tlm_eq._tlm_adjoint__tlm_root_id = getattr(
                         eq, "_tlm_adjoint__tlm_root_id", eq.id())
+                    parent_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
                     tlm_eq._tlm_adjoint__tlm_key = tuple(
-                        list(getattr(eq, "_tlm_adjoint__tlm_key", ()))
-                        + [key])
+                        list(parent_tlm_key)
+                        + [(len(parent_tlm_key), key)])
 
                     eq_tlm_eqs[key] = tlm_eq
                     break
@@ -1327,7 +1340,7 @@ class EquationManager:
     @restore_manager
     def compute_gradient(self, Js, M, callback=None, prune_forward=True,
                          prune_adjoint=True, prune_replay=True,
-                         cache_adjoint=True, store_adjoint=False,
+                         cache_adjoint_degree=None, store_adjoint=False,
                          adj_ics=None):
         """
         Compute the derivative of one or more functionals with respect to one
@@ -1351,11 +1364,12 @@ class EquationManager:
                        should be applied.
         prune_replay   (Optional) Whether graph pruning should be applied in
                        forward replay.
-        cache_adjoint  (Optional) Whether first order adjoint solutions should
-                       be cached and reused in different adjoint calculations.
-        store_adjoint  (Optional) Whether first order adjoint solutions should
-                       be retained for use by a later call to
-                       compute_gradient.
+        cache_adjoint_degree
+                       (Optional) Cache and reuse adjoint solutions of this
+                       degree and lower. If not supplied then caching is
+                       applied for all degrees.
+        store_adjoint  (Optional) Whether adjoint solutions should be retained
+                       for use by a later call to compute_gradient.
         adj_ics    (Optional) Map, or a sequence of maps, from forward
                    functions or function IDs to adjoint initial conditions.
         """
@@ -1365,7 +1379,8 @@ class EquationManager:
                 ((dJ,),) = self.compute_gradient(
                     (Js,), (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                    prune_replay=prune_replay, cache_adjoint=cache_adjoint,
+                    prune_replay=prune_replay,
+                    cache_adjoint_degree=cache_adjoint_degree,
                     store_adjoint=store_adjoint,
                     adj_ics=None if adj_ics is None else (adj_ics,))
                 return dJ
@@ -1373,7 +1388,8 @@ class EquationManager:
                 dJs = self.compute_gradient(
                     Js, (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                    prune_replay=prune_replay, cache_adjoint=cache_adjoint,
+                    prune_replay=prune_replay,
+                    cache_adjoint_degree=cache_adjoint_degree,
                     store_adjoint=store_adjoint,
                     adj_ics=adj_ics)
                 return tuple(dJ for (dJ,) in dJs)
@@ -1381,7 +1397,8 @@ class EquationManager:
             dJ, = self.compute_gradient(
                 (Js,), M, callback=callback,
                 prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-                prune_replay=prune_replay, cache_adjoint=cache_adjoint,
+                prune_replay=prune_replay,
+                cache_adjoint_degree=cache_adjoint_degree,
                 store_adjoint=store_adjoint,
                 adj_ics=None if adj_ics is None else (adj_ics,))
             return dJ
@@ -1423,7 +1440,7 @@ class EquationManager:
 
         # Initialize the adjoint cache
         self._adj_cache.initialize(J_markers, blocks, transpose_deps,
-                                   cache=cache_adjoint)
+                                   cache_degree=cache_adjoint_degree)
 
         # Adjoint variables
         adj_Xs = tuple({} for J in Js)

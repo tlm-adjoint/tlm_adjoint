@@ -2373,8 +2373,8 @@ def tlm(M, dM, x, max_depth=1, manager=None):
 Calls \texttt{EquationManager.tlm}. Accesses a tangent-linear variable.
 \begin{lstlisting}
 def compute_gradient(Js, M, callback=None, prune_forward=True,
-                     prune_adjoint=True, prune_replay=True, cache_adjoint=True,
-                     adj_ics=None, manager=None):
+                     prune_adjoint=True, prune_replay=True,
+                     cache_adjoint_degree=None, adj_ics=None, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
 constrained derivative (see sections \ref{sect:first_order_adjoint} and
@@ -2382,10 +2382,12 @@ constrained derivative (see sections \ref{sect:first_order_adjoint} and
 \texttt{prune\_adjoint} control pruning of the transpose dependency graph via
 forward and reverse traversal respectively. \texttt{prune\_replay} controls
 pruning of the dependency graph during rerunning of the forward.
-\texttt{cache\_adjoint} controls the caching and reuse of first order adjoint
-solutions between different adjoint models. The optional \texttt{adj\_ics} is a
-map, or a sequence of maps, from forward functions or function IDs to adjoint
-initial conditions. The optional \texttt{callback} argument takes the form
+\texttt{cache\_adjoint\_degree} controls the caching and reuse of adjoint
+solutions between different adjoint models, with caching applied for adjoint
+models of the given degree and lower. By default caching is applied for all
+degrees. The optional \texttt{adj\_ics} is a map, or a sequence of maps, from
+forward functions or function IDs to adjoint initial conditions. The optional
+\texttt{callback} argument takes the form
 \begin{lstlisting}
 def callback(J_i, n, i, eq, adj_X)
 \end{lstlisting}

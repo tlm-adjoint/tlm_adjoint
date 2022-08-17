@@ -649,7 +649,7 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @seed_test
-def test_first_order_adjoint_caching(setup_test, test_leaks):
+def test_adjoint_caching(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -698,7 +698,7 @@ def test_first_order_adjoint_caching(setup_test, test_leaks):
     K_val = K.value()
     dJ_0, dK_0 = compute_gradient(
         [J, K], m,
-        cache_adjoint=False)
+        cache_adjoint_degree=0)
 
     min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ_0, dM=dm_0)
     assert min_order >= 2.00
@@ -735,10 +735,11 @@ def test_first_order_adjoint_caching(setup_test, test_leaks):
 
     dJ_1, ddJ_1, dK_1 = manager().compute_gradient(
         [J, J.tlm(m, dm_0), K], m,
-        cache_adjoint=True)
+        cache_adjoint_degree=1)
 
     adj_cache = manager()._adj_cache
-    assert tuple(adj_cache._keys.keys()) == ((2, 0, 4), (1, 0, 3), (1, 0, 1), (2, 0, 0))  # noqa: E501
+    assert tuple(adj_cache._keys.keys()) == ((2, 0, 4), (1, 0, 3),
+                                             (1, 0, 1), (2, 0, 0))
     assert tuple(adj_cache._keys[(2, 0, 4)]) == ()
     assert tuple(adj_cache._keys[(1, 0, 3)]) == ((0, 0, 2),)
     assert tuple(adj_cache._keys[(1, 0, 1)]) == ((0, 0, 0),)
@@ -767,14 +768,15 @@ def test_first_order_adjoint_caching(setup_test, test_leaks):
 
     dddJ_2 = compute_gradient(
         J.tlm(m, dm_0).tlm(m, dm_1), m,
-        cache_adjoint=False)
+        cache_adjoint_degree=0)
 
     ddJ_2a, ddJ_2b, dddJ_2b, dJ_2, dK_2 = manager().compute_gradient(
         [J.tlm(m, dm_0), J.tlm(m, dm_1), J.tlm(m, dm_0).tlm(m, dm_1), J, K], m,
-        cache_adjoint=True)
+        cache_adjoint_degree=1)
 
     adj_cache = manager()._adj_cache
-    assert tuple(adj_cache._keys.keys()) == ((4, 0, 8), (2, 0, 7), (2, 0, 3), (4, 0, 0))  # noqa: E501
+    assert tuple(adj_cache._keys.keys()) == ((4, 0, 8), (2, 0, 7),
+                                             (2, 0, 3), (4, 0, 0))
     assert tuple(adj_cache._keys[(4, 0, 8)]) == ()
     assert tuple(adj_cache._keys[(2, 0, 7)]) == ((1, 0, 6), (0, 0, 5), (3, 0, 4))  # noqa: E501
     assert tuple(adj_cache._keys[(2, 0, 3)]) == ((1, 0, 2), (0, 0, 1), (3, 0, 0))  # noqa: E501
@@ -810,10 +812,11 @@ def test_first_order_adjoint_caching(setup_test, test_leaks):
 
     ddJ_3, dddJ_3, dJ_3, dK_3 = manager().compute_gradient(
         [J.tlm(m, dm_0), J.tlm(m, dm_0, max_depth=2), J, K], m,
-        cache_adjoint=True)
+        cache_adjoint_degree=1)
 
     adj_cache = manager()._adj_cache
-    assert tuple(adj_cache._keys.keys()) == ((3, 0, 6), (1, 0, 5), (1, 0, 2), (3, 0, 0))  # noqa: E501
+    assert tuple(adj_cache._keys.keys()) == ((3, 0, 6), (1, 0, 5),
+                                             (1, 0, 2), (3, 0, 0))
     assert tuple(adj_cache._keys[(3, 0, 6)]) == ()
     assert tuple(adj_cache._keys[(1, 0, 5)]) == ((0, 0, 4), (2, 0, 3))
     assert tuple(adj_cache._keys[(1, 0, 2)]) == ((0, 0, 1), (2, 0, 0))
@@ -834,3 +837,67 @@ def test_first_order_adjoint_caching(setup_test, test_leaks):
     dddJ_error = function_copy(dddJ_2)
     function_axpy(dddJ_error, -1.0, dddJ_3)
     assert function_linf_norm(dddJ_error) < 1.0e-19
+
+    reset_manager()
+    stop_manager()
+
+    dm_0 = Function(space, name="dm_0")
+    interpolate_expression(dm_0, sin(pi * X[0]) * sin(pi * X[1]))
+    dm_1 = Function(space, name="dm_1")
+    interpolate_expression(dm_1, sin(2.0 * pi * X[0]) * sin(pi * X[1]))
+    dm_2 = Function(space, name="dm_2")
+    interpolate_expression(dm_2, sin(3.0 * pi * X[0]) * sin(pi * X[1]))
+    dm_3 = Function(space, name="dm_3")
+    interpolate_expression(dm_3, sin(4.0 * pi * X[0]) * sin(pi * X[1]))
+
+    add_tlm(m, dm_0)
+    add_tlm(m, dm_1)
+    add_tlm(m, dm_2)
+    add_tlm(m, dm_3)
+    start_manager()
+    J, K = forward(m)
+    stop_manager()
+
+    dddJ_02_0 = compute_gradient(
+        J.tlm(m, dm_0).tlm(m, dm_2), m,
+        cache_adjoint_degree=0)
+    dddJ_03_0 = compute_gradient(
+        J.tlm(m, dm_0).tlm(m, dm_3), m,
+        cache_adjoint_degree=0)
+    dddJ_12_0 = compute_gradient(
+        J.tlm(m, dm_1).tlm(m, dm_2), m,
+        cache_adjoint_degree=0)
+    dddJ_13_0 = compute_gradient(
+        J.tlm(m, dm_1).tlm(m, dm_3), m,
+        cache_adjoint_degree=0)
+
+    dddJ_02_1, dddJ_03_1, dddJ_12_1, dddJ_13_1 = compute_gradient(
+        [J.tlm(m, dm_0).tlm(m, dm_2), J.tlm(m, dm_0).tlm(m, dm_3),
+         J.tlm(m, dm_1).tlm(m, dm_2), J.tlm(m, dm_1).tlm(m, dm_3)], m,
+        cache_adjoint_degree=2)
+
+    adj_cache = manager()._adj_cache
+    assert tuple(adj_cache._keys.keys()) == ((3, 0, 25), (3, 0, 9),
+                                             (2, 0, 2), (3, 0, 2))
+    # First order
+    assert tuple(adj_cache._keys[(3, 0, 25)]) == ((2, 0, 24), (1, 0, 23), (0, 0, 22))  # noqa: E501
+    assert tuple(adj_cache._keys[(3, 0, 9)]) == ((2, 0, 8), (1, 0, 7), (0, 0, 6))  # noqa: E501
+    # Second order
+    assert tuple(adj_cache._keys[(2, 0, 2)]) == ((0, 0, 1),)
+    assert tuple(adj_cache._keys[(3, 0, 2)]) == ((1, 0, 1),)
+
+    dddJ_error = function_copy(dddJ_02_0)
+    function_axpy(dddJ_error, -1.0, dddJ_02_1)
+    assert function_linf_norm(dddJ_error) < 1.0e-21
+
+    dddJ_error = function_copy(dddJ_03_0)
+    function_axpy(dddJ_error, -1.0, dddJ_03_1)
+    assert function_linf_norm(dddJ_error) < 1.0e-22
+
+    dddJ_error = function_copy(dddJ_12_0)
+    function_axpy(dddJ_error, -1.0, dddJ_12_1)
+    assert function_linf_norm(dddJ_error) < 1.0e-21
+
+    dddJ_error = function_copy(dddJ_13_0)
+    function_axpy(dddJ_error, -1.0, dddJ_13_1)
+    assert function_linf_norm(dddJ_error) == 0.0
