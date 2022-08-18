@@ -311,6 +311,41 @@ class DependencyGraphTranspose:
         return dep_Bs
 
 
+def distinct_combinations_indices(iterable, r):
+    class Comparison:
+        def __init__(self, key, value):
+            self._key = key
+            self._value = value
+
+        def __eq__(self, other):
+            if isinstance(other, Comparison):
+                return self._key == other._key
+            else:
+                return NotImplemented
+
+        def __hash__(self):
+            return hash(self._key)
+
+        def value(self):
+            return self._value
+
+    t = tuple(Comparison(value, i) for i, value in enumerate(iterable))
+
+    try:
+        import more_itertools
+    except ImportError:
+        # Basic implementation likely suffices for most cases in practice
+        seen = set()
+        for combination in itertools.combinations(t, r):
+            if combination not in seen:
+                seen.add(combination)
+                yield tuple(e.value() for e in combination)
+        return
+
+    for combination in more_itertools.distinct_combinations(t, r):
+        yield tuple(e.value() for e in combination)
+
+
 def J_tangent_linears(Js, blocks):
     if isinstance(blocks, Sequence):
         # Sequence
@@ -350,14 +385,10 @@ def J_tangent_linears(Js, blocks):
             for J_i, J in remaining_Js.items():
                 if J_root_ids[function_id(J)] in eq_X_ids:
                     found_Js.append(J_i)
-                    seen_tlm_keys = set()
                     for ks in itertools.chain.from_iterable(
-                            itertools.combinations(range(len(eq_tlm_key)), j)
+                            distinct_combinations_indices(eq_tlm_key, j)
                             for j in range(len(eq_tlm_key) + 1)):
                         tlm_key = tuple(eq_tlm_key[k] for k in ks)
-                        if tlm_key in seen_tlm_keys:
-                            continue
-                        seen_tlm_keys.add(tlm_key)
                         ks = set(ks)
                         adj_tlm_key = tuple(eq_tlm_key[k]
                                             for k in range(len(eq_tlm_key))
