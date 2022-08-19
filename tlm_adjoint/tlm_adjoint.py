@@ -347,7 +347,7 @@ def distinct_combinations_indices(iterable, r):
         yield tuple(e.value() for e in combination)
 
 
-def J_tangent_linears(Js, blocks):
+def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
     if isinstance(blocks, Sequence):
         # Sequence
         blocks_n = tuple(range(len(blocks)))
@@ -386,9 +386,15 @@ def J_tangent_linears(Js, blocks):
             for J_i, J in remaining_Js.items():
                 if J_root_ids[function_id(J)] in eq_X_ids:
                     found_Js.append(J_i)
+                    J_max_adjoint_degree = len(eq_tlm_key) + 1
+                    if max_adjoint_degree is not None:
+                        assert max_adjoint_degree >= 0
+                        J_max_adjoint_degree = min(J_max_adjoint_degree,
+                                                   max_adjoint_degree)
                     for ks in itertools.chain.from_iterable(
                             distinct_combinations_indices(eq_tlm_key, j)
-                            for j in range(len(eq_tlm_key) + 1)):
+                            for j in range(len(eq_tlm_key) + 1 - J_max_adjoint_degree,  # noqa: E501
+                                           len(eq_tlm_key) + 1)):
                         tlm_key = tuple(eq_tlm_key[k] for k in ks)
                         ks = set(ks)
                         adj_tlm_key = tuple(eq_tlm_key[k]
@@ -412,7 +418,7 @@ class AdjointCache:
     def __init__(self):
         self._cache = {}
         self._keys = {}
-        self._J_root_ids = None
+        self._adj_key = None
 
     def __len__(self):
         return len(self._cache)
@@ -424,7 +430,7 @@ class AdjointCache:
     def clear(self):
         self._cache.clear()
         self._keys.clear()
-        self._J_root_ids = None
+        self._adj_key = None
 
     def get(self, J_i, n, i, *, copy=True):
         adj_X = self._cache[(J_i, n, i)]
@@ -456,17 +462,23 @@ class AdjointCache:
     def initialize(self, Js, blocks, transpose_deps, *,
                    cache_degree=None):
 
-        J_roots, tlm_adj = J_tangent_linears(Js, blocks)
+        J_roots, tlm_adj = J_tangent_linears(Js, blocks,
+                                             max_adjoint_degree=cache_degree)
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
                            for J in J_roots)
-        if self._J_root_ids is None or self._J_root_ids != J_root_ids:
+
+        adj_key = tuple((J_root_ids[J_i], adj_tlm_key)
+                        for J_i, adj_tlm_key
+                        in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
+
+        if self._adj_key is None or self._adj_key != adj_key:
             self.clear()
 
         self._keys.clear()
-        self._J_root_ids = None
+        self._adj_key = None
 
         if cache_degree is None or cache_degree > 0:
-            self._J_root_ids = J_root_ids
+            self._adj_key = adj_key
 
             if isinstance(blocks, Sequence):
                 # Sequence
@@ -491,10 +503,11 @@ class AdjointCache:
                     for J_i, adj_tlm_key in tlm_adj.get(eq_tlm_key, ()):
                         if transpose_deps.is_solved(J_i, n, i) \
                                 or (J_i, n, i) in self._cache:
-                            if cache_degree is None or len(adj_tlm_key) < cache_degree:  # noqa: E501
-                                eqs[eq_tlm_root_id].append(
-                                    ((J_i, n, i),
-                                     (J_root_ids[J_i], adj_tlm_key)))
+                            if cache_degree is not None:
+                                assert len(adj_tlm_key) < cache_degree
+                            eqs[eq_tlm_root_id].append(
+                                ((J_i, n, i),
+                                 (J_root_ids[J_i], adj_tlm_key)))
 
                     eq_root = {}
                     for (J_j, p, k), adj_key in eqs.pop(eq_id, []):
