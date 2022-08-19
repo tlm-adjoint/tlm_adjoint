@@ -24,6 +24,7 @@ from .alias import Alias
 from .equations import AssignmentSolver, Equation
 
 from collections import OrderedDict
+from operator import itemgetter
 
 __all__ = \
     [
@@ -137,7 +138,7 @@ class TimeLevels:
     def __init__(self, levels, cycle_map):
         levels = tuple(sorted(set(levels)))
         # Always assign to earlier time levels first in the cycle
-        cycle_map = OrderedDict(sorted(cycle_map.items(), key=lambda i: i[0]))
+        cycle_map = OrderedDict(sorted(cycle_map.items(), key=itemgetter(0)))
 
         self._levels = levels
         self._cycle_map = cycle_map

@@ -69,7 +69,7 @@ class HessianOptimization:
         self._ics = ics
         self._nl_deps = nl_deps
         self._cache_adjoint = cache_adjoint
-        self._adj_cache = None
+        self._adj_cache = AdjointCache()
         if cache_adjoint:
             self._M_ids = None
 
@@ -135,10 +135,6 @@ class HessianOptimization:
             len(manager._blocks), len(manager._block) - 1, tlm_eq,
             deps=tlm_deps)
 
-        if self._adj_cache is not None:
-            self._adj_cache.register(
-                0, len(manager._blocks), len(manager._block) - 1)
-
     def _setup_manager(self, M, dM, M0=None, *, solve_tlm=True):
         M = tuple(M)
         dM = tuple(dM)
@@ -146,14 +142,15 @@ class HessianOptimization:
 
         clear_caches(*dM)
 
-        if self._cache_adjoint:
-            M_ids = {function_id(m) for m in M}
-            if self._M_ids is None or self._M_ids != M_ids:
-                self._M_ids = M_ids
-                self._adj_cache = AdjointCache()
-
         manager = self._new_manager()
         manager.add_tlm(M, dM)
+
+        if self._cache_adjoint:
+            M_ids = set(map(function_id, M))
+            if self._M_ids is None or self._M_ids != M_ids:
+                self._M_ids = M_ids
+                self._adj_cache.clear()
+        manager._adj_cache = self._adj_cache
 
         for n, i, eq in self._add_forward_equations(manager):
             tlm_eq = self._tangent_linear(manager, eq, M, dM)
@@ -200,7 +197,10 @@ class CachedHessian(Hessian, HessianOptimization):
         dJ = self._J.tlm(M, dM, manager=manager)
 
         J_val = self._J.value()
-        dJ = manager.compute_gradient(dJ, dM, adj_cache=self._adj_cache)
+        dJ = manager.compute_gradient(
+            dJ, dM,
+            cache_adjoint_degree=1 if self._cache_adjoint else 0,
+            store_adjoint=self._cache_adjoint)
 
         return J_val, dJ
 
@@ -220,7 +220,10 @@ class CachedHessian(Hessian, HessianOptimization):
 
         J_val = self._J.value()
         dJ_val = dJ.value()
-        ddJ = manager.compute_gradient(dJ, M, adj_cache=self._adj_cache)
+        ddJ = manager.compute_gradient(
+            dJ, M,
+            cache_adjoint_degree=1 if self._cache_adjoint else 0,
+            store_adjoint=self._cache_adjoint)
 
         return J_val, dJ_val, ddJ
 

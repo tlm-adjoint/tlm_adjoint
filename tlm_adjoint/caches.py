@@ -154,7 +154,7 @@ class Cache:
 
         value = value()
         value_ref = CacheRef(value)
-        dep_ids = tuple(function_id(dep) for dep in deps)
+        dep_ids = tuple(map(function_id, deps))
 
         self._cache[key] = value_ref
 

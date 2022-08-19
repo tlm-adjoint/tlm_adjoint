@@ -32,12 +32,14 @@ from .equations import AdjointModelRHS, ControlsMarker, Equation, \
 from .functional import Functional
 from .manager import restore_manager, set_manager
 
-from collections import deque
+from collections import defaultdict, deque
 from collections.abc import Sequence
 import copy
 import gc
+import itertools
 import logging
 import numpy as np
+from operator import itemgetter
 import os
 import warnings
 import weakref
@@ -116,17 +118,19 @@ class TangentLinearMap:
         if not hasattr(x, "_tlm_adjoint__tangent_linears"):
             x._tlm_adjoint__tangent_linears = weakref.WeakKeyDictionary()
         if self not in x._tlm_adjoint__tangent_linears:
-            x._tlm_adjoint__tangent_linears[self] = \
-                function_new_tangent_linear(
-                    x, name=f"{function_name(x):s}{self._name_suffix:s}")
+            tau_x = function_new_tangent_linear(
+                x, name=f"{function_name(x):s}{self._name_suffix:s}")
+            if tau_x is not None:
+                tau_x._tlm_adjoint__tlm_root_id = getattr(
+                    x, "_tlm_adjoint__tlm_root_id", function_id(x))
+            x._tlm_adjoint__tangent_linears[self] = tau_x
 
         return x._tlm_adjoint__tangent_linears[self]
 
 
 class DependencyGraphTranspose:
-    def __init__(self, Js, M, blocks,
-                 prune_forward=True, prune_adjoint=True,
-                 adj_cache=None):
+    def __init__(self, Js, M, blocks, *,
+                 prune_forward=True, prune_adjoint=True):
         if isinstance(blocks, Sequence):
             # Sequence
             blocks_n = tuple(range(len(blocks)))
@@ -183,7 +187,7 @@ class DependencyGraphTranspose:
                 block = blocks[n]
                 for i, eq in enumerate(block):
                     if len(active_M) > 0:
-                        X_ids = {function_id(x) for x in eq.X()}
+                        X_ids = set(map(function_id, eq.X()))
                         if not X_ids.isdisjoint(active_M):
                             active_M.difference_update(X_ids)
                             active_forward[n][i] = True
@@ -198,11 +202,12 @@ class DependencyGraphTranspose:
             active_forward = {n: np.full(len(blocks[n]), True, dtype=bool)
                               for n in blocks_n}
 
-        active = {function_id(J): copy.deepcopy(active_forward) for J in Js}
+        active = {J_i: copy.deepcopy(active_forward) for J_i in range(len(Js))}
 
         if prune_adjoint:
             # Pruning, reverse traversal
-            for J_id in active:
+            for J_i, J in enumerate(Js):
+                J_id = function_id(J)
                 active_J = True
                 active_adjoint = {n: np.full(len(blocks[n]), False, dtype=bool)
                                   for n in blocks_n}
@@ -222,40 +227,29 @@ class DependencyGraphTranspose:
                                     p, k, m = transpose_deps[n][i][j]
                                     active_adjoint[p][k] = True
                         else:
-                            active[J_id][n][i] = False
+                            active[J_i][n][i] = False
 
         solved = copy.deepcopy(active)
-        if adj_cache is not None:
-            for J_i, J in enumerate(Js):
-                J_id = function_id(J)
-                for n in blocks_n:
-                    block = blocks[n]
-                    for i, eq in enumerate(block):
-                        if adj_cache.has_cached(J_i, n, i):
-                            solved[J_id][n][i] = False
 
-        stored_adj_ics = {function_id(J): {n: tuple(np.full(len(eq.X()), False, dtype=bool)  # noqa: E501
-                                                    for eq in blocks[n])
-                                           for n in blocks_n} for J in Js}
-        adj_ics = {function_id(J): {} for J in Js}
-        for J_id in stored_adj_ics:
-            stored = {}
+        stored_adj_ics = {J_i: {n: tuple([None for x in eq.X()]
+                                         for eq in blocks[n])
+                                for n in blocks_n} for J_i in range(len(Js))}
+        adj_ics = {J_i: {} for J_i in range(len(Js))}
+        for J_i in range(len(Js)):
             for n in blocks_n:
                 block = blocks[n]
                 for i, eq in enumerate(block):
-                    if active[J_id][n][i]:
-                        for m, x in enumerate(eq.X()):
-                            stored_adj_ics[J_id][n][i][m] = \
-                                stored.get(function_id(x), False)
-
-                    adj_ic_ids = {function_id(dep)
-                                  for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
-                    for x in eq.X():
+                    adj_ic_ids = set(map(function_id,
+                                         eq.adjoint_initial_condition_dependencies()))  # noqa: E501
+                    for m, x in enumerate(eq.X()):
                         x_id = function_id(x)
-                        store_x = solved[J_id][n][i] and x_id in adj_ic_ids
-                        stored[x_id] = store_x
-                        if x_id not in adj_ics[J_id]:
-                            adj_ics[J_id][x_id] = store_x
+
+                        stored_adj_ics[J_i][n][i][m] = adj_ics[J_i].get(x_id, None)  # noqa: E501
+
+                        if x_id in adj_ic_ids:
+                            adj_ics[J_i][x_id] = (n, i)
+                        elif x_id in adj_ics[J_i]:
+                            del adj_ics[J_i][x_id]
 
         self._transpose_deps = transpose_deps
         self._active = active
@@ -272,85 +266,268 @@ class DependencyGraphTranspose:
         p, k, m = self._transpose_deps[n][i][j]
         return p, k, m
 
-    def is_active(self, J, n, i):
-        if isinstance(J, int):
-            J_id = J
-        else:
-            J_id = function_id(J)
-        return self._active[J_id][n][i]
+    def is_active(self, J_i, n, i):
+        return self._active[J_i][n][i]
 
     def any_is_active(self, n, i):
-        for J_id in self._active:
-            if self._active[J_id][n][i]:
+        for J_i in self._active:
+            if self._active[J_i][n][i]:
                 return True
         return False
 
-    def is_solved(self, J, n, i):
-        if isinstance(J, int):
-            J_id = J
-        else:
-            J_id = function_id(J)
-        return self._solved[J_id][n][i]
+    def is_solved(self, J_i, n, i):
+        return self._solved[J_i][n][i]
 
-    def has_adj_ic(self, J, x):
-        if isinstance(J, int):
-            J_id = J
-        else:
-            J_id = function_id(J)
+    def set_not_solved(self, J_i, n, i):
+        self._solved[J_i][n][i] = False
+
+    def has_adj_ic(self, J_i, x):
         if isinstance(x, int):
             x_id = x
         else:
             x_id = function_id(x)
-        return self._adj_ics[J_id].get(x_id, False)
 
-    def is_stored_adj_ic(self, J, n, i, m):
-        if isinstance(J, int):
-            J_id = J
+        if x_id in self._adj_ics[J_i]:
+            n, i = self._adj_ics[J_i][x_id]
+            return self.is_solved(J_i, n, i)
         else:
-            J_id = function_id(J)
-        return self._stored_adj_ics[J_id][n][i][m]
+            return False
 
-    def adj_Bs(self, J, n, i, eq, B):
-        if isinstance(J, int):
-            J_id = J
+    def is_stored_adj_ic(self, J_i, n, i, m):
+        stored_adj_ics = self._stored_adj_ics[J_i][n][i][m]
+        if stored_adj_ics is None:
+            return False
         else:
-            J_id = function_id(J)
+            p, k = stored_adj_ics
+            return self.is_solved(J_i, p, k)
 
+    def adj_Bs(self, J_i, n, i, eq, B):
         dep_Bs = {}
         for j, dep in enumerate(eq.dependencies()):
             if (n, i, j) in self:
                 p, k, m = self[(n, i, j)]
-                if self.is_solved(J_id, p, k):
+                if self.is_solved(J_i, p, k):
                     dep_Bs[j] = B[p][k][m]
 
         return dep_Bs
 
 
+def distinct_combinations_indices(iterable, r):
+    class Comparison:
+        def __init__(self, key, value):
+            self._key = key
+            self._value = value
+
+        def __eq__(self, other):
+            if isinstance(other, Comparison):
+                return self._key == other._key
+            else:
+                return NotImplemented
+
+        def __hash__(self):
+            return hash(self._key)
+
+        def value(self):
+            return self._value
+
+    t = tuple(Comparison(value, i) for i, value in enumerate(iterable))
+
+    try:
+        import more_itertools
+    except ImportError:
+        # Basic implementation likely suffices for most cases in practice
+        seen = set()
+        for combination in itertools.combinations(t, r):
+            if combination not in seen:
+                seen.add(combination)
+                yield tuple(e.value() for e in combination)
+        return
+
+    for combination in more_itertools.distinct_combinations(t, r):
+        yield tuple(e.value() for e in combination)
+
+
+def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
+    if isinstance(blocks, Sequence):
+        # Sequence
+        blocks_n = tuple(range(len(blocks)))
+    else:
+        # Mapping
+        blocks_n = tuple(sorted(blocks.keys()))
+
+    J_is = {function_id(J): J_i for J_i, J in enumerate(Js)}
+    J_roots = list(Js)
+    J_root_ids = {J_id: J_id for J_id in map(function_id, Js)}
+    remaining_Js = dict(enumerate(Js))
+    tlm_adj = defaultdict(lambda: [])
+
+    for n in reversed(blocks_n):
+        block = blocks[n]
+        for i in range(len(block) - 1, -1, -1):
+            eq = block[i]
+
+            if isinstance(eq, ControlsMarker):
+                continue
+            elif isinstance(eq, FunctionalMarker):
+                J, J_root = eq.dependencies()
+                J_id = function_id(J)
+                if J_id in J_root_ids:
+                    assert J_root_ids[J_id] == J_id
+                    J_roots[J_is[J_id]] = J_root
+                    J_root_ids[J_id] = function_id(J_root)
+                    assert J_root_ids[J_id] != J_id
+                del J, J_root, J_id
+                continue
+
+            eq_X_ids = set(map(function_id, eq.X()))
+            eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
+
+            found_Js = []
+            for J_i, J in remaining_Js.items():
+                if J_root_ids[function_id(J)] in eq_X_ids:
+                    found_Js.append(J_i)
+                    J_max_adjoint_degree = len(eq_tlm_key) + 1
+                    if max_adjoint_degree is not None:
+                        assert max_adjoint_degree >= 0
+                        J_max_adjoint_degree = min(J_max_adjoint_degree,
+                                                   max_adjoint_degree)
+                    for ks in itertools.chain.from_iterable(
+                            distinct_combinations_indices(eq_tlm_key, j)
+                            for j in range(len(eq_tlm_key) + 1 - J_max_adjoint_degree,  # noqa: E501
+                                           len(eq_tlm_key) + 1)):
+                        tlm_key = tuple(eq_tlm_key[k] for k in ks)
+                        ks = set(ks)
+                        adj_tlm_key = tuple(eq_tlm_key[k]
+                                            for k in range(len(eq_tlm_key))
+                                            if k not in ks)
+                        tlm_adj[tlm_key].append((J_i, adj_tlm_key))
+            for J_i in found_Js:
+                del remaining_Js[J_i]
+
+            if len(remaining_Js) == 0:
+                break
+        if len(remaining_Js) == 0:
+            break
+
+    return (tuple(J_roots),
+            {tlm_key: tuple(sorted(adj_key, key=itemgetter(0)))
+             for tlm_key, adj_key in tlm_adj.items()})
+
+
 class AdjointCache:
     def __init__(self):
-        self._keys = set()
         self._cache = {}
+        self._keys = {}
+        self._cache_key = None
 
-    def register(self, J_i, n, i):
-        self._keys.add((J_i, n, i))
+    def __len__(self):
+        return len(self._cache)
 
-    def has_cached(self, J_i, n, i):
+    def __contains__(self, key):
+        J_i, n, i = key
         return (J_i, n, i) in self._cache
 
-    def get_cached(self, J_i, n, i, copy=False):
+    def clear(self):
+        self._cache.clear()
+        self._keys.clear()
+        self._cache_key = None
+
+    def get(self, J_i, n, i, *, copy=True):
         adj_X = self._cache[(J_i, n, i)]
         if copy:
             adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
         return adj_X
 
-    def cache(self, J_i, n, i, adj_X, copy=True, replace=False):
-        if (J_i, n, i) in self._keys:
-            if replace or (J_i, n, i) not in self._cache:
-                if copy:
-                    adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-                else:
-                    adj_X = tuple(adj_X)
+    def pop(self, J_i, n, i, *, copy=True):
+        adj_X = self._cache.pop((J_i, n, i))
+        if copy:
+            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+        return adj_X
+
+    def cache(self, J_i, n, i, adj_X, *, copy=True, store=False):
+        if (J_i, n, i) in self._keys \
+                and (store or len(self._keys[(J_i, n, i)]) > 0):
+            if (J_i, n, i) in self._cache:
+                adj_X = self._cache[(J_i, n, i)]
+            elif copy:
+                adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+            else:
+                adj_X = tuple(adj_X)
+
+            if store:
                 self._cache[(J_i, n, i)] = adj_X
+            for J_j, p, k in self._keys[(J_i, n, i)]:
+                self._cache[(J_j, p, k)] = adj_X
+
+    def initialize(self, Js, blocks, transpose_deps, *,
+                   cache_degree=None):
+
+        J_roots, tlm_adj = J_tangent_linears(Js, blocks,
+                                             max_adjoint_degree=cache_degree)
+        J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
+                           for J in J_roots)
+
+        cache_key = tuple((J_root_ids[J_i], adj_tlm_key)
+                          for J_i, adj_tlm_key
+                          in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
+
+        if self._cache_key is None or self._cache_key != cache_key:
+            self.clear()
+
+        self._keys.clear()
+        self._cache_key = None
+
+        if cache_degree is None or cache_degree > 0:
+            self._cache_key = cache_key
+
+            if isinstance(blocks, Sequence):
+                # Sequence
+                blocks_n = tuple(range(len(blocks)))
+            else:
+                # Mapping
+                blocks_n = tuple(sorted(blocks.keys()))
+
+            eqs = defaultdict(lambda: [])
+            for n in reversed(blocks_n):
+                block = blocks[n]
+                for i in range(len(block) - 1, -1, -1):
+                    eq = block[i]
+
+                    if isinstance(eq, (ControlsMarker, FunctionalMarker)):
+                        continue
+
+                    eq_id = eq.id()
+                    eq_tlm_root_id = getattr(eq, "_tlm_adjoint__tlm_root_id", eq_id)  # noqa: E501
+                    eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
+
+                    for J_i, adj_tlm_key in tlm_adj.get(eq_tlm_key, ()):
+                        if transpose_deps.is_solved(J_i, n, i) \
+                                or (J_i, n, i) in self._cache:
+                            if cache_degree is not None:
+                                assert len(adj_tlm_key) < cache_degree
+                            eqs[eq_tlm_root_id].append(
+                                ((J_i, n, i),
+                                 (J_root_ids[J_i], adj_tlm_key)))
+
+                    eq_root = {}
+                    for (J_j, p, k), adj_key in eqs.pop(eq_id, []):
+                        assert transpose_deps.is_solved(J_j, p, k) \
+                            or (J_j, p, k) in self._cache
+                        if adj_key in eq_root:
+                            self._keys[eq_root[adj_key]].append((J_j, p, k))
+                            if (J_j, p, k) in self._cache \
+                                    and eq_root[adj_key] not in self._cache:
+                                self._cache[eq_root[adj_key]] = self._cache[(J_j, p, k)]  # noqa: E501
+                        else:
+                            eq_root[adj_key] = (J_j, p, k)
+                            self._keys[eq_root[adj_key]] = []
+            assert len(eqs) == 0
+
+        for (J_i, n, i) in self._cache:
+            transpose_deps.set_not_solved(J_i, n, i)
+        for eq_root in self._keys:
+            for (J_i, n, i) in self._keys[eq_root]:
+                transpose_deps.set_not_solved(J_i, n, i)
 
 
 class EquationManager:
@@ -491,8 +668,8 @@ class EquationManager:
                                                    for eq_x in eq_X))
                 info("    Equation %i, %s solving for %s (%s)" %
                      (i, type(eq).__name__, X_name, X_ids))
-                nl_dep_ids = {function_id(dep)
-                              for dep in eq.nonlinear_dependencies()}
+                nl_dep_ids = set(map(function_id,
+                                     eq.nonlinear_dependencies()))
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
                          (j, function_name(dep), function_id(dep),
@@ -557,6 +734,8 @@ class EquationManager:
         self._tlm = TangentLinear()
         self._tlm_map = {}
         self._tlm_eqs = {}
+
+        self._adj_cache = AdjointCache()
 
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
@@ -857,7 +1036,7 @@ class EquationManager:
         (M, dM), key = tlm_key(M, dM)
 
         X = eq.X()
-        X_ids = {function_id(x) for x in X}
+        X_ids = set(map(function_id, X))
         if not X_ids.isdisjoint(set(key[0])):
             raise ValueError("Invalid tangent-linear parameter")
         if not X_ids.isdisjoint(set(key[1])):
@@ -877,6 +1056,12 @@ class EquationManager:
                     tlm_eq = eq.tangent_linear(M, dM, tlm_map)
                     if tlm_eq is None:
                         tlm_eq = NullSolver([tlm_map[x] for x in X])
+                    tlm_eq._tlm_adjoint__tlm_root_id = getattr(
+                        eq, "_tlm_adjoint__tlm_root_id", eq.id())
+                    tlm_eq._tlm_adjoint__tlm_key = tuple(
+                        list(getattr(eq, "_tlm_adjoint__tlm_key", ()))
+                        + [key])
+
                     eq_tlm_eqs[key] = tlm_eq
                     break
 
@@ -922,7 +1107,7 @@ class EquationManager:
                                 delete=False):
         read_cp, read_data, read_storage = self._cp_memory[n]
         if delete:
-            self._cp_memory.pop(n)
+            del self._cp_memory[n]
 
         if ics or data:
             if ics:
@@ -1202,8 +1387,9 @@ class EquationManager:
 
     @restore_manager
     def compute_gradient(self, Js, M, callback=None, prune_forward=True,
-                         prune_adjoint=True, prune_replay=True, adj_ics=None,
-                         adj_cache=None):
+                         prune_adjoint=True, prune_replay=True,
+                         cache_adjoint_degree=None, store_adjoint=False,
+                         adj_ics=None):
         """
         Compute the derivative of one or more functionals with respect to one
         or more control parameters by running adjoint models. Finalizes the
@@ -1226,9 +1412,14 @@ class EquationManager:
                        should be applied.
         prune_replay   (Optional) Whether graph pruning should be applied in
                        forward replay.
+        cache_adjoint_degree
+                       (Optional) Cache and reuse adjoint solutions of this
+                       degree and lower. If not supplied then caching is
+                       applied for all degrees.
+        store_adjoint  (Optional) Whether adjoint solutions should be retained
+                       for use by a later call to compute_gradient.
         adj_ics    (Optional) Map, or a sequence of maps, from forward
                    functions or function IDs to adjoint initial conditions.
-        adj_cache  (Optional) An AdjointCache.
         """
 
         if not isinstance(M, Sequence):
@@ -1237,24 +1428,27 @@ class EquationManager:
                     (Js,), (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
                     prune_replay=prune_replay,
-                    adj_ics=None if adj_ics is None else (adj_ics,),
-                    adj_cache=adj_cache)
+                    cache_adjoint_degree=cache_adjoint_degree,
+                    store_adjoint=store_adjoint,
+                    adj_ics=None if adj_ics is None else (adj_ics,))
                 return dJ
             else:
                 dJs = self.compute_gradient(
                     Js, (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
                     prune_replay=prune_replay,
-                    adj_ics=adj_ics,
-                    adj_cache=adj_cache)
+                    cache_adjoint_degree=cache_adjoint_degree,
+                    store_adjoint=store_adjoint,
+                    adj_ics=adj_ics)
                 return tuple(dJ for (dJ,) in dJs)
         elif not isinstance(Js, Sequence):
             dJ, = self.compute_gradient(
                 (Js,), M, callback=callback,
                 prune_forward=prune_forward, prune_adjoint=prune_adjoint,
                 prune_replay=prune_replay,
-                adj_ics=None if adj_ics is None else (adj_ics,),
-                adj_cache=adj_cache)
+                cache_adjoint_degree=cache_adjoint_degree,
+                store_adjoint=store_adjoint,
+                adj_ics=None if adj_ics is None else (adj_ics,))
             return dJ
 
         set_manager(self)
@@ -1290,17 +1484,20 @@ class EquationManager:
         # Transpose dependency graph
         transpose_deps = DependencyGraphTranspose(
             J_markers, M, blocks,
-            prune_forward=prune_forward, prune_adjoint=prune_adjoint,
-            adj_cache=adj_cache)
+            prune_forward=prune_forward, prune_adjoint=prune_adjoint)
+
+        # Initialize the adjoint cache
+        self._adj_cache.initialize(J_markers, blocks, transpose_deps,
+                                   cache_degree=cache_adjoint_degree)
 
         # Adjoint variables
         adj_Xs = tuple({} for J in Js)
         if adj_ics is not None:
-            for J_i, J_marker in enumerate(J_markers):
+            for J_i in range(len(Js)):
                 for x_id, adj_x in adj_ics[J_i].items():
                     if not isinstance(x_id, int):
                         x_id = function_id(x_id)
-                    if transpose_deps.has_adj_ic(J_marker, x_id):
+                    if transpose_deps.has_adj_ic(J_i, x_id):
                         adj_Xs[J_i][x_id] = function_copy(adj_x)
 
         # Reverse (blocks)
@@ -1318,8 +1515,7 @@ class EquationManager:
                 eq = block[i]
                 eq_X = eq.X()
 
-                assert len(Js) == len(J_markers)
-                for J_i, (J, J_marker) in enumerate(zip(Js, J_markers)):
+                for J_i, J in enumerate(Js):
                     # Adjoint right-hand-side associated with this equation
                     B_state, eq_B = Bs[J_i].pop()
                     assert B_state == (n, i)
@@ -1327,9 +1523,9 @@ class EquationManager:
                     # Extract adjoint initial condition
                     adj_X_ic = tuple(adj_Xs[J_i].pop(function_id(x), None)
                                      for x in eq_X)
-                    if transpose_deps.is_solved(J_marker, n, i):
-                        adj_X_ic_ids = {function_id(dep)
-                                        for dep in eq.adjoint_initial_condition_dependencies()}  # noqa: E501
+                    if transpose_deps.is_solved(J_i, n, i):
+                        adj_X_ic_ids = set(map(function_id,
+                                               eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                         assert len(eq_X) == len(adj_X_ic)
                         for x, adj_x_ic in zip(eq_X, adj_X_ic):
                             if function_id(x) not in adj_X_ic_ids:
@@ -1339,7 +1535,9 @@ class EquationManager:
                         for adj_x_ic in adj_X_ic:
                             assert adj_x_ic is None
 
-                    if transpose_deps.is_solved(J_marker, n, i):
+                    if transpose_deps.is_solved(J_i, n, i):
+                        assert (J_i, n, i) not in self._adj_cache
+
                         # Construct adjoint initial condition
                         if len(eq.adjoint_initial_condition_dependencies()) == 0:  # noqa: E501
                             adj_X = None
@@ -1359,10 +1557,15 @@ class EquationManager:
                         adj_X = eq.adjoint(
                             J, adj_X, nl_deps,
                             eq_B.B(),
-                            transpose_deps.adj_Bs(J_marker, n, i, eq, Bs[J_i]))
-                    elif transpose_deps.is_active(J_marker, n, i):
+                            transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
+                    elif transpose_deps.is_active(J_i, n, i):
                         # Extract adjoint solution from the cache
-                        adj_X = adj_cache.get_cached(J_i, n, i, copy=False)
+                        if store_adjoint:
+                            adj_X = self._adj_cache.get(J_i, n, i,
+                                                        copy=False)
+                        else:
+                            adj_X = self._adj_cache.pop(J_i, n, i,
+                                                        copy=False)
 
                         # Non-linear dependency data
                         nl_deps = self._cp[(n, i)] if cp_block else ()
@@ -1370,7 +1573,7 @@ class EquationManager:
                         # Add terms to adjoint equations
                         eq.adjoint_cached(
                             J, adj_X, nl_deps,
-                            transpose_deps.adj_Bs(J_marker, n, i, eq, Bs[J_i]))
+                            transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     else:
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
@@ -1379,13 +1582,12 @@ class EquationManager:
                         # Store adjoint initial conditions
                         assert len(eq_X) == len(adj_X)
                         for m, (x, adj_x) in enumerate(zip(eq_X, adj_X)):
-                            if transpose_deps.is_stored_adj_ic(J_marker, n, i, m):  # noqa: E501
+                            if transpose_deps.is_stored_adj_ic(J_i, n, i, m):
                                 adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
 
-                        if adj_cache is not None:
-                            # Store adjoint solution in the cache, if needed
-                            adj_cache.cache(J_i, n, i, adj_X,
-                                            copy=True, replace=False)
+                        # Store adjoint solution in the cache
+                        self._adj_cache.cache(J_i, n, i, adj_X,
+                                              copy=True, store=store_adjoint)
 
                     if callback is not None:
                         # Diagnostic callback
@@ -1416,6 +1618,8 @@ class EquationManager:
             assert B.is_empty()
         for J_i in range(len(adj_Xs)):
             assert len(adj_Xs[J_i]) == 0
+        if not store_adjoint:
+            assert len(self._adj_cache) == 0
 
         if self._cp_manager.max_n() is None \
                 or self._cp_manager.r() != self._cp_manager.max_n():

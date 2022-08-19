@@ -648,3 +648,262 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
     x = Constant(0.0, name="x")
     DotProductSolver(m, m, x).solve()
     stop_manager()
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_adjoint_caching(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        u = Function(space, name="u")
+
+        solve(inner(grad(trial), grad(test)) * dx
+              == inner(m * cos(Constant(0.0) * m), test) * dx,
+              u, DirichletBC(space, 0.0, "on_boundary"),
+              solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        v = Constant(1.0, name="v")
+        J.assign((dot(u + v, u + v) ** 3) * dx)
+
+        K = Functional(name="K")
+        K.assign((dot(u + v, u + v) ** 4) * dx)
+
+        return J, K
+
+    m = Function(space, name="m")
+    interpolate_expression(m, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
+
+    dm_0 = Function(space, name="dm_0")
+    if issubclass(function_dtype(dm_0), (complex, np.complexfloating)):
+        dm_0.assign(Constant(1.0 + 1.0j))
+    else:
+        dm_0.assign(Constant(1.0))
+    dm_1 = function_copy(dm_0, name="dm_1")
+
+    start_manager()
+    J, K = forward(m)
+    stop_manager()
+
+    def forward_J(m):
+        J, K = forward(m)
+        return J
+
+    def forward_K(m):
+        J, K = forward(m)
+        return K
+
+    J_val = J.value()
+    K_val = K.value()
+    dJ_0, dK_0 = compute_gradient(
+        [J, K], m,
+        cache_adjoint_degree=0)
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ_0, dM=dm_0)
+    assert min_order >= 2.00
+
+    min_order = taylor_test(forward_K, m, J_val=K_val, dJ=dK_0, dM=dm_0)
+    assert min_order >= 2.00
+
+    ddJ = Hessian(forward_J)
+    J_val_0b, dJ_0b, ddJ_0 = ddJ.action(m, dm_0)
+    assert abs(J_val - J_val_0b) == 0.0
+    assert abs(dJ_0b - function_inner(dm_0, dJ_0)) < 1.0e-15
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm_0)
+    assert min_order > 2.99
+
+    for order in range(1, 4):
+        min_order = taylor_test_tlm(
+            forward_J, m, tlm_order=order,
+            dMs=tuple(dm_0 for i in range(order)))
+        assert min_order > 2.00
+
+        min_order = taylor_test_tlm_adjoint(
+            forward_J, m, adjoint_order=order,
+            dMs=tuple(dm_0 for i in range(order)))
+        assert min_order > 2.00
+
+    reset_manager()
+    stop_manager()
+
+    add_tlm(m, dm_0)
+    start_manager()
+    J, K = forward(m)
+    stop_manager()
+
+    dJ_1, ddJ_1, dK_1 = manager().compute_gradient(
+        [J, J.tlm(m, dm_0), K], m,
+        cache_adjoint_degree=1)
+
+    adj_cache = manager()._adj_cache
+    assert tuple(adj_cache._keys.keys()) == ((2, 0, 4), (1, 0, 3),
+                                             (1, 0, 1), (2, 0, 0))
+    assert tuple(adj_cache._keys[(2, 0, 4)]) == ()
+    assert tuple(adj_cache._keys[(1, 0, 3)]) == ((0, 0, 2),)
+    assert tuple(adj_cache._keys[(1, 0, 1)]) == ((0, 0, 0),)
+    assert tuple(adj_cache._keys[(2, 0, 0)]) == ()
+
+    dJ_error = function_copy(dJ_0)
+    function_axpy(dJ_error, -1.0, dJ_1)
+    assert function_linf_norm(dJ_error) == 0.0
+
+    dK_error = function_copy(dK_0)
+    function_axpy(dK_error, -1.0, dK_1)
+    assert function_linf_norm(dK_error) == 0.0
+
+    ddJ_error = function_copy(ddJ_0)
+    function_axpy(ddJ_error, -1.0, ddJ_1)
+    assert function_linf_norm(ddJ_error) == 0.0
+
+    reset_manager()
+    stop_manager()
+
+    add_tlm(m, dm_0)
+    add_tlm(m, dm_1)
+    start_manager()
+    J, K = forward(m)
+    stop_manager()
+
+    dddJ_2 = compute_gradient(
+        J.tlm(m, dm_0).tlm(m, dm_1), m,
+        cache_adjoint_degree=0)
+
+    ddJ_2a, ddJ_2b, dddJ_2b, dJ_2, dK_2 = manager().compute_gradient(
+        [J.tlm(m, dm_0), J.tlm(m, dm_1), J.tlm(m, dm_0).tlm(m, dm_1), J, K], m,
+        cache_adjoint_degree=1)
+
+    adj_cache = manager()._adj_cache
+    assert tuple(adj_cache._keys.keys()) == ((4, 0, 8), (2, 0, 7),
+                                             (2, 0, 3), (4, 0, 0))
+    assert tuple(adj_cache._keys[(4, 0, 8)]) == ()
+    assert tuple(adj_cache._keys[(2, 0, 7)]) == ((1, 0, 6), (0, 0, 5), (3, 0, 4))  # noqa: E501
+    assert tuple(adj_cache._keys[(2, 0, 3)]) == ((1, 0, 2), (0, 0, 1), (3, 0, 0))  # noqa: E501
+    assert tuple(adj_cache._keys[(4, 0, 0)]) == ()
+
+    dJ_error = function_copy(dJ_0)
+    function_axpy(dJ_error, -1.0, dJ_2)
+    assert function_linf_norm(dJ_error) == 0.0
+
+    dK_error = function_copy(dK_0)
+    function_axpy(dK_error, -1.0, dK_2)
+    assert function_linf_norm(dK_error) == 0.0
+
+    ddJ_error = function_copy(ddJ_0)
+    function_axpy(ddJ_error, -1.0, ddJ_2a)
+    assert function_linf_norm(ddJ_error) == 0.0
+
+    ddJ_error = function_copy(ddJ_0)
+    function_axpy(ddJ_error, -1.0, ddJ_2b)
+    assert function_linf_norm(ddJ_error) == 0.0
+
+    dddJ_error = function_copy(dddJ_2)
+    function_axpy(dddJ_error, -1.0, dddJ_2b)
+    assert function_linf_norm(dddJ_error) == 0.0
+
+    reset_manager()
+    stop_manager()
+
+    add_tlm(m, dm_0, max_depth=2)
+    start_manager()
+    J, K = forward(m)
+    stop_manager()
+
+    ddJ_3, dddJ_3, dJ_3, dK_3 = manager().compute_gradient(
+        [J.tlm(m, dm_0), J.tlm(m, dm_0, max_depth=2), J, K], m,
+        cache_adjoint_degree=1)
+
+    adj_cache = manager()._adj_cache
+    assert tuple(adj_cache._keys.keys()) == ((3, 0, 6), (1, 0, 5),
+                                             (1, 0, 2), (3, 0, 0))
+    assert tuple(adj_cache._keys[(3, 0, 6)]) == ()
+    assert tuple(adj_cache._keys[(1, 0, 5)]) == ((0, 0, 4), (2, 0, 3))
+    assert tuple(adj_cache._keys[(1, 0, 2)]) == ((0, 0, 1), (2, 0, 0))
+    assert tuple(adj_cache._keys[(3, 0, 0)]) == ()
+
+    dJ_error = function_copy(dJ_0)
+    function_axpy(dJ_error, -1.0, dJ_3)
+    assert function_linf_norm(dJ_error) == 0.0
+
+    dK_error = function_copy(dK_0)
+    function_axpy(dK_error, -1.0, dK_3)
+    assert function_linf_norm(dK_error) == 0.0
+
+    ddJ_error = function_copy(ddJ_0)
+    function_axpy(ddJ_error, -1.0, ddJ_3)
+    assert function_linf_norm(ddJ_error) == 0.0
+
+    dddJ_error = function_copy(dddJ_2)
+    function_axpy(dddJ_error, -1.0, dddJ_3)
+    assert function_linf_norm(dddJ_error) < 1.0e-18
+
+    reset_manager()
+    stop_manager()
+
+    dm_0 = Function(space, name="dm_0")
+    interpolate_expression(dm_0, sin(pi * X[0]) * sin(pi * X[1]))
+    dm_1 = Function(space, name="dm_1")
+    interpolate_expression(dm_1, sin(2.0 * pi * X[0]) * sin(pi * X[1]))
+    dm_2 = Function(space, name="dm_2")
+    interpolate_expression(dm_2, sin(3.0 * pi * X[0]) * sin(pi * X[1]))
+    dm_3 = Function(space, name="dm_3")
+    interpolate_expression(dm_3, sin(4.0 * pi * X[0]) * sin(pi * X[1]))
+
+    add_tlm(m, dm_0)
+    add_tlm(m, dm_1)
+    add_tlm(m, dm_2)
+    add_tlm(m, dm_3)
+    start_manager()
+    J, K = forward(m)
+    stop_manager()
+
+    dddJ_02_0 = compute_gradient(
+        J.tlm(m, dm_0).tlm(m, dm_2), m,
+        cache_adjoint_degree=0)
+    dddJ_03_0 = compute_gradient(
+        J.tlm(m, dm_0).tlm(m, dm_3), m,
+        cache_adjoint_degree=0)
+    dddJ_12_0 = compute_gradient(
+        J.tlm(m, dm_1).tlm(m, dm_2), m,
+        cache_adjoint_degree=0)
+    dddJ_13_0 = compute_gradient(
+        J.tlm(m, dm_1).tlm(m, dm_3), m,
+        cache_adjoint_degree=0)
+
+    dddJ_02_1, dddJ_03_1, dddJ_12_1, dddJ_13_1 = compute_gradient(
+        [J.tlm(m, dm_0).tlm(m, dm_2), J.tlm(m, dm_0).tlm(m, dm_3),
+         J.tlm(m, dm_1).tlm(m, dm_2), J.tlm(m, dm_1).tlm(m, dm_3)], m,
+        cache_adjoint_degree=2)
+
+    adj_cache = manager()._adj_cache
+    assert tuple(adj_cache._keys.keys()) == ((3, 0, 25), (3, 0, 9),
+                                             (1, 0, 4), (3, 0, 4),
+                                             (2, 0, 2), (3, 0, 2))
+    # First order
+    assert tuple(adj_cache._keys[(3, 0, 25)]) == ((2, 0, 24), (1, 0, 23), (0, 0, 22))  # noqa: E501
+    assert tuple(adj_cache._keys[(3, 0, 9)]) == ((2, 0, 8), (1, 0, 7), (0, 0, 6))  # noqa: E501
+    # Second order
+    assert tuple(adj_cache._keys[(1, 0, 4)]) == ((0, 0, 3),)
+    assert tuple(adj_cache._keys[(3, 0, 4)]) == ((2, 0, 3),)
+    assert tuple(adj_cache._keys[(2, 0, 2)]) == ((0, 0, 1),)
+    assert tuple(adj_cache._keys[(3, 0, 2)]) == ((1, 0, 1),)
+
+    dddJ_error = function_copy(dddJ_02_0)
+    function_axpy(dddJ_error, -1.0, dddJ_02_1)
+    assert function_linf_norm(dddJ_error) == 0.0
+
+    dddJ_error = function_copy(dddJ_03_0)
+    function_axpy(dddJ_error, -1.0, dddJ_03_1)
+    assert function_linf_norm(dddJ_error) == 0.0
+
+    dddJ_error = function_copy(dddJ_12_0)
+    function_axpy(dddJ_error, -1.0, dddJ_12_1)
+    assert function_linf_norm(dddJ_error) == 0.0
+
+    dddJ_error = function_copy(dddJ_13_0)
+    function_axpy(dddJ_error, -1.0, dddJ_13_1)
+    assert function_linf_norm(dddJ_error) == 0.0
