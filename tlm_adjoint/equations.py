@@ -38,6 +38,7 @@ import copy
 import inspect
 import logging
 import numpy as np
+from operator import itemgetter
 import warnings
 import weakref
 
@@ -247,7 +248,7 @@ class Referrer:
                         if child_id not in referrers and child_id not in remaining_referrers:  # noqa: E501
                             remaining_referrers[child_id] = child
         return tuple(e[1] for e in sorted(tuple(referrers.items()),
-                                          key=lambda e: e[0]))
+                                          key=itemgetter(0)))
 
     def _drop_references(self):
         if not self._references_dropped:

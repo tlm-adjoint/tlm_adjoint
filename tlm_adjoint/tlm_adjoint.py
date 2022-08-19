@@ -39,6 +39,7 @@ import gc
 import itertools
 import logging
 import numpy as np
+from operator import itemgetter
 import os
 import warnings
 import weakref
@@ -403,7 +404,7 @@ def J_tangent_linears(Js, blocks):
             break
 
     return (tuple(J_roots),
-            {tlm_key: tuple(sorted(adj_key, key=lambda e: e[0]))
+            {tlm_key: tuple(sorted(adj_key, key=itemgetter(0)))
              for tlm_key, adj_key in tlm_adj.items()})
 
 

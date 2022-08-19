@@ -34,6 +34,7 @@ import inspect
 import logging
 import mpi4py.MPI as MPI
 import numpy as np
+from operator import itemgetter
 import os
 import pytest
 import runpy
@@ -101,7 +102,7 @@ def seed_test(fn):
         h = hashlib.sha256()
         h.update(fn.__name__.encode("utf-8"))
         h.update(str(args).encode("utf-8"))
-        h.update(str(sorted(h_kwargs.items(), key=lambda e: e[0])).encode("utf-8"))  # noqa: E501
+        h.update(str(sorted(h_kwargs.items(), key=itemgetter(0))).encode("utf-8"))  # noqa: E501
         seed = int(h.hexdigest(), 16) + MPI.COMM_WORLD.rank
         seed %= 2 ** 32
         np.random.seed(seed)
