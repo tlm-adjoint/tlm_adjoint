@@ -418,7 +418,7 @@ class AdjointCache:
     def __init__(self):
         self._cache = {}
         self._keys = {}
-        self._adj_key = None
+        self._cache_key = None
 
     def __len__(self):
         return len(self._cache)
@@ -430,7 +430,7 @@ class AdjointCache:
     def clear(self):
         self._cache.clear()
         self._keys.clear()
-        self._adj_key = None
+        self._cache_key = None
 
     def get(self, J_i, n, i, *, copy=True):
         adj_X = self._cache[(J_i, n, i)]
@@ -467,18 +467,18 @@ class AdjointCache:
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
                            for J in J_roots)
 
-        adj_key = tuple((J_root_ids[J_i], adj_tlm_key)
-                        for J_i, adj_tlm_key
-                        in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
+        cache_key = tuple((J_root_ids[J_i], adj_tlm_key)
+                          for J_i, adj_tlm_key
+                          in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
 
-        if self._adj_key is None or self._adj_key != adj_key:
+        if self._cache_key is None or self._cache_key != cache_key:
             self.clear()
 
         self._keys.clear()
-        self._adj_key = None
+        self._cache_key = None
 
         if cache_degree is None or cache_degree > 0:
-            self._adj_key = adj_key
+            self._cache_key = cache_key
 
             if isinstance(blocks, Sequence):
                 # Sequence
