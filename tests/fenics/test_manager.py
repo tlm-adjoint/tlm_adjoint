@@ -627,7 +627,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
         info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
         assert n_forward_solves[0] == n_forward_solves_optimal
 
-    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ, M0=m)
+    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ)
     assert min_order > 1.99
 
 

@@ -1938,9 +1938,8 @@ with arguments
     1 \right)$ (generated using the NumPy \texttt{numpy.random.random}
     function) is used.
   \item \texttt{M0}, a function, or a sequence of functions, defining the value
-    of the unperturbed reference value for the control. Extracted from internal
-    storage associated with the first block of the model (see section
-    \ref{sect:blocks}) if not supplied.
+    of the unperturbed reference value for the control. \texttt{M} is used if
+    not supplied.
   \item \texttt{size}, an integer, the number of control perturbations.
     Perturbations whose degrees of freedom are $\alpha 2^{-p}$ times
     \texttt{seed} times the values of the degrees of freedom of \texttt{dM} are
