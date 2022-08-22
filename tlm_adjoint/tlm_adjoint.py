@@ -956,20 +956,6 @@ class EquationManager:
 
             self._cp.add_initial_condition(x)
 
-    def initial_condition(self, x):
-        """
-        Return the value of the initial condition for x recorded for the first
-        block. Finalizes the manager.
-        """
-
-        self.finalize()
-
-        x_id = function_id(x)
-        for eq in self._blocks[0]:
-            if x_id in {function_id(dep) for dep in eq.dependencies()}:
-                return self._cp.initial_condition(x, copy=True)
-        raise KeyError("Initial condition not found")
-
     def add_equation(self, eq, annotate=None, tlm=None):
         """
         Process the provided equation, annotating and / or deriving (and
