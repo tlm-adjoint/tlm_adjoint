@@ -829,8 +829,7 @@ class EquationManager:
 
     def add_tlm(self, M, dM, max_depth=1):
         """
-        Add a tangent-linear model computing derivatives with respect to the
-        control defined by M in the direction defined by dM.
+        Add a tangent-linear model.
         """
 
         if self._tlm_state == "final":
@@ -865,7 +864,7 @@ class EquationManager:
 
     def tlm_enabled(self):
         """
-        Return whether addition of tangent-linear models is enabled.
+        Return whether derivation of tangent-linear equations is enabled.
         """
 
         return self._tlm_state == "deriving"
@@ -873,7 +872,7 @@ class EquationManager:
     def tlm(self, M, dM, x, max_depth=1):
         """
         Return a tangent-linear function associated with the forward function
-        x, for the tangent-linear model defined by M and dM.
+        x.
         """
 
         _, key = tlm_key(M, dM)
@@ -910,10 +909,9 @@ class EquationManager:
         Pause annotation or tangent-linear derivation. Returns a tuple
         containing:
             (annotation_state, tlm_state)
-        where annotation_state is True if the annotation is in state "initial"
-        or "annotating" and False otherwise, and tlm_state is True if the
-        tangent-linear state is "initial" or "deriving" and False otherwise,
-        each evaluated before changing the state.
+        where annotation_state indicates whether annotation is enabled, and
+        tlm_state indicates whether tangent-linear equation derivation is
+        enabled, each evaluated before changing the state.
         """
 
         state = (self._annotation_state in ["initial", "annotating"],
@@ -935,12 +933,11 @@ class EquationManager:
 
     def add_initial_condition(self, x, annotate=None):
         """
-        Add an initial condition associated with the function x on the adjoint
-        tape.
+        Record an initial condition associated with the function x.
 
         annotate (default self.annotation_enabled()):
-            Whether to annotate the initial condition on the adjoint tape,
-            storing data for checkpointing as required.
+            Whether to record the initial condition, storing data for
+            checkpointing as required.
         """
 
         if annotate is None:
@@ -958,14 +955,14 @@ class EquationManager:
 
     def add_equation(self, eq, annotate=None, tlm=None):
         """
-        Process the provided equation, annotating and / or deriving (and
-        solving) tangent-linear equations as required. Assumes that the
-        equation has already been solved, and that the initial condition for
-        eq.X() has been recorded on the adjoint tape if necessary.
+        Process the provided equation, deriving (and solving) tangent-linear
+        equations as required. Assumes that the equation has already been
+        solved, and that the initial condition for eq.X() has been recorded if
+        necessary.
 
         annotate (default self.annotation_enabled()):
-            Whether to annotate the equation on the adjoint tape, storing data
-            for checkpointing as required.
+            Whether to record the equation, storing data for checkpointing as
+            required.
         tlm (default self.tlm_enabled()):
             Whether to derive (and solve) associated tangent-linear equations.
         """

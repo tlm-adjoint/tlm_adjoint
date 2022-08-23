@@ -492,7 +492,7 @@ class Equation(Referrer):
         Arguments:
 
         manager   (Optional) The equation manager.
-        annotate  (Optional) Whether the equation should be annotated.
+        annotate  (Optional) Whether the equation should be recorded.
         tlm       (Optional) Whether to derive (and solve) associated
                   tangent-linear equations.
         """
@@ -634,7 +634,8 @@ class Equation(Referrer):
                      dependencies.
         dep_index    The index of the dependency in self.dependencies() with
                      respect to which a derivative should be taken.
-        adj_x/adj_X  The direction of the adjoint derivative action.
+        adj_x/adj_X  A function or sequence of functions on which the adjoint
+                     of the derivative acts.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -647,12 +648,13 @@ class Equation(Referrer):
         adjoint_derivative_action method.
 
         The form:
-            subtract_adjoint_derivative_actions(self, adj_x, nl_deps, Bs)
+            subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs)
         should be used for equations which solve for a single function.
 
         Arguments:
 
-        adj_x/adj_X  The direction of the adjoint derivative actions.
+        adj_x/adj_X  A function or sequence of functions on which the adjoint
+                     of the derivatives act.
         nl_deps      A sequence of functions defining the values of non-linear
                      dependencies.
         dep_Bs       Dictionary of dep_index: dep_B pairs, where each dep_B is
@@ -691,7 +693,7 @@ class Equation(Referrer):
     def tangent_linear(self, M, dM, tlm_map):
         """
         Return an Equation corresponding to a tangent linear equation,
-        computing derivatives with respect to the control M in the direction
+        computing derivatives with respect to the control M with direction
         dM.
 
         Arguments:
@@ -952,10 +954,10 @@ class FixedPointSolver(Equation, CustomNormSq):
             Solver parameters dictionary. Parameters (based on KrylovSolver
             parameters in FEniCS 2017.2.0):
                 absolute_tolerance
-                    Absolute tolerance for the solution change 2-norm. Float,
+                    Absolute tolerance for the solution change. Float,
                     required.
                 relative_tolerance
-                    Relative tolerance for the solution change 2-norm. Float,
+                    Relative tolerance for the solution change. Float,
                     required.
                 maximum_iterations
                     Maximum permitted iterations. Positive integer, optional,
@@ -1761,7 +1763,8 @@ class Matrix(Referrer):
                      self.nonlinear_dependencies() with respect to which a
                      derivative should be taken.
         x/X          The argument of the forward matrix action.
-        adj_x/adj_X  The direction of the adjoint derivative action.
+        adj_x/adj_X  A function or sequence of functions on which the adjoint
+                     of the derivative acts.
         b            The result.
         method       (Optional) One of {"assign", "add", "sub"}.
         """

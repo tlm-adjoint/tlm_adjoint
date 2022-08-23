@@ -142,16 +142,15 @@ class GeneralHessian(Hessian):
         where
         - J is the functional value
         - dJ is the derivative of J with respect to the parameters defined by M
-          in in the direction dM
-        - ddJ is the complex conjugate of the action, in the direction dM, of
-          the second derivative of the functional with respect to M
+          evaluated with direction dM
+        - ddJ is the complex conjugate of the action of the second derivative
+          of the functional with respect to M on dM
 
         Arguments:
 
         M   A function, or a sequence of functions, defining the control
             parameters.
-        dM  A function, or a sequence or functions, defining the Hessian action
-            direction.
+        dM  A function, or a sequence or functions, on which the Hessian acts.
         M0  (Optional) A function, or a sequence of functions, defining the
             values of the control parameters.
         """
