@@ -35,6 +35,7 @@ from .manager import restore_manager, set_manager
 from collections import defaultdict, deque
 from collections.abc import Sequence
 import copy
+import enum
 import gc
 import itertools
 import logging
@@ -530,6 +531,18 @@ class AdjointCache:
                 transpose_deps.set_not_solved(J_i, n, i)
 
 
+class AnnotationState(enum.Enum):
+    STOPPED = "stopped"
+    ANNOTATING = "annotating"
+    FINAL = "final"
+
+
+class TangentLinearState(enum.Enum):
+    STOPPED = "stopped"
+    DERIVING = "deriving"
+    FINAL = "final"
+
+
 class EquationManager:
     _id_counter = [0]
 
@@ -725,8 +738,8 @@ class EquationManager:
 
         self.drop_references()
 
-        self._annotation_state = "initial"
-        self._tlm_state = "initial"
+        self._annotation_state = AnnotationState.ANNOTATING
+        self._tlm_state = TangentLinearState.DERIVING
         self._eqs = {}
         self._blocks = []
         self._block = []
@@ -744,9 +757,9 @@ class EquationManager:
         Provide a new checkpointing configuration.
         """
 
-        if self._annotation_state not in ["initial", "stopped_initial"]:
+        if len(self._block) != 0 or len(self._blocks) != 0:
             raise RuntimeError("Cannot configure checkpointing after "
-                               "annotation has started, or after finalization")
+                               "equations have been recorded")
 
         cp_parameters = copy.copy(cp_parameters)
 
@@ -832,16 +845,11 @@ class EquationManager:
         Add a tangent-linear model.
         """
 
-        if self._tlm_state == "final":
+        if self._tlm_state == TangentLinearState.FINAL:
             raise RuntimeError("Cannot add a tangent-linear model after "
                                "finalization")
 
         (M, dM), key = tlm_key(M, dM)
-
-        if self._tlm_state == "initial":
-            self._tlm_state = "deriving"
-        elif self._tlm_state == "stopped_initial":
-            self._tlm_state = "stopped_deriving"
 
         for depth in range(max_depth):
             remaining_tlms = deque([self._tlm])
@@ -867,7 +875,7 @@ class EquationManager:
         Return whether derivation of tangent-linear equations is enabled.
         """
 
-        return self._tlm_state == "deriving"
+        return self._tlm_state == TangentLinearState.DERIVING
 
     def tlm(self, M, dM, x, max_depth=1):
         """
@@ -885,7 +893,7 @@ class EquationManager:
         Return whether the equation manager currently has annotation enabled.
         """
 
-        return self._annotation_state in ["initial", "annotating"]
+        return self._annotation_state == AnnotationState.ANNOTATING
 
     def start(self, annotation=True, tlm=True):
         """
@@ -893,16 +901,14 @@ class EquationManager:
         """
 
         if annotation:
-            if self._annotation_state == "stopped_initial":
-                self._annotation_state = "initial"
-            elif self._annotation_state == "stopped_annotating":
-                self._annotation_state = "annotating"
+            self._annotation_state \
+                = {AnnotationState.STOPPED: AnnotationState.ANNOTATING,
+                   AnnotationState.ANNOTATING: AnnotationState.ANNOTATING}[self._annotation_state]  # noqa: E501
 
         if tlm:
-            if self._tlm_state == "stopped_initial":
-                self._tlm_state = "initial"
-            elif self._tlm_state == "stopped_deriving":
-                self._tlm_state = "deriving"
+            self._tlm_state \
+                = {TangentLinearState.STOPPED: TangentLinearState.DERIVING,
+                   TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
     def stop(self, annotation=True, tlm=True):
         """
@@ -914,20 +920,19 @@ class EquationManager:
         enabled, each evaluated before changing the state.
         """
 
-        state = (self._annotation_state in ["initial", "annotating"],
-                 self._tlm_state in ["initial", "deriving"])
+        state = (self.annotation_enabled(), self.tlm_enabled())
 
         if annotation:
-            if self._annotation_state == "initial":
-                self._annotation_state = "stopped_initial"
-            elif self._annotation_state == "annotating":
-                self._annotation_state = "stopped_annotating"
+            self._annotation_state \
+                = {AnnotationState.STOPPED: AnnotationState.STOPPED,
+                   AnnotationState.ANNOTATING: AnnotationState.STOPPED,
+                   AnnotationState.FINAL: AnnotationState.FINAL}[self._annotation_state]  # noqa: E501
 
         if tlm:
-            if self._tlm_state == "initial":
-                self._tlm_state = "stopped_initial"
-            elif self._tlm_state == "deriving":
-                self._tlm_state = "stopped_deriving"
+            self._tlm_state \
+                = {TangentLinearState.STOPPED: TangentLinearState.STOPPED,
+                   TangentLinearState.DERIVING: TangentLinearState.STOPPED,
+                   TangentLinearState.FINAL: TangentLinearState.FINAL}[self._tlm_state]  # noqa: E501
 
         return state
 
@@ -943,11 +948,7 @@ class EquationManager:
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
-            if self._annotation_state == "initial":
-                self._annotation_state = "annotating"
-            elif self._annotation_state == "stopped_initial":
-                self._annotation_state = "stopped_annotating"
-            elif self._annotation_state == "final":
+            if self._annotation_state == AnnotationState.FINAL:
                 raise RuntimeError("Cannot add initial conditions after "
                                    "finalization")
 
@@ -972,11 +973,7 @@ class EquationManager:
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
-            if self._annotation_state == "initial":
-                self._annotation_state = "annotating"
-            elif self._annotation_state == "stopped_initial":
-                self._annotation_state = "stopped_annotating"
-            elif self._annotation_state == "final":
+            if self._annotation_state == AnnotationState.FINAL:
                 raise RuntimeError("Cannot add equations after finalization")
 
             if self._alias_eqs:
@@ -997,7 +994,7 @@ class EquationManager:
         if tlm is None:
             tlm = self.tlm_enabled()
         if tlm:
-            if self._tlm_state == "final":
+            if self._tlm_state == TangentLinearState.FINAL:
                 raise RuntimeError("Cannot add tangent-linear equations after "
                                    "finalization")
 
@@ -1317,11 +1314,11 @@ class EquationManager:
 
         self.drop_references()
 
-        if self._annotation_state in ["stopped_initial",
-                                      "stopped_annotating",
-                                      "final"]:
+        if self._annotation_state in [AnnotationState.STOPPED,
+                                      AnnotationState.FINAL]:
             return
-        elif self._cp_manager.max_n() is not None \
+
+        if self._cp_manager.max_n() is not None \
                 and len(self._blocks) == self._cp_manager.max_n() - 1:
             # Wait for the finalize
             warnings.warn(
@@ -1340,10 +1337,11 @@ class EquationManager:
 
         self.drop_references()
 
-        if self._annotation_state == "final":
+        if self._annotation_state == AnnotationState.FINAL:
             return
-        self._annotation_state = "final"
-        self._tlm_state = "final"
+
+        self._annotation_state = AnnotationState.FINAL
+        self._tlm_state = TangentLinearState.FINAL
 
         self._blocks.append(self._block)
         self._block = []
