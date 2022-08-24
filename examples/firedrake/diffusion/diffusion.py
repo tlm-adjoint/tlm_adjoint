@@ -98,8 +98,7 @@ def forward(kappa, manager=None, output_filename=None):
     return J
 
 
-add_tlm(kappa, zeta_1)
-add_tlm((kappa, zeta_1), (zeta_2, zeta_3))
+configure_tlm((kappa, zeta_1), ((kappa, zeta_1), (zeta_2, zeta_3)))
 start_manager()
 # J = forward(kappa, output_filename="forward.pvd")
 J = forward(kappa)

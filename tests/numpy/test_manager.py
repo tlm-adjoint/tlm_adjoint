@@ -494,14 +494,14 @@ def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
 
 
 @pytest.mark.numpy
-@pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("max_degree", [1, 2, 3, 4, 5])
 @no_space_type_checking
 @seed_test
 def test_TangentLinearMap_finalizes(setup_test, test_leaks, test_default_dtypes,  # noqa: E501
-                                    max_depth):
+                                    max_degree):
     m = Constant(1.0, name="m")
     dm = Constant(1.0, name="dm")
-    add_tlm(m, dm, max_depth=max_depth)
+    configure_tlm(*[(m, dm) for i in range(max_degree)])
 
     start_manager()
     x = Constant(0.0, name="x")

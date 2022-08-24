@@ -182,7 +182,7 @@ class GeneralHessian(Hessian):
                                  checkpoint=function_is_checkpointed(dm))
                    for dm in dM)
 
-        self._manager.add_tlm(M, dM)
+        self._manager.configure_tlm((M, dM))
         self._manager.start()
         J = self._forward(*M)
         dJ = J.tlm(M, dM, manager=self._manager)
@@ -294,9 +294,7 @@ class GeneralGaussNewton(GaussNewton):
                                  checkpoint=function_is_checkpointed(dm))
                    for dm in dM)
 
-        self._manager.add_tlm(M, dM)
-        # Possible optimization: We annotate all the TLM equations, but are
-        # later only going to differentiate back through the forward
+        self._manager.configure_tlm((M, dM), annotate=False)
         self._manager.start()
         X = self._forward(*M)
         if not isinstance(X, Sequence):

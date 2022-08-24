@@ -71,9 +71,18 @@ def tlm_key(M, dM):
              tuple(function_id(dm) for dm in dM)))
 
 
+def tlm_keys(*args):
+    M_dM_keys = tuple(map(lambda arg: tlm_key(*arg), args))
+    for ks in itertools.chain.from_iterable(
+            distinct_combinations_indices((key for _, key in M_dM_keys), j)
+            for j in range(1, len(M_dM_keys) + 1)):
+        yield tuple(M_dM_keys[k] for k in ks)
+
+
 class TangentLinear:
-    def __init__(self):
+    def __init__(self, *, annotate=True):
         self._children = {}
+        self._annotate = annotate
 
     def __contains__(self, key):
         _, key = tlm_key(*key)
@@ -84,16 +93,39 @@ class TangentLinear:
         return self._children[key][1]
 
     def __iter__(self):
+        yield from self.keys()
+
+    def __len__(self):
+        return len(self._children)
+
+    def keys(self):
         for (M, dM), _ in self._children.values():
             yield (M, dM)
 
-    def add(self, M, dM):
+    def values(self):
+        for _, child in self._children.values():
+            yield child
+
+    def items(self):
+        yield from zip(self.keys(), self.values())
+
+    def add(self, M, dM, *, annotate=True):
         (M, dM), key = tlm_key(M, dM)
         if key not in self._children:
-            self._children[key] = ((M, dM), TangentLinear())
+            self._children[key] = ((M, dM), TangentLinear(annotate=annotate))
+
+    def remove(self, M, dM):
+        _, key = tlm_key(M, dM)
+        del self._children[key]
 
     def clear(self):
         self._children.clear()
+
+    def is_annotated(self):
+        return self._annotate
+
+    def set_is_annotated(self, annotate):
+        self._annotate = annotate
 
 
 class TangentLinearMap:
@@ -101,8 +133,17 @@ class TangentLinearMap:
     A map from forward to tangent-linear variables.
     """
 
-    def __init__(self, name_suffix=" (tangent-linear)"):
-        self._name_suffix = name_suffix
+    def __init__(self, M, dM):
+        (M, dM), _ = tlm_key(M, dM)
+
+        if len(M) == 1:
+            self._name_suffix = \
+                "_tlm(%s,%s)" % (function_name(M[0]),
+                                 function_name(dM[0]))
+        else:
+            self._name_suffix = \
+                "_tlm((%s),(%s))" % (",".join(map(function_name, M)),
+                                     ",".join(map(function_name, dM)))
 
     @gc_disabled
     def __contains__(self, x):
@@ -840,35 +881,108 @@ class EquationManager:
         assert len(self._blocks) == 0
         self._checkpoint()
 
-    def add_tlm(self, M, dM, max_depth=1):
+    def configure_tlm(self, *args, annotate=True, tlm=True):
         """
-        Add a tangent-linear model.
+        Configure the tangent-linear tree.
+
+        Arguments:
+
+        args      ((M_0, dM_0), [...]). Identifies a node of the tangent-linear
+                  tree.
+        annotate  (Optional) If true then enable annotation for the
+                  tangent-linear model associated with the node, and enable
+                  annotation for all tangent-linear models on which it depends.
+                  If false then disable annotation for the tangent-linear
+                  model associated with the node, all tangent-linear models
+                  which depend on it, and any tangent-linear models associated
+                  with new nodes.
+        tlm       (Optional) If true then add the tangent-linear model
+                  associated with the node, and add all tangent-linear models
+                  on which it depends. If false then remove the tangent-linear
+                  model associated with the node, and remove all tangent-linear
+                  models which depend on it.
         """
 
         if self._tlm_state == TangentLinearState.FINAL:
-            raise RuntimeError("Cannot add a tangent-linear model after "
+            raise RuntimeError("Cannot configure tangent-linear models after "
+                               "finalization")
+
+        if len(args) == 2 \
+                and is_function(args[0]) \
+                and is_function(args[1]):
+            args = (args,)
+
+        if tlm:
+            # Could be optimized to avoid encountering parent nodes multiple
+            # times
+            for M_dM_keys in tlm_keys(*args):
+                node = self._tlm
+                for (M, dM), key in M_dM_keys:
+                    if (M, dM) in node:
+                        if annotate:
+                            node[(M, dM)].set_is_annotated(True)
+                    else:
+                        node.add(M, dM, annotate=annotate)
+                        if key not in self._tlm_map:
+                            self._tlm_map[key] = TangentLinearMap(M, dM)
+                    node = node[(M, dM)]
+
+        if not annotate or not tlm:
+            def depends(keys_a, keys_b):
+                j = 0
+                for i, key_a in enumerate(keys_a):
+                    if j >= len(keys_b):
+                        return True
+                    elif key_a == keys_b[j]:
+                        j += 1
+                return j >= len(keys_b)
+
+            keys = tuple(key
+                         for _, key in map(lambda arg: tlm_key(*arg), args))
+            remaining_nodes = [(self._tlm,
+                                (tlm_key(*child_M_dM)[1],),
+                                child_M_dM,
+                                child)
+                               for child_M_dM, child in self._tlm.items()]
+            while len(remaining_nodes) > 0:
+                parent, node_keys, node_M_dM, node = remaining_nodes.pop()
+                if depends(node_keys, keys):
+                    if not tlm:
+                        parent.remove(*node_M_dM)
+                    elif not annotate:
+                        node.set_is_annotated(False)
+                if node_M_dM in parent:
+                    remaining_nodes.extend(
+                        (node,
+                         tuple(list(node_keys) + [tlm_key(*child_M_dM)[1]]),
+                         child_M_dM,
+                         child)
+                        for child_M_dM, child in node.items())
+
+    def add_tlm(self, M, dM, *, _warning=True):
+        """
+        Add a new child to all leaf nodes of the tangent-linear tree.
+        """
+
+        if _warning:
+            warnings.warn("EquationManager.add_tlm method is deprecated -- "
+                          "use EquationManager.configure_tlm instead",
+                          DeprecationWarning, stacklevel=2)
+
+        if self._tlm_state == TangentLinearState.FINAL:
+            raise RuntimeError("Cannot configure tangent-linear models after "
                                "finalization")
 
         (M, dM), key = tlm_key(M, dM)
 
-        for depth in range(max_depth):
-            remaining_tlms = deque([self._tlm])
-            while len(remaining_tlms) > 0:
-                base_tlm = remaining_tlms.popleft()
-                remaining_tlms.extend(base_tlm[(tlm_M, tlm_dM)]
-                                      for tlm_M, tlm_dM in base_tlm)
-                base_tlm.add(M, dM)
+        remaining_nodes = [self._tlm]
+        while len(remaining_nodes) > 0:
+            node = remaining_nodes.pop()
+            remaining_nodes.extend(node.values())
+            node.add(M, dM, annotate=True)
 
         if key not in self._tlm_map:
-            if len(M) == 1:
-                tlm_map_name_suffix = \
-                    "_tlm(%s,%s)" % (function_name(M[0]),
-                                     function_name(dM[0]))
-            else:
-                tlm_map_name_suffix = \
-                    "_tlm((%s),(%s))" % (",".join(function_name(m) for m in M),
-                                         ",".join(function_name(dm) for dm in dM))  # noqa: E501
-            self._tlm_map[key] = TangentLinearMap(tlm_map_name_suffix)
+            self._tlm_map[key] = TangentLinearMap(M, dM)
 
     def tlm_enabled(self):
         """
@@ -998,19 +1112,20 @@ class EquationManager:
                 raise RuntimeError("Cannot add tangent-linear equations after "
                                    "finalization")
 
-            remaining_eqs = deque((eq, (M, dM), self._tlm[(M, dM)])
-                                  for M, dM in self._tlm)
+            remaining_eqs = deque((eq, child_M_dM, child)
+                                  for child_M_dM, child in self._tlm.items())
             while len(remaining_eqs) > 0:
-                base_eq, (base_M, base_dM), base_tlm = remaining_eqs.popleft()
+                parent_eq, (node_M, node_dM), node = remaining_eqs.popleft()
 
-                tlm_eq = self._tangent_linear(base_eq, base_M, base_dM)
-                if tlm_eq is not None:
-                    tlm_eq.solve(
-                        manager=self, annotate=annotate, tlm=False)
-
+                node_eq = self._tangent_linear(parent_eq, node_M, node_dM)
+                if node_eq is not None:
+                    node_eq.solve(
+                        manager=self,
+                        annotate=node.is_annotated(),
+                        tlm=False)
                     remaining_eqs.extend(
-                        (tlm_eq, (tlm_M, tlm_dM), base_tlm[(tlm_M, tlm_dM)])
-                        for tlm_M, tlm_dM in base_tlm)
+                        (node_eq, child_M_dM, child)
+                        for child_M_dM, child in node.items())
 
     def _tangent_linear(self, eq, M, dM):
         (M, dM), key = tlm_key(M, dM)

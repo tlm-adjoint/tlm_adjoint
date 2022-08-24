@@ -27,6 +27,7 @@ __all__ = \
         "annotation_enabled",
         "compute_gradient",
         "configure_checkpointing",
+        "configure_tlm",
         "manager",
         "manager_info",
         "new_block",
@@ -137,10 +138,20 @@ def stop_tlm(manager=None):
     manager.stop(annotation=False, tlm=True)
 
 
-def add_tlm(M, dM, max_depth=1, manager=None):
+def configure_tlm(*args, annotate=True, tlm=True, manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.add_tlm(M, dM, max_depth=max_depth)
+    manager.configure_tlm(*args, annotate=annotate, tlm=tlm)
+
+
+def add_tlm(M, dM, max_depth=1, manager=None):
+    warnings.warn("add_tlm is deprecated -- "
+                  "use configure_tlm instead",
+                  DeprecationWarning, stacklevel=2)
+    if manager is None:
+        manager = globals()["manager"]()
+    for depth in range(max_depth):
+        manager.add_tlm(M, dM, _warning=False)
 
 
 def tlm_enabled(manager=None):

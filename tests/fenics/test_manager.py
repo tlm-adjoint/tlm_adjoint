@@ -632,14 +632,14 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
 
 @pytest.mark.fenics
-@pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("max_degree", [1, 2, 3, 4, 5])
 @no_space_type_checking
 @seed_test
 def test_TangentLinearMap_finalizes(setup_test, test_leaks,
-                                    max_depth):
+                                    max_degree):
     m = Constant(1.0, name="m")
     dm = Constant(1.0, name="dm")
-    add_tlm(m, dm, max_depth=max_depth)
+    configure_tlm(*[(m, dm) for i in range(max_degree)])
 
     start_manager()
     x = Constant(0.0, name="x")
@@ -728,7 +728,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     reset_manager()
     stop_manager()
 
-    add_tlm(m, dm_0)
+    configure_tlm(m, dm_0)
     start_manager()
     J, K = forward(m)
     stop_manager()
@@ -760,8 +760,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     reset_manager()
     stop_manager()
 
-    add_tlm(m, dm_0)
-    add_tlm(m, dm_1)
+    configure_tlm((m, dm_0), (m, dm_1))
     start_manager()
     J, K = forward(m)
     stop_manager()
@@ -805,7 +804,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     reset_manager()
     stop_manager()
 
-    add_tlm(m, dm_0, max_depth=2)
+    configure_tlm((m, dm_0), (m, dm_0))
     start_manager()
     J, K = forward(m)
     stop_manager()
@@ -850,10 +849,10 @@ def test_adjoint_caching(setup_test, test_leaks):
     dm_3 = Function(space, name="dm_3")
     interpolate_expression(dm_3, sin(4.0 * pi * X[0]) * sin(pi * X[1]))
 
-    add_tlm(m, dm_0)
-    add_tlm(m, dm_1)
-    add_tlm(m, dm_2)
-    add_tlm(m, dm_3)
+    configure_tlm((m, dm_0), (m, dm_2))
+    configure_tlm((m, dm_0), (m, dm_3))
+    configure_tlm((m, dm_1), (m, dm_2))
+    configure_tlm((m, dm_1), (m, dm_3))
     start_manager()
     J, K = forward(m)
     stop_manager()
@@ -877,17 +876,17 @@ def test_adjoint_caching(setup_test, test_leaks):
         cache_adjoint_degree=2)
 
     adj_cache = manager()._adj_cache
-    assert tuple(adj_cache._keys.keys()) == ((3, 0, 25), (3, 0, 9),
-                                             (1, 0, 4), (3, 0, 4),
-                                             (2, 0, 2), (3, 0, 2))
+    assert tuple(adj_cache._keys.keys()) == ((3, 0, 17), (3, 0, 8),
+                                             (2, 0, 4), (3, 0, 4),
+                                             (1, 0, 3), (3, 0, 3))
     # First order
-    assert tuple(adj_cache._keys[(3, 0, 25)]) == ((2, 0, 24), (1, 0, 23), (0, 0, 22))  # noqa: E501
-    assert tuple(adj_cache._keys[(3, 0, 9)]) == ((2, 0, 8), (1, 0, 7), (0, 0, 6))  # noqa: E501
+    assert tuple(adj_cache._keys[(3, 0, 17)]) == ((2, 0, 16), (1, 0, 15), (0, 0, 14))  # noqa: E501
+    assert tuple(adj_cache._keys[(3, 0, 8)]) == ((2, 0, 7), (1, 0, 6), (0, 0, 5))  # noqa: E501
     # Second order
-    assert tuple(adj_cache._keys[(1, 0, 4)]) == ((0, 0, 3),)
-    assert tuple(adj_cache._keys[(3, 0, 4)]) == ((2, 0, 3),)
-    assert tuple(adj_cache._keys[(2, 0, 2)]) == ((0, 0, 1),)
-    assert tuple(adj_cache._keys[(3, 0, 2)]) == ((1, 0, 1),)
+    assert tuple(adj_cache._keys[(2, 0, 4)]) == ((0, 0, 1),)
+    assert tuple(adj_cache._keys[(3, 0, 4)]) == ((1, 0, 1),)
+    assert tuple(adj_cache._keys[(1, 0, 3)]) == ((0, 0, 2),)
+    assert tuple(adj_cache._keys[(3, 0, 3)]) == ((2, 0, 2),)
 
     dddJ_error = function_copy(dddJ_02_0)
     function_axpy(dddJ_error, -1.0, dddJ_02_1)

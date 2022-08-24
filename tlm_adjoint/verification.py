@@ -218,8 +218,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
         tlm_manager.stop()
         clear_caches()
 
-        for dM in dMs:
-            tlm_manager.add_tlm(M, dM)
+        tlm_manager.configure_tlm(*[(M, dM) for dM in dMs])
         tlm_manager.start(annotation=False, tlm=True)
         J = forward(*M)
         for dM in dMs:
@@ -291,22 +290,22 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
         dMs = dMs[:-1]
 
     @restore_manager
-    def forward_tlm(*M, annotation=False):
+    def forward_tlm(*M, annotate=False):
         set_manager(tlm_manager)
         tlm_manager.reset()
         tlm_manager.stop()
         clear_caches()
 
-        for dM in dMs:
-            tlm_manager.add_tlm(M, dM)
-        tlm_manager.start(annotation=annotation, tlm=True)
+        tlm_manager.configure_tlm(*[(M, dM) for dM in dMs],
+                                  annotate=annotate)
+        tlm_manager.start(annotation=annotate, tlm=True)
         J = forward(*M)
         for dM in dMs:
             J = J.tlm(M, dM, manager=tlm_manager)
 
         return J
 
-    J = forward_tlm(*M, annotation=True)
+    J = forward_tlm(*M, annotate=True)
     J_val = J.value()
     dJ = tlm_manager.compute_gradient(J, M)
 
