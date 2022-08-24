@@ -728,7 +728,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     reset_manager()
     stop_manager()
 
-    configure_tlm(m, dm_0)
+    configure_tlm((m, dm_0))
     start_manager()
     J, K = forward(m)
     stop_manager()

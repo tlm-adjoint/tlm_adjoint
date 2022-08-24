@@ -90,7 +90,7 @@ def forward(psi_0, psi_n_file=None):
 
 zeta = Function(space, name="zeta", static=True)
 zeta.interpolate(sin(pi * X[0]) * sin(pi * X[1]))
-configure_tlm(psi_0, zeta)
+configure_tlm((psi_0, zeta))
 
 start_manager()
 # J = forward(psi_0, psi_n_file=File("psi.pvd"))

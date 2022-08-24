@@ -907,11 +907,6 @@ class EquationManager:
             raise RuntimeError("Cannot configure tangent-linear models after "
                                "finalization")
 
-        if len(args) == 2 \
-                and is_function(args[0]) \
-                and is_function(args[1]):
-            args = (args,)
-
         if tlm:
             # Could be optimized to avoid encountering parent nodes multiple
             # times
@@ -995,11 +990,6 @@ class EquationManager:
         """
         Return a tangent-linear function associated with the function x.
         """
-
-        if len(args) == 2 \
-                and is_function(args[0]) \
-                and is_function(args[1]):
-            args = (args,)
 
         tau = x
         for _, key in map(lambda arg: tlm_key(*arg), args):
