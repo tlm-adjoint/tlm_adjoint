@@ -991,16 +991,32 @@ class EquationManager:
 
         return self._tlm_state == TangentLinearState.DERIVING
 
-    def tlm(self, M, dM, x, max_depth=1):
+    def function_tlm(self, x, *args):
         """
-        Return a tangent-linear function associated with the forward function
-        x.
+        Return a tangent-linear function associated with the function x.
         """
 
-        _, key = tlm_key(M, dM)
-        for depth in range(max_depth):
-            x = self._tlm_map[key][x]
-        return x
+        if len(args) == 2 \
+                and is_function(args[0]) \
+                and is_function(args[1]):
+            args = (args,)
+
+        tau = x
+        for _, key in map(lambda arg: tlm_key(*arg), args):
+            tau = self._tlm_map[key][tau]
+        return tau
+
+    def tlm(self, M, dM, x, max_depth=1, _warning=True):
+        """
+        Return a tangent-linear function associated with the function x.
+        """
+
+        if _warning:
+            warnings.warn("EquationManager.tlm method is deprecated -- "
+                          "use EquationManager.function_tlm instead",
+                          DeprecationWarning, stacklevel=2)
+
+        return self.function_tlm(x, *[(M, dM) for depth in range(max_depth)])
 
     def annotation_enabled(self):
         """

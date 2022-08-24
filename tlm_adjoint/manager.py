@@ -23,16 +23,14 @@ import warnings
 
 __all__ = \
     [
-        "add_tlm",
         "annotation_enabled",
         "compute_gradient",
         "configure_checkpointing",
         "configure_tlm",
+        "function_tlm",
         "manager",
         "manager_info",
         "new_block",
-        "reset",
-        "reset_adjoint",
         "reset_manager",
         "restore_manager",
         "set_manager",
@@ -42,8 +40,12 @@ __all__ = \
         "stop_annotating",
         "stop_manager",
         "stop_tlm",
+        "tlm_enabled",
+
+        "add_tlm",
         "tlm",
-        "tlm_enabled"
+        "reset",
+        "reset_adjoint"
     ]
 
 _manager = [None]
@@ -160,10 +162,19 @@ def tlm_enabled(manager=None):
     return manager.tlm_enabled()
 
 
-def tlm(M, dM, x, max_depth=1, manager=None):
+def function_tlm(x, *args, manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    return manager.tlm(M, dM, x, max_depth=max_depth)
+    return manager.function_tlm(x, *args)
+
+
+def tlm(M, dM, x, max_depth=1, manager=None):
+    warnings.warn("tlm is deprecated -- "
+                  "use function_tlm instead",
+                  DeprecationWarning, stacklevel=2)
+    if manager is None:
+        manager = globals()["manager"]()
+    return manager.tlm(M, dM, x, max_depth=max_depth, _warning=False)
 
 
 def reset_adjoint(manager=None):

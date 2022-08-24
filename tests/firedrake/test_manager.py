@@ -813,7 +813,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     stop_manager()
 
     ddJ_3, dddJ_3, dJ_3, dK_3 = manager().compute_gradient(
-        [J.tlm(m, dm_0), J.tlm(m, dm_0, max_depth=2), J, K], m,
+        [J.tlm(m, dm_0), J.tlm(m, dm_0).tlm(m, dm_0), J, K], m,
         cache_adjoint_degree=1)
 
     adj_cache = manager()._adj_cache

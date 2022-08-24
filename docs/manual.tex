@@ -1819,7 +1819,7 @@ configure_tlm((m_0, zeta_0), (m_1, zeta_1), (m_1, zeta_1))
 
 J = Functional(name="J")
 J.assign([...])
-J_tlm_3 = J.tlm(m_0, zeta_0).tlm(m_1, zeta_1, max_depth=2)
+J_tlm_3 = J.tlm(m_0, zeta_0).tlm(m_1, zeta_1).tlm(m_1, zeta_1)
 
 ddddJ = compute_gradient(J_tlm_3, m)
 \end{lstlisting}
@@ -2352,9 +2352,10 @@ solution of tangent-linear equations (see section \ref{sect:higher_order}).
 equations by the equation manager. \texttt{tlm=False} can be used to disable
 the automated derivation and solution of tangent-linear equations.
 \begin{lstlisting}
-def tlm(M, dM, x, max_depth=1, manager=None):
+def function_tlm(x, *args, manager=None):
 \end{lstlisting}
-Calls \texttt{EquationManager.tlm}. Accesses a tangent-linear variable.
+Calls \texttt{EquationManager.function\_tlm}. Accesses a tangent-linear
+variable.
 \begin{lstlisting}
 def compute_gradient(Js, M, callback=None, prune_forward=True,
                      prune_adjoint=True, prune_replay=True,

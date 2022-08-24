@@ -214,7 +214,7 @@ class GaussNewton:
         manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
 
         # J dM
-        tau_X = tuple(manager.tlm(M, dM, x) for x in X)
+        tau_X = tuple(manager.function_tlm(x, (M, dM)) for x in X)
         # R^{-1} conj(J dM)
         R_inv_tau_X = self._R_inv_action(
             *tuple(function_copy(tau_x) for tau_x in tau_X))

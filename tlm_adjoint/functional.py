@@ -25,6 +25,8 @@ from .interface import check_space_type, function_is_scalar, function_name, \
 from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
 
+import warnings
+
 __all__ = \
     [
         "Functional"
@@ -153,9 +155,13 @@ class Functional:
         the functional.
         """
 
+        if max_depth != 1:
+            warnings.warn("max_depth argument is deprecated",
+                          DeprecationWarning, stacklevel=2)
         if manager is None:
             manager = _manager()
 
-        J_fn = manager.tlm(M, dM, self.fn(), max_depth=max_depth)
+        J_fn = manager.function_tlm(
+            self.fn(), *[(M, dM) for depth in range(max_depth)])
 
         return Functional(_fn=J_fn)
