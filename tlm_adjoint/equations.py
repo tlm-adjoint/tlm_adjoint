@@ -741,7 +741,7 @@ class FunctionalMarker(Equation):
         J  A function. The functional.
         """
 
-        J = J.fn()
+        J = J.function()
         # Extra function allocation could be avoided
         J_ = function_new(J)
         super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)

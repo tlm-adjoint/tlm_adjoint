@@ -180,8 +180,8 @@ class CachedHessian(Hessian, HessianOptimization):
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
-        self._J_state = function_state(J.fn())
-        self._J = Functional(_fn=J.fn())
+        self._J_state = function_state(J.function())
+        self._J = Functional(_fn=J.function())
 
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
@@ -190,13 +190,13 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ
 
-        if function_state(self._J.fn()) != self._J_state:
+        if function_state(self._J.function()) != self._J_state:
             raise RuntimeError("State has changed")
 
         dM = tuple(function_new(m) for m in M)
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
 
-        dJ = self._J.tlm(M, dM, manager=manager)
+        dJ = self._J.tlm_functional((M, dM), manager=manager)
 
         J_val = self._J.value()
         dJ = manager.compute_gradient(
@@ -213,12 +213,12 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
-        if function_state(self._J.fn()) != self._J_state:
+        if function_state(self._J.function()) != self._J_state:
             raise RuntimeError("State has changed")
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
 
-        dJ = self._J.tlm(M, dM, manager=manager)
+        dJ = self._J.tlm_functional((M, dM), manager=manager)
 
         J_val = self._J.value()
         dJ_val = dJ.value()

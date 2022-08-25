@@ -55,7 +55,7 @@ def test_EmptySolver(setup_test, test_leaks, test_default_dtypes):
         DotProductSolver(F, F, F_dot_F).solve()
 
         J = Functional(name="J")
-        DotProductSolver(F_dot_F, F_dot_F, J.fn()).solve()
+        DotProductSolver(F_dot_F, F_dot_F, J.function()).solve()
         return J
 
     F = Function(space, name="F")
@@ -225,7 +225,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        NormSqSolver(z, J.fn(), M=M).solve()
+        NormSqSolver(z, J.function(), M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -469,7 +469,7 @@ def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
                 new_block()
 
         J = Functional(name="J")
-        DotProductSolver(m, m, J.fn()).solve()
+        DotProductSolver(m, m, J.function()).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)

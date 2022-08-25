@@ -97,7 +97,7 @@ start_manager()
 J = forward(psi_0)
 stop_manager()
 
-ddJ = compute_gradient(J.tlm(psi_0, zeta), psi_0)
+ddJ = compute_gradient(J.tlm_functional((psi_0, zeta)), psi_0)
 
 import mpi4py.MPI as MPI  # noqa: E402
 import numpy as np  # noqa: E402

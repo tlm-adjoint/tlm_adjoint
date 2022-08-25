@@ -128,10 +128,21 @@ class Functional:
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
+    def function(self):
+        """
+        Return the function storing the functional value.
+        """
+
+        return self._fn
+
     def fn(self):
         """
         Return the function storing the functional value.
         """
+
+        warnings.warn("Functional.fn method is deprecated -- "
+                      "use Functional.function instead",
+                      DeprecationWarning, stacklevel=2)
 
         return self._fn
 
@@ -149,19 +160,31 @@ class Functional:
 
         return function_scalar_value(self._fn)
 
-    def tlm(self, M, dM, *, max_depth=1, manager=None):
+    def tlm_functional(self, *args, manager=None):
         """
-        Return a Functional associated with evaluation of the tangent-linear of
-        the functional.
+        Return a Functional associated with evaluation of a tangent-linear
+        associated with the functional.
         """
 
-        if max_depth != 1:
-            warnings.warn("max_depth argument is deprecated",
-                          DeprecationWarning, stacklevel=2)
+        if manager is None:
+            manager = _manager()
+
+        return Functional(_fn=manager.function_tlm(*args))
+
+    def tlm(self, M, dM, *, max_depth=1, manager=None):
+        """
+        Return a Functional associated with evaluation of a tangent-linear
+        associated with the functional.
+        """
+
+        warnings.warn("Functional.tlm method is deprecated -- "
+                      "use Functional.tlm_functional instead",
+                      DeprecationWarning, stacklevel=2)
+
         if manager is None:
             manager = _manager()
 
         J_fn = manager.function_tlm(
-            self.fn(), *[(M, dM) for depth in range(max_depth)])
+            self.function(), *[(M, dM) for depth in range(max_depth)])
 
         return Functional(_fn=J_fn)

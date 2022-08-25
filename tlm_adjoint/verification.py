@@ -222,7 +222,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
         tlm_manager.start(annotation=False, tlm=True)
         J = forward(*M)
         for dM in dMs:
-            J = J.tlm(M, dM, manager=tlm_manager)
+            J = J.tlm_functional((M, dM), manager=tlm_manager)
 
         return J
 
@@ -301,7 +301,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
         tlm_manager.start(annotation=annotate, tlm=True)
         J = forward(*M)
         for dM in dMs:
-            J = J.tlm(M, dM, manager=tlm_manager)
+            J = J.tlm_functional((M, dM), manager=tlm_manager)
 
         return J
 

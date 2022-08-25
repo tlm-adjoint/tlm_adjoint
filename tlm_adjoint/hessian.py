@@ -185,7 +185,7 @@ class GeneralHessian(Hessian):
         self._manager.configure_tlm((M, dM))
         self._manager.start()
         J = self._forward(*M)
-        dJ = J.tlm(M, dM, manager=self._manager)
+        dJ = J.tlm_functional((M, dM), manager=self._manager)
         self._manager.stop()
 
         J_val = J.value()
@@ -230,7 +230,7 @@ class GaussNewton:
         J = Functional(space=self._J_space)
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
-            J_term = function_new(J.fn())
+            J_term = function_new(J.function())
             InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
                 manager=manager, tlm=False)
             J.addto(J_term, manager=manager, tlm=False)
