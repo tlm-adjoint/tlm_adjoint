@@ -955,10 +955,6 @@ class EquationManager:
                         for child_M_dM, child in node.items())
 
     def add_tlm(self, M, dM, *, _warning=True):
-        """
-        Add a new child to all leaf nodes of the tangent-linear tree.
-        """
-
         if _warning:
             warnings.warn("EquationManager.add_tlm method is deprecated -- "
                           "use EquationManager.configure_tlm instead",
@@ -997,10 +993,6 @@ class EquationManager:
         return tau
 
     def tlm(self, M, dM, x, max_depth=1, _warning=True):
-        """
-        Return a tangent-linear function associated with the function x.
-        """
-
         if _warning:
             warnings.warn("EquationManager.tlm method is deprecated -- "
                           "use EquationManager.function_tlm instead",
@@ -1477,13 +1469,10 @@ class EquationManager:
         self._checkpoint(final=True)
 
     def reset_adjoint(self, _warning=True):
-        """
-        Call the reset_adjoint methods of all annotated Equation objects.
-        """
-
         if _warning:
             warnings.warn("EquationManager.reset_adjoint method is deprecated",
                           DeprecationWarning, stacklevel=2)
+                          
         for eq in self._eqs.values():
             eq.reset_adjoint()
 

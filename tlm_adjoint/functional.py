@@ -136,10 +136,6 @@ class Functional:
         return self._fn
 
     def fn(self):
-        """
-        Return the function storing the functional value.
-        """
-
         warnings.warn("Functional.fn method is deprecated -- "
                       "use Functional.function instead",
                       DeprecationWarning, stacklevel=2)
@@ -172,11 +168,6 @@ class Functional:
         return Functional(_fn=manager.function_tlm(*args))
 
     def tlm(self, M, dM, *, max_depth=1, manager=None):
-        """
-        Return a Functional associated with evaluation of a tangent-linear
-        associated with the functional.
-        """
-
         warnings.warn("Functional.tlm method is deprecated -- "
                       "use Functional.tlm_functional instead",
                       DeprecationWarning, stacklevel=2)
