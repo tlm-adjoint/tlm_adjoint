@@ -881,7 +881,7 @@ class EquationManager:
         assert len(self._blocks) == 0
         self._checkpoint()
 
-    def configure_tlm(self, *args, annotate=True, tlm=True):
+    def configure_tlm(self, *args, annotate=None, tlm=True):
         """
         Configure the tangent-linear tree.
 
@@ -889,8 +889,8 @@ class EquationManager:
 
         args      ((M_0, dM_0), [...]). Identifies a node of the tangent-linear
                   tree.
-        annotate  (Optional) If true then enable annotation for the
-                  tangent-linear model associated with the node, and enable
+        annotate  (Optional, default tlm) If true then enable annotation for
+                  the tangent-linear model associated with the node, and enable
                   annotation for all tangent-linear models on which it depends.
                   If false then disable annotation for the tangent-linear
                   model associated with the node, all tangent-linear models
@@ -906,6 +906,11 @@ class EquationManager:
         if self._tlm_state == TangentLinearState.FINAL:
             raise RuntimeError("Cannot configure tangent-linear models after "
                                "finalization")
+
+        if annotate is None:
+            annotate = tlm
+        if annotate and not tlm:
+            raise ValueError("Invalid annotate/tlm combination")
 
         if tlm:
             # Could be optimized to avoid encountering parent nodes multiple

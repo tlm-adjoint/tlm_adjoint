@@ -140,7 +140,7 @@ def stop_tlm(manager=None):
     manager.stop(annotation=False, tlm=True)
 
 
-def configure_tlm(*args, annotate=True, tlm=True, manager=None):
+def configure_tlm(*args, annotate=None, tlm=True, manager=None):
     if manager is None:
         manager = globals()["manager"]()
     manager.configure_tlm(*args, annotate=annotate, tlm=tlm)
