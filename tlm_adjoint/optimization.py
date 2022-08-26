@@ -66,7 +66,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
     Returns a tuple
         (M, return_value)
-    return M is the value of the control parameters obtained, and return_value
+    where M is the value of the control parameters obtained, and return_value
     is the return value of scipy.optimize.minimize.
     """
 

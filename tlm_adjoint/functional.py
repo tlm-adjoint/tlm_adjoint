@@ -25,6 +25,8 @@ from .interface import check_space_type, function_is_scalar, function_name, \
 from .equations import AssignmentSolver, AxpySolver
 from .manager import manager as _manager
 
+import warnings
+
 __all__ = \
     [
         "Functional"
@@ -126,10 +128,17 @@ class Functional:
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
-    def fn(self):
+    def function(self):
         """
         Return the function storing the functional value.
         """
+
+        return self._fn
+
+    def fn(self):
+        warnings.warn("Functional.fn method is deprecated -- "
+                      "use Functional.function instead",
+                      DeprecationWarning, stacklevel=2)
 
         return self._fn
 
@@ -147,15 +156,26 @@ class Functional:
 
         return function_scalar_value(self._fn)
 
-    def tlm(self, M, dM, *, max_depth=1, manager=None):
+    def tlm_functional(self, *args, manager=None):
         """
-        Return a Functional associated with evaluation of the tangent-linear of
-        the functional.
+        Return a Functional associated with evaluation of a tangent-linear
+        associated with the functional.
         """
 
         if manager is None:
             manager = _manager()
 
-        J_fn = manager.tlm(M, dM, self.fn(), max_depth=max_depth)
+        return Functional(_fn=manager.function_tlm(self.function(), *args))
+
+    def tlm(self, M, dM, *, max_depth=1, manager=None):
+        warnings.warn("Functional.tlm method is deprecated -- "
+                      "use Functional.tlm_functional instead",
+                      DeprecationWarning, stacklevel=2)
+
+        if manager is None:
+            manager = _manager()
+
+        J_fn = manager.function_tlm(
+            self.function(), *[(M, dM) for depth in range(max_depth)])
 
         return Functional(_fn=J_fn)

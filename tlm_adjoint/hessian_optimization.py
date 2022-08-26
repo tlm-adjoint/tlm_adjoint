@@ -71,7 +71,7 @@ class HessianOptimization:
         self._cache_adjoint = cache_adjoint
         self._adj_cache = AdjointCache()
         if cache_adjoint:
-            self._M_ids = None
+            self._cache_key = None
 
     def _new_manager(self):
         manager = EquationManager(comm=self._comm,
@@ -106,7 +106,7 @@ class HessianOptimization:
         return manager._tangent_linear(eq, M, dM)
 
     def _add_tangent_linear_equation(self, manager, n, i, eq, M, dM, tlm_eq,
-                                     *, solve=True):
+                                     *, annotate=True, solve=True):
         for tlm_dep in tlm_eq.initial_condition_dependencies():
             manager._cp.add_initial_condition(tlm_dep)
 
@@ -127,15 +127,17 @@ class HessianOptimization:
         if solve:
             tlm_eq.forward(tlm_eq.X(), deps=tlm_deps)
 
-        tlm_eq_id = tlm_eq.id()
-        if tlm_eq_id not in manager._eqs:
-            manager._eqs[tlm_eq_id] = tlm_eq
-        manager._block.append(tlm_eq)
-        manager._cp.add_equation(
-            len(manager._blocks), len(manager._block) - 1, tlm_eq,
-            deps=tlm_deps)
+        if annotate:
+            tlm_eq_id = tlm_eq.id()
+            if tlm_eq_id not in manager._eqs:
+                manager._eqs[tlm_eq_id] = tlm_eq
+            manager._block.append(tlm_eq)
+            manager._cp.add_equation(
+                len(manager._blocks), len(manager._block) - 1, tlm_eq,
+                deps=tlm_deps)
 
-    def _setup_manager(self, M, dM, M0=None, *, solve_tlm=True):
+    def _setup_manager(self, M, dM, M0=None, *,
+                       annotate_tlm=True, solve_tlm=True):
         M = tuple(M)
         dM = tuple(dM)
         # M0 ignored
@@ -143,13 +145,13 @@ class HessianOptimization:
         clear_caches(*dM)
 
         manager = self._new_manager()
-        manager.add_tlm(M, dM)
+        manager.configure_tlm((M, dM), annotate=annotate_tlm)
 
         if self._cache_adjoint:
-            M_ids = set(map(function_id, M))
-            if self._M_ids is None or self._M_ids != M_ids:
-                self._M_ids = M_ids
+            cache_key = (set(map(function_id, M)), annotate_tlm)
+            if self._cache_key is None or self._cache_key != cache_key:
                 self._adj_cache.clear()
+                self._cache_key = cache_key
         manager._adj_cache = self._adj_cache
 
         for n, i, eq in self._add_forward_equations(manager):
@@ -178,8 +180,8 @@ class CachedHessian(Hessian, HessianOptimization):
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
-        self._J_state = function_state(J.fn())
-        self._J = Functional(_fn=J.fn())
+        self._J_state = function_state(J.function())
+        self._J = Functional(_fn=J.function())
 
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
@@ -188,13 +190,13 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ
 
-        if function_state(self._J.fn()) != self._J_state:
+        if function_state(self._J.function()) != self._J_state:
             raise RuntimeError("State has changed")
 
         dM = tuple(function_new(m) for m in M)
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
 
-        dJ = self._J.tlm(M, dM, manager=manager)
+        dJ = self._J.tlm_functional((M, dM), manager=manager)
 
         J_val = self._J.value()
         dJ = manager.compute_gradient(
@@ -211,12 +213,12 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
-        if function_state(self._J.fn()) != self._J_state:
+        if function_state(self._J.function()) != self._J_state:
             raise RuntimeError("State has changed")
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
 
-        dJ = self._J.tlm(M, dM, manager=manager)
+        dJ = self._J.tlm_functional((M, dM), manager=manager)
 
         J_val = self._J.value()
         dJ_val = dJ.value()
@@ -249,11 +251,11 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         self._X = tuple(X)
         self._X_state = tuple(function_state(x) for x in X)
 
-    def _setup_manager(self, M, dM, M0=None, *, solve_tlm=True):
-        # Possible optimization: We annotate all the TLM equations, but are
-        # later only going to differentiate back through the forward
+    def _setup_manager(self, M, dM, M0=None, *,
+                       annotate_tlm=False, solve_tlm=True):
         manager, M, dM = HessianOptimization._setup_manager(
-            self, M, dM, M0=M0, solve_tlm=True)
+            self, M, dM, M0=M0,
+            annotate_tlm=annotate_tlm, solve_tlm=solve_tlm)
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):

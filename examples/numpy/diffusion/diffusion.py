@@ -141,7 +141,7 @@ def forward_reference(psi_0, kappa):
         psi, fail = cg(lA, B.dot(psi), x0=psi)
         assert fail == 0
     J = Functional(name="J")
-    J.fn().vector()[:] = (psi + 1.0).dot(mass.dot(psi + 1.0))
+    J.function().vector()[:] = (psi + 1.0).dot(mass.dot(psi + 1.0))
     return J
 
 
@@ -245,7 +245,7 @@ def forward(psi_0, kappa):
     AxpySolver(psi_n, 1.0, one, phi).solve()
 
     J = Functional(name="J")
-    NormSqSolver(phi, J.fn(), M=ConstantMatrix(mass)).solve()
+    NormSqSolver(phi, J.function(), M=ConstantMatrix(mass)).solve()
 
     return J
 

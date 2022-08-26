@@ -35,6 +35,7 @@ from .manager import restore_manager, set_manager
 from collections import defaultdict, deque
 from collections.abc import Sequence
 import copy
+import enum
 import gc
 import itertools
 import logging
@@ -70,9 +71,18 @@ def tlm_key(M, dM):
              tuple(function_id(dm) for dm in dM)))
 
 
+def tlm_keys(*args):
+    M_dM_keys = tuple(map(lambda arg: tlm_key(*arg), args))
+    for ks in itertools.chain.from_iterable(
+            distinct_combinations_indices((key for _, key in M_dM_keys), j)
+            for j in range(1, len(M_dM_keys) + 1)):
+        yield tuple(M_dM_keys[k] for k in ks)
+
+
 class TangentLinear:
-    def __init__(self):
+    def __init__(self, *, annotate=True):
         self._children = {}
+        self._annotate = annotate
 
     def __contains__(self, key):
         _, key = tlm_key(*key)
@@ -83,16 +93,39 @@ class TangentLinear:
         return self._children[key][1]
 
     def __iter__(self):
+        yield from self.keys()
+
+    def __len__(self):
+        return len(self._children)
+
+    def keys(self):
         for (M, dM), _ in self._children.values():
             yield (M, dM)
 
-    def add(self, M, dM):
+    def values(self):
+        for _, child in self._children.values():
+            yield child
+
+    def items(self):
+        yield from zip(self.keys(), self.values())
+
+    def add(self, M, dM, *, annotate=True):
         (M, dM), key = tlm_key(M, dM)
         if key not in self._children:
-            self._children[key] = ((M, dM), TangentLinear())
+            self._children[key] = ((M, dM), TangentLinear(annotate=annotate))
+
+    def remove(self, M, dM):
+        _, key = tlm_key(M, dM)
+        del self._children[key]
 
     def clear(self):
         self._children.clear()
+
+    def is_annotated(self):
+        return self._annotate
+
+    def set_is_annotated(self, annotate):
+        self._annotate = annotate
 
 
 class TangentLinearMap:
@@ -100,8 +133,17 @@ class TangentLinearMap:
     A map from forward to tangent-linear variables.
     """
 
-    def __init__(self, name_suffix=" (tangent-linear)"):
-        self._name_suffix = name_suffix
+    def __init__(self, M, dM):
+        (M, dM), _ = tlm_key(M, dM)
+
+        if len(M) == 1:
+            self._name_suffix = \
+                "_tlm(%s,%s)" % (function_name(M[0]),
+                                 function_name(dM[0]))
+        else:
+            self._name_suffix = \
+                "_tlm((%s),(%s))" % (",".join(map(function_name, M)),
+                                     ",".join(map(function_name, dM)))
 
     @gc_disabled
     def __contains__(self, x):
@@ -530,6 +572,18 @@ class AdjointCache:
                 transpose_deps.set_not_solved(J_i, n, i)
 
 
+class AnnotationState(enum.Enum):
+    STOPPED = "stopped"
+    ANNOTATING = "annotating"
+    FINAL = "final"
+
+
+class TangentLinearState(enum.Enum):
+    STOPPED = "stopped"
+    DERIVING = "deriving"
+    FINAL = "final"
+
+
 class EquationManager:
     _id_counter = [0]
 
@@ -725,8 +779,8 @@ class EquationManager:
 
         self.drop_references()
 
-        self._annotation_state = "initial"
-        self._tlm_state = "initial"
+        self._annotation_state = AnnotationState.ANNOTATING
+        self._tlm_state = TangentLinearState.DERIVING
         self._eqs = {}
         self._blocks = []
         self._block = []
@@ -744,9 +798,9 @@ class EquationManager:
         Provide a new checkpointing configuration.
         """
 
-        if self._annotation_state not in ["initial", "stopped_initial"]:
+        if len(self._block) != 0 or len(self._blocks) != 0:
             raise RuntimeError("Cannot configure checkpointing after "
-                               "annotation has started, or after finalization")
+                               "equations have been recorded")
 
         cp_parameters = copy.copy(cp_parameters)
 
@@ -827,66 +881,137 @@ class EquationManager:
         assert len(self._blocks) == 0
         self._checkpoint()
 
-    def add_tlm(self, M, dM, max_depth=1):
+    def configure_tlm(self, *args, annotate=None, tlm=True):
         """
-        Add a tangent-linear model computing derivatives with respect to the
-        control defined by M in the direction defined by dM.
+        Configure the tangent-linear tree.
+
+        Arguments:
+
+        args      ((M_0, dM_0), [...]). Identifies a node of the tangent-linear
+                  tree.
+        annotate  (Optional, default tlm) If true then enable annotation for
+                  the tangent-linear model associated with the node, and enable
+                  annotation for all tangent-linear models on which it depends.
+                  If false then disable annotation for the tangent-linear
+                  model associated with the node, all tangent-linear models
+                  which depend on it, and any tangent-linear models associated
+                  with new nodes.
+        tlm       (Optional) If true then add the tangent-linear model
+                  associated with the node, and add all tangent-linear models
+                  on which it depends. If false then remove the tangent-linear
+                  model associated with the node, and remove all tangent-linear
+                  models which depend on it.
         """
 
-        if self._tlm_state == "final":
-            raise RuntimeError("Cannot add a tangent-linear model after "
+        if self._tlm_state == TangentLinearState.FINAL:
+            raise RuntimeError("Cannot configure tangent-linear models after "
+                               "finalization")
+
+        if annotate is None:
+            annotate = tlm
+        if annotate and not tlm:
+            raise ValueError("Invalid annotate/tlm combination")
+
+        if tlm:
+            # Could be optimized to avoid encountering parent nodes multiple
+            # times
+            for M_dM_keys in tlm_keys(*args):
+                node = self._tlm
+                for (M, dM), key in M_dM_keys:
+                    if (M, dM) in node:
+                        if annotate:
+                            node[(M, dM)].set_is_annotated(True)
+                    else:
+                        node.add(M, dM, annotate=annotate)
+                        if key not in self._tlm_map:
+                            self._tlm_map[key] = TangentLinearMap(M, dM)
+                    node = node[(M, dM)]
+
+        if not annotate or not tlm:
+            def depends(keys_a, keys_b):
+                j = 0
+                for i, key_a in enumerate(keys_a):
+                    if j >= len(keys_b):
+                        return True
+                    elif key_a == keys_b[j]:
+                        j += 1
+                return j >= len(keys_b)
+
+            keys = tuple(key
+                         for _, key in map(lambda arg: tlm_key(*arg), args))
+            remaining_nodes = [(self._tlm,
+                                (tlm_key(*child_M_dM)[1],),
+                                child_M_dM,
+                                child)
+                               for child_M_dM, child in self._tlm.items()]
+            while len(remaining_nodes) > 0:
+                parent, node_keys, node_M_dM, node = remaining_nodes.pop()
+                if depends(node_keys, keys):
+                    if not tlm:
+                        parent.remove(*node_M_dM)
+                    elif not annotate:
+                        node.set_is_annotated(False)
+                if node_M_dM in parent:
+                    remaining_nodes.extend(
+                        (node,
+                         tuple(list(node_keys) + [tlm_key(*child_M_dM)[1]]),
+                         child_M_dM,
+                         child)
+                        for child_M_dM, child in node.items())
+
+    def add_tlm(self, M, dM, max_depth=1, *, _warning=True):
+        if _warning:
+            warnings.warn("EquationManager.add_tlm method is deprecated -- "
+                          "use EquationManager.configure_tlm instead",
+                          DeprecationWarning, stacklevel=2)
+
+        if self._tlm_state == TangentLinearState.FINAL:
+            raise RuntimeError("Cannot configure tangent-linear models after "
                                "finalization")
 
         (M, dM), key = tlm_key(M, dM)
 
-        if self._tlm_state == "initial":
-            self._tlm_state = "deriving"
-        elif self._tlm_state == "stopped_initial":
-            self._tlm_state = "stopped_deriving"
-
         for depth in range(max_depth):
-            remaining_tlms = deque([self._tlm])
-            while len(remaining_tlms) > 0:
-                base_tlm = remaining_tlms.popleft()
-                remaining_tlms.extend(base_tlm[(tlm_M, tlm_dM)]
-                                      for tlm_M, tlm_dM in base_tlm)
-                base_tlm.add(M, dM)
+            remaining_nodes = [self._tlm]
+            while len(remaining_nodes) > 0:
+                node = remaining_nodes.pop()
+                remaining_nodes.extend(node.values())
+                node.add(M, dM, annotate=True)
 
         if key not in self._tlm_map:
-            if len(M) == 1:
-                tlm_map_name_suffix = \
-                    "_tlm(%s,%s)" % (function_name(M[0]),
-                                     function_name(dM[0]))
-            else:
-                tlm_map_name_suffix = \
-                    "_tlm((%s),(%s))" % (",".join(function_name(m) for m in M),
-                                         ",".join(function_name(dm) for dm in dM))  # noqa: E501
-            self._tlm_map[key] = TangentLinearMap(tlm_map_name_suffix)
+            self._tlm_map[key] = TangentLinearMap(M, dM)
 
     def tlm_enabled(self):
         """
-        Return whether addition of tangent-linear models is enabled.
+        Return whether derivation of tangent-linear equations is enabled.
         """
 
-        return self._tlm_state == "deriving"
+        return self._tlm_state == TangentLinearState.DERIVING
 
-    def tlm(self, M, dM, x, max_depth=1):
+    def function_tlm(self, x, *args):
         """
-        Return a tangent-linear function associated with the forward function
-        x, for the tangent-linear model defined by M and dM.
+        Return a tangent-linear function associated with the function x.
         """
 
-        _, key = tlm_key(M, dM)
-        for depth in range(max_depth):
-            x = self._tlm_map[key][x]
-        return x
+        tau = x
+        for _, key in map(lambda arg: tlm_key(*arg), args):
+            tau = self._tlm_map[key][tau]
+        return tau
+
+    def tlm(self, M, dM, x, max_depth=1, *, _warning=True):
+        if _warning:
+            warnings.warn("EquationManager.tlm method is deprecated -- "
+                          "use EquationManager.function_tlm instead",
+                          DeprecationWarning, stacklevel=2)
+
+        return self.function_tlm(x, *[(M, dM) for depth in range(max_depth)])
 
     def annotation_enabled(self):
         """
         Return whether the equation manager currently has annotation enabled.
         """
 
-        return self._annotation_state in ["initial", "annotating"]
+        return self._annotation_state == AnnotationState.ANNOTATING
 
     def start(self, annotation=True, tlm=True):
         """
@@ -894,63 +1019,54 @@ class EquationManager:
         """
 
         if annotation:
-            if self._annotation_state == "stopped_initial":
-                self._annotation_state = "initial"
-            elif self._annotation_state == "stopped_annotating":
-                self._annotation_state = "annotating"
+            self._annotation_state \
+                = {AnnotationState.STOPPED: AnnotationState.ANNOTATING,
+                   AnnotationState.ANNOTATING: AnnotationState.ANNOTATING}[self._annotation_state]  # noqa: E501
 
         if tlm:
-            if self._tlm_state == "stopped_initial":
-                self._tlm_state = "initial"
-            elif self._tlm_state == "stopped_deriving":
-                self._tlm_state = "deriving"
+            self._tlm_state \
+                = {TangentLinearState.STOPPED: TangentLinearState.DERIVING,
+                   TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
     def stop(self, annotation=True, tlm=True):
         """
         Pause annotation or tangent-linear derivation. Returns a tuple
         containing:
             (annotation_state, tlm_state)
-        where annotation_state is True if the annotation is in state "initial"
-        or "annotating" and False otherwise, and tlm_state is True if the
-        tangent-linear state is "initial" or "deriving" and False otherwise,
-        each evaluated before changing the state.
+        where annotation_state indicates whether annotation is enabled, and
+        tlm_state indicates whether tangent-linear equation derivation is
+        enabled, each evaluated before changing the state.
         """
 
-        state = (self._annotation_state in ["initial", "annotating"],
-                 self._tlm_state in ["initial", "deriving"])
+        state = (self.annotation_enabled(), self.tlm_enabled())
 
         if annotation:
-            if self._annotation_state == "initial":
-                self._annotation_state = "stopped_initial"
-            elif self._annotation_state == "annotating":
-                self._annotation_state = "stopped_annotating"
+            self._annotation_state \
+                = {AnnotationState.STOPPED: AnnotationState.STOPPED,
+                   AnnotationState.ANNOTATING: AnnotationState.STOPPED,
+                   AnnotationState.FINAL: AnnotationState.FINAL}[self._annotation_state]  # noqa: E501
 
         if tlm:
-            if self._tlm_state == "initial":
-                self._tlm_state = "stopped_initial"
-            elif self._tlm_state == "deriving":
-                self._tlm_state = "stopped_deriving"
+            self._tlm_state \
+                = {TangentLinearState.STOPPED: TangentLinearState.STOPPED,
+                   TangentLinearState.DERIVING: TangentLinearState.STOPPED,
+                   TangentLinearState.FINAL: TangentLinearState.FINAL}[self._tlm_state]  # noqa: E501
 
         return state
 
     def add_initial_condition(self, x, annotate=None):
         """
-        Add an initial condition associated with the function x on the adjoint
-        tape.
+        Record an initial condition associated with the function x.
 
         annotate (default self.annotation_enabled()):
-            Whether to annotate the initial condition on the adjoint tape,
-            storing data for checkpointing as required.
+            Whether to record the initial condition, storing data for
+            checkpointing as required.
         """
 
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
-            if self._annotation_state == "initial":
-                self._annotation_state = "annotating"
-            elif self._annotation_state == "stopped_initial":
-                self._annotation_state = "stopped_annotating"
-            elif self._annotation_state == "final":
+            if self._annotation_state == AnnotationState.FINAL:
                 raise RuntimeError("Cannot add initial conditions after "
                                    "finalization")
 
@@ -958,14 +1074,14 @@ class EquationManager:
 
     def add_equation(self, eq, annotate=None, tlm=None):
         """
-        Process the provided equation, annotating and / or deriving (and
-        solving) tangent-linear equations as required. Assumes that the
-        equation has already been solved, and that the initial condition for
-        eq.X() has been recorded on the adjoint tape if necessary.
+        Process the provided equation, deriving (and solving) tangent-linear
+        equations as required. Assumes that the equation has already been
+        solved, and that the initial condition for eq.X() has been recorded if
+        necessary.
 
         annotate (default self.annotation_enabled()):
-            Whether to annotate the equation on the adjoint tape, storing data
-            for checkpointing as required.
+            Whether to record the equation, storing data for checkpointing as
+            required.
         tlm (default self.tlm_enabled()):
             Whether to derive (and solve) associated tangent-linear equations.
         """
@@ -975,11 +1091,7 @@ class EquationManager:
         if annotate is None:
             annotate = self.annotation_enabled()
         if annotate:
-            if self._annotation_state == "initial":
-                self._annotation_state = "annotating"
-            elif self._annotation_state == "stopped_initial":
-                self._annotation_state = "stopped_annotating"
-            elif self._annotation_state == "final":
+            if self._annotation_state == AnnotationState.FINAL:
                 raise RuntimeError("Cannot add equations after finalization")
 
             if self._alias_eqs:
@@ -1000,23 +1112,24 @@ class EquationManager:
         if tlm is None:
             tlm = self.tlm_enabled()
         if tlm:
-            if self._tlm_state == "final":
+            if self._tlm_state == TangentLinearState.FINAL:
                 raise RuntimeError("Cannot add tangent-linear equations after "
                                    "finalization")
 
-            remaining_eqs = deque((eq, (M, dM), self._tlm[(M, dM)])
-                                  for M, dM in self._tlm)
+            remaining_eqs = deque((eq, child_M_dM, child)
+                                  for child_M_dM, child in self._tlm.items())
             while len(remaining_eqs) > 0:
-                base_eq, (base_M, base_dM), base_tlm = remaining_eqs.popleft()
+                parent_eq, (node_M, node_dM), node = remaining_eqs.popleft()
 
-                tlm_eq = self._tangent_linear(base_eq, base_M, base_dM)
-                if tlm_eq is not None:
-                    tlm_eq.solve(
-                        manager=self, annotate=annotate, tlm=False)
-
+                node_eq = self._tangent_linear(parent_eq, node_M, node_dM)
+                if node_eq is not None:
+                    node_eq.solve(
+                        manager=self,
+                        annotate=node.is_annotated(),
+                        tlm=False)
                     remaining_eqs.extend(
-                        (tlm_eq, (tlm_M, tlm_dM), base_tlm[(tlm_M, tlm_dM)])
-                        for tlm_M, tlm_dM in base_tlm)
+                        (node_eq, child_M_dM, child)
+                        for child_M_dM, child in node.items())
 
     def _tangent_linear(self, eq, M, dM):
         (M, dM), key = tlm_key(M, dM)
@@ -1320,11 +1433,11 @@ class EquationManager:
 
         self.drop_references()
 
-        if self._annotation_state in ["stopped_initial",
-                                      "stopped_annotating",
-                                      "final"]:
+        if self._annotation_state in [AnnotationState.STOPPED,
+                                      AnnotationState.FINAL]:
             return
-        elif self._cp_manager.max_n() is not None \
+
+        if self._cp_manager.max_n() is not None \
                 and len(self._blocks) == self._cp_manager.max_n() - 1:
             # Wait for the finalize
             warnings.warn(
@@ -1343,10 +1456,11 @@ class EquationManager:
 
         self.drop_references()
 
-        if self._annotation_state == "final":
+        if self._annotation_state == AnnotationState.FINAL:
             return
-        self._annotation_state = "final"
-        self._tlm_state = "final"
+
+        self._annotation_state = AnnotationState.FINAL
+        self._tlm_state = TangentLinearState.FINAL
 
         self._blocks.append(self._block)
         self._block = []
@@ -1360,14 +1474,11 @@ class EquationManager:
                 self._blocks.append([])
         self._checkpoint(final=True)
 
-    def reset_adjoint(self, _warning=True):
-        """
-        Call the reset_adjoint methods of all annotated Equation objects.
-        """
-
+    def reset_adjoint(self, *, _warning=True):
         if _warning:
             warnings.warn("EquationManager.reset_adjoint method is deprecated",
                           DeprecationWarning, stacklevel=2)
+
         for eq in self._eqs.values():
             eq.reset_adjoint()
 

@@ -59,10 +59,10 @@ def test_AssignmentSolver(setup_test, test_leaks):
         DotProductSolver(z, z, z_dot_z).solve()
 
         J = Functional(name="J")
-        AxpySolver(z_dot_z, 2.0, x_dot_x, J.fn()).solve()
+        AxpySolver(z_dot_z, 2.0, x_dot_x, J.function()).solve()
 
         K = Functional(name="K")
-        AssignmentSolver(z_dot_z, K.fn()).solve()
+        AssignmentSolver(z_dot_z, K.function()).solve()
 
         return J, K
 
@@ -115,7 +115,7 @@ def test_AxpySolver(setup_test, test_leaks):
         DotProductSolver(y[-1], y[-1], z[1]).solve()
 
         J = Functional(name="J")
-        DotProductSolver(z[1], z[1], J.fn()).solve()
+        DotProductSolver(z[1], z[1], J.function()).solve()
         return J
 
     start_manager()
@@ -698,7 +698,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
         AssignmentSolver(F, G).solve()
 
         J = Functional(name="J")
-        InnerProductSolver(F, G, J.fn()).solve()
+        InnerProductSolver(F, G, J.function()).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -805,7 +805,7 @@ def test_initial_guess(setup_test, test_leaks):
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
             NullSolver(x).solve()
-            J_term = function_new(J.fn())
+            J_term = function_new(J.function())
             InnerProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)
         else:
