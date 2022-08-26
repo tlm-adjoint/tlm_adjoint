@@ -31,13 +31,11 @@ __all__ = \
 
 class HRevolveCheckpointSchedule(CheckpointSchedule):
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
-                 keep_block_0_ics=False,
                  wvect=(0.0, 0.1), rvect=(0.0, 0.1), uf=1.0, ub=2.0, **kwargs):
         super().__init__(max_n)
         self._snapshots_in_ram = snapshots_in_ram
         self._snapshots_on_disk = snapshots_on_disk
         self._exhausted = False
-        self._keep_block_0_ics = keep_block_0_ics
 
         cvect = (snapshots_in_ram, snapshots_on_disk)
         import hrevolve
@@ -99,7 +97,7 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
                     deferred_cp = None
 
                 yield Clear(True, True)
-                yield Configure(self._keep_block_0_ics and n_0 == 0, True)
+                yield Configure(False, True)
                 self._n = n_0 + 1
                 yield Forward(n_0, n_0 + 1)
                 if self._n == self._max_n:
@@ -149,7 +147,7 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
             else:
                 raise RuntimeError(f"Unexpected action: {cp_action:s}")
 
-        yield Clear(not self._keep_block_0_ics or self._n != 1, True)
+        yield Clear(True, True)
 
         if len(snapshots) != 0:
             raise RuntimeError("Invalid checkpointing state")

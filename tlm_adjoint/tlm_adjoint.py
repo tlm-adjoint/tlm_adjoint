@@ -834,14 +834,12 @@ class EquationManager:
             cp_schedule = MemoryCheckpointSchedule()
         elif cp_method == "periodic_disk":
             cp_schedule = PeriodicDiskCheckpointSchedule(
-                cp_parameters["period"],
-                keep_block_0_ics=True)
+                cp_parameters["period"])
         elif cp_method == "multistage":
             cp_schedule = MultistageCheckpointSchedule(
                 cp_parameters["blocks"],
                 cp_parameters.get("snaps_in_ram", 0),
                 cp_parameters.get("snaps_on_disk", 0),
-                keep_block_0_ics=True,
                 trajectory="maximum")
         else:
             raise ValueError(f"Unrecognized checkpointing method: "

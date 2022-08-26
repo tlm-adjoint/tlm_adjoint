@@ -28,13 +28,12 @@ __all__ = \
 
 
 class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
-    def __init__(self, period, *, keep_block_0_ics=False):
+    def __init__(self, period):
         if period < 1:
             raise ValueError("period must be positive")
 
         super().__init__()
         self._period = period
-        self._keep_block_0_ics = keep_block_0_ics
 
     def iter(self):
         # Forward
@@ -71,23 +70,13 @@ class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
                 yield Read(n0, "disk", False)
                 yield Clear(True, True)
 
-                if self._keep_block_0_ics and n0 == 0:
-                    yield Configure(True, True)
-                    self._n = n0 + 1
-                    yield Forward(n0, n0 + 1)
-
-                    if n1 > n0 + 1:
-                        yield Configure(False, True)
-                        self._n = n1
-                        yield Forward(n0 + 1, n1)
-                else:
-                    yield Configure(False, True)
-                    self._n = n1
-                    yield Forward(n0, n1)
+                yield Configure(False, True)
+                self._n = n1
+                yield Forward(n0, n1)
 
                 self._r = self._max_n - n0
                 yield Reverse(n1, n0)
-                yield Clear(not self._keep_block_0_ics or n0 != 0, True)
+                yield Clear(True, True)
             if self._r != self._max_n:
                 raise RuntimeError("Invalid checkpointing state")
 
