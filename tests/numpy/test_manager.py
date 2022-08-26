@@ -55,7 +55,7 @@ def test_EmptySolver(setup_test, test_leaks, test_default_dtypes):
         DotProductSolver(F, F, F_dot_F).solve()
 
         J = Functional(name="J")
-        DotProductSolver(F_dot_F, F_dot_F, J.fn()).solve()
+        DotProductSolver(F_dot_F, F_dot_F, J.function()).solve()
         return J
 
     F = Function(space, name="F")
@@ -225,7 +225,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        NormSqSolver(z, J.fn(), M=M).solve()
+        NormSqSolver(z, J.function(), M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -469,7 +469,7 @@ def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
                 new_block()
 
         J = Functional(name="J")
-        DotProductSolver(m, m, J.fn()).solve()
+        DotProductSolver(m, m, J.function()).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -489,19 +489,19 @@ def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
         info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
         assert n_forward_solves[0] == n_forward_solves_optimal
 
-    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ, M0=m)
+    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ)
     assert min_order > 1.99
 
 
 @pytest.mark.numpy
-@pytest.mark.parametrize("max_depth", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("max_degree", [1, 2, 3, 4, 5])
 @no_space_type_checking
 @seed_test
 def test_TangentLinearMap_finalizes(setup_test, test_leaks, test_default_dtypes,  # noqa: E501
-                                    max_depth):
+                                    max_degree):
     m = Constant(1.0, name="m")
     dm = Constant(1.0, name="dm")
-    add_tlm(m, dm, max_depth=max_depth)
+    configure_tlm(*[(m, dm) for i in range(max_degree)])
 
     start_manager()
     x = Constant(0.0, name="x")

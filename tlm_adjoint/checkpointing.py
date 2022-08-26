@@ -331,9 +331,9 @@ class ReplayStorage:
                     if active[n][i]:
                         # Forward equation is active, mark forward equations
                         # solving for dependencies as active
-                        X_ids = {function_id(x) for x in eq.X()}
-                        ic_ids = {function_id(dep)
-                                  for dep in eq.initial_condition_dependencies()}  # noqa: E501
+                        X_ids = set(map(function_id, eq.X()))
+                        ic_ids = set(map(function_id,
+                                         eq.initial_condition_dependencies()))
                         for dep in eq.dependencies():
                             dep_id = function_id(dep)
                             if dep_id in X_ids:

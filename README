@@ -51,5 +51,6 @@ tlm_adjoint optionally uses
     h5py, with the 'mpio' driver for parallel calculations, for HDF5 storage
     petsc4py and slepc4py, for eigendecomposition functionality
     H-Revolve, for H-Revolve checkpointing schedules
+    more-itertools
 
 License: GNU LGPL version 3

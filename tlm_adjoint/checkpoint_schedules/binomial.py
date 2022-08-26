@@ -23,6 +23,8 @@ from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
 
 import functools
 
+from operator import itemgetter
+
 __all__ = \
     [
         "MultistageCheckpointSchedule",
@@ -161,7 +163,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     assert snapshot_i == -1
 
     allocation = ["disk" for i in range(snapshots)]
-    for i in [p[0] for p in sorted(enumerate(weights), key=lambda p: p[1],
+    for i in [p[0] for p in sorted(enumerate(weights), key=itemgetter(1),
                                    reverse=True)][:snapshots_in_ram]:
         allocation[i] = "RAM"
 

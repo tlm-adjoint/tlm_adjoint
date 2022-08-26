@@ -65,7 +65,7 @@ time, subject to homogeneous Dirichlet boundary conditions,
     \quad \forall \zeta \in V \quad \forall n = 0, 1, 2, \ldots,
 \end{equation*}
 where the discrete solution at time $t = n \Delta t$ is $\psi^n \in V$, $V$ is
-some appropriate subpace of $H^1_0 \left( \Omega; \mathbb{R} \right)$, and
+some appropriate subspace of $H^1_0 \left( \Omega; \mathbb{R} \right)$, and
 where $\Omega$ is some appropriate subset of $\mathbb{R}^d$ in $d$-dimensions.
 Here $\kappa$ is a positive real constant, and $\psi^0 \in V$ is a discrete
 initial condition.
@@ -252,10 +252,10 @@ The key changes which appear here are
 
 \subsection{Second order adjoint}
 
-The action of the forward model constrained Hessian in a direction $\zeta \in
-V$, where the Hessian is defined by the forward model constrained (second)
-derivative of the functional $J$ with respect to the initial condition
-$\psi^0$, can be computed via
+The action of the forward model constrained Hessian on a $\zeta \in V$, where
+the Hessian is defined by the forward model constrained (second) derivative of
+the functional $J$ with respect to the initial condition $\psi^0$, can be
+computed via
 \begin{lstlisting}
 from firedrake import *
 from tlm_adjoint.firedrake import *
@@ -346,21 +346,21 @@ def forward(psi_0, psi_n_file=None):
 
 zeta = Function(space, name="zeta", static=True)
 zeta.interpolate(sin(pi * X[0]) * sin(pi * X[1]))
-add_tlm(psi_0, zeta)
+configure_tlm((psi_0, zeta))
 
 start_manager()
 J = forward(psi_0, psi_n_file=File("psi.pvd"))
 stop_manager()
 
-ddJ = compute_gradient(J.tlm(psi_0, zeta), psi_0)
+ddJ = compute_gradient(J.tlm_functional((psi_0, zeta)), psi_0)
 \end{lstlisting}
 
 The key changes which appear here are
 \begin{itemize}
-  \item The use of the \texttt{add\_tlm} function, to enable the derivation and
-    solution of tangent-linear equations. 
-  \item The use of the \texttt{tlm} method of the \texttt{Functional} object
-    when performing the derivative calculation.
+  \item The use of the \texttt{configure\_tlm} function, to enable the
+    derivation and solution of tangent-linear equations. 
+  \item The use of the \texttt{tlm\_functional} method of the
+    \texttt{Functional} object when performing the derivative calculation.
 \end{itemize}
 For further details see section \ref{sect:higher_order}.
 
@@ -838,7 +838,7 @@ class, and represents the solution of a projection problem, of the same type as
 represented using the \texttt{ProjectionSolver}, but using a local mass matrix
 solver.
 
-The \texttt{LocalProjectionSolver} constuctor has the form
+The \texttt{LocalProjectionSolver} constructor has the form
 \begin{lstlisting}
 def __init__(self, rhs, x, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
@@ -880,7 +880,7 @@ class, and represents the solution of a projection problem, of the same type as
 represented using the \texttt{ProjectionSolver}, but using a local mass matrix
 solver.
 
-The \texttt{LocalProjectionSolver} constuctor has the form
+The \texttt{LocalProjectionSolver} constructor has the form
 \begin{lstlisting}
 def __init__(self, rhs, x, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
@@ -918,7 +918,7 @@ There are four important sets of forward equation dependencies
     the equation is used as an initial guess for an iterative solver used to
     solve the equation.
 \end{enumerate}
-The values of symbolic dependendencies, non-symbolic dependencies, and initial
+The values of symbolic dependencies, non-symbolic dependencies, and initial
 condition dependencies are required to solve the forward equation. The symbolic
 dependencies are required in order to derive associated first order
 tangent-linear and first order adjoint equations. The values of non-linear
@@ -1145,9 +1145,9 @@ function, e.g.
 \begin{lstlisting}
 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
 \end{lstlisting}
-This returns a control direction (an element of \texttt{dM}), a tangent-linear
-solution variable, or \texttt{None} if the tangent-linear variable is known to
-be identically zero.
+This returns a direction (an element of \texttt{dM}), a tangent-linear solution
+variable, or \texttt{None} if the tangent-linear variable is known to be
+identically zero.
 
 \texttt{self.drop\_references} (section \ref{sect:drop_references}) will not
 previously been called prior to a call to the \texttt{tangent\_linear} method.
@@ -1318,8 +1318,8 @@ with arguments
     should be taken.
   \item \texttt{x}, a function, defining $x$ in the matrix action $A x$. Must
     not be modified.
-  \item \texttt{adj\_x}, a function, defining the adjoint action direction.
-    Must not not be modified.
+  \item \texttt{adj\_x}, a function, on which the adjoint of the derivative
+    acts. Must not not be modified.
   \item \texttt{b}, a function defining the result. Set or modified by this
     method.
   \item \texttt{method}, as in the \texttt{forward\_action} method.
@@ -1439,8 +1439,8 @@ with arguments
   \item \texttt{dep\_index}, an integer, defining the dependency with respect
     to which as derivative should be taken. The dependency is defined by
     \texttt{self.dependencies()[dep\_index]}.
-  \item \texttt{adj\_x}, a function, defining the adjoint action direction.
-    Must not not be modified.
+  \item \texttt{adj\_x}, a function, on which the adjoint of the derivatives
+    act. Must not not be modified.
   \item \texttt{b}, a function, from which the adjoint derivative action should
     be subtracted.
 \end{itemize}
@@ -1541,7 +1541,7 @@ term resulting from a matrix action,
 \begin{equation*}
   b = A y.
 \end{equation*}
-A \texttt{MatrixActionSolver} is a \texttt{LinearEquation} respresenting
+A \texttt{MatrixActionSolver} is a \texttt{LinearEquation} representing
 \begin{equation*}
   x = A y,
 \end{equation*}
@@ -1605,7 +1605,7 @@ for the \texttt{MemoryStorage} class.
 
 \subsection{Custom \texttt{Storage} classes}
 
-Custom \texttt{Storage} can be defined by interiting from the \texttt{Storage}
+Custom \texttt{Storage} can be defined by inheriting from the \texttt{Storage}
 class, and overriding key methods.
 
 \subsubsection{Constructor}
@@ -1699,7 +1699,7 @@ J = Functional(name=name, space=space)
 \end{lstlisting}
 The internal function may be accessed via
 \begin{lstlisting}
-J_fn = J.fn()
+J_fn = J.function()
 \end{lstlisting}
 and then the function may, for example, be defined to be the solution of an
 \texttt{Equation}. Note that new internal functions are generated by calls to
@@ -1759,69 +1759,53 @@ The degrees of freedom associated with functions returned by
 
 \subsection{First order tangent-linear}
 
-The derivation and solution of tangent-linear equations is enabled by calling
-the \texttt{add\_tlm} function before forward equations are solved. The basic
-syntax is
+The derivation and solution of tangent-linear equations can be enabled by
+calling the \texttt{configure\_tlm} function before forward equations are
+solved.
+
 \begin{lstlisting}
-add_tlm(m_0, zeta_0)
+configure_tlm((m_0, zeta_0))
 \end{lstlisting}
-for a tangent-linear defined by differentiation with respect to the function
-\texttt{m\_0} in the direction defined by the function \texttt{zeta\_0}.
-\texttt{m\_0} and \texttt{zeta\_0} may more generally each be a sequence of
-functions, in which case the tangent-linear is defined by differentiation with
-respect to a function in the appropriate Cartesian product space of which
-\texttt{m\_0} is a member, in a direction defined by \texttt{zeta\_0}.
+enables the automated derivation and solution of first order tangent-linear
+equations, computing the derivative with respect to the function \texttt{m}
+with direction defined by the function \texttt{zeta\_0}.
 
 \subsection{Higher order tangent-linear}
 
-The derivation and solution of higher-order tangent-linear equations is enabled
-by using multiple calls to \texttt{add\_tlm}, for example
-\begin{lstlisting}
-add_tlm(m_0, zeta_0)
-add_tlm(m_1, zeta_1)
-add_tlm(m_2, zeta_2)
-\end{lstlisting}
-Here the second call to \texttt{add\_tlm} enables the derivation and solution
-of second order tangent-linear equations defined by differentiation of the
-first order tangent-linear with respect to \texttt{m\_1} in the direction
-\texttt{zeta\_1}. The third call to \texttt{add\_tlm} enables the derivation
-and solution of third order tangent-linear equations defined by differentiation
-of the second order tangent-linear with respect to \texttt{m\_2} in the
-direction \texttt{zeta\_2}.
+The derivation and solution of higher-order tangent-linear equations can be
+enabled by supplying \texttt{configure\_tlm} with further arguments.
 
-The derivation and solution of higher-order tangent-linear equations defined by
-repeated differentiation with respect to a single function in a single
-direction is enabled using the optional \texttt{max\_depth} argument, for
-example
 \begin{lstlisting}
-add_tlm(m, zeta, max_depth=5)
+configure_tlm((m_0, zeta_0), (m_1, zeta_1))
 \end{lstlisting}
-to enable the derivation and solution of tangent-linear equations up to and
-including degree $5$, defined by repeated differentiation with respect to
-\texttt{m} in the direction \texttt{zeta}.
+enables the automated derivation and solution of second order tangent-linear
+equations, computing second derivative information. This also enables the
+automated derivation and solution of any required first order tangent-linear
+equations.
 
 \subsection{Higher order adjoint}\label{sect:higher_order_adjoint}
 
 If a first order tangent-linear calculation is performed, defined by
-differentiation with respect to $m$ in a direction $\zeta$, then the
+differentiation with respect to $m$ with direction $\zeta$, then the
 tangent-linear variable associated with a functional $J$ is the forward model
-constrained derivative of $J$ with respect to $m$ in the direction $\zeta$.
+constrained derivative of $J$ with respect to $m$ evaluated with direction
+$\zeta$.
 
 Given a \texttt{Functional} object \texttt{J}, a new \texttt{Functional} object
 associated with such a first order sensitivity can be obtained via its
-\texttt{tlm} method
+\texttt{tlm\_functional} method
 \begin{lstlisting}
-add_tlm(m, zeta)
+configure_tlm((m, zeta))
 
 [... forward model ...]
 
 J = Functional(name="J")
 J.assign([...])
-J_tlm = J.tlm(m, zeta)
+J_tlm = J.tlm_functional((m, zeta))
 \end{lstlisting}
-The action of the second derivative of \texttt{J} in the direction
-\texttt{zeta} can now be computed by an adjoint calculation associated with the
-\texttt{Functional} \texttt{J\_tlm}
+The action of the second derivative of \texttt{J} on \texttt{zeta} can now be
+computed by an adjoint calculation associated with the \texttt{Functional}
+\texttt{J\_tlm}
 \begin{lstlisting}
 ddJ = compute_gradient(J_tlm, m)
 \end{lstlisting}
@@ -1829,14 +1813,13 @@ ddJ = compute_gradient(J_tlm, m)
 This generalizes to higher order in the natural way, for example for a fourth
 order derivative calculation
 \begin{lstlisting}
-add_tlm(m_0, zeta_0)
-add_tlm(m_1, zeta_1, max_depth=2)
+configure_tlm((m_0, zeta_0), (m_1, zeta_1), (m_1, zeta_1))
 
 [... forward model ...]
 
 J = Functional(name="J")
 J.assign([...])
-J_tlm_3 = J.tlm(m_0, zeta_0).tlm(m_1, zeta_1, max_depth=2)
+J_tlm_3 = J.tlm_functional((m_0, zeta_0), (m_1, zeta_1), (m_1, zeta_1))
 
 ddddJ = compute_gradient(J_tlm_3, m)
 \end{lstlisting}
@@ -1876,14 +1859,13 @@ The action of the Hessian can be computed using the
 \begin{lstlisting}
 J_val, dJ_val, ddJ = H.action(m, dm)
 \end{lstlisting}
-where \texttt{m} and \texttt{dm} are each a function or a sequence of functions
-defining the control and Hessian action direction. The forward model is first
-rerun using the \texttt{forward} callable prior to the second order adjoint
-calculation. This method returns the value of the functional, the first
-derivative of the functional in the direction defined by \texttt{dm}, and the
-action of the Hessian in the direction defined by \texttt{dm}. The degrees of
-freedom associated with \texttt{ddJ} are the complex conjugate of
-the Hessian action degrees of freedom.
+where \texttt{m} and \texttt{dm} are each a function or a sequence of
+functions. The forward model is first rerun using the \texttt{forward} callable
+prior to the second order adjoint calculation. This method returns the value of
+the functional, the first derivative of the functional evaluated with direction
+\texttt{dm}, and the action of the Hessian on \texttt{dm}. The degrees of
+freedom associated with \texttt{ddJ} are the complex conjugate of the Hessian
+action degrees of freedom.
 
 \subsubsection{Hessian actions with caching}
 
@@ -1938,9 +1920,8 @@ with arguments
     1 \right)$ (generated using the NumPy \texttt{numpy.random.random}
     function) is used.
   \item \texttt{M0}, a function, or a sequence of functions, defining the value
-    of the unperturbed reference value for the control. Extracted from internal
-    storage associated with the first block of the model (see section
-    \ref{sect:blocks}) if not supplied.
+    of the unperturbed reference value for the control. \texttt{M} is used if
+    not supplied.
   \item \texttt{size}, an integer, the number of control perturbations.
     Perturbations whose degrees of freedom are $\alpha 2^{-p}$ times
     \texttt{seed} times the values of the degrees of freedom of \texttt{dM} are
@@ -2327,7 +2308,7 @@ The active \texttt{EquationManager} can be set using
 set_manager(new_manager)
 \end{lstlisting}
 
-\subsection{Interacting with an \texttt{EquationManager}}
+\subsection{Interacting with an \texttt{EquationManager}}\label{sect:EquationManager_control}
 
 There are a number of functions which can be used to call methods of the
 currently active \texttt{EquationManager}. In the following the
@@ -2363,28 +2344,35 @@ Calls \texttt{EquationManager.stop}. Disables the \texttt{EquationManager}. If
 \texttt{tlm} is true then disables derivation and solution of tangent-linear
 equations.
 \begin{lstlisting}
-def add_tlm(M, dM, max_depth=1, manager=None):
+def configure_tlm(*args, annotate=None, tlm=True, manager=None):
 \end{lstlisting}
-Calls \texttt{EquationManager.add\_tlm}. Requests the derivation and solution
-of tangent-linear equations (see section \ref{sect:higher_order}).
+Calls \texttt{EquationManager.configure\_tlm}. Configures the derivation and
+solution of tangent-linear equations (see section \ref{sect:higher_order}).
+\texttt{annotate=False} can be used to disable recording of tangent-linear
+equations by the equation manager. \texttt{tlm=False} can be used to disable
+the automated derivation and solution of tangent-linear equations.
 \begin{lstlisting}
-def tlm(M, dM, x, max_depth=1, manager=None):
+def function_tlm(x, *args, manager=None):
 \end{lstlisting}
-Calls \texttt{EquationManager.tlm}. Accesses a tangent-linear variable.
+Calls \texttt{EquationManager.function\_tlm}. Accesses a tangent-linear
+variable.
 \begin{lstlisting}
 def compute_gradient(Js, M, callback=None, prune_forward=True,
-                     prune_adjoint=True, prune_replay=True, adj_ics=None,
-                     manager=None):
+                     prune_adjoint=True, prune_replay=True,
+                     cache_adjoint_degree=None, adj_ics=None, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.compute\_gradient}. Computes a forward model
 constrained derivative (see sections \ref{sect:first_order_adjoint} and
 \ref{sect:higher_order_adjoint}). \texttt{prune\_forward} and
 \texttt{prune\_adjoint} control pruning of the transpose dependency graph via
 forward and reverse traversal respectively. \texttt{prune\_replay} controls
-pruning of the dependency graph during rerunning of the forward. The optional
-\texttt{adj\_ics} is a map, or a sequence of maps, from forward functions or
-function IDs to adjoint initial conditions. The optional \texttt{callback}
-argument takes the form
+pruning of the dependency graph during rerunning of the forward.
+\texttt{cache\_adjoint\_degree} controls the caching and reuse of adjoint
+solutions between different adjoint models, with caching applied for adjoint
+models of the given degree and lower. By default caching is applied for all
+degrees. The optional \texttt{adj\_ics} is a map, or a sequence of maps, from
+forward functions or function IDs to adjoint initial conditions. The optional
+\texttt{callback} argument takes the form
 \begin{lstlisting}
 def callback(J_i, n, i, eq, adj_X)
 \end{lstlisting}
@@ -2404,46 +2392,20 @@ of equations (see section \ref{sect:blocks}).
 
 The annotation state of an \texttt{EquationManager} controls the annotation of
 equations -- that is, this controls the recording of which equations are
-solved. The annotation information is later used in adjoint calculations.
+solved. The recorded information is later used in adjoint calculations.
 
-The different annotation states of an \texttt{EquationManager} are
-\begin{itemize}
-  \item ``initial''. Annotation of equations is enabled, no equations have been
-    solved, and the manager is not yet finalized.
-  \item ``stopped\_initial''. Annotation of equations is disabled, no equations
-    have been solved, and the manager is not yet finalized.
-  \item ``annotating''. Annotation of equations is enabled, one or more
-    equations has been solved, and the manager is not yet finalized.
-  \item ``stopped\_annotating''. Annotation of equations is disabled, one or
-    more equations has been solved, and the manager is not yet finalized.
-  \item ``final''. The manager has been finalized. Occurs when
-    \texttt{compute\_gradient} is called.
-\end{itemize}
-The checkpointing configuration (see section
-\ref{sect:configure_checkpointing}) can only be changed when in the ``initial''
-or ``stopped\_initial'' annotation state. No new equations can be annotated
-when in the ``final'' annotation state.
+Recording of equations can be enabled and disabled using the
+\texttt{start\_manager} and \texttt{stop\_manager} functions  -- see section
+\ref{sect:EquationManager_control}.
 
 \subsubsection{Tangent-linear state}
 
 The tangent-linear state of an \texttt{EquationManager} controls the derivation
 and solution of tangent-linear equations.
 
-The different tangent-linear states of an \texttt{EquationManager} are
-\begin{itemize}
-  \item ``initial''. Derivation and solution of tangent-linear equations is
-    enabled, and \texttt{add\_tlm} has not yet been called (see section
-    \ref{sect:higher_order}).
-  \item ``stopped\_initial''. Derivation and solution of tangent-linear
-    equations is disabled, and  \texttt{add\_tlm} has not yet been called.
-  \item ``deriving''. Derivation and solution of tangent-linear equations is
-    enabled, and \texttt{add\_tlm} has been called at least once.
-  \item ``stopped\_deriving''. Derivation and solution of tangent-linear
-    equations is disabled, and \texttt{add\_tlm} has been called at least once.
-  \item ``final''. The manager has been finalized. Occurs when
-    \texttt{compute\_gradient} is called.
-\end{itemize}
-\texttt{add\_tlm} cannot be called when in the ``final'' tangent-linear state.
+Derivation and solution of tangent-linear equations can be enabled and disabled
+using the \texttt{start\_manager} and \texttt{stop\_manager} functions  -- see
+section \ref{sect:EquationManager_control}.
 
 \section{\texttt{timestepping}}
 

@@ -38,6 +38,7 @@ import copy
 import inspect
 import logging
 import numpy as np
+from operator import itemgetter
 import warnings
 import weakref
 
@@ -247,7 +248,7 @@ class Referrer:
                         if child_id not in referrers and child_id not in remaining_referrers:  # noqa: E501
                             remaining_referrers[child_id] = child
         return tuple(e[1] for e in sorted(tuple(referrers.items()),
-                                          key=lambda e: e[0]))
+                                          key=itemgetter(0)))
 
     def _drop_references(self):
         if not self._references_dropped:
@@ -297,7 +298,8 @@ class Equation(Referrer):
 
         if is_function(X):
             X = (X,)
-        X_ids = {function_id(x) for x in X}
+        X_ids = set(map(function_id, X))
+        dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         for x in X:
             if not is_function(x):
                 raise ValueError("Solution must be a function")
@@ -305,10 +307,9 @@ class Equation(Referrer):
                 raise ValueError("Solution must be checkpointed")
             if function_is_alias(x):
                 raise ValueError("Solution cannot be an alias")
-            if x not in deps:
+            if function_id(x) not in dep_ids:
                 raise ValueError("Solution must be a dependency")
 
-        dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
         if len(dep_ids) != len(deps):
             raise ValueError("Duplicate dependency")
         for dep in deps:
@@ -317,7 +318,7 @@ class Equation(Referrer):
 
         if nl_deps is None:
             nl_deps = tuple(deps)
-        nl_dep_ids = {function_id(dep) for dep in nl_deps}
+        nl_dep_ids = set(map(function_id, nl_deps))
         if len(nl_dep_ids) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
         for dep in nl_deps:
@@ -331,7 +332,7 @@ class Equation(Referrer):
         else:
             if ic is None:
                 ic = False
-        ic_dep_ids = {function_id(dep) for dep in ic_deps}
+        ic_dep_ids = set(map(function_id, ic_deps))
         if len(ic_dep_ids) != len(ic_deps):
             raise ValueError("Duplicate initial condition dependency")
         for dep in ic_deps:
@@ -348,7 +349,7 @@ class Equation(Referrer):
         else:
             if adj_ic is None:
                 adj_ic = False
-        adj_ic_dep_ids = {function_id(dep) for dep in adj_ic_deps}
+        adj_ic_dep_ids = set(map(function_id, adj_ic_deps))
         if len(adj_ic_dep_ids) != len(adj_ic_deps):
             raise ValueError("Duplicate adjoint initial condition dependency")
         for dep in adj_ic_deps:
@@ -491,7 +492,7 @@ class Equation(Referrer):
         Arguments:
 
         manager   (Optional) The equation manager.
-        annotate  (Optional) Whether the equation should be annotated.
+        annotate  (Optional) Whether the equation should be recorded.
         tlm       (Optional) Whether to derive (and solve) associated
                   tangent-linear equations.
         """
@@ -633,7 +634,8 @@ class Equation(Referrer):
                      dependencies.
         dep_index    The index of the dependency in self.dependencies() with
                      respect to which a derivative should be taken.
-        adj_x/adj_X  The direction of the adjoint derivative action.
+        adj_x/adj_X  A function or sequence of functions on which the adjoint
+                     of the derivative acts.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -646,12 +648,13 @@ class Equation(Referrer):
         adjoint_derivative_action method.
 
         The form:
-            subtract_adjoint_derivative_actions(self, adj_x, nl_deps, Bs)
+            subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs)
         should be used for equations which solve for a single function.
 
         Arguments:
 
-        adj_x/adj_X  The direction of the adjoint derivative actions.
+        adj_x/adj_X  A function or sequence of functions on which the adjoint
+                     of the derivatives act.
         nl_deps      A sequence of functions defining the values of non-linear
                      dependencies.
         dep_Bs       Dictionary of dep_index: dep_B pairs, where each dep_B is
@@ -690,7 +693,7 @@ class Equation(Referrer):
     def tangent_linear(self, M, dM, tlm_map):
         """
         Return an Equation corresponding to a tangent linear equation,
-        computing derivatives with respect to the control M in the direction
+        computing derivatives with respect to the control M with direction
         dM.
 
         Arguments:
@@ -738,7 +741,7 @@ class FunctionalMarker(Equation):
         J  A function. The functional.
         """
 
-        J = J.fn()
+        J = J.function()
         # Extra function allocation could be avoided
         J_ = function_new(J)
         super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)
@@ -951,10 +954,10 @@ class FixedPointSolver(Equation, CustomNormSq):
             Solver parameters dictionary. Parameters (based on KrylovSolver
             parameters in FEniCS 2017.2.0):
                 absolute_tolerance
-                    Absolute tolerance for the solution change 2-norm. Float,
+                    Absolute tolerance for the solution change. Float,
                     required.
                 relative_tolerance
-                    Relative tolerance for the solution change 2-norm. Float,
+                    Relative tolerance for the solution change. Float,
                     required.
                 maximum_iterations
                     Maximum permitted iterations. Positive integer, optional,
@@ -1760,7 +1763,8 @@ class Matrix(Referrer):
                      self.nonlinear_dependencies() with respect to which a
                      derivative should be taken.
         x/X          The argument of the forward matrix action.
-        adj_x/adj_X  The direction of the adjoint derivative action.
+        adj_x/adj_X  A function or sequence of functions on which the adjoint
+                     of the derivative acts.
         b            The result.
         method       (Optional) One of {"assign", "add", "sub"}.
         """
@@ -1776,13 +1780,13 @@ class Matrix(Referrer):
 
 class RHS(Referrer):
     def __init__(self, deps, nl_deps=None):
-        dep_ids = {function_id(dep) for dep in deps}
+        dep_ids = set(map(function_id, deps))
         if len(dep_ids) != len(deps):
             raise ValueError("Duplicate dependency")
 
         if nl_deps is None:
             nl_deps = tuple(deps)
-        nl_dep_ids = {function_id(dep) for dep in nl_deps}
+        nl_dep_ids = set(map(function_id, nl_deps))
         if len(nl_dep_ids) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
         if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):

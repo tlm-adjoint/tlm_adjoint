@@ -23,15 +23,14 @@ import warnings
 
 __all__ = \
     [
-        "add_tlm",
         "annotation_enabled",
         "compute_gradient",
         "configure_checkpointing",
+        "configure_tlm",
+        "function_tlm",
         "manager",
         "manager_info",
         "new_block",
-        "reset",
-        "reset_adjoint",
         "reset_manager",
         "restore_manager",
         "set_manager",
@@ -41,8 +40,12 @@ __all__ = \
         "stop_annotating",
         "stop_manager",
         "stop_tlm",
+        "tlm_enabled",
+
+        "add_tlm",
         "tlm",
-        "tlm_enabled"
+        "reset",
+        "reset_adjoint"
     ]
 
 _manager = [None]
@@ -137,10 +140,19 @@ def stop_tlm(manager=None):
     manager.stop(annotation=False, tlm=True)
 
 
-def add_tlm(M, dM, max_depth=1, manager=None):
+def configure_tlm(*args, annotate=None, tlm=True, manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.add_tlm(M, dM, max_depth=max_depth)
+    manager.configure_tlm(*args, annotate=annotate, tlm=tlm)
+
+
+def add_tlm(M, dM, max_depth=1, manager=None):
+    warnings.warn("add_tlm is deprecated -- "
+                  "use configure_tlm instead",
+                  DeprecationWarning, stacklevel=2)
+    if manager is None:
+        manager = globals()["manager"]()
+    manager.add_tlm(M, dM, max_depth=max_depth, _warning=False)
 
 
 def tlm_enabled(manager=None):
@@ -149,10 +161,19 @@ def tlm_enabled(manager=None):
     return manager.tlm_enabled()
 
 
-def tlm(M, dM, x, max_depth=1, manager=None):
+def function_tlm(x, *args, manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    return manager.tlm(M, dM, x, max_depth=max_depth)
+    return manager.function_tlm(x, *args)
+
+
+def tlm(M, dM, x, max_depth=1, manager=None):
+    warnings.warn("tlm is deprecated -- "
+                  "use function_tlm instead",
+                  DeprecationWarning, stacklevel=2)
+    if manager is None:
+        manager = globals()["manager"]()
+    return manager.tlm(M, dM, x, max_depth=max_depth, _warning=False)
 
 
 def reset_adjoint(manager=None):
@@ -164,14 +185,15 @@ def reset_adjoint(manager=None):
 
 
 def compute_gradient(Js, M, callback=None, prune_forward=True,
-                     prune_adjoint=True, prune_replay=True, adj_ics=None,
-                     manager=None):
+                     prune_adjoint=True, prune_replay=True,
+                     cache_adjoint_degree=None, adj_ics=None, manager=None):
     if manager is None:
         manager = globals()["manager"]()
     return manager.compute_gradient(Js, M, callback=callback,
                                     prune_forward=prune_forward,
                                     prune_adjoint=prune_adjoint,
                                     prune_replay=prune_replay,
+                                    cache_adjoint_degree=cache_adjoint_degree,
                                     adj_ics=adj_ics)
 
 

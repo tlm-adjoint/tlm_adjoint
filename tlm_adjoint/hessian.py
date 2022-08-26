@@ -142,16 +142,15 @@ class GeneralHessian(Hessian):
         where
         - J is the functional value
         - dJ is the derivative of J with respect to the parameters defined by M
-          in in the direction dM
-        - ddJ is the complex conjugate of the action, in the direction dM, of
-          the second derivative of the functional with respect to M
+          evaluated with direction dM
+        - ddJ is the complex conjugate of the action of the second derivative
+          of the functional with respect to M on dM
 
         Arguments:
 
         M   A function, or a sequence of functions, defining the control
             parameters.
-        dM  A function, or a sequence or functions, defining the Hessian action
-            direction.
+        dM  A function, or a sequence or functions, on which the Hessian acts.
         M0  (Optional) A function, or a sequence of functions, defining the
             values of the control parameters.
         """
@@ -183,10 +182,10 @@ class GeneralHessian(Hessian):
                                  checkpoint=function_is_checkpointed(dm))
                    for dm in dM)
 
-        self._manager.add_tlm(M, dM)
+        self._manager.configure_tlm((M, dM))
         self._manager.start()
         J = self._forward(*M)
-        dJ = J.tlm(M, dM, manager=self._manager)
+        dJ = J.tlm_functional((M, dM), manager=self._manager)
         self._manager.stop()
 
         J_val = J.value()
@@ -215,7 +214,7 @@ class GaussNewton:
         manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
 
         # J dM
-        tau_X = tuple(manager.tlm(M, dM, x) for x in X)
+        tau_X = tuple(manager.function_tlm(x, (M, dM)) for x in X)
         # R^{-1} conj(J dM)
         R_inv_tau_X = self._R_inv_action(
             *tuple(function_copy(tau_x) for tau_x in tau_X))
@@ -231,7 +230,7 @@ class GaussNewton:
         J = Functional(space=self._J_space)
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
-            J_term = function_new(J.fn())
+            J_term = function_new(J.function())
             InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
                 manager=manager, tlm=False)
             J.addto(J_term, manager=manager, tlm=False)
@@ -295,9 +294,7 @@ class GeneralGaussNewton(GaussNewton):
                                  checkpoint=function_is_checkpointed(dm))
                    for dm in dM)
 
-        self._manager.add_tlm(M, dM)
-        # Possible optimization: We annotate all the TLM equations, but are
-        # later only going to differentiate back through the forward
+        self._manager.configure_tlm((M, dM), annotate=False)
         self._manager.start()
         X = self._forward(*M)
         if not isinstance(X, Sequence):
