@@ -165,7 +165,7 @@ class Functional:
         if manager is None:
             manager = _manager()
 
-        return Functional(_fn=manager.function_tlm(*args))
+        return Functional(_fn=manager.function_tlm(self.function(), *args))
 
     def tlm(self, M, dM, *, max_depth=1, manager=None):
         warnings.warn("Functional.tlm method is deprecated -- "
