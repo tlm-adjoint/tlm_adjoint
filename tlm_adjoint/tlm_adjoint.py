@@ -1473,7 +1473,7 @@ class EquationManager:
         if _warning:
             warnings.warn("EquationManager.reset_adjoint method is deprecated",
                           DeprecationWarning, stacklevel=2)
-                          
+
         for eq in self._eqs.values():
             eq.reset_adjoint()
 
