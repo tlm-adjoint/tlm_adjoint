@@ -954,7 +954,7 @@ class EquationManager:
                          child)
                         for child_M_dM, child in node.items())
 
-    def add_tlm(self, M, dM, *, _warning=True):
+    def add_tlm(self, M, dM, max_depth=1, *, _warning=True):
         if _warning:
             warnings.warn("EquationManager.add_tlm method is deprecated -- "
                           "use EquationManager.configure_tlm instead",
@@ -966,11 +966,12 @@ class EquationManager:
 
         (M, dM), key = tlm_key(M, dM)
 
-        remaining_nodes = [self._tlm]
-        while len(remaining_nodes) > 0:
-            node = remaining_nodes.pop()
-            remaining_nodes.extend(node.values())
-            node.add(M, dM, annotate=True)
+        for depth in range(max_depth):
+            remaining_nodes = [self._tlm]
+            while len(remaining_nodes) > 0:
+                node = remaining_nodes.pop()
+                remaining_nodes.extend(node.values())
+                node.add(M, dM, annotate=True)
 
         if key not in self._tlm_map:
             self._tlm_map[key] = TangentLinearMap(M, dM)

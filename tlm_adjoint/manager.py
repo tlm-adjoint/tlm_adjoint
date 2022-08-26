@@ -152,8 +152,7 @@ def add_tlm(M, dM, max_depth=1, manager=None):
                   DeprecationWarning, stacklevel=2)
     if manager is None:
         manager = globals()["manager"]()
-    for depth in range(max_depth):
-        manager.add_tlm(M, dM, _warning=False)
+    manager.add_tlm(M, dM, max_depth=max_depth, _warning=False)
 
 
 def tlm_enabled(manager=None):
