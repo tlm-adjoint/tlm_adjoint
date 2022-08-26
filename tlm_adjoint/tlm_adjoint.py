@@ -993,7 +993,7 @@ class EquationManager:
             tau = self._tlm_map[key][tau]
         return tau
 
-    def tlm(self, M, dM, x, max_depth=1, _warning=True):
+    def tlm(self, M, dM, x, max_depth=1, *, _warning=True):
         if _warning:
             warnings.warn("EquationManager.tlm method is deprecated -- "
                           "use EquationManager.function_tlm instead",
@@ -1469,7 +1469,7 @@ class EquationManager:
                 self._blocks.append([])
         self._checkpoint(final=True)
 
-    def reset_adjoint(self, _warning=True):
+    def reset_adjoint(self, *, _warning=True):
         if _warning:
             warnings.warn("EquationManager.reset_adjoint method is deprecated",
                           DeprecationWarning, stacklevel=2)
