@@ -517,9 +517,8 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
                 raise ValueError("Invalid dependency")
 
             eq = EquationSolver(
-                linear_equation_new_x(A == b, x,
-                                      annotate=annotate, tlm=tlm),
-                x, self._problem.bcs, solver_parameters=solver_parameters,
+                A == b, x, self._problem.bcs,
+                solver_parameters=solver_parameters,
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=self._problem._constant_jacobian,
                 cache_rhs_assembly=False)
