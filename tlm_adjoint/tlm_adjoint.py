@@ -486,6 +486,9 @@ class AdjointCache:
             adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
         return adj_X
 
+    def remove(self, J_i, n, i):
+        del self._cache[(J_i, n, i)]
+
     def cache(self, J_i, n, i, adj_X, *, copy=True, store=False):
         if (J_i, n, i) in self._keys \
                 and (store or len(self._keys[(J_i, n, i)]) > 0):
@@ -1672,6 +1675,10 @@ class EquationManager:
                             J, adj_X, nl_deps,
                             transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     else:
+                        if not store_adjoint \
+                                and (J_i, n, i) in self._adj_cache:
+                            self._adj_cache.remove(J_i, n, i)
+
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
 
