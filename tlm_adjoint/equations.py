@@ -1939,7 +1939,7 @@ class DotProductRHS(RHS):
 
         check_space_types_dual(x, y)
 
-        x_equals_y = x == y
+        x_equals_y = function_id(x) == function_id(y)
         if x_equals_y:
             deps = [x]
         else:
@@ -2050,7 +2050,7 @@ class InnerProductRHS(RHS):
             raise NotImplementedError("Non-linear matrix dependencies not "
                                       "supported")
 
-        norm_sq = x == y
+        norm_sq = function_id(x) == function_id(y)
         if norm_sq:
             deps = [x]
         else:
