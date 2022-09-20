@@ -212,6 +212,8 @@ def test_leaks():
 
 @pytest.fixture
 def tmp_path(tmp_path):
+    if MPI.COMM_WORLD.rank != 0:
+        tmp_path = None
     return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 
