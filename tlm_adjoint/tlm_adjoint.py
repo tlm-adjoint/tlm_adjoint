@@ -1444,7 +1444,7 @@ class EquationManager:
                 and len(self._blocks) == self._cp_manager.max_n() - 1:
             # Wait for the finalize
             warnings.warn(
-                "Attempting to end the final block without finalising -- "
+                "Attempting to end the final block without finalizing -- "
                 "ignored", RuntimeWarning, stacklevel=2)
             return
 
