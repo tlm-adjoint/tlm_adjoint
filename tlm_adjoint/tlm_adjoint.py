@@ -36,7 +36,6 @@ from collections import defaultdict, deque
 from collections.abc import Sequence
 import copy
 import enum
-import gc
 import itertools
 import logging
 import numpy as np
@@ -1552,7 +1551,6 @@ class EquationManager:
             return dJ
 
         set_manager(self)
-        gc.collect()
         self.finalize()
         self.reset_adjoint(_warning=False)
 
