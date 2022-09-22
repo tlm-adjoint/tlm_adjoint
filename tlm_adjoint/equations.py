@@ -1000,8 +1000,7 @@ class FixedPointSolver(Equation, CustomNormSq):
                                    ("nonzero_initial_guess", True),
                                    ("adjoint_nonzero_initial_guess", True),
                                    ("adjoint_eqs_index_0", 0)]:
-            if key not in solver_parameters:
-                solver_parameters[key] = default_value
+            solver_parameters.setdefault(key, default_value)
 
         nonzero_initial_guess = solver_parameters["nonzero_initial_guess"]
         adjoint_nonzero_initial_guess = \
