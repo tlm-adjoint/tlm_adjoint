@@ -26,7 +26,7 @@ from .backend_code_generator_interface import assemble, assemble_arguments, \
 
 from ..caches import Cache
 
-from .functions import eliminate_zeros, replaced_form
+from .functions import eliminate_zeros, extract_coefficients, replaced_form
 
 from collections import defaultdict
 import ufl
@@ -48,8 +48,8 @@ __all__ = \
     ]
 
 
-def is_cached(e):
-    for c in ufl.algorithms.extract_coefficients(e):
+def is_cached(expr):
+    for c in extract_coefficients(expr):
         if not is_function(c) or not function_is_cached(c):
             return False
     return True
