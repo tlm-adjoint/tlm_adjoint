@@ -215,8 +215,9 @@ class AssembleSolver(ExprEquation):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
-        dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                       for integral in dF.integrals()])  # dF = adjoint(dF)
+        dF = ufl.classes.Form(
+            [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
+             for integral in dF.integrals()])  # dF = adjoint(dF)
         dF = assemble(
             dF, form_compiler_parameters=self._form_compiler_parameters)
         return (-function_scalar_value(adj_x), dF)
