@@ -922,13 +922,12 @@ class MemoryCheckpointingManager(CheckpointingManager):
 
 
 class PeriodicDiskCheckpointingManager(CheckpointingManager):
-    def __init__(self, period, *, keep_block_0_ics=False):
+    def __init__(self, period):
         if period < 1:
             raise ValueError("period must be positive")
 
         super().__init__()
         self._period = period
-        self._keep_block_0_ics = keep_block_0_ics
 
     def iter(self):
         # Forward
@@ -963,23 +962,13 @@ class PeriodicDiskCheckpointingManager(CheckpointingManager):
                 yield "read", (n0, "disk", False)
                 yield "clear", (True, True)
 
-                if self._keep_block_0_ics and n0 == 0:
-                    yield "configure", (True, True)
-                    self._n = n0 + 1
-                    yield "forward", (n0, n0 + 1)
-
-                    if n1 > n0 + 1:
-                        yield "configure", (False, True)
-                        self._n = n1
-                        yield "forward", (n0 + 1, n1)
-                else:
-                    yield "configure", (False, True)
-                    self._n = n1
-                    yield "forward", (n0, n1)
+                yield "configure", (False, True)
+                self._n = n1
+                yield "forward", (n0, n1)
 
                 self._r = self._max_n - n0
                 yield "reverse", (n1, n0)
-                yield "clear", (not self._keep_block_0_ics or n0 != 0, True)
+                yield "clear", (True, True)
             if self._r != self._max_n:
                 raise RuntimeError("Invalid checkpointing state")
 
