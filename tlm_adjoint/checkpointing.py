@@ -872,6 +872,11 @@ class NoneCheckpointingManager(CheckpointingManager):
     def iter(self):
         # Forward
 
+        if self._max_n is not None:
+            # Unexpected finalize
+            raise RuntimeError("Invalid checkpointing state")
+        yield "configure", (False, False)
+
         while self._max_n is None:
             n0 = self._n
             n1 = n0 + sys.maxsize
