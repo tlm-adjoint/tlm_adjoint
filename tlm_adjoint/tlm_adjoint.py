@@ -1012,12 +1012,12 @@ class EquationManager:
 
         return self._annotation_state == AnnotationState.ANNOTATING
 
-    def start(self, annotation=True, tlm=True):
+    def start(self, *, annotate=True, tlm=True):
         """
         Start annotation or tangent-linear derivation.
         """
 
-        if annotation:
+        if annotate:
             self._annotation_state \
                 = {AnnotationState.STOPPED: AnnotationState.ANNOTATING,
                    AnnotationState.ANNOTATING: AnnotationState.ANNOTATING}[self._annotation_state]  # noqa: E501
@@ -1027,7 +1027,7 @@ class EquationManager:
                 = {TangentLinearState.STOPPED: TangentLinearState.DERIVING,
                    TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
-    def stop(self, annotation=True, tlm=True):
+    def stop(self, *, annotate=True, tlm=True):
         """
         Pause annotation or tangent-linear derivation. Returns a tuple
         containing:
@@ -1039,7 +1039,7 @@ class EquationManager:
 
         state = (self.annotation_enabled(), self.tlm_enabled())
 
-        if annotation:
+        if annotate:
             self._annotation_state \
                 = {AnnotationState.STOPPED: AnnotationState.STOPPED,
                    AnnotationState.ANNOTATING: AnnotationState.STOPPED,

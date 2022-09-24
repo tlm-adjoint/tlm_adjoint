@@ -151,7 +151,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         try:
             J_vals[i] = forward(*M1).value()
         finally:
-            manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
+            manager.start(annotate=annotation_enabled, tlm=tlm_enabled)
     if abs(J_vals.imag).max() == 0.0:
         J_vals = J_vals.real
 
@@ -235,7 +235,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
         clear_caches()
 
         tlm_manager.configure_tlm(*[(M, dM) for dM in dMs])
-        tlm_manager.start(annotation=False, tlm=True)
+        tlm_manager.start(annotate=False, tlm=True)
         J = forward(*M)
         for dM in dMs:
             J = J.tlm_functional((M, dM), manager=tlm_manager)
@@ -315,7 +315,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
 
         tlm_manager.configure_tlm(*[(M, dM) for dM in dMs],
                                   annotate=annotate)
-        tlm_manager.start(annotation=annotate, tlm=True)
+        tlm_manager.start(annotate=annotate, tlm=True)
         J = forward(*M)
         for dM in dMs:
             J = J.tlm_functional((M, dM), manager=tlm_manager)

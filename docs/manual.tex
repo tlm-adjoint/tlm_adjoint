@@ -2330,14 +2330,14 @@ def reset_manager(cp_method=None, cp_parameters=None, manager=None):
 Calls \texttt{EquationManager.reset}. Resets the \texttt{EquationManager}, and
 optionally defines a new checkpointing configuration.
 \begin{lstlisting}
-def start_manager(annotation=True, tlm=True, manager=None):
+def start_manager(*, annotate=True, tlm=True, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.start}. Enables the \texttt{EquationManager}. If
 \texttt{annotation} is true then enables recording of solved equations. If
 \texttt{tlm} is true then enables derivation and solution of tangent-linear
 equations.
 \begin{lstlisting}
-def stop_manager(annotation=True, tlm=True, manager=None):
+def stop_manager(*, annotate=True, tlm=True, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.stop}. Disables the \texttt{EquationManager}. If
 \texttt{annotation} is true then disables recording of solved equations. If

@@ -506,7 +506,7 @@ class Equation(Referrer):
         try:
             self.forward(self.X())
         finally:
-            manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
+            manager.start(annotate=annotation_enabled, tlm=tlm_enabled)
 
         self._post_process(manager=manager, annotate=annotate, tlm=tlm)
 

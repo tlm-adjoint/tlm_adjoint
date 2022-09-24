@@ -104,40 +104,40 @@ def annotation_enabled(manager=None):
     return manager.annotation_enabled()
 
 
-def start_manager(annotation=True, tlm=True, manager=None):
+def start_manager(*, annotate=True, tlm=True, manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.start(annotation=annotation, tlm=tlm)
+    manager.start(annotate=annotate, tlm=tlm)
 
 
 def start_annotating(manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.start(annotation=True, tlm=False)
+    manager.start(annotate=True, tlm=False)
 
 
 def start_tlm(manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.start(annotation=False, tlm=True)
+    manager.start(annotate=False, tlm=True)
 
 
-def stop_manager(annotation=True, tlm=True, manager=None):
+def stop_manager(*, annotate=True, tlm=True, manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.stop(annotation=annotation, tlm=tlm)
+    manager.stop(annotate=annotate, tlm=tlm)
 
 
 def stop_annotating(manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.stop(annotation=True, tlm=False)
+    manager.stop(annotate=True, tlm=False)
 
 
 def stop_tlm(manager=None):
     if manager is None:
         manager = globals()["manager"]()
-    manager.stop(annotation=False, tlm=True)
+    manager.stop(annotate=False, tlm=True)
 
 
 def configure_tlm(*args, annotate=None, tlm=True, manager=None):
