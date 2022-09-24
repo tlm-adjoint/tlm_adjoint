@@ -505,7 +505,6 @@ class AdjointCache:
 
     def initialize(self, Js, blocks, transpose_deps, *,
                    cache_degree=None):
-
         J_roots, tlm_adj = J_tangent_linears(Js, blocks,
                                              max_adjoint_degree=cache_degree)
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
