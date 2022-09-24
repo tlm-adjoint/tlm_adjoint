@@ -346,7 +346,7 @@ class EquationSolver(ExprEquation):
                         deps[dep_id] = dep
 
         if initial_guess is not None:
-            warnings.warn("'initial_guess' argument is deprecated",
+            warnings.warn("initial_guess argument is deprecated",
                           DeprecationWarning, stacklevel=2)
             if initial_guess == x:
                 initial_guess = None

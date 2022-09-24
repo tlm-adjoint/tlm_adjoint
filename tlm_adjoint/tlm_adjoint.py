@@ -808,7 +808,7 @@ class EquationManager:
 
         if not callable(cp_method) and cp_method in ["none", "memory"]:
             if "replace" in cp_parameters:
-                warnings.warn("'replace' cp_parameters key is deprecated",
+                warnings.warn("replace cp_parameters key is deprecated",
                               DeprecationWarning, stacklevel=2)
                 if "drop_references" in cp_parameters:
                     if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
