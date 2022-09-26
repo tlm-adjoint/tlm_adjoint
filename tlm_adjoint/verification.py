@@ -29,9 +29,9 @@ from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
+import functools
 import logging
 import numpy as np
-import functools
 
 __all__ = \
     [
