@@ -165,7 +165,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
     """
 
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
-                 keep_block_0_ics=False, trajectory="maximum"):
+                 trajectory="maximum"):
         if snapshots_in_ram == 0:
             storage = tuple("disk" for i in range(snapshots_on_disk))
         elif snapshots_on_disk == 0:
@@ -175,13 +175,15 @@ class MultistageCheckpointingManager(CheckpointingManager):
                 max_n, snapshots_in_ram, snapshots_on_disk,
                 trajectory=trajectory)
 
+        snapshots_in_ram = storage.count("RAM")
+        snapshots_on_disk = storage.count("disk")
+
         super().__init__(max_n=max_n)
         self._snapshots_in_ram = snapshots_in_ram
         self._snapshots_on_disk = snapshots_on_disk
         self._snapshots = []
         self._storage = storage
         self._exhausted = False
-        self._keep_block_0_ics = keep_block_0_ics
         self._trajectory = trajectory
 
     def iter(self):
@@ -210,7 +212,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
         # Forward -> reverse
 
-        yield "configure", (self._keep_block_0_ics and self._n == 0, True)
+        yield "configure", (False, True)
 
         self._n += 1
         yield "forward", (self._n - 1, self._n)
@@ -268,14 +270,14 @@ class MultistageCheckpointingManager(CheckpointingManager):
                 if self._n != self._max_n - self._r - 1:
                     raise RuntimeError("Invalid checkpointing state")
 
-            yield "configure", (self._keep_block_0_ics and self._n == 0, True)
+            yield "configure", (False, True)
 
             self._n += 1
             yield "forward", (self._n - 1, self._n)
 
             self._r += 1
             yield "reverse", (self._n, self._n - 1)
-            yield "clear", (not self._keep_block_0_ics or self._n != 1, True)
+            yield "clear", (True, True)
         if self._r != self._max_n:
             raise RuntimeError("Invalid checkpointing state")
         if len(self._snapshots) != 0:
@@ -301,7 +303,7 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
 class TwoLevelCheckpointingManager(CheckpointingManager):
     def __init__(self, disk_period, binomial_snapshots, *,
-                 binomial_storage="disk", keep_block_0_ics=False,
+                 binomial_storage="disk",
                  binomial_trajectory="maximum"):
         """
         The two-level mixed periodic/binomial checkpointing approach of
@@ -326,7 +328,6 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
         self._period = disk_period
         self._binomial_snapshots = binomial_snapshots
         self._binomial_storage = binomial_storage
-        self._keep_block_0_ics = keep_block_0_ics
         self._trajectory = binomial_trajectory
 
     def iter(self):
@@ -414,14 +415,14 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                         if self._n != self._max_n - self._r - 1:
                             raise RuntimeError("Invalid checkpointing state")
 
-                    yield "configure", (self._keep_block_0_ics and self._n == 0, True)  # noqa: E501
+                    yield "configure", (False, True)
 
                     self._n += 1
                     yield "forward", (self._n - 1, self._n)
 
                     self._r += 1
                     yield "reverse", (self._n, self._n - 1)
-                    yield "clear", (not self._keep_block_0_ics or self._n != 1, True)  # noqa: E501
+                    yield "clear", (True, True)
                 if self._r != self._max_n - n0s:
                     raise RuntimeError("Invalid checkpointing state")
                 if len(snapshots) != 0:

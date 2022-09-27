@@ -52,7 +52,6 @@ __all__ = \
         "eliminate_zeros",
         "extract_coefficients",
         "new_count",
-        "replaced_expr",
         "replaced_form"
     ]
 
@@ -571,14 +570,6 @@ class ReplacementConstant(backend_Constant, Replacement):
 class ReplacementFunction(backend_Function, Replacement):
     def __init__(self, x):
         Replacement.__init__(self, x)
-
-
-def replaced_expr(expr):
-    replace_map = {}
-    for c in ufl.algorithms.extract_coefficients(expr):
-        if is_function(c):
-            replace_map[c] = function_replacement(c)
-    return ufl.replace(expr, replace_map)
 
 
 def replaced_form(form):

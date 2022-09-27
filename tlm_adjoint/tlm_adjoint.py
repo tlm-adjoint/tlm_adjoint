@@ -36,7 +36,6 @@ from collections import defaultdict, deque
 from collections.abc import Sequence
 import copy
 import enum
-import gc
 import itertools
 import logging
 import numpy as np
@@ -506,7 +505,6 @@ class AdjointCache:
 
     def initialize(self, Js, blocks, transpose_deps, *,
                    cache_degree=None):
-
         J_roots, tlm_adj = J_tangent_linears(Js, blocks,
                                              max_adjoint_degree=cache_degree)
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
@@ -809,7 +807,7 @@ class EquationManager:
 
         if not callable(cp_method) and cp_method in ["none", "memory"]:
             if "replace" in cp_parameters:
-                warnings.warn("'replace' cp_parameters key is deprecated",
+                warnings.warn("replace cp_parameters key is deprecated",
                               DeprecationWarning, stacklevel=2)
                 if "drop_references" in cp_parameters:
                     if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
@@ -833,14 +831,12 @@ class EquationManager:
             cp_manager = MemoryCheckpointingManager()
         elif cp_method == "periodic_disk":
             cp_manager = PeriodicDiskCheckpointingManager(
-                cp_parameters["period"],
-                keep_block_0_ics=True)
+                cp_parameters["period"])
         elif cp_method == "multistage":
             cp_manager = MultistageCheckpointingManager(
                 cp_parameters["blocks"],
                 cp_parameters.get("snaps_in_ram", 0),
                 cp_parameters.get("snaps_on_disk", 0),
-                keep_block_0_ics=True,
                 trajectory="maximum")
         else:
             raise ValueError(f"Unrecognized checkpointing method: "
@@ -1016,12 +1012,12 @@ class EquationManager:
 
         return self._annotation_state == AnnotationState.ANNOTATING
 
-    def start(self, annotation=True, tlm=True):
+    def start(self, *, annotate=True, tlm=True):
         """
         Start annotation or tangent-linear derivation.
         """
 
-        if annotation:
+        if annotate:
             self._annotation_state \
                 = {AnnotationState.STOPPED: AnnotationState.ANNOTATING,
                    AnnotationState.ANNOTATING: AnnotationState.ANNOTATING}[self._annotation_state]  # noqa: E501
@@ -1031,7 +1027,7 @@ class EquationManager:
                 = {TangentLinearState.STOPPED: TangentLinearState.DERIVING,
                    TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
-    def stop(self, annotation=True, tlm=True):
+    def stop(self, *, annotate=True, tlm=True):
         """
         Pause annotation or tangent-linear derivation. Returns a tuple
         containing:
@@ -1043,7 +1039,7 @@ class EquationManager:
 
         state = (self.annotation_enabled(), self.tlm_enabled())
 
-        if annotation:
+        if annotate:
             self._annotation_state \
                 = {AnnotationState.STOPPED: AnnotationState.STOPPED,
                    AnnotationState.ANNOTATING: AnnotationState.STOPPED,
@@ -1444,7 +1440,7 @@ class EquationManager:
                 and len(self._blocks) == self._cp_manager.max_n() - 1:
             # Wait for the finalize
             warnings.warn(
-                "Attempting to end the final block without finalising -- "
+                "Attempting to end the final block without finalizing -- "
                 "ignored", RuntimeWarning, stacklevel=2)
             return
 
@@ -1552,7 +1548,6 @@ class EquationManager:
             return dJ
 
         set_manager(self)
-        gc.collect()
         self.finalize()
         self.reset_adjoint(_warning=False)
 

@@ -41,7 +41,6 @@ from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
     eliminate_zeros, extract_coefficients
 
-import copy
 import numpy as np
 import ufl
 import warnings
@@ -216,8 +215,9 @@ class AssembleSolver(ExprEquation):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
-        dF = ufl.Form([integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                       for integral in dF.integrals()])  # dF = adjoint(dF)
+        dF = ufl.classes.Form(
+            [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
+             for integral in dF.integrals()])  # dF = adjoint(dF)
         dF = assemble(
             dF, form_compiler_parameters=self._form_compiler_parameters)
         return (-function_scalar_value(adj_x), dF)
@@ -346,7 +346,7 @@ class EquationSolver(ExprEquation):
                         deps[dep_id] = dep
 
         if initial_guess is not None:
-            warnings.warn("'initial_guess' argument is deprecated",
+            warnings.warn("initial_guess argument is deprecated",
                           DeprecationWarning, stacklevel=2)
             if initial_guess == x:
                 initial_guess = None
@@ -830,8 +830,8 @@ class DirichletBCSolver(Equation):
         check_space_type(y, "primal")
 
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-        self._bc_args = copy.copy(args)
-        self._bc_kwargs = copy.copy(kwargs)
+        self._bc_args = args
+        self._bc_kwargs = kwargs
 
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps

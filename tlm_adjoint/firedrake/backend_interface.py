@@ -191,7 +191,10 @@ class FunctionInterface(_FunctionInterface):
         if e.family() == "Real" and e.degree() == 0:
             # Work around Firedrake issue #1459
             values = self.dat.data_ro.copy()
-            values = function_comm(self).bcast(values, root=0)
+            comm = function_comm(self)
+            if comm.rank != 0:
+                values = None
+            values = comm.bcast(values, root=0)
             self.dat.data[:] = values
 
     def _axpy(self, alpha, x, /):
@@ -217,7 +220,10 @@ class FunctionInterface(_FunctionInterface):
         if e.family() == "Real" and e.degree() == 0:
             # Work around Firedrake issue #1459
             values = self.dat.data_ro.copy()
-            values = function_comm(self).bcast(values, root=0)
+            comm = function_comm(self)
+            if comm.rank != 0:
+                values = None
+            values = comm.bcast(values, root=0)
             self.dat.data[:] = values
 
     def _inner(self, y):

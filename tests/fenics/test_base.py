@@ -163,24 +163,6 @@ _Function__init__orig = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def _EquationManager_configure_checkpointing(self, *args, **kwargs):
-    if hasattr(self, "_cp_manager") \
-            and hasattr(self, "_cp_path"):
-        if self._cp_manager.is_exhausted() \
-                and self._cp_manager.max_n() is not None \
-                and self._cp_manager.r() == self._cp_manager.max_n() \
-                and self._cp_path is not None:
-            self._comm.barrier()
-            if os.path.exists(self._cp_path):
-                assert len(os.listdir(self._cp_path)) == 0
-
-    _EquationManager_configure_checkpointing__orig(self, *args, **kwargs)
-
-
-_EquationManager_configure_checkpointing__orig = EquationManager.configure_checkpointing  # noqa: E501
-EquationManager.configure_checkpointing = _EquationManager_configure_checkpointing  # noqa: E501
-
-
 @pytest.fixture
 def test_leaks():
     function_ids.clear()
@@ -217,6 +199,8 @@ def test_leaks():
 
 @pytest.fixture
 def tmp_path(tmp_path):
+    if MPI.COMM_WORLD.rank != 0:
+        tmp_path = None
     return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 

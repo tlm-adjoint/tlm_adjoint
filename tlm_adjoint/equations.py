@@ -506,7 +506,7 @@ class Equation(Referrer):
         try:
             self.forward(self.X())
         finally:
-            manager.start(annotation=annotation_enabled, tlm=tlm_enabled)
+            manager.start(annotate=annotation_enabled, tlm=tlm_enabled)
 
         self._post_process(manager=manager, annotate=annotate, tlm=tlm)
 
@@ -984,14 +984,14 @@ class FixedPointSolver(Equation, CustomNormSq):
 
         solver_parameters = copy.deepcopy(solver_parameters)
         if "nonzero_adjoint_initial_guess" in solver_parameters:
-            warnings.warn("'nonzero_adjoint_initial_guess' parameter is "
-                          "deprecated -- use 'adjoint_nonzero_initial_guess' "
+            warnings.warn("nonzero_adjoint_initial_guess parameter is "
+                          "deprecated -- use adjoint_nonzero_initial_guess "
                           "instead",
                           DeprecationWarning, stacklevel=2)
             if "adjoint_nonzero_initial_guess" in solver_parameters:
                 raise ValueError("Cannot supply both "
-                                 "'nonzero_adjoint_initial_guess' and "
-                                 "'adjoint_nonzero_initial_guess' "
+                                 "nonzero_adjoint_initial_guess and "
+                                 "adjoint_nonzero_initial_guess "
                                  "parameters")
             solver_parameters["adjoint_nonzero_initial_guess"] = \
                 solver_parameters.pop("nonzero_adjoint_initial_guess")
@@ -1000,8 +1000,7 @@ class FixedPointSolver(Equation, CustomNormSq):
                                    ("nonzero_initial_guess", True),
                                    ("adjoint_nonzero_initial_guess", True),
                                    ("adjoint_eqs_index_0", 0)]:
-            if key not in solver_parameters:
-                solver_parameters[key] = default_value
+            solver_parameters.setdefault(key, default_value)
 
         nonzero_initial_guess = solver_parameters["nonzero_initial_guess"]
         adjoint_nonzero_initial_guess = \
@@ -1624,12 +1623,11 @@ class Matrix(Referrer):
             raise ValueError("Duplicate non-linear dependency")
 
         if has_ic_dep is not None:
-            warnings.warn("'has_ic_dep' argument is deprecated -- use 'ic' "
+            warnings.warn("has_ic_dep argument is deprecated -- use ic "
                           "instead",
                           DeprecationWarning, stacklevel=2)
             if ic is not None:
-                raise TypeError("Cannot pass both 'has_ic_dep' and 'ic' "
-                                "arguments")
+                raise TypeError("Cannot pass both has_ic_dep and ic arguments")
             ic = has_ic_dep
         elif ic is None:
             ic = True
@@ -1939,7 +1937,7 @@ class DotProductRHS(RHS):
 
         check_space_types_dual(x, y)
 
-        x_equals_y = x == y
+        x_equals_y = function_id(x) == function_id(y)
         if x_equals_y:
             deps = [x]
         else:
@@ -2050,7 +2048,7 @@ class InnerProductRHS(RHS):
             raise NotImplementedError("Non-linear matrix dependencies not "
                                       "supported")
 
-        norm_sq = x == y
+        norm_sq = function_id(x) == function_id(y)
         if norm_sq:
             deps = [x]
         else:

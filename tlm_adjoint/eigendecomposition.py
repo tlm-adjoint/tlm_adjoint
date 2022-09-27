@@ -180,7 +180,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     A_action = wrapped_action(space, space_type, action_type, A_action)
     if B_action is None:
         if action_type in ["dual", "conjugate_dual"]:
-            space_type_warning("'B_action' argument expected with action type "
+            space_type_warning("B_action argument expected with action type "
                                "'dual' or 'conjugate_dual'")
         else:
             assert action_type == "primal"
