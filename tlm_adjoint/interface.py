@@ -199,6 +199,9 @@ _comms = weakref.WeakValueDictionary()
 
 
 def comm_dup_cached(comm):
+    if MPI is not None and comm is MPI.COMM_NULL:
+        return comm
+
     comm_py2f = comm.py2f()
     dup_comm = _comms.get(comm_py2f, None)
 
