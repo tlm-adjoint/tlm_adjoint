@@ -55,9 +55,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .interface import check_space_types, function_get_values, \
+from .interface import check_space_types, comm_parent, function_get_values, \
     function_global_size, function_local_size, function_set_values, \
-    is_function, parent_comm, space_comm, space_new, space_type_warning
+    is_function, space_comm, space_new, space_type_warning
 
 import functools
 import numpy as np
@@ -202,7 +202,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
 
     # Use the parent communicator, as we don't want to free the communicator
     # before PETSc/SLEPc objects have been destroyed
-    comm = parent_comm(space_comm(space))
+    comm = comm_parent(space_comm(space))
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action),

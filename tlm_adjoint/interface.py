@@ -38,7 +38,7 @@ __all__ = \
         "DEFAULT_COMM",
         "comm_dup",
         "comm_dup_cached",
-        "parent_comm",
+        "comm_parent",
 
         "add_interface",
         "weakref_method",
@@ -195,7 +195,7 @@ def comm_dup(comm):
     return dup_comm
 
 
-_comms = weakref.WeakValueDictionary()
+_dup_comms = weakref.WeakValueDictionary()
 
 
 def comm_dup_cached(comm):
@@ -203,14 +203,14 @@ def comm_dup_cached(comm):
         return comm
 
     comm_py2f = comm.py2f()
-    dup_comm = _comms.get(comm_py2f, None)
+    dup_comm = _dup_comms.get(comm_py2f, None)
 
     if dup_comm is None:
         dup_comm = comm_dup(comm)
-        _comms[comm_py2f] = dup_comm
+        _dup_comms[comm_py2f] = dup_comm
 
         def finalize_callback(comm_py2f):
-            del _comms[comm_py2f]
+            del _dup_comms[comm_py2f]
 
         weakref.finalize(comm, finalize_callback,
                          comm_py2f)
@@ -218,7 +218,7 @@ def comm_dup_cached(comm):
     return dup_comm
 
 
-def parent_comm(dup_comm):
+def comm_parent(dup_comm):
     return _parent_comms.get(dup_comm.py2f(), dup_comm)
 
 
