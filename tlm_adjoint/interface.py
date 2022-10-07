@@ -199,7 +199,7 @@ _comms = weakref.WeakValueDictionary()
 
 
 def comm_dup_cached(comm):
-    comm_py2f = parent_comm(comm).py2f()
+    comm_py2f = comm.py2f()
     dup_comm = _comms.get(comm_py2f, None)
 
     if dup_comm is None:
