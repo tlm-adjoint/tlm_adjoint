@@ -57,7 +57,7 @@
 
 from .interface import check_space_types, function_get_values, \
     function_global_size, function_local_size, function_set_values, \
-    is_function, space_comm, space_new, space_type_warning
+    is_function, parent_comm, space_comm, space_new, space_type_warning
 
 import functools
 import numpy as np
@@ -200,7 +200,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     del X
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
-    comm = space_comm(space)  # .Dup()
+    # Use the parent communicator, as we don't want to free the communicator
+    # before PETSc/SLEPc objects have been destroyed
+    comm = parent_comm(space_comm(space))
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action),
@@ -275,8 +277,6 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
             if v_i is not None:
                 with v_i as v_i_a:
                     function_set_values(V_i[i], v_i_a)
-
-    # comm.Free()
 
     if V_i is None:
         return lam, V_r

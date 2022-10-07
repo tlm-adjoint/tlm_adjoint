@@ -20,11 +20,11 @@
 
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
-from ..interface import SpaceInterface, add_interface, function_caches, \
-    function_comm, function_dtype, function_id, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_name, \
-    function_replacement, function_space, function_space_type, is_function, \
-    space_comm
+from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
+    function_caches, function_comm, function_dtype, function_id, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_name, function_replacement, function_space, function_space_type, \
+    is_function, parent_comm, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -287,9 +287,9 @@ class Constant(backend_Constant):
         # Default comm
         if comm is None:
             if space is None:
-                comm = MPI.COMM_WORLD
+                comm = DEFAULT_COMM
             else:
-                comm = space_comm(space)
+                comm = parent_comm(space_comm(space))
 
         if cache is None:
             cache = static

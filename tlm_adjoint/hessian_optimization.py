@@ -18,7 +18,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_id, function_new, function_state
+from .interface import comm_dup, function_id, function_new, function_state
 
 from .caches import clear_caches
 from .functional import Functional
@@ -28,7 +28,6 @@ from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
 import warnings
-import weakref
 
 __all__ = \
     [
@@ -45,14 +44,7 @@ class HessianOptimization:
         if manager._alias_eqs:
             raise RuntimeError("Invalid equation manager state")
 
-        comm = manager.comm().Dup()
-
-        def finalize_callback(comm):
-            comm.Free()
-
-        finalize = weakref.finalize(self, finalize_callback,
-                                    comm)
-        finalize.atexit = False
+        comm = comm_dup(manager.comm())
 
         blocks = list(manager._blocks) + [list(manager._block)]
 

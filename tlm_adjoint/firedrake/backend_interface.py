@@ -24,12 +24,12 @@ from .backend import FunctionSpace, UnitIntervalMesh, backend, \
 from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..interface import SpaceInterface, \
+from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, check_space_types, function_comm, function_dtype, \
-    function_is_scalar, function_scalar_value, function_space, \
-    new_function_id, new_space_id, space_id, space_new, \
+    add_time_system_eq, check_space_types, comm_dup_cached, function_comm, \
+    function_dtype, function_is_scalar, function_scalar_value, \
+    function_space, new_function_id, new_space_id, space_id, space_new, \
     subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
@@ -40,7 +40,6 @@ from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
     define_function_alias
 
-import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
@@ -65,8 +64,10 @@ __all__ = \
 # Aim for compatibility with Firedrake API, git master revision
 # efb48f4f178ae4989c146640025641cf0cc00a0e, Apr 19 2021
 def _Constant__init__(self, value, domain=None, *,
-                      name=None, space=None, comm=MPI.COMM_WORLD,
+                      name=None, space=None, comm=None,
                       **kwargs):
+    if comm is None:
+        comm = DEFAULT_COMM
     backend_Constant._tlm_adjoint__orig___init__(self, value, domain=domain,
                                                  **kwargs)
 
@@ -77,7 +78,7 @@ def _Constant__init__(self, value, domain=None, *,
     if space is None:
         space = self.ufl_function_space()
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "domain": domain,
+                      {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": name, "state": 0,
@@ -93,7 +94,7 @@ backend_Constant.__init__ = _Constant__init__
 
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        return self.comm
+        return self._tlm_adjoint__space_interface_attrs["comm"]
 
     def _dtype(self):
         return backend_ScalarType
@@ -110,7 +111,7 @@ class FunctionSpaceInterface(SpaceInterface):
 def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionSpaceInterface,
-                  {"id": new_space_id()})
+                  {"comm": comm_dup_cached(self.comm), "id": new_space_id()})
 
 
 assert not hasattr(backend_FunctionSpace, "_tlm_adjoint__orig___init__")
@@ -120,7 +121,7 @@ backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 class FunctionInterface(_FunctionInterface):
     def _comm(self):
-        return self.comm
+        return self._tlm_adjoint__function_interface_attrs["comm"]
 
     def _space(self):
         return self.function_space()
@@ -311,8 +312,9 @@ class FunctionInterface(_FunctionInterface):
 def _Function__init__(self, *args, **kwargs):
     backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(), "state": 0, "space_type": "primal",
-                   "static": False, "cache": False, "checkpoint": True})
+                  {"comm": comm_dup_cached(self.comm), "id": new_function_id(),
+                   "state": 0, "space_type": "primal", "static": False,
+                   "cache": False, "checkpoint": True})
 
 
 assert not hasattr(backend_Function, "_tlm_adjoint__orig___init__")
@@ -477,9 +479,9 @@ add_time_system_eq(backend, _time_system_eq)
 
 def default_comm():
     warnings.warn("default_comm is deprecated -- "
-                  "use mpi4py.MPI.COMM_WORLD instead",
+                  "use DEFAULT_COMM instead",
                   DeprecationWarning, stacklevel=2)
-    return MPI.COMM_WORLD
+    return DEFAULT_COMM
 
 
 def RealFunctionSpace(comm=None):
@@ -487,7 +489,7 @@ def RealFunctionSpace(comm=None):
                   "use new_scalar_function instead",
                   DeprecationWarning, stacklevel=2)
     if comm is None:
-        comm = MPI.COMM_WORLD
+        comm = DEFAULT_COMM
     return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
 
 

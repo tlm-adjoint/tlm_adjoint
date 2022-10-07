@@ -24,12 +24,12 @@ from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
 from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..interface import SpaceInterface, \
+from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, check_space_types, function_copy, function_new, \
-    function_space, function_space_type, new_function_id, new_space_id, \
-    space_id, space_new, subtract_adjoint_derivative_action
+    add_time_system_eq, check_space_types, comm_dup_cached, function_copy, \
+    function_new, function_space, function_space_type, new_function_id, \
+    new_space_id, space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
@@ -41,7 +41,6 @@ from .functions import Caches, Constant, ConstantInterface, \
     define_function_alias
 
 import functools
-import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import warnings
@@ -63,9 +62,11 @@ __all__ = \
 
 
 def _Constant__init__(self, *args, domain=None, space=None,
-                      comm=MPI.COMM_WORLD, **kwargs):
+                      comm=None, **kwargs):
     if domain is not None and hasattr(domain, "ufl_domain"):
         domain = domain.ufl_domain()
+    if comm is None:
+        comm = DEFAULT_COMM
 
     backend_Constant._tlm_adjoint__orig___init__(self, *args, **kwargs)
 
@@ -80,7 +81,7 @@ def _Constant__init__(self, *args, domain=None, space=None,
         if self.values().dtype.type != backend_ScalarType:
             raise ValueError("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm, "domain": domain,
+                      {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "state": 0,
@@ -96,7 +97,7 @@ backend_Constant.__init__ = _Constant__init__
 
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
-        return self.mesh().mpi_comm()
+        return self._tlm_adjoint__space_interface_attrs["comm"]
 
     def _dtype(self):
         return backend_ScalarType
@@ -129,7 +130,8 @@ def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
     if _FunctionSpace_add_interface[0]:
         add_interface(self, FunctionSpaceInterface,
-                      {"id": new_space_id()})
+                      {"comm": comm_dup_cached(self.mesh().mpi_comm()),
+                       "id": new_space_id()})
 
 
 assert not hasattr(backend_FunctionSpace, "_tlm_adjoint__orig___init__")
@@ -351,7 +353,7 @@ def _Function__init__(self, *args, **kwargs):
     else:
         id = new_space_id()
     add_interface(space, FunctionSpaceInterface,
-                  {"id": id})
+                  {"comm": comm_dup_cached(space.mesh().mpi_comm()), "id": id})
     self._tlm_adjoint__function_interface_attrs["space"] = space
 
 
@@ -521,15 +523,17 @@ add_time_system_eq(backend, _time_system_eq)
 
 def default_comm():
     warnings.warn("default_comm is deprecated -- "
-                  "use mpi4py.MPI.COMM_WORLD instead",
+                  "use DEFAULT_COMM instead",
                   DeprecationWarning, stacklevel=2)
-    return MPI.COMM_WORLD
+    return DEFAULT_COMM
 
 
-def RealFunctionSpace(comm=MPI.COMM_WORLD):
+def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
                   "use new_scalar_function instead",
                   DeprecationWarning, stacklevel=2)
+    if comm is None:
+        comm = DEFAULT_COMM
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
 
 
