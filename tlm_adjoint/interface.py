@@ -209,12 +209,6 @@ def comm_dup_cached(comm):
         dup_comm = comm_dup(comm)
         _dup_comms[comm_py2f] = dup_comm
 
-        def finalize_callback(comm_py2f):
-            del _dup_comms[comm_py2f]
-
-        weakref.finalize(comm, finalize_callback,
-                         comm_py2f)
-
     return dup_comm
 
 
