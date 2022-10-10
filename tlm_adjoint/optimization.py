@@ -18,10 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import function_axpy, function_copy, function_get_values, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_linf_norm, function_local_size, function_new, \
-    function_set_values, is_function
+from .interface import comm_dup, function_axpy, function_copy, \
+    function_get_values, function_is_cached, function_is_checkpointed, \
+    function_is_static, function_linf_norm, function_local_size, \
+    function_new, function_set_values, is_function
 
 from .caches import clear_caches
 from .functional import Functional
@@ -77,7 +77,7 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
     if manager is None:
         manager = _manager()
-    comm = manager.comm().Dup()
+    comm = comm_dup(manager.comm())
 
     N = [0]
     for m0 in M0:
@@ -202,6 +202,5 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
         set(M, None)
 
     clear_caches(*M)
-    comm.Free()
 
     return M, return_value

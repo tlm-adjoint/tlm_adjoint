@@ -18,12 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-import numpy as np
-
 from collections.abc import Mapping
 import copy
 import functools
 import logging
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
+import numpy as np
 import sys
 import warnings
 import weakref
@@ -33,6 +36,9 @@ __all__ = \
         "InterfaceException",
 
         "DEFAULT_COMM",
+        "comm_dup",
+        "comm_dup_cached",
+        "comm_parent",
 
         "add_interface",
         "weakref_method",
@@ -117,9 +123,7 @@ class InterfaceException(Exception):  # noqa: N818
         super().__init__(*args, **kwargs)
 
 
-try:
-    from mpi4py.MPI import COMM_WORLD as DEFAULT_COMM
-except ImportError:
+if MPI is None:
     # As for mpi4py 3.0.3 API
     class SerialComm:
         _id_counter = [-1]
@@ -164,6 +168,52 @@ except ImportError:
             return copy.deepcopy(sendobj)
 
     DEFAULT_COMM = SerialComm()
+else:
+    DEFAULT_COMM = MPI.COMM_WORLD
+
+
+_parent_comms = {}
+
+
+def comm_dup(comm):
+    if MPI is not None and comm is MPI.COMM_NULL:
+        return comm
+
+    dup_comm = comm.Dup()
+    dup_comm_py2f = dup_comm.py2f()
+    _parent_comms[dup_comm_py2f] = comm
+
+    def finalize_callback(dup_comm_py2f):
+        if MPI is not None and not MPI.Is_finalized():
+            dup_comm = MPI.Comm.f2py(dup_comm_py2f)
+            dup_comm.Free()
+        del _parent_comms[dup_comm_py2f]
+
+    weakref.finalize(dup_comm, finalize_callback,
+                     dup_comm_py2f)
+
+    return dup_comm
+
+
+_dup_comms = weakref.WeakValueDictionary()
+
+
+def comm_dup_cached(comm):
+    if MPI is not None and comm is MPI.COMM_NULL:
+        return comm
+
+    comm_py2f = comm.py2f()
+    dup_comm = _dup_comms.get(comm_py2f, None)
+
+    if dup_comm is None:
+        dup_comm = comm_dup(comm)
+        _dup_comms[comm_py2f] = dup_comm
+
+    return dup_comm
+
+
+def comm_parent(dup_comm):
+    return _parent_comms.get(dup_comm.py2f(), dup_comm)
 
 
 def weakref_method(fn, obj):

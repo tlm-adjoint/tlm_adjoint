@@ -75,9 +75,8 @@ class Cache:
                 for value in self._cache.values():
                     value._clear()
 
-        finalize = weakref.finalize(self, finalize_callback,
-                                    weakref.ref(self))
-        finalize.atexit = True
+        weakref.finalize(self, finalize_callback,
+                         weakref.ref(self))
 
     def __len__(self):
         return len(self._cache)
