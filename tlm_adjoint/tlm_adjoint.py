@@ -1120,7 +1120,7 @@ class EquationManager:
                 if node_eq is not None:
                     node_eq.solve(
                         manager=self,
-                        annotate=node.is_annotated(),
+                        annotate=annotate and node.is_annotated(),
                         tlm=False)
                     remaining_eqs.extend(
                         (node_eq, child_M_dM, child)

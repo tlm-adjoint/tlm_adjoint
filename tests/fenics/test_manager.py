@@ -649,6 +649,60 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @seed_test
+def test_tlm_annotation(setup_test, test_leaks):
+    F = Constant(1.0, name="F")
+    zeta = Constant(1.0, name="zeta")
+    G = Constant(1.0, name="G")
+
+    reset_manager()
+    configure_tlm((F, zeta))
+    start_manager()
+    AssignmentSolver(F, G).solve()
+    stop_manager()
+
+    assert len(manager()._blocks) == 0 and len(manager()._block) == 2
+
+    reset_manager()
+    configure_tlm((F, zeta))
+    start_manager()
+    stop_annotating()
+    AssignmentSolver(F, G).solve()
+    stop_manager()
+
+    assert len(manager()._blocks) == 0 and len(manager()._block) == 0
+
+    reset_manager()
+    configure_tlm((F, zeta), (F, zeta))
+    manager().function_tlm(G, (F, zeta), (F, zeta))
+    start_manager()
+    AssignmentSolver(F, G).solve()
+    stop_manager()
+
+    assert len(manager()._blocks) == 0 and len(manager()._block) == 3
+
+    reset_manager()
+    configure_tlm((F, zeta), (F, zeta))
+    configure_tlm((F, zeta), annotate=False)
+    manager().function_tlm(G, (F, zeta), (F, zeta))
+    start_manager()
+    AssignmentSolver(F, G).solve()
+    stop_manager()
+
+    assert len(manager()._blocks) == 0 and len(manager()._block) == 1
+
+    reset_manager()
+    configure_tlm((F, zeta))
+    configure_tlm((F, zeta), (F, zeta), annotate=False)
+    manager().function_tlm(G, (F, zeta), (F, zeta))
+    start_manager()
+    AssignmentSolver(F, G).solve()
+    stop_manager()
+
+    assert len(manager()._blocks) == 0 and len(manager()._block) == 2
+
+
+@pytest.mark.fenics
+@seed_test
 def test_adjoint_caching(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
