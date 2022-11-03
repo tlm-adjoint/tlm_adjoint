@@ -28,9 +28,9 @@ from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
     add_time_system_eq, check_space_types, comm_dup_cached, function_comm, \
-    function_dtype, function_is_scalar, function_scalar_value, \
-    function_space, new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action
+    function_dtype, function_is_alias, function_is_scalar, \
+    function_scalar_value, function_space, new_function_id, new_space_id, \
+    space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
 
@@ -348,10 +348,12 @@ backend_Function.split = _Function_split
 
 
 # Aim for compatibility with Firedrake API, git master revision
-# ac22e4c55d6fad32ddc9e936cd3674fb8a75f1da, Mar 16 2022
+# f322d327db1efb56e8078f4883a2d62fa0f63c45, Oct 26 2022
 def _Function_sub(self, i):
+    self.split()
     y = backend_Function._tlm_adjoint__orig_sub(self, i)
-    define_function_alias(y, self, key=("sub", i))
+    if not function_is_alias(y):
+        define_function_alias(y, self, key=("sub", i))
     return y
 
 
