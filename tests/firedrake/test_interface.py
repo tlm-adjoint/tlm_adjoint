@@ -25,6 +25,7 @@ from .test_base import *
 
 import mpi4py.MPI as MPI
 import pytest
+import ufl
 
 pytestmark = pytest.mark.skipif(
     MPI.COMM_WORLD.size not in [1, 4],
@@ -53,3 +54,37 @@ def test_FunctionSpace_interface(setup_test, test_leaks):
     assert space_id(function_space(F_0)) == space_id(F_0.function_space())
     assert space_id(space) != space_id(function_space(F_0))
     assert space_id(space) != space_id(F_0.function_space())
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("dim", [1, 2, 3, 5])
+@seed_test
+def test_function_alias(setup_test, test_leaks,
+                        dim):
+    mesh = UnitIntervalMesh(20)
+
+    space = VectorFunctionSpace(mesh, "Lagrange", 1, dim=dim)
+
+    F = Function(space, name="F")
+    F.split()
+    for i in range(dim):
+        F.sub(i)
+
+    F = Function(space, name="F")
+    for i in range(dim):
+        F.sub(i)
+    F.split()
+
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    space = FunctionSpace(mesh, ufl.classes.MixedElement(
+        *[space.ufl_element() for _ in range(dim)]))
+
+    F = Function(space, name="F")
+    F.split()
+    for i in range(dim):
+        F.sub(i)
+
+    F = Function(space, name="F")
+    for i in range(dim):
+        F.sub(i)
+    F.split()
