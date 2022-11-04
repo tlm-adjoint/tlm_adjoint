@@ -81,10 +81,13 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
     N = [0]
     for m0 in M0:
         N.append(N[-1] + function_local_size(m0))
-    size_global = comm.allgather(np.array(N[-1], dtype=np.int64))
-    N_global = [0]
-    for size in size_global:
-        N_global.append(N_global[-1] + size)
+    if comm.rank == 0:
+        size_global = comm.gather(np.array(N[-1], dtype=np.int64), root=0)
+        N_global = [0]
+        for size in size_global:
+            N_global.append(N_global[-1] + size)
+    else:
+        comm.gather(np.array(N[-1], dtype=np.int64), root=0)
 
     def get(F):
         x = np.full(N[-1], np.NAN, dtype=np.float64)
