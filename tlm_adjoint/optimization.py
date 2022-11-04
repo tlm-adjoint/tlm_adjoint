@@ -46,7 +46,8 @@ class OptimizationException(Exception):  # noqa: N818
         super().__init__(*args, **kwargs)
 
 
-def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
+@restore_manager
+def minimize_scipy(forward, M0, *, manager=None, **kwargs):
     """
     Gradient-based minimization using scipy.optimize.minimize.
 
@@ -56,9 +57,6 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
              Functional to be minimized.
     M0       A function, or a sequence of functions. Control parameters initial
              guess.
-    J0       (Optional) Initial functional. If supplied assumes that the
-             forward has already been run, and processed by the equation
-             manager, using the control parameters given by M0.
     manager  (Optional) The equation manager.
 
     Any remaining keyword arguments are passed directly to
@@ -71,12 +69,13 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
     """
 
     if not isinstance(M0, Sequence):
-        (M,), return_value = minimize_scipy(forward, [M0], J0=J0,
+        (M,), return_value = minimize_scipy(forward, [M0],
                                             manager=manager, **kwargs)
         return M, return_value
 
     if manager is None:
-        manager = _manager()
+        manager = _manager().new()
+    set_manager(manager)
     comm = comm_dup(manager.comm())
 
     N = [0]
@@ -119,11 +118,10 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
                       cache=function_is_cached(m0),
                       checkpoint=function_is_checkpointed(m0))
          for m0 in M0]
-    J = [Functional(_fn=J0) if is_function(J0) else J0]
-    J_M = [tuple(function_copy(m0) for m0 in M0), M0]
+    J = [None]
+    J_M = [None, None]
 
-    @restore_manager
-    def fun(x, force=False):
+    def fun(x, *, force=False):
         set(M, x)
         clear_caches(*M)
 
@@ -142,7 +140,6 @@ def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
 
         J_M[0] = tuple(function_copy(m) for m in M)
 
-        set_manager(manager)
         manager.reset()
         manager.stop()
         clear_caches()
