@@ -2521,16 +2521,13 @@ The \texttt{minimize\_scipy} function can be used for functional minimization
 using the \texttt{scipy.optimize.minimize} function supplied with SciPy
 \citep{virtanen2020}. This has the interface
 \begin{lstlisting}
-def minimize_scipy(forward, M0, J0=None, manager=None, **kwargs):
+def minimize_scipy(forward, M0, *, manager=None, **kwargs):
 \end{lstlisting}
 with arguments
 \begin{itemize}
   \item \texttt{forward}, a callable, which takes as input one or more
     functions defining the control and its value, and which returns the
     \texttt{Functional} to be minimized.
-  \item \texttt{J0}, an optional \texttt{Functional}. Used to determine the
-    initial value for the functional, and the functional to be differentiated
-    in the initial derivative calculation.
   \item \texttt{manager}, an optional \texttt{EquationManager}. If not supplied
     then the currently active \texttt{EquationManager} is used (see section
     \ref{sect:active_EquationManager}).
