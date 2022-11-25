@@ -1174,7 +1174,6 @@ class FixedPointSolver(Equation, CustomNormSq):
         if not nonzero_initial_guess:
             for x in X:
                 function_zero(x)
-            function_update_state(*X)
             function_update_caches(*self.X(), value=X)
 
         it = 0

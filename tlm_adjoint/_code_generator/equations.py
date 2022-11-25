@@ -24,7 +24,7 @@ from ..interface import check_space_type, function_assign, \
     function_get_values, function_id, function_inner, function_is_scalar, \
     function_new, function_new_conjugate_dual, function_replacement, \
     function_scalar_value, function_set_values, function_space, \
-    function_update_caches, function_update_state, function_zero, is_function
+    function_update_caches, function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, complex_mode, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
@@ -538,7 +538,6 @@ class EquationSolver(ExprEquation):
             else:
                 initial_guess = deps[self._initial_guess_index]
             function_assign(x, initial_guess)
-            function_update_state(x)
             function_update_caches(self.x(), value=x)
 
         if self._linear:
