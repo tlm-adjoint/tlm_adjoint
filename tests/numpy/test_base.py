@@ -48,10 +48,10 @@ __all__ = \
     ]
 
 
+@local_caches
 @pytest.fixture
 def setup_test():
     reset_manager("memory", {"drop_references": True})
-    clear_caches()
     stop_manager()
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)

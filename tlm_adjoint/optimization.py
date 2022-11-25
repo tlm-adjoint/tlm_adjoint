@@ -23,7 +23,7 @@ from .interface import comm_dup, function_axpy, function_copy, \
     function_is_static, function_linf_norm, function_local_size, \
     function_new, function_set_values, is_function
 
-from .caches import clear_caches
+from .caches import clear_caches, local_caches
 from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
@@ -46,6 +46,7 @@ class OptimizationException(Exception):  # noqa: N818
         super().__init__(*args, **kwargs)
 
 
+@local_caches
 @restore_manager
 def minimize_scipy(forward, M0, *, manager=None, **kwargs):
     """
@@ -126,7 +127,6 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
 
     def fun(x, *, force=False):
         set(M, x)
-        clear_caches(*M)
 
         if not force and J[0] is not None:
             change_norm = 0.0
@@ -200,7 +200,5 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
             else:
                 raise ValueError(f"Unexpected action '{action:s}'")
         set(M, None)
-
-    clear_caches(*M)
 
     return M, return_value

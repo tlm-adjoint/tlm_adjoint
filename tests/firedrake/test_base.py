@@ -66,6 +66,7 @@ _logger.addHandler(_handler)
 
 
 @gc_disabled  # See Firedrake issue #1569
+@local_caches
 @pytest.fixture
 def setup_test():
     parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"] = False
@@ -80,7 +81,6 @@ def setup_test():
     #     = 1.0e-12
 
     reset_manager("memory", {"drop_references": True})
-    clear_caches()
     stop_manager()
 
     logging.getLogger("firedrake").setLevel(logging.INFO)
