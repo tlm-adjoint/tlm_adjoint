@@ -82,6 +82,7 @@ def setup_test():
     reset_manager("memory", {"drop_references": True})
     clear_caches()
     stop_manager()
+    gc.collect()
 
     logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
@@ -91,6 +92,7 @@ def setup_test():
     if gc_enabled:
         gc.enable()
     reset_manager("memory", {"drop_references": False})
+    gc.collect()
 
 
 def seed_test(fn):
