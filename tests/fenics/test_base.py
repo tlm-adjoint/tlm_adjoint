@@ -59,7 +59,6 @@ __all__ = \
     ]
 
 
-@local_caches
 @pytest.fixture
 def setup_test():
     parameters["ghost_mode"] = "none"
@@ -76,12 +75,14 @@ def setup_test():
 
     reset_manager("memory", {"drop_references": True})
     stop_manager()
+    clear_caches()
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     yield
 
     reset_manager("memory", {"drop_references": False})
+    clear_caches()
 
 
 def seed_test(fn):
