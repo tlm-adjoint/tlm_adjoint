@@ -24,7 +24,6 @@ from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
 from tlm_adjoint.firedrake.backend_code_generator_interface import \
     complex_mode, interpolate_expression
-from tlm_adjoint.alias import gc_disabled
 
 import copy
 import functools
@@ -65,7 +64,6 @@ _handler.setFormatter(logging.Formatter(fmt="%(message)s"))
 _logger.addHandler(_handler)
 
 
-@gc_disabled  # See Firedrake issue #1569
 @local_caches
 @pytest.fixture
 def setup_test():
@@ -80,15 +78,21 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
+    gc_enabled = gc.isenabled()
+    gc.disable()  # See Firedrake issue #1569
     reset_manager("memory", {"drop_references": True})
     stop_manager()
+    gc.collect()
 
     logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     yield
 
+    if gc_enabled:
+        gc.enable()
     reset_manager("memory", {"drop_references": False})
+    gc.collect()
 
 
 def seed_test(fn):
