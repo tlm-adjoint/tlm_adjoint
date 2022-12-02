@@ -80,8 +80,8 @@ def setup_test():
     gc_enabled = gc.isenabled()
     gc.disable()  # See Firedrake issue #1569
     reset_manager("memory", {"drop_references": True})
-    clear_caches()
     stop_manager()
+    clear_caches()
     gc.collect()
 
     logging.getLogger("firedrake").setLevel(logging.INFO)
@@ -92,6 +92,7 @@ def setup_test():
     if gc_enabled:
         gc.enable()
     reset_manager("memory", {"drop_references": False})
+    clear_caches()
     gc.collect()
 
 

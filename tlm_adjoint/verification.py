@@ -24,7 +24,7 @@ from .interface import function_assign, function_axpy, function_copy, \
     function_local_size, function_name, function_new, function_set_values, \
     is_function
 
-from .caches import clear_caches
+from .caches import clear_caches, local_caches
 from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
@@ -52,6 +52,7 @@ def wrapped_forward(forward):
     return wrapped_forward
 
 
+@local_caches
 def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5, manager=None):
     # Aims for similar behaviour to the dolfin-adjoint taylor_test function in
@@ -182,6 +183,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return orders_2.min()
 
 
+@local_caches
 def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
                     manager=None):
     if not isinstance(M, Sequence):
@@ -252,7 +254,6 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
         for m0, m1, dm in zip(M, M1, dMs[-1]):
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
-        clear_caches()
         J_vals[i] = forward_tlm(dMs[:-1], *M1).value()
     if abs(J_vals.imag).max() == 0.0:
         J_vals = J_vals.real
@@ -269,6 +270,7 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
     return orders_1.min()
 
 
+@local_caches
 def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
                             size=5, manager=None):
     if not isinstance(M, Sequence):

@@ -22,6 +22,7 @@ from .interface import function_caches, function_id, function_state
 
 from .alias import gc_disabled
 
+import functools
 import weakref
 
 __all__ = \
@@ -29,7 +30,8 @@ __all__ = \
         "Cache",
         "CacheRef",
         "Caches",
-        "clear_caches"
+        "clear_caches",
+        "local_caches"
     ]
 
 
@@ -54,6 +56,17 @@ def clear_caches(*deps):
     else:
         for dep in deps:
             function_caches(dep).clear()
+
+
+def local_caches(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
+        clear_caches()
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            clear_caches()
+    return wrapped_fn
 
 
 class Cache:

@@ -74,14 +74,15 @@ def setup_test():
     #     = 1.0e-12
 
     reset_manager("memory", {"drop_references": True})
-    clear_caches()
     stop_manager()
+    clear_caches()
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     yield
 
     reset_manager("memory", {"drop_references": False})
+    clear_caches()
 
 
 def seed_test(fn):
