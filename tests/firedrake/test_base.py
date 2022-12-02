@@ -77,23 +77,17 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
-    gc_enabled = gc.isenabled()
-    gc.disable()  # See Firedrake issue #1569
     reset_manager("memory", {"drop_references": True})
     stop_manager()
     clear_caches()
-    gc.collect()
 
     logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     yield
 
-    if gc_enabled:
-        gc.enable()
     reset_manager("memory", {"drop_references": False})
     clear_caches()
-    gc.collect()
 
 
 def seed_test(fn):
