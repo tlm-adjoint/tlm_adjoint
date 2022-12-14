@@ -50,18 +50,22 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    reset_manager("memory", {"drop_references": True})
-    stop_manager()
-    clear_caches()
+    set_default_dtype(np.float64)
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    set_default_dtype(np.float64)
+    reset_manager("memory", {"drop_references": True})
+    stop_manager()
+    clear_caches()
+    gc.collect()
+    comm_cleanup()
 
     yield
 
     reset_manager("memory", {"drop_references": False})
     clear_caches()
+    gc.collect()
+    comm_cleanup()
 
 
 def seed_test(fn):

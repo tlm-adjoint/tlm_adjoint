@@ -73,16 +73,20 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
+    logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
+
     reset_manager("memory", {"drop_references": True})
     stop_manager()
     clear_caches()
-
-    logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
+    gc.collect()
+    comm_cleanup()
 
     yield
 
     reset_manager("memory", {"drop_references": False})
     clear_caches()
+    gc.collect()
+    comm_cleanup()
 
 
 def seed_test(fn):
