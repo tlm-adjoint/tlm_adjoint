@@ -35,6 +35,7 @@ import mpi4py.MPI as MPI
 import numpy as np
 from operator import itemgetter
 import os
+import petsc4py.PETSc as PETSc
 import pytest
 import runpy
 import sys
@@ -77,15 +78,17 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
+    logging.getLogger("firedrake").setLevel(logging.INFO)
+    logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
+
     gc_enabled = gc.isenabled()
     gc.disable()  # See Firedrake issue #1569
     reset_manager("memory", {"drop_references": True})
     stop_manager()
     clear_caches()
     gc.collect()
-
-    logging.getLogger("firedrake").setLevel(logging.INFO)
-    logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
+    PETSc.garbage_cleanup()
+    comm_cleanup()
 
     yield
 
@@ -94,6 +97,8 @@ def setup_test():
     reset_manager("memory", {"drop_references": False})
     clear_caches()
     gc.collect()
+    PETSc.garbage_cleanup()
+    comm_cleanup()
 
 
 def seed_test(fn):
