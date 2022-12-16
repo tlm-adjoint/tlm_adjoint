@@ -23,6 +23,7 @@ from .alias import gc_disabled, gc_is_collecting
 from collections.abc import Mapping
 import copy
 import functools
+import gc
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -184,27 +185,22 @@ def comm_cleanup(comm=None):
 
     if gc_is_collecting():
         return
+    gc.collect()
     if MPI is None or MPI.Is_finalized():
         _comm_garbage.clear()
         return
     if comm.allreduce(len(_comm_garbage), op=MPI.MAX) == 0:
         return
 
-    _dup_comm_id_counter[0] = comm.allreduce(_dup_comm_id_counter[0], op=MPI.MAX)  # noqa: E501
-    next_comm_id = -1
     for dup_comm_id in sorted(_comm_garbage):
-        next_comm_id = comm.allreduce(dup_comm_id, op=MPI.MAX)
-        if next_comm_id == dup_comm_id:
-            dup_comm = MPI.Comm.f2py(_comm_garbage[dup_comm_id])
-            difference = MPI.Group.Difference(dup_comm.group, comm.group)
-            try:
-                if difference.size == 0:
-                    del _comm_garbage[dup_comm_id]
-                    dup_comm.Free()
-            finally:
-                difference.Free()
-    if next_comm_id != _dup_comm_id_counter[0]:
-        comm.allreduce(_dup_comm_id_counter[0], op=MPI.MAX)
+        dup_comm = MPI.Comm.f2py(_comm_garbage[dup_comm_id])
+        difference = MPI.Group.Difference(dup_comm.group, comm.group)
+        try:
+            if difference.size == 0:
+                del _comm_garbage[dup_comm_id]
+                dup_comm.Free()
+        finally:
+            difference.Free()
 
 
 def comm_dup(comm):
