@@ -230,7 +230,7 @@ def comm_dup_cached(comm):
     comm_py2f = comm.py2f()
     dup_comm = _dup_comms.get(comm_py2f, None)
 
-    if dup_comm is None:
+    if MPI is None or comm.allreduce(0 if dup_comm is None else 1, MPI.MIN) == 0:  # noqa: E501
         dup_comm = comm_dup(comm)
         _dup_comms[comm_py2f] = dup_comm
 
