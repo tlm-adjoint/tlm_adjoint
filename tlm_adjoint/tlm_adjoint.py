@@ -18,10 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import DEFAULT_COMM, check_space_types, comm_cleanup, \
-    comm_dup, function_assign, function_copy, function_id, \
-    function_is_replacement, function_name, function_new_tangent_linear, \
-    is_function
+from .interface import DEFAULT_COMM, check_space_types, comm_dup, \
+    function_assign, function_copy, function_id, function_is_replacement, \
+    function_name, function_new_tangent_linear, is_function
 
 from .alias import WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageCheckpointingManager
@@ -671,17 +670,15 @@ class EquationManager:
         self._finalizes = {}
 
         @gc_disabled
-        def finalize_callback(comm, to_drop_references, finalizes):
+        def finalize_callback(to_drop_references, finalizes):
             while len(to_drop_references) > 0:
                 referrer = to_drop_references.pop()
                 referrer._drop_references()
             for finalize in finalizes.values():
                 finalize.detach()
             finalizes.clear()
-            comm_cleanup(comm)
-        finalize = weakref.finalize(
-            self, finalize_callback,
-            self._comm, self._to_drop_references, self._finalizes)
+        finalize = weakref.finalize(self, finalize_callback,
+                                    self._to_drop_references, self._finalizes)
         finalize.atexit = False
 
         if MPI is None:
@@ -781,7 +778,6 @@ class EquationManager:
                             "supplied")
 
         self.drop_references()
-        comm_cleanup(self._comm)
 
         self._annotation_state = AnnotationState.ANNOTATING
         self._tlm_state = TangentLinearState.DERIVING
@@ -1434,7 +1430,6 @@ class EquationManager:
         """
 
         self.drop_references()
-        comm_cleanup(self._comm)
 
         if self._annotation_state in [AnnotationState.STOPPED,
                                       AnnotationState.FINAL]:
@@ -1458,7 +1453,6 @@ class EquationManager:
         """
 
         self.drop_references()
-        comm_cleanup(self._comm)
 
         if self._annotation_state == AnnotationState.FINAL:
             return

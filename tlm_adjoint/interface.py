@@ -18,12 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .alias import gc_disabled, gc_is_collecting
-
 from collections.abc import Mapping
 import copy
 import functools
-import gc
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -39,7 +36,6 @@ __all__ = \
         "InterfaceException",
 
         "DEFAULT_COMM",
-        "comm_cleanup",
         "comm_dup",
         "comm_dup_cached",
         "comm_parent",
@@ -172,35 +168,8 @@ if MPI is None:
             return copy.deepcopy(sendobj)
 
 
-_comm_garbage = {}
 _parent_comms = {}
-_dup_comm_id_counter = [0]
 _dup_comms = weakref.WeakValueDictionary()
-
-
-@gc_disabled
-def comm_cleanup(comm=None):
-    if comm is None:
-        comm = DEFAULT_COMM
-
-    if gc_is_collecting():
-        return
-    gc.collect()
-    if MPI is None or MPI.Is_finalized():
-        _comm_garbage.clear()
-        return
-    if comm.allreduce(len(_comm_garbage), op=MPI.MAX) == 0:
-        return
-
-    for dup_comm_id in sorted(_comm_garbage):
-        dup_comm = MPI.Comm.f2py(_comm_garbage[dup_comm_id])
-        difference = MPI.Group.Difference(dup_comm.group, comm.group)
-        try:
-            if difference.size == 0:
-                del _comm_garbage[dup_comm_id]
-                dup_comm.Free()
-        finally:
-            difference.Free()
 
 
 def comm_dup(comm):
@@ -210,15 +179,15 @@ def comm_dup(comm):
     dup_comm = comm.Dup()
     dup_comm_py2f = dup_comm.py2f()
     _parent_comms[dup_comm_py2f] = comm
-    dup_comm_id = dup_comm.allreduce(_dup_comm_id_counter[0], op=MPI.MAX)
-    _dup_comm_id_counter[0] = dup_comm_id + 1
 
-    def finalize_callback(dup_comm_id, dup_comm_py2f):
-        _comm_garbage[dup_comm_id] = dup_comm_py2f
+    def finalize_callback(dup_comm_py2f):
+        if MPI is not None and not MPI.Is_finalized():
+            dup_comm = MPI.Comm.f2py(dup_comm_py2f)
+            dup_comm.Free()
         del _parent_comms[dup_comm_py2f]
 
     weakref.finalize(dup_comm, finalize_callback,
-                     dup_comm_id, dup_comm_py2f)
+                     dup_comm_py2f)
 
     return dup_comm
 

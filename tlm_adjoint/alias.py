@@ -25,21 +25,8 @@ __all__ = \
     [
         "Alias",
         "WeakAlias",
-        "gc_disabled",
-        "gc_is_collecting"
+        "gc_disabled"
     ]
-
-
-def gc_callback(phase, info):
-    _gc_phase[0] = phase
-
-
-_gc_phase = ["stop"]
-gc.callbacks.append(gc_callback)
-
-
-def gc_is_collecting():
-    return {"start": True, "stop": False}[_gc_phase[0]]
 
 
 def gc_disabled(fn):

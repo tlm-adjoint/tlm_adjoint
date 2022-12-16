@@ -86,7 +86,6 @@ def setup_test():
     clear_caches()
     gc.collect()
     PETSc.garbage_cleanup()
-    comm_cleanup()
 
     yield
 
@@ -94,7 +93,6 @@ def setup_test():
     clear_caches()
     gc.collect()
     PETSc.garbage_cleanup()
-    comm_cleanup()
 
 
 def seed_test(fn):

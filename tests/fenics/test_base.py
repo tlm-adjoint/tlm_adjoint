@@ -79,14 +79,12 @@ def setup_test():
     stop_manager()
     clear_caches()
     gc.collect()
-    comm_cleanup()
 
     yield
 
     reset_manager("memory", {"drop_references": False})
     clear_caches()
     gc.collect()
-    comm_cleanup()
 
 
 def seed_test(fn):
