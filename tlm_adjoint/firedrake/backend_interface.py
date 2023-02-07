@@ -40,6 +40,7 @@ from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
     define_function_alias
 
+from functools import cached_property
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
@@ -334,23 +335,27 @@ backend_Function.__getattr__ = _Function__getattr__
 
 
 # Aim for compatibility with Firedrake API, git master revision
-# ac22e4c55d6fad32ddc9e936cd3674fb8a75f1da, Mar 16 2022
-def _Function_split(self):
-    Y = backend_Function._tlm_adjoint__orig_split(self)
+# c0b45ce2123fdeadf358df1d5655ce42f3b3d74b, Feb 1 2023
+@cached_property
+def _Function_subfunctions(self):
+    Y = backend_Function._tlm_adjoint__orig_subfunctions.__get__(self,
+                                                                 type(self))
     for i, y in enumerate(Y):
-        define_function_alias(y, self, key=("split", i))
+        define_function_alias(y, self, key=("subfunctions", i))
     return Y
 
 
-assert not hasattr(backend_Function, "_tlm_adjoint__orig_split")
-backend_Function._tlm_adjoint__orig_split = backend_Function.split
-backend_Function.split = _Function_split
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_subfunctions")
+backend_Function._tlm_adjoint__orig_subfunctions = backend_Function.subfunctions  # noqa: E501
+backend_Function.subfunctions = _Function_subfunctions
+backend_Function.subfunctions.__set_name__(
+    backend_Function.subfunctions, "_tlm_adjoint___Function_subfunctions")
 
 
 # Aim for compatibility with Firedrake API, git master revision
 # f322d327db1efb56e8078f4883a2d62fa0f63c45, Oct 26 2022
 def _Function_sub(self, i):
-    self.split()
+    self.subfunctions
     y = backend_Function._tlm_adjoint__orig_sub(self, i)
     if not function_is_alias(y):
         define_function_alias(y, self, key=("sub", i))

@@ -50,7 +50,7 @@ def test_FunctionSpace_interface(setup_test, test_leaks):
     assert space_id(space) == space_id(function_space(F_copy))
     assert space_id(space) == space_id(F_copy.function_space())
 
-    F_0 = F.split()[0]
+    F_0 = F.subfunctions[0]
     assert space_id(function_space(F_0)) == space_id(F_0.function_space())
     assert space_id(space) != space_id(function_space(F_0))
     assert space_id(space) != space_id(F_0.function_space())
@@ -66,25 +66,25 @@ def test_function_alias(setup_test, test_leaks,
     space = VectorFunctionSpace(mesh, "Lagrange", 1, dim=dim)
 
     F = Function(space, name="F")
-    F.split()
+    F.subfunctions
     for i in range(dim):
         F.sub(i)
 
     F = Function(space, name="F")
     for i in range(dim):
         F.sub(i)
-    F.split()
+    F.subfunctions
 
     space = FunctionSpace(mesh, "Lagrange", 1)
     space = FunctionSpace(mesh, ufl.classes.MixedElement(
         *[space.ufl_element() for _ in range(dim)]))
 
     F = Function(space, name="F")
-    F.split()
+    F.subfunctions
     for i in range(dim):
         F.sub(i)
 
     F = Function(space, name="F")
     for i in range(dim):
         F.sub(i)
-    F.split()
+    F.subfunctions
