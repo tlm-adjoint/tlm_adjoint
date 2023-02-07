@@ -844,7 +844,7 @@ def test_form_binding(setup_test, test_leaks,
 
     u = Function(space)
     # With FEniCS u.split() creates new Coefficient objects
-    u_split = u.split()
+    u_split = u.subfunctions
     form = test_form(u, u_split, test)
     for c in form.coefficients():
         assert not function_is_replacement(c)
@@ -862,7 +862,7 @@ def test_form_binding(setup_test, test_leaks,
                                              * cos((2 * j + 2) * pi * X[1])
                                             for j in range(dim)]),
                         space, solver_parameters=ls_parameters_cg)
-        u_split = u.split()
+        u_split = u.subfunctions
         assembled_form_ref = Function(space, space_type="conjugate_dual")
         assemble(test_form(u, u_split, test),
                  tensor=function_vector(assembled_form_ref))
