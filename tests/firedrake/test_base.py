@@ -63,6 +63,8 @@ _handler = logging.StreamHandler(stream=sys.stdout)
 _handler.setFormatter(logging.Formatter(fmt="%(message)s"))
 _logger.addHandler(_handler)
 
+gc.disable()  # See Firedrake issue #1569
+
 
 @pytest.fixture
 def setup_test():
@@ -77,8 +79,6 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
-    gc_enabled = gc.isenabled()
-    gc.disable()  # See Firedrake issue #1569
     reset_manager("memory", {"drop_references": True})
     stop_manager()
     clear_caches()
@@ -89,8 +89,6 @@ def setup_test():
 
     yield
 
-    if gc_enabled:
-        gc.enable()
     reset_manager("memory", {"drop_references": False})
     clear_caches()
     gc.collect()
