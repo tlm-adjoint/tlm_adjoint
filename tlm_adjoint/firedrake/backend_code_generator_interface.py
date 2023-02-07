@@ -140,13 +140,12 @@ def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
 
 def strip_terminal_data(form):
     # Replace constants with no domain with constants on the first domain
-    domain = form.ufl_domains()[0]
+    domain, = form.ufl_domains()
 
     replace_map = {}
     replace_map_inverse = {}
     for dep in form.coefficients():
-        if isinstance(dep, backend_Constant) \
-                and dep.ufl_function_space().ufl_domain() is None:
+        if isinstance(dep, backend_Constant) and len(dep.ufl_domains()) == 0:
             dep_arr = np.zeros(dep.ufl_shape, dtype=function_dtype(dep))
             replace_map[dep] = backend_Constant(dep_arr, domain=domain)
             replace_map_inverse[replace_map[dep]] = dep

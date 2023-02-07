@@ -370,7 +370,10 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
             # Inefficient, but it is very difficult to generate a non-empty but
             # zero valued form
             arguments = expr.arguments()
-            domain = expr.ufl_domains()[0]
+            if isinstance(expr, ufl.classes.Expr):
+                domain, = ufl.domain.extract_domains(expr)
+            else:
+                domain, = expr.ufl_domains()
             zero = ZeroConstant(domain=domain)
             if len(arguments) == 0:
                 simplified_expr = zero * ufl.ds
