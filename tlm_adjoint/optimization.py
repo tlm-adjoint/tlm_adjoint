@@ -21,7 +21,7 @@
 from .interface import comm_dup, function_axpy, function_copy, \
     function_get_values, function_is_cached, function_is_checkpointed, \
     function_is_static, function_linf_norm, function_local_size, \
-    function_new, function_set_values, is_function
+    function_new, function_set_values, garbage_cleanup, is_function, space_comm
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
@@ -151,6 +151,7 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
         J[0] = forward(*M)
         if is_function(J[0]):
             J[0] = Functional(_fn=J[0])
+        garbage_cleanup(space_comm(J[0].space()))
         manager.stop()
 
         J_M[1] = M

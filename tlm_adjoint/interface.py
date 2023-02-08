@@ -22,6 +22,7 @@ from collections.abc import Mapping
 from collections import deque
 import copy
 import functools
+import gc
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -34,6 +35,10 @@ except ImportError:
     # For Python < 3.11, following Python 3.11 API
     def call(obj, /, *args, **kwargs):
         return obj(*args, **kwargs)
+try:
+    import petsc4py.PETSc as PETSc
+except ImportError:
+    PETSc = None
 import sys
 import warnings
 import weakref
@@ -46,6 +51,7 @@ __all__ = \
         "comm_dup",
         "comm_dup_cached",
         "comm_parent",
+        "garbage_cleanup",
 
         "add_interface",
         "weakref_method",
@@ -251,6 +257,13 @@ def comm_dup_cached(comm):
                       comm.py2f(), dup_comm)
 
     return dup_comm
+
+
+def garbage_cleanup(comm):
+    if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
+        gc.collect()
+        PETSc.garbage_cleanup(comm)
+        PETSc.garbage_cleanup(comm_parent(comm))
 
 
 def weakref_method(fn, obj):
