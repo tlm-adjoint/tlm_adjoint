@@ -19,6 +19,7 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from collections.abc import Mapping
+from collections import deque
 import copy
 import functools
 import logging
@@ -27,6 +28,12 @@ try:
 except ImportError:
     MPI = None
 import numpy as np
+try:
+    from operator import call
+except ImportError:
+    # For Python < 3.11, following Python 3.11 API
+    def call(obj, /, *args, **kwargs):
+        return obj(*args, **kwargs)
 import sys
 import warnings
 import weakref
@@ -168,11 +175,37 @@ if MPI is None:
             return copy.deepcopy(sendobj)
 
     DEFAULT_COMM = SerialComm()
+
+    def comm_finalize(comm, finalize_callback,
+                      *args, **kwargs):
+        weakref.finalize(comm, finalize_callback,
+                         *args, **kwargs)
 else:
     DEFAULT_COMM = MPI.COMM_WORLD
 
+    _comm_finalize_key = MPI.Comm.Create_keyval(
+        delete_fn=lambda comm, key, finalizes:
+        deque(map(call, finalizes), maxlen=0))
+
+    # Similar to weakref.finalize behaviour with atexit=False
+    def comm_finalize(comm, finalize_callback,
+                      *args, **kwargs):
+        finalizes = comm.Get_attr(_comm_finalize_key)
+        if finalizes is None:
+            finalizes = []
+            comm.Set_attr(_comm_finalize_key, finalizes)
+        finalizes.append(lambda: finalize_callback(*args, **kwargs))
+
 
 _parent_comms = {}
+
+
+def comm_parent(dup_comm):
+    comm_py2f = _parent_comms.get(dup_comm.py2f(), None)
+    if comm_py2f is None:
+        return dup_comm
+    else:
+        return MPI.Comm.f2py(comm_py2f)
 
 
 def comm_dup(comm):
@@ -180,40 +213,44 @@ def comm_dup(comm):
         return comm
 
     dup_comm = comm.Dup()
-    dup_comm_py2f = dup_comm.py2f()
-    _parent_comms[dup_comm_py2f] = comm
+    _parent_comms[dup_comm.py2f()] = comm.py2f()
 
     def finalize_callback(dup_comm_py2f):
         if MPI is not None and not MPI.Is_finalized():
             dup_comm = MPI.Comm.f2py(dup_comm_py2f)
             dup_comm.Free()
-        del _parent_comms[dup_comm_py2f]
+        _parent_comms.pop(dup_comm_py2f, None)
 
     weakref.finalize(dup_comm, finalize_callback,
-                     dup_comm_py2f)
+                     dup_comm.py2f())
 
     return dup_comm
 
 
-_dup_comms = weakref.WeakValueDictionary()
+_dup_comms = {}
 
 
 def comm_dup_cached(comm):
     if MPI is not None and comm is MPI.COMM_NULL:
         return comm
 
-    comm_py2f = comm.py2f()
-    dup_comm = _dup_comms.get(comm_py2f, None)
+    dup_comm = _dup_comms.get(comm.py2f(), None)
 
     if dup_comm is None:
-        dup_comm = comm_dup(comm)
-        _dup_comms[comm_py2f] = dup_comm
+        dup_comm = comm.Dup()
+        _parent_comms[dup_comm.py2f()] = comm.py2f()
+        _dup_comms[comm.py2f()] = dup_comm
+
+        def finalize_callback(comm_py2f, dup_comm):
+            if MPI is not None and not MPI.Is_finalized():
+                dup_comm.Free()
+            _parent_comms.pop(dup_comm.py2f(), None)
+            _dup_comms.pop(comm_py2f, None)
+
+        comm_finalize(comm, finalize_callback,
+                      comm.py2f(), dup_comm)
 
     return dup_comm
-
-
-def comm_parent(dup_comm):
-    return _parent_comms.get(dup_comm.py2f(), dup_comm)
 
 
 def weakref_method(fn, obj):
