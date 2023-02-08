@@ -82,14 +82,12 @@ class Cache:
         self._id_counter[0] += 1
         self._caches[self._id] = self
 
-        def finalize_callback(self_ref):
-            self = self_ref()
-            if self is not None:
-                for value in self._cache.values():
-                    value._clear()
+        def finalize_callback(cache):
+            for value in cache.values():
+                value._clear()
 
         weakref.finalize(self, finalize_callback,
-                         weakref.ref(self))
+                         self._cache)
 
     def __len__(self):
         return len(self._cache)
