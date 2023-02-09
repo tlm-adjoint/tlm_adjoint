@@ -136,13 +136,15 @@ class InterfaceException(Exception):  # noqa: N818
 
 
 if MPI is None:
-    # As for mpi4py 3.0.3 API
+    # As for mpi4py 3.1.4 API
     class SerialComm:
         _id_counter = [-1]
 
-        def __init__(self):
-            self._id = self._id_counter[0]
-            self._id_counter[0] -= 1
+        def __init__(self, *, _id=None):
+            self._id = _id
+            if self._id is None:
+                self._id = self._id_counter[0]
+                self._id_counter[0] -= 1
 
         @property
         def rank(self):
@@ -174,6 +176,9 @@ if MPI is None:
         def py2f(self):
             return self._id
 
+        def f2py(self, arg):
+            return SerialComm(_id=arg)
+
         def scatter(self, sendobj, root=0):
             assert root == 0
             sendobj, = sendobj
@@ -181,12 +186,16 @@ if MPI is None:
 
     DEFAULT_COMM = SerialComm()
 
+    f2py = DEFAULT_COMM.f2py
+
     def comm_finalize(comm, finalize_callback,
                       *args, **kwargs):
         weakref.finalize(comm, finalize_callback,
                          *args, **kwargs)
 else:
     DEFAULT_COMM = MPI.COMM_WORLD
+
+    f2py = MPI.Comm.f2py
 
     _comm_finalize_key = MPI.Comm.Create_keyval(
         delete_fn=lambda comm, key, finalizes:
@@ -210,7 +219,7 @@ def comm_parent(dup_comm):
     if comm_py2f is None:
         return dup_comm
     else:
-        return MPI.Comm.f2py(comm_py2f)
+        return f2py(comm_py2f)
 
 
 def comm_dup(comm):
@@ -222,7 +231,7 @@ def comm_dup(comm):
 
     def finalize_callback(dup_comm_py2f):
         if MPI is not None and not MPI.Is_finalized():
-            dup_comm = MPI.Comm.f2py(dup_comm_py2f)
+            dup_comm = f2py(dup_comm_py2f)
             dup_comm.Free()
         _parent_comms.pop(dup_comm_py2f, None)
 
