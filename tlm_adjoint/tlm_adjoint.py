@@ -20,7 +20,7 @@
 
 from .interface import DEFAULT_COMM, check_space_types, comm_dup, \
     function_assign, function_copy, function_id, function_is_replacement, \
-    function_name, function_new_tangent_linear, is_function
+    function_name, function_new_tangent_linear, garbage_cleanup, is_function
 
 from .alias import WeakAlias, gc_disabled
 from .binomial_checkpointing import MultistageCheckpointingManager
@@ -1387,6 +1387,7 @@ class EquationManager:
 
                 storage = ReplayStorage(self._blocks, cp_n, n + 1,
                                         transpose_deps=transpose_deps)
+                garbage_cleanup(self._comm)
                 initialize_storage_cp = True
                 storage.update(self._cp.initial_conditions(cp=False,
                                                            refs=True,
@@ -1733,6 +1734,7 @@ class EquationManager:
                 raise ValueError(f"Unexpected checkpointing action: "
                                  f"{cp_action:s}")
 
+        garbage_cleanup(self._comm)
         return tuple(dJ)
 
 

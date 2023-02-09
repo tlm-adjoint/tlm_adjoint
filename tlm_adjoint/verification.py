@@ -22,7 +22,7 @@ from .interface import function_assign, function_axpy, function_copy, \
     function_dtype, function_inner, function_is_cached, \
     function_is_checkpointed, function_is_static, function_linf_norm, \
     function_local_size, function_name, function_new, function_set_values, \
-    is_function
+    garbage_cleanup, is_function, space_comm
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
@@ -47,6 +47,7 @@ def wrapped_forward(forward):
         J = forward(*M)
         if is_function(J):
             J = Functional(_fn=J)
+        garbage_cleanup(space_comm(J.space()))
         return J
 
     return wrapped_forward
