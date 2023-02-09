@@ -22,7 +22,6 @@ from collections.abc import Mapping
 from collections import deque
 import copy
 import functools
-import gc
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -261,9 +260,12 @@ def comm_dup_cached(comm):
 
 def garbage_cleanup(comm):
     if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
-        gc.collect()
-        PETSc.garbage_cleanup(comm)
-        PETSc.garbage_cleanup(comm_parent(comm))
+        while True:
+            PETSc.garbage_cleanup(comm)
+            parent_comm = comm_parent(comm)
+            if parent_comm.py2f() == comm.py2f():
+                break
+            comm = parent_comm
 
 
 def weakref_method(fn, obj):
