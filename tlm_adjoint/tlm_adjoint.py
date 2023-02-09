@@ -38,6 +38,10 @@ import copy
 import enum
 import itertools
 import logging
+try:
+    import MPI
+except ImportError:
+    MPI = None
 import numpy as np
 from operator import itemgetter
 import os
@@ -677,12 +681,11 @@ class EquationManager:
                                     self._to_drop_references, self._finalizes)
         finalize.atexit = False
 
-        if self._comm.rank == 0:
-            id = self._id_counter[0]
-            self._id_counter[0] += 1
-        else:
-            id = None
-        self._id = self._comm.bcast(id, root=0)
+        if MPI is not None:
+            self._id_counter[0] = self._comm.allreduce(
+                self._id_counter[0], op=MPI.MAX)
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
