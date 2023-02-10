@@ -20,11 +20,11 @@
 
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
-from ..interface import SpaceInterface, add_interface, function_caches, \
-    function_comm, function_dtype, function_id, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_name, \
-    function_replacement, function_space, function_space_type, is_function, \
-    space_comm
+from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
+    comm_parent, function_caches, function_comm, function_dtype, function_id, \
+    function_is_cached, function_is_checkpointed, function_is_static, \
+    function_name, function_replacement, function_space, function_space_type, \
+    is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -52,7 +52,6 @@ __all__ = \
         "eliminate_zeros",
         "extract_coefficients",
         "new_count",
-        "replaced_expr",
         "replaced_form"
     ]
 
@@ -288,9 +287,9 @@ class Constant(backend_Constant):
         # Default comm
         if comm is None:
             if space is None:
-                comm = MPI.COMM_WORLD
+                comm = DEFAULT_COMM
             else:
-                comm = space_comm(space)
+                comm = comm_parent(space_comm(space))
 
         if cache is None:
             cache = static
@@ -371,7 +370,10 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
             # Inefficient, but it is very difficult to generate a non-empty but
             # zero valued form
             arguments = expr.arguments()
-            domain = expr.ufl_domains()[0]
+            if isinstance(expr, ufl.classes.Expr):
+                domain, = ufl.domain.extract_domains(expr)
+            else:
+                domain, = expr.ufl_domains()
             zero = ZeroConstant(domain=domain)
             if len(arguments) == 0:
                 simplified_expr = zero * ufl.ds
@@ -571,14 +573,6 @@ class ReplacementConstant(backend_Constant, Replacement):
 class ReplacementFunction(backend_Function, Replacement):
     def __init__(self, x):
         Replacement.__init__(self, x)
-
-
-def replaced_expr(expr):
-    replace_map = {}
-    for c in ufl.algorithms.extract_coefficients(expr):
-        if is_function(c):
-            replace_map[c] = function_replacement(c)
-    return ufl.replace(expr, replace_map)
 
 
 def replaced_form(form):

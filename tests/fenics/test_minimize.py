@@ -58,14 +58,11 @@ def test_minimize_project(setup_test, test_leaks):
     x_ref, _ = forward(alpha_ref)
 
     alpha0 = Function(space, name="alpha0", static=True)
-    start_manager()
-    _, J = forward(alpha0, x_ref=x_ref)
-    stop_manager()
 
     def forward_J(alpha):
         return forward(alpha, x_ref=x_ref)[1]
 
-    alpha, result = minimize_scipy(forward_J, alpha0, J0=J,
+    alpha, result = minimize_scipy(forward_J, alpha0,
                                    method="L-BFGS-B",
                                    options={"ftol": 0.0, "gtol": 1.0e-10})
     assert result.success
@@ -114,14 +111,11 @@ def test_minimize_project_multiple(setup_test, test_leaks):
 
     alpha0 = Function(space, name="alpha0", static=True)
     beta0 = Function(space, name="beta0", static=True)
-    start_manager()
-    _, _, J = forward(alpha0, beta0, x_ref=x_ref, y_ref=y_ref)
-    stop_manager()
 
     def forward_J(alpha, beta):
         return forward(alpha, beta, x_ref=x_ref, y_ref=y_ref)[2]
 
-    (alpha, beta), result = minimize_scipy(forward_J, (alpha0, beta0), J0=J,
+    (alpha, beta), result = minimize_scipy(forward_J, (alpha0, beta0),
                                            method="L-BFGS-B",
                                            options={"ftol": 0.0,
                                                     "gtol": 1.0e-11})

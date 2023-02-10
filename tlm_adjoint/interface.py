@@ -18,12 +18,26 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-import numpy as np
-
 from collections.abc import Mapping
+from collections import deque
 import copy
 import functools
 import logging
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
+import numpy as np
+try:
+    from operator import call
+except ImportError:
+    # For Python < 3.11, following Python 3.11 API
+    def call(obj, /, *args, **kwargs):
+        return obj(*args, **kwargs)
+try:
+    import petsc4py.PETSc as PETSc
+except ImportError:
+    PETSc = None
 import sys
 import warnings
 import weakref
@@ -33,6 +47,10 @@ __all__ = \
         "InterfaceException",
 
         "DEFAULT_COMM",
+        "comm_dup",
+        "comm_dup_cached",
+        "comm_parent",
+        "garbage_cleanup",
 
         "add_interface",
         "weakref_method",
@@ -117,16 +135,16 @@ class InterfaceException(Exception):  # noqa: N818
         super().__init__(*args, **kwargs)
 
 
-try:
-    from mpi4py.MPI import COMM_WORLD as DEFAULT_COMM
-except ImportError:
-    # As for mpi4py 3.0.3 API
+if MPI is None:
+    # As for mpi4py 3.1.4 API
     class SerialComm:
         _id_counter = [-1]
 
-        def __init__(self):
-            self._id = self._id_counter[0]
-            self._id_counter[0] -= 1
+        def __init__(self, *, _id=None):
+            self._id = _id
+            if self._id is None:
+                self._id = self._id_counter[0]
+                self._id_counter[0] -= 1
 
         @property
         def rank(self):
@@ -158,12 +176,105 @@ except ImportError:
         def py2f(self):
             return self._id
 
+        def f2py(self, arg):
+            return SerialComm(_id=arg)
+
         def scatter(self, sendobj, root=0):
             assert root == 0
             sendobj, = sendobj
             return copy.deepcopy(sendobj)
 
     DEFAULT_COMM = SerialComm()
+
+    f2py = DEFAULT_COMM.f2py
+
+    def comm_finalize(comm, finalize_callback,
+                      *args, **kwargs):
+        weakref.finalize(comm, finalize_callback,
+                         *args, **kwargs)
+else:
+    DEFAULT_COMM = MPI.COMM_WORLD
+
+    f2py = MPI.Comm.f2py
+
+    _comm_finalize_key = MPI.Comm.Create_keyval(
+        delete_fn=lambda comm, key, finalizes:
+        deque(map(call, finalizes), maxlen=0))
+
+    # Similar to weakref.finalize behaviour with atexit=False
+    def comm_finalize(comm, finalize_callback,
+                      *args, **kwargs):
+        finalizes = comm.Get_attr(_comm_finalize_key)
+        if finalizes is None:
+            finalizes = []
+            comm.Set_attr(_comm_finalize_key, finalizes)
+        finalizes.append(lambda: finalize_callback(*args, **kwargs))
+
+
+_parent_comms = {}
+
+
+def comm_parent(dup_comm):
+    comm_py2f = _parent_comms.get(dup_comm.py2f(), None)
+    if comm_py2f is None:
+        return dup_comm
+    else:
+        return f2py(comm_py2f)
+
+
+def comm_dup(comm):
+    if MPI is not None and comm is MPI.COMM_NULL:
+        return comm
+
+    dup_comm = comm.Dup()
+    _parent_comms[dup_comm.py2f()] = comm.py2f()
+
+    def finalize_callback(dup_comm_py2f):
+        if MPI is not None and not MPI.Is_finalized():
+            dup_comm = f2py(dup_comm_py2f)
+            dup_comm.Free()
+        _parent_comms.pop(dup_comm_py2f, None)
+
+    weakref.finalize(dup_comm, finalize_callback,
+                     dup_comm.py2f())
+
+    return dup_comm
+
+
+_dup_comms = {}
+
+
+def comm_dup_cached(comm):
+    if MPI is not None and comm is MPI.COMM_NULL:
+        return comm
+
+    dup_comm = _dup_comms.get(comm.py2f(), None)
+
+    if dup_comm is None:
+        dup_comm = comm.Dup()
+        _parent_comms[dup_comm.py2f()] = comm.py2f()
+        _dup_comms[comm.py2f()] = dup_comm
+
+        def finalize_callback(comm_py2f, dup_comm):
+            if MPI is not None and not MPI.Is_finalized():
+                dup_comm.Free()
+            _parent_comms.pop(dup_comm.py2f(), None)
+            _dup_comms.pop(comm_py2f, None)
+
+        comm_finalize(comm, finalize_callback,
+                      comm.py2f(), dup_comm)
+
+    return dup_comm
+
+
+def garbage_cleanup(comm):
+    if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
+        while True:
+            PETSc.garbage_cleanup(comm)
+            parent_comm = comm_parent(comm)
+            if parent_comm.py2f() == comm.py2f():
+                break
+            comm = parent_comm
 
 
 def weakref_method(fn, obj):

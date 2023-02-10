@@ -23,7 +23,8 @@ from ..functional import Functional as _Functional
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
-    function_space, new_function_id, new_space_id, space_id, space_new
+    comm_dup_cached, function_space, new_function_id, new_space_id, space_id, \
+    space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
 import copy
@@ -82,7 +83,7 @@ class FunctionSpaceInterface(SpaceInterface):
 
 class FunctionSpace:
     def __init__(self, dim, *, dtype=None):
-        comm = DEFAULT_COMM
+        comm = comm_dup_cached(DEFAULT_COMM)
         if comm.size > 1:
             raise RuntimeError("Serial only")
         if dtype is None:

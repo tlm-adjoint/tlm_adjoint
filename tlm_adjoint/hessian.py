@@ -23,7 +23,7 @@ from .interface import check_space_types_conjugate_dual, function_axpy, \
     function_is_checkpointed, function_is_static, function_name, \
     function_new, function_new_conjugate, function_set_values, is_function
 
-from .caches import clear_caches
+from .caches import local_caches
 from .equations import InnerProductSolver
 from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
@@ -86,6 +86,7 @@ class GeneralHessian(Hessian):
         self._forward = forward
         self._manager = manager
 
+    @local_caches
     @restore_manager
     def compute_gradient(self, M, M0=None):
         """
@@ -113,7 +114,6 @@ class GeneralHessian(Hessian):
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
-        clear_caches()
 
         if M0 is None:
             M0 = M
@@ -134,6 +134,7 @@ class GeneralHessian(Hessian):
 
         return J_val, dJ
 
+    @local_caches
     @restore_manager
     def action(self, M, dM, M0=None):
         """
@@ -164,7 +165,6 @@ class GeneralHessian(Hessian):
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
-        clear_caches()
 
         if M0 is None:
             M0 = M
@@ -271,12 +271,12 @@ class GeneralGaussNewton(GaussNewton):
         self._forward = forward
         self._manager = manager
 
+    @local_caches
     @restore_manager
     def _setup_manager(self, M, dM, M0=None):
         set_manager(self._manager)
         self._manager.reset()
         self._manager.stop()
-        clear_caches()
 
         if M0 is None:
             M0 = M

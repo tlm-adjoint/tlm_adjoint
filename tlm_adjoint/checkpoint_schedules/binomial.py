@@ -195,6 +195,9 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
                 max_n, snapshots_in_ram, snapshots_on_disk,
                 trajectory=trajectory)
 
+        snapshots_in_ram = storage.count("RAM")
+        snapshots_on_disk = storage.count("disk")
+
         super().__init__(max_n=max_n)
         self._snapshots_in_ram = snapshots_in_ram
         self._snapshots_on_disk = snapshots_on_disk

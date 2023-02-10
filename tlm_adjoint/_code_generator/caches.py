@@ -26,7 +26,7 @@ from .backend_code_generator_interface import assemble, assemble_arguments, \
 
 from ..caches import Cache
 
-from .functions import eliminate_zeros, replaced_form
+from .functions import eliminate_zeros, extract_coefficients, replaced_form
 
 from collections import defaultdict
 import ufl
@@ -48,8 +48,8 @@ __all__ = \
     ]
 
 
-def is_cached(e):
-    for c in ufl.algorithms.extract_coefficients(e):
+def is_cached(expr):
+    for c in extract_coefficients(expr):
         if not is_function(c) or not function_is_cached(c):
             return False
     return True
@@ -276,12 +276,12 @@ class AssemblyCache(Cache):
             form_compiler_parameters = {}
 
         if solver_parameters is not None:
-            warnings.warn("'solver_parameters' argument is deprecated -- use "
-                          "'linear_solver_parameters' instead",
+            warnings.warn("solver_parameters argument is deprecated -- use "
+                          "linear_solver_parameters instead",
                           DeprecationWarning, stacklevel=2)
             if linear_solver_parameters is not None:
-                raise TypeError("Cannot pass both 'solver_parameters' and "
-                                "'linear_solver_parameters' arguments")
+                raise TypeError("Cannot pass both solver_parameters and "
+                                "linear_solver_parameters arguments")
             linear_solver_parameters = solver_parameters
         elif linear_solver_parameters is None:
             linear_solver_parameters = {}
@@ -359,7 +359,7 @@ class LinearSolverCache(Cache):
                                        linear_solver_parameters)
                 return solver, A, b_bc
         else:
-            warnings.warn("'A' argument is deprecated",
+            warnings.warn("A argument is deprecated",
                           DeprecationWarning, stacklevel=2)
 
             # A = matrix_copy(A)  # Caller's responsibility

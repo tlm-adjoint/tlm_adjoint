@@ -293,6 +293,7 @@ def matrix_multiply(A, x, *, tensor=None, addto=False,
         as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
     else:
         as_backend_type(A).mat().mult(x_v, tensor_v)
+    tensor.apply("insert")
 
     return tensor
 

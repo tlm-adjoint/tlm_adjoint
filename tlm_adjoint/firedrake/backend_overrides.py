@@ -193,6 +193,11 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
             if solver_parameters is None:
                 solver_parameters = {}
 
+            if isinstance(eq_arg.rhs, ufl.classes.Form) \
+                    and (x in eq_arg.lhs.coefficients()
+                         or x in eq_arg.rhs.coefficients()):
+                # See Firedrake issue #2555
+                raise ValueError("Invalid dependency")
             if Jp is not None:
                 raise NotImplementedError("Preconditioners not supported")
             if M is not None:
@@ -203,9 +208,6 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 nullspace=nullspace, transpose_nullspace=transpose_nullspace,
                 near_nullspace=near_nullspace)
 
-            if isinstance(eq_arg.rhs, ufl.classes.Form):
-                eq_arg = linear_equation_new_x(eq_arg, x,
-                                               annotate=annotate, tlm=tlm)
             eq = EquationSolver(
                 eq_arg, x, bcs, J=J,
                 form_compiler_parameters=form_compiler_parameters,
@@ -510,11 +512,13 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
 
             A = self._problem.J
             b = self._problem._tlm_adjoint__b
+            if x in A.coefficients() or x in b.coefficients():
+                # See Firedrake issue #2555
+                raise ValueError("Invalid dependency")
 
             eq = EquationSolver(
-                linear_equation_new_x(A == b, x,
-                                      annotate=annotate, tlm=tlm),
-                x, self._problem.bcs, solver_parameters=solver_parameters,
+                A == b, x, self._problem.bcs,
+                solver_parameters=solver_parameters,
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=self._problem._constant_jacobian,
                 cache_rhs_assembly=False)

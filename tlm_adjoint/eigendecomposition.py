@@ -180,7 +180,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     A_action = wrapped_action(space, space_type, action_type, A_action)
     if B_action is None:
         if action_type in ["dual", "conjugate_dual"]:
-            space_type_warning("'B_action' argument expected with action type "
+            space_type_warning("B_action argument expected with action type "
                                "'dual' or 'conjugate_dual'")
         else:
             assert action_type == "primal"
@@ -200,7 +200,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     del X
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
-    comm = space_comm(space)  # .Dup()
+    comm = space_comm(space)
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action),
@@ -275,8 +275,6 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
             if v_i is not None:
                 with v_i as v_i_a:
                     function_set_values(V_i[i], v_i_a)
-
-    # comm.Free()
 
     if V_i is None:
         return lam, V_r

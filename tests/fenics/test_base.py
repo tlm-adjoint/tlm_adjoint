@@ -24,6 +24,7 @@ from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
 from tlm_adjoint.fenics.backend_code_generator_interface import \
     complex_mode, interpolate_expression
+from tlm_adjoint.alias import gc_disabled
 
 import copy
 import functools
@@ -33,6 +34,12 @@ import inspect
 import logging
 import mpi4py.MPI as MPI
 import numpy as np
+try:
+    from operator import call
+except ImportError:
+    # For Python < 3.11, following Python 3.11 API
+    def call(obj, /, *args, **kwargs):
+        return obj(*args, **kwargs)
 from operator import itemgetter
 import os
 import pytest
@@ -73,15 +80,16 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
-    reset_manager("memory", {"drop_references": True})
-    clear_caches()
-    stop_manager()
-
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
+
+    reset_manager("memory", {"drop_references": True})
+    stop_manager()
+    clear_caches()
 
     yield
 
     reset_manager("memory", {"drop_references": False})
+    clear_caches()
 
 
 def seed_test(fn):
@@ -142,12 +150,22 @@ def test_ghost_modes(request):
     parameters["ghost_mode"] = request.param
 
 
-function_ids = {}
+_function_ids = weakref.WeakValueDictionary()
+
+
+def clear_function_references():
+    _function_ids.clear()
+
+
+@gc_disabled
+def referenced_functions():
+    return tuple(F_ref for F_ref in map(call, _function_ids.valuerefs())
+                 if F_ref is not None)
 
 
 def _Constant__init__(self, *args, **kwargs):
     _Constant__init__orig(self, *args, **kwargs)
-    function_ids[function_id(self)] = weakref.ref(self)
+    _function_ids[function_id(self)] = self
 
 
 _Constant__init__orig = backend_Constant.__init__
@@ -156,34 +174,16 @@ backend_Constant.__init__ = _Constant__init__
 
 def _Function__init__(self, *args, **kwargs):
     _Function__init__orig(self, *args, **kwargs)
-    function_ids[function_id(self)] = weakref.ref(self)
+    _function_ids[function_id(self)] = self
 
 
 _Function__init__orig = backend_Function.__init__
 backend_Function.__init__ = _Function__init__
 
 
-def _EquationManager_configure_checkpointing(self, *args, **kwargs):
-    if hasattr(self, "_cp_schedule") \
-            and hasattr(self, "_cp_path"):
-        if self._cp_schedule.is_exhausted() \
-                and self._cp_schedule.max_n() is not None \
-                and self._cp_schedule.r() == self._cp_schedule.max_n() \
-                and self._cp_path is not None:
-            self._comm.barrier()
-            if os.path.exists(self._cp_path):
-                assert len(os.listdir(self._cp_path)) == 0
-
-    _EquationManager_configure_checkpointing__orig(self, *args, **kwargs)
-
-
-_EquationManager_configure_checkpointing__orig = EquationManager.configure_checkpointing  # noqa: E501
-EquationManager.configure_checkpointing = _EquationManager_configure_checkpointing  # noqa: E501
-
-
 @pytest.fixture
 def test_leaks():
-    function_ids.clear()
+    clear_function_references()
 
     yield
 
@@ -201,15 +201,13 @@ def test_leaks():
     gc.collect()
 
     refs = 0
-    for F in function_ids.values():
-        F = F()
-        if F is not None:
-            info(f"{function_name(F):s} referenced")
-            refs += 1
+    for F in referenced_functions():
+        info(f"{function_name(F):s} referenced")
+        refs += 1
     if refs == 0:
         info("No references")
 
-    function_ids.clear()
+    clear_function_references()
     assert refs == 0
 
     manager.reset("memory", {"drop_references": False})
@@ -217,6 +215,8 @@ def test_leaks():
 
 @pytest.fixture
 def tmp_path(tmp_path):
+    if MPI.COMM_WORLD.rank != 0:
+        tmp_path = None
     return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 

@@ -18,10 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import DEFAULT_COMM, function_copy, function_get_values, \
-    function_global_size, function_id, function_is_checkpointed, \
-    function_local_indices, function_new, function_set_values, \
-    function_space, function_space_type, space_id, space_new
+from .interface import DEFAULT_COMM, comm_dup, function_copy, \
+    function_get_values, function_global_size, function_id, \
+    function_is_checkpointed, function_local_indices, function_new, \
+    function_set_values, function_space, function_space_type, space_id, \
+    space_new
 
 from abc import ABC, abstractmethod
 from collections import deque
@@ -465,21 +466,19 @@ def root_pid(comm, *, root=0):
 
 
 class PickleCheckpoints(Checkpoints):
-    def __init__(self, prefix, *, comm=DEFAULT_COMM):
-        comm = comm.Dup()
+    def __init__(self, prefix, *, comm=None):
+        if comm is None:
+            comm = DEFAULT_COMM
+
+        comm = comm_dup(comm)
         cp_filenames = {}
 
-        def finalize_callback(comm, cp_filenames):
-            try:
-                for filename in cp_filenames.values():
-                    os.remove(filename)
-            finally:
-                if MPI is not None and not MPI.Is_finalized():
-                    comm.Free()
+        def finalize_callback(cp_filenames):
+            for filename in cp_filenames.values():
+                os.remove(filename)
 
-        finalize = weakref.finalize(self, finalize_callback,
-                                    comm, cp_filenames)
-        finalize.atexit = True
+        weakref.finalize(self, finalize_callback,
+                         cp_filenames)
 
         self._prefix = prefix
         self._comm = comm
@@ -555,26 +554,24 @@ class PickleCheckpoints(Checkpoints):
 
 
 class HDF5Checkpoints(Checkpoints):
-    def __init__(self, prefix, *, comm=DEFAULT_COMM):
-        comm = comm.Dup()
+    def __init__(self, prefix, *, comm=None):
+        if comm is None:
+            comm = DEFAULT_COMM
+
+        comm = comm_dup(comm)
         cp_filenames = {}
 
         def finalize_callback(comm, rank, cp_filenames):
-            try:
-                if MPI is not None and not MPI.Is_finalized():
-                    comm.barrier()
-                if rank == 0:
-                    for filename in cp_filenames.values():
-                        os.remove(filename)
-                if MPI is not None and not MPI.Is_finalized():
-                    comm.barrier()
-            finally:
-                if MPI is not None and not MPI.Is_finalized():
-                    comm.Free()
+            if MPI is not None and not MPI.Is_finalized():
+                comm.barrier()
+            if rank == 0:
+                for filename in cp_filenames.values():
+                    os.remove(filename)
+            if MPI is not None and not MPI.Is_finalized():
+                comm.barrier()
 
-        finalize = weakref.finalize(self, finalize_callback,
-                                    comm, comm.rank, cp_filenames)
-        finalize.atexit = True
+        weakref.finalize(self, finalize_callback,
+                         comm, comm.rank, cp_filenames)
 
         self._prefix = prefix
         self._comm = comm

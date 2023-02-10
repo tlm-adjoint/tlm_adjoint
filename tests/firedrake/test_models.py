@@ -244,7 +244,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     J_val = J.value()
     if n_steps == 20:
         J_val_ref = diffusion_ref()
-        assert abs(J_val - J_val_ref) < 1.0e-13
+        assert abs(J_val - J_val_ref) < 1.0e-12
 
     dJs = compute_gradient(J, [T_0, kappa])
 

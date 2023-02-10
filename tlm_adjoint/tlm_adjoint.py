@@ -18,9 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import DEFAULT_COMM, check_space_types, function_assign, \
-    function_copy, function_id, function_is_replacement, function_name, \
-    function_new_tangent_linear, is_function
+from .interface import DEFAULT_COMM, check_space_types, comm_dup, \
+    function_assign, function_copy, function_id, function_is_replacement, \
+    function_name, function_new_tangent_linear, garbage_cleanup, is_function
 
 from .alias import WeakAlias, gc_disabled
 from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
@@ -40,9 +40,12 @@ from collections.abc import Sequence
 import copy
 import enum
 import functools
-import gc
 import itertools
 import logging
+try:
+    import MPI
+except ImportError:
+    MPI = None
 import numpy as np
 from operator import itemgetter
 import os
@@ -490,6 +493,9 @@ class AdjointCache:
             adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
         return adj_X
 
+    def remove(self, J_i, n, i):
+        del self._cache[(J_i, n, i)]
+
     def cache(self, J_i, n, i, adj_X, *, copy=True, store=False):
         if (J_i, n, i) in self._keys \
                 and (store or len(self._keys[(J_i, n, i)]) > 0):
@@ -507,7 +513,6 @@ class AdjointCache:
 
     def initialize(self, Js, blocks, transpose_deps, *,
                    cache_degree=None):
-
         J_roots, tlm_adj = J_tangent_linears(Js, blocks,
                                              max_adjoint_degree=cache_degree)
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
@@ -662,17 +667,14 @@ class EquationManager:
         if cp_parameters is None:
             cp_parameters = {}
 
-        comm = comm.Dup()
+        comm = comm_dup(comm)
 
         self._comm = comm
         self._to_drop_references = []
         self._finalizes = {}
 
         @gc_disabled
-        def finalize_callback(comm,
-                              to_drop_references, finalizes):
-            comm.Free()
-
+        def finalize_callback(to_drop_references, finalizes):
             while len(to_drop_references) > 0:
                 referrer = to_drop_references.pop()
                 referrer._drop_references()
@@ -680,16 +682,14 @@ class EquationManager:
                 finalize.detach()
             finalizes.clear()
         finalize = weakref.finalize(self, finalize_callback,
-                                    self._comm,
                                     self._to_drop_references, self._finalizes)
         finalize.atexit = False
 
-        if self._comm.rank == 0:
-            id = self._id_counter[0]
-            self._id_counter[0] += 1
-        else:
-            id = None
-        self._id = self._comm.bcast(id, root=0)
+        if MPI is not None:
+            self._id_counter[0] = self._comm.allreduce(
+                self._id_counter[0], op=MPI.MAX)
+        self._id = self._id_counter[0]
+        self._id_counter[0] += 1
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
@@ -810,7 +810,7 @@ class EquationManager:
 
         if not callable(cp_method) and cp_method in ["none", "memory"]:
             if "replace" in cp_parameters:
-                warnings.warn("'replace' cp_parameters key is deprecated",
+                warnings.warn("replace cp_parameters key is deprecated",
                               DeprecationWarning, stacklevel=2)
                 if "drop_references" in cp_parameters:
                     if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
@@ -1016,12 +1016,12 @@ class EquationManager:
 
         return self._annotation_state == AnnotationState.ANNOTATING
 
-    def start(self, annotation=True, tlm=True):
+    def start(self, *, annotate=True, tlm=True):
         """
         Start annotation or tangent-linear derivation.
         """
 
-        if annotation:
+        if annotate:
             self._annotation_state \
                 = {AnnotationState.STOPPED: AnnotationState.ANNOTATING,
                    AnnotationState.ANNOTATING: AnnotationState.ANNOTATING}[self._annotation_state]  # noqa: E501
@@ -1031,7 +1031,7 @@ class EquationManager:
                 = {TangentLinearState.STOPPED: TangentLinearState.DERIVING,
                    TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
-    def stop(self, annotation=True, tlm=True):
+    def stop(self, *, annotate=True, tlm=True):
         """
         Pause annotation or tangent-linear derivation. Returns a tuple
         containing:
@@ -1043,7 +1043,7 @@ class EquationManager:
 
         state = (self.annotation_enabled(), self.tlm_enabled())
 
-        if annotation:
+        if annotate:
             self._annotation_state \
                 = {AnnotationState.STOPPED: AnnotationState.STOPPED,
                    AnnotationState.ANNOTATING: AnnotationState.STOPPED,
@@ -1128,7 +1128,7 @@ class EquationManager:
                 if node_eq is not None:
                     node_eq.solve(
                         manager=self,
-                        annotate=node.is_annotated(),
+                        annotate=annotate and node.is_annotated(),
                         tlm=False)
                     remaining_eqs.extend(
                         (node_eq, child_M_dM, child)
@@ -1466,7 +1466,7 @@ class EquationManager:
                 and len(self._blocks) == self._cp_schedule.max_n() - 1:
             # Wait for the finalize
             warnings.warn(
-                "Attempting to end the final block without finalising -- "
+                "Attempting to end the final block without finalizing -- "
                 "ignored", RuntimeWarning, stacklevel=2)
             return
 
@@ -1574,7 +1574,6 @@ class EquationManager:
             return dJ
 
         set_manager(self)
-        gc.collect()
         self.finalize()
         self.reset_adjoint(_warning=False)
 
@@ -1697,6 +1696,10 @@ class EquationManager:
                             J, adj_X, nl_deps,
                             transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     else:
+                        if not store_adjoint \
+                                and (J_i, n, i) in self._adj_cache:
+                            self._adj_cache.remove(J_i, n, i)
+
                         # Adjoint solution has no effect on sensitivity
                         adj_X = None
 
@@ -1766,6 +1769,7 @@ class EquationManager:
             if isinstance(cp_action, EndReverse):
                 break
 
+        garbage_cleanup(self._comm)
         return tuple(dJ)
 
 
