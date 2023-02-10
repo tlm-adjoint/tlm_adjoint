@@ -20,6 +20,7 @@
 
 from tlm_adjoint.numpy import *
 from tlm_adjoint.numpy import manager as _manager
+from tlm_adjoint.alias import gc_disabled
 
 import copy
 import functools
@@ -28,6 +29,12 @@ import hashlib
 import inspect
 import logging
 import numpy as np
+try:
+    from operator import call
+except ImportError:
+    # For Python < 3.11, following Python 3.11 API
+    def call(obj, /, *args, **kwargs):
+        return obj(*args, **kwargs)
 from operator import itemgetter
 import os
 import pytest
@@ -50,13 +57,13 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    reset_manager("memory", {"drop_references": True})
-    stop_manager()
-    clear_caches()
+    set_default_dtype(np.float64)
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
-    set_default_dtype(np.float64)
+    reset_manager("memory", {"drop_references": True})
+    stop_manager()
+    clear_caches()
 
     yield
 
@@ -90,12 +97,22 @@ def test_default_dtypes(request):
     set_default_dtype(request.param["default_dtype"])
 
 
-function_ids = {}
+_function_ids = weakref.WeakValueDictionary()
+
+
+def clear_function_references():
+    _function_ids.clear()
+
+
+@gc_disabled
+def referenced_functions():
+    return tuple(F_ref for F_ref in map(call, _function_ids.valuerefs())
+                 if F_ref is not None)
 
 
 def _Function__init__(self, *args, **kwargs):
     _Function__init__orig(self, *args, **kwargs)
-    function_ids[function_id(self)] = weakref.ref(self)
+    _function_ids[function_id(self)] = self
 
 
 _Function__init__orig = Function.__init__
@@ -104,7 +121,7 @@ Function.__init__ = _Function__init__
 
 @pytest.fixture
 def test_leaks():
-    function_ids.clear()
+    clear_function_references()
 
     yield
 
@@ -122,15 +139,13 @@ def test_leaks():
     gc.collect()
 
     refs = 0
-    for F in function_ids.values():
-        F = F()
-        if F is not None:
-            info(f"{function_name(F):s} referenced")
-            refs += 1
+    for F in referenced_functions():
+        info(f"{function_name(F):s} referenced")
+        refs += 1
     if refs == 0:
         info("No references")
 
-    function_ids.clear()
+    clear_function_references()
     assert refs == 0
 
     manager.reset("memory", {"drop_references": False})
