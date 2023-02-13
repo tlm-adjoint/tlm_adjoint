@@ -693,6 +693,15 @@ class EquationManager:
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
+    def __getattr__(self, key):
+        if key == "_cp_manager":
+            warnings.warn("EquationManager._cp_manager is deprecated --"
+                          "use EquationManager._cp_schedule instead",
+                          DeprecationWarning, stacklevel=2)
+            return self._cp_schedule
+        else:
+            return super().__getattr__(key)
+
     def comm(self):
         return self._comm
 
@@ -874,7 +883,6 @@ class EquationManager:
         self._cp_parameters = cp_parameters
         self._alias_eqs = alias_eqs
         self._cp_schedule = cp_schedule
-        self._cp_manager = self._cp_schedule  # Backwards compatibility
         self._cp_memory = {}
         self._cp_path = cp_path
         self._cp_disk = cp_disk
