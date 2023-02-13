@@ -1413,6 +1413,7 @@ class EquationManager:
 
             storage = ReplayStorage(self._blocks, cp_n, n + 1,
                                     transpose_deps=transpose_deps)
+            garbage_cleanup(self._comm)
             initialize_storage_cp = True
             storage.update(self._cp.initial_conditions(cp=False,
                                                        refs=True,
