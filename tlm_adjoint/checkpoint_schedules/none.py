@@ -29,6 +29,10 @@ __all__ = \
 
 
 class NoneCheckpointSchedule(CheckpointSchedule):
+    def __init__(self):
+        super().__init__()
+        self._exhausted = False
+
     def iter(self):
         # Forward
 
@@ -43,10 +47,11 @@ class NoneCheckpointSchedule(CheckpointSchedule):
             self._n = n1
             yield Forward(n0, n1)
 
+        self._exhausted = True
         yield EndForward()
 
     def is_exhausted(self):
-        return self._max_n is not None
+        return self._exhausted
 
     def uses_disk_storage(self):
         return False
