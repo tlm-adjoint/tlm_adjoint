@@ -22,7 +22,6 @@ from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
     Read, Write, EndForward, EndReverse
 
 import functools
-
 from operator import itemgetter
 
 __all__ = \
@@ -113,8 +112,10 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     but applies a brute force approach to determine the allocation.
     """
 
-    snapshots = snapshots_in_ram + snapshots_on_disk
-    weights = [0.0 for i in range(snapshots)]
+    snapshots_in_ram = min(snapshots_in_ram, max_n - 1)
+    snapshots_on_disk = min(snapshots_on_disk, max_n - 1)
+    snapshots = min(snapshots_in_ram + snapshots_on_disk, max_n - 1)
+    weights = [0.0 for _ in range(snapshots)]
 
     cp_schedule = MultistageCheckpointSchedule(max_n, snapshots, 0,
                                                trajectory=trajectory)
@@ -162,9 +163,9 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
 
     assert snapshot_i == -1
 
-    allocation = ["disk" for i in range(snapshots)]
-    for i in [p[0] for p in sorted(enumerate(weights), key=itemgetter(1),
-                                   reverse=True)][:snapshots_in_ram]:
+    allocation = ["disk" for _ in range(snapshots)]
+    for i, _ in sorted(enumerate(weights), key=itemgetter(1),
+                       reverse=True)[:snapshots_in_ram]:
         allocation[i] = "RAM"
 
     return tuple(weights), tuple(allocation)
@@ -186,10 +187,12 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
 
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
                  trajectory="maximum"):
+        snapshots_in_ram = min(snapshots_in_ram, max_n - 1)
+        snapshots_on_disk = min(snapshots_on_disk, max_n - 1)
         if snapshots_in_ram == 0:
-            storage = tuple("disk" for i in range(snapshots_on_disk))
+            storage = tuple("disk" for _ in range(snapshots_on_disk))
         elif snapshots_on_disk == 0:
-            storage = tuple("RAM" for i in range(snapshots_in_ram))
+            storage = tuple("RAM" for _ in range(snapshots_in_ram))
         else:
             _, storage = allocate_snapshots(
                 max_n, snapshots_in_ram, snapshots_on_disk,
@@ -201,12 +204,19 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
         super().__init__(max_n=max_n)
         self._snapshots_in_ram = snapshots_in_ram
         self._snapshots_on_disk = snapshots_on_disk
-        self._snapshots = []
         self._storage = storage
         self._exhausted = False
         self._trajectory = trajectory
 
     def iter(self):
+        snapshots = []
+
+        def write(n):
+            if len(snapshots) >= self._snapshots_in_ram + self._snapshots_on_disk:  # noqa: E501
+                raise RuntimeError("Invalid checkpointing state")
+            snapshots.append(n)
+            return self._storage[len(snapshots) - 1]
+
         # Forward
 
         if self._max_n is None:
@@ -214,17 +224,17 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
         while self._n < self._max_n - 1:
             yield Configure(True, False)
 
-            snapshots = (self._snapshots_in_ram
-                         + self._snapshots_on_disk
-                         - len(self._snapshots))
+            n_snapshots = (self._snapshots_in_ram
+                           + self._snapshots_on_disk
+                           - len(snapshots))
             n0 = self._n
-            n1 = n0 + n_advance(self._max_n - n0, snapshots,
+            n1 = n0 + n_advance(self._max_n - n0, n_snapshots,
                                 trajectory=self._trajectory)
             assert n1 > n0
             self._n = n1
             yield Forward(n0, n1)
 
-            cp_storage = self._snapshot(n0)
+            cp_storage = write(n0)
             yield Write(n0, cp_storage)
             yield Clear(True, True)
         if self._n != self._max_n - 1:
@@ -246,12 +256,12 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
         # Reverse
 
         while self._r < self._max_n:
-            if len(self._snapshots) == 0:
+            if len(snapshots) == 0:
                 raise RuntimeError("Invalid checkpointing state")
-            cp_n = self._snapshots[-1]
-            cp_storage = self._storage[len(self._snapshots) - 1]
+            cp_n = snapshots[-1]
+            cp_storage = self._storage[len(snapshots) - 1]
             if cp_n == self._max_n - self._r - 1:
-                self._snapshots.pop()
+                snapshots.pop()
                 self._n = cp_n
                 yield Read(cp_n, cp_storage, True)
                 yield Clear(True, True)
@@ -262,11 +272,11 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
 
                 yield Configure(False, False)
 
-                snapshots = (self._snapshots_in_ram
-                             + self._snapshots_on_disk
-                             - len(self._snapshots) + 1)
+                n_snapshots = (self._snapshots_in_ram
+                               + self._snapshots_on_disk
+                               - len(snapshots) + 1)
                 n0 = self._n
-                n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots,
+                n1 = n0 + n_advance(self._max_n - self._r - n0, n_snapshots,
                                     trajectory=self._trajectory)
                 assert n1 > n0
                 self._n = n1
@@ -276,17 +286,17 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
                 while self._n < self._max_n - self._r - 1:
                     yield Configure(True, False)
 
-                    snapshots = (self._snapshots_in_ram
-                                 + self._snapshots_on_disk
-                                 - len(self._snapshots))
+                    n_snapshots = (self._snapshots_in_ram
+                                   + self._snapshots_on_disk
+                                   - len(snapshots))
                     n0 = self._n
-                    n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots,
+                    n1 = n0 + n_advance(self._max_n - self._r - n0, n_snapshots,  # noqa: E501
                                         trajectory=self._trajectory)
                     assert n1 > n0
                     self._n = n1
                     yield Forward(n0, n1)
 
-                    cp_storage = self._snapshot(n0)
+                    cp_storage = write(n0)
                     yield Write(n0, cp_storage)
                     yield Clear(True, True)
                 if self._n != self._max_n - self._r - 1:
@@ -302,11 +312,11 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
             yield Clear(True, True)
         if self._r != self._max_n:
             raise RuntimeError("Invalid checkpointing state")
-        if len(self._snapshots) != 0:
+        if len(snapshots) != 0:
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield EndReverse(True,)
+        yield EndReverse(True)
 
     def is_exhausted(self):
         return self._exhausted
@@ -314,17 +324,9 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
 
-    def _snapshot(self, n):
-        assert n >= 0 and n < self._max_n
-        if len(self._snapshots) >= \
-                self._snapshots_in_ram + self._snapshots_on_disk:
-            raise RuntimeError("Invalid checkpointing state")
-        self._snapshots.append(n)
-        return self._storage[len(self._snapshots) - 1]
-
 
 class TwoLevelCheckpointSchedule(CheckpointSchedule):
-    def __init__(self, disk_period, binomial_snapshots, *,
+    def __init__(self, period, binomial_snapshots, *,
                  binomial_storage="disk",
                  binomial_trajectory="maximum"):
         """
@@ -340,14 +342,14 @@ class TwoLevelCheckpointSchedule(CheckpointSchedule):
           e2020JC016370, 2020
         """
 
-        if disk_period < 1:
-            raise ValueError("disk_period must be positive")
+        if period < 1:
+            raise ValueError("period must be positive")
         if binomial_storage not in ["RAM", "disk"]:
             raise ValueError("Invalid storage")
 
         super().__init__()
 
-        self._period = disk_period
+        self._period = period
         self._binomial_snapshots = binomial_snapshots
         self._binomial_storage = binomial_storage
         self._trajectory = binomial_trajectory
@@ -457,7 +459,7 @@ class TwoLevelCheckpointSchedule(CheckpointSchedule):
             # Reset for new reverse
 
             self._r = 0
-            yield EndReverse(False,)
+            yield EndReverse(False)
 
     def is_exhausted(self):
         return False

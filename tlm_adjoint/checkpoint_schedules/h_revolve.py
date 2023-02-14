@@ -58,6 +58,8 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
             elif cp_action == "Forwards":
                 cp_action = "Forward"
                 n_0, n_1 = action.index
+                if n_1 <= n_0:
+                    raise RuntimeError("Invalid schedule")
                 n_1 += 1
                 storage = None
             elif cp_action == "Backward":
@@ -71,6 +73,9 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
             else:
                 raise RuntimeError(f"Unexpected action: {cp_action:s}")
             return cp_action, (n_0, n_1, storage)
+
+        if self._max_n is None:
+            raise RuntimeError("Invalid checkpointing state")
 
         snapshots = set()
         deferred_cp = None
@@ -147,13 +152,13 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
             else:
                 raise RuntimeError(f"Unexpected action: {cp_action:s}")
 
-        yield Clear(True, True)
-
         if len(snapshots) != 0:
             raise RuntimeError("Invalid checkpointing state")
 
+        yield Clear(True, True)
+
         self._exhausted = True
-        yield EndReverse(True,)
+        yield EndReverse(True)
 
     def is_exhausted(self):
         return self._exhausted

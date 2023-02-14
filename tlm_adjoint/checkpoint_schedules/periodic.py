@@ -83,7 +83,7 @@ class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
             # Reset for new reverse
 
             self._r = 0
-            yield EndReverse(False,)
+            yield EndReverse(False)
 
     def is_exhausted(self):
         return False

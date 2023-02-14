@@ -56,7 +56,7 @@ class MemoryCheckpointSchedule(CheckpointSchedule):
                 # Reset for new reverse
 
                 self._r = 0
-                yield EndReverse(False,)
+                yield EndReverse(False)
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
