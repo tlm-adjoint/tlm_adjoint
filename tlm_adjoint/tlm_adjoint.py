@@ -624,6 +624,8 @@ class EquationManager:
                                 for optimal offline checkpointing", SIAM
                                 Journal on Scientific Computing, 31(3),
                                 pp. 1946--1967, 2009
+        cp_method may alternatively be a callable, used to construct a
+        CheckpointSchedule.
 
         cp_parameters  (Optional) Checkpointing parameters dictionary.
             Parameters for "none" method

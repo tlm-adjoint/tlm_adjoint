@@ -2066,7 +2066,9 @@ configure_checkpointing(cp_method, cp_parameters)
 which should be called prior to solving forward equations. \texttt{cp\_method}
 controls the checkpointing method, and selects between ``none'', ``memory'',
 ``periodic\_disk'', and ``multistage''. \texttt{cp\_parameters} is a dictionary
-of parameters controlling the detailed checkpointing configuration options.
+of parameters controlling the detailed checkpointing configuration options. In
+more advanced usage \texttt{cp\_method} may be a callable, used to construct
+a \texttt{CheckpointSchedule} defining a schedule.
 
 \subsubsection{``memory'' method}\label{sect:configure_checkpointing_memory}
 
