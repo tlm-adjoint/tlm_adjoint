@@ -152,7 +152,7 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     @action.register(Reverse)
     @action.register(EndForward)
     @action.register(EndReverse)
-    def action_end_reverse(cp_action):
+    def action_pass(cp_action):
         pass
 
     while True:
