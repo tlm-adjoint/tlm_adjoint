@@ -44,10 +44,6 @@ class CheckpointAction:
     def __repr__(self):
         return f"{type(self).__name__}{self.args!r}"
 
-    def __len__(self):
-        """The number of forward or reverse steps evaluated by this action."""
-        return 0
-
     def __eq__(self, other):
         return type(self) == type(other) and self.args == other.args
 
