@@ -1318,6 +1318,12 @@ class EquationManager:
             if isinstance(cp_action, (Forward, EndForward)):
                 break
 
+        for cls in action.registry:
+            @action.register(cls)
+            def action_pass(cp_action):
+                pass
+        del action
+
     def _restore_checkpoint(self, n, transpose_deps=None):
         if self._cp_schedule.max_n() is None:
             raise RuntimeError("Invalid checkpointing state")
@@ -1461,6 +1467,12 @@ class EquationManager:
             action(cp_action)
             if isinstance(cp_action, Reverse):
                 break
+
+        for cls in action.registry:
+            @action.register(cls)
+            def action_pass(cp_action):
+                pass
+        del action
 
     def new_block(self):
         """
@@ -1779,6 +1791,12 @@ class EquationManager:
             action(cp_action)
             if isinstance(cp_action, EndReverse):
                 break
+
+        for cls in action.registry:
+            @action.register(cls)
+            def action_pass(cp_action):
+                pass
+        del action
 
         garbage_cleanup(self._comm)
         return tuple(dJ)
