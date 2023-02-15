@@ -28,6 +28,11 @@ import mpi4py.MPI as MPI
 import numpy as np
 import pytest
 
+try:
+    import hrevolve
+except ImportError:
+    hrevolve = None
+
 pytestmark = pytest.mark.skipif(
     MPI.COMM_WORLD.size not in [1, 4],
     reason="tests must be run in serial, or with 4 processes")
@@ -100,17 +105,28 @@ def diffusion_ref():
      ("multistage", {"format": "pickle", "snaps_on_disk": 1,
                      "snaps_in_ram": 2}),
      ("multistage", {"format": "hdf5", "snaps_on_disk": 1,
-                     "snaps_in_ram": 2})])
+                     "snaps_in_ram": 2}),
+     pytest.param(
+         "H-Revolve", {"snapshots_on_disk": 1, "snapshots_in_ram": 2},
+         marks=pytest.mark.skipif(hrevolve is None,
+                                  reason="H-Revolve not available"))])
 @seed_test
 def test_oscillator(setup_test, test_leaks,
                     tmp_path, cp_method, cp_parameters):
     n_steps = 20
     cp_parameters = copy.copy(cp_parameters)
-    if cp_method in ["periodic_disk", "multistage"]:
+    if cp_method in ["periodic_disk", "multistage", "H-Revolve"]:
         cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":
         cp_parameters["blocks"] = n_steps
-    configure_checkpointing(cp_method, cp_parameters)
+    if cp_method in ["memory", "periodic_disk", "multistage"]:
+        configure_checkpointing(cp_method, cp_parameters)
+    else:
+        assert cp_method == "H-Revolve"
+        from tlm_adjoint.checkpoint_schedules import HRevolveCheckpointSchedule
+        configure_checkpointing(
+            lambda **cp_parameters: HRevolveCheckpointSchedule(max_n=n_steps, **cp_parameters),  # noqa: E501
+            cp_parameters)
 
     mesh = UnitSquareMesh(5, 5)
     r0 = FiniteElement("Discontinuous Lagrange", mesh.ufl_cell(), 0)

@@ -18,14 +18,16 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .checkpointing import CheckpointingManager
+from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
+    Read, Write, EndForward, EndReverse
 
+import functools
 from operator import itemgetter
 
 __all__ = \
     [
-        "MultistageCheckpointingManager",
-        "TwoLevelCheckpointingManager"
+        "MultistageCheckpointSchedule",
+        "TwoLevelCheckpointSchedule"
     ]
 
 
@@ -110,47 +112,66 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     but applies a brute force approach to determine the allocation.
     """
 
-    snapshots = snapshots_in_ram + snapshots_on_disk
-    weights = [0.0 for i in range(snapshots)]
+    snapshots_in_ram = min(snapshots_in_ram, max_n - 1)
+    snapshots_on_disk = min(snapshots_on_disk, max_n - 1)
+    snapshots = min(snapshots_in_ram + snapshots_on_disk, max_n - 1)
+    weights = [0.0 for _ in range(snapshots)]
 
-    cp_manager = MultistageCheckpointingManager(max_n, snapshots, 0,
-                                                trajectory=trajectory)
+    cp_schedule = MultistageCheckpointSchedule(max_n, snapshots, 0,
+                                               trajectory=trajectory)
 
     snapshot_i = -1
-    while True:
-        cp_action, cp_data = next(cp_manager)
 
-        if cp_action == "read":
-            _, _, cp_delete = cp_data
-            if snapshot_i < 0:
-                raise RuntimeError("Invalid checkpointing state")
-            weights[snapshot_i] += read_weight
-            if cp_delete:
-                weights[snapshot_i] += delete_weight
-                snapshot_i -= 1
-        elif cp_action == "write":
-            snapshot_i += 1
-            if snapshot_i >= snapshots:
-                raise RuntimeError("Invalid checkpointing state")
-            weights[snapshot_i] += write_weight
-        elif cp_action == "end_reverse":
-            if cp_manager.max_n() is None \
-                    or cp_manager.r() != cp_manager.max_n():
-                raise RuntimeError("Invalid checkpointing state")
+    @functools.singledispatch
+    def action(cp_action):
+        raise TypeError(f"Unexpected checkpointing action: {cp_action}")
+
+    @action.register(Read)
+    def action_read(cp_action):
+        nonlocal snapshot_i
+
+        if snapshot_i < 0:
+            raise RuntimeError("Invalid checkpointing state")
+        weights[snapshot_i] += read_weight
+        if cp_action.delete:
+            weights[snapshot_i] += delete_weight
+            snapshot_i -= 1
+
+    @action.register(Write)
+    def action_write(cp_action):
+        nonlocal snapshot_i
+
+        snapshot_i += 1
+        if snapshot_i >= snapshots:
+            raise RuntimeError("Invalid checkpointing state")
+        weights[snapshot_i] += write_weight
+
+    @action.register(Clear)
+    @action.register(Configure)
+    @action.register(Forward)
+    @action.register(Reverse)
+    @action.register(EndForward)
+    @action.register(EndReverse)
+    def action_pass(cp_action):
+        pass
+
+    while True:
+        cp_action = next(cp_schedule)
+        action(cp_action)
+        if isinstance(cp_action, EndReverse):
             break
-        elif cp_action not in ["clear", "configure", "forward", "reverse"]:
-            raise ValueError(f"Unexpected checkpointing action: {cp_action:s}")
+
     assert snapshot_i == -1
 
-    allocation = ["disk" for i in range(snapshots)]
-    for i in [p[0] for p in sorted(enumerate(weights), key=itemgetter(1),
-                                   reverse=True)][:snapshots_in_ram]:
+    allocation = ["disk" for _ in range(snapshots)]
+    for i, _ in sorted(enumerate(weights), key=itemgetter(1),
+                       reverse=True)[:snapshots_in_ram]:
         allocation[i] = "RAM"
 
     return tuple(weights), tuple(allocation)
 
 
-class MultistageCheckpointingManager(CheckpointingManager):
+class MultistageCheckpointSchedule(CheckpointSchedule):
     """
     Implements binomial checkpointing using the approach described in
        A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
@@ -166,10 +187,12 @@ class MultistageCheckpointingManager(CheckpointingManager):
 
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
                  trajectory="maximum"):
+        snapshots_in_ram = min(snapshots_in_ram, max_n - 1)
+        snapshots_on_disk = min(snapshots_on_disk, max_n - 1)
         if snapshots_in_ram == 0:
-            storage = tuple("disk" for i in range(snapshots_on_disk))
+            storage = tuple("disk" for _ in range(snapshots_on_disk))
         elif snapshots_on_disk == 0:
-            storage = tuple("RAM" for i in range(snapshots_in_ram))
+            storage = tuple("RAM" for _ in range(snapshots_in_ram))
         else:
             _, storage = allocate_snapshots(
                 max_n, snapshots_in_ram, snapshots_on_disk,
@@ -181,110 +204,119 @@ class MultistageCheckpointingManager(CheckpointingManager):
         super().__init__(max_n=max_n)
         self._snapshots_in_ram = snapshots_in_ram
         self._snapshots_on_disk = snapshots_on_disk
-        self._snapshots = []
         self._storage = storage
         self._exhausted = False
         self._trajectory = trajectory
 
     def iter(self):
+        snapshots = []
+
+        def write(n):
+            if len(snapshots) >= self._snapshots_in_ram + self._snapshots_on_disk:  # noqa: E501
+                raise RuntimeError("Invalid checkpointing state")
+            snapshots.append(n)
+            return self._storage[len(snapshots) - 1]
+
         # Forward
 
         if self._max_n is None:
             raise RuntimeError("Invalid checkpointing state")
         while self._n < self._max_n - 1:
-            yield "configure", (True, False)
+            yield Configure(True, False)
 
-            snapshots = (self._snapshots_in_ram
-                         + self._snapshots_on_disk
-                         - len(self._snapshots))
+            n_snapshots = (self._snapshots_in_ram
+                           + self._snapshots_on_disk
+                           - len(snapshots))
             n0 = self._n
-            n1 = n0 + n_advance(self._max_n - n0, snapshots,
+            n1 = n0 + n_advance(self._max_n - n0, n_snapshots,
                                 trajectory=self._trajectory)
             assert n1 > n0
             self._n = n1
-            yield "forward", (n0, n1)
+            yield Forward(n0, n1)
 
-            cp_storage = self._snapshot(n0)
-            yield "write", (n0, cp_storage)
-            yield "clear", (True, True)
+            cp_storage = write(n0)
+            yield Write(n0, cp_storage)
+            yield Clear(True, True)
         if self._n != self._max_n - 1:
             raise RuntimeError("Invalid checkpointing state")
 
         # Forward -> reverse
 
-        yield "configure", (False, True)
+        yield Configure(False, True)
 
         self._n += 1
-        yield "forward", (self._n - 1, self._n)
+        yield Forward(self._n - 1, self._n)
+
+        yield EndForward()
 
         self._r += 1
-        yield "reverse", (self._n, self._n - 1)
-        yield "clear", (True, True)
+        yield Reverse(self._n, self._n - 1)
+        yield Clear(True, True)
 
         # Reverse
 
         while self._r < self._max_n:
-            if len(self._snapshots) == 0:
+            if len(snapshots) == 0:
                 raise RuntimeError("Invalid checkpointing state")
-            cp_n = self._snapshots[-1]
-            cp_storage = self._storage[len(self._snapshots) - 1]
+            cp_n = snapshots[-1]
+            cp_storage = self._storage[len(snapshots) - 1]
             if cp_n == self._max_n - self._r - 1:
-                self._snapshots.pop()
+                snapshots.pop()
                 self._n = cp_n
-                yield "read", (cp_n, cp_storage, True)
-                yield "clear", (True, True)
+                yield Read(cp_n, cp_storage, True)
+                yield Clear(True, True)
             else:
                 self._n = cp_n
-                yield "read", (cp_n, cp_storage, False)
-                yield "clear", (True, True)
+                yield Read(cp_n, cp_storage, False)
+                yield Clear(True, True)
 
-                yield "configure", (False, False)
+                yield Configure(False, False)
 
-                snapshots = (self._snapshots_in_ram
-                             + self._snapshots_on_disk
-                             - len(self._snapshots) + 1)
+                n_snapshots = (self._snapshots_in_ram
+                               + self._snapshots_on_disk
+                               - len(snapshots) + 1)
                 n0 = self._n
-                n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots,
+                n1 = n0 + n_advance(self._max_n - self._r - n0, n_snapshots,
                                     trajectory=self._trajectory)
                 assert n1 > n0
                 self._n = n1
-                yield "forward", (n0, n1)
-                yield "clear", (True, True)
+                yield Forward(n0, n1)
+                yield Clear(True, True)
 
                 while self._n < self._max_n - self._r - 1:
-                    yield "configure", (True, False)
+                    yield Configure(True, False)
 
-                    snapshots = (self._snapshots_in_ram
-                                 + self._snapshots_on_disk
-                                 - len(self._snapshots))
+                    n_snapshots = (self._snapshots_in_ram
+                                   + self._snapshots_on_disk
+                                   - len(snapshots))
                     n0 = self._n
-                    n1 = n0 + n_advance(self._max_n - self._r - n0, snapshots,
+                    n1 = n0 + n_advance(self._max_n - self._r - n0, n_snapshots,  # noqa: E501
                                         trajectory=self._trajectory)
                     assert n1 > n0
                     self._n = n1
-                    yield "forward", (n0, n1)
+                    yield Forward(n0, n1)
 
-                    cp_storage = self._snapshot(n0)
-                    yield "write", (n0, cp_storage)
-                    yield "clear", (True, True)
+                    cp_storage = write(n0)
+                    yield Write(n0, cp_storage)
+                    yield Clear(True, True)
                 if self._n != self._max_n - self._r - 1:
                     raise RuntimeError("Invalid checkpointing state")
 
-            yield "configure", (False, True)
+            yield Configure(False, True)
 
             self._n += 1
-            yield "forward", (self._n - 1, self._n)
+            yield Forward(self._n - 1, self._n)
 
             self._r += 1
-            yield "reverse", (self._n, self._n - 1)
-            yield "clear", (True, True)
+            yield Reverse(self._n, self._n - 1)
+            yield Clear(True, True)
         if self._r != self._max_n:
             raise RuntimeError("Invalid checkpointing state")
-        if len(self._snapshots) != 0:
+        if len(snapshots) != 0:
             raise RuntimeError("Invalid checkpointing state")
 
         self._exhausted = True
-        yield "end_reverse", (True,)
+        yield EndReverse(True)
 
     def is_exhausted(self):
         return self._exhausted
@@ -292,17 +324,9 @@ class MultistageCheckpointingManager(CheckpointingManager):
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
 
-    def _snapshot(self, n):
-        assert n >= 0 and n < self._max_n
-        if len(self._snapshots) >= \
-                self._snapshots_in_ram + self._snapshots_on_disk:
-            raise RuntimeError("Invalid checkpointing state")
-        self._snapshots.append(n)
-        return self._storage[len(self._snapshots) - 1]
 
-
-class TwoLevelCheckpointingManager(CheckpointingManager):
-    def __init__(self, disk_period, binomial_snapshots, *,
+class TwoLevelCheckpointSchedule(CheckpointSchedule):
+    def __init__(self, period, binomial_snapshots, *,
                  binomial_storage="disk",
                  binomial_trajectory="maximum"):
         """
@@ -318,14 +342,14 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
           e2020JC016370, 2020
         """
 
-        if disk_period < 1:
-            raise ValueError("disk_period must be positive")
+        if period < 1:
+            raise ValueError("period must be positive")
         if binomial_storage not in ["RAM", "disk"]:
             raise ValueError("Invalid storage")
 
         super().__init__()
 
-        self._period = disk_period
+        self._period = period
         self._binomial_snapshots = binomial_snapshots
         self._binomial_storage = binomial_storage
         self._trajectory = binomial_trajectory
@@ -334,19 +358,21 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
         # Forward
 
         while self._max_n is None:
-            yield "configure", (True, False)
+            yield Configure(True, False)
             if self._max_n is not None:
                 # Unexpected finalize
                 raise RuntimeError("Invalid checkpointing state")
             n0 = self._n
             n1 = n0 + self._period
             self._n = n1
-            yield "forward", (n0, n1)
+            yield Forward(n0, n1)
 
             # Finalize permitted here
 
-            yield "write", (n0, "disk")
-            yield "clear", (True, True)
+            yield Write(n0, "disk")
+            yield Clear(True, True)
+
+        yield EndForward()
 
         while True:
             # Reverse
@@ -368,19 +394,19 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                         snapshots.pop()
                         self._n = cp_n
                         if cp_n == n0s:
-                            yield "read", (cp_n, "disk", False)
+                            yield Read(cp_n, "disk", False)
                         else:
-                            yield "read", (cp_n, self._binomial_storage, True)
-                        yield "clear", (True, True)
+                            yield Read(cp_n, self._binomial_storage, True)
+                        yield Clear(True, True)
                     else:
                         self._n = cp_n
                         if cp_n == n0s:
-                            yield "read", (cp_n, "disk", False)
+                            yield Read(cp_n, "disk", False)
                         else:
-                            yield "read", (cp_n, self._binomial_storage, False)
-                        yield "clear", (True, True)
+                            yield Read(cp_n, self._binomial_storage, False)
+                        yield Clear(True, True)
 
-                        yield "configure", (False, False)
+                        yield Configure(False, False)
 
                         n_snapshots = (self._binomial_snapshots + 1
                                        - len(snapshots) + 1)
@@ -390,11 +416,11 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                                             trajectory=self._trajectory)
                         assert n1 > n0
                         self._n = n1
-                        yield "forward", (n0, n1)
-                        yield "clear", (True, True)
+                        yield Forward(n0, n1)
+                        yield Clear(True, True)
 
                         while self._n < self._max_n - self._r - 1:
-                            yield "configure", (True, False)
+                            yield Configure(True, False)
 
                             n_snapshots = (self._binomial_snapshots + 1
                                            - len(snapshots))
@@ -404,25 +430,25 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
                                                 trajectory=self._trajectory)
                             assert n1 > n0
                             self._n = n1
-                            yield "forward", (n0, n1)
+                            yield Forward(n0, n1)
 
                             if len(snapshots) >= self._binomial_snapshots + 1:
                                 raise RuntimeError("Invalid checkpointing "
                                                    "state")
                             snapshots.append(n0)
-                            yield "write", (n0, self._binomial_storage)
-                            yield "clear", (True, True)
+                            yield Write(n0, self._binomial_storage)
+                            yield Clear(True, True)
                         if self._n != self._max_n - self._r - 1:
                             raise RuntimeError("Invalid checkpointing state")
 
-                    yield "configure", (False, True)
+                    yield Configure(False, True)
 
                     self._n += 1
-                    yield "forward", (self._n - 1, self._n)
+                    yield Forward(self._n - 1, self._n)
 
                     self._r += 1
-                    yield "reverse", (self._n, self._n - 1)
-                    yield "clear", (True, True)
+                    yield Reverse(self._n, self._n - 1)
+                    yield Clear(True, True)
                 if self._r != self._max_n - n0s:
                     raise RuntimeError("Invalid checkpointing state")
                 if len(snapshots) != 0:
@@ -433,7 +459,7 @@ class TwoLevelCheckpointingManager(CheckpointingManager):
             # Reset for new reverse
 
             self._r = 0
-            yield "end_reverse", (False,)
+            yield EndReverse(False)
 
     def is_exhausted(self):
         return False

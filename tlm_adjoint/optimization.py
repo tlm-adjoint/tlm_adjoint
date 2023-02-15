@@ -169,7 +169,7 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
     def jac(x):
         fun(x, force=J_M[1] is None)
         dJ = manager.compute_gradient(J[0], J_M[1])
-        if manager._cp_manager.is_exhausted():
+        if manager._cp_schedule.is_exhausted():
             J_M[1] = None
         return get(dJ)
 
