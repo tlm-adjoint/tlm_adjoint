@@ -86,19 +86,11 @@ def extract_dependencies(expr):
     nl_deps = {}
     for dep in extract_coefficients(expr):
         if is_function(dep):
-            dep_id = function_id(dep)
-            if dep_id not in deps:
-                deps[dep_id] = dep
-            if dep_id not in nl_deps:
-                n_nl_deps = 0
-                for nl_dep in derivative_dependencies(expr, dep):
-                    if is_function(nl_dep):
-                        nl_dep_id = function_id(nl_dep)
-                        if nl_dep_id not in nl_deps:
-                            nl_deps[nl_dep_id] = nl_dep
-                        n_nl_deps += 1
-                if n_nl_deps > 0 and dep_id not in nl_deps:
-                    nl_deps[dep_id] = dep
+            deps.setdefault(function_id(dep), dep)
+            for nl_dep in derivative_dependencies(expr, dep):
+                if is_function(nl_dep):
+                    nl_deps.setdefault(function_id(dep), dep)
+                    nl_deps.setdefault(function_id(nl_dep), nl_dep)
 
     deps = {dep_id: deps[dep_id]
             for dep_id in sorted(deps.keys())}
