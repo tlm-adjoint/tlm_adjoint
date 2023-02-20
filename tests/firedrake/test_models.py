@@ -109,23 +109,29 @@ def diffusion_ref():
      pytest.param(
          "H-Revolve", {"snapshots_on_disk": 1, "snapshots_in_ram": 2},
          marks=pytest.mark.skipif(hrevolve is None,
-                                  reason="H-Revolve not available"))])
+                                  reason="H-Revolve not available")),
+     ("mixed", {"snapshots": 2, "storage": "disk"})])
 @seed_test
 def test_oscillator(setup_test, test_leaks,
                     tmp_path, cp_method, cp_parameters):
     n_steps = 20
     cp_parameters = copy.copy(cp_parameters)
-    if cp_method in ["periodic_disk", "multistage", "H-Revolve"]:
+    if cp_method != "memory":
         cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":
         cp_parameters["blocks"] = n_steps
     if cp_method in ["memory", "periodic_disk", "multistage"]:
         configure_checkpointing(cp_method, cp_parameters)
-    else:
-        assert cp_method == "H-Revolve"
+    elif cp_method == "H-Revolve":
         from tlm_adjoint.checkpoint_schedules import HRevolveCheckpointSchedule
         configure_checkpointing(
             lambda **cp_parameters: HRevolveCheckpointSchedule(max_n=n_steps, **cp_parameters),  # noqa: E501
+            cp_parameters)
+    else:
+        assert cp_method == "mixed"
+        from tlm_adjoint.checkpoint_schedules import MixedCheckpointSchedule
+        configure_checkpointing(
+            lambda **cp_parameters: MixedCheckpointSchedule(max_n=n_steps, **cp_parameters),  # noqa: E501
             cp_parameters)
 
     mesh = UnitSquareMesh(5, 5)
