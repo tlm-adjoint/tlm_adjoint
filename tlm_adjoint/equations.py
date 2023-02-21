@@ -62,7 +62,6 @@ __all__ = \
         "Axpy",
         "FixedPointSolver",
         "LinearCombinationSolver",
-        "ScaleSolver",
         "ZeroAssignment",
 
         "LinearEquation",
@@ -87,7 +86,8 @@ __all__ = \
 
         "AssignmentSolver",
         "AxpySolver",
-        "NullSolver"
+        "NullSolver",
+        "ScaleSolver"
     ]
 
 
@@ -880,6 +880,9 @@ class LinearCombinationSolver(Equation):
 
 class ScaleSolver(LinearCombinationSolver):
     def __init__(self, alpha, y, x):
+        warnings.warn("ScaleSolver is deprecated -- "
+                      "use LinearCombinationSolver instead",
+                      DeprecationWarning, stacklevel=2)
         super().__init__(x, (alpha, y))
 
 

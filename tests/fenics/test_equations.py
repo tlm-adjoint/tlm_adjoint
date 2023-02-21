@@ -1032,7 +1032,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
         X = [Function(space, name=f"x_{i:d}") for i in range(4)]
 
         Assignment(X[0], m).solve()
-        ScaleSolver(1.0, X[0], X[1]).solve()
+        LinearCombinationSolver(X[1], (1.0, X[0])).solve()
         ExprEvaluationSolver(m + X[1], X[2]).solve()
         ProjectionSolver(m + X[2], X[3],
                          solver_parameters=ls_parameters_cg).solve()
