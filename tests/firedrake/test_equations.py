@@ -712,7 +712,7 @@ def test_initial_guess(setup_test, test_leaks):
                 x, y = self.dependencies()
                 tau_y = get_tangent_linear(y, M, dM, tlm_map)
                 if tau_y is None:
-                    return NullSolver(tlm_map[x])
+                    return ZeroAssignment(tlm_map[x])
                 else:
                     return TestSolver(
                         tau_y, tlm_map[x],
@@ -740,7 +740,7 @@ def test_initial_guess(setup_test, test_leaks):
                 == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
-            NullSolver(x).solve()
+            ZeroAssignment(x).solve()
             J_term = function_new(J.function())
             InnerProductSolver(x, adj_x_0, J_term).solve()
             J.addto(J_term)

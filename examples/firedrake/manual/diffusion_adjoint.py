@@ -56,7 +56,7 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
                 return InteriorAssignment(tlm_map[x], tlm_y)
 

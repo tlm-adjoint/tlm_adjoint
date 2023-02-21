@@ -189,7 +189,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
     def forward(y):
         x = Function(space, name="x")
 
-        NullSolver(x).solve()
+        ZeroAssignment(x).solve()
 
         Assignment(x, y).solve()
 
@@ -200,7 +200,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
         J_1.assign(x * dx)
 
         J_0_val = J_0.value()
-        NullSolver(x).solve()
+        ZeroAssignment(x).solve()
         assert function_linf_norm(x) == 0.0
         J_0.addto(dot(x, y) * dx)
         assert J_0.value() == J_0_val

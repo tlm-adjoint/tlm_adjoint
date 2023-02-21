@@ -62,8 +62,8 @@ __all__ = \
         "Axpy",
         "FixedPointSolver",
         "LinearCombinationSolver",
-        "NullSolver",
         "ScaleSolver",
+        "ZeroAssignment",
 
         "LinearEquation",
         "Matrix",
@@ -86,7 +86,8 @@ __all__ = \
         "MemoryStorage",
 
         "AssignmentSolver",
-        "AxpySolver"
+        "AxpySolver",
+        "NullSolver"
     ]
 
 
@@ -765,7 +766,7 @@ def get_tangent_linear(x, M, dM, tlm_map):
         return tlm_map[x]
 
 
-class NullSolver(Equation):
+class ZeroAssignment(Equation):
     def __init__(self, X):
         if is_function(X):
             X = (X,)
@@ -789,7 +790,15 @@ class NullSolver(Equation):
         return B
 
     def tangent_linear(self, M, dM, tlm_map):
-        return NullSolver([tlm_map[x] for x in self.X()])
+        return ZeroAssignment([tlm_map[x] for x in self.X()])
+
+
+class NullSolver(ZeroAssignment):
+    def __init__(self, X):
+        warnings.warn("NullSolver is deprecated -- "
+                      "use ZeroAssignment instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X)
 
 
 class Assignment(Equation):
@@ -816,7 +825,7 @@ class Assignment(Equation):
         x, y = self.dependencies()
         tau_y = get_tangent_linear(y, M, dM, tlm_map)
         if tau_y is None:
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             return Assignment(tlm_map[x], tau_y)
 
@@ -1395,7 +1404,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         for eq in self._eqs:
             tlm_eq = eq.tangent_linear(M, dM, tlm_map)
             if tlm_eq is None:
-                tlm_eq = NullSolver([tlm_map[x] for x in eq.X()])
+                tlm_eq = ZeroAssignment([tlm_map[x] for x in eq.X()])
             tlm_eqs.append(tlm_eq)
         return FixedPointSolver(
             tlm_eqs, solver_parameters=self._solver_parameters,
@@ -1626,7 +1635,7 @@ class LinearEquation(Equation):
                 tlm_B.extend(tlm_b)
 
         if len(tlm_B) == 0:
-            return NullSolver([tlm_map[x] for x in self.X()])
+            return ZeroAssignment([tlm_map[x] for x in self.X()])
         else:
             return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()],
                                   A=self._A, adj_type=self.adj_X_type())
@@ -2258,7 +2267,7 @@ class Storage(Equation):
             raise IndexError("dep_index out of bounds")
 
     def tangent_linear(self, M, dM, tlm_map):
-        return NullSolver(tlm_map[self.x()])
+        return ZeroAssignment(tlm_map[self.x()])
 
 
 class MemoryStorage(Storage):

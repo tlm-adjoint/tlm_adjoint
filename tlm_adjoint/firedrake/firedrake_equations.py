@@ -29,7 +29,7 @@ from .backend_code_generator_interface import assemble, complex_mode, \
     matrix_multiply
 
 from ..caches import Cache
-from ..equations import Equation, NullSolver, get_tangent_linear
+from ..equations import Equation, ZeroAssignment, get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
@@ -195,7 +195,7 @@ class LocalProjectionSolver(EquationSolver):
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             return LocalProjectionSolver(
                 tlm_rhs, tlm_map[x],
@@ -362,7 +362,7 @@ class PointInterpolationSolver(Equation):
 
         tlm_y = get_tangent_linear(y, M, dM, tlm_map)
         if tlm_y is None:
-            return NullSolver([tlm_map[x] for x in X])
+            return ZeroAssignment([tlm_map[x] for x in X])
         else:
             return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
                                             P=self._P)

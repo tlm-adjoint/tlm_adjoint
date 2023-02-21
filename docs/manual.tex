@@ -175,7 +175,7 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
                 return InteriorAssignment(tlm_map[x], tlm_y)
 
@@ -311,7 +311,7 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
                 return InteriorAssignment(tlm_map[x], tlm_y)
 
@@ -505,23 +505,23 @@ or a dependency of an \texttt{Equation}.
 
 \subsection{Built-in \texttt{Equation} classes: All backends}
 
-\subsubsection{\texttt{NullSolver}}
+\subsubsection{\texttt{ZeroAssignment}}
 
-A \texttt{NullSolver} represents the trivial equation
+A \texttt{ZeroAssignment} represents the trivial equation
 \begin{equation*}
   x = 0.
 \end{equation*}
-A \texttt{NullSolver} can be instantiated via
+A \texttt{ZeroAssignment} can be instantiated via
 \begin{lstlisting}
-eq = NullSolver(x)
+eq = ZeroAssignment(x)
 \end{lstlisting}
 where \texttt{x} is the function being solved for, or
 \begin{lstlisting}
-eq = NullSolver(X)
+eq = ZeroAssignment(X)
 \end{lstlisting}
 where \texttt{X} is a sequence of functions being solved for.
 
-The intended use of a \texttt{NullSolver} is in the definition of
+The intended use of a \texttt{ZeroAssignment} is in the definition of
 \texttt{tangent\_linear} methods of \texttt{Equation} classes (see section
 \ref{sect:tangent_linear}).
 
@@ -2472,7 +2472,7 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
                 return InteriorAssignment(tlm_map[x], tlm_y)
 

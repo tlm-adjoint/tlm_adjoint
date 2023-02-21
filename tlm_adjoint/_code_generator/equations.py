@@ -33,7 +33,8 @@ from .backend_code_generator_interface import assemble, \
     rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
-from ..equations import Assignment, Equation, NullSolver, get_tangent_linear
+from ..equations import Assignment, Equation, ZeroAssignment, \
+    get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
@@ -228,7 +229,7 @@ class AssembleSolver(ExprEquation):
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             return AssembleSolver(
                 tlm_rhs, tlm_map[x],
@@ -762,7 +763,7 @@ class EquationSolver(ExprEquation):
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             if self._tlm_solver_parameters is None:
                 tlm_solver_parameters = self._linear_solver_parameters
@@ -850,7 +851,7 @@ class DirichletBCSolver(Equation):
 
         tau_y = get_tangent_linear(y, M, dM, tlm_map)
         if tau_y is None:
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             return DirichletBCSolver(tau_y, tlm_map[x],
                                      *self._bc_args, **self._bc_kwargs)
@@ -930,9 +931,9 @@ class ExprEvaluationSolver(ExprEquation):
                     tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.Zero):
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             return ExprEvaluationSolver(tlm_rhs, tlm_map[x])
