@@ -24,7 +24,7 @@ from .interface import check_space_types_conjugate_dual, function_axpy, \
     function_new, function_new_conjugate, function_set_values, is_function
 
 from .caches import local_caches
-from .equations import InnerProductSolver
+from .equations import InnerProduct
 from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
@@ -231,7 +231,7 @@ class GaussNewton:
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
             J_term = function_new(J.function())
-            InnerProductSolver(x, function_copy(R_inv_tau_x), J_term).solve(
+            InnerProduct(J_term, x, function_copy(R_inv_tau_x)).solve(
                 manager=manager, tlm=False)
             J.addto(J_term, manager=manager, tlm=False)
         manager.stop()

@@ -689,7 +689,7 @@ def test_Storage(setup_test, test_leaks,
 @pytest.mark.skipif(complex_mode, reason="real only")
 @no_space_type_checking
 @seed_test
-def test_InnerProductSolver(setup_test, test_leaks):
+def test_InnerProduct(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
 
@@ -698,7 +698,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
         Assignment(G, F).solve()
 
         J = Functional(name="J")
-        InnerProductSolver(F, G, J.function()).solve()
+        InnerProduct(J.function(), F, G).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -806,7 +806,7 @@ def test_initial_guess(setup_test, test_leaks):
                 annotate=False, tlm=False)
             ZeroAssignment(x).solve()
             J_term = function_new(J.function())
-            InnerProductSolver(x, adj_x_0, J_term).solve()
+            InnerProduct(J_term, x, adj_x_0).solve()
             J.addto(J_term)
         else:
             adj_x_0 = None

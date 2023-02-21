@@ -1467,7 +1467,7 @@ The \texttt{drop\_references} method must call the base class
 
 \subsection{Built-in linear algebra classes}
 
-\subsubsection{\texttt{InnerProductRHS} and \texttt{InnerProductSolver}}
+\subsubsection{\texttt{InnerProductRHS} and \texttt{InnerProduct}}
 
 An \texttt{InnerProductRHS} is a \texttt{RHS} representing a right-hand-side
 term of the form
@@ -1478,7 +1478,7 @@ Here the $z_j$ and $y_k$ are the degrees of freedom for two functions, which
 may be the same function. $b_i$ are the degrees of freedom for the resulting
 right-hand-side term. The $M_{j,k}$ are the elements of some given matrix
 (which should typically be Hermitian positive definite), and $\alpha$ is some
-scalar constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
+scalar constant. An \texttt{InnerProduct} is a \texttt{LinearEquation}
 representing
 \begin{equation*}
   x_i = \alpha \sum_{j,k} z_j^* M_{j,k} y_k,
@@ -1493,18 +1493,17 @@ where \texttt{y} and \texttt{z} are each functions whose degrees of freedom are
 the $y_j$ and $z_k$, \texttt{alpha} is a given floating point value defining
 $\alpha$ (set equal to $1.0$ if not supplied), and \texttt{M} is a
 \texttt{Matrix} whose elements are the $M_{j,k}$ (set equal to an identity
-matrix if not supplied). An \texttt{InnerProductSolver} can be instantiated via
+matrix if not supplied). An \texttt{InnerProduct} can be instantiated via
 \begin{lstlisting}
-eq = InnerProductSolver(y, z, x, alpha=alpha, M=M)
+eq = InnerProduct(x, y, z, alpha=alpha, M=M)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
 \subsubsection{\texttt{NormSqRHS} and \texttt{NormSqSolver}}
 
 A \texttt{NormSqRHS} is an \texttt{InnerProductRHS}, and a
-\texttt{NormSqSolver} is an \texttt{InnerProductSolver}, each for the case
-where the $y_j$ and $z_k$ correspond to the degrees of freedom for the same
-function.
+\texttt{NormSqSolver} is an \texttt{InnerProduct}, each for the case where the
+$y_j$ and $z_k$ correspond to the degrees of freedom for the same function.
 
 A \texttt{NormSqRHS} can be instantiated via
 \begin{lstlisting}

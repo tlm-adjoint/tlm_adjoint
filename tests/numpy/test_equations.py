@@ -149,7 +149,7 @@ def test_Axpy(setup_test, test_leaks, test_default_dtypes):
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_InnerProductSolver(setup_test, test_leaks):
+def test_InnerProduct(setup_test, test_leaks):
     space = FunctionSpace(10)
 
     def forward(F):
@@ -157,7 +157,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
         Assignment(G, F).solve()
 
         J = Functional(name="J")
-        InnerProductSolver(F, G, J.function()).solve()
+        InnerProduct(J.function(), F, G).solve()
         return J
 
     F = Function(space, name="F", static=True)

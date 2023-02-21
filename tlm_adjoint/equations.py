@@ -71,7 +71,7 @@ __all__ = \
         "DotProductRHS",
         "DotProduct",
         "InnerProductRHS",
-        "InnerProductSolver",
+        "InnerProduct",
         "MatrixActionRHS",
         "MatrixActionSolver",
         "NormSqRHS",
@@ -87,6 +87,7 @@ __all__ = \
         "AssignmentSolver",
         "AxpySolver",
         "DotProductSolver",
+        "InnerProductSolver",
         "LinearCombinationSolver",
         "NullSolver",
         "ScaleSolver"
@@ -1882,14 +1883,22 @@ class DotProductSolver(DotProduct):
         super().__init__(x, y, z, alpha=alpha)
 
 
-class InnerProductSolver(LinearEquation):
-    def __init__(self, y, z, x, alpha=1.0, M=None):
+class InnerProduct(LinearEquation):
+    def __init__(self, x, y, z, *, alpha=1.0, M=None):
         super().__init__(x, InnerProductRHS(y, z, alpha=alpha, M=M))
 
 
-class NormSqSolver(InnerProductSolver):
+class InnerProductSolver(InnerProduct):
+    def __init__(self, y, z, x, alpha=1.0, M=None):
+        warnings.warn("InnerProductSolver is deprecated -- "
+                      "use InnerProduct instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, z, alpha=alpha, M=M)
+
+
+class NormSqSolver(InnerProduct):
     def __init__(self, y, x, alpha=1.0, M=None):
-        super().__init__(y, y, x, alpha=alpha, M=M)
+        super().__init__(x, y, y, alpha=alpha, M=M)
 
 
 class SumSolver(LinearEquation):
