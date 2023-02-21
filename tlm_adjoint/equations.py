@@ -73,7 +73,6 @@ __all__ = \
         "InnerProductRHS",
         "InnerProduct",
         "MatrixActionRHS",
-        "MatrixActionSolver",
         "NormSqRHS",
         "NormSqSolver",
         "SumRHS",
@@ -89,6 +88,7 @@ __all__ = \
         "DotProductSolver",
         "InnerProductSolver",
         "LinearCombinationSolver",
+        "MatrixActionSolver",
         "NullSolver",
         "ScaleSolver"
     ]
@@ -1867,6 +1867,8 @@ class RHS(Referrer):
 
 class MatrixActionSolver(LinearEquation):
     def __init__(self, Y, A, X):
+        warnings.warn("MatrixActionSolver is deprecated",
+                      DeprecationWarning, stacklevel=2)
         super().__init__(X, MatrixActionRHS(A, Y))
 
 

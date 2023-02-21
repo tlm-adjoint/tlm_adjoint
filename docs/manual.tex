@@ -1519,30 +1519,20 @@ eq = NormSqSolver(y, x, alpha=alpha, M=M)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{MatrixActionRHS} and \texttt{MatrixActionSolver}}
+\subsubsection{\texttt{MatrixActionRHS}}
 
 A \texttt{MatrixActionRHS} is a \texttt{RHS} representing a right-hand-side
 term resulting from a matrix action,
 \begin{equation*}
   b = A y.
 \end{equation*}
-A \texttt{MatrixActionSolver} is a \texttt{LinearEquation} representing
-\begin{equation*}
-  x = A y,
-\end{equation*}
-solving for $x$.
 
 A \texttt{MatrixActionRHS} can be instantiated via
 \begin{lstlisting}
 b = MatrixActionRHS(A, Y)
 \end{lstlisting}
 where \texttt{A} is a \texttt{Matrix} defining the matrix $A$, and \texttt{Y}
-is a function, or a sequence of functions, defining $y$. A
-\texttt{MatrixActionSolver} can be instantiated via
-\begin{lstlisting}
-eq = MatrixActionSolver(Y, A, X)
-\end{lstlisting}
-where \texttt{X} is a function, or a sequence of functions, being solved for.
+is a function, or a sequence of functions, defining $y$.
 
 \section{Custom storage}
 
