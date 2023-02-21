@@ -59,7 +59,7 @@ __all__ = \
         "get_tangent_linear",
 
         "Assignment",
-        "AxpySolver",
+        "Axpy",
         "FixedPointSolver",
         "LinearCombinationSolver",
         "NullSolver",
@@ -85,7 +85,8 @@ __all__ = \
         "HDF5Storage",
         "MemoryStorage",
 
-        "AssignmentSolver"
+        "AssignmentSolver",
+        "AxpySolver"
     ]
 
 
@@ -873,10 +874,17 @@ class ScaleSolver(LinearCombinationSolver):
         super().__init__(x, (alpha, y))
 
 
-class AxpySolver(LinearCombinationSolver):
-    def __init__(self, *args):  # self, y_old, alpha, x, y_new
-        y_old, alpha, x, y_new = args
+class Axpy(LinearCombinationSolver):
+    def __init__(self, y_new, y_old, alpha, x):
         super().__init__(y_new, (1.0, y_old), (alpha, x))
+
+
+class AxpySolver(Axpy):
+    def __init__(self, y_old, alpha, x, y_new, /):
+        warnings.warn("AxpySolver is deprecated -- "
+                      "use Axpy instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(y_new, y_old, alpha, x)
 
 
 @no_space_type_checking

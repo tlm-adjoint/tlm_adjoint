@@ -335,7 +335,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         LinearEquation(b, y, A=M).solve()
 
         z = Constant(0.0, name="z")
-        AxpySolver(x, 1.0, y, z).solve()
+        Axpy(z, x, 1.0, y).solve()
 
         if forward_run:
             manager.drop_references()

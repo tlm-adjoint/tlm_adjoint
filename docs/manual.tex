@@ -550,16 +550,16 @@ eq = ScaleSolver(alpha, y, x)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{AxpySolver}}
+\subsubsection{\texttt{Axpy}}
 
-An \texttt{AxpySolver} represents the equation
+An \texttt{Axpy} represents the equation
 \begin{equation*}
   z = y + \alpha x,
 \end{equation*}
-where $\alpha$ is a scalar constant. An \texttt{AxpySolver} can be instantiated
+where $\alpha$ is a scalar constant. An \texttt{Axpy} can be instantiated
 via
 \begin{lstlisting}
-eq = AxpySolver(y, alpha, x, z)
+eq = Axpy(z, y, alpha, x)
 \end{lstlisting}
 where \texttt{z} is the function being solved for.
 

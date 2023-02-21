@@ -242,7 +242,7 @@ def forward(psi_0, kappa):
     one = Function(space, name="one", static=True)
     function_assign(one, 1.0)
     phi = Function(space, name="phi")
-    AxpySolver(psi_n, 1.0, one, phi).solve()
+    Axpy(phi, psi_n, 1.0, one).solve()
 
     J = Functional(name="J")
     NormSqSolver(phi, J.function(), M=ConstantMatrix(mass)).solve()

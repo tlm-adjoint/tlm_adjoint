@@ -22,7 +22,7 @@ from .interface import check_space_type, function_is_scalar, function_name, \
     function_new, function_scalar_value, function_space, functional_term_eq, \
     is_function, space_id, space_new
 
-from .equations import Assignment, AxpySolver
+from .equations import Assignment, Axpy
 from .manager import manager as _manager
 
 import warnings
@@ -124,7 +124,7 @@ class Functional:
                 term_fn = function_new(self._fn, name=f"{self._name:s}_term")
                 term_eq = functional_term_eq(term, term_fn)
                 term_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
-            new_fn_eq = AxpySolver(self._fn, 1.0, term_fn, new_fn)
+            new_fn_eq = Axpy(new_fn, self._fn, 1.0, term_fn)
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
 

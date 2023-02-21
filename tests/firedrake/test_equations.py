@@ -61,7 +61,7 @@ def test_Assignment(setup_test, test_leaks):
         DotProductSolver(z, z, z_dot_z).solve()
 
         J = Functional(name="J")
-        AxpySolver(z_dot_z, 2.0, x_dot_x, J.function()).solve()
+        Axpy(J.function(), z_dot_z, 2.0, x_dot_x).solve()
 
         K = Functional(name="K")
         Assignment(K.function(), z_dot_z).solve()
@@ -103,7 +103,7 @@ def test_Assignment(setup_test, test_leaks):
 @pytest.mark.firedrake
 @no_space_type_checking
 @seed_test
-def test_AxpySolver(setup_test, test_leaks):
+def test_Axpy(setup_test, test_leaks):
     x = Constant(1.0, name="x", static=True)
 
     def forward(x):
@@ -113,7 +113,7 @@ def test_AxpySolver(setup_test, test_leaks):
 
         Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
+            Axpy(y[i + 1], y[i], i + 1, z[0]).solve()
         DotProductSolver(y[-1], y[-1], z[1]).solve()
 
         J = Functional(name="J")
@@ -174,7 +174,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
             x_0, HomogeneousDirichletBC(space, "on_boundary"),
             solver_parameters=ls_parameters_cg).solve()
 
-        AxpySolver(x_0, 1.0, x_1, x).solve()
+        Axpy(x, x_0, 1.0, x_1).solve()
 
         J = Functional(name="J")
         J.assign((dot(x, x) ** 2) * dx)
