@@ -291,7 +291,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
 
         M = IdentityMatrix()
         b = NormSqRHS(m, M=M)
-        linear_eq = LinearEquation([b, b], x, A=M)
+        linear_eq = LinearEquation(x, [b, b], A=M)
         linear_eq.solve()
 
         if forward_run:
@@ -329,7 +329,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 assert not function_is_replacement(dep)
 
         y = Constant(0.0, name="y")
-        LinearEquation(b, y, A=M).solve()
+        LinearEquation(y, b, A=M).solve()
 
         z = Constant(0.0, name="z")
         Axpy(z, x, 1.0, y).solve()

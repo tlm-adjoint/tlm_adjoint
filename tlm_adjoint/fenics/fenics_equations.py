@@ -527,7 +527,7 @@ class InterpolationSolver(LinearEquation):
             P = P.copy()
 
         super().__init__(
-            MatrixActionRHS(LocalMatrix(P), y), x)
+            x, MatrixActionRHS(LocalMatrix(P), y))
 
 
 class PointInterpolationSolver(Equation):

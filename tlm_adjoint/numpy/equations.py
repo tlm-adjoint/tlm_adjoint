@@ -227,4 +227,4 @@ class ContractionSolver(LinearEquation):
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
 
-        super().__init__(ContractionRHS(A, I, Y, alpha=alpha), x)
+        super().__init__(x, ContractionRHS(A, I, Y, alpha=alpha))

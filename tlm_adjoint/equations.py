@@ -1425,11 +1425,21 @@ class FixedPointSolver(Equation, CustomNormSq):
 
 
 class LinearEquation(Equation):
-    def __init__(self, B, X, *, A=None, adj_type=None):
-        if isinstance(B, RHS):
-            B = (B,)
+    def __init__(self, X, B, *, A=None, adj_type=None):
+        if isinstance(X, RHS) \
+                or (isinstance(X, Sequence) and len(X) > 0
+                    and isinstance(X[0], RHS)):
+            warnings.warn("LinearEquation(B, X, *, A=None, adj_type=None) "
+                          "signature is deprecated -- use "
+                          "LinearEquation(X, B, *, A=None, adj_type=None) "
+                          "instead",
+                          DeprecationWarning, stacklevel=2)
+            X, B = B, X
+
         if is_function(X):
             X = (X,)
+        if isinstance(B, RHS):
+            B = (B,)
         if adj_type is None:
             if A is None:
                 adj_type = "conjugate_dual"
@@ -1650,7 +1660,7 @@ class LinearEquation(Equation):
         if len(tlm_B) == 0:
             return ZeroAssignment([tlm_map[x] for x in self.X()])
         else:
-            return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()],
+            return LinearEquation([tlm_map[x] for x in self.X()], tlm_B,
                                   A=self._A, adj_type=self.adj_X_type())
 
 
@@ -1856,12 +1866,12 @@ class RHS(Referrer):
 
 class MatrixActionSolver(LinearEquation):
     def __init__(self, Y, A, X):
-        super().__init__(MatrixActionRHS(A, Y), X)
+        super().__init__(X, MatrixActionRHS(A, Y))
 
 
 class DotProduct(LinearEquation):
     def __init__(self, x, y, z, *, alpha=1.0):
-        super().__init__(DotProductRHS(y, z, alpha=alpha), x)
+        super().__init__(x, DotProductRHS(y, z, alpha=alpha))
 
 
 class DotProductSolver(DotProduct):
@@ -1874,7 +1884,7 @@ class DotProductSolver(DotProduct):
 
 class InnerProductSolver(LinearEquation):
     def __init__(self, y, z, x, alpha=1.0, M=None):
-        super().__init__(InnerProductRHS(y, z, alpha=alpha, M=M), x)
+        super().__init__(x, InnerProductRHS(y, z, alpha=alpha, M=M))
 
 
 class NormSqSolver(InnerProductSolver):
@@ -1887,7 +1897,7 @@ class SumSolver(LinearEquation):
         warnings.warn("SumSolver is deprecated",
                       DeprecationWarning, stacklevel=2)
 
-        super().__init__(SumRHS(y), x)
+        super().__init__(x, SumRHS(y))
 
 
 class MatrixActionRHS(RHS):

@@ -229,8 +229,8 @@ def forward(psi_0, kappa):
     psi_np1 = Function(space, name="psi_np1")
     Assignment(psi_n, psi_0).solve()
 
-    eqs = [LinearEquation(ContractionRHS(B, (1,), (psi_n,)),
-                          psi_np1, A=DiffusionMatrix(kappa)),
+    eqs = [LinearEquation(psi_np1, ContractionRHS(B, (1,), (psi_n,)),
+                          A=DiffusionMatrix(kappa)),
            Assignment(psi_n, psi_np1)]
 
     for n in range(N_t):
