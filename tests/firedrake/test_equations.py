@@ -232,7 +232,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
 
     def forward(a, b):
         eqs = [LinearCombination(z, (1.0, x), (1.0, b)),
-               ExprEvaluationSolver(a / sqrt(z), x)]
+               ExprEvaluation(x, a / sqrt(z))]
 
         fp_parameters = {"absolute_tolerance": 0.0,
                          "relative_tolerance": 1.0e-14}
@@ -320,7 +320,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks,
         J = Functional(name="J")
         for x in X_vals:
             term = new_scalar_function()
-            ExprEvaluationSolver(x ** 3, term).solve()
+            ExprEvaluation(term, x ** 3).solve()
             J.addto(term)
         return X_vals, J
 
@@ -368,7 +368,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks,
 
 @pytest.mark.firedrake
 @seed_test
-def test_ExprEvaluationSolver(setup_test, test_leaks):
+def test_ExprEvaluation(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -381,7 +381,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
         x = Function(space, name="x")
         y_int = Constant(name="y_int")
         Assembly(y_int, y * dx).solve()
-        ExprEvaluationSolver(test_expression(y, y_int), x).solve()
+        ExprEvaluation(x, test_expression(y, y_int)).solve()
 
         J = Functional(name="J")
         J.assign(x * x * x * dx)
@@ -969,7 +969,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
 
         Assignment(X[0], m).solve()
         LinearCombination(X[1], (1.0, X[0])).solve()
-        ExprEvaluationSolver(m + X[1], X[2]).solve()
+        ExprEvaluation(X[2], m + X[1]).solve()
         Projection(X[3], m + X[2],
                    solver_parameters=ls_parameters_cg).solve()
 

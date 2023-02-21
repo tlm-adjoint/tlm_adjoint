@@ -32,7 +32,7 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 from ..manager import annotation_enabled, tlm_enabled
 
 from ..equations import Assignment
-from .equations import EquationSolver, ExprEvaluationSolver, Projection, \
+from .equations import EquationSolver, ExprEvaluation, Projection, \
     linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
 
@@ -341,7 +341,7 @@ def _Constant_assign(self, value, *, annotate=None, tlm=None):
                 Assignment(self_old, self).solve(
                     annotate=annotate, tlm=tlm)
                 value = ufl.replace(value, {self: self_old})
-            ExprEvaluationSolver(value, self).solve(annotate=annotate, tlm=tlm)
+            ExprEvaluation(self, value).solve(annotate=annotate, tlm=tlm)
             return
 
     return_value = backend_Constant._tlm_adjoint__orig_assign(
@@ -380,7 +380,7 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
                     Assignment(self_old, self).solve(
                         annotate=annotate, tlm=tlm)
                     expr = ufl.replace(expr, {self: self_old})
-                ExprEvaluationSolver(expr, self).solve(
+                ExprEvaluation(self, expr).solve(
                     annotate=annotate, tlm=tlm)
                 return self
 

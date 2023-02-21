@@ -50,11 +50,12 @@ __all__ = \
         "Assembly",
         "DirichletBCSolver",
         "EquationSolver",
-        "ExprEvaluationSolver",
+        "ExprEvaluation",
         "Projection",
         "linear_equation_new_x",
 
         "AssembleSolver",
+        "ExprEvaluationSolver",
         "ProjectionSolver"
     ]
 
@@ -883,8 +884,8 @@ class DirichletBCSolver(Equation):
                                      *self._bc_args, **self._bc_kwargs)
 
 
-class ExprEvaluationSolver(ExprEquation):
-    def __init__(self, rhs, x):
+class ExprEvaluation(ExprEquation):
+    def __init__(self, x, rhs):
         if isinstance(rhs, ufl.classes.Form):
             raise TypeError("rhs should not be a Form")
 
@@ -962,4 +963,12 @@ class ExprEvaluationSolver(ExprEquation):
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])
         else:
-            return ExprEvaluationSolver(tlm_rhs, tlm_map[x])
+            return ExprEvaluation(tlm_map[x], tlm_rhs)
+
+
+class ExprEvaluationSolver(ExprEvaluation):
+    def __init__(self, rhs, x):
+        warnings.warn("ExprEvaluationSolver is deprecated -- "
+                      "use ExprEvaluation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, rhs)

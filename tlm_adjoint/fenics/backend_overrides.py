@@ -32,7 +32,7 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 from ..manager import annotation_enabled, tlm_enabled
 
 from ..equations import Assignment
-from .equations import EquationSolver, ExprEvaluationSolver, Projection, \
+from .equations import EquationSolver, ExprEvaluation, Projection, \
     linear_equation_new_x
 
 import numpy as np
@@ -385,7 +385,7 @@ def _Constant_assign(self, x, *, annotate=None, tlm=None):
                 Assignment(self_old, self).solve(
                     annotate=annotate, tlm=tlm)
                 x = ufl.replace(x, {self: self_old})
-            ExprEvaluationSolver(x, self).solve(annotate=annotate, tlm=tlm)
+            ExprEvaluation(self, x).solve(annotate=annotate, tlm=tlm)
             return
 
     return_value = backend_Constant._tlm_adjoint__orig_assign(
@@ -426,7 +426,7 @@ def _Function_assign(self, rhs, *, annotate=None, tlm=None):
                     Assignment(self_old, self).solve(
                         annotate=annotate, tlm=tlm)
                     rhs = ufl.replace(rhs, {self: self_old})
-                ExprEvaluationSolver(rhs, self).solve(
+                ExprEvaluation(self, rhs).solve(
                     annotate=annotate, tlm=tlm)
                 return
     elif isinstance(rhs, backend_Function) and rhs is not self:
