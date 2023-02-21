@@ -32,8 +32,8 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 from ..manager import annotation_enabled, tlm_enabled
 
 from ..equations import Assignment
-from .equations import EquationSolver, ExprEvaluationSolver, \
-    ProjectionSolver, linear_equation_new_x
+from .equations import EquationSolver, ExprEvaluationSolver, Projection, \
+    linear_equation_new_x
 from .firedrake_equations import LocalProjectionSolver
 
 import copy
@@ -302,8 +302,8 @@ def project(v, V, bcs=None, solver_parameters=None,
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
-            eq = ProjectionSolver(
-                v, x, bcs, solver_parameters=solver_parameters,
+            eq = Projection(
+                x, v, bcs, solver_parameters=solver_parameters,
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)

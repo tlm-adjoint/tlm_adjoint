@@ -616,8 +616,8 @@ def test_Storage(setup_test, test_leaks,
             d = {}
         MemoryStorage(x_s, d, function_name(x_s), save=True).solve()
 
-        ProjectionSolver(x * x * x * x_s, y,
-                         solver_parameters=ls_parameters_cg).solve()
+        Projection(y, x * x * x * x_s,
+                   solver_parameters=ls_parameters_cg).solve()
 
         if h is None:
             function_assign(y_s, y)
@@ -735,7 +735,7 @@ def test_initial_guess(setup_test, test_leaks):
                           solver_parameters=ls_parameters_cg)
         x = Function(space_1, name="x")
 
-        class TestSolver(ProjectionSolver):
+        class TestSolver(Projection):
             def __init__(self, y, x, form_compiler_parameters=None,
                          solver_parameters=None):
                 if form_compiler_parameters is None:
@@ -745,7 +745,7 @@ def test_initial_guess(setup_test, test_leaks):
 
                 assert is_function(y)
                 super().__init__(
-                    inner(y, TestFunction(x.function_space())) * dx, x,
+                    x, inner(y, TestFunction(x.function_space())) * dx,
                     form_compiler_parameters=form_compiler_parameters,
                     solver_parameters=solver_parameters,
                     cache_jacobian=False, cache_rhs_assembly=False)
@@ -814,8 +814,8 @@ def test_initial_guess(setup_test, test_leaks):
         # Active equation which requires no adjoint initial condition, but
         # for which one will be supplied
         z = Function(space_1, name="z")
-        ProjectionSolver(
-            zero * x, z,
+        Projection(
+            z, zero * x,
             solver_parameters=ls_parameters_cg).solve()
         J.addto(dot(z, z) * dx)
 
@@ -1034,8 +1034,8 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
         Assignment(X[0], m).solve()
         LinearCombination(X[1], (1.0, X[0])).solve()
         ExprEvaluationSolver(m + X[1], X[2]).solve()
-        ProjectionSolver(m + X[2], X[3],
-                         solver_parameters=ls_parameters_cg).solve()
+        Projection(X[3], m + X[2],
+                   solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
         J.assign((dot(X[-1] + 1.0, X[-1] + 1.0) ** 2) * dx

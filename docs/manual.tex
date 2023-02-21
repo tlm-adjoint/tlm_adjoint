@@ -691,10 +691,10 @@ If the \texttt{adjoint\_solver\_parameters} argument is not passed to the
 \texttt{EquationSolver} constructor then the null space and transpose null
 space are swapped in the adjoint solver parameters.
 
-\subsubsection{\texttt{ProjectionSolver}}
+\subsubsection{\texttt{Projection}}
 
-A \texttt{ProjectionSolver} is a subclass of the \texttt{EquationSolver} class,
-and represents either the equation
+A \texttt{Projection} is a subclass of the \texttt{EquationSolver} class, and
+represents either the equation
 \begin{equation*}
   \int_\Omega \phi^* \cdot \psi = b \left( \phi^* \right) \quad \forall \phi \in V,
 \end{equation*}
@@ -704,9 +704,9 @@ where $\psi \in V$ and $b$ is a linear form, or
 \end{equation*}
 where $\xi$ is a given expression.
 
-The \texttt{ProjectionSolver} constructor has the form
+The \texttt{Projection} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, *args, **kwargs):
+def __init__(self, x, rhs, *args, **kwargs):
 \end{lstlisting}
 where \texttt{rhs} is a \texttt{ufl.classes.Form} (for the first case above) or
 expression (for the second), and \texttt{x} is the \texttt{Function} being
@@ -821,8 +821,7 @@ class (section \ref{sect:InterpolationSolver}).
 
 A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
 class, and represents the solution of a projection problem, of the same type as
-represented using the \texttt{ProjectionSolver}, but using a local mass matrix
-solver.
+represented using a \texttt{Projection}, but using a local mass matrix solver.
 
 The \texttt{LocalProjectionSolver} constructor has the form
 \begin{lstlisting}
@@ -863,8 +862,7 @@ the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
 
 A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
 class, and represents the solution of a projection problem, of the same type as
-represented using the \texttt{ProjectionSolver}, but using a local mass matrix
-solver.
+represented using a \texttt{Projection}, but using a local mass matrix solver.
 
 The \texttt{LocalProjectionSolver} constructor has the form
 \begin{lstlisting}

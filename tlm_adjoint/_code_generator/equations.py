@@ -51,10 +51,11 @@ __all__ = \
         "DirichletBCSolver",
         "EquationSolver",
         "ExprEvaluationSolver",
-        "ProjectionSolver",
+        "Projection",
         "linear_equation_new_x",
 
-        "AssembleSolver"
+        "AssembleSolver",
+        "ProjectionSolver"
     ]
 
 
@@ -821,14 +822,22 @@ def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
         return eq
 
 
-class ProjectionSolver(EquationSolver):
-    def __init__(self, rhs, x, *args, **kwargs):
+class Projection(EquationSolver):
+    def __init__(self, x, rhs, *args, **kwargs):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(rhs, test) * ufl.dx
         super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
                          *args, **kwargs)
+
+
+class ProjectionSolver(Projection):
+    def __init__(self, rhs, x, *args, **kwargs):
+        warnings.warn("ProjectionSolver is deprecated -- "
+                      "use Projection instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, rhs, *args, **kwargs)
 
 
 class DirichletBCSolver(Equation):
