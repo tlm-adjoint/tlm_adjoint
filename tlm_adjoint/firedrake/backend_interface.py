@@ -35,7 +35,7 @@ from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
 
 from .caches import form_neg
-from .equations import AssembleSolver, EquationSolver
+from .equations import Assembly, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
     define_function_alias
@@ -451,7 +451,7 @@ def _functional_term_eq(x, term):
     if isinstance(term, ufl.classes.Form) \
             and len(term.arguments()) == 0 \
             and isinstance(x, (backend_Constant, backend_Function)):
-        return AssembleSolver(term, x)
+        return Assembly(x, term)
     else:
         return NotImplemented
 

@@ -69,10 +69,10 @@ __all__ = \
 if "tlm_adjoint" not in parameters:
     parameters.add(Parameters("tlm_adjoint"))
 _parameters = parameters["tlm_adjoint"]
-if "AssembleSolver" not in _parameters:
-    _parameters.add(Parameters("AssembleSolver"))
-if "match_quadrature" not in _parameters["AssembleSolver"]:
-    _parameters["AssembleSolver"].add("match_quadrature", False)
+if "Assembly" not in _parameters:
+    _parameters.add(Parameters("Assembly"))
+if "match_quadrature" not in _parameters["Assembly"]:
+    _parameters["Assembly"].add("match_quadrature", False)
 if "EquationSolver" not in _parameters:
     _parameters.add(Parameters("EquationSolver"))
 if "enable_jacobian_caching" not in _parameters["EquationSolver"]:
@@ -89,6 +89,11 @@ if "jacobian_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("jacobian_tolerance", np.inf)
 if "rhs_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
+# For deprecated AssembleSolver
+if "AssembleSolver" not in _parameters:
+    _parameters.add(Parameters("AssembleSolver"))
+if "match_quadrature" not in _parameters["AssembleSolver"]:
+    _parameters["AssembleSolver"].add("match_quadrature", False)
 del _parameters
 
 

@@ -380,7 +380,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
     def forward(y):
         x = Function(space, name="x")
         y_int = Constant(name="y_int")
-        AssembleSolver(y * dx, y_int).solve()
+        Assembly(y_int, y * dx).solve()
         ExprEvaluationSolver(test_expression(y, y_int), x).solve()
 
         J = Functional(name="J")
@@ -485,7 +485,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
-def test_AssembleSolver(setup_test, test_leaks):
+def test_Assembly(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -493,7 +493,7 @@ def test_AssembleSolver(setup_test, test_leaks):
     def forward(F):
         x = Constant(name="x")
 
-        AssembleSolver((dot(F, F) ** 2) * dx, x).solve()
+        Assembly(x, (dot(F, F) ** 2) * dx).solve()
 
         J = Functional(name="J")
         J.assign(x)

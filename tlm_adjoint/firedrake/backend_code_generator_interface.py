@@ -63,8 +63,8 @@ __all__ = \
 
 
 _parameters = parameters.setdefault("tlm_adjoint", {})
-_parameters.setdefault("AssembleSolver", {})
-_parameters["AssembleSolver"].setdefault("match_quadrature", False)
+_parameters.setdefault("Assembly", {})
+_parameters["Assembly"].setdefault("match_quadrature", False)
 _parameters.setdefault("EquationSolver", {})
 _parameters["EquationSolver"].setdefault("enable_jacobian_caching", True)
 _parameters["EquationSolver"].setdefault("cache_rhs_assembly", True)
@@ -73,6 +73,9 @@ _parameters["EquationSolver"].setdefault("defer_adjoint_assembly", False)
 _parameters.setdefault("assembly_verification", {})
 _parameters["assembly_verification"].setdefault("jacobian_tolerance", np.inf)
 _parameters["assembly_verification"].setdefault("rhs_tolerance", np.inf)
+# For deprecated AssembleSolver
+_parameters.setdefault("AssembleSolver", {})
+_parameters["AssembleSolver"].setdefault("match_quadrature", False)
 del _parameters
 
 

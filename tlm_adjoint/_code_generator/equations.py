@@ -47,12 +47,14 @@ import warnings
 
 __all__ = \
     [
-        "AssembleSolver",
+        "Assembly",
         "DirichletBCSolver",
         "EquationSolver",
         "ExprEvaluationSolver",
         "ProjectionSolver",
-        "linear_equation_new_x"
+        "linear_equation_new_x",
+
+        "AssembleSolver"
     ]
 
 
@@ -129,13 +131,13 @@ class ExprEquation(Equation):
         return ufl.replace(expr, self._nonlinear_replace_map(nl_deps))
 
 
-class AssembleSolver(ExprEquation):
-    def __init__(self, rhs, x, form_compiler_parameters=None,
+class Assembly(ExprEquation):
+    def __init__(self, x, rhs, *, form_compiler_parameters=None,
                  match_quadrature=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if match_quadrature is None:
-            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
+            match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
         rhs = ufl.classes.Form(rhs.integrals())
 
@@ -231,9 +233,24 @@ class AssembleSolver(ExprEquation):
         if tlm_rhs.empty():
             return ZeroAssignment(tlm_map[x])
         else:
-            return AssembleSolver(
-                tlm_rhs, tlm_map[x],
+            return Assembly(
+                tlm_map[x], tlm_rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
+
+
+class AssembleSolver(Assembly):
+    def __init__(self, rhs, x, form_compiler_parameters=None,
+                 match_quadrature=None):
+        warnings.warn("AssembleSolver is deprecated -- "
+                      "use Assembly instead, and transfer AssembleSolver "
+                      "global parameters",
+                      DeprecationWarning, stacklevel=2)
+        if match_quadrature is None:
+            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
+        super().__init__(
+            x, rhs,
+            form_compiler_parameters=form_compiler_parameters,
+            match_quadrature=match_quadrature)
 
 
 def unbound_form(form, deps):

@@ -731,12 +731,12 @@ where \texttt{xi} and \texttt{psi} are \texttt{Function} objects corresponding
 to $\xi$ and $\psi$ in the equation above. Remaining arguments are passed
 directly to the \texttt{DirichletBC} constructor.
 
-\subsubsection{\texttt{AssembleSolver}}\label{sect:AssembleSolver}
+\subsubsection{\texttt{Assembly}}\label{sect:Assembly}
 
-An \texttt{AssembleSolver} represents the assembly of a rank zero form. The
-\texttt{AssembleSolver} constructor has the form
+An \texttt{Assembly} represents the assembly of a rank zero form. The
+\texttt{Assembly} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters=None,
+def __init__(self, x, rhs, *, form_compiler_parameters=None,
              match_quadrature=None):
 \end{lstlisting}
 with constructor arguments
@@ -749,7 +749,7 @@ with constructor arguments
   \item \texttt{match\_quadrature}, whether to use the same quadrature degree
     in all finite element assembly. May be required for discrete consistency if
     incomplete quadrature is used. Defaults to
-    \texttt{parameters["tlm\_adjoint"]}\texttt{["AssembleSolver"]}\texttt{["match\_quadrature"]},
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["Assembly"]}\texttt{["match\_quadrature"]},
     which by default is false.
 \end{itemize}
 
@@ -808,7 +808,7 @@ eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
-\ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
+\ref{sect:Assembly}) and \texttt{X\_coords} is a NumPy array defining the
 coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
 optional \texttt{tolerance} argument may be supplied to define the maximum
 permitted distance of a coordinate from a cell.
@@ -853,7 +853,7 @@ eq = PointInterpolationSolver(y, X, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
-\ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
+\ref{sect:Assembly}) and \texttt{X\_coords} is a NumPy array defining the
 coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
 optional \texttt{tolerance} argument may be supplied, and this is passed to the
 Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
@@ -1646,7 +1646,7 @@ J_val = J.value()
 Internally a \texttt{Functional} object stores the value of the
 \texttt{Functional} in an appropriate function. By default this internal
 function is defined to be a function as returned by
-\texttt{new\_scalar\_function()} (see section \ref{sect:AssembleSolver}).
+\texttt{new\_scalar\_function()} (see section \ref{sect:Assembly}).
 
 In advanced usage the function space for the internal function may be specified
 \begin{lstlisting}
