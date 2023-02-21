@@ -668,8 +668,8 @@ def test_initial_guess(setup_test, test_leaks):
                           solver_parameters=ls_parameters_cg)
         x = Function(space_1, name="x")
 
-        class TestSolver(Projection):
-            def __init__(self, y, x, form_compiler_parameters=None,
+        class CustomProjection(Projection):
+            def __init__(self, x, y, *, form_compiler_parameters=None,
                          solver_parameters=None):
                 if form_compiler_parameters is None:
                     form_compiler_parameters = {}
@@ -714,14 +714,14 @@ def test_initial_guess(setup_test, test_leaks):
                 if tau_y is None:
                     return ZeroAssignment(tlm_map[x])
                 else:
-                    return TestSolver(
-                        tau_y, tlm_map[x],
+                    return CustomProjection(
+                        tlm_map[x], tau_y,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         solver_parameters=self._solver_parameters)
 
         Assignment(x, x_0).solve()
-        TestSolver(
-            y, x,
+        CustomProjection(
+            x, y,
             solver_parameters={"ksp_type": "cg",
                                "pc_type": "sor",
                                "ksp_rtol": 1.0e-10,
