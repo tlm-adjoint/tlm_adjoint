@@ -484,7 +484,7 @@ add_finalize_adjoint_derivative_action(backend,
                                        _finalize_adjoint_derivative_action)
 
 
-def _functional_term_eq(term, x):
+def _functional_term_eq(x, term):
     if isinstance(term, ufl.classes.Form) \
             and len(term.arguments()) == 0 \
             and isinstance(x, (backend_Constant, backend_Function)):

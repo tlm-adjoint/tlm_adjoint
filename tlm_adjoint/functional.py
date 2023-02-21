@@ -90,7 +90,7 @@ class Functional:
         if is_function(term) and function_is_scalar(term):
             new_fn_eq = Assignment(new_fn, term)
         else:
-            new_fn_eq = functional_term_eq(term, new_fn)
+            new_fn_eq = functional_term_eq(new_fn, term)
         new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
@@ -122,7 +122,7 @@ class Functional:
                 term_fn = term
             else:
                 term_fn = function_new(self._fn, name=f"{self._name:s}_term")
-                term_eq = functional_term_eq(term, term_fn)
+                term_eq = functional_term_eq(term_fn, term)
                 term_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
             new_fn_eq = Axpy(new_fn, self._fn, 1.0, term_fn)
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
