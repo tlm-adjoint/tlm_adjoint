@@ -61,7 +61,7 @@ def test_long_range(setup_test, test_leaks,
             terms = [(1.0, x_old)]
             if n % 11 == 0:
                 terms.append((1.0, F))
-            LinearCombinationSolver(x, *terms).solve()
+            LinearCombination(x, *terms).solve()
             if n % 17 == 0:
                 if gather_ref:
                     x_ref[n] = function_copy(x, name=f"x_ref_{n:d}")

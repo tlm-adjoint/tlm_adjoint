@@ -61,7 +61,7 @@ __all__ = \
         "Assignment",
         "Axpy",
         "FixedPointSolver",
-        "LinearCombinationSolver",
+        "LinearCombination",
         "ZeroAssignment",
 
         "LinearEquation",
@@ -86,6 +86,7 @@ __all__ = \
 
         "AssignmentSolver",
         "AxpySolver",
+        "LinearCombinationSolver",
         "NullSolver",
         "ScaleSolver"
     ]
@@ -838,7 +839,7 @@ class AssignmentSolver(Assignment):
         super().__init__(x, y)
 
 
-class LinearCombinationSolver(Equation):
+class LinearCombination(Equation):
     def __init__(self, x, *args):
         alpha = tuple(function_dtype(x)(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
@@ -875,18 +876,26 @@ class LinearCombinationSolver(Equation):
             tau_y = get_tangent_linear(y, M, dM, tlm_map)
             if tau_y is not None:
                 args.append((alpha, tau_y))
-        return LinearCombinationSolver(tlm_map[x], *args)
+        return LinearCombination(tlm_map[x], *args)
 
 
-class ScaleSolver(LinearCombinationSolver):
+class LinearCombinationSolver(LinearCombination):
+    def __init__(self, x, *args):
+        warnings.warn("LinearCombinationSolver is deprecated -- "
+                      "use LinearCombination instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, *args)
+
+
+class ScaleSolver(LinearCombination):
     def __init__(self, alpha, y, x):
         warnings.warn("ScaleSolver is deprecated -- "
-                      "use LinearCombinationSolver instead",
+                      "use LinearCombination instead",
                       DeprecationWarning, stacklevel=2)
         super().__init__(x, (alpha, y))
 
 
-class Axpy(LinearCombinationSolver):
+class Axpy(LinearCombination):
     def __init__(self, y_new, y_old, alpha, x):
         super().__init__(y_new, (1.0, y_old), (alpha, x))
 

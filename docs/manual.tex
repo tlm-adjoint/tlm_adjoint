@@ -550,16 +550,16 @@ eq = Axpy(z, y, alpha, x)
 \end{lstlisting}
 where \texttt{z} is the function being solved for.
 
-\subsubsection{\texttt{LinearCombinationSolver}}
+\subsubsection{\texttt{LinearCombination}}
 
-A \texttt{LinearCombinationSolver} represents the equation
+A \texttt{LinearCombination} represents the equation
 \begin{equation*}
   x = \sum_{i = 1}^N \alpha_i y_i,
 \end{equation*}
-where the $\alpha_i$ are scalar constants. A \texttt{LinearCombinationSolver}
-is instantiated via
+where the $\alpha_i$ are scalar constants. A \texttt{LinearCombination} is
+instantiated via
 \begin{lstlisting}
-eq = LinearCombinationSolver(x, (alpha_1, y_1), (alpha_2, y_2), [...])
+eq = LinearCombination(x, (alpha_1, y_1), (alpha_2, y_2), [...])
 \end{lstlisting}
 where \texttt{x} is the function being solved for, and where an arbitrary
 number of tuples may be supplied as further arguments.

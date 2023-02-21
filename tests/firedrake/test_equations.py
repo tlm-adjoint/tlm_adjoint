@@ -231,7 +231,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
     b = Constant(3.0, name="b", static=True)
 
     def forward(a, b):
-        eqs = [LinearCombinationSolver(z, (1.0, x), (1.0, b)),
+        eqs = [LinearCombination(z, (1.0, x), (1.0, b)),
                ExprEvaluationSolver(a / sqrt(z), x)]
 
         fp_parameters = {"absolute_tolerance": 0.0,
@@ -968,7 +968,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
         X = [Function(space, name=f"x_{i:d}") for i in range(4)]
 
         Assignment(X[0], m).solve()
-        LinearCombinationSolver(X[1], (1.0, X[0])).solve()
+        LinearCombination(X[1], (1.0, X[0])).solve()
         ExprEvaluationSolver(m + X[1], X[2]).solve()
         ProjectionSolver(m + X[2], X[3],
                          solver_parameters=ls_parameters_cg).solve()
