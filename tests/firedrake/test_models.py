@@ -218,7 +218,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
 
         system = TimeSystem()
 
-        system.add_solve(T_0, T[0])
+        system.add_solve(Assignment(T[0], T_0))
 
         system.add_solve(inner(trial, test) * dx
                          + dt * inner(kappa * grad(trial), grad(test)) * dx

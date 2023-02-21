@@ -25,6 +25,7 @@ from .equations import Assignment, Equation
 
 from collections import OrderedDict
 from operator import itemgetter
+import warnings
 
 __all__ = \
     [
@@ -208,6 +209,8 @@ class TimeSystem:
         self._tfns = None
 
     def add_assignment(self, y, x):
+        warnings.warn("TimeSystem.add_assignment method is deprecated",
+                      DeprecationWarning, stacklevel=2)
         self.add_solve(y, x)
 
     def add_solve(self, *args, **kwargs):
@@ -220,6 +223,8 @@ class TimeSystem:
               and is_function(args[0])
               and is_function(args[1])
               and hasattr(args[1], "_tlm_adjoint__tfn")):
+            warnings.warn("TimeSystem.add_solve(y, x) signature is deprecated",
+                          DeprecationWarning, stacklevel=2)
             eq = Assignment(args[1], args[0])
         else:
             eq = time_system_eq(*args, **kwargs)
