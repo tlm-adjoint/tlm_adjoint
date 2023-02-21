@@ -179,7 +179,7 @@ def test_InnerProduct(setup_test, test_leaks):
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_ContractionSolver(setup_test, test_leaks, test_default_dtypes):
+def test_Contraction(setup_test, test_leaks, test_default_dtypes):
     dtype = default_dtype()
 
     space = FunctionSpace(3)
@@ -194,7 +194,7 @@ def test_ContractionSolver(setup_test, test_leaks, test_default_dtypes):
 
     def forward(m):
         x = Function(space, name="x")
-        ContractionSolver(A, (1,), (m,), x).solve()
+        Contraction(x, A, (1,), (m,)).solve()
 
         x_dot_x = Constant(name="x_dot_x")
         DotProduct(x_dot_x, x, x).solve()

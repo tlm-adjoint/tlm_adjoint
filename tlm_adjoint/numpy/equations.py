@@ -30,6 +30,8 @@ __all__ = \
     [
         "ConstantMatrix",
         "ContractionRHS",
+        "Contraction",
+
         "ContractionSolver"
     ]
 
@@ -221,10 +223,17 @@ class ContractionRHS(RHS):
             return tlm_B
 
 
-class ContractionSolver(LinearEquation):
+class Contraction(LinearEquation):
+    def __init__(self, x, A, I, Y, *, alpha=1.0):  # noqa: E741
+        super().__init__(x, ContractionRHS(A, I, Y, alpha=alpha))
+
+
+class ContractionSolver(Contraction):
     def __init__(self, A, I, Y, x, A_T=None, alpha=1.0):  # noqa: E741
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
-
-        super().__init__(x, ContractionRHS(A, I, Y, alpha=alpha))
+        warnings.warn("ContactionSolver is deprecated -- "
+                      "use Contraction instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, A, I, Y, alpha=alpha)
