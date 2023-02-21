@@ -245,7 +245,7 @@ def forward(psi_0, kappa):
     Axpy(phi, psi_n, 1.0, one).solve()
 
     J = Functional(name="J")
-    NormSqSolver(phi, J.function(), M=ConstantMatrix(mass)).solve()
+    InnerProduct(J.function(), phi, phi, M=ConstantMatrix(mass)).solve()
 
     return J
 

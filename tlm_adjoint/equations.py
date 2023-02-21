@@ -73,10 +73,6 @@ __all__ = \
         "InnerProductRHS",
         "InnerProduct",
         "MatrixActionRHS",
-        "NormSqRHS",
-        "NormSqSolver",
-        "SumRHS",
-        "SumSolver",
 
         "Storage",
 
@@ -89,8 +85,12 @@ __all__ = \
         "InnerProductSolver",
         "LinearCombinationSolver",
         "MatrixActionSolver",
+        "NormSqRHS",
+        "NormSqSolver",
         "NullSolver",
-        "ScaleSolver"
+        "ScaleSolver",
+        "SumRHS",
+        "SumSolver"
     ]
 
 
@@ -1900,6 +1900,8 @@ class InnerProductSolver(InnerProduct):
 
 class NormSqSolver(InnerProduct):
     def __init__(self, y, x, alpha=1.0, M=None):
+        warnings.warn("NormSqSolver is deprecated",
+                      DeprecationWarning, stacklevel=2)
         super().__init__(x, y, y, alpha=alpha, M=M)
 
 
@@ -2245,6 +2247,8 @@ class InnerProductRHS(RHS):
 
 class NormSqRHS(InnerProductRHS):
     def __init__(self, x, alpha=1.0, M=None):
+        warnings.warn("NormSqRHS is deprecated",
+                      DeprecationWarning, stacklevel=2)
         super().__init__(x, x, alpha=alpha, M=M)
 
 

@@ -290,7 +290,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         x = Constant(0.0, name="x")
 
         M = IdentityMatrix()
-        b = NormSqRHS(m, M=M)
+        b = InnerProductRHS(m, m, M=M)
         linear_eq = LinearEquation(x, [b, b], A=M)
         linear_eq.solve()
 
@@ -363,7 +363,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        NormSqSolver(z, J.function(), M=M).solve()
+        InnerProduct(J.function(), z, z, M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")

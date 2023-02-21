@@ -1499,26 +1499,6 @@ eq = InnerProduct(x, y, z, alpha=alpha, M=M)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{NormSqRHS} and \texttt{NormSqSolver}}
-
-A \texttt{NormSqRHS} is an \texttt{InnerProductRHS}, and a
-\texttt{NormSqSolver} is an \texttt{InnerProduct}, each for the case where the
-$y_j$ and $z_k$ correspond to the degrees of freedom for the same function.
-
-A \texttt{NormSqRHS} can be instantiated via
-\begin{lstlisting}
-b = NormSqRHS(y, alpha=alpha, M=M)
-\end{lstlisting}
-where \texttt{y} is a function whose degrees of freedom are the $y_j$,
-\texttt{alpha} is a given floating point value defining $\alpha$ (set equal to
-$1.0$ if not supplied), and \texttt{M} is a \texttt{Matrix} whose elements are
-the $M_{j,k}$ (set equal to an identity matrix if not supplied). A
-\texttt{NormSqSolver} can be instantiated via
-\begin{lstlisting}
-eq = NormSqSolver(y, x, alpha=alpha, M=M)
-\end{lstlisting}
-where \texttt{x} is the function being solved for.
-
 \subsubsection{\texttt{MatrixActionRHS}}
 
 A \texttt{MatrixActionRHS} is a \texttt{RHS} representing a right-hand-side
