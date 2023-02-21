@@ -58,7 +58,7 @@ __all__ = \
 
         "get_tangent_linear",
 
-        "AssignmentSolver",
+        "Assignment",
         "AxpySolver",
         "FixedPointSolver",
         "LinearCombinationSolver",
@@ -83,7 +83,9 @@ __all__ = \
         "Storage",
 
         "HDF5Storage",
-        "MemoryStorage"
+        "MemoryStorage",
+
+        "AssignmentSolver"
     ]
 
 
@@ -789,8 +791,8 @@ class NullSolver(Equation):
         return NullSolver([tlm_map[x] for x in self.X()])
 
 
-class AssignmentSolver(Equation):
-    def __init__(self, y, x):
+class Assignment(Equation):
+    def __init__(self, x, y):
         check_space_types(x, y)
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
 
@@ -815,7 +817,15 @@ class AssignmentSolver(Equation):
         if tau_y is None:
             return NullSolver(tlm_map[x])
         else:
-            return AssignmentSolver(tau_y, tlm_map[x])
+            return Assignment(tlm_map[x], tau_y)
+
+
+class AssignmentSolver(Assignment):
+    def __init__(self, y, x):
+        warnings.warn("AssignmentSolver is deprecated -- "
+                      "use Assignment instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y)
 
 
 class LinearCombinationSolver(Equation):

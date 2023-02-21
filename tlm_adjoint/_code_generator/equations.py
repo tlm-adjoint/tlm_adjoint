@@ -33,8 +33,7 @@ from .backend_code_generator_interface import assemble, \
     rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
-from ..equations import AssignmentSolver, Equation, NullSolver, \
-    get_tangent_linear
+from ..equations import Assignment, Equation, NullSolver, get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
@@ -794,8 +793,7 @@ def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
     rhs_x_dep = x in rhs.coefficients()
     if lhs_x_dep or rhs_x_dep:
         x_old = function_new(x)
-        AssignmentSolver(x, x_old).solve(manager=manager, annotate=annotate,
-                                         tlm=tlm)
+        Assignment(x_old, x).solve(manager=manager, annotate=annotate, tlm=tlm)
         if lhs_x_dep:
             lhs = ufl.replace(lhs, {x: x_old})
         if rhs_x_dep:

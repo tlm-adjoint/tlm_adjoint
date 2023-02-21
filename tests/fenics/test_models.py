@@ -145,7 +145,7 @@ def test_oscillator(setup_test, test_leaks,
         T_np1 = Function(space, name="T_np1")
         T_s = 0.5 * (T_n + T_np1)
 
-        AssignmentSolver(T_0, T_n).solve()
+        Assignment(T_n, T_0).solve()
 
         solver_parameters = {"nonlinear_solver": "newton",
                              "newton_solver": ns_parameters_newton_gmres}
@@ -314,14 +314,14 @@ def test_diffusion_2d(setup_test, test_leaks,
         T_n = Function(space, name="T_n")
         T_np1 = Function(space, name="T_np1")
 
-        AssignmentSolver(T_0, T_n).solve()
+        Assignment(T_n, T_0).solve()
 
         eq = (inner(trial / dt, test) * dx
               + inner(dot(kappa, grad(trial)), grad(test)) * dx
               == inner(T_n / dt, test) * dx)
         eqs = [EquationSolver(eq, T_np1, bc,
                               solver_parameters=ls_parameters_cg),
-               AssignmentSolver(T_np1, T_n)]
+               Assignment(T_n, T_np1)]
 
         for n in range(n_steps):
             for eq in eqs:

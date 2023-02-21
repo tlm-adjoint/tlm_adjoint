@@ -68,7 +68,7 @@ def forward(psi_0, psi_n_file=None):
         == inner(psi_n / dt, test) * dx,
         psi_np1, bc,
         solver_parameters={"linear_solver": "direct"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file << (psi_n, 0.0)

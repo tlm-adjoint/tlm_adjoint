@@ -69,7 +69,7 @@ def forward(psi_0, psi_n_file=None):
         psi_np1, bc,
         solver_parameters={"ksp_type": "preonly",
                            "pc_type": "lu"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file.write(psi_n, time=0.0)

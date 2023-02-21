@@ -51,7 +51,7 @@ def test_long_range(setup_test, test_leaks,
     def forward(F, x_ref=None):
         x_old = Function(space, name="x_old")
         x = Function(space, name="x")
-        AssignmentSolver(F, x_old).solve()
+        Assignment(x_old, F).solve()
         J = Functional(name="J")
         gather_ref = x_ref is None
         if gather_ref:
@@ -65,7 +65,7 @@ def test_long_range(setup_test, test_leaks,
                 if gather_ref:
                     x_ref[n] = function_copy(x, name=f"x_ref_{n:d}")
                 J.addto(dot(x * x * x, x_ref[n]) * dx)
-            AssignmentSolver(x, x_old).solve()
+            Assignment(x_old, x).solve()
             if n < n_steps - 1:
                 new_block()
 
@@ -191,7 +191,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
 
         NullSolver(x).solve()
 
-        AssignmentSolver(y, x).solve()
+        Assignment(x, y).solve()
 
         J_0 = Functional(name="J_0")
         J_0.assign((dot(x, x) ** 2) * dx)
@@ -450,7 +450,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
         x1 = Constant(0.0, name="x1")
 
         eq0 = NewtonIterationSolver(m, x0, x1)
-        eq1 = AssignmentSolver(x1, x0)
+        eq1 = Assignment(x0, x1)
 
         fp_eq = FixedPointSolver(
             [eq0, eq1],
@@ -657,7 +657,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     reset_manager()
     configure_tlm((F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2
@@ -666,7 +666,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta))
     start_manager()
     stop_annotating()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 0
@@ -675,7 +675,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), (F, zeta))
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 3
@@ -685,7 +685,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), annotate=False)
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 1
@@ -695,7 +695,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), (F, zeta), annotate=False)
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2

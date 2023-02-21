@@ -312,7 +312,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
         x1 = Constant(0.0, name="x1")
 
         eq0 = NewtonIterationSolver(m, x0, x1)
-        eq1 = AssignmentSolver(x1, x0)
+        eq1 = Assignment(x0, x1)
 
         fp_eq = FixedPointSolver(
             [eq0, eq1],
@@ -519,7 +519,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     reset_manager()
     configure_tlm((F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2
@@ -528,7 +528,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta))
     start_manager()
     stop_annotating()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 0
@@ -537,7 +537,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), (F, zeta))
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 3
@@ -547,7 +547,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), annotate=False)
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 1
@@ -557,7 +557,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), (F, zeta), annotate=False)
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2

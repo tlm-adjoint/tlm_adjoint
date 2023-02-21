@@ -188,7 +188,7 @@ def forward(psi_0, psi_n_file=None):
         psi_np1, bc,
         solver_parameters={"ksp_type": "preonly",
                            "pc_type": "lu"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file.write(psi_n, time=0.0)
@@ -222,9 +222,8 @@ The key changes which appear here are
   \item \texttt{start\_manager} and \texttt{stop\_manager}, which enable and
     disable the underlying \texttt{EquationManager}. For further details see
     section \ref{sect:EquationManager_state}.
-  \item The instantiation of \texttt{AssignmentSolver} and
-    \texttt{EquationSolver} objects. For further details see section
-    \ref{sect:Equation}.
+  \item The instantiation of \texttt{Assignment} and \texttt{EquationSolver}
+    objects. For further details see section \ref{sect:Equation}.
   \item The use of a subclass of \texttt{Equation} to define a custom equation.
     For further details see section \ref{sect:custom}.
   \item The \texttt{static} keyword when initialising certain \texttt{Constant}
@@ -325,7 +324,7 @@ def forward(psi_0, psi_n_file=None):
         psi_np1, bc,
         solver_parameters={"ksp_type": "preonly",
                            "pc_type": "lu"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file.write(psi_n, time=0.0)
@@ -526,15 +525,15 @@ The intended use of a \texttt{NullSolver} is in the definition of
 \texttt{tangent\_linear} methods of \texttt{Equation} classes (see section
 \ref{sect:tangent_linear}).
 
-\subsubsection{\texttt{AssignmentSolver}}
+\subsubsection{\texttt{Assignment}}
 
-An \texttt{AssignmentSolver} represents an assignment
+An \texttt{Assignment} represents an assignment
 \begin{equation*}
   x = y.
 \end{equation*}
-An \texttt{AssignmentSolver} can be instantiated via
+An \texttt{Assignment} can be instantiated via
 \begin{lstlisting}
-eq = AssignmentSolver(y, x)
+eq = Assignment(x, y)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 

@@ -21,7 +21,7 @@
 from .interface import function_id, is_function, space_new, time_system_eq
 
 from .alias import Alias
-from .equations import AssignmentSolver, Equation
+from .equations import Assignment, Equation
 
 from collections import OrderedDict
 from operator import itemgetter
@@ -190,8 +190,8 @@ class TimeFunction:
 
     def cycle(self, *, manager=None):
         if self._cycle_eqs is None:
-            self._cycle_eqs = tuple(AssignmentSolver(self[source_level],
-                                                     self[target_level])
+            self._cycle_eqs = tuple(Assignment(self[target_level],
+                                               self[source_level])
                                     for target_level, source_level
                                     in self._levels._cycle_map.items())
         for eq in self._cycle_eqs:
@@ -220,7 +220,7 @@ class TimeSystem:
               and is_function(args[0])
               and is_function(args[1])
               and hasattr(args[1], "_tlm_adjoint__tfn")):
-            eq = AssignmentSolver(args[0], args[1])
+            eq = Assignment(args[1], args[0])
         else:
             eq = time_system_eq(*args, **kwargs)
 

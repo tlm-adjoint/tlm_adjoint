@@ -36,16 +36,16 @@ except ImportError:
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_AssignmentSolver(setup_test, test_leaks, test_default_dtypes):
+def test_Assignment(setup_test, test_leaks, test_default_dtypes):
     x = Constant(16.0, name="x", static=True)
 
     def forward(x):
         y = [Constant(name=f"y_{i:d}") for i in range(9)]
         z = Constant(name="z")
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AssignmentSolver(y[i], y[i + 1]).solve()
+            Assignment(y[i + 1], y[i]).solve()
         # Following line should have no effect on sensitivity
         DotProductSolver(y[-1], y[-1], z).solve()
         DotProductSolver(y[-1], y[-1], z).solve()
@@ -60,7 +60,7 @@ def test_AssignmentSolver(setup_test, test_leaks, test_default_dtypes):
         AxpySolver(z_dot_z, 2.0, x_dot_x, J.function()).solve()
 
         K = Functional(name="K")
-        AssignmentSolver(z_dot_z, K.function()).solve()
+        Assignment(K.function(), z_dot_z).solve()
 
         return J, K
 
@@ -107,7 +107,7 @@ def test_AxpySolver(setup_test, test_leaks, test_default_dtypes):
         z = [Constant(name=f"z_{i:d}") for i in range(2)]
         z[0].assign(7.0)
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
             AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
         DotProductSolver(y[-1], y[-1], z[1]).solve()
@@ -154,7 +154,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
     def forward(F):
         G = Function(space, name="G")
-        AssignmentSolver(F, G).solve()
+        Assignment(G, F).solve()
 
         J = Functional(name="J")
         InnerProductSolver(F, G, J.function()).solve()

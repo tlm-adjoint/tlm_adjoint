@@ -40,16 +40,16 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.firedrake
 @no_space_type_checking
 @seed_test
-def test_AssignmentSolver(setup_test, test_leaks):
+def test_Assignment(setup_test, test_leaks):
     x = Constant(16.0, name="x", static=True)
 
     def forward(x):
         y = [Constant(name=f"y_{i:d}") for i in range(9)]
         z = Constant(name="z")
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AssignmentSolver(y[i], y[i + 1]).solve()
+            Assignment(y[i + 1], y[i]).solve()
         # Following line should have no effect on sensitivity
         DotProductSolver(y[-1], y[-1], z).solve()
         DotProductSolver(y[-1], y[-1], z).solve()
@@ -64,7 +64,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
         AxpySolver(z_dot_z, 2.0, x_dot_x, J.function()).solve()
 
         K = Functional(name="K")
-        AssignmentSolver(z_dot_z, K.function()).solve()
+        Assignment(K.function(), z_dot_z).solve()
 
         return J, K
 
@@ -111,7 +111,7 @@ def test_AxpySolver(setup_test, test_leaks):
         z = [Constant(name=f"z_{i:d}") for i in range(2)]
         z[0].assign(7.0)
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
             AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
         DotProductSolver(y[-1], y[-1], z[1]).solve()
@@ -628,7 +628,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 
     def forward(F):
         G = Function(space, name="G")
-        AssignmentSolver(F, G).solve()
+        Assignment(G, F).solve()
 
         J = Functional(name="J")
         InnerProductSolver(F, G, J.function()).solve()
@@ -719,7 +719,7 @@ def test_initial_guess(setup_test, test_leaks):
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         solver_parameters=self._solver_parameters)
 
-        AssignmentSolver(x_0, x).solve()
+        Assignment(x, x_0).solve()
         TestSolver(
             y, x,
             solver_parameters={"ksp_type": "cg",
@@ -967,7 +967,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     def forward(m):
         X = [Function(space, name=f"x_{i:d}") for i in range(4)]
 
-        AssignmentSolver(m, X[0]).solve()
+        Assignment(X[0], m).solve()
         ScaleSolver(1.0, X[0], X[1]).solve()
         ExprEvaluationSolver(m + X[1], X[2]).solve()
         ProjectionSolver(m + X[2], X[3],

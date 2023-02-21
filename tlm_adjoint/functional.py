@@ -22,7 +22,7 @@ from .interface import check_space_type, function_is_scalar, function_name, \
     function_new, function_scalar_value, function_space, functional_term_eq, \
     is_function, space_id, space_new
 
-from .equations import AssignmentSolver, AxpySolver
+from .equations import Assignment, AxpySolver
 from .manager import manager as _manager
 
 import warnings
@@ -88,7 +88,7 @@ class Functional:
 
         new_fn = function_new(self._fn, name=self._name)
         if is_function(term) and function_is_scalar(term):
-            new_fn_eq = AssignmentSolver(term, new_fn)
+            new_fn_eq = Assignment(new_fn, term)
         else:
             new_fn_eq = functional_term_eq(term, new_fn)
         new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
@@ -115,7 +115,7 @@ class Functional:
 
         new_fn = function_new(self._fn, name=self._name)
         if term is None:
-            new_fn_eq = AssignmentSolver(self._fn, new_fn)
+            new_fn_eq = Assignment(new_fn, self._fn)
             new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
         else:
             if is_function(term) and function_is_scalar(term):

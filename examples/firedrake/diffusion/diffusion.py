@@ -72,12 +72,12 @@ def forward(kappa, manager=None, output_filename=None):
                                                "pc_type": "sor",
                                                "ksp_rtol": 1.0e-14,
                                                "ksp_atol": 1.0e-16})
-    cycle = AssignmentSolver(Psi_np1, Psi_n)
+    cycle = Assignment(Psi_n, Psi_np1)
 
     if output_filename is not None:
         f = File(output_filename)
 
-    AssignmentSolver(Psi_0, Psi_n).solve(manager=manager)
+    Assignment(Psi_n, Psi_0).solve(manager=manager)
     if output_filename is not None:
         f.write(Psi_n, time=0.0)
     for n in range(N):
