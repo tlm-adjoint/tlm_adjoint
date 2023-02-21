@@ -122,10 +122,10 @@ def test_EmptySolver(setup_test, test_leaks):
         EmptySolver().solve()
 
         F_dot_F = Constant(name="F_dot_F")
-        DotProductSolver(F, F, F_dot_F).solve()
+        DotProduct(F_dot_F, F, F).solve()
 
         J = Functional(name="J")
-        DotProductSolver(F_dot_F, F_dot_F, J.function()).solve()
+        DotProduct(J.function(), F_dot_F, F_dot_F).solve()
         return J
 
     F = Function(space, name="F")
@@ -610,7 +610,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
                 new_block()
 
         J = Functional(name="J")
-        DotProductSolver(m, m, J.function()).solve()
+        DotProduct(J.function(), m, m).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -646,7 +646,7 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
 
     start_manager()
     x = Constant(0.0, name="x")
-    DotProductSolver(m, m, x).solve()
+    DotProduct(x, m, m).solve()
     stop_manager()
 
 

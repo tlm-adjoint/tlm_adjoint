@@ -51,14 +51,14 @@ def test_Assignment(setup_test, test_leaks):
         for i in range(len(y) - 1):
             Assignment(y[i + 1], y[i]).solve()
         # Following line should have no effect on sensitivity
-        DotProductSolver(y[-1], y[-1], z).solve()
-        DotProductSolver(y[-1], y[-1], z).solve()
+        DotProduct(z, y[-1], y[-1]).solve()
+        DotProduct(z, y[-1], y[-1]).solve()
 
         x_dot_x = Constant(name="x_dot_x")
-        DotProductSolver(x, x, x_dot_x).solve()
+        DotProduct(x_dot_x, x, x).solve()
 
         z_dot_z = Constant(name="z_dot_z")
-        DotProductSolver(z, z, z_dot_z).solve()
+        DotProduct(z_dot_z, z, z).solve()
 
         J = Functional(name="J")
         Axpy(J.function(), z_dot_z, 2.0, x_dot_x).solve()
@@ -114,10 +114,10 @@ def test_Axpy(setup_test, test_leaks):
         Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
             Axpy(y[i + 1], y[i], i + 1, z[0]).solve()
-        DotProductSolver(y[-1], y[-1], z[1]).solve()
+        DotProduct(z[1], y[-1], y[-1]).solve()
 
         J = Functional(name="J")
-        DotProductSolver(z[1], z[1], J.function()).solve()
+        DotProduct(J.function(), z[1], z[1]).solve()
         return J
 
     start_manager()

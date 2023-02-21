@@ -69,7 +69,7 @@ __all__ = \
         "RHS",
 
         "DotProductRHS",
-        "DotProductSolver",
+        "DotProduct",
         "InnerProductRHS",
         "InnerProductSolver",
         "MatrixActionRHS",
@@ -86,6 +86,7 @@ __all__ = \
 
         "AssignmentSolver",
         "AxpySolver",
+        "DotProductSolver",
         "LinearCombinationSolver",
         "NullSolver",
         "ScaleSolver"
@@ -1858,9 +1859,17 @@ class MatrixActionSolver(LinearEquation):
         super().__init__(MatrixActionRHS(A, Y), X)
 
 
-class DotProductSolver(LinearEquation):
-    def __init__(self, y, z, x, alpha=1.0):
+class DotProduct(LinearEquation):
+    def __init__(self, x, y, z, *, alpha=1.0):
         super().__init__(DotProductRHS(y, z, alpha=alpha), x)
+
+
+class DotProductSolver(DotProduct):
+    def __init__(self, y, z, x, alpha=1.0):
+        warnings.warn("DotProductSolver is deprecated -- "
+                      "use DotProduct instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, z, alpha=alpha)
 
 
 class InnerProductSolver(LinearEquation):
