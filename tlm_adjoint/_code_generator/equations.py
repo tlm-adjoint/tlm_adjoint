@@ -48,13 +48,14 @@ import warnings
 __all__ = \
     [
         "Assembly",
-        "DirichletBCSolver",
+        "DirichletBCApplication",
         "EquationSolver",
         "ExprEvaluation",
         "Projection",
         "linear_equation_new_x",
 
         "AssembleSolver",
+        "DirichletBCSolver",
         "ExprEvaluationSolver",
         "ProjectionSolver"
     ]
@@ -841,8 +842,8 @@ class ProjectionSolver(Projection):
         super().__init__(x, rhs, *args, **kwargs)
 
 
-class DirichletBCSolver(Equation):
-    def __init__(self, y, x, *args, **kwargs):
+class DirichletBCApplication(Equation):
+    def __init__(self, x, y, *args, **kwargs):
         check_space_type(x, "primal")
         check_space_type(y, "primal")
 
@@ -880,8 +881,17 @@ class DirichletBCSolver(Equation):
         if tau_y is None:
             return ZeroAssignment(tlm_map[x])
         else:
-            return DirichletBCSolver(tau_y, tlm_map[x],
-                                     *self._bc_args, **self._bc_kwargs)
+            return DirichletBCApplication(
+                tlm_map[x], tau_y,
+                *self._bc_args, **self._bc_kwargs)
+
+
+class DirichletBCSolver(DirichletBCApplication):
+    def __init__(self, y, x, *args, **kwargs):
+        warnings.warn("DirichletBCSolver is deprecated -- "
+                      "use DirichletBCApplication instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, *args, **kwargs)
 
 
 class ExprEvaluation(ExprEquation):

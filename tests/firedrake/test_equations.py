@@ -152,7 +152,7 @@ def test_Axpy(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
-def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
+def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -166,7 +166,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
         x_1 = Function(space, name="x_1")
         x = Function(space, name="x")
 
-        DirichletBCSolver(bc, x_1, "on_boundary").solve()
+        DirichletBCApplication(x_1, bc, "on_boundary").solve()
 
         EquationSolver(
             inner(grad(trial), grad(test)) * dx

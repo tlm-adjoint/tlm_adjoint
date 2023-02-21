@@ -713,19 +713,19 @@ expression (for the second), and \texttt{x} is the \texttt{Function} being
 solved for. Remaining constructor arguments are as for the
 \texttt{EquationSolver} class.
 
-\subsubsection{\texttt{DirichletBCSolver}}
+\subsubsection{\texttt{DirichletBCApplication}}
 
-A \texttt{DirichletBCSolver} represents the application of a strong Dirichlet
-boundary condition, represented in the form of an equation
+A \texttt{DirichletBCApplication} represents the application of a strong
+Dirichlet boundary condition, represented in the form of an equation
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
 discrete degrees of freedom for functions $\psi, \xi \in V$, and $P$ is a
-$\left( 0, 1 \right)$-matrix. A \texttt{DirichletBCSolver} can be instantiated
-via
+$\left( 0, 1 \right)$-matrix. A \texttt{DirichletBCApplication} can be
+instantiated via
 \begin{lstlisting}
-eq = DirichletBCSolver(xi, psi, *args, **kwargs)
+eq = DirichletBCApplication(psi, xi, *args, **kwargs)
 \end{lstlisting}
 where \texttt{xi} and \texttt{psi} are \texttt{Function} objects corresponding
 to $\xi$ and $\psi$ in the equation above. Remaining arguments are passed
