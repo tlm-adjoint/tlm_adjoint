@@ -31,8 +31,8 @@ def forward(psi_0, psi_n_file=None):
     system = TimeSystem()
     psi = TimeFunction(levels, space, name="psi")
 
-    class InteriorAssignmentSolver(Equation):
-        def __init__(self, y, x):
+    class InteriorAssignment(Equation):
+        def __init__(self, x, y):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
@@ -60,9 +60,9 @@ def forward(psi_0, psi_n_file=None):
             if tlm_y is None:
                 return NullSolver(tlm_map[x])
             else:
-                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+                return InteriorAssignment(tlm_map[x], tlm_y)
 
-    system.add_solve(InteriorAssignmentSolver(psi_0, psi[0]))
+    system.add_solve(InteriorAssignment(psi[0], psi_0))
 
     system.add_solve(inner(trial / dt, test) * dx
                      + inner(kappa * grad(trial), grad(test)) * dx
