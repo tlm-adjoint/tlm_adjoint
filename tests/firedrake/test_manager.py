@@ -106,8 +106,8 @@ def test_long_range(setup_test, test_leaks,
 @pytest.mark.firedrake
 @no_space_type_checking
 @seed_test
-def test_EmptySolver(setup_test, test_leaks):
-    class EmptySolver(Equation):
+def test_EmptyEquation(setup_test, test_leaks):
+    class EmptyEquation(Equation):
         def __init__(self):
             super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
 
@@ -119,7 +119,7 @@ def test_EmptySolver(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def forward(F):
-        EmptySolver().solve()
+        EmptyEquation().solve()
 
         F_dot_F = Constant(name="F_dot_F")
         DotProduct(F_dot_F, F, F).solve()
@@ -591,7 +591,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     n_forward_solves = [0]
 
-    class EmptySolver(Equation):
+    class EmptyEquation(Equation):
         def __init__(self):
             super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
 
@@ -605,7 +605,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     def forward(m):
         for n in range(n_steps):
-            EmptySolver().solve()
+            EmptyEquation().solve()
             if n < n_steps - 1:
                 new_block()
 
