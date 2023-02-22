@@ -47,9 +47,10 @@ __all__ = \
         "local_solver_cache",
         "set_local_solver_cache",
 
-        "LocalProjectionSolver",
+        "LocalProjection",
         "PointInterpolation",
 
+        "LocalProjectionSolver",
         "PointInterpolationSolver"
     ]
 
@@ -112,8 +113,8 @@ def set_local_solver_cache(local_solver_cache):
     _local_solver_cache[0] = local_solver_cache
 
 
-class LocalProjectionSolver(EquationSolver):
-    def __init__(self, rhs, x, form_compiler_parameters=None,
+class LocalProjection(EquationSolver):
+    def __init__(self, x, rhs, *, form_compiler_parameters=None,
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
         if form_compiler_parameters is None:
@@ -199,12 +200,27 @@ class LocalProjectionSolver(EquationSolver):
         if tlm_rhs.empty():
             return ZeroAssignment(tlm_map[x])
         else:
-            return LocalProjectionSolver(
-                tlm_rhs, tlm_map[x],
+            return LocalProjection(
+                tlm_map[x], tlm_rhs,
                 form_compiler_parameters=self._form_compiler_parameters,
                 cache_jacobian=self._cache_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly,
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
+
+
+class LocalProjectionSolver(LocalProjection):
+    def __init__(self, rhs, x, form_compiler_parameters=None,
+                 cache_jacobian=None, cache_rhs_assembly=None,
+                 match_quadrature=None, defer_adjoint_assembly=None):
+        warnings.warn("LocalProjectionSolver is deprecated -- "
+                      "use LocalProjection instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(
+            x, rhs, form_compiler_parameters=form_compiler_parameters,
+            cache_jacobian=cache_jacobian,
+            cache_rhs_assembly=cache_rhs_assembly,
+            match_quadrature=match_quadrature,
+            defer_adjoint_assembly=defer_adjoint_assembly)
 
 
 def interpolation_matrix(x_coords, y, y_nodes, dtype=backend_ScalarType):

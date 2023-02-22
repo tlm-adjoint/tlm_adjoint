@@ -34,7 +34,7 @@ from ..manager import annotation_enabled, tlm_enabled
 from ..equations import Assignment
 from .equations import EquationSolver, ExprEvaluation, Projection, \
     linear_equation_new_x
-from .firedrake_equations import LocalProjectionSolver
+from .firedrake_equations import LocalProjection
 
 import copy
 import numpy as np
@@ -297,8 +297,8 @@ def project(v, V, bcs=None, solver_parameters=None,
         if use_slate_for_inverse:
             if len(bcs) > 0:
                 raise NotImplementedError("Boundary conditions not supported")
-            eq = LocalProjectionSolver(
-                v, x, form_compiler_parameters=form_compiler_parameters,
+            eq = LocalProjection(
+                x, v, form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:

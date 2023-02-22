@@ -787,9 +787,9 @@ supplied to define the maximum permitted distance of a coordinate from a cell.
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. In
 parallel the \texttt{InterpolationSolver} can be combined with the
-\texttt{LocalProjectionSolver} in order to project functions in more general
-function spaces onto an appropriate discontinuous Galerkin function space,
-prior to interpolation.
+\texttt{LocalProjection} in order to project functions in more general function
+spaces onto an appropriate discontinuous Galerkin function space, prior to
+interpolation.
 
 \subsubsection{\texttt{PointInterpolation}}
 
@@ -816,15 +816,15 @@ In parallel there are similar node-node graph restrictions for the discrete
 function space for \texttt{y} to those for the \texttt{InterpolationSolver}
 class (section \ref{sect:InterpolationSolver}).
 
-\subsubsection{\texttt{LocalProjectionSolver}}
+\subsubsection{\texttt{LocalProjection}}
 
-A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
-class, and represents the solution of a projection problem, of the same type as
+A \texttt{LocalProjection} is a subclass of the \texttt{EquationSolver} class,
+and represents the solution of a projection problem, of the same type as
 represented using a \texttt{Projection}, but using a local mass matrix solver.
 
-The \texttt{LocalProjectionSolver} constructor has the form
+The \texttt{LocalProjection} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters=None,
+def __init__(self, x, rhs, *, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
              match_quadrature=None, defer_adjoint_assembly=None):
 \end{lstlisting}
@@ -857,15 +857,15 @@ optional \texttt{tolerance} argument may be supplied, and this is passed to the
 Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
 the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
 
-\subsubsection{\texttt{LocalProjectionSolver}}
+\subsubsection{\texttt{LocalProjection}}
 
-A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
-class, and represents the solution of a projection problem, of the same type as
+A \texttt{LocalProjection} is a subclass of the \texttt{EquationSolver} class,
+and represents the solution of a projection problem, of the same type as
 represented using a \texttt{Projection}, but using a local mass matrix solver.
 
-The \texttt{LocalProjectionSolver} constructor has the form
+The \texttt{LocalProjection} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters=None,
+def __init__(self, x, rhs, *, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
              match_quadrature=None, defer_adjoint_assembly=None):
 \end{lstlisting}

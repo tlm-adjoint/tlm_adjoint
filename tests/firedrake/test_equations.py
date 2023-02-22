@@ -426,7 +426,7 @@ def test_ExprEvaluation(setup_test, test_leaks):
 @pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
-def test_LocalProjectionSolver(setup_test, test_leaks):
+def test_LocalProjection(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
@@ -435,7 +435,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
 
     def forward(G):
         F = Function(space_1, name="F")
-        LocalProjectionSolver(G, F).solve()
+        LocalProjection(F, G).solve()
 
         J = Functional(name="J")
         J.assign((F ** 2 + F ** 3) * dx)
