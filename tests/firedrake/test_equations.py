@@ -294,9 +294,9 @@ def test_FixedPointSolver(setup_test, test_leaks):
 @pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
                                            (5, 5, 5)])
 @seed_test
-def test_PointInterpolationSolver(setup_test, test_leaks,
-                                  overlap_type,
-                                  N_x, N_y, N_z):
+def test_PointInterpolation(setup_test, test_leaks,
+                            overlap_type,
+                            N_x, N_y, N_z):
     mesh = UnitCubeMesh(N_x, N_y, N_z,
                         distribution_parameters={"partition": True,
                                                  "overlap_type": overlap_type})
@@ -313,7 +313,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks,
     def forward(y):
         X_vals = [new_scalar_function(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
-        eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
+        eq = PointInterpolation(X_vals, y, X_coords, P=P[0])
         eq.solve()
         P[0] = eq._P
 

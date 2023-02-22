@@ -50,6 +50,8 @@ __all__ = \
 
         "InterpolationSolver",
         "LocalProjectionSolver",
+        "PointInterpolation",
+
         "PointInterpolationSolver"
     ]
 
@@ -530,9 +532,9 @@ class InterpolationSolver(LinearEquation):
             x, MatrixActionRHS(LocalMatrix(P), y))
 
 
-class PointInterpolationSolver(Equation):
-    def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
-                 P=None, P_T=None, tolerance=0.0):
+class PointInterpolation(Equation):
+    def __init__(self, X, y, X_coords=None, *, y_colors=None, y_cells=None,
+                 P=None, tolerance=0.0):
         """
         Defines an equation which interpolates the scalar-valued Function y at
         the points X_coords.
@@ -562,10 +564,6 @@ class PointInterpolationSolver(Equation):
         tolerance  (Optional) Maximum distance of an interpolation point from
                    a cell. Ignored if P or y_cells are supplied.
         """
-
-        if P_T is not None:
-            warnings.warn("P_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
 
         if is_function(X):
             X = (X,)
@@ -649,5 +647,18 @@ class PointInterpolationSolver(Equation):
         if tlm_y is None:
             return ZeroAssignment([tlm_map[x] for x in X])
         else:
-            return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
-                                            P=self._P)
+            return PointInterpolation([tlm_map[x] for x in X], tlm_y,
+                                      P=self._P)
+
+
+class PointInterpolationSolver(PointInterpolation):
+    def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
+                 P=None, P_T=None, tolerance=0.0):
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+        warnings.warn("PointInterpolationSolver is deprecated -- "
+                      "use PointInterpolation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X, y, X_coords, y_colors=y_colors, y_cells=y_cells,
+                         P=P, tolerance=tolerance)

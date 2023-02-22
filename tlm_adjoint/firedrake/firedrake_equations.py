@@ -48,6 +48,8 @@ __all__ = \
         "set_local_solver_cache",
 
         "LocalProjectionSolver",
+        "PointInterpolation",
+
         "PointInterpolationSolver"
     ]
 
@@ -233,8 +235,8 @@ def interpolation_matrix(x_coords, y, y_nodes, dtype=backend_ScalarType):
     return P.tocsr()
 
 
-class PointInterpolationSolver(Equation):
-    def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
+class PointInterpolation(Equation):
+    def __init__(self, X, y, X_coords=None, *, P=None, tolerance=None):
         """
         Defines an equation which interpolates the continuous scalar-valued
         Function y at the points X_coords.
@@ -251,10 +253,6 @@ class PointInterpolationSolver(Equation):
         tolerance  (Optional) Cell containment tolerance, passed to the
                    MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
-
-        if P_T is not None:
-            warnings.warn("P_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
 
         if is_function(X):
             X = (X,)
@@ -364,5 +362,16 @@ class PointInterpolationSolver(Equation):
         if tlm_y is None:
             return ZeroAssignment([tlm_map[x] for x in X])
         else:
-            return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
-                                            P=self._P)
+            return PointInterpolation([tlm_map[x] for x in X], tlm_y,
+                                      P=self._P)
+
+
+class PointInterpolationSolver(PointInterpolation):
+    def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+        warnings.warn("PointInterpolationSolver is deprecated -- "
+                      "use PointInterpolation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X, y, X_coords, P=P, tolerance=tolerance)

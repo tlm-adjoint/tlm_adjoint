@@ -791,20 +791,19 @@ parallel the \texttt{InterpolationSolver} can be combined with the
 function spaces onto an appropriate discontinuous Galerkin function space,
 prior to interpolation.
 
-\subsubsection{\texttt{PointInterpolationSolver}}
+\subsubsection{\texttt{PointInterpolation}}
 
-With the FEniCS backend, a \texttt{PointInterpolationSolver} represents
-consistent interpolation of a given scalar-valued function $\xi \in W$ onto a
-given set of points,
+With the FEniCS backend, a \texttt{PointInterpolation} represents interpolation
+of a given scalar-valued function $\xi \in W$ onto a given set of points,
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
 is a vector whose elements are the discrete degrees of freedom for a
 scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
-\texttt{PointInterpolationSolver} can be instantiated via
+\texttt{PointInterpolation} can be instantiated via
 \begin{lstlisting}
-eq = PointInterpolationSolver(y, X, X_coords=X_coords)
+eq = PointInterpolation(X, y, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
@@ -835,20 +834,20 @@ Remaining constructor arguments are as for the \texttt{EquationSolver} class.
 
 \subsection{Built-in \texttt{Equation} classes: Firedrake}
 
-\subsubsection{\texttt{PointInterpolationSolver}}
+\subsubsection{\texttt{PointInterpolation}}
 
-With the Firedrake backend, a \texttt{PointInterpolationSolver} represents
-consistent interpolation of a given continuous scalar-valued function
-$\xi \in W$ onto a given set of points,
+With the Firedrake backend, a \texttt{PointInterpolation} represents
+interpolation of a given continuous scalar-valued function $\xi \in W$ onto a
+given set of points,
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
 is a vector whose elements are the discrete degrees of freedom for a continuous
 scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
-\texttt{PointInterpolationSolver} can be instantiated via
+\texttt{PointInterpolation} can be instantiated via
 \begin{lstlisting}
-eq = PointInterpolationSolver(y, X, X_coords=X_coords)
+eq = PointInterpolation(y, X, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section

@@ -358,8 +358,8 @@ def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
 @pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
                                            (5, 5, 5)])
 @seed_test
-def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
-                                  N_x, N_y, N_z):
+def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
+                            N_x, N_y, N_z):
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
@@ -382,7 +382,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
 
         X_vals = [new_scalar_function(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
-        eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
+        eq = PointInterpolation(X_vals, y, X_coords, P=P[0])
         eq.solve()
         P[0] = eq._P
 
