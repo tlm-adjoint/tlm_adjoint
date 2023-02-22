@@ -408,11 +408,11 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
 @seed_test
 def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
-        class NewtonIterationSolver(Equation):
-            def __init__(self, m, x0, x):
+        class NewtonSolver(Equation):
+            def __init__(self, x, m, x0):
+                check_space_type(x, "primal")
                 check_space_type(m, "primal")
                 check_space_type(x0, "primal")
-                check_space_type(x, "primal")
 
                 super().__init__(x, deps=[x, x0, m], nl_deps=[x0, m],
                                  ic=False, adj_ic=False)
@@ -452,7 +452,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
         x0 = Constant(1.0, name="x0")
         x1 = Constant(0.0, name="x1")
 
-        eq0 = NewtonIterationSolver(m, x0, x1)
+        eq0 = NewtonSolver(x1, m, x0)
         eq1 = Assignment(x0, x1)
 
         fp_eq = FixedPointSolver(
