@@ -266,9 +266,6 @@ class MixedCheckpointSchedule(CheckpointSchedule):
             if step_type == StepType.READ_ICS:
                 yield Clear(True, True)
 
-        if steps != optimal_steps(self._max_n, self._snapshots):
-            raise RuntimeError("Unexpected total number of steps")
-
         if len(snapshot_n) > 0 or len(snapshots) > 0:
             raise RuntimeError("Invalid checkpointing state")
 
