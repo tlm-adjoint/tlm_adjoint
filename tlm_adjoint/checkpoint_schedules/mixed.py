@@ -26,9 +26,12 @@ import functools
 
 
 class StepType(enum.Enum):
+    NONE = 0
     FORWARD = 1
-    DATA = 2
-    ICS = 3
+    WRITE_DATA = 2
+    WRITE_ICS = 3
+    READ_DATA = 4
+    READ_ICS = 5
 
 
 def cache_step(fn):
@@ -55,9 +58,9 @@ def mixed_step(n, s):
     if n == 1:
         return (StepType.FORWARD, 1, 1)
     elif n <= s + 1:
-        return (StepType.DATA, 1, n)
+        return (StepType.WRITE_DATA, 1, n)
     elif s == 1:
-        return (StepType.ICS, n - 1, n * (n + 1) // 2 - 1)
+        return (StepType.WRITE_ICS, n - 1, n * (n + 1) // 2 - 1)
     else:
         m = None
         for i in range(2, n):
@@ -66,12 +69,12 @@ def mixed_step(n, s):
                 + mixed_step(i, s)[2]
                 + mixed_step(n - i, s - 1)[2])
             if m is None or m1 <= m[2]:
-                m = (StepType.ICS, i, m1)
+                m = (StepType.WRITE_ICS, i, m1)
         if m is None:
             raise RuntimeError("Failed to determine total number of steps")
         m1 = 1 + mixed_step(n - 1, s - 1)[2]
         if m1 <= m[2]:
-            m = (StepType.DATA, 1, m1)
+            m = (StepType.WRITE_DATA, 1, m1)
         return m
 
 
@@ -142,6 +145,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
         if self._max_n is None:
             raise RuntimeError("Invalid checkpointing state")
 
+        step_type = StepType.NONE
         while True:
             while self._n < self._max_n - self._r:
                 n0 = self._n
@@ -168,7 +172,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     yield Configure(False, True)
                     self._n += 1
                     yield forward(n1 - 1, n1)
-                elif step_type == StepType.DATA:
+                elif step_type == StepType.WRITE_DATA:
                     if n1 != n0 + 1:
                         raise RuntimeError("Invalid step")
                     yield Configure(False, True)
@@ -179,10 +183,10 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     elif len(snapshots) > self._snapshots - 1:
                         raise RuntimeError("Invalid checkpointing state")
                     snapshot_n.add(n0)
-                    snapshots.append((StepType.DATA, n0))
+                    snapshots.append((StepType.READ_DATA, n0))
                     yield Write(n0, self._storage)
                     yield Clear(True, True)
-                elif step_type == StepType.ICS:
+                elif step_type == StepType.WRITE_ICS:
                     if n1 <= n0 + 1:
                         raise ValueError("Invalid step")
                     yield Configure(True, False)
@@ -193,12 +197,14 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     elif len(snapshots) > self._snapshots - 1:
                         raise RuntimeError("Invalid checkpointing state")
                     snapshot_n.add(n0)
-                    snapshots.append((StepType.ICS, n0))
+                    snapshots.append((StepType.READ_ICS, n0))
                     yield Write(n0, self._storage)
                     yield Clear(True, True)
                 else:
                     raise RuntimeError("Unexpected step type")
             if self._n != self._max_n - self._r:
+                raise RuntimeError("Invalid checkpointing state")
+            if step_type not in (StepType.FORWARD, StepType.READ_DATA):
                 raise RuntimeError("Invalid checkpointing state")
 
             if self._r == 0:
@@ -222,7 +228,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                 snapshots.pop()
 
             self._n = cp_n
-            if step_type == StepType.DATA:
+            if step_type == StepType.READ_DATA:
                 # Non-linear dependency data checkpoint
                 if not cp_delete:
                     # We cannot advance from a loaded non-linear dependency
@@ -230,10 +236,10 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     raise RuntimeError("Invalid checkpointing state")
                 # Note that we cannot in general restart the forward here
                 self._n += 1
-            elif step_type != StepType.ICS:
+            elif step_type != StepType.READ_ICS:
                 raise RuntimeError("Invalid checkpointing state")
             yield Read(cp_n, self._storage, cp_delete)
-            if step_type == StepType.ICS:
+            if step_type == StepType.READ_ICS:
                 yield Clear(True, True)
 
         if steps != optimal_steps(self._max_n, self._snapshots):
