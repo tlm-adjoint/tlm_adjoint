@@ -28,10 +28,11 @@ import functools
 class StepType(enum.Enum):
     NONE = 0
     FORWARD = 1
-    WRITE_DATA = 2
-    WRITE_ICS = 3
-    READ_DATA = 4
-    READ_ICS = 5
+    FORWARD_REVERSE = 2
+    WRITE_DATA = 3
+    WRITE_ICS = 4
+    READ_DATA = 5
+    READ_ICS = 6
 
 
 def cache_step(fn):
@@ -78,7 +79,7 @@ def mixed_step(n, s):
         raise ValueError("Invalid number of snapshots")
 
     if n == 1:
-        return (StepType.FORWARD, 1, 1)
+        return (StepType.FORWARD_REVERSE, 1, 1)
     elif n <= s + 1:
         return (StepType.WRITE_DATA, 1, n)
     elif s == 1:
@@ -122,7 +123,7 @@ def mixed_step_0(n, s):
         raise ValueError("Invalid number of steps")
 
     if s == 0:
-        return (StepType.FORWARD, n, n * (n + 1) // 2 - 1)
+        return (StepType.FORWARD_REVERSE, n, n * (n + 1) // 2 - 1)
     else:
         m = None
         for i in range(1, n):
@@ -179,7 +180,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                         self._snapshots - len(snapshots))
                 n1 += n0
 
-                if step_type == StepType.FORWARD:
+                if step_type == StepType.FORWARD_REVERSE:
                     if n1 > n0 + 1:
                         yield Configure(False, False)
                         self._n = n1 - 1
@@ -190,6 +191,11 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     yield Configure(False, True)
                     self._n += 1
                     yield forward(n1 - 1, n1)
+                elif step_type == StepType.FORWARD:
+                    yield Configure(False, False)
+                    self._n = n1
+                    yield forward(n0, n1)
+                    yield Clear(True, True)
                 elif step_type == StepType.WRITE_DATA:
                     if n1 != n0 + 1:
                         raise RuntimeError("Invalid step")
@@ -222,7 +228,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     raise RuntimeError("Unexpected step type")
             if self._n != self._max_n - self._r:
                 raise RuntimeError("Invalid checkpointing state")
-            if step_type not in (StepType.FORWARD, StepType.READ_DATA):
+            if step_type not in (StepType.FORWARD_REVERSE, StepType.READ_DATA):
                 raise RuntimeError("Invalid checkpointing state")
 
             if self._r == 0:
