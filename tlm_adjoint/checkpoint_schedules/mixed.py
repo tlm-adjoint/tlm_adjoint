@@ -49,6 +49,28 @@ def cache_step(fn):
 
 
 @cache_step
+def optimal_steps(n, s):
+    if n <= 0:
+        raise ValueError("Invalid number of steps")
+    if s < min(1, n - 1) or s > n - 1:
+        raise ValueError("Invalid number of snapshots")
+
+    if n <= s + 1:
+        return n
+    elif s == 1:
+        return n * (n + 1) // 2 - 1
+    else:
+        m = 1 + optimal_steps(n - 1, s - 1)
+        for i in range(2, n):
+            m = min(
+                m,
+                i
+                + optimal_steps(i, s)
+                + optimal_steps(n - i, s - 1))
+        return m
+
+
+@cache_step
 def mixed_step(n, s):
     if n <= 0:
         raise ValueError("Invalid number of steps")
@@ -113,10 +135,6 @@ def mixed_step_0(n, s):
         if m is None:
             raise RuntimeError("Failed to determine total number of steps")
         return m
-
-
-def optimal_steps(n, s):
-    return mixed_step(n, s)[2]
 
 
 class MixedCheckpointSchedule(CheckpointSchedule):
