@@ -169,12 +169,12 @@ class MixedCheckpointSchedule(CheckpointSchedule):
             while self._n < self._max_n - self._r:
                 n0 = self._n
                 if n0 in snapshot_n:
-                    # A checkpoint is at the start of the n0 block
+                    # n0 checkpoint exists
                     step_type, n1, _ = mixed_step_0(
                         self._max_n - self._r - n0,
                         self._snapshots - len(snapshots))
                 else:
-                    # No checkpoint is at the start of the n0 block
+                    # n0 checkpoint does not exist
                     step_type, n1, _ = mixed_step(
                         self._max_n - self._r - n0,
                         self._snapshots - len(snapshots))
