@@ -20,7 +20,8 @@
 
 from tlm_adjoint.checkpoint_schedules import MixedCheckpointSchedule, Clear, \
     Configure, Forward, Reverse, Read, Write, EndForward, EndReverse
-from tlm_adjoint.checkpoint_schedules.mixed import mixed_step, optimal_steps
+from tlm_adjoint.checkpoint_schedules.mixed import mixed_step_memoization, \
+    optimal_steps
 
 import functools
 import pytest
@@ -215,7 +216,7 @@ def test_MixedCheckpointSchedule(n, S):
 
         # The correct total number of forward steps has been taken
         assert model_steps == optimal_steps(n, s)
-        assert model_steps == mixed_step(n, s)[2]
+        assert model_steps == mixed_step_memoization(n, s)[2]
         # No data is stored
         assert len(ics) == 0 and len(data) == 0
         # No checkpoints are stored
