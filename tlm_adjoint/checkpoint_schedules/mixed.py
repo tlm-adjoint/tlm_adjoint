@@ -23,7 +23,6 @@ from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
 
 import enum
 import functools
-import itertools
 import numpy as np
 import warnings
 
@@ -122,20 +121,8 @@ def mixed_step_memoization(n, s):
         return m
 
 
-def mixed_steps_memoization(n, s):
-    schedule = np.zeros((n + 1, s + 1, 3), dtype=np.int64)
-    schedule[:, :, 0] = StepType.NONE
-    schedule[:, :, 1] = 0
-    schedule[:, :, 2] = -1
-
-    schedule[1, 0, :] = mixed_step_memoization(1, 0)
-    for s_i, n_i in itertools.product(range(1, s + 1), range(1, n + 1)):
-        schedule[n_i, s_i, :] = mixed_step_memoization(n_i, s_i)
-
-    return schedule
-
-
 _NONE = int(StepType.NONE)
+_FORWARD = int(StepType.FORWARD)
 _FORWARD_REVERSE = int(StepType.FORWARD_REVERSE)
 _WRITE_DATA = int(StepType.WRITE_DATA)
 _WRITE_ICS = int(StepType.WRITE_ICS)
@@ -176,7 +163,22 @@ def mixed_steps_tabulation(n, s):
     return schedule
 
 
-def mixed_step_0(n, s, schedule):
+def cache_step_0(fn):
+    _cache = {}
+
+    @functools.wraps(fn)
+    def wrapped_fn(n, s):
+        # Avoid some cache misses
+        s = min(s, n - 2)
+        if (n, s) not in _cache:
+            _cache[(n, s)] = fn(n, s)
+        return _cache[(n, s)]
+
+    return wrapped_fn
+
+
+@cache_step_0
+def mixed_step_memoization_0(n, s):
     if s < 0:
         raise ValueError("Invalid number of snapshots")
     if n < s + 2:
@@ -189,13 +191,39 @@ def mixed_step_0(n, s, schedule):
         for i in range(1, n):
             m1 = (
                 i
-                + schedule[i, s + 1, 2]
-                + schedule[n - i, s, 2])
+                + mixed_step_memoization(i, s + 1)[2]
+                + mixed_step_memoization(n - i, s)[2])
             if m is None or m1 <= m[2]:
                 m = (StepType.FORWARD, i, m1)
         if m is None:
             raise RuntimeError("Failed to determine total number of steps")
         return m
+
+
+@njit
+def mixed_steps_tabulation_0(n, s, schedule):
+    schedule_0 = np.zeros((n + 1, s + 1, 3), dtype=np.int64)
+    schedule_0[:, :, 0] = _NONE
+    schedule_0[:, :, 1] = 0
+    schedule_0[:, :, 2] = -1
+
+    for n_i in range(2, n + 1):
+        schedule_0[n_i, 0, :] = (_FORWARD_REVERSE, n_i, n_i * (n_i + 1) // 2 - 1)  # noqa: E501
+    for s_i in range(1, s):
+        for n_i in range(s_i + 2, n + 1):
+            for i in range(1, n_i):
+                assert schedule[i, s_i + 1, 2] > 0
+                assert schedule[n_i - i, s_i, 2] > 0
+                m1 = (
+                    i
+                    + schedule[i, s_i + 1, 2]
+                    + schedule[n_i - i, s_i, 2])
+                if schedule_0[n_i, s_i, 2] < 0 or m1 <= schedule_0[n_i, s_i, 2]:  # noqa: E501
+                    schedule_0[n_i, s_i, :] = (_FORWARD, i, m1)
+            if schedule_0[n_i, s_i, 2] < 0:
+                raise RuntimeError("Failed to determine total number of "
+                                   "steps")
+    return schedule_0
 
 
 class MixedCheckpointSchedule(CheckpointSchedule):
@@ -227,25 +255,34 @@ class MixedCheckpointSchedule(CheckpointSchedule):
         if numba is None:
             warnings.warn("Numba not available -- using memoization",
                           RuntimeWarning)
-            schedule = mixed_steps_memoization(self._max_n, self._snapshots)
         else:
             schedule = mixed_steps_tabulation(self._max_n, self._snapshots)
+            schedule_0 = mixed_steps_tabulation_0(self._max_n, self._snapshots, schedule)  # noqa: E501
 
         step_type = StepType.NONE
         while True:
             while self._n < self._max_n - self._r:
                 n0 = self._n
                 if n0 in snapshot_n:
-                    # n0 checkpoint exists
-                    step_type, n1, _ = mixed_step_0(
-                        self._max_n - self._r - n0,
-                        self._snapshots - len(snapshots),
-                        schedule)
+                    if numba is None:
+                        step_type, n1, _ = mixed_step_memoization_0(
+                            self._max_n - self._r - n0,
+                            self._snapshots - len(snapshots))
+                    else:
+                        # n0 checkpoint exists
+                        step_type, n1, _ = schedule_0[
+                            self._max_n - self._r - n0,
+                            self._snapshots - len(snapshots)]
                 else:
-                    # n0 checkpoint does not exist
-                    step_type, n1, _ = schedule[
-                        self._max_n - self._r - n0,
-                        self._snapshots - len(snapshots)]
+                    if numba is None:
+                        step_type, n1, _ = mixed_step_memoization(
+                            self._max_n - self._r - n0,
+                            self._snapshots - len(snapshots))
+                    else:
+                        # n0 checkpoint does not exist
+                        step_type, n1, _ = schedule[
+                            self._max_n - self._r - n0,
+                            self._snapshots - len(snapshots)]
                 n1 += n0
 
                 if step_type == StepType.FORWARD_REVERSE:
