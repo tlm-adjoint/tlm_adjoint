@@ -242,13 +242,6 @@ class MixedCheckpointSchedule(CheckpointSchedule):
         snapshot_n = set()
         snapshots = []
 
-        steps = 0
-
-        def forward(n0, n1):
-            nonlocal steps
-            steps += n1 - n0
-            return Forward(n0, n1)
-
         if self._max_n is None:
             raise RuntimeError("Invalid checkpointing state")
 
@@ -264,22 +257,22 @@ class MixedCheckpointSchedule(CheckpointSchedule):
             while self._n < self._max_n - self._r:
                 n0 = self._n
                 if n0 in snapshot_n:
+                    # n0 checkpoint exists
                     if numba is None:
                         step_type, n1, _ = mixed_step_memoization_0(
                             self._max_n - self._r - n0,
                             self._snapshots - len(snapshots))
                     else:
-                        # n0 checkpoint exists
                         step_type, n1, _ = schedule_0[
                             self._max_n - self._r - n0,
                             self._snapshots - len(snapshots)]
                 else:
+                    # n0 checkpoint does not exist
                     if numba is None:
                         step_type, n1, _ = mixed_step_memoization(
                             self._max_n - self._r - n0,
                             self._snapshots - len(snapshots))
                     else:
-                        # n0 checkpoint does not exist
                         step_type, n1, _ = schedule[
                             self._max_n - self._r - n0,
                             self._snapshots - len(snapshots)]
@@ -289,24 +282,26 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                     if n1 > n0 + 1:
                         yield Configure(False, False)
                         self._n = n1 - 1
-                        yield forward(n0, n1 - 1)
+                        yield Forward(n0, n1 - 1)
                         yield Clear(True, True)
                     elif n1 <= n0:
                         raise RuntimeError("Invalid step")
                     yield Configure(False, True)
                     self._n += 1
-                    yield forward(n1 - 1, n1)
+                    yield Forward(n1 - 1, n1)
                 elif step_type == StepType.FORWARD:
+                    if n1 <= n0:
+                        raise RuntimeError("Invalid step")
                     yield Configure(False, False)
                     self._n = n1
-                    yield forward(n0, n1)
+                    yield Forward(n0, n1)
                     yield Clear(True, True)
                 elif step_type == StepType.WRITE_DATA:
                     if n1 != n0 + 1:
                         raise RuntimeError("Invalid step")
                     yield Configure(False, True)
                     self._n = n1
-                    yield forward(n0, n1)
+                    yield Forward(n0, n1)
                     if n0 in snapshot_n:
                         raise RuntimeError("Invalid checkpointing state")
                     elif len(snapshots) > self._snapshots - 1:
@@ -320,7 +315,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
                         raise ValueError("Invalid step")
                     yield Configure(True, False)
                     self._n = n1
-                    yield forward(n0, n1)
+                    yield Forward(n0, n1)
                     if n0 in snapshot_n:
                         raise RuntimeError("Invalid checkpointing state")
                     elif len(snapshots) > self._snapshots - 1:
