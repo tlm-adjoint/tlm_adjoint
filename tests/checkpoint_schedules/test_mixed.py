@@ -100,6 +100,8 @@ def test_MixedCheckpointSchedule(n, S):
     def action_read(cp_action):
         nonlocal model_n
 
+        # The checkpoint exists
+        assert cp_action.n in snapshots
         assert cp_action.storage == "disk"
 
         # No data is currently stored for this step
