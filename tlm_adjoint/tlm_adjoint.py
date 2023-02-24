@@ -1404,6 +1404,8 @@ class EquationManager:
                     storage_state = storage.pop()
                     assert storage_state == (n1, i)
             cp_n = cp_action.n1
+            if cp_n == n + 1:
+                assert len(storage) == 0
 
         @action.register(Reverse)
         def action_reverse(cp_action):
@@ -1412,8 +1414,6 @@ class EquationManager:
                 raise RuntimeError("Invalid checkpointing state")
             if cp_action.n0 > n:
                 raise RuntimeError("Invalid checkpointing state")
-            if storage is not None:
-                assert len(storage) == 0
 
         @action.register(Read)
         def action_read(cp_action):

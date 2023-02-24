@@ -52,5 +52,6 @@ tlm_adjoint optionally uses
     petsc4py and slepc4py, for eigendecomposition functionality
     H-Revolve, for H-Revolve checkpointing schedules
     more-itertools
+    Numba
 
 License: GNU LGPL version 3
