@@ -79,6 +79,15 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
 
         snapshots = set()
         deferred_cp = None
+
+        def write_deferred_cp():
+            nonlocal deferred_cp
+
+            if deferred_cp is not None:
+                snapshots.add(deferred_cp[0])
+                yield Write(*deferred_cp)
+                deferred_cp = None
+
         for i in range(len(self._schedule)):
             cp_action, (n_0, n_1, storage) = action(i)
 
@@ -96,10 +105,7 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
                 if n_0 != self._max_n - self._r - 1:
                     raise RuntimeError("Invalid checkpointing state")
 
-                if deferred_cp is not None:
-                    snapshots.add(deferred_cp[0])
-                    yield Write(*deferred_cp)
-                    deferred_cp = None
+                yield from write_deferred_cp()
 
                 yield Clear(True, True)
                 yield Configure(False, True)
@@ -135,12 +141,16 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
                 if n_0 != self._n:
                     raise RuntimeError("Invalid checkpointing state")
 
-                if deferred_cp is not None:
-                    snapshots.add(deferred_cp[0])
-                    yield Write(*deferred_cp)
-                    deferred_cp = None
+                yield from write_deferred_cp()
 
                 deferred_cp = (n_0, storage)
+
+                if i > 0:
+                    r_cp_action, (r_n_0, _, _) = action(i - 1)
+                    if r_cp_action == "Read":
+                        if r_n_0 != n_0:
+                            raise RuntimeError("Invalid schedule")
+                        yield from write_deferred_cp()
             elif cp_action == "Discard":
                 if i < 2:
                     raise RuntimeError("Invalid schedule")

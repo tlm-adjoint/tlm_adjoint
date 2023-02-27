@@ -24,6 +24,18 @@ from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
 import functools
 from operator import itemgetter
 
+try:
+    import numba
+    from numba import njit
+except ImportError:
+    numba = None
+
+    def njit(fn):
+        @functools.wraps(fn)
+        def wrapped_fn(*args, **kwargs):
+            return fn(*args, **kwargs)
+        return wrapped_fn
+
 __all__ = \
     [
         "MultistageCheckpointSchedule",
@@ -31,6 +43,7 @@ __all__ = \
     ]
 
 
+@njit
 def n_advance(n, snapshots, *, trajectory="maximum"):
     """
     Determine an optimal offline snapshot interval, taking n steps and with the
@@ -98,6 +111,53 @@ def n_advance(n, snapshots, *, trajectory="maximum"):
             return b_s_tm1
     else:
         raise ValueError("Unexpected trajectory: '{trajectory:s}'")
+
+
+def cache_step(fn):
+    _cache = {}
+
+    @functools.wraps(fn)
+    def wrapped_fn(n, s):
+        # Avoid some cache misses
+        s = min(s, n - 1)
+        if (n, s) not in _cache:
+            _cache[(n, s)] = fn(n, s)
+        return _cache[(n, s)]
+
+    return wrapped_fn
+
+
+@cache_step
+def optimal_extra_steps(n, s):
+    if n <= 0:
+        raise ValueError("Invalid number of steps")
+    if s < min(1, n - 1) or s > n - 1:
+        raise ValueError("Invalid number of snapshots")
+
+    if n == 1:
+        return 0
+    # Equation (2) of
+    #   A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
+    #   of checkpointing for the reverse or adjoint mode of computational
+    #   differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
+    #   19--45, 2000
+    elif s == 1:
+        return n * (n - 1) // 2
+    else:
+        m = None
+        for i in range(1, n):
+            m1 = (i
+                  + optimal_extra_steps(i, s)
+                  + optimal_extra_steps(n - i, s - 1))
+            if m is None or m1 < m:
+                m = m1
+        if m is None:
+            raise RuntimeError("Failed to determine number of extra steps")
+        return m
+
+
+def optimal_steps(n, s):
+    return n + optimal_extra_steps(n, s)
 
 
 def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,

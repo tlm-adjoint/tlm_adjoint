@@ -18,22 +18,24 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from tlm_adjoint.checkpoint_schedules import MixedCheckpointSchedule, Clear, \
-    Configure, Forward, Reverse, Read, Write, EndForward, EndReverse
-from tlm_adjoint.checkpoint_schedules.mixed import mixed_step_memoization, \
-    optimal_steps
+from tlm_adjoint.checkpoint_schedules import MultistageCheckpointSchedule, \
+    Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse
+from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 
 import functools
 import pytest
 
 
+@pytest.mark.parametrize("trajectory", ["revolve",
+                                        "maximum"])
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
                                   (3, (1, 2)),
                                   (10, tuple(range(1, 10))),
                                   (100, tuple(range(1, 100))),
                                   (250, tuple(range(25, 250, 25)))])
-def test_MixedCheckpointSchedule(n, S):
+def test_MultistageCheckpointSchedule(trajectory,
+                                      n, S):
     @functools.singledispatch
     def action(cp_action):
         raise TypeError("Unexpected action")
@@ -57,11 +59,11 @@ def test_MixedCheckpointSchedule(n, S):
         nonlocal model_n, model_steps
 
         # Start at the current location of the forward
-        assert model_n is not None and model_n == cp_action.n0
+        assert model_n == cp_action.n0
 
         if store_ics:
-            # Advance at least two steps when storing forward restart data
-            assert cp_action.n1 > cp_action.n0 + 1
+            # Advance at least one step when storing forward restart data
+            assert cp_action.n1 > cp_action.n0
             # Do not advance further than one step before the current location
             # of the adjoint
             assert cp_action.n1 < n - model_r
@@ -71,8 +73,8 @@ def test_MixedCheckpointSchedule(n, S):
         if store_data:
             # Advance exactly one step when storing non-linear dependency data
             assert cp_action.n1 == cp_action.n0 + 1
-            # Do not advance further than the current location of the adjoint
-            assert cp_action.n1 <= n - model_r
+            # Start from one step before the current location of the adjoint
+            assert cp_action.n0 == n - model_r - 1
             # No data for this step is stored
             assert len(data.intersection(range(cp_action.n0, cp_action.n1))) == 0  # noqa: E501
 
@@ -109,38 +111,20 @@ def test_MixedCheckpointSchedule(n, S):
         # No data is currently stored for this step
         assert cp_action.n not in ics
         assert cp_action.n not in data
-        # The checkpoint contains either forward restart or non-linear
-        # dependency data, but not both
-        assert len(cp[0]) == 0 or len(cp[1]) == 0
-        assert len(cp[0]) > 0 or len(cp[1]) > 0
+        # The checkpoint contains forward restart data
+        assert len(cp[0]) > 0
+        assert len(cp[1]) == 0
 
-        if len(cp[0]) > 0:
-            # Loading a forward restart checkpoint:
+        # The checkpoint data is at least one step away from the current
+        # location of the adjoint
+        assert cp_action.n < n - model_r
+        # The loaded data is deleted iff it is exactly one step away from the
+        # current location of the adjoint
+        assert cp_action.delete is (cp_action.n == n - model_r - 1)
 
-            # The checkpoint data is at least two steps away from the current
-            # location of the adjoint
-            assert cp_action.n < n - model_r - 1
-            # The loaded data is deleted iff non-linear dependency data for all
-            # remaining steps can be checkpoint and stored
-            assert cp_action.delete is (cp_action.n >= n - model_r - 1
-                                        - (s - len(snapshots) + 1))
-
-            ics.clear()
-            ics.update(cp[0])
-            model_n = cp_action.n
-
-        if len(cp[1]) > 0:
-            # Loading a non-linear dependency data checkpoint:
-
-            # The checkpoint data is exactly one step away from the current
-            # location of the adjoint
-            assert cp_action.n == n - model_r - 1
-            # The loaded data is always deleted
-            assert cp_action.delete
-
-            data.clear()
-            data.update(cp[1])
-            model_n = None
+        ics.clear()
+        ics.update(cp[0])
+        model_n = cp_action.n
 
         if cp_action.delete:
             del snapshots[cp_action.n]
@@ -150,28 +134,20 @@ def test_MixedCheckpointSchedule(n, S):
         assert cp_action.storage == "disk"
         assert cp_schedule.uses_disk_storage()
 
-        # Written data consists of either forward restart or non-linear
-        # dependency data, but not both
-        assert len(ics) == 0 or len(data) == 0
-        assert len(ics) > 0 or len(data) > 0
-
-        # Non-linear dependency data is either not stored, or is stored for a
-        # single step
-        assert len(data) <= 1
+        # Written data consists of forward restart data
+        assert len(ics) > 0
+        assert len(data) == 0
 
         # The checkpoint location is associated with the earliest step for
         # which data has been stored
-        if len(ics) > 0:
-            assert cp_action.n == min(ics)
-        if len(data) > 0:
-            assert cp_action.n == min(data)
+        assert cp_action.n == min(ics)
 
         snapshots[cp_action.n] = (set(ics), set(data))
 
     @action.register(EndForward)
     def action_end_forward(cp_action):
         # The correct number of forward steps has been taken
-        assert model_n is not None and model_n == n
+        assert model_n == n
 
     @action.register(EndReverse)
     def action_end_reverse(cp_action):
@@ -194,7 +170,8 @@ def test_MixedCheckpointSchedule(n, S):
 
         snapshots = {}
 
-        cp_schedule = MixedCheckpointSchedule(n, s, storage="disk")
+        cp_schedule = MultistageCheckpointSchedule(n, 0, s,
+                                                   trajectory=trajectory)
         assert n == 1 or cp_schedule.uses_disk_storage()
         assert cp_schedule.n() == 0
         assert cp_schedule.r() == 0
@@ -206,7 +183,7 @@ def test_MixedCheckpointSchedule(n, S):
 
             # The schedule state is consistent with both the forward and
             # adjoint
-            assert model_n is None or model_n == cp_schedule.n()
+            assert model_n == cp_schedule.n()
             assert model_r == cp_schedule.r()
 
             # Either no data is being stored, or exactly one of forward restart
@@ -223,7 +200,6 @@ def test_MixedCheckpointSchedule(n, S):
 
         # The correct total number of forward steps has been taken
         assert model_steps == optimal_steps(n, s)
-        assert model_steps == mixed_step_memoization(n, s)[2]
         # No data is stored
         assert len(ics) == 0 and len(data) == 0
         # No checkpoints are stored
