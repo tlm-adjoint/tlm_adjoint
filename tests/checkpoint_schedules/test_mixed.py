@@ -104,15 +104,17 @@ def test_MixedCheckpointSchedule(n, S):
         assert cp_action.n in snapshots
         assert cp_action.storage == "disk"
 
+        cp = snapshots[cp_action.n]
+
         # No data is currently stored for this step
         assert cp_action.n not in ics
         assert cp_action.n not in data
         # The checkpoint contains either forward restart or non-linear
         # dependency data, but not both
-        assert len(snapshots[cp_action.n][0]) == 0 or len(snapshots[cp_action.n][1]) == 0  # noqa: E501
-        assert len(snapshots[cp_action.n][0]) > 0 or len(snapshots[cp_action.n][1]) > 0  # noqa: E501
+        assert len(cp[0]) == 0 or len(cp[1]) == 0
+        assert len(cp[0]) > 0 or len(cp[1]) > 0
 
-        if len(snapshots[cp_action.n][0]) > 0:
+        if len(cp[0]) > 0:
             # Loading a forward restart checkpoint:
 
             # The checkpoint data is at least two steps away from the current
@@ -124,10 +126,10 @@ def test_MixedCheckpointSchedule(n, S):
                                         - (s - len(snapshots) + 1))
 
             ics.clear()
-            ics.update(snapshots[cp_action.n][0])
+            ics.update(cp[0])
             model_n = cp_action.n
 
-        if len(snapshots[cp_action.n][1]) > 0:
+        if len(cp[1]) > 0:
             # Loading a non-linear dependency data checkpoint:
 
             # The checkpoint data is exactly one step away from the current
@@ -137,7 +139,7 @@ def test_MixedCheckpointSchedule(n, S):
             assert cp_action.delete
 
             data.clear()
-            data.update(snapshots[cp_action.n][1])
+            data.update(cp[1])
             model_n = None
 
         if cp_action.delete:
@@ -146,6 +148,7 @@ def test_MixedCheckpointSchedule(n, S):
     @action.register(Write)
     def action_write(cp_action):
         assert cp_action.storage == "disk"
+        assert cp_schedule.uses_disk_storage()
 
         # Written data consists of either forward restart or non-linear
         # dependency data, but not both
@@ -192,7 +195,9 @@ def test_MixedCheckpointSchedule(n, S):
         snapshots = {}
 
         cp_schedule = MixedCheckpointSchedule(n, s, storage="disk")
-        assert cp_schedule.uses_disk_storage()
+        assert n == 1 or cp_schedule.uses_disk_storage()
+        assert cp_schedule.n() == 0
+        assert cp_schedule.r() == 0
         assert cp_schedule.max_n() == n
 
         while True:

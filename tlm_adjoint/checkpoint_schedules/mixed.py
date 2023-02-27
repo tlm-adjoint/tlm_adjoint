@@ -376,4 +376,4 @@ class MixedCheckpointSchedule(CheckpointSchedule):
         return self._exhausted
 
     def uses_disk_storage(self):
-        return self._storage == "disk"
+        return self._max_n > 1 and self._storage == "disk"
