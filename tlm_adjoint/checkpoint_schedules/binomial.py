@@ -24,6 +24,18 @@ from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
 import functools
 from operator import itemgetter
 
+try:
+    import numba
+    from numba import njit
+except ImportError:
+    numba = None
+
+    def njit(fn):
+        @functools.wraps(fn)
+        def wrapped_fn(*args, **kwargs):
+            return fn(*args, **kwargs)
+        return wrapped_fn
+
 __all__ = \
     [
         "MultistageCheckpointSchedule",
@@ -31,6 +43,7 @@ __all__ = \
     ]
 
 
+@njit
 def n_advance(n, snapshots, *, trajectory="maximum"):
     """
     Determine an optimal offline snapshot interval, taking n steps and with the
