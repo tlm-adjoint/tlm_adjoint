@@ -395,7 +395,7 @@ class TwoLevelCheckpointSchedule(CheckpointSchedule):
           Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
           adjoint modelling tools for high-performance oceanographic and
           cryospheric computation", version 1.1, EPCC, 2016
-        and
+        and the supporting information for
           D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
           M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt
           rates", Journal of Geophysical Research: Oceans, 125(11),
