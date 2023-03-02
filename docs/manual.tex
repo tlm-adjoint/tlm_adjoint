@@ -847,7 +847,7 @@ is a vector whose elements are the discrete degrees of freedom for a continuous
 scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
 \texttt{PointInterpolation} can be instantiated via
 \begin{lstlisting}
-eq = PointInterpolation(y, X, X_coords=X_coords)
+eq = PointInterpolation(X, y, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
