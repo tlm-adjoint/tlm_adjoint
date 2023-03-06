@@ -22,6 +22,7 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.alias import WeakAlias
+from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 
 from .test_base import *
 
@@ -560,32 +561,6 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
 def test_binomial_checkpointing(setup_test, test_leaks,
                                 tmp_path, n_steps, snaps_in_ram,
                                 prune):
-    _minimal_n_extra_steps = {}
-
-    def minimal_n_extra_steps(n, s):
-        """
-        Implementation of equation (2) in
-            A. Griewank and A. Walther, "Algorithm 799: Revolve: An
-            implementation of checkpointing for the reverse or adjoint mode of
-            computational differentiation", ACM Transactions on Mathematical
-            Software, 26(1), pp. 19--45, 2000
-        Used in place of their equation (3) to allow verification without reuse
-        of code used to compute t or evaluate beta.
-        """
-
-        assert n > 0
-        assert s > 0
-        if (n, s) not in _minimal_n_extra_steps:
-            m = n * (n - 1) // 2
-            if s > 1:
-                for i in range(1, n):
-                    m = min(m,
-                            i
-                            + minimal_n_extra_steps(i, s)
-                            + minimal_n_extra_steps(n - i, s - 1))
-            _minimal_n_extra_steps[(n, s)] = m
-        return _minimal_n_extra_steps[(n, s)]
-
     n_forward_solves = [0]
 
     class EmptyEquation(Equation):
@@ -622,8 +597,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
     if prune:
         assert n_forward_solves[0] == n_steps
     else:
-        n_forward_solves_optimal = (n_steps
-                                    + minimal_n_extra_steps(n_steps, snaps_in_ram))  # noqa: E501
+        n_forward_solves_optimal = optimal_steps(n_steps, snaps_in_ram)
         info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
         assert n_forward_solves[0] == n_forward_solves_optimal
 

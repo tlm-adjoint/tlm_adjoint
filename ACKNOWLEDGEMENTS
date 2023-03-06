@@ -127,7 +127,8 @@ schedules equivalent to those described in [4].
 
 The TwoLevelCheckpointSchedule class in
 tlm_adjoint/checkpoint_schedules/binomial.py implements the two-level mixed
-periodic/binomial checkpointing approach described in [5, 6].
+periodic/binomial checkpointing approach described in [5] and the supporting
+information for [6].
 
 [5]  Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
      Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
