@@ -498,8 +498,8 @@ class Interpolation(LinearEquation):
 
         Arguments:
 
-        y          A scalar-valued Function. The Function to be interpolated.
         x          A scalar-valued Function. The solution to the equation.
+        y          A scalar-valued Function. The Function to be interpolated.
         x_coords   (Optional) A NumPy array. Coordinates at which to
                    interpolate the Function.
         y_colors   (Optional) An integer NumPy vector. Node-node graph coloring
@@ -576,9 +576,9 @@ class PointInterpolation(Equation):
 
         Arguments:
 
-        y         A scalar-valued Function. The Function to be interpolated.
         X         A scalar, or a sequence of scalars. The solution to the
                   equation.
+        y         A scalar-valued Function. The Function to be interpolated.
         X_coords  A NumPy matrix. Points at which to interpolate y.
                   Ignored if P is supplied, required otherwise.
         y_colors  (Optional) An integer NumPy vector. Node-node graph coloring

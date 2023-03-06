@@ -259,10 +259,10 @@ class PointInterpolation(Equation):
 
         Arguments:
 
-        y          A continuous scalar-valued Function. The Function to be
-                   interpolated.
         X          A scalar, or a sequence of scalars. The solution to the
                    equation.
+        y          A continuous scalar-valued Function. The Function to be
+                   interpolated.
         X_coords   A NumPy matrix. Points at which to interpolate y.
                    Ignored if P is supplied, required otherwise.
         P          (Optional) Interpolation matrix.
