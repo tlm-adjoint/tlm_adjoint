@@ -763,20 +763,19 @@ associated with the function.
 
 \subsection{Built-in \texttt{Equation} classes: FEniCS}
 
-\subsubsection{\texttt{InterpolationSolver}}\label{sect:InterpolationSolver}
+\subsubsection{\texttt{Interpolation}}\label{sect:Interpolation}
 
-An \texttt{InterpolationSolver} represents consistent interpolation of a given
-scalar-valued function $\xi \in W$ onto a function space $V$, represented in
-the form of an equation
+An \texttt{Interpolation} represents interpolation of a given scalar-valued
+function $\xi \in W$ onto a function space $V$, represented in the form of an
+equation
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
-discrete degrees of freedom for scalar-valued functions
-$\psi \in V, \xi \in W$, and $P$ is a matrix. An \texttt{InterpolationSolver}
-can be instantiated via
+discrete degrees of freedom for scalar-valued functions $\psi \in V, \xi \in
+W$, and $P$ is a matrix. An \texttt{Interpolation} can be instantiated via
 \begin{lstlisting}
-eq = InterpolationSolver(y, x)
+eq = Interpolation(x, y)
 \end{lstlisting}
 where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
 \texttt{Function} being interpolated. An optional \texttt{x\_coords} argument
@@ -786,7 +785,7 @@ supplied to define the maximum permitted distance of a coordinate from a cell.
 
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. In
-parallel the \texttt{InterpolationSolver} can be combined with the
+parallel the \texttt{Interpolation} can be combined with the
 \texttt{LocalProjection} in order to project functions in more general function
 spaces onto an appropriate discontinuous Galerkin function space, prior to
 interpolation.
@@ -813,8 +812,8 @@ optional \texttt{tolerance} argument may be supplied to define the maximum
 permitted distance of a coordinate from a cell.
 
 In parallel there are similar node-node graph restrictions for the discrete
-function space for \texttt{y} to those for the \texttt{InterpolationSolver}
-class (section \ref{sect:InterpolationSolver}).
+function space for \texttt{y} to those for the \texttt{Interpolation} class
+(section \ref{sect:Interpolation}).
 
 \subsubsection{\texttt{LocalProjection}}
 

@@ -282,8 +282,8 @@ def test_FixedPointSolver(setup_test, test_leaks):
 @pytest.mark.parametrize("N_x, N_y, N_z", [(5, 5, 2),
                                            (5, 5, 5)])
 @seed_test
-def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
-                             N_x, N_y, N_z):
+def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
+                       N_x, N_y, N_z):
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
@@ -302,7 +302,7 @@ def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
             y = z
 
         x = Function(x_space, name="x")
-        eq = InterpolationSolver(y, x, P=P[0], tolerance=1.0e-15)
+        eq = Interpolation(x, y, P=P[0], tolerance=1.0e-15)
         eq.solve()
         P[0] = eq._B[0]._A._P
 

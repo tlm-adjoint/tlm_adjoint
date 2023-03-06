@@ -48,10 +48,11 @@ __all__ = \
         "local_solver_cache",
         "set_local_solver_cache",
 
-        "InterpolationSolver",
+        "Interpolation",
         "LocalProjection",
         "PointInterpolation",
 
+        "InterpolationSolver",
         "LocalProjectionSolver",
         "PointInterpolationSolver"
     ]
@@ -480,8 +481,8 @@ class InterpolationMatrix(LocalMatrix):
         super().__init__(*args, **kwargs)
 
 
-class InterpolationSolver(LinearEquation):
-    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
+class Interpolation(LinearEquation):
+    def __init__(self, x, y, *, x_coords=None, y_colors=None, P=None,
                  tolerance=0.0):
         """
         Defines an equation which interpolates the scalar-valued Function y.
@@ -508,10 +509,6 @@ class InterpolationSolver(LinearEquation):
         tolerance  (Optional) Maximum distance of an interpolation point from
                    a cell. Ignored if P is supplied.
         """
-
-        if P_T is not None:
-            warnings.warn("P_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
 
         check_space_type(x, "primal")
         check_space_type(y, "primal")
@@ -546,6 +543,19 @@ class InterpolationSolver(LinearEquation):
 
         super().__init__(
             x, MatrixActionRHS(LocalMatrix(P), y))
+
+
+class InterpolationSolver(Interpolation):
+    def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
+                 tolerance=0.0):
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+        warnings.warn("InterpolationSolver is deprecated -- "
+                      "use Interpolation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, x_coords=x_coords, y_colors=y_colors, P=P,
+                         tolerance=tolerance)
 
 
 class PointInterpolation(Equation):
