@@ -869,9 +869,9 @@ def add_functional_term_eq(backend, fn):
     _functional_term_eq[backend] = fn
 
 
-def functional_term_eq(term, x):
+def functional_term_eq(x, term):
     for fn in _functional_term_eq.values():
-        eq = fn(term, x)
+        eq = fn(x=x, term=term)
         if eq != NotImplemented:
             return eq
     raise RuntimeError("Unexpected case encountered in functional_term_eq")

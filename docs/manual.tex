@@ -148,8 +148,8 @@ def forward(psi_0, psi_n_file=None):
     psi_n = Function(space, name="psi_n")
     psi_np1 = Function(space, name="psi_np1")
 
-    class InteriorAssignmentSolver(Equation):
-        def __init__(self, y, x):
+    class InteriorAssignment(Equation):
+        def __init__(self, x, y):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
@@ -175,11 +175,11 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
-                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+                return InteriorAssignment(tlm_map[x], tlm_y)
 
-    InteriorAssignmentSolver(psi_0, psi_n).solve()
+    InteriorAssignment(psi_n, psi_0).solve()
 
     eq = EquationSolver(
         inner(trial / dt, test) * dx
@@ -188,7 +188,7 @@ def forward(psi_0, psi_n_file=None):
         psi_np1, bc,
         solver_parameters={"ksp_type": "preonly",
                            "pc_type": "lu"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file.write(psi_n, time=0.0)
@@ -222,9 +222,8 @@ The key changes which appear here are
   \item \texttt{start\_manager} and \texttt{stop\_manager}, which enable and
     disable the underlying \texttt{EquationManager}. For further details see
     section \ref{sect:EquationManager_state}.
-  \item The instantiation of \texttt{AssignmentSolver} and
-    \texttt{EquationSolver} objects. For further details see section
-    \ref{sect:Equation}.
+  \item The instantiation of \texttt{Assignment} and \texttt{EquationSolver}
+    objects. For further details see section \ref{sect:Equation}.
   \item The use of a subclass of \texttt{Equation} to define a custom equation.
     For further details see section \ref{sect:custom}.
   \item The \texttt{static} keyword when initialising certain \texttt{Constant}
@@ -285,8 +284,8 @@ def forward(psi_0, psi_n_file=None):
     psi_n = Function(space, name="psi_n")
     psi_np1 = Function(space, name="psi_np1")
 
-    class InteriorAssignmentSolver(Equation):
-        def __init__(self, y, x):
+    class InteriorAssignment(Equation):
+        def __init__(self, x, y):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
@@ -312,11 +311,11 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
-                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+                return InteriorAssignment(tlm_map[x], tlm_y)
 
-    InteriorAssignmentSolver(psi_0, psi_n).solve()
+    InteriorAssignment(psi_n, psi_0).solve()
 
     eq = EquationSolver(
         inner(trial / dt, test) * dx
@@ -325,7 +324,7 @@ def forward(psi_0, psi_n_file=None):
         psi_np1, bc,
         solver_parameters={"ksp_type": "preonly",
                            "pc_type": "lu"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file.write(psi_n, time=0.0)
@@ -506,74 +505,61 @@ or a dependency of an \texttt{Equation}.
 
 \subsection{Built-in \texttt{Equation} classes: All backends}
 
-\subsubsection{\texttt{NullSolver}}
+\subsubsection{\texttt{ZeroAssignment}}
 
-A \texttt{NullSolver} represents the trivial equation
+A \texttt{ZeroAssignment} represents the trivial equation
 \begin{equation*}
   x = 0.
 \end{equation*}
-A \texttt{NullSolver} can be instantiated via
+A \texttt{ZeroAssignment} can be instantiated via
 \begin{lstlisting}
-eq = NullSolver(x)
+eq = ZeroAssignment(x)
 \end{lstlisting}
 where \texttt{x} is the function being solved for, or
 \begin{lstlisting}
-eq = NullSolver(X)
+eq = ZeroAssignment(X)
 \end{lstlisting}
 where \texttt{X} is a sequence of functions being solved for.
 
-The intended use of a \texttt{NullSolver} is in the definition of
+The intended use of a \texttt{ZeroAssignment} is in the definition of
 \texttt{tangent\_linear} methods of \texttt{Equation} classes (see section
 \ref{sect:tangent_linear}).
 
-\subsubsection{\texttt{AssignmentSolver}}
+\subsubsection{\texttt{Assignment}}
 
-An \texttt{AssignmentSolver} represents an assignment
+An \texttt{Assignment} represents an assignment
 \begin{equation*}
   x = y.
 \end{equation*}
-An \texttt{AssignmentSolver} can be instantiated via
+An \texttt{Assignment} can be instantiated via
 \begin{lstlisting}
-eq = AssignmentSolver(y, x)
+eq = Assignment(x, y)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{ScaleSolver}}
+\subsubsection{\texttt{Axpy}}
 
-A \texttt{ScaleSolver} represents the equation
-\begin{equation*}
-  x = \alpha y,
-\end{equation*}
-where $\alpha$ is a scalar constant. A \texttt{ScaleSolver} can be instantiated
-via
-\begin{lstlisting}
-eq = ScaleSolver(alpha, y, x)
-\end{lstlisting}
-where \texttt{x} is the function being solved for.
-
-\subsubsection{\texttt{AxpySolver}}
-
-An \texttt{AxpySolver} represents the equation
+An \texttt{Axpy} represents the equation
 \begin{equation*}
   z = y + \alpha x,
 \end{equation*}
-where $\alpha$ is a scalar constant. An \texttt{AxpySolver} can be instantiated
+where $\alpha$ is a scalar constant. An \texttt{Axpy} can be instantiated
 via
 \begin{lstlisting}
-eq = AxpySolver(y, alpha, x, z)
+eq = Axpy(z, y, alpha, x)
 \end{lstlisting}
 where \texttt{z} is the function being solved for.
 
-\subsubsection{\texttt{LinearCombinationSolver}}
+\subsubsection{\texttt{LinearCombination}}
 
-A \texttt{LinearCombinationSolver} represents the equation
+A \texttt{LinearCombination} represents the equation
 \begin{equation*}
   x = \sum_{i = 1}^N \alpha_i y_i,
 \end{equation*}
-where the $\alpha_i$ are scalar constants. A \texttt{LinearCombinationSolver}
-is instantiated via
+where the $\alpha_i$ are scalar constants. A \texttt{LinearCombination} is
+instantiated via
 \begin{lstlisting}
-eq = LinearCombinationSolver(x, (alpha_1, y_1), (alpha_2, y_2), [...])
+eq = LinearCombination(x, (alpha_1, y_1), (alpha_2, y_2), [...])
 \end{lstlisting}
 where \texttt{x} is the function being solved for, and where an arbitrary
 number of tuples may be supplied as further arguments.
@@ -705,10 +691,10 @@ If the \texttt{adjoint\_solver\_parameters} argument is not passed to the
 \texttt{EquationSolver} constructor then the null space and transpose null
 space are swapped in the adjoint solver parameters.
 
-\subsubsection{\texttt{ProjectionSolver}}
+\subsubsection{\texttt{Projection}}
 
-A \texttt{ProjectionSolver} is a subclass of the \texttt{EquationSolver} class,
-and represents either the equation
+A \texttt{Projection} is a subclass of the \texttt{EquationSolver} class, and
+represents either the equation
 \begin{equation*}
   \int_\Omega \phi^* \cdot \psi = b \left( \phi^* \right) \quad \forall \phi \in V,
 \end{equation*}
@@ -718,39 +704,39 @@ where $\psi \in V$ and $b$ is a linear form, or
 \end{equation*}
 where $\xi$ is a given expression.
 
-The \texttt{ProjectionSolver} constructor has the form
+The \texttt{Projection} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, *args, **kwargs):
+def __init__(self, x, rhs, *args, **kwargs):
 \end{lstlisting}
 where \texttt{rhs} is a \texttt{ufl.classes.Form} (for the first case above) or
 expression (for the second), and \texttt{x} is the \texttt{Function} being
 solved for. Remaining constructor arguments are as for the
 \texttt{EquationSolver} class.
 
-\subsubsection{\texttt{DirichletBCSolver}}
+\subsubsection{\texttt{DirichletBCApplication}}
 
-A \texttt{DirichletBCSolver} represents the application of a strong Dirichlet
-boundary condition, represented in the form of an equation
+A \texttt{DirichletBCApplication} represents the application of a strong
+Dirichlet boundary condition, represented in the form of an equation
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
 discrete degrees of freedom for functions $\psi, \xi \in V$, and $P$ is a
-$\left( 0, 1 \right)$-matrix. A \texttt{DirichletBCSolver} can be instantiated
-via
+$\left( 0, 1 \right)$-matrix. A \texttt{DirichletBCApplication} can be
+instantiated via
 \begin{lstlisting}
-eq = DirichletBCSolver(xi, psi, *args, **kwargs)
+eq = DirichletBCApplication(psi, xi, *args, **kwargs)
 \end{lstlisting}
 where \texttt{xi} and \texttt{psi} are \texttt{Function} objects corresponding
 to $\xi$ and $\psi$ in the equation above. Remaining arguments are passed
 directly to the \texttt{DirichletBC} constructor.
 
-\subsubsection{\texttt{AssembleSolver}}\label{sect:AssembleSolver}
+\subsubsection{\texttt{Assembly}}\label{sect:Assembly}
 
-An \texttt{AssembleSolver} represents the assembly of a rank zero form. The
-\texttt{AssembleSolver} constructor has the form
+An \texttt{Assembly} represents the assembly of a rank zero form. The
+\texttt{Assembly} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters=None,
+def __init__(self, x, rhs, *, form_compiler_parameters=None,
              match_quadrature=None):
 \end{lstlisting}
 with constructor arguments
@@ -763,7 +749,7 @@ with constructor arguments
   \item \texttt{match\_quadrature}, whether to use the same quadrature degree
     in all finite element assembly. May be required for discrete consistency if
     incomplete quadrature is used. Defaults to
-    \texttt{parameters["tlm\_adjoint"]}\texttt{["AssembleSolver"]}\texttt{["match\_quadrature"]},
+    \texttt{parameters["tlm\_adjoint"]}\texttt{["Assembly"]}\texttt{["match\_quadrature"]},
     which by default is false.
 \end{itemize}
 
@@ -777,20 +763,19 @@ associated with the function.
 
 \subsection{Built-in \texttt{Equation} classes: FEniCS}
 
-\subsubsection{\texttt{InterpolationSolver}}\label{sect:InterpolationSolver}
+\subsubsection{\texttt{Interpolation}}\label{sect:Interpolation}
 
-An \texttt{InterpolationSolver} represents consistent interpolation of a given
-scalar-valued function $\xi \in W$ onto a function space $V$, represented in
-the form of an equation
+An \texttt{Interpolation} represents interpolation of a given scalar-valued
+function $\xi \in W$ onto a function space $V$, represented in the form of an
+equation
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where $\tilde{\psi}$ and $\tilde{\xi}$ are vectors whose elements are the
-discrete degrees of freedom for scalar-valued functions
-$\psi \in V, \xi \in W$, and $P$ is a matrix. An \texttt{InterpolationSolver}
-can be instantiated via
+discrete degrees of freedom for scalar-valued functions $\psi \in V, \xi \in
+W$, and $P$ is a matrix. An \texttt{Interpolation} can be instantiated via
 \begin{lstlisting}
-eq = InterpolationSolver(y, x)
+eq = Interpolation(x, y)
 \end{lstlisting}
 where \texttt{x} is the \texttt{Function} being solved for, and \texttt{y} the
 \texttt{Function} being interpolated. An optional \texttt{x\_coords} argument
@@ -800,47 +785,45 @@ supplied to define the maximum permitted distance of a coordinate from a cell.
 
 In parallel the node-node graph associated with the discrete function space for
 \texttt{y} must have no edges between nodes owned by different processes. In
-parallel the \texttt{InterpolationSolver} can be combined with the
-\texttt{LocalProjectionSolver} in order to project functions in more general
-function spaces onto an appropriate discontinuous Galerkin function space,
-prior to interpolation.
+parallel the \texttt{Interpolation} can be combined with the
+\texttt{LocalProjection} in order to project functions in more general function
+spaces onto an appropriate discontinuous Galerkin function space, prior to
+interpolation.
 
-\subsubsection{\texttt{PointInterpolationSolver}}
+\subsubsection{\texttt{PointInterpolation}}
 
-With the FEniCS backend, a \texttt{PointInterpolationSolver} represents
-consistent interpolation of a given scalar-valued function $\xi \in W$ onto a
-given set of points,
+With the FEniCS backend, a \texttt{PointInterpolation} represents interpolation
+of a given scalar-valued function $\xi \in W$ onto a given set of points,
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
 is a vector whose elements are the discrete degrees of freedom for a
 scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
-\texttt{PointInterpolationSolver} can be instantiated via
+\texttt{PointInterpolation} can be instantiated via
 \begin{lstlisting}
-eq = PointInterpolationSolver(y, X, X_coords=X_coords)
+eq = PointInterpolation(X, y, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
-\ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
+\ref{sect:Assembly}) and \texttt{X\_coords} is a NumPy array defining the
 coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
 optional \texttt{tolerance} argument may be supplied to define the maximum
 permitted distance of a coordinate from a cell.
 
 In parallel there are similar node-node graph restrictions for the discrete
-function space for \texttt{y} to those for the \texttt{InterpolationSolver}
-class (section \ref{sect:InterpolationSolver}).
+function space for \texttt{y} to those for the \texttt{Interpolation} class
+(section \ref{sect:Interpolation}).
 
-\subsubsection{\texttt{LocalProjectionSolver}}
+\subsubsection{\texttt{LocalProjection}}
 
-A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
-class, and represents the solution of a projection problem, of the same type as
-represented using the \texttt{ProjectionSolver}, but using a local mass matrix
-solver.
+A \texttt{LocalProjection} is a subclass of the \texttt{EquationSolver} class,
+and represents the solution of a projection problem, of the same type as
+represented using a \texttt{Projection}, but using a local mass matrix solver.
 
-The \texttt{LocalProjectionSolver} constructor has the form
+The \texttt{LocalProjection} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters=None,
+def __init__(self, x, rhs, *, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
              match_quadrature=None, defer_adjoint_assembly=None):
 \end{lstlisting}
@@ -850,39 +833,38 @@ Remaining constructor arguments are as for the \texttt{EquationSolver} class.
 
 \subsection{Built-in \texttt{Equation} classes: Firedrake}
 
-\subsubsection{\texttt{PointInterpolationSolver}}
+\subsubsection{\texttt{PointInterpolation}}
 
-With the Firedrake backend, a \texttt{PointInterpolationSolver} represents
-consistent interpolation of a given continuous scalar-valued function
-$\xi \in W$ onto a given set of points,
+With the Firedrake backend, a \texttt{PointInterpolation} represents
+interpolation of a given continuous scalar-valued function $\xi \in W$ onto a
+given set of points,
 \begin{equation*}
   \tilde{\psi} = P \tilde{\xi},
 \end{equation*}
 where the elements of $\tilde{\psi}$ are the interpolated values, $\tilde{\xi}$
 is a vector whose elements are the discrete degrees of freedom for a continuous
 scalar-valued function $\xi \in W$, and where $P$ is a matrix. A
-\texttt{PointInterpolationSolver} can be instantiated via
+\texttt{PointInterpolation} can be instantiated via
 \begin{lstlisting}
-eq = PointInterpolationSolver(y, X, X_coords=X_coords)
+eq = PointInterpolation(X, y, X_coords=X_coords)
 \end{lstlisting}
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
-\ref{sect:AssembleSolver}) and \texttt{X\_coords} is a NumPy array defining the
+\ref{sect:Assembly}) and \texttt{X\_coords} is a NumPy array defining the
 coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
 optional \texttt{tolerance} argument may be supplied, and this is passed to the
 Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
 the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
 
-\subsubsection{\texttt{LocalProjectionSolver}}
+\subsubsection{\texttt{LocalProjection}}
 
-A \texttt{LocalProjectionSolver} is a subclass of the \texttt{EquationSolver}
-class, and represents the solution of a projection problem, of the same type as
-represented using the \texttt{ProjectionSolver}, but using a local mass matrix
-solver.
+A \texttt{LocalProjection} is a subclass of the \texttt{EquationSolver} class,
+and represents the solution of a projection problem, of the same type as
+represented using a \texttt{Projection}, but using a local mass matrix solver.
 
-The \texttt{LocalProjectionSolver} constructor has the form
+The \texttt{LocalProjection} constructor has the form
 \begin{lstlisting}
-def __init__(self, rhs, x, form_compiler_parameters=None,
+def __init__(self, x, rhs, *, form_compiler_parameters=None,
              cache_jacobian=None, cache_rhs_assembly=None,
              match_quadrature=None, defer_adjoint_assembly=None):
 \end{lstlisting}
@@ -1184,13 +1166,13 @@ where $A$ is a matrix and the $b_i$ are independent of $x$.
 
 The \texttt{LinearEquation} constructor has the form
 \begin{lstlisting}
-def __init__(self, B, X, *, A=None, adj_type=None):
+def __init__(self, X, B, *, A=None, adj_type=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
+  \item \texttt{X}, a function, or a sequence of functions, defining $x$.
   \item \texttt{B}, a \texttt{RHS}, or a sequence of \texttt{RHS} objects,
     defining the $b_i$.
-  \item \texttt{X}, a function, or a sequence of functions, defining $x$.
   \item \texttt{A}, a \texttt{Matrix}. If not provided $A$ is an identity
     matrix.
   \item \texttt{adj\_type}, as for the \texttt{Equation} constructor. Defaults
@@ -1481,7 +1463,7 @@ The \texttt{drop\_references} method must call the base class
 
 \subsection{Built-in linear algebra classes}
 
-\subsubsection{\texttt{InnerProductRHS} and \texttt{InnerProductSolver}}
+\subsubsection{\texttt{InnerProductRHS} and \texttt{InnerProduct}}
 
 An \texttt{InnerProductRHS} is a \texttt{RHS} representing a right-hand-side
 term of the form
@@ -1492,7 +1474,7 @@ Here the $z_j$ and $y_k$ are the degrees of freedom for two functions, which
 may be the same function. $b_i$ are the degrees of freedom for the resulting
 right-hand-side term. The $M_{j,k}$ are the elements of some given matrix
 (which should typically be Hermitian positive definite), and $\alpha$ is some
-scalar constant. An \texttt{InnerProductSolver} is a \texttt{LinearEquation}
+scalar constant. An \texttt{InnerProduct} is a \texttt{LinearEquation}
 representing
 \begin{equation*}
   x_i = \alpha \sum_{j,k} z_j^* M_{j,k} y_k,
@@ -1507,57 +1489,26 @@ where \texttt{y} and \texttt{z} are each functions whose degrees of freedom are
 the $y_j$ and $z_k$, \texttt{alpha} is a given floating point value defining
 $\alpha$ (set equal to $1.0$ if not supplied), and \texttt{M} is a
 \texttt{Matrix} whose elements are the $M_{j,k}$ (set equal to an identity
-matrix if not supplied). An \texttt{InnerProductSolver} can be instantiated via
+matrix if not supplied). An \texttt{InnerProduct} can be instantiated via
 \begin{lstlisting}
-eq = InnerProductSolver(y, z, x, alpha=alpha, M=M)
+eq = InnerProduct(x, y, z, alpha=alpha, M=M)
 \end{lstlisting}
 where \texttt{x} is the function being solved for.
 
-\subsubsection{\texttt{NormSqRHS} and \texttt{NormSqSolver}}
-
-A \texttt{NormSqRHS} is an \texttt{InnerProductRHS}, and a
-\texttt{NormSqSolver} is an \texttt{InnerProductSolver}, each for the case
-where the $y_j$ and $z_k$ correspond to the degrees of freedom for the same
-function.
-
-A \texttt{NormSqRHS} can be instantiated via
-\begin{lstlisting}
-b = NormSqRHS(y, alpha=alpha, M=M)
-\end{lstlisting}
-where \texttt{y} is a function whose degrees of freedom are the $y_j$,
-\texttt{alpha} is a given floating point value defining $\alpha$ (set equal to
-$1.0$ if not supplied), and \texttt{M} is a \texttt{Matrix} whose elements are
-the $M_{j,k}$ (set equal to an identity matrix if not supplied). A
-\texttt{NormSqSolver} can be instantiated via
-\begin{lstlisting}
-eq = NormSqSolver(y, x, alpha=alpha, M=M)
-\end{lstlisting}
-where \texttt{x} is the function being solved for.
-
-\subsubsection{\texttt{MatrixActionRHS} and \texttt{MatrixActionSolver}}
+\subsubsection{\texttt{MatrixActionRHS}}
 
 A \texttt{MatrixActionRHS} is a \texttt{RHS} representing a right-hand-side
 term resulting from a matrix action,
 \begin{equation*}
   b = A y.
 \end{equation*}
-A \texttt{MatrixActionSolver} is a \texttt{LinearEquation} representing
-\begin{equation*}
-  x = A y,
-\end{equation*}
-solving for $x$.
 
 A \texttt{MatrixActionRHS} can be instantiated via
 \begin{lstlisting}
 b = MatrixActionRHS(A, Y)
 \end{lstlisting}
 where \texttt{A} is a \texttt{Matrix} defining the matrix $A$, and \texttt{Y}
-is a function, or a sequence of functions, defining $y$. A
-\texttt{MatrixActionSolver} can be instantiated via
-\begin{lstlisting}
-eq = MatrixActionSolver(Y, A, X)
-\end{lstlisting}
-where \texttt{X} is a function, or a sequence of functions, being solved for.
+is a function, or a sequence of functions, defining $y$.
 
 \section{Custom storage}
 
@@ -1691,7 +1642,7 @@ J_val = J.value()
 Internally a \texttt{Functional} object stores the value of the
 \texttt{Functional} in an appropriate function. By default this internal
 function is defined to be a function as returned by
-\texttt{new\_scalar\_function()} (see section \ref{sect:AssembleSolver}).
+\texttt{new\_scalar\_function()} (see section \ref{sect:Assembly}).
 
 In advanced usage the function space for the internal function may be specified
 \begin{lstlisting}
@@ -2446,8 +2397,8 @@ def forward(psi_0, psi_n_file=None):
     system = TimeSystem()
     psi = TimeFunction(levels, space, name="psi")
 
-    class InteriorAssignmentSolver(Equation):
-        def __init__(self, y, x):
+    class InteriorAssignment(Equation):
+        def __init__(self, x, y):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
@@ -2473,11 +2424,11 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
-                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+                return InteriorAssignment(tlm_map[x], tlm_y)
 
-    system.add_solve(InteriorAssignmentSolver(psi_0, psi[0]))
+    system.add_solve(InteriorAssignment(psi[0], psi_0))
 
     system.add_solve(inner(trial / dt, test) * dx
                      + inner(kappa * grad(trial), grad(test)) * dx

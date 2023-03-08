@@ -36,31 +36,31 @@ except ImportError:
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_AssignmentSolver(setup_test, test_leaks, test_default_dtypes):
+def test_Assignment(setup_test, test_leaks, test_default_dtypes):
     x = Constant(16.0, name="x", static=True)
 
     def forward(x):
         y = [Constant(name=f"y_{i:d}") for i in range(9)]
         z = Constant(name="z")
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AssignmentSolver(y[i], y[i + 1]).solve()
+            Assignment(y[i + 1], y[i]).solve()
         # Following line should have no effect on sensitivity
-        DotProductSolver(y[-1], y[-1], z).solve()
-        DotProductSolver(y[-1], y[-1], z).solve()
+        DotProduct(z, y[-1], y[-1]).solve()
+        DotProduct(z, y[-1], y[-1]).solve()
 
         x_dot_x = Constant(name="x_dot_x")
-        DotProductSolver(x, x, x_dot_x).solve()
+        DotProduct(x_dot_x, x, x).solve()
 
         z_dot_z = Constant(name="z_dot_z")
-        DotProductSolver(z, z, z_dot_z).solve()
+        DotProduct(z_dot_z, z, z).solve()
 
         J = Functional(name="J")
-        AxpySolver(z_dot_z, 2.0, x_dot_x, J.function()).solve()
+        Axpy(J.function(), z_dot_z, 2.0, x_dot_x).solve()
 
         K = Functional(name="K")
-        AssignmentSolver(z_dot_z, K.function()).solve()
+        Assignment(K.function(), z_dot_z).solve()
 
         return J, K
 
@@ -99,7 +99,7 @@ def test_AssignmentSolver(setup_test, test_leaks, test_default_dtypes):
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_AxpySolver(setup_test, test_leaks, test_default_dtypes):
+def test_Axpy(setup_test, test_leaks, test_default_dtypes):
     x = Constant(1.0, name="x", static=True)
 
     def forward(x):
@@ -107,13 +107,13 @@ def test_AxpySolver(setup_test, test_leaks, test_default_dtypes):
         z = [Constant(name=f"z_{i:d}") for i in range(2)]
         z[0].assign(7.0)
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
-        DotProductSolver(y[-1], y[-1], z[1]).solve()
+            Axpy(y[i + 1], y[i], i + 1, z[0]).solve()
+        DotProduct(z[1], y[-1], y[-1]).solve()
 
         J = Functional(name="J")
-        DotProductSolver(z[1], z[1], J.function()).solve()
+        DotProduct(J.function(), z[1], z[1]).solve()
         return J
 
     start_manager()
@@ -149,15 +149,15 @@ def test_AxpySolver(setup_test, test_leaks, test_default_dtypes):
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_InnerProductSolver(setup_test, test_leaks):
+def test_InnerProduct(setup_test, test_leaks):
     space = FunctionSpace(10)
 
     def forward(F):
         G = Function(space, name="G")
-        AssignmentSolver(F, G).solve()
+        Assignment(G, F).solve()
 
         J = Functional(name="J")
-        InnerProductSolver(F, G, J.function()).solve()
+        InnerProduct(J.function(), F, G).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -179,7 +179,7 @@ def test_InnerProductSolver(setup_test, test_leaks):
 @pytest.mark.numpy
 @no_space_type_checking
 @seed_test
-def test_ContractionSolver(setup_test, test_leaks, test_default_dtypes):
+def test_Contraction(setup_test, test_leaks, test_default_dtypes):
     dtype = default_dtype()
 
     space = FunctionSpace(3)
@@ -194,13 +194,13 @@ def test_ContractionSolver(setup_test, test_leaks, test_default_dtypes):
 
     def forward(m):
         x = Function(space, name="x")
-        ContractionSolver(A, (1,), (m,), x).solve()
+        Contraction(x, A, (1,), (m,)).solve()
 
         x_dot_x = Constant(name="x_dot_x")
-        DotProductSolver(x, x, x_dot_x).solve()
+        DotProduct(x_dot_x, x, x).solve()
 
         J = Functional(name="J")
-        DotProductSolver(x_dot_x, x_dot_x, J.function()).solve()
+        DotProduct(J.function(), x_dot_x, x_dot_x).solve()
         return x, J
 
     m = Function(space, name="m", static=True)

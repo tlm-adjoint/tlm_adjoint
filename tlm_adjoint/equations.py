@@ -58,32 +58,39 @@ __all__ = \
 
         "get_tangent_linear",
 
-        "AssignmentSolver",
-        "AxpySolver",
+        "Assignment",
+        "Axpy",
         "FixedPointSolver",
-        "LinearCombinationSolver",
-        "NullSolver",
-        "ScaleSolver",
+        "LinearCombination",
+        "ZeroAssignment",
 
         "LinearEquation",
         "Matrix",
         "RHS",
 
         "DotProductRHS",
-        "DotProductSolver",
+        "DotProduct",
         "InnerProductRHS",
-        "InnerProductSolver",
+        "InnerProduct",
         "MatrixActionRHS",
-        "MatrixActionSolver",
-        "NormSqRHS",
-        "NormSqSolver",
-        "SumRHS",
-        "SumSolver",
 
         "Storage",
 
         "HDF5Storage",
-        "MemoryStorage"
+        "MemoryStorage",
+
+        "AssignmentSolver",
+        "AxpySolver",
+        "DotProductSolver",
+        "InnerProductSolver",
+        "LinearCombinationSolver",
+        "MatrixActionSolver",
+        "NormSqRHS",
+        "NormSqSolver",
+        "NullSolver",
+        "ScaleSolver",
+        "SumRHS",
+        "SumSolver"
     ]
 
 
@@ -762,7 +769,7 @@ def get_tangent_linear(x, M, dM, tlm_map):
         return tlm_map[x]
 
 
-class NullSolver(Equation):
+class ZeroAssignment(Equation):
     def __init__(self, X):
         if is_function(X):
             X = (X,)
@@ -786,11 +793,19 @@ class NullSolver(Equation):
         return B
 
     def tangent_linear(self, M, dM, tlm_map):
-        return NullSolver([tlm_map[x] for x in self.X()])
+        return ZeroAssignment([tlm_map[x] for x in self.X()])
 
 
-class AssignmentSolver(Equation):
-    def __init__(self, y, x):
+class NullSolver(ZeroAssignment):
+    def __init__(self, X):
+        warnings.warn("NullSolver is deprecated -- "
+                      "use ZeroAssignment instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X)
+
+
+class Assignment(Equation):
+    def __init__(self, x, y):
         check_space_types(x, y)
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
 
@@ -813,12 +828,20 @@ class AssignmentSolver(Equation):
         x, y = self.dependencies()
         tau_y = get_tangent_linear(y, M, dM, tlm_map)
         if tau_y is None:
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
-            return AssignmentSolver(tau_y, tlm_map[x])
+            return Assignment(tlm_map[x], tau_y)
 
 
-class LinearCombinationSolver(Equation):
+class AssignmentSolver(Assignment):
+    def __init__(self, y, x):
+        warnings.warn("AssignmentSolver is deprecated -- "
+                      "use Assignment instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y)
+
+
+class LinearCombination(Equation):
     def __init__(self, x, *args):
         alpha = tuple(function_dtype(x)(arg[0]) for arg in args)
         Y = [arg[1] for arg in args]
@@ -855,18 +878,36 @@ class LinearCombinationSolver(Equation):
             tau_y = get_tangent_linear(y, M, dM, tlm_map)
             if tau_y is not None:
                 args.append((alpha, tau_y))
-        return LinearCombinationSolver(tlm_map[x], *args)
+        return LinearCombination(tlm_map[x], *args)
 
 
-class ScaleSolver(LinearCombinationSolver):
+class LinearCombinationSolver(LinearCombination):
+    def __init__(self, x, *args):
+        warnings.warn("LinearCombinationSolver is deprecated -- "
+                      "use LinearCombination instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, *args)
+
+
+class ScaleSolver(LinearCombination):
     def __init__(self, alpha, y, x):
+        warnings.warn("ScaleSolver is deprecated -- "
+                      "use LinearCombination instead",
+                      DeprecationWarning, stacklevel=2)
         super().__init__(x, (alpha, y))
 
 
-class AxpySolver(LinearCombinationSolver):
-    def __init__(self, *args):  # self, y_old, alpha, x, y_new
-        y_old, alpha, x, y_new = args
+class Axpy(LinearCombination):
+    def __init__(self, y_new, y_old, alpha, x):
         super().__init__(y_new, (1.0, y_old), (alpha, x))
+
+
+class AxpySolver(Axpy):
+    def __init__(self, y_old, alpha, x, y_new, /):
+        warnings.warn("AxpySolver is deprecated -- "
+                      "use Axpy instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(y_new, y_old, alpha, x)
 
 
 @no_space_type_checking
@@ -1377,7 +1418,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         for eq in self._eqs:
             tlm_eq = eq.tangent_linear(M, dM, tlm_map)
             if tlm_eq is None:
-                tlm_eq = NullSolver([tlm_map[x] for x in eq.X()])
+                tlm_eq = ZeroAssignment([tlm_map[x] for x in eq.X()])
             tlm_eqs.append(tlm_eq)
         return FixedPointSolver(
             tlm_eqs, solver_parameters=self._solver_parameters,
@@ -1385,11 +1426,21 @@ class FixedPointSolver(Equation, CustomNormSq):
 
 
 class LinearEquation(Equation):
-    def __init__(self, B, X, *, A=None, adj_type=None):
-        if isinstance(B, RHS):
-            B = (B,)
+    def __init__(self, X, B, *, A=None, adj_type=None):
+        if isinstance(X, RHS) \
+                or (isinstance(X, Sequence) and len(X) > 0
+                    and isinstance(X[0], RHS)):
+            warnings.warn("LinearEquation(B, X, *, A=None, adj_type=None) "
+                          "signature is deprecated -- use "
+                          "LinearEquation(X, B, *, A=None, adj_type=None) "
+                          "instead",
+                          DeprecationWarning, stacklevel=2)
+            X, B = B, X
+
         if is_function(X):
             X = (X,)
+        if isinstance(B, RHS):
+            B = (B,)
         if adj_type is None:
             if A is None:
                 adj_type = "conjugate_dual"
@@ -1608,9 +1659,9 @@ class LinearEquation(Equation):
                 tlm_B.extend(tlm_b)
 
         if len(tlm_B) == 0:
-            return NullSolver([tlm_map[x] for x in self.X()])
+            return ZeroAssignment([tlm_map[x] for x in self.X()])
         else:
-            return LinearEquation(tlm_B, [tlm_map[x] for x in self.X()],
+            return LinearEquation([tlm_map[x] for x in self.X()], tlm_B,
                                   A=self._A, adj_type=self.adj_X_type())
 
 
@@ -1816,22 +1867,42 @@ class RHS(Referrer):
 
 class MatrixActionSolver(LinearEquation):
     def __init__(self, Y, A, X):
-        super().__init__(MatrixActionRHS(A, Y), X)
+        warnings.warn("MatrixActionSolver is deprecated",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X, MatrixActionRHS(A, Y))
 
 
-class DotProductSolver(LinearEquation):
+class DotProduct(LinearEquation):
+    def __init__(self, x, y, z, *, alpha=1.0):
+        super().__init__(x, DotProductRHS(y, z, alpha=alpha))
+
+
+class DotProductSolver(DotProduct):
     def __init__(self, y, z, x, alpha=1.0):
-        super().__init__(DotProductRHS(y, z, alpha=alpha), x)
+        warnings.warn("DotProductSolver is deprecated -- "
+                      "use DotProduct instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, z, alpha=alpha)
 
 
-class InnerProductSolver(LinearEquation):
+class InnerProduct(LinearEquation):
+    def __init__(self, x, y, z, *, alpha=1.0, M=None):
+        super().__init__(x, InnerProductRHS(y, z, alpha=alpha, M=M))
+
+
+class InnerProductSolver(InnerProduct):
     def __init__(self, y, z, x, alpha=1.0, M=None):
-        super().__init__(InnerProductRHS(y, z, alpha=alpha, M=M), x)
+        warnings.warn("InnerProductSolver is deprecated -- "
+                      "use InnerProduct instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, z, alpha=alpha, M=M)
 
 
-class NormSqSolver(InnerProductSolver):
+class NormSqSolver(InnerProduct):
     def __init__(self, y, x, alpha=1.0, M=None):
-        super().__init__(y, y, x, alpha=alpha, M=M)
+        warnings.warn("NormSqSolver is deprecated",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, y, alpha=alpha, M=M)
 
 
 class SumSolver(LinearEquation):
@@ -1839,7 +1910,7 @@ class SumSolver(LinearEquation):
         warnings.warn("SumSolver is deprecated",
                       DeprecationWarning, stacklevel=2)
 
-        super().__init__(SumRHS(y), x)
+        super().__init__(x, SumRHS(y))
 
 
 class MatrixActionRHS(RHS):
@@ -2176,6 +2247,8 @@ class InnerProductRHS(RHS):
 
 class NormSqRHS(InnerProductRHS):
     def __init__(self, x, alpha=1.0, M=None):
+        warnings.warn("NormSqRHS is deprecated",
+                      DeprecationWarning, stacklevel=2)
         super().__init__(x, x, alpha=alpha, M=M)
 
 
@@ -2240,7 +2313,7 @@ class Storage(Equation):
             raise IndexError("dep_index out of bounds")
 
     def tangent_linear(self, M, dM, tlm_map):
-        return NullSolver(tlm_map[self.x()])
+        return ZeroAssignment(tlm_map[self.x()])
 
 
 class MemoryStorage(Storage):

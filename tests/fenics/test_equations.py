@@ -38,31 +38,31 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.fenics
 @no_space_type_checking
 @seed_test
-def test_AssignmentSolver(setup_test, test_leaks):
+def test_Assignment(setup_test, test_leaks):
     x = Constant(16.0, name="x", static=True)
 
     def forward(x):
         y = [Constant(name=f"y_{i:d}") for i in range(9)]
         z = Constant(name="z")
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AssignmentSolver(y[i], y[i + 1]).solve()
+            Assignment(y[i + 1], y[i]).solve()
         # Following line should have no effect on sensitivity
-        DotProductSolver(y[-1], y[-1], z).solve()
-        DotProductSolver(y[-1], y[-1], z).solve()
+        DotProduct(z, y[-1], y[-1]).solve()
+        DotProduct(z, y[-1], y[-1]).solve()
 
         x_dot_x = Constant(name="x_dot_x")
-        DotProductSolver(x, x, x_dot_x).solve()
+        DotProduct(x_dot_x, x, x).solve()
 
         z_dot_z = Constant(name="z_dot_z")
-        DotProductSolver(z, z, z_dot_z).solve()
+        DotProduct(z_dot_z, z, z).solve()
 
         J = Functional(name="J")
-        AxpySolver(z_dot_z, 2.0, x_dot_x, J.function()).solve()
+        Axpy(J.function(), z_dot_z, 2.0, x_dot_x).solve()
 
         K = Functional(name="K")
-        AssignmentSolver(z_dot_z, K.function()).solve()
+        Assignment(K.function(), z_dot_z).solve()
 
         return J, K
 
@@ -101,7 +101,7 @@ def test_AssignmentSolver(setup_test, test_leaks):
 @pytest.mark.fenics
 @no_space_type_checking
 @seed_test
-def test_AxpySolver(setup_test, test_leaks):
+def test_Axpy(setup_test, test_leaks):
     x = Constant(1.0, name="x", static=True)
 
     def forward(x):
@@ -109,13 +109,13 @@ def test_AxpySolver(setup_test, test_leaks):
         z = [Constant(name=f"z_{i:d}") for i in range(2)]
         z[0].assign(7.0)
 
-        AssignmentSolver(x, y[0]).solve()
+        Assignment(y[0], x).solve()
         for i in range(len(y) - 1):
-            AxpySolver(y[i], i + 1, z[0], y[i + 1]).solve()
-        DotProductSolver(y[-1], y[-1], z[1]).solve()
+            Axpy(y[i + 1], y[i], i + 1, z[0]).solve()
+        DotProduct(z[1], y[-1], y[-1]).solve()
 
         J = Functional(name="J")
-        DotProductSolver(z[1], z[1], J.function()).solve()
+        DotProduct(J.function(), z[1], z[1]).solve()
         return J
 
     start_manager()
@@ -150,7 +150,7 @@ def test_AxpySolver(setup_test, test_leaks):
 
 @pytest.mark.fenics
 @seed_test
-def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
+def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -164,7 +164,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
         x_1 = Function(space, name="x_1")
         x = Function(space, name="x")
 
-        DirichletBCSolver(bc, x_1, "on_boundary").solve()
+        DirichletBCApplication(x_1, bc, "on_boundary").solve()
 
         EquationSolver(
             inner(grad(trial), grad(test)) * dx
@@ -172,7 +172,7 @@ def test_DirichletBCSolver(setup_test, test_leaks, test_configurations):
             x_0, HomogeneousDirichletBC(space, "on_boundary"),
             solver_parameters=ls_parameters_cg).solve()
 
-        AxpySolver(x_0, 1.0, x_1, x).solve()
+        Axpy(x, x_0, 1.0, x_1).solve()
 
         J = Functional(name="J")
         J.assign((dot(x, x) ** 2) * dx)
@@ -229,8 +229,8 @@ def test_FixedPointSolver(setup_test, test_leaks):
     b = Constant(3.0, name="b", static=True)
 
     def forward(a, b):
-        eqs = [LinearCombinationSolver(z, (1.0, x), (1.0, b)),
-               ExprEvaluationSolver(a / sqrt(z), x)]
+        eqs = [LinearCombination(z, (1.0, x), (1.0, b)),
+               ExprEvaluation(x, a / sqrt(z))]
 
         fp_parameters = {"absolute_tolerance": 0.0,
                          "relative_tolerance": 1.0e-14}
@@ -282,8 +282,8 @@ def test_FixedPointSolver(setup_test, test_leaks):
 @pytest.mark.parametrize("N_x, N_y, N_z", [(5, 5, 2),
                                            (5, 5, 5)])
 @seed_test
-def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
-                             N_x, N_y, N_z):
+def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
+                       N_x, N_y, N_z):
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
@@ -302,7 +302,7 @@ def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
             y = z
 
         x = Function(x_space, name="x")
-        eq = InterpolationSolver(y, x, P=P[0], tolerance=1.0e-15)
+        eq = Interpolation(x, y, P=P[0], tolerance=1.0e-15)
         eq.solve()
         P[0] = eq._B[0]._A._P
 
@@ -358,8 +358,8 @@ def test_InterpolationSolver(setup_test, test_leaks, test_ghost_modes,
 @pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
                                            (5, 5, 5)])
 @seed_test
-def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
-                                  N_x, N_y, N_z):
+def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
+                            N_x, N_y, N_z):
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
@@ -376,20 +376,20 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
     def forward(z):
         if MPI.COMM_WORLD.size > 1:
             y = Function(y_space, name="y")
-            LocalProjectionSolver(z, y).solve()
+            LocalProjection(y, z).solve()
         else:
             y = z
 
         X_vals = [new_scalar_function(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
-        eq = PointInterpolationSolver(y, X_vals, X_coords, P=P[0])
+        eq = PointInterpolation(X_vals, y, X_coords, P=P[0])
         eq.solve()
         P[0] = eq._P
 
         J = Functional(name="J")
         for x in X_vals:
             term = new_scalar_function()
-            ExprEvaluationSolver(x ** 3, term).solve()
+            ExprEvaluation(term, x ** 3).solve()
             J.addto(term)
         return X_vals, J
 
@@ -437,7 +437,7 @@ def test_PointInterpolationSolver(setup_test, test_leaks, test_ghost_modes,
 
 @pytest.mark.fenics
 @seed_test
-def test_ExprEvaluationSolver(setup_test, test_leaks):
+def test_ExprEvaluation(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -449,8 +449,8 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
     def forward(y):
         x = Function(space, name="x")
         y_int = Constant(name="y_int")
-        AssembleSolver(y * dx, y_int).solve()
-        ExprEvaluationSolver(test_expression(y, y_int), x).solve()
+        Assembly(y_int, y * dx).solve()
+        ExprEvaluation(x, test_expression(y, y_int)).solve()
 
         J = Functional(name="J")
         J.assign(x * x * x * dx)
@@ -494,7 +494,7 @@ def test_ExprEvaluationSolver(setup_test, test_leaks):
 
 @pytest.mark.fenics
 @seed_test
-def test_LocalProjectionSolver(setup_test, test_leaks):
+def test_LocalProjection(setup_test, test_leaks):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
@@ -503,7 +503,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
 
     def forward(G):
         F = Function(space_1, name="F")
-        LocalProjectionSolver(G, F).solve()
+        LocalProjection(F, G).solve()
 
         J = Functional(name="J")
         J.assign((F ** 2 + F ** 3) * dx)
@@ -553,7 +553,7 @@ def test_LocalProjectionSolver(setup_test, test_leaks):
 
 @pytest.mark.fenics
 @seed_test
-def test_AssembleSolver(setup_test, test_leaks):
+def test_Assembly(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -561,7 +561,7 @@ def test_AssembleSolver(setup_test, test_leaks):
     def forward(F):
         x = Constant(name="x")
 
-        AssembleSolver((dot(F, F) ** 2) * dx, x).solve()
+        Assembly(x, (dot(F, F) ** 2) * dx).solve()
 
         J = Functional(name="J")
         J.assign(x)
@@ -616,8 +616,8 @@ def test_Storage(setup_test, test_leaks,
             d = {}
         MemoryStorage(x_s, d, function_name(x_s), save=True).solve()
 
-        ProjectionSolver(x * x * x * x_s, y,
-                         solver_parameters=ls_parameters_cg).solve()
+        Projection(y, x * x * x * x_s,
+                   solver_parameters=ls_parameters_cg).solve()
 
         if h is None:
             function_assign(y_s, y)
@@ -689,16 +689,16 @@ def test_Storage(setup_test, test_leaks,
 @pytest.mark.skipif(complex_mode, reason="real only")
 @no_space_type_checking
 @seed_test
-def test_InnerProductSolver(setup_test, test_leaks):
+def test_InnerProduct(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
 
     def forward(F):
         G = Function(space, name="G")
-        AssignmentSolver(F, G).solve()
+        Assignment(G, F).solve()
 
         J = Functional(name="J")
-        InnerProductSolver(F, G, J.function()).solve()
+        InnerProduct(J.function(), F, G).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -735,8 +735,8 @@ def test_initial_guess(setup_test, test_leaks):
                           solver_parameters=ls_parameters_cg)
         x = Function(space_1, name="x")
 
-        class TestSolver(ProjectionSolver):
-            def __init__(self, y, x, form_compiler_parameters=None,
+        class CustomProjection(Projection):
+            def __init__(self, x, y, *, form_compiler_parameters=None,
                          solver_parameters=None):
                 if form_compiler_parameters is None:
                     form_compiler_parameters = {}
@@ -745,7 +745,7 @@ def test_initial_guess(setup_test, test_leaks):
 
                 assert is_function(y)
                 super().__init__(
-                    inner(y, TestFunction(x.function_space())) * dx, x,
+                    x, inner(y, TestFunction(x.function_space())) * dx,
                     form_compiler_parameters=form_compiler_parameters,
                     solver_parameters=solver_parameters,
                     cache_jacobian=False, cache_rhs_assembly=False)
@@ -776,16 +776,16 @@ def test_initial_guess(setup_test, test_leaks):
                 x, y = self.dependencies()
                 tau_y = get_tangent_linear(y, M, dM, tlm_map)
                 if tau_y is None:
-                    return NullSolver(tlm_map[x])
+                    return ZeroAssignment(tlm_map[x])
                 else:
-                    return TestSolver(
-                        tau_y, tlm_map[x],
+                    return CustomProjection(
+                        tlm_map[x], tau_y,
                         form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                         solver_parameters=self._solver_parameters)
 
-        AssignmentSolver(x_0, x).solve()
-        TestSolver(
-            y, x,
+        Assignment(x, x_0).solve()
+        CustomProjection(
+            x, y,
             solver_parameters={"linear_solver": "cg",
                                "preconditioner": "sor",
                                "krylov_solver": {"nonzero_initial_guess": True,
@@ -804,9 +804,9 @@ def test_initial_guess(setup_test, test_leaks):
                 == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
                 adj_x_0, solver_parameters=ls_parameters_cg,
                 annotate=False, tlm=False)
-            NullSolver(x).solve()
+            ZeroAssignment(x).solve()
             J_term = function_new(J.function())
-            InnerProductSolver(x, adj_x_0, J_term).solve()
+            InnerProduct(J_term, x, adj_x_0).solve()
             J.addto(J_term)
         else:
             adj_x_0 = None
@@ -814,8 +814,8 @@ def test_initial_guess(setup_test, test_leaks):
         # Active equation which requires no adjoint initial condition, but
         # for which one will be supplied
         z = Function(space_1, name="z")
-        ProjectionSolver(
-            zero * x, z,
+        Projection(
+            z, zero * x,
             solver_parameters=ls_parameters_cg).solve()
         J.addto(dot(z, z) * dx)
 
@@ -1031,11 +1031,11 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     def forward(m):
         X = [Function(space, name=f"x_{i:d}") for i in range(4)]
 
-        AssignmentSolver(m, X[0]).solve()
-        ScaleSolver(1.0, X[0], X[1]).solve()
-        ExprEvaluationSolver(m + X[1], X[2]).solve()
-        ProjectionSolver(m + X[2], X[3],
-                         solver_parameters=ls_parameters_cg).solve()
+        Assignment(X[0], m).solve()
+        LinearCombination(X[1], (1.0, X[0])).solve()
+        ExprEvaluation(X[2], m + X[1]).solve()
+        Projection(X[3], m + X[2],
+                   solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")
         J.assign((dot(X[-1] + 1.0, X[-1] + 1.0) ** 2) * dx

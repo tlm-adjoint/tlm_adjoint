@@ -29,8 +29,8 @@ def forward(psi_0, psi_n_file=None):
     psi_n = Function(space, name="psi_n")
     psi_np1 = Function(space, name="psi_np1")
 
-    class InteriorAssignmentSolver(Equation):
-        def __init__(self, y, x):
+    class InteriorAssignment(Equation):
+        def __init__(self, x, y):
             super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
             self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
 
@@ -56,11 +56,11 @@ def forward(psi_0, psi_n_file=None):
             x, y = self.dependencies()
             tlm_y = get_tangent_linear(y, M, dM, tlm_map)
             if tlm_y is None:
-                return NullSolver(tlm_map[x])
+                return ZeroAssignment(tlm_map[x])
             else:
-                return InteriorAssignmentSolver(tlm_y, tlm_map[x])
+                return InteriorAssignment(tlm_map[x], tlm_y)
 
-    InteriorAssignmentSolver(psi_0, psi_n).solve()
+    InteriorAssignment(psi_n, psi_0).solve()
 
     eq = EquationSolver(
         inner(trial / dt, test) * dx
@@ -68,7 +68,7 @@ def forward(psi_0, psi_n_file=None):
         == inner(psi_n / dt, test) * dx,
         psi_np1, bc,
         solver_parameters={"linear_solver": "direct"})
-    cycle = AssignmentSolver(psi_np1, psi_n)
+    cycle = Assignment(psi_n, psi_np1)
 
     if psi_n_file is not None:
         psi_n_file << (psi_n, 0.0)

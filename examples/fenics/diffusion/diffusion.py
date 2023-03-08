@@ -70,12 +70,12 @@ def forward(kappa, manager=None, output_filename=None):
                                                "preconditioner": "sor",
                                                "krylov_solver": {"absolute_tolerance": 1.0e-16,  # noqa: E501
                                                                  "relative_tolerance": 1.0e-14}})  # noqa: E501
-    cycle = AssignmentSolver(Psi_np1, Psi_n)
+    cycle = Assignment(Psi_n, Psi_np1)
 
     if output_filename is not None:
         f = File(output_filename, "compressed")
 
-    AssignmentSolver(Psi_0, Psi_n).solve(manager=manager)
+    Assignment(Psi_n, Psi_0).solve(manager=manager)
     if output_filename is not None:
         f << (Psi_n, 0.0)
     for n in range(N):

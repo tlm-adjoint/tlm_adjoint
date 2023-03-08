@@ -33,7 +33,7 @@ from .backend_code_generator_interface import assemble, \
     rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
-from ..equations import AssignmentSolver, Equation, NullSolver, \
+from ..equations import Assignment, Equation, ZeroAssignment, \
     get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
@@ -47,12 +47,17 @@ import warnings
 
 __all__ = \
     [
+        "Assembly",
+        "DirichletBCApplication",
+        "EquationSolver",
+        "ExprEvaluation",
+        "Projection",
+        "linear_equation_new_x",
+
         "AssembleSolver",
         "DirichletBCSolver",
-        "EquationSolver",
         "ExprEvaluationSolver",
-        "ProjectionSolver",
-        "linear_equation_new_x"
+        "ProjectionSolver"
     ]
 
 
@@ -129,13 +134,13 @@ class ExprEquation(Equation):
         return ufl.replace(expr, self._nonlinear_replace_map(nl_deps))
 
 
-class AssembleSolver(ExprEquation):
-    def __init__(self, rhs, x, form_compiler_parameters=None,
+class Assembly(ExprEquation):
+    def __init__(self, x, rhs, *, form_compiler_parameters=None,
                  match_quadrature=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if match_quadrature is None:
-            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
+            match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
         rhs = ufl.classes.Form(rhs.integrals())
 
@@ -229,11 +234,26 @@ class AssembleSolver(ExprEquation):
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
-            return AssembleSolver(
-                tlm_rhs, tlm_map[x],
+            return Assembly(
+                tlm_map[x], tlm_rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
+
+
+class AssembleSolver(Assembly):
+    def __init__(self, rhs, x, form_compiler_parameters=None,
+                 match_quadrature=None):
+        warnings.warn("AssembleSolver is deprecated -- "
+                      "use Assembly instead, and transfer AssembleSolver "
+                      "global parameters",
+                      DeprecationWarning, stacklevel=2)
+        if match_quadrature is None:
+            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
+        super().__init__(
+            x, rhs,
+            form_compiler_parameters=form_compiler_parameters,
+            match_quadrature=match_quadrature)
 
 
 def unbound_form(form, deps):
@@ -763,7 +783,7 @@ class EquationSolver(ExprEquation):
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
             if self._tlm_solver_parameters is None:
                 tlm_solver_parameters = self._linear_solver_parameters
@@ -794,8 +814,7 @@ def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
     rhs_x_dep = x in rhs.coefficients()
     if lhs_x_dep or rhs_x_dep:
         x_old = function_new(x)
-        AssignmentSolver(x, x_old).solve(manager=manager, annotate=annotate,
-                                         tlm=tlm)
+        Assignment(x_old, x).solve(manager=manager, annotate=annotate, tlm=tlm)
         if lhs_x_dep:
             lhs = ufl.replace(lhs, {x: x_old})
         if rhs_x_dep:
@@ -805,8 +824,8 @@ def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
         return eq
 
 
-class ProjectionSolver(EquationSolver):
-    def __init__(self, rhs, x, *args, **kwargs):
+class Projection(EquationSolver):
+    def __init__(self, x, rhs, *args, **kwargs):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
@@ -815,8 +834,16 @@ class ProjectionSolver(EquationSolver):
                          *args, **kwargs)
 
 
-class DirichletBCSolver(Equation):
-    def __init__(self, y, x, *args, **kwargs):
+class ProjectionSolver(Projection):
+    def __init__(self, rhs, x, *args, **kwargs):
+        warnings.warn("ProjectionSolver is deprecated -- "
+                      "use Projection instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, rhs, *args, **kwargs)
+
+
+class DirichletBCApplication(Equation):
+    def __init__(self, x, y, *args, **kwargs):
         check_space_type(x, "primal")
         check_space_type(y, "primal")
 
@@ -852,14 +879,23 @@ class DirichletBCSolver(Equation):
 
         tau_y = get_tangent_linear(y, M, dM, tlm_map)
         if tau_y is None:
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
-            return DirichletBCSolver(tau_y, tlm_map[x],
-                                     *self._bc_args, **self._bc_kwargs)
+            return DirichletBCApplication(
+                tlm_map[x], tau_y,
+                *self._bc_args, **self._bc_kwargs)
 
 
-class ExprEvaluationSolver(ExprEquation):
-    def __init__(self, rhs, x):
+class DirichletBCSolver(DirichletBCApplication):
+    def __init__(self, y, x, *args, **kwargs):
+        warnings.warn("DirichletBCSolver is deprecated -- "
+                      "use DirichletBCApplication instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, y, *args, **kwargs)
+
+
+class ExprEvaluation(ExprEquation):
+    def __init__(self, x, rhs):
         if isinstance(rhs, ufl.classes.Form):
             raise TypeError("rhs should not be a Form")
 
@@ -932,9 +968,17 @@ class ExprEvaluationSolver(ExprEquation):
                     tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.Zero):
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
-            return ExprEvaluationSolver(tlm_rhs, tlm_map[x])
+            return ExprEvaluation(tlm_map[x], tlm_rhs)
+
+
+class ExprEvaluationSolver(ExprEvaluation):
+    def __init__(self, rhs, x):
+        warnings.warn("ExprEvaluationSolver is deprecated -- "
+                      "use ExprEvaluation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, rhs)

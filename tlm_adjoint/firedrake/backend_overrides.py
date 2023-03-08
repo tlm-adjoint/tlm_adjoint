@@ -31,9 +31,10 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 
 from ..manager import annotation_enabled, tlm_enabled
 
-from .equations import AssignmentSolver, EquationSolver, \
-    ExprEvaluationSolver, ProjectionSolver, linear_equation_new_x
-from .firedrake_equations import LocalProjectionSolver
+from ..equations import Assignment
+from .equations import EquationSolver, ExprEvaluation, Projection, \
+    linear_equation_new_x
+from .firedrake_equations import LocalProjection
 
 import copy
 import numpy as np
@@ -291,18 +292,18 @@ def project(v, V, bcs=None, solver_parameters=None,
             form_compiler_parameters = {}
         if x in ufl.algorithms.extract_coefficients(v):
             x_old = function_new(x)
-            AssignmentSolver(x, x_old).solve(annotate=annotate, tlm=tlm)
+            Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
             v = ufl.replace(v, {x: x_old})
         if use_slate_for_inverse:
             if len(bcs) > 0:
                 raise NotImplementedError("Boundary conditions not supported")
-            eq = LocalProjectionSolver(
-                v, x, form_compiler_parameters=form_compiler_parameters,
+            eq = LocalProjection(
+                x, v, form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
-            eq = ProjectionSolver(
-                v, x, bcs, solver_parameters=solver_parameters,
+            eq = Projection(
+                x, v, bcs, solver_parameters=solver_parameters,
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
@@ -327,20 +328,20 @@ def _Constant_assign(self, value, *, annotate=None, tlm=None):
         if isinstance(value, (int, np.integer,
                               float, np.floating,
                               complex, np.complexfloating)):
-            AssignmentSolver(backend_Constant(value), self).solve(
+            Assignment(self, backend_Constant(value)).solve(
                 annotate=annotate, tlm=tlm)
             return
         elif isinstance(value, backend_Constant):
             if value is not self:
-                AssignmentSolver(value, self).solve(annotate=annotate, tlm=tlm)
+                Assignment(self, value).solve(annotate=annotate, tlm=tlm)
                 return
         elif isinstance(value, ufl.classes.Expr):
             if self in ufl.algorithms.extract_coefficients(value):
                 self_old = function_new(self)
-                AssignmentSolver(self, self_old).solve(
+                Assignment(self_old, self).solve(
                     annotate=annotate, tlm=tlm)
                 value = ufl.replace(value, {self: self_old})
-            ExprEvaluationSolver(value, self).solve(annotate=annotate, tlm=tlm)
+            ExprEvaluation(self, value).solve(annotate=annotate, tlm=tlm)
             return
 
     return_value = backend_Constant._tlm_adjoint__orig_assign(
@@ -370,16 +371,16 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
             if isinstance(expr, backend_Function) \
                     and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
                 if expr is not self:
-                    AssignmentSolver(expr, self).solve(
+                    Assignment(self, expr).solve(
                         annotate=annotate, tlm=tlm)
                     return self
             elif isinstance(expr, ufl.classes.Expr):
                 if self in ufl.algorithms.extract_coefficients(expr):
                     self_old = function_new(self)
-                    AssignmentSolver(self, self_old).solve(
+                    Assignment(self_old, self).solve(
                         annotate=annotate, tlm=tlm)
                     expr = ufl.replace(expr, {self: self_old})
-                ExprEvaluationSolver(expr, self).solve(
+                ExprEvaluation(self, expr).solve(
                     annotate=annotate, tlm=tlm)
                 return self
 

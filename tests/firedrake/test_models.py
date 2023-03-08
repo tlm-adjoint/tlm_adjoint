@@ -149,7 +149,7 @@ def test_oscillator(setup_test, test_leaks,
         T_np1 = Function(space, name="T_np1")
         T_s = 0.5 * (T_n + T_np1)
 
-        AssignmentSolver(T_0, T_n).solve()
+        Assignment(T_n, T_0).solve()
 
         eq = EquationSolver(inner((T_np1 - T_n) / dt, test) * dx
                             - inner(T_s[1], test[0]) * dx
@@ -224,7 +224,7 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
 
         system = TimeSystem()
 
-        system.add_solve(T_0, T[0])
+        system.add_solve(Assignment(T[0], T_0))
 
         system.add_solve(inner(trial, test) * dx
                          + dt * inner(kappa * grad(trial), grad(test)) * dx
@@ -319,14 +319,14 @@ def test_diffusion_2d(setup_test, test_leaks,
         T_n = Function(space, name="T_n")
         T_np1 = Function(space, name="T_np1")
 
-        AssignmentSolver(T_0, T_n).solve()
+        Assignment(T_n, T_0).solve()
 
         eq = (inner(trial / dt, test) * dx
               + inner(dot(kappa, grad(trial)), grad(test)) * dx
               == inner(T_n / dt, test) * dx)
         eqs = [EquationSolver(eq, T_np1, bc,
                               solver_parameters=ls_parameters_cg),
-               AssignmentSolver(T_np1, T_n)]
+               Assignment(T_n, T_np1)]
 
         for n in range(n_steps):
             for eq in eqs:

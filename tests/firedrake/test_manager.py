@@ -53,7 +53,7 @@ def test_long_range(setup_test, test_leaks,
     def forward(F, x_ref=None):
         x_old = Function(space, name="x_old")
         x = Function(space, name="x")
-        AssignmentSolver(F, x_old).solve()
+        Assignment(x_old, F).solve()
         J = Functional(name="J")
         gather_ref = x_ref is None
         if gather_ref:
@@ -62,12 +62,12 @@ def test_long_range(setup_test, test_leaks,
             terms = [(1.0, x_old)]
             if n % 11 == 0:
                 terms.append((1.0, F))
-            LinearCombinationSolver(x, *terms).solve()
+            LinearCombination(x, *terms).solve()
             if n % 17 == 0:
                 if gather_ref:
                     x_ref[n] = function_copy(x, name=f"x_ref_{n:d}")
                 J.addto(dot(x * x * x, x_ref[n]) * dx)
-            AssignmentSolver(x, x_old).solve()
+            Assignment(x_old, x).solve()
             if n < n_steps - 1:
                 new_block()
 
@@ -107,8 +107,8 @@ def test_long_range(setup_test, test_leaks,
 @pytest.mark.firedrake
 @no_space_type_checking
 @seed_test
-def test_EmptySolver(setup_test, test_leaks):
-    class EmptySolver(Equation):
+def test_EmptyEquation(setup_test, test_leaks):
+    class EmptyEquation(Equation):
         def __init__(self):
             super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
 
@@ -120,13 +120,13 @@ def test_EmptySolver(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def forward(F):
-        EmptySolver().solve()
+        EmptyEquation().solve()
 
         F_dot_F = Constant(name="F_dot_F")
-        DotProductSolver(F, F, F_dot_F).solve()
+        DotProduct(F_dot_F, F, F).solve()
 
         J = Functional(name="J")
-        DotProductSolver(F_dot_F, F_dot_F, J.function()).solve()
+        DotProduct(J.function(), F_dot_F, F_dot_F).solve()
         return J
 
     F = Function(space, name="F")
@@ -193,9 +193,9 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
     def forward(y):
         x = Function(space, name="x")
 
-        NullSolver(x).solve()
+        ZeroAssignment(x).solve()
 
-        AssignmentSolver(y, x).solve()
+        Assignment(x, y).solve()
 
         J_0 = Functional(name="J_0")
         J_0.assign((dot(x, x) ** 2) * dx)
@@ -204,7 +204,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
         J_1.assign(x * dx)
 
         J_0_val = J_0.value()
-        NullSolver(x).solve()
+        ZeroAssignment(x).solve()
         assert function_linf_norm(x) == 0.0
         J_0.addto(dot(x, y) * dx)
         assert J_0.value() == J_0_val
@@ -294,8 +294,8 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         x = Constant(0.0, name="x")
 
         M = IdentityMatrix()
-        b = NormSqRHS(m, M=M)
-        linear_eq = LinearEquation([b, b], x, A=M)
+        b = InnerProductRHS(m, m, M=M)
+        linear_eq = LinearEquation(x, [b, b], A=M)
         linear_eq.solve()
 
         if forward_run:
@@ -333,10 +333,10 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 assert not function_is_replacement(dep)
 
         y = Constant(0.0, name="y")
-        LinearEquation(b, y, A=M).solve()
+        LinearEquation(y, b, A=M).solve()
 
         z = Constant(0.0, name="z")
-        AxpySolver(x, 1.0, y, z).solve()
+        Axpy(z, x, 1.0, y).solve()
 
         if forward_run:
             manager.drop_references()
@@ -367,7 +367,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        NormSqSolver(z, J.function(), M=M).solve()
+        InnerProduct(J.function(), z, z, M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -409,11 +409,11 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
 @seed_test
 def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     def forward(m, forward_run=False):
-        class NewtonIterationSolver(Equation):
-            def __init__(self, m, x0, x):
+        class NewtonSolver(Equation):
+            def __init__(self, x, m, x0):
+                check_space_type(x, "primal")
                 check_space_type(m, "primal")
                 check_space_type(x0, "primal")
-                check_space_type(x, "primal")
 
                 super().__init__(x, deps=[x, x0, m], nl_deps=[x0, m],
                                  ic=False, adj_ic=False)
@@ -453,8 +453,8 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
         x0 = Constant(1.0, name="x0")
         x1 = Constant(0.0, name="x1")
 
-        eq0 = NewtonIterationSolver(m, x0, x1)
-        eq1 = AssignmentSolver(x1, x0)
+        eq0 = NewtonSolver(x1, m, x0)
+        eq1 = Assignment(x0, x1)
 
         fp_eq = FixedPointSolver(
             [eq0, eq1],
@@ -566,7 +566,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
                                 prune):
     n_forward_solves = [0]
 
-    class EmptySolver(Equation):
+    class EmptyEquation(Equation):
         def __init__(self):
             super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
 
@@ -580,12 +580,12 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     def forward(m):
         for n in range(n_steps):
-            EmptySolver().solve()
+            EmptyEquation().solve()
             if n < n_steps - 1:
                 new_block()
 
         J = Functional(name="J")
-        DotProductSolver(m, m, J.function()).solve()
+        DotProduct(J.function(), m, m).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -620,7 +620,7 @@ def test_TangentLinearMap_finalizes(setup_test, test_leaks,
 
     start_manager()
     x = Constant(0.0, name="x")
-    DotProductSolver(m, m, x).solve()
+    DotProduct(x, m, m).solve()
     stop_manager()
 
 
@@ -634,7 +634,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     reset_manager()
     configure_tlm((F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2
@@ -643,7 +643,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta))
     start_manager()
     stop_annotating()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 0
@@ -652,7 +652,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), (F, zeta))
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 3
@@ -662,7 +662,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), annotate=False)
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 1
@@ -672,7 +672,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     configure_tlm((F, zeta), (F, zeta), annotate=False)
     manager().function_tlm(G, (F, zeta), (F, zeta))
     start_manager()
-    AssignmentSolver(F, G).solve()
+    Assignment(G, F).solve()
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2

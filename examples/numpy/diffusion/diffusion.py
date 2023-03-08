@@ -227,11 +227,11 @@ def forward(psi_0, kappa):
 
     psi_n = Function(space, name="psi_n")
     psi_np1 = Function(space, name="psi_np1")
-    AssignmentSolver(psi_0, psi_n).solve()
+    Assignment(psi_n, psi_0).solve()
 
-    eqs = [LinearEquation(ContractionRHS(B, (1,), (psi_n,)),
-                          psi_np1, A=DiffusionMatrix(kappa)),
-           AssignmentSolver(psi_np1, psi_n)]
+    eqs = [LinearEquation(psi_np1, ContractionRHS(B, (1,), (psi_n,)),
+                          A=DiffusionMatrix(kappa)),
+           Assignment(psi_n, psi_np1)]
 
     for n in range(N_t):
         for eq in eqs:
@@ -242,10 +242,10 @@ def forward(psi_0, kappa):
     one = Function(space, name="one", static=True)
     function_assign(one, 1.0)
     phi = Function(space, name="phi")
-    AxpySolver(psi_n, 1.0, one, phi).solve()
+    Axpy(phi, psi_n, 1.0, one).solve()
 
     J = Functional(name="J")
-    NormSqSolver(phi, J.function(), M=ConstantMatrix(mass)).solve()
+    InnerProduct(J.function(), phi, phi, M=ConstantMatrix(mass)).solve()
 
     return J
 

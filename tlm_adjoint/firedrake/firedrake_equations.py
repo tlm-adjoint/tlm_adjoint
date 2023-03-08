@@ -29,7 +29,7 @@ from .backend_code_generator_interface import assemble, complex_mode, \
     matrix_multiply
 
 from ..caches import Cache
-from ..equations import Equation, NullSolver, get_tangent_linear
+from ..equations import Equation, ZeroAssignment, get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
@@ -46,6 +46,9 @@ __all__ = \
         "LocalSolverCache",
         "local_solver_cache",
         "set_local_solver_cache",
+
+        "LocalProjection",
+        "PointInterpolation",
 
         "LocalProjectionSolver",
         "PointInterpolationSolver"
@@ -110,8 +113,8 @@ def set_local_solver_cache(local_solver_cache):
     _local_solver_cache[0] = local_solver_cache
 
 
-class LocalProjectionSolver(EquationSolver):
-    def __init__(self, rhs, x, form_compiler_parameters=None,
+class LocalProjection(EquationSolver):
+    def __init__(self, x, rhs, *, form_compiler_parameters=None,
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
         if form_compiler_parameters is None:
@@ -195,14 +198,29 @@ class LocalProjectionSolver(EquationSolver):
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
-            return NullSolver(tlm_map[x])
+            return ZeroAssignment(tlm_map[x])
         else:
-            return LocalProjectionSolver(
-                tlm_rhs, tlm_map[x],
+            return LocalProjection(
+                tlm_map[x], tlm_rhs,
                 form_compiler_parameters=self._form_compiler_parameters,
                 cache_jacobian=self._cache_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly,
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
+
+
+class LocalProjectionSolver(LocalProjection):
+    def __init__(self, rhs, x, form_compiler_parameters=None,
+                 cache_jacobian=None, cache_rhs_assembly=None,
+                 match_quadrature=None, defer_adjoint_assembly=None):
+        warnings.warn("LocalProjectionSolver is deprecated -- "
+                      "use LocalProjection instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(
+            x, rhs, form_compiler_parameters=form_compiler_parameters,
+            cache_jacobian=cache_jacobian,
+            cache_rhs_assembly=cache_rhs_assembly,
+            match_quadrature=match_quadrature,
+            defer_adjoint_assembly=defer_adjoint_assembly)
 
 
 def interpolation_matrix(x_coords, y, y_nodes, dtype=backend_ScalarType):
@@ -233,28 +251,24 @@ def interpolation_matrix(x_coords, y, y_nodes, dtype=backend_ScalarType):
     return P.tocsr()
 
 
-class PointInterpolationSolver(Equation):
-    def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
+class PointInterpolation(Equation):
+    def __init__(self, X, y, X_coords=None, *, P=None, tolerance=None):
         """
         Defines an equation which interpolates the continuous scalar-valued
         Function y at the points X_coords.
 
         Arguments:
 
-        y          A continuous scalar-valued Function. The Function to be
-                   interpolated.
         X          A scalar, or a sequence of scalars. The solution to the
                    equation.
+        y          A continuous scalar-valued Function. The Function to be
+                   interpolated.
         X_coords   A NumPy matrix. Points at which to interpolate y.
                    Ignored if P is supplied, required otherwise.
         P          (Optional) Interpolation matrix.
         tolerance  (Optional) Cell containment tolerance, passed to the
                    MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
-
-        if P_T is not None:
-            warnings.warn("P_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
 
         if is_function(X):
             X = (X,)
@@ -362,7 +376,18 @@ class PointInterpolationSolver(Equation):
 
         tlm_y = get_tangent_linear(y, M, dM, tlm_map)
         if tlm_y is None:
-            return NullSolver([tlm_map[x] for x in X])
+            return ZeroAssignment([tlm_map[x] for x in X])
         else:
-            return PointInterpolationSolver(tlm_y, [tlm_map[x] for x in X],
-                                            P=self._P)
+            return PointInterpolation([tlm_map[x] for x in X], tlm_y,
+                                      P=self._P)
+
+
+class PointInterpolationSolver(PointInterpolation):
+    def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
+        if P_T is not None:
+            warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+        warnings.warn("PointInterpolationSolver is deprecated -- "
+                      "use PointInterpolation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X, y, X_coords, P=P, tolerance=tolerance)
