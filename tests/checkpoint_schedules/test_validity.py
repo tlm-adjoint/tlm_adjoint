@@ -39,7 +39,7 @@ except ImportError:
 
 def memory(n, s):
     return (MemoryCheckpointSchedule(),
-            {"RAM": 0, "disk": 0}, n)
+            {"RAM": 0, "disk": 0}, 1 + n)
 
 
 def periodic_disk(n, s, *, period):
@@ -251,8 +251,8 @@ def test_validity(schedule, schedule_kwargs,
             # Checkpoint storage limits are not exceeded
             for storage_type, storage_limit in storage_limits.items():
                 assert len(snapshots[storage_type]) <= storage_limit
-            # Non-linear dependency data storage limit is not exceeded
-            assert len(data) <= data_limit
+            # Data storage limit is not exceeded
+            assert min(1, len(ics)) + len(data) <= data_limit
 
             if isinstance(cp_action, EndReverse):
                 break
