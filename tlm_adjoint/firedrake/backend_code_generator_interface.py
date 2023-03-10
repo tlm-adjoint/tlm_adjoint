@@ -18,12 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import FunctionSpace, Parameters, backend_Constant, \
-    backend_DirichletBC, backend_Function, backend_LinearSolver, \
-    backend_Matrix, backend_assemble, backend_solve, complex_mode, \
-    extract_args, homogenize, parameters
-from ..interface import check_space_type, check_space_types, function_axpy, \
-    function_copy, function_dtype, function_space_type, space_new
+from .backend import FunctionSpace, Interpolator, Parameters, TestFunction, \
+    backend_Constant, backend_DirichletBC, backend_Function, \
+    backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
+    complex_mode, extract_args, homogenize, parameters
+from ..interface import check_space_type, check_space_types, function_assign, \
+    function_axpy, function_copy, function_dtype, function_inner, \
+    function_new_conjugate_dual, function_space, function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -494,18 +495,34 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                 <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
 
-def interpolate_expression(x, expr):
-    check_space_type(x, "primal")
-    deps = ufl.algorithms.extract_coefficients(expr)
-    for dep in deps:
+def interpolate_expression(x, expr, *, adj_x=None):
+    if adj_x is None:
+        check_space_type(x, "primal")
+    else:
+        check_space_type(x, "conjugate_dual")
+        check_space_type(adj_x, "conjugate_dual")
+    for dep in ufl.algorithms.extract_coefficients(expr):
         check_space_type(dep, "primal")
 
     expr = eliminate_zeros(expr)
 
-    if isinstance(x, backend_Constant):
-        x.assign(expr, annotate=False, tlm=False)
+    if adj_x is None:
+        if isinstance(x, backend_Constant):
+            x.assign(expr, annotate=False, tlm=False)
+        elif isinstance(x, backend_Function):
+            x.interpolate(expr)
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+    elif isinstance(x, backend_Constant):
+        if len(x.ufl_shape) > 0:
+            raise ValueError("Scalar Constant required")
+        expr_val = function_new_conjugate_dual(adj_x)
+        interpolate_expression(expr_val, expr)
+        function_assign(x, function_inner(adj_x, expr_val))
     elif isinstance(x, backend_Function):
-        x.interpolate(expr)
+        x_space = function_space(x)
+        interp = Interpolator(ufl.conj(expr) * TestFunction(x_space), x_space)
+        interp.interpolate(adj_x, transpose=True, output=x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
