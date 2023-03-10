@@ -1213,7 +1213,7 @@ class EquationManager:
             raise RuntimeError("Duplicate checkpoint")
 
         self._cp_memory[n] = self._cp.checkpoint_data(
-            ics=ics, data=data, copy=False)
+            ics=ics, data=data, copy=True)
 
     def _read_memory_checkpoint(self, n, *, ic_ids=None, ics=True, data=True,
                                 delete=False):
