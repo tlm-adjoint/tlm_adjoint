@@ -521,7 +521,8 @@ def interpolate_expression(x, expr, *, adj_x=None):
         function_assign(x, function_inner(adj_x, expr_val))
     elif isinstance(x, backend_Function):
         x_space = function_space(x)
-        interp = Interpolator(ufl.conj(expr) * TestFunction(x_space), x_space)
+        adj_x_space = function_space(adj_x)
+        interp = Interpolator(ufl.conj(expr) * TestFunction(x_space), adj_x_space)  # noqa: E501
         interp.interpolate(adj_x, transpose=True, output=x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")

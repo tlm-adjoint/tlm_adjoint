@@ -424,6 +424,68 @@ def test_ExprEvaluation(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("degree", [1, 2, 3])
+@seed_test
+def test_ExprEvaluation_transpose(setup_test, test_leaks,
+                                  degree):
+    mesh = UnitIntervalMesh(20)
+    X = SpatialCoordinate(mesh)
+    space_1 = FunctionSpace(mesh, "Lagrange", 1)
+    space_2 = FunctionSpace(mesh, "Lagrange", degree)
+
+    y_2 = Function(space_2, name="y_2")
+    if complex_mode:
+        interpolate_expression(y_2,
+                               cos(3.0 * pi * X[0])
+                               + 1.j * sin(5.0 * pi * X[0]))
+    else:
+        interpolate_expression(y_2,
+                               cos(3.0 * pi * X[0]))
+    y_1_ref = Function(space_1, name="y_1_ref")
+    y_1_ref.interpolate(y_2)
+
+    def forward(y_2):
+        y_1 = Function(space_1, name="y_1")
+        ExprEvaluation(y_1, y_2).solve()
+
+        J = Functional(name="J")
+        J.assign(((y_1 - Constant(1.0)) ** 4) * dx)
+        return y_1, J
+
+    start_manager()
+    y_1, J = forward(y_2)
+    stop_manager()
+
+    y_1_error = function_copy(y_1)
+    function_axpy(y_1_error, -1.0, y_1_ref)
+    assert function_linf_norm(y_1_error) == 0.0
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, y_2)
+
+    def forward_J(y_2):
+        _, J = forward(y_2)
+        return J
+
+    min_order = taylor_test(forward_J, y_2, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, y_2, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, y_2, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=2)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_LocalProjection(setup_test, test_leaks):
