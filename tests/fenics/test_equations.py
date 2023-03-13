@@ -297,7 +297,7 @@ def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
     def forward(z):
         if MPI.COMM_WORLD.size > 1:
             y = Function(y_space, name="y")
-            LocalProjectionSolver(z, y).solve()
+            LocalProjection(y, z).solve()
         else:
             y = z
 
