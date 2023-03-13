@@ -27,7 +27,8 @@ from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
     cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
     parameters
 from ..interface import check_space_type, check_space_types, function_assign, \
-    function_space_type, space_new
+    function_get_values, function_inner, function_new_conjugate_dual, \
+    function_set_values, function_space, function_space_type, space_new
 
 from .functions import eliminate_zeros
 
@@ -391,43 +392,60 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         assert (b - b_debug).norm("linf") <= b_tolerance * b_debug.norm("linf")
 
 
-def interpolate_expression(x, expr):
-    check_space_type(x, "primal")
-    deps = ufl.algorithms.extract_coefficients(expr)
-    for dep in deps:
+def interpolate_expression(x, expr, *, adj_x=None):
+    if adj_x is None:
+        check_space_type(x, "primal")
+    else:
+        check_space_type(x, "conjugate_dual")
+        check_space_type(adj_x, "conjugate_dual")
+    for dep in ufl.algorithms.extract_coefficients(expr):
         check_space_type(dep, "primal")
 
     expr = eliminate_zeros(expr)
 
     class Expr(UserExpression):
         def eval(self, value, x):
-            x = tuple(x)
-            value[:] = expr(x)
+            value[:] = expr(tuple(x))
 
         def value_shape(self):
             return x.ufl_shape
 
-    if isinstance(x, backend_Constant):
-        if isinstance(expr, backend_Constant):
-            value = expr
+    if adj_x is None:
+        if isinstance(x, backend_Constant):
+            if isinstance(expr, backend_Constant):
+                value = expr
+            else:
+                if len(x.ufl_shape) > 0:
+                    raise ValueError("Scalar Constant required")
+                value = x.values()
+                Expr().eval(value, ())
+                value, = value
+            function_assign(x, value)
+        elif isinstance(x, backend_Function):
+            try:
+                x.assign(expr, annotate=False, tlm=False)
+            except RuntimeError:
+                x.interpolate(Expr())
         else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+    else:
+        expr_val = function_new_conjugate_dual(adj_x)
+        interpolate_expression(expr_val, expr)
+
+        if isinstance(x, backend_Constant):
             if len(x.ufl_shape) > 0:
                 raise ValueError("Scalar Constant required")
-            value = x.values()
-            Expr().eval(value, ())
-        x.assign(value, annotate=False, tlm=False)
-    elif isinstance(x, backend_Function):
-        if isinstance(expr, backend_Constant):
-            value = expr
+            function_assign(x, function_inner(adj_x, expr_val))
+        elif isinstance(x, backend_Function):
+            x_space = function_space(x)
+            adj_x_space = function_space(adj_x)
+            if x_space.ufl_domains() != adj_x_space.ufl_domains() \
+                    or x_space.ufl_element() != adj_x_space.ufl_element():
+                raise ValueError("Unable to perform transpose interpolation")
+            function_set_values(
+                x, function_get_values(expr_val).conjugate() * function_get_values(adj_x))  # noqa: E501
         else:
-            value = backend_Function(x.function_space())
-            try:
-                value.assign(expr, annotate=False, tlm=False)
-            except RuntimeError:
-                value.interpolate(Expr())
-        function_assign(x, value)
-    else:
-        raise TypeError(f"Unexpected type: {type(x)}")
+            raise TypeError(f"Unexpected type: {type(x)}")
 
 
 # The following override assemble, assemble_system, and solve so that DOLFIN

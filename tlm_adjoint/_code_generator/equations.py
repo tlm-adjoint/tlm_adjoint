@@ -18,12 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import TestFunction, TrialFunction, adjoint, backend_Constant, \
+from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from ..interface import check_space_type, function_assign, \
-    function_get_values, function_id, function_inner, function_is_scalar, \
-    function_new, function_new_conjugate_dual, function_replacement, \
-    function_scalar_value, function_set_values, function_space, \
+from ..interface import check_space_type, function_assign, function_id, \
+    function_is_scalar, function_new, function_new_conjugate_dual, \
+    function_replacement, function_scalar_value, function_space, \
     function_update_caches, function_zero, is_function
 from .backend_code_generator_interface import assemble, \
     assemble_linear_solver, complex_mode, copy_parameters_dict, \
@@ -899,17 +898,10 @@ class ExprEvaluation(ExprEquation):
         if isinstance(rhs, ufl.classes.Form):
             raise TypeError("rhs should not be a Form")
 
-        x_space = function_space(x)
         deps, nl_deps = extract_dependencies(rhs)
+        if function_id(x) in deps:
+            raise ValueError("Invalid non-linear dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        for dep in deps:
-            if dep == x:
-                raise ValueError("Invalid non-linear dependency")
-            if isinstance(dep, backend_Function):
-                dep_space = function_space(dep)
-                if dep_space.ufl_domains() != x_space.ufl_domains() \
-                        or dep_space.ufl_element() != x_space.ufl_element():
-                    raise ValueError("Invalid dependency")
         deps.insert(0, x)
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
@@ -942,16 +934,8 @@ class ExprEvaluation(ExprEquation):
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
 
-        dF_val = function_new(self.x())
-        interpolate_expression(dF_val, dF)
-
         F = function_new_conjugate_dual(dep)
-        if isinstance(F, backend_Constant):
-            function_assign(F, function_inner(adj_x, dF_val))
-        else:
-            assert isinstance(F, backend_Function)
-            function_set_values(
-                F, function_get_values(dF_val).conjugate() * function_get_values(adj_x))  # noqa: E501
+        interpolate_expression(F, dF, adj_x=adj_x)
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
