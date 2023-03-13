@@ -793,6 +793,7 @@ class EquationManager:
                             "supplied")
 
         self.drop_references()
+        garbage_cleanup(self._comm)
 
         self._annotation_state = AnnotationState.ANNOTATING
         self._tlm_state = TangentLinearState.DERIVING
@@ -1403,6 +1404,7 @@ class EquationManager:
 
                     storage_state = storage.pop()
                     assert storage_state == (n1, i)
+                garbage_cleanup(self._comm)
             cp_n = cp_action.n1
             if cp_n == n + 1:
                 assert len(storage) == 0
@@ -1480,6 +1482,7 @@ class EquationManager:
         """
 
         self.drop_references()
+        garbage_cleanup(self._comm)
 
         if self._annotation_state in [AnnotationState.STOPPED,
                                       AnnotationState.FINAL]:
@@ -1503,6 +1506,7 @@ class EquationManager:
         """
 
         self.drop_references()
+        garbage_cleanup(self._comm)
 
         if self._annotation_state == AnnotationState.FINAL:
             return
@@ -1761,6 +1765,8 @@ class EquationManager:
                     else:
                         # Finalize right-hand-sides in the control block
                         Bs[J_i][-1].finalize()
+
+            garbage_cleanup(self._comm)
 
         for B in Bs:
             assert B.is_empty()
