@@ -19,10 +19,10 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
-    LinearSolver, LinearVariationalProblem, LinearVariationalSolver, \
-    NonlinearVariationalSolver, Parameters, Projector, Tensor, TestFunction, \
-    TrialFunction, UnitIntervalMesh, Vector, adjoint, assemble, homogenize, \
-    info, parameters, project, solve
+    Interpolator, LinearSolver, LinearVariationalProblem, \
+    LinearVariationalSolver, NonlinearVariationalSolver, Parameters, \
+    Projector, Tensor, TestFunction, TrialFunction, UnitIntervalMesh, Vector, \
+    adjoint, assemble, homogenize, info, parameters, project, solve
 from firedrake.utils import complex_mode
 import firedrake
 
@@ -71,6 +71,7 @@ __all__ = \
         "backend_solve",
 
         "FunctionSpace",
+        "Interpolator",
         "Parameters",
         "Projector",
         "Tensor",
