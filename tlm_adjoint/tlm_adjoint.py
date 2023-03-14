@@ -37,6 +37,7 @@ from .manager import restore_manager, set_manager
 
 from collections import defaultdict, deque
 from collections.abc import Sequence
+import contextlib
 import copy
 import enum
 import functools
@@ -1067,6 +1068,14 @@ class EquationManager:
                    TangentLinearState.FINAL: TangentLinearState.FINAL}[self._tlm_state]  # noqa: E501
 
         return state
+
+    @contextlib.contextmanager
+    def paused(self, *, annotate=True, tlm=True):
+        annotate, tlm = self.stop(annotate=annotate, tlm=tlm)
+        try:
+            yield
+        finally:
+            self.start(annotate=annotate, tlm=tlm)
 
     def add_initial_condition(self, x, annotate=None):
         """
