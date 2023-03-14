@@ -735,16 +735,15 @@ directly to the \texttt{DirichletBC} constructor.
 
 \subsubsection{\texttt{Assembly}}\label{sect:Assembly}
 
-An \texttt{Assembly} represents the assembly of a rank zero form. The
-\texttt{Assembly} constructor has the form
+An \texttt{Assembly} represents the assembly of a rank zero or rank one form.
+The \texttt{Assembly} constructor has the form
 \begin{lstlisting}
 def __init__(self, x, rhs, *, form_compiler_parameters=None,
              match_quadrature=None):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
-  \item \texttt{rhs}, a \texttt{ufl.classes.Form}, defining a form of rank
-    zero.
+  \item \texttt{rhs}, a \texttt{ufl.classes.Form}, defining the form.
   \item \texttt{x}, a function, the solution to the equation.
   \item \texttt{form\_compiler\_parameters}, a dictionary of parameters passed
     to the form compiler.
@@ -755,8 +754,8 @@ with constructor arguments
     which by default is false.
 \end{itemize}
 
-The solution \texttt{x} must be a scalar, for example as returned by the
-\texttt{new\_scalar\_function} function
+For a rank zero form the solution \texttt{x} must be a scalar, for example as
+returned by the \texttt{new\_scalar\_function} function
 \begin{lstlisting}
 x = new_scalar_function(comm=comm)
 \end{lstlisting}
