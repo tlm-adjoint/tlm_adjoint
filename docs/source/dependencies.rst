@@ -38,6 +38,7 @@ Some features of tlm_adjoint require:
   - `h5py <https://www.h5py.org>`_
   - `SciPy <https://scipy.org>`_
   - `SLEPc <https://slepc.upv.es>`_
+  - `pyadjoint <https://pyadjoint.org/>`_
 
 While not required, if available some features of tlm_adjoint use:
 
