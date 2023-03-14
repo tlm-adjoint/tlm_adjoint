@@ -18,18 +18,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Parameters, Projector, backend_Constant, \
+from .backend import Interpolator, Parameters, Projector, backend_Constant, \
     backend_DirichletBC, backend_Function, backend_LinearSolver, \
     backend_LinearVariationalProblem, backend_LinearVariationalSolver, \
     backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
-    backend_project, backend_solve, extract_args, extract_linear_solver_args, \
-    parameters
+    backend_interpolate, backend_project, backend_solve, extract_args, \
+    extract_linear_solver_args, parameters
 from ..interface import check_space_type, function_new, function_space, \
-    function_update_state, space_id, space_new
+    function_update_state, is_function, space_id, space_new
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
-from ..manager import annotation_enabled, tlm_enabled
+from ..manager import annotation_enabled, start_manager, stop_manager, \
+    tlm_enabled
 
 from ..equations import Assignment
 from .equations import EquationSolver, ExprEvaluation, Projection, \
@@ -47,6 +48,7 @@ __all__ = \
         "LinearVariationalSolver",
         "NonlinearVariationalSolver",
         "assemble",
+        "interpolate",
         "project",
         "solve"
     ]
@@ -582,3 +584,74 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
         else:
             super().solve(bounds=bounds)
             function_update_state(self._problem.u)
+
+
+# Aim for compatibility with Firedrake API, git master revision
+# b195b5c9c05dd2eaa6e920f46af730a0d715e116, Feb 24 2023
+def _Interpolator_interpolate(self, *function, output=None, transpose=False,
+                              annotate=None, tlm=None, **kwargs):
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    if annotate or tlm:
+        if transpose:
+            raise NotImplementedError("transpose not supported")
+
+        args = ufl.algorithms.extract_arguments(self.expr)
+        if len(args) != len(function):
+            raise TypeError("Unexpected number of functions")
+        expr = ufl.replace(self.expr, dict(zip(args, function)))
+
+        if output is None:
+            if is_function(self.V):
+                output = self.V
+            else:
+                output = space_new(self.V)
+
+        eq = ExprEvaluation(output, expr)
+        eq._pre_process(annotate=annotate)
+        Interpolator._tlm_adjoint__orig_interpolate(
+            self, *function, output=output, transpose=transpose,
+            **kwargs)
+        eq._post_process(annotate=annotate, tlm=tlm)
+    else:
+        output = Interpolator._tlm_adjoint__orig_interpolate(
+            self, *function, output=output, transpose=transpose,
+            **kwargs)
+        function_update_state(output)
+    return output
+
+
+assert not hasattr(Interpolator, "_tlm_adjoint__orig_interpolate")
+Interpolator._tlm_adjoint__orig_interpolate = Interpolator.interpolate
+Interpolator.interpolate = _Interpolator_interpolate
+
+
+def _Function_interpolate(*args, annotate=None, tlm=None, **kwargs):
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    annotate, tlm = stop_manager(annotate=not annotate, tlm=not tlm)
+    try:
+        return backend_Function._tlm_adjoint__orig_interpolate(*args, **kwargs)
+    finally:
+        start_manager(annotate=annotate, tlm=tlm)
+
+
+assert not hasattr(backend_Function, "_tlm_adjoint__orig_interpolate")
+backend_Function._tlm_adjoint__orig_interpolate = backend_Function.interpolate
+backend_Function.interpolate = _Function_interpolate
+
+
+def interpolate(*args, annotate=None, tlm=None, **kwargs):
+    if annotate is None:
+        annotate = annotation_enabled()
+    if tlm is None:
+        tlm = tlm_enabled()
+    annotate, tlm = stop_manager(annotate=not annotate, tlm=not tlm)
+    try:
+        return backend_interpolate(*args, **kwargs)
+    finally:
+        start_manager(annotate=annotate, tlm=tlm)

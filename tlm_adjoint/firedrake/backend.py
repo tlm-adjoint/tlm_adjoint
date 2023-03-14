@@ -22,7 +22,8 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     Interpolator, LinearSolver, LinearVariationalProblem, \
     LinearVariationalSolver, NonlinearVariationalSolver, Parameters, \
     Projector, Tensor, TestFunction, TrialFunction, UnitIntervalMesh, Vector, \
-    adjoint, assemble, homogenize, info, parameters, project, solve
+    adjoint, assemble, homogenize, info, interpolate, parameters, project, \
+    solve
 from firedrake.utils import complex_mode
 import firedrake
 
@@ -44,6 +45,7 @@ backend_Matrix = firedrake.matrix.Matrix
 backend_NonlinearVariationalSolver = NonlinearVariationalSolver
 backend_Vector = Vector
 backend_assemble = assemble
+backend_interpolate = interpolate
 backend_project = project
 backend_solve = solve
 
@@ -67,6 +69,7 @@ __all__ = \
         "backend_NonlinearVariationalSolver",
         "backend_Vector",
         "backend_assemble",
+        "backend_interpolate",
         "backend_project",
         "backend_solve",
 
