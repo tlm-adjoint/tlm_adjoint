@@ -149,8 +149,10 @@ class Assembly(ExprEquation):
             if not function_is_scalar(x):
                 raise ValueError("Rank 0 forms can only be assigned to "
                                  "scalars")
+        elif rank == 1:
+            check_space_type(x, "conjugate_dual")
         else:
-            raise ValueError("Must be a rank 0 form")
+            raise ValueError("Must be a rank 0 or rank 1 form")
 
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
@@ -171,6 +173,7 @@ class Assembly(ExprEquation):
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
+        self._rank = rank
 
     def drop_references(self):
         replace_map = {dep: function_replacement(dep)
@@ -186,10 +189,16 @@ class Assembly(ExprEquation):
         else:
             rhs = self._replace(self._rhs, deps)
 
-        function_assign(
-            x,
-            assemble(rhs,
-                     form_compiler_parameters=self._form_compiler_parameters))
+        if self._rank == 0:
+            function_assign(
+                x,
+                assemble(rhs, form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
+        elif self._rank == 1:
+            assemble(
+                rhs, form_compiler_parameters=self._form_compiler_parameters,
+                tensor=function_vector(x))
+        else:
+            raise ValueError("Must be a rank 0 or rank 1 form")
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -211,12 +220,20 @@ class Assembly(ExprEquation):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
-        dF = ufl.classes.Form(
-            [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
-             for integral in dF.integrals()])  # dF = adjoint(dF)
-        dF = assemble(
-            dF, form_compiler_parameters=self._form_compiler_parameters)
-        return (-function_scalar_value(adj_x), dF)
+        if self._rank == 0:
+            dF = ufl.classes.Form(
+                [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
+                 for integral in dF.integrals()])  # dF = adjoint(dF)
+            dF = assemble(
+                dF, form_compiler_parameters=self._form_compiler_parameters)
+            return (-function_scalar_value(adj_x), dF)
+        elif self._rank == 1:
+            dF = ufl.action(adjoint(dF), coefficient=adj_x)
+            dF = assemble(
+                dF, form_compiler_parameters=self._form_compiler_parameters)
+            return (-1.0, dF)
+        else:
+            raise ValueError("Must be a rank 0 or rank 1 form")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
