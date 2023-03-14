@@ -30,6 +30,7 @@ __all__ = \
         "function_tlm",
         "manager",
         "manager_info",
+        "paused_manager",
         "new_block",
         "reset_manager",
         "restore_manager",
@@ -138,6 +139,12 @@ def stop_tlm(manager=None):
     if manager is None:
         manager = globals()["manager"]()
     return manager.stop(annotate=False, tlm=True)
+
+
+def paused_manager(*, annotate=True, tlm=True, manager=None):
+    if manager is None:
+        manager = globals()["manager"]()
+    return manager.paused(annotate=annotate, tlm=tlm)
 
 
 def configure_tlm(*args, annotate=None, tlm=True, manager=None):
