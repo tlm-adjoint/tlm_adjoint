@@ -53,5 +53,6 @@ tlm_adjoint optionally uses
     H-Revolve, for H-Revolve checkpointing schedules
     more-itertools
     Numba
+    SymPy
 
 License: GNU LGPL version 3
