@@ -188,6 +188,8 @@ class FunctionInterface(_FunctionInterface):
 
     @check_vector_size
     def _assign(self, y):
+        if isinstance(y, Float):
+            y = y.value()
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
                 raise ValueError("Invalid function space")
@@ -212,6 +214,8 @@ class FunctionInterface(_FunctionInterface):
     @check_vector_size
     def _axpy(self, alpha, x, /):
         alpha = backend_ScalarType(alpha)
+        if isinstance(x, Float):
+            x = x.value()
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
                 raise ValueError("Invalid function space")

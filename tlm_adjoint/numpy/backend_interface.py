@@ -147,6 +147,8 @@ class FunctionInterface(_FunctionInterface):
 
     def _assign(self, y):
         dtype = self.dtype()
+        if isinstance(y, Float):
+            y = y.value()
         if isinstance(y, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)) \
@@ -157,18 +159,14 @@ class FunctionInterface(_FunctionInterface):
                 self.vector()[:] = y.vector()
             else:
                 raise ValueError("Invalid dtype")
-        elif isinstance(y, Float):
-            y = y.value()
-            if np.can_cast(y, dtype):
-                self.vector()[:] = y
-            else:
-                raise ValueError("Invalid dtype")
         else:
             raise TypeError("Invalid type")
 
     def _axpy(self, alpha, x, /):
         dtype = self.dtype()
         alpha = dtype(alpha)
+        if isinstance(x, Float):
+            x = x.value()
         if isinstance(x, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)) \
@@ -177,12 +175,6 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(x, Function):
             if np.can_cast(x.dtype(), dtype):
                 self.vector()[:] += alpha * x.vector()
-            else:
-                raise ValueError("Invalid dtype")
-        elif isinstance(x, Float):
-            x = x.value()
-            if np.can_cast(x, dtype):
-                self.vector()[:] += alpha * x
             else:
                 raise ValueError("Invalid dtype")
         else:

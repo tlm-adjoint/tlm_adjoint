@@ -166,6 +166,8 @@ class FunctionInterface(_FunctionInterface):
             x_v.zeroEntries()
 
     def _assign(self, y):
+        if isinstance(y, Float):
+            y = y.value()
         if isinstance(y, backend_Function):
             with self.dat.vec as x_v, y.dat.vec_ro as y_v:
                 if x_v.getLocalSize() != y_v.getLocalSize():
@@ -203,6 +205,8 @@ class FunctionInterface(_FunctionInterface):
     def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
+        if isinstance(x, Float):
+            x = x.value()
         if isinstance(x, backend_Function):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 if y_v.getLocalSize() != x_v.getLocalSize():
