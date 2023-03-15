@@ -21,9 +21,6 @@
 from .backend import FunctionSpace, UnitIntervalMesh, backend, \
     backend_Constant, backend_Function, backend_FunctionSpace, \
     backend_ScalarType, info
-from ..functional import Functional as _Functional
-from ..hessian import GeneralGaussNewton as _GaussNewton
-from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
@@ -33,6 +30,10 @@ from ..interface import DEFAULT_COMM, SpaceInterface, \
     space_id, space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
+
+from ..hessian import GeneralGaussNewton as _GaussNewton
+from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
+from ..overloaded_float import Float
 
 from .caches import form_neg
 from .equations import Assembly, EquationSolver
@@ -49,7 +50,6 @@ import warnings
 __all__ = \
     [
         "CachedGaussNewton",
-        "Functional",
         "GaussNewton",
         "new_scalar_function",
 
@@ -185,9 +185,10 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(y, Zero):
             with self.dat.vec_wo as x_v:
                 x_v.zeroEntries()
-        else:
-            assert isinstance(y, backend_Constant)
+        elif isinstance(y, backend_Constant):
             self.assign(y, annotate=False, tlm=False)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
 
         e = self.ufl_element()
         if e.family() == "Real" and e.degree() == 0:
@@ -214,9 +215,10 @@ class FunctionInterface(_FunctionInterface):
                         annotate=False, tlm=False)
         elif isinstance(x, Zero):
             pass
-        else:
-            assert isinstance(x, backend_Constant)
+        elif isinstance(x, backend_Constant):
             self.assign(self + alpha * x, annotate=False, tlm=False)
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
 
         e = self.ufl_element()
         if e.family() == "Real" and e.degree() == 0:
@@ -236,12 +238,13 @@ class FunctionInterface(_FunctionInterface):
                 inner = x_v.dot(y_v)
         elif isinstance(y, Zero):
             inner = 0.0
-        else:
-            assert isinstance(y, backend_Constant)
+        elif isinstance(y, backend_Constant):
             y_ = backend_Function(self.function_space())
             y_.assign(y, annotate=False, tlm=False)
             with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
         return inner
 
     def _max_value(self):
@@ -373,14 +376,6 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                     checkpoint=checkpoint)
 
 
-class Functional(_Functional):
-    def __init__(self, *, space=None, name=None, _fn=None):
-        if space is None and _fn is None:
-            space = function_space(new_scalar_function())
-
-        super().__init__(space=space, name=name, _fn=_fn)
-
-
 class GaussNewton(_GaussNewton):
     def __init__(self, forward, R_inv_action, B_inv_action=None,
                  *, J_space=None, manager=None):
@@ -450,7 +445,7 @@ add_finalize_adjoint_derivative_action(backend,
 def _functional_term_eq(x, term):
     if isinstance(term, ufl.classes.Form) \
             and len(term.arguments()) == 0 \
-            and isinstance(x, (backend_Constant, backend_Function)):
+            and isinstance(x, (Float, backend_Constant, backend_Function)):
         return Assembly(x, term)
     else:
         return NotImplemented
