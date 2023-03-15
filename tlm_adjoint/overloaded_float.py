@@ -27,6 +27,7 @@ from .interface import DEFAULT_COMM, FunctionInterface, SpaceInterface, \
 
 from .caches import Caches
 from .equations import Assignment, Equation, ZeroAssignment, get_tangent_linear
+from .manager import annotation_enabled, tlm_enabled
 
 from collections.abc import Sequence
 import contextlib
@@ -51,16 +52,6 @@ __all__ = \
         "no_Float_overloading",
         "paused_Float_overloading"
     ]
-
-
-def expr_dependencies(expr):
-    deps = []
-    for dep in expr.free_symbols:
-        if isinstance(dep, Float):
-            deps.append(dep)
-        elif is_function(dep):
-            raise ValueError("Invalid dependency")
-    return sorted(deps, key=lambda dep: function_id(dep))
 
 
 _name_counter = 0
@@ -267,6 +258,16 @@ class FloatInterface(FunctionInterface):
         return self.value()
 
 
+def expr_dependencies(expr):
+    deps = []
+    for dep in expr.free_symbols:
+        if isinstance(dep, Float):
+            deps.append(dep)
+        elif is_function(dep):
+            raise ValueError("Invalid dependency")
+    return sorted(deps, key=lambda dep: function_id(dep))
+
+
 # Float class name already used by SymPy
 class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
     def __init__(self, value=0.0, *, name=None, space_type="primal",
@@ -306,12 +307,16 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
                 manager=None, annotate=None, tlm=None):
         return super().__new__(cls, new_symbol_name())
 
-    def new(self, value=0.0, *, name=None, space_type="primal",
+    def new(self, value=0.0, *, name=None, space_type=None,
             static=False, cache=None, checkpoint=None,
             dtype=None, comm=None,
             manager=None, annotate=None, tlm=None):
         if space_type is None:
             space_type = function_space_type(self)
+        if dtype is None:
+            dtype = function_dtype(self)
+        if comm is None:
+            comm = function_comm(self)
         return Float(value=value, name=name, space_type=space_type,
                      static=static, cache=cache, checkpoint=checkpoint,
                      dtype=function_dtype(self), comm=function_comm(self),
@@ -324,16 +329,27 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
         return complex(self.value())
 
     def assign(self, y, *, manager=None, annotate=None, tlm=None):
-        if isinstance(y, (int, np.integer, sp.Integer,
-                          float, np.floating, sp.Float,
-                          complex, np.complexfloating)):
-            Assignment(self, self.new(y)).solve(
-                manager=manager, annotate=annotate, tlm=tlm)
-        elif isinstance(y, sp.Expr):
-            FloatEquation(self, y).solve(
-                manager=manager, annotate=annotate, tlm=tlm)
+        if annotate is None:
+            annotate = annotation_enabled(manager=manager)
+        if tlm is None:
+            tlm = tlm_enabled(manager=manager)
+        if annotate or tlm:
+            if isinstance(y, (int, np.integer, sp.Integer,
+                              float, np.floating, sp.Float,
+                              complex, np.complexfloating)):
+                Assignment(self, self.new(y)).solve(
+                    manager=manager, annotate=annotate, tlm=tlm)
+            elif isinstance(y, sp.Expr):
+                FloatEquation(self, y).solve(
+                    manager=manager, annotate=annotate, tlm=tlm)
+            else:
+                raise TypeError(f"Unexpected type: {type(y)}")
         else:
-            raise TypeError(f"Unexpected type: {type(y)}")
+            with paused_Float_overloading():
+                deps = expr_dependencies(y)
+                self.assign(
+                    lambdify(y, deps)(*deps),
+                    manager=manager, annotate=annotate, tlm=tlm)
 
     @no_Float_overloading
     def addto(self, y, *, manager=None, annotate=None, tlm=None):
