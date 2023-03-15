@@ -547,7 +547,7 @@ def test_LocalProjection(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
-def test_Assembly(setup_test, test_leaks):
+def test_Assembly_rank_0(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -555,7 +555,7 @@ def test_Assembly(setup_test, test_leaks):
     def forward(F):
         x = Constant(name="x")
 
-        Assembly(x, (dot(F, F) ** 2) * dx).solve()
+        Assembly(x, (F ** 4) * dx).solve()
 
         J = Functional(name="J")
         J.assign(x)
@@ -569,7 +569,53 @@ def test_Assembly(setup_test, test_leaks):
     stop_manager()
 
     J_val = J.value()
-    assert abs(J_val - assemble((dot(F, F) ** 2) * dx)) == 0.0
+    assert abs(J_val - assemble((F ** 4) * dx)) == 0.0
+
+    dJ = compute_gradient(J, F)
+
+    min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, F, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
+    assert min_order > 2.00
+
+
+@pytest.mark.firedrake
+@pytest.mark.skipif(complex_mode, reason="real only")
+@seed_test
+def test_Assembly_rank_1(setup_test, test_leaks):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+
+    def forward(F):
+        x = Function(space, name="x", space_type="conjugate_dual")
+        Assembly(x, inner(ufl.conj(F ** 3), test) * dx).solve()
+
+        J = Functional(name="J")
+        InnerProduct(J.function(), F, x).solve()
+        return J
+
+    F = Function(space, name="F", static=True)
+    interpolate_expression(F, X[0] * sin(pi * X[1]))
+
+    start_manager()
+    J = forward(F)
+    stop_manager()
+
+    J_val = J.value()
+    assert abs(J_val - assemble((F ** 4) * dx)) < 1.0e-16
 
     dJ = compute_gradient(J, F)
 

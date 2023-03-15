@@ -32,7 +32,7 @@ from .backend_code_generator_interface import copy_parameters_dict, \
 from ..manager import annotation_enabled, paused_manager, tlm_enabled
 
 from ..equations import Assignment
-from .equations import EquationSolver, ExprEvaluation, Projection, \
+from .equations import Assembly, EquationSolver, ExprEvaluation, Projection, \
     linear_equation_new_x
 from .firedrake_equations import LocalProjection
 
@@ -117,7 +117,7 @@ def extract_args_assemble_form(form, tensor=None, bcs=None, *,
 
 # Aim for compatibility with Firedrake API, git master revision
 # bc79502544ca78c06d60532c2d674b7808aef0af, Mar 30 2022
-def assemble(expr, *args, **kwargs):
+def assemble(expr, *args, annotate=None, tlm=None, **kwargs):
     if not isinstance(expr, ufl.classes.Form):
         return backend_assemble(expr, *args, **kwargs)
 
@@ -146,6 +146,16 @@ def assemble(expr, *args, **kwargs):
         form_compiler_parameters = form_compiler_parameters_
 
         if rank == 1:
+            if annotate is None:
+                annotate = annotation_enabled()
+            if tlm is None:
+                tlm = tlm_enabled()
+            if annotate or tlm:
+                eq = Assembly(
+                    b, form,
+                    form_compiler_parameters=form_compiler_parameters)
+                eq._post_process(annotate=annotate, tlm=tlm)
+
             b._tlm_adjoint__form = form
         b._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
