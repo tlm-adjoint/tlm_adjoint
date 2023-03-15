@@ -184,9 +184,6 @@ class FunctionInterface(_FunctionInterface):
         assert isinstance(y, Function)
         return y.vector().conjugate().dot(self.vector())
 
-    def _max_value(self):
-        return self.vector().max()
-
     def _sum(self):
         return self.vector().sum()
 

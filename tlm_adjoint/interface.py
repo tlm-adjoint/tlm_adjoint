@@ -45,8 +45,6 @@ import weakref
 
 __all__ = \
     [
-        "InterfaceException",
-
         "DEFAULT_COMM",
         "comm_dup",
         "comm_dup_cached",
@@ -122,19 +120,8 @@ __all__ = \
         "finalize_adjoint_derivative_action",
 
         "functional_term_eq",
-        "time_system_eq",
-
-        "function_max_value",
-        "is_real_function",
-        "real_function_value"
+        "time_system_eq"
     ]
-
-
-class InterfaceException(Exception):  # noqa: N818
-    def __init__(self, *args, **kwargs):
-        warnings.warn("InterfaceException is deprecated",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(*args, **kwargs)
 
 
 if MPI is None:
@@ -484,10 +471,10 @@ class FunctionInterface:
     names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
              "_state", "_update_state", "_is_static", "_is_cached",
              "_is_checkpointed", "_caches", "_zero", "_assign", "_axpy",
-             "_inner", "_max_value", "_sum", "_linf_norm", "_local_size",
-             "_global_size", "_local_indices", "_get_values", "_set_values",
-             "_new", "_copy", "_replacement", "_is_replacement", "_is_scalar",
-             "_scalar_value", "_is_alias")
+             "_inner", "_sum", "_linf_norm", "_local_size", "_global_size",
+             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
+             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value",
+             "_is_alias")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate FunctionInterface object")
@@ -538,9 +525,6 @@ class FunctionInterface:
         raise NotImplementedError("Method not overridden")
 
     def _inner(self, y):
-        raise NotImplementedError("Method not overridden")
-
-    def _max_value(self):
         raise NotImplementedError("Method not overridden")
 
     def _sum(self):
@@ -696,12 +680,6 @@ def function_inner(x, y):
     return x._tlm_adjoint__function_interface_inner(y)
 
 
-def function_max_value(x):
-    warnings.warn("function_max_value is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    return x._tlm_adjoint__function_interface_max_value()
-
-
 def function_sum(x):
     return x._tlm_adjoint__function_interface_sum()
 
@@ -781,20 +759,6 @@ def function_replacement(x):
 
 def function_is_replacement(x):
     return x._tlm_adjoint__function_interface_is_replacement()
-
-
-def is_real_function(x):
-    warnings.warn("is_real_function is deprecated -- "
-                  "use function_is_scalar instead",
-                  DeprecationWarning, stacklevel=2)
-    return function_is_scalar(x)
-
-
-def real_function_value(x):
-    warnings.warn("real_function_value is deprecated -- "
-                  "use function_scalar_value instead",
-                  DeprecationWarning, stacklevel=2)
-    return function_scalar_value(x)
 
 
 def function_is_scalar(x):

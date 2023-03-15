@@ -257,10 +257,6 @@ class FunctionInterface(_FunctionInterface):
         return inner
 
     @check_vector_size
-    def _max_value(self):
-        return self.vector().max()
-
-    @check_vector_size
     def _sum(self):
         return self.vector().sum()
 

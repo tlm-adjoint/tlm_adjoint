@@ -180,9 +180,6 @@ class ConstantInterface(_FunctionInterface):
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
-    def _max_value(self):
-        return self.values().max()
-
     def _sum(self):
         return self.values().sum()
 

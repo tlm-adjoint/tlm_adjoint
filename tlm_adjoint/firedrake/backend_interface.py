@@ -251,11 +251,6 @@ class FunctionInterface(_FunctionInterface):
             raise TypeError(f"Unexpected type: {type(y)}")
         return inner
 
-    def _max_value(self):
-        with self.dat.vec_ro as x_v:
-            max = x_v.max()[1]
-        return max
-
     def _sum(self):
         with self.dat.vec_ro as x_v:
             sum = x_v.sum()
