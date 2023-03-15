@@ -25,6 +25,7 @@ from .test_base import *
 
 import mpi4py.MPI as MPI
 import pytest
+import ufl
 
 pytestmark = pytest.mark.skipif(
     MPI.COMM_WORLD.size not in [1, 4],
@@ -337,7 +338,7 @@ def test_Assemble_rank_1(setup_test, test_leaks):
     test = TestFunction(space)
 
     def forward(F):
-        x = assemble(inner(F ** 3, test) * dx)
+        x = assemble(inner(ufl.conj(F ** 3), test) * dx)
 
         J = Functional(name="J")
         InnerProduct(J.function(), F, x).solve()

@@ -607,7 +607,7 @@ def test_Assembly_rank_1(setup_test, test_leaks):
 
     def forward(F):
         x = Function(space, name="x", space_type="conjugate_dual")
-        Assembly(x, inner(F ** 3, test) * dx).solve()
+        Assembly(x, inner(ufl.conj(F ** 3), test) * dx).solve()
 
         J = Functional(name="J")
         InnerProduct(J.function(), F, x).solve()
