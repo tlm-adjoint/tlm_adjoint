@@ -20,6 +20,7 @@
 
 from collections.abc import Mapping
 from collections import deque
+import contextlib
 import copy
 import functools
 import logging
@@ -72,6 +73,7 @@ __all__ = \
         "conjugate_space_type",
         "dual_space_type",
         "no_space_type_checking",
+        "paused_space_type_checking",
         "relative_space_type",
         "space_type_warning",
 
@@ -420,23 +422,29 @@ def conjugate_dual_space_type(space_type):
             "dual": "conjugate", "conjugate_dual": "primal"}[space_type]
 
 
-_check_space_types = [True]
+_check_space_types = 0
 
 
 def no_space_type_checking(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        check_space_types = _check_space_types[0]
-        _check_space_types[0] = False
-        try:
+        with paused_space_type_checking():
             return fn(*args, **kwargs)
-        finally:
-            _check_space_types[0] = check_space_types
     return wrapped_fn
 
 
+@contextlib.contextmanager
+def paused_space_type_checking():
+    global _check_space_types
+    _check_space_types += 1
+    try:
+        yield
+    finally:
+        _check_space_types -= 1
+
+
 def space_type_warning(msg, *, stacklevel=1):
-    if _check_space_types[0]:
+    if _check_space_types == 0:
         warnings.warn(msg, stacklevel=stacklevel + 1)
 
 
