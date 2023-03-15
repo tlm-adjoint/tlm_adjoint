@@ -34,6 +34,7 @@ from .backend_code_generator_interface import assemble, \
 from ..caches import CacheRef
 from ..equations import Assignment, Equation, ZeroAssignment, \
     get_tangent_linear
+from ..overloaded_float import Float
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
@@ -119,7 +120,9 @@ class ExprEquation(Equation):
     def _replace_map(self, deps):
         eq_deps = self.dependencies()
         assert len(eq_deps) == len(deps)
-        return dict(zip(eq_deps, deps))
+        return {eq_dep: dep
+                for eq_dep, dep in zip(eq_deps, deps)
+                if not isinstance(eq_dep, Float)}
 
     def _replace(self, expr, deps):
         return ufl.replace(expr, self._replace_map(deps))
@@ -127,7 +130,9 @@ class ExprEquation(Equation):
     def _nonlinear_replace_map(self, nl_deps):
         eq_nl_deps = self.nonlinear_dependencies()
         assert len(eq_nl_deps) == len(nl_deps)
-        return dict(zip(eq_nl_deps, nl_deps))
+        return {eq_nl_dep: nl_dep
+                for eq_nl_dep, nl_dep in zip(eq_nl_deps, nl_deps)
+                if not isinstance(eq_nl_dep, Float)}
 
     def _nonlinear_replace(self, expr, nl_deps):
         return ufl.replace(expr, self._nonlinear_replace_map(nl_deps))
@@ -177,7 +182,8 @@ class Assembly(ExprEquation):
 
     def drop_references(self):
         replace_map = {dep: function_replacement(dep)
-                       for dep in self.dependencies()}
+                       for dep in self.dependencies()
+                       if not isinstance(dep, Float)}
 
         super().drop_references()
 

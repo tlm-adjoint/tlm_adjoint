@@ -840,13 +840,19 @@ class AssignmentSolver(Assignment):
 
 class LinearCombination(Equation):
     def __init__(self, x, *args):
-        alpha = tuple(function_dtype(x)(arg[0]) for arg in args)
-        Y = [arg[1] for arg in args]
-        for y in Y:
+        alpha = []
+        Y = []
+        for a, y in args:
+            a = function_dtype(x)(a)
+            if a.imag == 0.0:
+                a = a.real
             check_space_types(x, y)
 
+            alpha.append(a)
+            Y.append(y)
+
         super().__init__(x, [x] + Y, nl_deps=[], ic=False, adj_ic=False)
-        self._alpha = alpha
+        self._alpha = tuple(alpha)
 
     def forward_solve(self, x, deps=None):
         deps = self.dependencies() if deps is None else tuple(deps)
