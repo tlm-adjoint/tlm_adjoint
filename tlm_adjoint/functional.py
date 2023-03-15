@@ -23,8 +23,8 @@ from .interface import check_space_type, function_is_scalar, function_name, \
     is_function, space_id, space_new
 
 from .equations import Assignment, Axpy
-from .float import FloatSpace
 from .manager import manager as _manager
+from .overloaded_float import FloatSpace
 
 import warnings
 
