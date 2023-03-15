@@ -18,14 +18,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from ..caches import Caches
-from ..functional import Functional as _Functional
-from ..hessian import GeneralGaussNewton as _GaussNewton
-from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
     comm_dup_cached, function_space, new_function_id, new_space_id, space_id, \
     space_new
 from ..interface import FunctionInterface as _FunctionInterface
+
+from ..caches import Caches
+from ..hessian import GeneralGaussNewton as _GaussNewton
+from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
+from ..overloaded_float import Float
 
 import copy
 import numpy as np
@@ -37,7 +38,6 @@ __all__ = \
         "set_default_dtype",
 
         "CachedGaussNewton",
-        "Functional",
         "GaussNewton",
         "new_scalar_function",
 
@@ -54,15 +54,18 @@ __all__ = \
     ]
 
 
-_default_dtype = [np.float64]
+_default_dtype = np.float64
 
 
 def default_dtype():
-    return _default_dtype[0]
+    return _default_dtype
 
 
 def set_default_dtype(dtype):
-    _default_dtype[0] = dtype
+    global _default_dtype
+    if not issubclass(dtype, (np.floating, np.complexfloating)):
+        raise ValueError("Invalid dtype")
+    _default_dtype = dtype
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -154,6 +157,12 @@ class FunctionInterface(_FunctionInterface):
                 self.vector()[:] = y.vector()
             else:
                 raise ValueError("Invalid dtype")
+        elif isinstance(y, Float):
+            y = y.value()
+            if np.can_cast(y, dtype):
+                self.vector()[:] = y
+            else:
+                raise ValueError("Invalid dtype")
         else:
             raise TypeError("Invalid type")
 
@@ -168,6 +177,12 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(x, Function):
             if np.can_cast(x.dtype(), dtype):
                 self.vector()[:] += alpha * x.vector()
+            else:
+                raise ValueError("Invalid dtype")
+        elif isinstance(x, Float):
+            x = x.value()
+            if np.can_cast(x, dtype):
+                self.vector()[:] += alpha * x
             else:
                 raise ValueError("Invalid dtype")
         else:
@@ -374,14 +389,6 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
-
-
-class Functional(_Functional):
-    def __init__(self, *, space=None, name=None, _fn=None):
-        if space is None and _fn is None:
-            space = function_space(new_scalar_function())
-
-        super().__init__(space=space, name=name, _fn=_fn)
 
 
 class GaussNewton(_GaussNewton):

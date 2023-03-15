@@ -42,11 +42,14 @@ except ImportError:
 
 __all__ = \
     [
+        "default_Float_dtype",
+        "set_default_Float_dtype",
+
         "Float",
         "FloatEquation",
+
         "no_Float_overloading",
-        "paused_Float_overloading",
-        "set_default_Float_dtype"
+        "paused_Float_overloading"
     ]
 
 
@@ -60,23 +63,29 @@ def expr_dependencies(expr):
     return sorted(deps, key=lambda dep: function_id(dep))
 
 
-_name_counter = [0]
+_name_counter = 0
 
 
 def new_symbol_name():
-    count = _name_counter[0]
-    _name_counter[0] += 1
+    global _name_counter
+    count = _name_counter
+    _name_counter += 1
     return f"_tlm_adjoint_symbol__{count:d}"
 
 
-_default_dtype = [np.complex128]
+_default_Float_dtype = np.complex128
+
+
+def default_Float_dtype():
+    return _default_Float_dtype
 
 
 def set_default_Float_dtype(dtype):
+    global _default_Float_dtype
     if not issubclass(dtype, (float, np.floating,
                               complex, np.complexfloating)):
         raise TypeError("Invalid dtype")
-    _default_dtype[0] = dtype
+    _default_Float_dtype = dtype
 
 
 class FloatSpaceInterface(SpaceInterface):
@@ -100,7 +109,7 @@ class FloatSpaceInterface(SpaceInterface):
 class FloatSpace:
     def __init__(self, *, dtype=None, comm=None):
         if dtype is None:
-            dtype = _default_dtype[0]
+            dtype = default_Float_dtype()
         if comm is None:
             comm = DEFAULT_COMM
 
