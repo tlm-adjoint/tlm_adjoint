@@ -23,6 +23,7 @@ from .interface import check_space_type, function_is_scalar, function_name, \
     is_function, space_id, space_new
 
 from .equations import Assignment, Axpy
+from .float import FloatSpace
 from .manager import manager as _manager
 
 import warnings
@@ -48,7 +49,7 @@ class Functional:
 
         if _fn is None:
             if space is None:
-                raise TypeError("Function space not defined")
+                space = FloatSpace()
             fn = space_new(space, name=name)
         else:
             fn = _fn

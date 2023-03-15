@@ -21,6 +21,7 @@
 from .caches import *                # noqa: F401
 from .eigendecomposition import *    # noqa: F401
 from .equations import *             # noqa: F401
+from .float import *                 # noqa: F401
 from .functional import *            # noqa: F401
 from .hessian import *               # noqa: F401
 from .hessian import GeneralHessian as Hessian  # noqa: F401
