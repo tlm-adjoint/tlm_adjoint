@@ -254,6 +254,7 @@ class FloatInterface(FunctionInterface):
         return self.value()
 
 
+@no_Float_overloading
 def expr_dependencies(expr):
     deps = []
     for dep in expr.free_symbols:
@@ -357,77 +358,88 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
         return self._value
 
     def __neg__(self):
-        result = super().__neg__()
+        with paused_Float_overloading():
+            result = super().__neg__()
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __add__(self, other):
-        result = super().__add__(other)
+        with paused_Float_overloading():
+            result = super().__add__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __radd__(self, other):
-        result = super().__radd__(other)
+        with paused_Float_overloading():
+            result = super().__radd__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __sub__(self, other):
-        result = super().__sub__(other)
+        with paused_Float_overloading():
+            result = super().__sub__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __rsub__(self, other):
-        result = super().__rsub__(other)
+        with paused_Float_overloading():
+            result = super().__rsub__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __mul__(self, other):
-        result = super().__mul__(other)
+        with paused_Float_overloading():
+            result = super().__mul__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __rmul__(self, other):
-        result = super().__rmul__(other)
+        with paused_Float_overloading():
+            result = super().__rmul__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __truediv__(self, other):
-        result = super().__truediv__(other)
+        with paused_Float_overloading():
+            result = super().__truediv__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __rtruediv__(self, other):
-        result = super().__rtruediv__(other)
+        with paused_Float_overloading():
+            result = super().__rtruediv__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __pow__(self, other):
-        result = super().__pow__(other)
+        with paused_Float_overloading():
+            result = super().__pow__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
     def __rpow__(self, other):
-        result = super().__rpow__(other)
+        with paused_Float_overloading():
+            result = super().__rpow__(other)
         if _overload == 0:
             return self.new(result)
         else:
@@ -514,6 +526,7 @@ global_vars = _F.__globals__
 del _x, _F
 
 
+@no_Float_overloading
 def lambdify(expr, deps):
     printer = NumPyPrinter(
         settings={"fully_qualified_modules": False})
