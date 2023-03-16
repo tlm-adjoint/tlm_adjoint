@@ -29,6 +29,7 @@ from .functional import Functional
 from .manager import manager as _manager, restore_manager, set_manager
 
 from collections.abc import Sequence
+import functools
 
 __all__ = \
     [
@@ -82,8 +83,15 @@ class GeneralHessian(Hessian):
         if manager is None:
             manager = _manager().new()
 
+        @functools.wraps(forward)
+        def wrapped_forward(*M):
+            J = forward(*M)
+            if is_function(J):
+                J = Functional(_fn=J)
+            return J
+
         super().__init__()
-        self._forward = forward
+        self._forward = wrapped_forward
         self._manager = manager
 
     @local_caches
