@@ -222,14 +222,10 @@ class FloatInterface(FunctionInterface):
     def _get_values(self):
         comm = function_comm(self)
         value = self.value()
-        if np.can_cast(value, np.float64):
-            return np.array([value] if comm.rank == 0 else [],
-                            dtype=np.float64)
-        elif np.can_cast(value, np.complex128):
-            return np.array([value] if comm.rank == 0 else [],
-                            dtype=np.complex128)
-        else:
-            raise ValueError("Invalid dtype")
+        values = np.array([value] if comm.rank == 0 else [],
+                          dtype=type(value))
+        values.setflags(write=False)
+        return values
 
     def _set_values(self, values):
         comm = function_comm(self)
