@@ -852,10 +852,7 @@ eq = PointInterpolation(X, y, X_coords=X_coords)
 where \texttt{X} is a sequence of scalars being solved for (for example each as
 returned by the \texttt{new\_scalar\_function} function -- see section
 \ref{sect:Assembly}) and \texttt{X\_coords} is a NumPy array defining the
-coordinates at which to interpolate the \texttt{Function} \texttt{y}. An
-optional \texttt{tolerance} argument may be supplied, and this is passed to the
-Firedrake \texttt{MeshGeometry.locate\_cell} method when locating the cells, in
-the mesh for \texttt{y}, containing the coordinates \texttt{X\_coords}.
+coordinates at which to interpolate the \texttt{Function} \texttt{y}.
 
 \subsubsection{\texttt{LocalProjection}}
 

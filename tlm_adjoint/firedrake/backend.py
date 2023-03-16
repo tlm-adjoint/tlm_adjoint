@@ -22,8 +22,8 @@ from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
     Interpolator, LinearSolver, LinearVariationalProblem, \
     LinearVariationalSolver, NonlinearVariationalSolver, Parameters, \
     Projector, Tensor, TestFunction, TrialFunction, UnitIntervalMesh, Vector, \
-    adjoint, assemble, homogenize, info, interpolate, parameters, project, \
-    solve
+    VertexOnlyMesh, adjoint, assemble, homogenize, info, interpolate, \
+    parameters, project, solve
 from firedrake.utils import complex_mode
 import firedrake
 
@@ -81,6 +81,7 @@ __all__ = \
         "TestFunction",
         "TrialFunction",
         "UnitIntervalMesh",
+        "VertexOnlyMesh",
         "adjoint",
         "complex_mode",
         "homogenize",

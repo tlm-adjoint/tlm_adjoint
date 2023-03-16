@@ -394,14 +394,20 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
         return X_vals, J
 
     z = Function(z_space, name="z", static=True)
-    interpolate_expression(z, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
+    if complex_mode:
+        interpolate_expression(z, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5 + 1.0j * pow(X[0], 2))
+    else:
+        interpolate_expression(z, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
 
     start_manager()
     X_vals, J = forward(z)
     stop_manager()
 
     def x_ref(x):
-        return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
+        if complex_mode:
+            return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5 + 1.0j * x[0] ** 2
+        else:
+            return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
 
     x_error_norm = 0.0
     assert len(X_vals) == len(X_coords)

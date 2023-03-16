@@ -307,15 +307,11 @@ def test_PointInterpolation(setup_test, test_leaks,
                          [0.9, 0.8, 0.7],
                          [0.4, 0.2, 0.3]], dtype=np.float64)
 
-    # Test optimization: Use to cache the interpolation matrix
-    P = [None]
-
     def forward(y):
         X_vals = [new_scalar_function(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
-        eq = PointInterpolation(X_vals, y, X_coords, P=P[0])
+        eq = PointInterpolation(X_vals, y, X_coords)
         eq.solve()
-        P[0] = eq._P
 
         J = Functional(name="J")
         for x in X_vals:
@@ -325,14 +321,20 @@ def test_PointInterpolation(setup_test, test_leaks,
         return X_vals, J
 
     y = Function(y_space, name="y", static=True)
-    interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
+    if complex_mode:
+        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5 + 1.0j * pow(X[0], 2))
+    else:
+        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
 
     start_manager()
     X_vals, J = forward(y)
     stop_manager()
 
     def x_ref(x):
-        return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
+        if complex_mode:
+            return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5 + 1.0j * x[0] ** 2
+        else:
+            return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
 
     x_error_norm = 0.0
     assert len(X_vals) == len(X_coords)
