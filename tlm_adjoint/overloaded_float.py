@@ -342,11 +342,16 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         else:
-            with paused_Float_overloading():
-                deps = expr_dependencies(y)
-                self.assign(
-                    lambdify(y, deps)(*deps),
-                    manager=manager, annotate=annotate, tlm=tlm)
+            if isinstance(y, (int, np.integer, sp.Integer,
+                              float, np.floating, sp.Float,
+                              complex, np.complexfloating)):
+                function_assign(self, y)
+            else:
+                with paused_Float_overloading():
+                    deps = expr_dependencies(y)
+                    self.assign(
+                        lambdify(y, deps)(*(dep.value() for dep in deps)),
+                        manager=manager, annotate=annotate, tlm=tlm)
 
     @no_Float_overloading
     def addto(self, y, *, manager=None, annotate=None, tlm=None):
