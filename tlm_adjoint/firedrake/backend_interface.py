@@ -33,7 +33,7 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space
 
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..overloaded_float import Float
+from ..overloaded_float import SymbolicFloat
 
 from .caches import form_neg
 from .equations import Assembly, EquationSolver
@@ -166,7 +166,7 @@ class FunctionInterface(_FunctionInterface):
             x_v.zeroEntries()
 
     def _assign(self, y):
-        if isinstance(y, Float):
+        if isinstance(y, SymbolicFloat):
             y = y.value()
         if isinstance(y, backend_Function):
             with self.dat.vec as x_v, y.dat.vec_ro as y_v:
@@ -205,7 +205,7 @@ class FunctionInterface(_FunctionInterface):
     def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
-        if isinstance(x, Float):
+        if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, backend_Function):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
@@ -445,7 +445,7 @@ add_finalize_adjoint_derivative_action(backend,
 def _functional_term_eq(x, term):
     if isinstance(term, ufl.classes.Form) \
             and len(term.arguments()) == 0 \
-            and isinstance(x, (Float, backend_Constant, backend_Function)):
+            and isinstance(x, (SymbolicFloat, backend_Constant, backend_Function)):  # noqa: E501
         return Assembly(x, term)
     else:
         return NotImplemented

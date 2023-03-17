@@ -28,7 +28,7 @@ from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
-from ..overloaded_float import Float
+from ..overloaded_float import SymbolicFloat
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -132,7 +132,7 @@ class ConstantInterface(_FunctionInterface):
         self.assign(value, annotate=False, tlm=False)
 
     def _assign(self, y):
-        if isinstance(y, Float):
+        if isinstance(y, SymbolicFloat):
             y = y.value()
         if isinstance(y, (int, np.integer,
                           float, np.floating,
@@ -152,7 +152,7 @@ class ConstantInterface(_FunctionInterface):
     def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
-        if isinstance(x, Float):
+        if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, (int, np.integer,
                           float, np.floating,

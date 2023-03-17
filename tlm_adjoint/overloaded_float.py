@@ -22,7 +22,7 @@ from .interface import DEFAULT_COMM, FunctionInterface, SpaceInterface, \
     add_interface, add_subtract_adjoint_derivative_action, check_space_type, \
     comm_dup_cached, function_assign, function_axpy, function_comm, \
     function_dtype, function_id, function_is_scalar, function_name, \
-    function_new_conjugate_dual, function_scalar_value, function_space_type, \
+    function_new, function_new_conjugate_dual, function_scalar_value, \
     is_function, new_function_id, new_space_id, space_comm, space_dtype
 
 from .caches import Caches
@@ -43,14 +43,14 @@ except ImportError:
 
 __all__ = \
     [
-        "default_Float_dtype",
-        "set_default_Float_dtype",
+        "OverloadedFloat",
+        "SymbolicFloat",
 
         "Float",
         "FloatEquation",
 
-        "no_Float_overloading",
-        "paused_Float_overloading"
+        "no_float_overloading",
+        "paused_float_overloading"
     ]
 
 
@@ -64,19 +64,7 @@ def new_symbol_name():
     return f"_tlm_adjoint_symbol__{count:d}"
 
 
-_default_Float_dtype = np.complex128
-
-
-def default_Float_dtype():
-    return _default_Float_dtype
-
-
-def set_default_Float_dtype(dtype):
-    global _default_Float_dtype
-    if not issubclass(dtype, (float, np.floating,
-                              complex, np.complexfloating)):
-        raise TypeError("Invalid dtype")
-    _default_Float_dtype = dtype
+_default_dtype = np.complex128
 
 
 class FloatSpaceInterface(SpaceInterface):
@@ -91,37 +79,41 @@ class FloatSpaceInterface(SpaceInterface):
 
     def _new(self, *, name=None, space_type="primal", static=False, cache=None,
              checkpoint=None):
-        return Float(
+        float_cls = self._tlm_adjoint__space_interface_attrs["float_cls"]
+        return float_cls(
             name=name, space_type=space_type,
             static=static, cache=cache, checkpoint=checkpoint,
             dtype=space_dtype(self), comm=space_comm(self))
 
 
 class FloatSpace:
-    def __init__(self, *, dtype=None, comm=None):
+    def __init__(self, float_cls=None, *, dtype=None, comm=None):
+        if float_cls is None:
+            float_cls = SymbolicFloat
         if dtype is None:
-            dtype = default_Float_dtype()
+            dtype = _default_dtype
         if comm is None:
             comm = DEFAULT_COMM
 
         add_interface(self, FloatSpaceInterface,
                       {"comm": comm_dup_cached(comm),
-                       "dtype": dtype, "id": new_space_id()})
+                       "dtype": dtype, "float_cls": float_cls,
+                       "id": new_space_id()})
 
 
 _overload = 0
 
 
-def no_Float_overloading(fn):
+def no_float_overloading(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             return fn(*args, **kwargs)
     return wrapped_fn
 
 
 @contextlib.contextmanager
-def paused_Float_overloading():
+def paused_float_overloading():
     global _overload
     _overload += 1
     try:
@@ -169,7 +161,7 @@ class FloatInterface(FunctionInterface):
         dtype = function_dtype(self)
         rdtype = type(dtype().real)
 
-        if isinstance(y, Float):
+        if isinstance(y, SymbolicFloat):
             y = y.value()
         elif isinstance(y, (sp.Integer, sp.Float)):
             y = complex(y)
@@ -254,11 +246,11 @@ class FloatInterface(FunctionInterface):
         return self.value()
 
 
-@no_Float_overloading
+@no_float_overloading
 def expr_dependencies(expr):
     deps = []
     for dep in expr.free_symbols:
-        if isinstance(dep, Float):
+        if isinstance(dep, SymbolicFloat):
             deps.append(dep)
         elif is_function(dep):
             raise ValueError("Invalid dependency")
@@ -266,7 +258,7 @@ def expr_dependencies(expr):
 
 
 # Float class name already used by SymPy
-class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
+class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def __init__(self, value=0.0, *, name=None, space_type="primal",
                  static=False, cache=None, checkpoint=None,
                  dtype=None, comm=None,
@@ -287,14 +279,15 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
         add_interface(self, FloatInterface,
                       {"cache": cache, "checkpoint": checkpoint, "id": id,
                        "name": name, "state": 0,
-                       "space": FloatSpace(dtype=dtype, comm=comm),
+                       "space": FloatSpace(type(self), dtype=dtype, comm=comm),
                        "space_type": space_type, "static": static})
         self._tlm_adjoint__function_interface_attrs["caches"] = Caches(self)
 
         if isinstance(value, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
-            function_assign(self, value)
+            if value != 0.0:
+                function_assign(self, value)
         else:
             self.assign(value, manager=manager, annotate=annotate, tlm=tlm)
 
@@ -304,20 +297,22 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
                 manager=None, annotate=None, tlm=None):
         return super().__new__(cls, new_symbol_name())
 
-    def new(self, value=0.0, *, name=None, space_type=None,
+    def new(self, value=0.0, *,
+            name=None,
             static=False, cache=None, checkpoint=None,
-            dtype=None, comm=None,
             manager=None, annotate=None, tlm=None):
-        if space_type is None:
-            space_type = function_space_type(self)
-        if dtype is None:
-            dtype = function_dtype(self)
-        if comm is None:
-            comm = function_comm(self)
-        return Float(value=value, name=name, space_type=space_type,
-                     static=static, cache=cache, checkpoint=checkpoint,
-                     dtype=function_dtype(self), comm=function_comm(self),
-                     manager=manager, annotate=annotate, tlm=tlm)
+        x = function_new(
+            self, name=name,
+            static=static, cache=cache, checkpoint=checkpoint)
+        if isinstance(value, (int, np.integer, sp.Integer,
+                              float, np.floating, sp.Float,
+                              complex, np.complexfloating)):
+            function_assign(self, value)
+        else:
+            x.assign(
+                value,
+                manager=manager, annotate=annotate, tlm=tlm)
+        return x
 
     def __float__(self):
         return float(self.value())
@@ -354,7 +349,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
 
-    @no_Float_overloading
+    @no_float_overloading
     def addto(self, y, *, manager=None, annotate=None, tlm=None):
         x = self.new(value=self, name=f"{function_name(self):s}_old",
                      manager=manager, annotate=annotate, tlm=tlm)
@@ -363,8 +358,13 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
     def value(self):
         return self._value
 
+
+SymbolicFloat = _tlm_adjoint__SymbolicFloat
+
+
+class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
     def __neg__(self):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__neg__()
         if _overload == 0:
             return self.new(result)
@@ -372,7 +372,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __add__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__add__(other)
         if _overload == 0:
             return self.new(result)
@@ -380,7 +380,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __radd__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__radd__(other)
         if _overload == 0:
             return self.new(result)
@@ -388,7 +388,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __sub__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__sub__(other)
         if _overload == 0:
             return self.new(result)
@@ -396,7 +396,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __rsub__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__rsub__(other)
         if _overload == 0:
             return self.new(result)
@@ -404,7 +404,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __mul__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__mul__(other)
         if _overload == 0:
             return self.new(result)
@@ -412,7 +412,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __rmul__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__rmul__(other)
         if _overload == 0:
             return self.new(result)
@@ -420,7 +420,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __truediv__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__truediv__(other)
         if _overload == 0:
             return self.new(result)
@@ -428,7 +428,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __rtruediv__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__rtruediv__(other)
         if _overload == 0:
             return self.new(result)
@@ -436,7 +436,7 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __pow__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__pow__(other)
         if _overload == 0:
             return self.new(result)
@@ -444,95 +444,96 @@ class _tlm_adjoint__Float(sp.Symbol):  # noqa: N801
             return result
 
     def __rpow__(self, other):
-        with paused_Float_overloading():
+        with paused_float_overloading():
             result = super().__rpow__(other)
         if _overload == 0:
             return self.new(result)
         else:
             return result
 
-    @no_Float_overloading
+    @no_float_overloading
     def sin(self):
         return self.new(sp.sin(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def cos(self):
         return self.new(sp.cos(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def tan(self):
         return self.new(sp.tan(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arcsin(self):
         return self.new(sp.arcsin(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arccos(self):
         return self.new(sp.arccos(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arctan(self):
         return self.new(sp.arctan(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arctan2(self, other):
         return self.new(sp.atan2(self, other))
 
-    @no_Float_overloading
+    @no_float_overloading
     def sinh(self):
         return self.new(sp.sinh(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def cosh(self):
         return self.new(sp.cosh(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def tanh(self):
         return self.new(sp.tanh(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arcsinh(self):
         return self.new(sp.arcsinh(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arccosh(self):
         return self.new(sp.arccosh(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def arctanh(self):
         return self.new(sp.arctanh(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def exp(self):
         return self.new(sp.exp(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def expm1(self):
         return self.new(sp.exp(self) - 1)
 
-    @no_Float_overloading
+    @no_float_overloading
     def log(self):
         return self.new(sp.log(self))
 
-    @no_Float_overloading
+    @no_float_overloading
     def log10(self):
         return self.new(sp.log(self, 10))
 
-    @no_Float_overloading
+    @no_float_overloading
     def sqrt(self):
         return self.new(sp.sqrt(self))
 
 
-Float = _tlm_adjoint__Float
+OverloadedFloat = _tlm_adjoint__OverloadedFloat
+Float = OverloadedFloat
 
-_x = Float()
+_x = sp.Symbol(new_symbol_name())
 _F = sp.utilities.lambdify(_x, _x, modules=["numpy"])
 global_vars = _F.__globals__
 del _x, _F
 
 
-@no_Float_overloading
+@no_float_overloading
 def lambdify(expr, deps):
     printer = NumPyPrinter(
         settings={"fully_qualified_modules": False})
@@ -546,7 +547,7 @@ def lambdify(expr, deps):
 
 
 class FloatEquation(Equation):
-    @no_Float_overloading
+    @no_float_overloading
     def __init__(self, x, expr):
         check_space_type(x, "primal")
         deps = expr_dependencies(expr)
@@ -596,7 +597,7 @@ class FloatEquation(Equation):
             function_assign(F, F_val)
             dep_B.sub(F)
 
-    @no_Float_overloading
+    @no_float_overloading
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
         expr = 0
@@ -612,7 +613,7 @@ class FloatEquation(Equation):
 
 
 def _subtract_adjoint_derivative_action(x, y):
-    if isinstance(x, Float):
+    if isinstance(x, SymbolicFloat):
         if is_function(y) and function_is_scalar(y):
             check_space_type(y, "conjugate_dual")
             function_axpy(x, -1.0, y)
@@ -631,4 +632,4 @@ def _subtract_adjoint_derivative_action(x, y):
 
 
 add_subtract_adjoint_derivative_action(
-    "_tlm_adjoint__Float", _subtract_adjoint_derivative_action)
+    "_tlm_adjoint__SymbolicFloat", _subtract_adjoint_derivative_action)

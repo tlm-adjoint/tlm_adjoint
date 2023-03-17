@@ -26,7 +26,7 @@ from ..interface import FunctionInterface as _FunctionInterface
 from ..caches import Caches
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..overloaded_float import Float
+from ..overloaded_float import SymbolicFloat
 
 import copy
 import numpy as np
@@ -147,7 +147,7 @@ class FunctionInterface(_FunctionInterface):
 
     def _assign(self, y):
         dtype = self.dtype()
-        if isinstance(y, Float):
+        if isinstance(y, SymbolicFloat):
             y = y.value()
         if isinstance(y, (int, np.integer,
                           float, np.floating,
@@ -165,7 +165,7 @@ class FunctionInterface(_FunctionInterface):
     def _axpy(self, alpha, x, /):
         dtype = self.dtype()
         alpha = dtype(alpha)
-        if isinstance(x, Float):
+        if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, (int, np.integer,
                           float, np.floating,

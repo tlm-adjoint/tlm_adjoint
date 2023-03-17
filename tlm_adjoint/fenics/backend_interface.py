@@ -38,7 +38,7 @@ from .functions import Caches, Constant, ConstantInterface, \
     define_function_alias
 from ..hessian import GeneralGaussNewton as _GaussNewton
 from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
-from ..overloaded_float import Float
+from ..overloaded_float import SymbolicFloat
 
 import functools
 import numpy as np
@@ -188,7 +188,7 @@ class FunctionInterface(_FunctionInterface):
 
     @check_vector_size
     def _assign(self, y):
-        if isinstance(y, Float):
+        if isinstance(y, SymbolicFloat):
             y = y.value()
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
@@ -214,7 +214,7 @@ class FunctionInterface(_FunctionInterface):
     @check_vector_size
     def _axpy(self, alpha, x, /):
         alpha = backend_ScalarType(alpha)
-        if isinstance(x, Float):
+        if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
@@ -481,7 +481,7 @@ add_finalize_adjoint_derivative_action(backend,
 def _functional_term_eq(x, term):
     if isinstance(term, ufl.classes.Form) \
             and len(term.arguments()) == 0 \
-            and isinstance(x, (Float, backend_Constant, backend_Function)):
+            and isinstance(x, (SymbolicFloat, backend_Constant, backend_Function)):  # noqa: E501
         return Assembly(x, term)
     else:
         return NotImplemented
