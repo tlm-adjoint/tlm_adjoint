@@ -322,7 +322,8 @@ def test_PointInterpolation(setup_test, test_leaks,
 
     y = Function(y_space, name="y", static=True)
     if complex_mode:
-        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5 + 1.0j * pow(X[0], 2))
+        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5
+                               + 1.0j * pow(X[0], 2))
     else:
         interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
 
