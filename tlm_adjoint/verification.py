@@ -26,7 +26,9 @@ from .interface import function_assign, function_axpy, function_copy, \
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
-from .manager import manager as _manager, restore_manager, set_manager
+from .manager import manager as _manager
+from .manager import configure_tlm, paused_manager, reset_manager, \
+    restore_manager, set_manager, start_manager, stop_manager
 
 from collections.abc import Sequence
 import functools
@@ -54,6 +56,7 @@ def wrapped_forward(forward):
 
 
 @local_caches
+@restore_manager
 def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5, manager=None):
     # Aims for similar behaviour to the dolfin-adjoint taylor_test function in
@@ -104,8 +107,8 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     logger = logging.getLogger("tlm_adjoint.verification")
     forward = wrapped_forward(forward)
-    if manager is None:
-        manager = _manager()
+    if manager is not None:
+        set_manager(manager)
 
     if M0 is None:
         M0 = tuple(map(function_copy, M))
@@ -149,7 +152,7 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
         clear_caches()
-        with manager.paused():
+        with paused_manager():
             J_vals[i] = forward(*M1).value()
     if abs(J_vals.imag).max() == 0.0:
         J_vals = J_vals.real
@@ -230,15 +233,15 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
     @restore_manager
     def forward_tlm(dMs, *M):
         set_manager(tlm_manager)
-        tlm_manager.reset()
-        tlm_manager.stop()
+        reset_manager()
+        stop_manager()
         clear_caches()
 
-        tlm_manager.configure_tlm(*[(M, dM) for dM in dMs])
-        tlm_manager.start(annotate=False, tlm=True)
+        configure_tlm(*[(M, dM) for dM in dMs])
+        start_manager(annotate=False, tlm=True)
         J = forward(*M)
         for dM in dMs:
-            J = J.tlm_functional((M, dM), manager=tlm_manager)
+            J = J.tlm_functional((M, dM))
 
         return J
 
@@ -309,16 +312,16 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
     @restore_manager
     def forward_tlm(*M, annotate=False):
         set_manager(tlm_manager)
-        tlm_manager.reset()
-        tlm_manager.stop()
+        reset_manager()
+        stop_manager()
         clear_caches()
 
-        tlm_manager.configure_tlm(*[(M, dM) for dM in dMs],
-                                  annotate=annotate)
-        tlm_manager.start(annotate=annotate, tlm=True)
+        configure_tlm(*[(M, dM) for dM in dMs],
+                      annotate=annotate)
+        start_manager(annotate=annotate, tlm=True)
         J = forward(*M)
         for dM in dMs:
-            J = J.tlm_functional((M, dM), manager=tlm_manager)
+            J = J.tlm_functional((M, dM))
 
         return J
 
