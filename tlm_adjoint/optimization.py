@@ -25,7 +25,9 @@ from .interface import comm_dup, function_axpy, function_copy, \
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
-from .manager import manager as _manager, restore_manager, set_manager
+from .manager import manager as _manager
+from .manager import compute_gradient, reset_manager, restore_manager, \
+    set_manager, start_manager, stop_manager
 
 from collections.abc import Sequence
 import numpy as np
@@ -143,16 +145,16 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
 
         J_M[0] = tuple(function_copy(m) for m in M)
 
-        manager.reset()
-        manager.stop()
+        reset_manager()
+        stop_manager()
         clear_caches()
 
-        manager.start()
+        start_manager()
         J[0] = forward(*M)
         if is_function(J[0]):
             J[0] = Functional(_fn=J[0])
         garbage_cleanup(space_comm(J[0].space()))
-        manager.stop()
+        stop_manager()
 
         J_M[1] = M
 
@@ -168,7 +170,7 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
 
     def jac(x):
         fun(x, force=J_M[1] is None)
-        dJ = manager.compute_gradient(J[0], J_M[1])
+        dJ = compute_gradient(J[0], J_M[1])
         if manager._cp_schedule.is_exhausted():
             J_M[1] = None
         return get(dJ)

@@ -26,7 +26,9 @@ from .interface import check_space_types_conjugate_dual, function_axpy, \
 from .caches import local_caches
 from .equations import InnerProduct
 from .functional import Functional
-from .manager import manager as _manager, restore_manager, set_manager
+from .manager import manager as _manager
+from .manager import compute_gradient, configure_tlm, function_tlm, \
+    reset_manager, restore_manager, set_manager, start_manager, stop_manager
 
 from collections.abc import Sequence
 
@@ -112,8 +114,8 @@ class GeneralHessian(Hessian):
             return J, dJ
 
         set_manager(self._manager)
-        self._manager.reset()
-        self._manager.stop()
+        reset_manager()
+        stop_manager()
 
         if M0 is None:
             M0 = M
@@ -125,12 +127,12 @@ class GeneralHessian(Hessian):
                   for m0, m in zip(M0, M))
         del M0
 
-        self._manager.start()
+        start_manager()
         J = self._forward(*M)
-        self._manager.stop()
+        stop_manager()
 
         J_val = J.value()
-        dJ = self._manager.compute_gradient(J, M)
+        dJ = compute_gradient(J, M)
 
         return J_val, dJ
 
@@ -163,8 +165,8 @@ class GeneralHessian(Hessian):
             return J_val, dJ_val, ddJ
 
         set_manager(self._manager)
-        self._manager.reset()
-        self._manager.stop()
+        reset_manager()
+        stop_manager()
 
         if M0 is None:
             M0 = M
@@ -182,15 +184,15 @@ class GeneralHessian(Hessian):
                                  checkpoint=function_is_checkpointed(dm))
                    for dm in dM)
 
-        self._manager.configure_tlm((M, dM))
-        self._manager.start()
+        configure_tlm((M, dM))
+        start_manager()
         J = self._forward(*M)
-        dJ = J.tlm_functional((M, dM), manager=self._manager)
-        self._manager.stop()
+        dJ = J.tlm_functional((M, dM))
+        stop_manager()
 
         J_val = J.value()
         dJ_val = dJ.value()
-        ddJ = self._manager.compute_gradient(dJ, M)
+        ddJ = compute_gradient(dJ, M)
 
         return J_val, dJ_val, ddJ
 
@@ -204,6 +206,7 @@ class GaussNewton:
     def _setup_manager(self, M, dM, M0=None):
         raise NotImplementedError("Method not overridden")
 
+    @restore_manager
     def action(self, M, dM, M0=None):
         if not isinstance(M, Sequence):
             ddJ, = self.action(
@@ -212,9 +215,10 @@ class GaussNewton:
             return ddJ
 
         manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
+        set_manager(manager)
 
         # J dM
-        tau_X = tuple(manager.function_tlm(x, (M, dM)) for x in X)
+        tau_X = tuple(function_tlm(x, (M, dM)) for x in X)
         # R^{-1} conj(J dM)
         R_inv_tau_X = self._R_inv_action(
             *tuple(function_copy(tau_x) for tau_x in tau_X))
@@ -226,18 +230,18 @@ class GaussNewton:
 
         # This defines the adjoint right-hand-side appropriately to compute a
         # J^* action
-        manager.start()
+        start_manager()
         J = Functional(space=self._J_space)
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
             J_term = function_new(J.function())
             InnerProduct(J_term, x, function_copy(R_inv_tau_x)).solve(
-                manager=manager, tlm=False)
-            J.addto(J_term, manager=manager, tlm=False)
-        manager.stop()
+                tlm=False)
+            J.addto(J_term, tlm=False)
+        stop_manager()
 
         # Likelihood term: J^* R^{-1} conj(J dM)
-        ddJ = manager.compute_gradient(J, M)
+        ddJ = compute_gradient(J, M)
 
         # Prior term: B^{-1} conj(dM)
         if self._B_inv_action is not None:
@@ -275,8 +279,8 @@ class GeneralGaussNewton(GaussNewton):
     @restore_manager
     def _setup_manager(self, M, dM, M0=None):
         set_manager(self._manager)
-        self._manager.reset()
-        self._manager.stop()
+        reset_manager()
+        stop_manager()
 
         if M0 is None:
             M0 = M
@@ -294,11 +298,11 @@ class GeneralGaussNewton(GaussNewton):
                                  checkpoint=function_is_checkpointed(dm))
                    for dm in dM)
 
-        self._manager.configure_tlm((M, dM), annotate=False)
-        self._manager.start()
+        configure_tlm((M, dM), annotate=False)
+        start_manager()
         X = self._forward(*M)
         if not isinstance(X, Sequence):
             X = (X,)
-        self._manager.stop()
+        stop_manager()
 
         return self._manager, M, dM, X
