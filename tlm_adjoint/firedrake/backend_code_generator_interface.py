@@ -510,7 +510,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
         if isinstance(x, backend_Constant):
             x.assign(expr, annotate=False, tlm=False)
         elif isinstance(x, backend_Function):
-            x.interpolate(expr)
+            x.interpolate(expr, annotate=False, tlm=False)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
     elif isinstance(x, backend_Constant):
@@ -523,7 +523,8 @@ def interpolate_expression(x, expr, *, adj_x=None):
         x_space = function_space(x)
         adj_x_space = function_space(adj_x)
         interp = Interpolator(ufl.conj(expr) * TestFunction(x_space), adj_x_space)  # noqa: E501
-        interp.interpolate(adj_x, transpose=True, output=x)
+        interp.interpolate(adj_x, transpose=True, output=x,
+                           annotate=False, tlm=False)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 

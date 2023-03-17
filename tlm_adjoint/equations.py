@@ -29,6 +29,7 @@ from .interface import check_space_types, check_space_types_conjugate_dual, \
     function_update_caches, function_update_state, function_zero, \
     is_function, no_space_type_checking, space_new, \
     subtract_adjoint_derivative_action
+from .manager import paused_manager, restore_manager, set_manager
 
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
@@ -492,6 +493,7 @@ class Equation(Referrer):
             manager = _manager()
         manager.add_equation(self, annotate=annotate, tlm=tlm)
 
+    @restore_manager
     def solve(self, manager=None, annotate=None, tlm=None):
         """
         Solve the equation.
@@ -504,15 +506,15 @@ class Equation(Referrer):
                   tangent-linear equations.
         """
 
-        if manager is None:
-            manager = _manager()
+        if manager is not None:
+            set_manager(manager)
 
-        self._pre_process(manager=manager, annotate=annotate)
+        self._pre_process(annotate=annotate)
 
-        with manager.paused():
+        with paused_manager():
             self.forward(self.X())
 
-        self._post_process(manager=manager, annotate=annotate, tlm=tlm)
+        self._post_process(annotate=annotate, tlm=tlm)
 
     def forward(self, X, deps=None):
         """

@@ -192,6 +192,10 @@ def test_leaks():
     manager._cp_memory.clear()
     manager._tlm.clear()
     manager._adj_cache.clear()
+    for block in list(manager._blocks) + [manager._block]:
+        for eq in block:
+            if isinstance(eq, PointInterpolation):
+                del eq._interp
 
     gc.collect()
 

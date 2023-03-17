@@ -18,13 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .backend import Tensor, TestFunction, TrialFunction, backend_Function, \
-    backend_assemble, backend_ScalarType
+from .backend import FunctionSpace, Interpolator, Tensor, TestFunction, \
+    TrialFunction, VertexOnlyMesh, backend_Function, backend_assemble
 from ..interface import check_space_type, function_assign, function_comm, \
-    function_dtype, function_get_values, function_is_scalar, \
-    function_local_size, function_new, function_new_conjugate_dual, \
-    function_scalar_value, function_set_values, function_space, is_function, \
-    weakref_method
+    function_is_scalar, function_new_conjugate_dual, function_scalar_value, \
+    function_space, is_function, space_new, weakref_method
 from .backend_code_generator_interface import assemble, complex_mode, \
     matrix_multiply
 
@@ -36,7 +34,7 @@ from .equations import EquationSolver, bind_form, derivative, unbind_form, \
     unbound_form
 from .functions import eliminate_zeros
 
-import mpi4py.MPI as MPI
+import itertools
 import numpy as np
 import ufl
 import warnings
@@ -223,36 +221,31 @@ class LocalProjectionSolver(LocalProjection):
             defer_adjoint_assembly=defer_adjoint_assembly)
 
 
-def interpolation_matrix(x_coords, y, y_nodes, dtype=backend_ScalarType):
-    N = function_local_size(y)
-    lg_map = function_space(y).local_to_global_map([]).indices
-    gl_map = {g: l for l, g in enumerate(lg_map)}  # noqa: E741
+def vmesh_coords_map(vmesh, X_coords):
+    comm = vmesh.comm
+    N, _ = X_coords.shape
 
-    from scipy.sparse import dok_matrix
-    P = dok_matrix((x_coords.shape[0], N), dtype=dtype)
+    vmesh_coords = vmesh.coordinates.dat.data_ro
+    Nm, _ = vmesh_coords.shape
 
-    y_v = function_new(y)
-    for x_node, x_coord in enumerate(x_coords):
-        for j, y_node in enumerate(y_nodes[x_node, :]):
-            with y_v.dat.vec as y_v_v:
-                y_v_v.setValue(y_node, 1.0)
-                y_v_v.assemblyBegin()
-                y_v_v.assemblyEnd()
-            x_v = y_v(tuple(x_coord))
-            if y_node in gl_map:
-                y_node_local = gl_map[y_node]
-                if y_node_local < N:
-                    P[x_node, y_node_local] = x_v
-            with y_v.dat.vec as y_v_v:
-                y_v_v.setValue(y_node, 0.0)
-                y_v_v.assemblyBegin()
-                y_v_v.assemblyEnd()
+    vmesh_coords_indices = {tuple(vmesh_coords[i, :]): i for i in range(Nm)}
+    vmesh_coords_map = np.full(Nm, -1, dtype=np.int64)
+    for i in range(N):
+        key = tuple(X_coords[i, :])
+        if key in vmesh_coords_indices:
+            vmesh_coords_map[vmesh_coords_indices[key]] = i
+    if (vmesh_coords_map < 0).any():
+        raise RuntimeError("Failed to find vertex map")
 
-    return P.tocsr()
+    vmesh_coords_map = comm.allgather(vmesh_coords_map)
+    if len(tuple(itertools.chain(*vmesh_coords_map))) != N:
+        raise RuntimeError("Failed to find vertex map")
+
+    return vmesh_coords_map
 
 
 class PointInterpolation(Equation):
-    def __init__(self, X, y, X_coords=None, *, P=None, tolerance=None):
+    def __init__(self, X, y, X_coords=None, *, _interp=None):
         """
         Defines an equation which interpolates the continuous scalar-valued
         Function y at the points X_coords.
@@ -264,32 +257,21 @@ class PointInterpolation(Equation):
         y          A continuous scalar-valued Function. The Function to be
                    interpolated.
         X_coords   A NumPy matrix. Points at which to interpolate y.
-                   Ignored if P is supplied, required otherwise.
-        P          (Optional) Interpolation matrix.
-        tolerance  (Optional) Cell containment tolerance, passed to the
-                   MeshGeometry.locate_cell method. Ignored if P is supplied.
         """
 
         if is_function(X):
             X = (X,)
 
-        dtype = None
         for x in X:
             check_space_type(x, "primal")
             if not function_is_scalar(x):
                 raise ValueError("Solution must be a scalar, or a sequence of "
                                  "scalars")
-            if dtype is None:
-                dtype = function_dtype(x)
-            elif function_dtype(x) != dtype:
-                raise ValueError("Invalid dtype")
-        if dtype is None:
-            dtype = backend_ScalarType
         check_space_type(y, "primal")
 
         if X_coords is None:
-            if P is None:
-                raise TypeError("X_coords required when P is not supplied")
+            if _interp is None:
+                raise TypeError("X_coords required")
         else:
             if len(X) != X_coords.shape[0]:
                 raise ValueError("Invalid number of functions")
@@ -298,71 +280,50 @@ class PointInterpolation(Equation):
         if len(y.ufl_shape) > 0:
             raise ValueError("y must be a scalar-valued Function")
 
-        if P is None:
+        interp = _interp
+        if interp is None:
             y_space = function_space(y)
-            y_cell_node_graph = y_space.cell_node_map().values
-            y_mesh = y_space.mesh()
-            lg_map = y_space.local_to_global_map([]).indices
-
-            y_nodes_local = np.full((len(X), y_cell_node_graph.shape[1]),
-                                    -1, dtype=np.int64)
-            for i, x_coord in enumerate(X_coords):
-                y_cell = y_mesh.locate_cell(x_coord, tolerance=tolerance)
-                if y_cell is None or y_cell >= y_cell_node_graph.shape[0]:
-                    y_nodes_local[i, :] = -1
-                else:
-                    assert y_cell >= 0
-                    for j, y_node in enumerate(y_cell_node_graph[y_cell, :]):
-                        y_nodes_local[i, j] = lg_map[y_node]
-
-            y_nodes = np.full(y_nodes_local.shape, -1, dtype=np.int64)
-            comm = function_comm(y)
-            comm.Allreduce(y_nodes_local, y_nodes, op=MPI.MAX)
-            if (y_nodes < 0).any():
-                raise RuntimeError("Unable to locate one or more cells")
-
-            P = interpolation_matrix(X_coords, y, y_nodes, dtype=dtype)
-        else:
-            P = P.copy()
+            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
+            vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
+            interp = Interpolator(TestFunction(y_space), vspace)
+            if not hasattr(interp, "_tlm_adjoint__vmesh_coords_map"):
+                interp._tlm_adjoint__vmesh_coords_map = vmesh_coords_map(vmesh, X_coords)  # noqa: E501
 
         super().__init__(X, list(X) + [y], nl_deps=[], ic=False, adj_ic=False)
-        self._dtype = dtype
-        self._P = P
-        self._P_H = P.conjugate().T
+        self._interp = interp
 
     def forward_solve(self, X, deps=None):
         if is_function(X):
             X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
-        check_space_type(y, "primal")
-        y_v = function_get_values(y)
-        x_v_local = np.full(len(X), np.NAN, dtype=self._dtype)
-        for i in range(len(X)):
-            x_v_local[i] = self._P.getrow(i).dot(y_v)
+        Xm = space_new(self._interp.V)
+        self._interp.interpolate(y, output=Xm)
 
-        comm = function_comm(y)
-        x_v = np.full(len(X), np.NAN, dtype=self._dtype)
-        comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
-
-        for i, x in enumerate(X):
-            function_assign(x, x_v[i])
+        X_values = function_comm(Xm).allgather(Xm.dat.data_ro)
+        vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
+        for x_val, index in zip(itertools.chain(*X_values),
+                                itertools.chain(*vmesh_coords_map)):
+            function_assign(X[index], x_val)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_function(adj_X):
             adj_X = (adj_X,)
-        for adj_x in adj_X:
-            if function_dtype(adj_x) != self._dtype:
-                raise ValueError("Invalid dtype")
 
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_x_v = np.full(len(adj_X), np.NAN, dtype=self._dtype)
-            for i, adj_x in enumerate(adj_X):
-                adj_x_v[i] = function_scalar_value(adj_x)
+            adj_Xm = space_new(self._interp.V)
+
+            vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
+            rank = function_comm(adj_Xm).rank
+            # This line must be outside the loop to avoid deadlocks
+            adj_Xm_data = adj_Xm.dat.data
+            for i, j in enumerate(vmesh_coords_map[rank]):
+                adj_Xm_data[i] = function_scalar_value(adj_X[j])
+
             F = function_new_conjugate_dual(self.dependencies()[-1])
-            function_set_values(F, self._P_H.dot(adj_x_v))
+            self._interp.interpolate(adj_Xm, transpose=True, output=F)
             return (-1.0, F)
         else:
             raise IndexError("dep_index out of bounds")
@@ -379,15 +340,21 @@ class PointInterpolation(Equation):
             return ZeroAssignment([tlm_map[x] for x in X])
         else:
             return PointInterpolation([tlm_map[x] for x in X], tlm_y,
-                                      P=self._P)
+                                      _interp=self._interp)
 
 
 class PointInterpolationSolver(PointInterpolation):
     def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
+        if P is not None:
+            warnings.warn("P argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
         if P_T is not None:
             warnings.warn("P_T argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+        if tolerance is not None:
+            warnings.warn("tolerance argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
         warnings.warn("PointInterpolationSolver is deprecated -- "
                       "use PointInterpolation instead",
                       DeprecationWarning, stacklevel=2)
-        super().__init__(X, y, X_coords, P=P, tolerance=tolerance)
+        super().__init__(X, y, X_coords)

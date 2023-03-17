@@ -49,15 +49,16 @@ __all__ = \
         "reset_adjoint"
     ]
 
-_manager = [None]
+_manager = None
 
 
 def manager():
-    return _manager[0]
+    return _manager
 
 
 def set_manager(manager):
-    _manager[0] = manager
+    global _manager
+    _manager = manager
 
 
 def restore_manager(fn):
