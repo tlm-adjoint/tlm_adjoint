@@ -792,13 +792,7 @@ def subtract_adjoint_derivative_action(x, y):
             pass
         elif is_function(y):
             check_space_types(x, y)
-            if isinstance(y._tlm_adjoint__function_interface,
-                          type(x._tlm_adjoint__function_interface)):
-                function_axpy(x, -1.0, y)
-            else:
-                function_set_values(x,
-                                    function_get_values(x)
-                                    - function_get_values(y))
+            function_axpy(x, -1.0, y)
         elif isinstance(y, tuple) \
                 and len(y) == 2 \
                 and isinstance(y[0], (int, np.integer,
@@ -808,13 +802,7 @@ def subtract_adjoint_derivative_action(x, y):
             alpha, y = y
             alpha = function_dtype(x)(alpha)
             check_space_types(x, y)
-            if isinstance(y._tlm_adjoint__function_interface,
-                          type(x._tlm_adjoint__function_interface)):
-                function_axpy(x, -alpha, y)
-            else:
-                function_set_values(x,
-                                    function_get_values(x)
-                                    - alpha * function_get_values(y))
+            function_axpy(x, -alpha, y)
         else:
             raise RuntimeError("Unexpected case encountered in "
                                "subtract_adjoint_derivative_action")
