@@ -141,7 +141,7 @@ def forward_reference(psi_0, kappa):
         psi, fail = cg(lA, B.dot(psi), x0=psi)
         assert fail == 0
     J = Functional(name="J")
-    J.function().vector()[:] = (psi + 1.0).dot(mass.dot(psi + 1.0))
+    function_assign(J.function(), (psi + 1.0).dot(mass.dot(psi + 1.0)))
     return J
 
 

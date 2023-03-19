@@ -28,6 +28,7 @@ from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
+from ..overloaded_float import SymbolicFloat
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -131,6 +132,8 @@ class ConstantInterface(_FunctionInterface):
         self.assign(value, annotate=False, tlm=False)
 
     def _assign(self, y):
+        if isinstance(y, SymbolicFloat):
+            y = y.value()
         if isinstance(y, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
@@ -140,14 +143,17 @@ class ConstantInterface(_FunctionInterface):
             else:
                 value = np.full(self.ufl_shape, dtype(y), dtype=dtype)
                 value = backend_Constant(value)
-        else:
-            assert isinstance(y, backend_Constant)
+        elif isinstance(y, backend_Constant):
             value = y
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
         self.assign(value, annotate=False, tlm=False)
 
     def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
+        if isinstance(x, SymbolicFloat):
+            x = x.value()
         if isinstance(x, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
@@ -157,22 +163,22 @@ class ConstantInterface(_FunctionInterface):
                 value = self.values() + alpha * dtype(x)
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
-        else:
-            assert isinstance(x, backend_Constant)
+        elif isinstance(x, backend_Constant):
             if len(self.ufl_shape) == 0:
                 value = (dtype(self) + alpha * dtype(x))
             else:
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
         self.assign(value, annotate=False, tlm=False)
 
     def _inner(self, y):
-        assert isinstance(y, backend_Constant)
-        return y.values().conjugate().dot(self.values())
-
-    def _max_value(self):
-        return self.values().max()
+        if isinstance(y, backend_Constant):
+            return y.values().conjugate().dot(self.values())
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
 
     def _sum(self):
         return self.values().sum()

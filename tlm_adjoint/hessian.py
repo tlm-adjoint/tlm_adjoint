@@ -31,6 +31,7 @@ from .manager import compute_gradient, configure_tlm, function_tlm, \
     reset_manager, restore_manager, set_manager, start_manager, stop_manager
 
 from collections.abc import Sequence
+import functools
 
 __all__ = \
     [
@@ -84,8 +85,15 @@ class GeneralHessian(Hessian):
         if manager is None:
             manager = _manager().new()
 
+        @functools.wraps(forward)
+        def wrapped_forward(*M):
+            J = forward(*M)
+            if is_function(J):
+                J = Functional(_fn=J)
+            return J
+
         super().__init__()
-        self._forward = forward
+        self._forward = wrapped_forward
         self._manager = manager
 
     @local_caches

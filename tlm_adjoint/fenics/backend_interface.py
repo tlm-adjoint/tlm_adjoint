@@ -21,9 +21,6 @@
 from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
     backend, backend_Constant, backend_Function, backend_FunctionSpace, \
     backend_ScalarType, backend_Vector, cpp_PETScVector, info
-from ..functional import Functional as _Functional
-from ..hessian import GeneralGaussNewton as _GaussNewton
-from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
     add_interface, add_subtract_adjoint_derivative_action, \
@@ -39,6 +36,9 @@ from .equations import Assembly, EquationSolver
 from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
     define_function_alias
+from ..hessian import GeneralGaussNewton as _GaussNewton
+from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
+from ..overloaded_float import SymbolicFloat
 
 import functools
 import numpy as np
@@ -48,7 +48,6 @@ import warnings
 __all__ = \
     [
         "CachedGaussNewton",
-        "Functional",
         "GaussNewton",
         "new_scalar_function",
 
@@ -189,6 +188,8 @@ class FunctionInterface(_FunctionInterface):
 
     @check_vector_size
     def _assign(self, y):
+        if isinstance(y, SymbolicFloat):
+            y = y.value()
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
                 raise ValueError("Invalid function space")
@@ -205,13 +206,16 @@ class FunctionInterface(_FunctionInterface):
                             annotate=False, tlm=False)
         elif isinstance(y, Zero):
             self.vector().zero()
-        else:
-            assert isinstance(y, backend_Constant)
+        elif isinstance(y, backend_Constant):
             self.assign(y, annotate=False, tlm=False)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
 
     @check_vector_size
     def _axpy(self, alpha, x, /):
         alpha = backend_ScalarType(alpha)
+        if isinstance(x, SymbolicFloat):
+            x = x.value()
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
                 raise ValueError("Invalid function space")
@@ -229,11 +233,12 @@ class FunctionInterface(_FunctionInterface):
             self.vector().axpy(alpha, x_.vector())
         elif isinstance(x, Zero):
             pass
-        else:
-            assert isinstance(x, backend_Constant)
+        elif isinstance(x, backend_Constant):
             x_ = backend_Function(self.function_space())
             x_.assign(x, annotate=False, tlm=False)
             self.vector().axpy(alpha, x_.vector())
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
 
     @check_vector_size
     def _inner(self, y):
@@ -243,16 +248,13 @@ class FunctionInterface(_FunctionInterface):
             inner = y.vector().inner(self.vector())
         elif isinstance(y, Zero):
             inner = 0.0
-        else:
-            assert isinstance(y, backend_Constant)
+        elif isinstance(y, backend_Constant):
             y_ = backend_Function(self.function_space())
             y_.assign(y, annotate=False, tlm=False)
             inner = y_.vector().inner(self.vector())
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
         return inner
-
-    @check_vector_size
-    def _max_value(self):
-        return self.vector().max()
 
     @check_vector_size
     def _sum(self):
@@ -395,14 +397,6 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                     checkpoint=checkpoint)
 
 
-class Functional(_Functional):
-    def __init__(self, *, space=None, name=None, _fn=None):
-        if space is None and _fn is None:
-            space = function_space(new_scalar_function())
-
-        super().__init__(space=space, name=name, _fn=_fn)
-
-
 class GaussNewton(_GaussNewton):
     def __init__(self, forward, R_inv_action, B_inv_action=None,
                  *, J_space=None, manager=None):
@@ -487,7 +481,7 @@ add_finalize_adjoint_derivative_action(backend,
 def _functional_term_eq(x, term):
     if isinstance(term, ufl.classes.Form) \
             and len(term.arguments()) == 0 \
-            and isinstance(x, (backend_Constant, backend_Function)):
+            and isinstance(x, (SymbolicFloat, backend_Constant, backend_Function)):  # noqa: E501
         return Assembly(x, term)
     else:
         return NotImplemented

@@ -28,5 +28,6 @@ from .hessian_optimization import *  # noqa: F401
 from .interface import *             # noqa: F401
 from .manager import *               # noqa: F401
 from .optimization import *          # noqa: F401
+from .overloaded_float import *      # noqa: F401
 from .tlm_adjoint import *           # noqa: F401
 from .verification import *          # noqa: F401

@@ -18,11 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import DEFAULT_COMM, comm_dup, function_copy, \
-    function_get_values, function_global_size, function_id, \
-    function_is_checkpointed, function_local_indices, function_new, \
-    function_set_values, function_space, function_space_type, space_id, \
-    space_new
+from .interface import DEFAULT_COMM, comm_dup, function_assign, \
+    function_copy, function_get_values, function_global_size, function_id, \
+    function_is_checkpointed, function_is_scalar, function_local_indices, \
+    function_new, function_scalar_value, function_set_values, function_space, \
+    function_space_type, space_id, space_new
 
 from abc import ABC, abstractmethod
 from collections import deque
@@ -506,9 +506,14 @@ class PickleCheckpoints(Checkpoints):
             F_space_id = space_id(F_space)
             spaces.setdefault(F_space_id, F_space)
 
+            if function_is_scalar(F):
+                F_values = function_scalar_value(F)
+            else:
+                F_values = function_get_values(F)
+
             write_storage[key] = (F_space_id,
                                   function_space_type(F),
-                                  function_get_values(F))
+                                  F_values)
 
         with open(filename, "wb") as h:
             pickle.dump((cp, data, write_storage),
@@ -541,7 +546,10 @@ class PickleCheckpoints(Checkpoints):
         for key in read_storage:
             F_space_id, F_space_type, F_values = read_storage[key]
             F = space_new(spaces[F_space_id], space_type=F_space_type)
-            function_set_values(F, F_values)
+            if function_is_scalar(F):
+                function_assign(F, F_values)
+            else:
+                function_set_values(F, F_values)
             read_storage[key] = F
 
         return read_cp, read_data, read_storage
@@ -653,7 +661,10 @@ class HDF5Checkpoints(Checkpoints):
                     dtype=np.int64)
                 d[self._comm.rank] = F_space_id
 
-                F_values = function_get_values(F)
+                if function_is_scalar(F):
+                    F_values = function_scalar_value(F)
+                else:
+                    F_values = function_get_values(F)
                 d = g.create_dataset(
                     "value", shape=(function_global_size(F),),
                     dtype=F_values.dtype)
@@ -727,7 +738,10 @@ class HDF5Checkpoints(Checkpoints):
                                   space_type=F_space_type)
 
                     d = g["value"]
-                    function_set_values(F, d[function_local_indices(F)])
+                    if function_is_scalar(F):
+                        function_assign(F, d)
+                    else:
+                        function_set_values(F, d[function_local_indices(F)])
 
                     read_storage[key] = F
 

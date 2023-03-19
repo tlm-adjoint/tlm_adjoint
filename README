@@ -32,6 +32,7 @@ tlm_adjoint requires:
 
     All backends:
         NumPy
+        SymPy
 
     FEniCS or Firedrake backends:
         UFL

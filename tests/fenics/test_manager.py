@@ -417,11 +417,11 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
 
             def forward_solve(self, x, deps=None):
                 _, x0, m = self.dependencies() if deps is None else deps
-                function_set_values(
+                function_assign(
                     x,
-                    0.5 * (function_get_values(x0) ** 2
-                           + function_get_values(m))
-                    / function_get_values(x0))
+                    0.5 * (function_scalar_value(x0) ** 2
+                           + function_scalar_value(m))
+                    / function_scalar_value(x0))
 
             def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
                 return b
@@ -430,19 +430,19 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                 if dep_index == 1:
                     x0, m = nl_deps
                     F = function_new_conjugate_dual(x0)
-                    function_set_values(
+                    function_assign(
                         F,
-                        (0.5 * function_get_values(adj_x)
-                         * (function_get_values(m)
-                            / (function_get_values(x0) ** 2) - 1.0)).conjugate())  # noqa: E501
+                        (0.5 * function_scalar_value(adj_x)
+                         * (function_scalar_value(m)
+                            / (function_scalar_value(x0) ** 2) - 1.0)).conjugate())  # noqa: E501
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
                     F = function_new_conjugate_dual(x0)
-                    function_set_values(
+                    function_assign(
                         F,
-                        (-0.5 * function_get_values(adj_x)
-                         / function_get_values(x0)).conjugate())
+                        (-0.5 * function_scalar_value(adj_x)
+                         / function_scalar_value(x0)).conjugate())
                     return F
                 else:
                     raise IndexError("Unexpected dep_index")
