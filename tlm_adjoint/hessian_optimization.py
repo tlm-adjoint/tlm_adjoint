@@ -231,15 +231,16 @@ class SingleBlockHessian(CachedHessian):
 
 
 class CachedGaussNewton(GaussNewton, HessianOptimization):
-    def __init__(self, X, J_space, R_inv_action, B_inv_action=None,
-                 *, manager=None):
+    def __init__(self, X, R_inv_action, B_inv_action=None,
+                 *, J_space=None, manager=None):
         if not isinstance(X, Sequence):
             X = (X,)
 
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=False)
         GaussNewton.__init__(
-            self, J_space, R_inv_action, B_inv_action=B_inv_action)
+            self, R_inv_action, B_inv_action=B_inv_action,
+            J_space=J_space)
         self._X = tuple(X)
         self._X_state = tuple(function_state(x) for x in X)
 
