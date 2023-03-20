@@ -20,10 +20,11 @@
 
 from .interface import DEFAULT_COMM, FunctionInterface, SpaceInterface, \
     add_interface, add_subtract_adjoint_derivative_action, check_space_type, \
-    comm_dup_cached, function_assign, function_axpy, function_comm, \
-    function_dtype, function_id, function_is_scalar, function_name, \
-    function_new, function_new_conjugate_dual, function_scalar_value, \
-    is_function, new_function_id, new_space_id, space_comm, space_dtype
+    check_space_types, comm_dup_cached, function_assign, function_axpy, \
+    function_comm, function_dtype, function_id, function_is_scalar, \
+    function_name, function_new, function_new_conjugate_dual, \
+    function_scalar_value, is_function, new_function_id, new_space_id, \
+    space_comm, space_dtype
 
 from .caches import Caches
 from .equations import Assignment, Equation, ZeroAssignment, get_tangent_linear
@@ -43,6 +44,8 @@ except ImportError:
 
 __all__ = \
     [
+        "FloatSpace",
+
         "OverloadedFloat",
         "SymbolicFloat",
 
@@ -307,7 +310,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         if isinstance(value, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
-            function_assign(self, value)
+            if value != 0.0:
+                function_assign(self, value)
         else:
             x.assign(
                 value,
@@ -540,8 +544,8 @@ def lambdify(expr, deps):
     code = lambdastr(deps, expr, printer=printer)
     assert "\n" not in code
     local_vars = {}
-    exec(f"F = {code:s}", dict(global_vars), local_vars)
-    F = local_vars["F"]
+    exec(f"_tlm_adjoint__F = {code:s}", dict(global_vars), local_vars)
+    F = local_vars["_tlm_adjoint__F"]
     F._tlm_adjoint__code = code
     return F
 
@@ -615,7 +619,7 @@ class FloatEquation(Equation):
 def _subtract_adjoint_derivative_action(x, y):
     if isinstance(x, SymbolicFloat):
         if is_function(y) and function_is_scalar(y):
-            check_space_type(y, "conjugate_dual")
+            check_space_types(x, y)
             function_axpy(x, -1.0, y)
         elif isinstance(y, Sequence) \
                 and len(y) == 2 \
@@ -623,7 +627,7 @@ def _subtract_adjoint_derivative_action(x, y):
                                       float, np.floating,
                                       complex, np.complexfloating)) \
                 and is_function(y[1]) and function_is_scalar(y[1]):
-            check_space_type(y[1], "conjugate_dual")
+            check_space_types(x, y[1])
             function_axpy(x, -y[0], y[1])
         else:
             return NotImplemented

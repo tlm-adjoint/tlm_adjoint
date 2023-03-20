@@ -739,6 +739,7 @@ class HDF5Checkpoints(Checkpoints):
 
                     d = g["value"]
                     if function_is_scalar(F):
+                        d, = d
                         function_assign(F, d)
                     else:
                         function_set_values(F, d[function_local_indices(F)])
