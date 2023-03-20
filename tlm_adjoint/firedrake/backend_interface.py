@@ -26,13 +26,11 @@ from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_interface, add_subtract_adjoint_derivative_action, \
     add_time_system_eq, check_space_types, comm_dup_cached, function_comm, \
     function_dtype, function_is_alias, function_is_scalar, \
-    function_scalar_value, function_space, new_function_id, new_space_id, \
-    space_id, space_new, subtract_adjoint_derivative_action
+    function_scalar_value, new_function_id, new_space_id, space_id, \
+    space_new, subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space
 
-from ..hessian import GeneralGaussNewton as _GaussNewton
-from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..overloaded_float import SymbolicFloat
 
 from .caches import form_neg
@@ -49,8 +47,6 @@ import warnings
 
 __all__ = \
     [
-        "CachedGaussNewton",
-        "GaussNewton",
         "new_scalar_function",
 
         "RealFunctionSpace",
@@ -374,28 +370,6 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
-
-
-class GaussNewton(_GaussNewton):
-    def __init__(self, forward, R_inv_action, B_inv_action=None,
-                 *, J_space=None, manager=None):
-        if J_space is None:
-            J_space = function_space(new_scalar_function())
-
-        super().__init__(
-            forward, J_space, R_inv_action, B_inv_action=B_inv_action,
-            manager=manager)
-
-
-class CachedGaussNewton(_CachedGaussNewton):
-    def __init__(self, X, R_inv_action, B_inv_action=None,
-                 *, J_space=None, manager=None):
-        if J_space is None:
-            J_space = function_space(new_scalar_function())
-
-        super().__init__(
-            X, J_space, R_inv_action, B_inv_action=B_inv_action,
-            manager=manager)
 
 
 def _subtract_adjoint_derivative_action(x, y):

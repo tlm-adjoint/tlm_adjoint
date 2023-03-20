@@ -19,13 +19,10 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
-    comm_dup_cached, function_space, new_function_id, new_space_id, space_id, \
-    space_new
+    comm_dup_cached, new_function_id, new_space_id, space_id, space_new
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
-from ..hessian import GeneralGaussNewton as _GaussNewton
-from ..hessian_optimization import CachedGaussNewton as _CachedGaussNewton
 from ..overloaded_float import SymbolicFloat
 
 import copy
@@ -37,8 +34,6 @@ __all__ = \
         "default_dtype",
         "set_default_dtype",
 
-        "CachedGaussNewton",
-        "GaussNewton",
         "new_scalar_function",
 
         "Function",
@@ -378,28 +373,6 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
-
-
-class GaussNewton(_GaussNewton):
-    def __init__(self, forward, R_inv_action, B_inv_action=None,
-                 *, J_space=None, manager=None):
-        if J_space is None:
-            J_space = function_space(new_scalar_function())
-
-        super().__init__(
-            forward, J_space, R_inv_action, B_inv_action=B_inv_action,
-            manager=manager)
-
-
-class CachedGaussNewton(_CachedGaussNewton):
-    def __init__(self, X, R_inv_action, B_inv_action=None,
-                 *, J_space=None, manager=None):
-        if J_space is None:
-            J_space = function_space(new_scalar_function())
-
-        super().__init__(
-            X, J_space, R_inv_action, B_inv_action=B_inv_action,
-            manager=manager)
 
 
 def default_comm():
