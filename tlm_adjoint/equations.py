@@ -19,20 +19,20 @@
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
 from .interface import check_space_types, check_space_types_conjugate_dual, \
-    check_space_types_dual, conjugate_dual_space_type, \
-    finalize_adjoint_derivative_action, function_assign, function_axpy, \
-    function_comm, function_copy, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, function_is_alias, \
-    function_is_checkpointed, function_local_indices, function_local_size, \
-    function_new, function_new_conjugate_dual, function_replacement, \
-    function_set_values, function_space, function_space_type, function_sum, \
-    function_update_caches, function_update_state, function_zero, \
-    is_function, no_space_type_checking, space_new, \
-    subtract_adjoint_derivative_action
-from .manager import paused_manager, restore_manager, set_manager
+    check_space_types_dual, conjugate_dual_space_type, function_assign, \
+    function_axpy, function_comm, function_copy, function_dtype, \
+    function_get_values, function_global_size, function_id, function_inner, \
+    function_is_alias, function_is_checkpointed, function_local_indices, \
+    function_local_size, function_new, function_new_conjugate_dual, \
+    function_replacement, function_set_values, function_space, \
+    function_space_type, function_sum, function_update_caches, \
+    function_update_state, function_zero, is_function, \
+    no_space_type_checking, space_new
 
+from .adjoint import AdjointModelRHS
 from .alias import WeakAlias, gc_disabled
 from .manager import manager as _manager
+from .manager import paused_manager, restore_manager, set_manager
 
 from collections.abc import Sequence
 import copy
@@ -46,11 +46,6 @@ import weakref
 __all__ = \
     [
         "EquationException",
-
-        "AdjointBlockRHS",
-        "AdjointEquationRHS",
-        "AdjointModelRHS",
-        "AdjointRHS",
 
         "Equation",
 
@@ -100,118 +95,6 @@ class EquationException(Exception):  # noqa: N818
         warnings.warn("EquationException is deprecated",
                       DeprecationWarning, stacklevel=2)
         super().__init__(*args, **kwargs)
-
-
-class AdjointRHS:
-    def __init__(self, x):
-        self._space = function_space(x)
-        self._space_type = function_space_type(x, rel_space_type="conjugate_dual")  # noqa: E501
-        self._b = None
-
-    def b(self, copy=False):
-        self.finalize()
-        if copy:
-            return function_copy(self._b)
-        else:
-            return self._b
-
-    def initialize(self):
-        if self._b is None:
-            self._b = space_new(self._space, space_type=self._space_type)
-
-    def finalize(self):
-        self.initialize()
-        finalize_adjoint_derivative_action(self._b)
-
-    def sub(self, b):
-        if b is not None:
-            self.initialize()
-            subtract_adjoint_derivative_action(self._b, b)
-
-    def is_empty(self):
-        return self._b is None
-
-
-class AdjointEquationRHS:
-    def __init__(self, eq):
-        self._B = tuple(AdjointRHS(x) for x in eq.X())
-
-    def __getitem__(self, key):
-        return self._B[key]
-
-    def b(self, copy=False):
-        b, = self._B
-        return b.b(copy=copy)
-
-    def B(self, copy=False):
-        return tuple(B.b(copy=copy) for B in self._B)
-
-    def finalize(self):
-        for b in self._B:
-            b.finalize()
-
-    def is_empty(self):
-        for b in self._B:
-            if not b.is_empty():
-                return False
-        return True
-
-
-class AdjointBlockRHS:
-    def __init__(self, block):
-        self._B = [AdjointEquationRHS(eq) for eq in block]
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._B[key]
-        else:
-            k, m = key
-            return self._B[k][m]
-
-    def pop(self):
-        return len(self._B) - 1, self._B.pop()
-
-    def finalize(self):
-        for B in self._B:
-            B.finalize()
-
-    def is_empty(self):
-        return len(self._B) == 0
-
-
-class AdjointModelRHS:
-    def __init__(self, blocks):
-        if isinstance(blocks, Sequence):
-            # Sequence
-            self._blocks_n = list(range(len(blocks)))
-        else:
-            # Mapping
-            self._blocks_n = sorted(blocks.keys())
-        self._B = {n: AdjointBlockRHS(blocks[n]) for n in self._blocks_n}
-        self._pop_empty()
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._B[key]
-        elif len(key) == 2:
-            p, k = key
-            return self._B[p][k]
-        else:
-            p, k, m = key
-            return self._B[p][k][m]
-
-    def pop(self):
-        n = self._blocks_n[-1]
-        i, B = self._B[n].pop()
-        self._pop_empty()
-        return (n, i), B
-
-    def _pop_empty(self):
-        while len(self._B) > 0 and self._B[self._blocks_n[-1]].is_empty():
-            del self._B[self._blocks_n.pop()]
-
-    def is_empty(self):
-        return len(self._B) == 0
 
 
 class Referrer:

@@ -22,6 +22,7 @@ from .interface import DEFAULT_COMM, check_space_types, comm_dup, \
     function_assign, function_copy, function_id, function_is_replacement, \
     function_name, function_new_tangent_linear, garbage_cleanup, is_function
 
+from .adjoint import AdjointModelRHS
 from .alias import WeakAlias, gc_disabled
 from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
     Write, EndForward, EndReverse
@@ -30,8 +31,8 @@ from .checkpoint_schedules import MemoryCheckpointSchedule, \
     PeriodicDiskCheckpointSchedule
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     PickleCheckpoints, ReplayStorage
-from .equations import AdjointModelRHS, ControlsMarker, Equation, \
-    FunctionalMarker, ZeroAssignment
+from .equations import ControlsMarker, Equation, FunctionalMarker, \
+    ZeroAssignment
 from .functional import Functional
 from .manager import restore_manager, set_manager
 
