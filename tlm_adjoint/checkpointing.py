@@ -47,6 +47,37 @@ __all__ = \
 
 
 class CheckpointStorage:
+    """A buffer for forward restart data, and a cache for non-linear dependency
+    data. Contains three types of data:
+
+      1. References: Dependencies which are stored by reference. Functions `x`
+         for which `function_is_checkpointed(x)` is `False` are stored by
+         reference.
+      2. Forward restart / initial condition data: Dependencies which are used
+         to restart and advance the forward calculation.
+      3. Non-linear dependency data: Non-linear dependencies of the forward
+         which are used to advance the adjoint.
+
+    These may overlap -- for example non-linear dependency data may be stored
+    by reference.
+
+    Non-linear dependency data has an associated key `(n, i)`, where `n` is an
+    :class:`int` indicating the block index and `i` is an :class:`int`
+    indicating the equation index within that block. Non-linear-dependency data
+    for an :class:`Equation` can be accessed via, e.g.
+
+    .. code-block:: python
+
+        nl_deps = cp[(n, i)]
+
+    where `cp` is a :class:`CheckpointStorage`. Here `nl_deps` is a
+    :class:`tuple` of functions storing values associated with
+    `eq.nonlinear_dependencies()`, for :class:`Equation` `i` in block `n`.
+
+    :arg store_ics: Whether to enable storage of forward restart data.
+    :arg store_data: Whether to enable storage of non-linear dependency data.
+    """
+
     def __init__(self, *, store_ics, store_data):
         self._cp_keys = set()
         self._cp = {}
@@ -65,16 +96,44 @@ class CheckpointStorage:
                        store_data=store_data)
 
     def configure(self, *, store_ics, store_data):
+        """Enable or disable storage of forward restart and non-linear
+        dependency data.
+
+        :arg store_ics: Whether storage of forward restart data should be
+            enabled (`store_ics=True`) or disabled (`store_ics=False`).
+        :arg store_data: Whether storage of non-linear dependency data should
+            be enabled (`store_data=True`) or disabled (`store_data=False`).
+        """
+
         self._store_ics = store_ics
         self._store_data = store_data
 
     def store_ics(self):
+        """Return whether storage of forward restart data is enabled.
+
+        :returns: `True` if storage of forward restart data is enabled, and
+            `False` otherwise.
+        """
+
         return self._store_ics
 
     def store_data(self):
+        """Return whether storage of non-linear dependency data is enabled.
+
+        :returns: `True` if storage of non-linear dependency data is enabled,
+            and `False` otherwise.
+        """
+
         return self._store_data
 
     def clear(self, *, clear_ics=True, clear_data=True, clear_refs=False):
+        """Clear stored data.
+
+        :arg clear_ics: Whether forward restart data should be cleared.
+        :arg clear_data: Whether non-linear dependency data should be cleared.
+        :arg clear_refs: Whether references should be cleared.
+        """
+
         if clear_ics:
             for key in self._cp_keys:
                 if key not in self._data_keys:
@@ -104,6 +163,15 @@ class CheckpointStorage:
         return tuple(self._storage[dep_key] for dep_key in self._data[key])
 
     def initial_condition(self, x, *, copy=True):
+        """Return the forward restart value associated with a function `x`.
+
+        :arg x: The function, or the :class:`int` function ID, for which the
+            forward restart value should be returned.
+        :arg copy: If `True` then a copy of the stored value is returned. If
+            `False` then an internal function storing the value is returned.
+        :returns: A function containing the forward restart value for `x`.
+        """
+
         if isinstance(x, int):
             x_id = x
         else:
@@ -116,6 +184,19 @@ class CheckpointStorage:
         return function_copy(ic) if copy else ic
 
     def initial_conditions(self, *, cp=True, refs=False, copy=True):
+        """Access stored forward restart data.
+
+        :arg cp: Whether to include forward restart data that is stored by
+            value.
+        :arg refs: Whether to include forward restart data that is stored by
+            reference.
+        :arg copy: If `True` then a copy of the stored data is returned. If
+            `False` then internal functions storing the data are returned.
+        :returns: A :class:`dict`, with items `(x_id: x_value)`, where `x_id`
+            is the :class:`int` function ID and `x_value` is a function storing
+            the data.
+        """
+
         cp_d = {}
         if cp:
             for x_id, x_key in self._cp.items():
@@ -128,6 +209,13 @@ class CheckpointStorage:
         return cp_d
 
     def add_initial_condition(self, x, value=None):
+        """Store forward restart data / an initial condition dependency.
+
+        :arg x: A function defining the initial condition dependency variable.
+        :arg value: A function defining the initial condition dependency value.
+            `x` is used if not supplied.
+        """
+
         if value is None:
             value = x
 
@@ -136,6 +224,16 @@ class CheckpointStorage:
             copy=function_is_checkpointed(x))
 
     def update_keys(self, n, i, eq):
+        """The :class:`CheckpointStorage` keeps an internal map from forward
+        variables to equations in which values for those variables are
+        computed. Keys are updated automatically as needed. This method allows
+        keys to be updated manually.
+
+        :arg n: The :class:`int` index of the block.
+        :arg i: The :class:`int` index of the equation.
+        :arg eq: An :class:`Equation`, equation `i` in block `n`.
+        """
+
         for m, x in enumerate(eq.X()):
             x_id = function_id(x)
             self._keys[x_id] = (x_id, (n, i, m))
@@ -171,6 +269,17 @@ class CheckpointStorage:
                 self._seen_ics.add(x_id)
 
     def add_equation(self, n, i, eq, *, deps=None, nl_deps=None):
+        """Store checkpoint data associated with an equation.
+
+        :arg n: The :class:`int` index of the block.
+        :arg i: The :class:`int` index of the equation.
+        :arg eq: An :class:`Equation`, equation `i` in block `n`.
+        :arg deps: Equation dependency values. `eq.dependencies()` is used if
+            not supplied.
+        :arg nl_deps: Equation non-linear dependency values. Extracted from
+            `deps` if not supplied.
+        """
+
         eq_deps = eq.dependencies()
         if deps is None:
             deps = eq_deps
@@ -191,6 +300,16 @@ class CheckpointStorage:
             n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps)
 
     def add_equation_data(self, n, i, eq, *, nl_deps=None):
+        """Store checkpoint data associated with an equation. As
+        :meth:`add_equation`, but adds only *non-linear* dependency data.
+
+        :arg n: The :class:`int` index of the block.
+        :arg i: The :class:`int` index of the equation.
+        :arg eq: An :class:`Equation`, equation `i` in block `n`.
+        :arg nl_deps: Equation non-linear dependency values.
+            `eq.nonlinear_dependencies()` is used if not supplied.
+        """
+
         self.update_keys(n, i, eq)
 
         eq_nl_deps = eq.nonlinear_dependencies()
@@ -237,6 +356,17 @@ class CheckpointStorage:
             self._data[(n, i)] = tuple(eq_data)
 
     def checkpoint_data(self, *, ics=True, data=True, copy=True):
+        """Extract checkpoint data.
+
+        :arg ics: Whether to extract forward restart data.
+        :arg data: Whether to extract non-linear dependency data.
+        :arg copy: If `True` then a copy of the stored data is returned. If
+            `False` then internal functions storing the data are returned.
+        :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
+            :class:`tuple` are as for the three arguments for the
+            :meth:`update` method.
+        """
+
         if ics:
             cp_cp = tuple(self._cp.values())
         else:
@@ -260,6 +390,27 @@ class CheckpointStorage:
         return (cp_cp, cp_data, cp_storage)
 
     def update(self, cp, data, storage, *, copy=True):
+        """Update the :class:`CheckpointStorage` using the provided checkpoint
+        data. Used to update the :class:`CheckpointStorage` from loaded data.
+        Note that the :class:`CheckpointStorage` is *not* cleared prior to
+        updating using the provided data.
+
+        :arg cp: A :class:`tuple` of keys. Forward restart data is defined by
+            `(storage[key] for key in cp)`.
+        :arg data: A :class:`dict`. Items are `((n, i), keys)`, indicating
+            that non-linear dependency data for equation `i` in block `n` is
+            `(storage[key] for key in keys)`.
+        :arg storage: The stored data. A :class:`dict` with items `((x_id,
+            x_indices), x_value)`. `x_id` is the :class:`int` ID for a function
+            whose value `x_value` is stored. `x_indices` is either `None`, if
+            the function value has not been computed by solving equations with
+            forward restart data storage enabled, or a tuple `(n, i, m)`
+            indicating that the function value was computed as component `m` of
+            the solution to equation `i` in block `n`.
+        :arg copy: Whether the values in `storage` should be copied when being
+            stored in the :class:`CheckpointStorage`.
+        """
+
         keys = set(cp)
         for eq_data in data.values():
             keys.update(eq_data)
@@ -290,6 +441,39 @@ class CheckpointStorage:
 
 
 class ReplayStorage:
+    """Storage used when solving forward equations.
+
+    A value for a forward variable can be accessed via
+
+    .. code-block:: python
+
+        x_value = replay_storage[x]
+
+    and set via
+
+    .. code-block:: python
+
+        replay_storage[x] = x_value
+
+    where here `x` is either a function of an :class:`int` function ID.
+    Containment can also be tested,
+
+    .. code-block:: python
+
+        if x in replay_storage:
+            [...]
+
+    :arg blocks: A :class:`Sequence` or :class:`Mapping`, whose elements or
+        values are :class:`Sequence` objects containing :class:`Equation`
+        objects. Forward equations.
+    :arg N0: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
+        forward equations which will be solved.
+    :arg N1: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
+        forward equations which will be solved.
+    :arg transpose_deps: A :class:`DependencyGraphTranspose`. If supplied then
+        an activity analysis is applied.
+    """
+
     def __init__(self, blocks, N0, N1, *, transpose_deps=None):
         if transpose_deps is None:
             active = {n: np.full(len(blocks[n]), True, dtype=bool)
@@ -417,14 +601,38 @@ class ReplayStorage:
         self._map[x_id] = y
 
     def is_active(self, n, i):
+        """Return whether the activity analysis indicates that an equation is
+        'active'.
+
+        :arg n: The :class:`int` index of the block.
+        :arg i: The :class:`int` index of the equation.
+        :returns: `True` if the equation is active, and `False` otherwise.
+        """
+
         return self._active[n][i]
 
     def update(self, d, *, copy=True):
+        """Use the supplied :class:`Mapping` to update forward values.
+
+        :arg d: A :class:`Mapping`. Updates values for those keys in `d`
+            which are also in the :class:`ReplayStorage`.
+        :arg copy: Whether the values in `d` should be copied when being stored
+            in the :class:`ReplayStorage`.
+        """
+
         for key, value in d.items():
             if key in self:
                 self[key] = function_copy(value) if copy else value
 
     def pop(self):
+        """Remove the first equation from consideration. Used to deallocate
+        forward variables which are no longer needed as the solution of
+        forward equations progresses.
+
+        :returns: A :class:`tuple` `(n, i)`, indicating that equation `i` in
+            block `n` has been removed from consideration.
+        """
+
         n, i, dep_ids = self._eq_last.popleft()
         for dep_id in dep_ids:
             del self._map[dep_id]
@@ -432,20 +640,51 @@ class ReplayStorage:
 
 
 class Checkpoints(ABC):
+    """Disk checkpointing abstract base class.
+    """
+
     @abstractmethod
     def __contains__(self, n):
         raise NotImplementedError
 
     @abstractmethod
     def write(self, n, cp, data, storage):
+        """Write checkpoint data.
+
+        :arg n: The :class:`int` index of the block with which the checkpoint
+            data to be written is associated.
+        :arg cp: See :meth:`CheckpointStorage.update`.
+        :arg data: See :meth:`CheckpointStorage.update`.
+        :arg storage: See :meth:`CheckpointStorage.update`.
+        """
+
         raise NotImplementedError
 
     @abstractmethod
     def read(self, n, *, ics=True, data=True, ic_ids=None):
+        """Read checkpoint data.
+
+        :arg n: The :class:`int` index of the block with which the checkpoint
+            data to be read is associated.
+        :arg ics: Whether forward restart data should be included.
+        :arg data: Whether non-linear dependency data should be included.
+        :arg ic_ids: A :class:`Container`. If provided then only functions with
+           ID in `ic_ids` are included.
+        :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
+            :class:`tuple` are as for the three arguments for the
+            :meth:`CheckpointStorage.update` method.
+        """
+
         raise NotImplementedError
 
     @abstractmethod
     def delete(self, n):
+        """Delete checkpoint data.
+
+        :arg n: The :class:`int` index of the block with which the checkpoint
+            data to be deleted is associated.
+        """
+
         raise NotImplementedError
 
 
@@ -466,6 +705,16 @@ def root_pid(comm, *, root=0):
 
 
 class PickleCheckpoints(Checkpoints):
+    """Disk checkpointing using the pickle module.
+
+    :arg prefix: Checkpoint files are stored at
+        `[prefix]_[root_pid]_[root_py2f]_[rank].pickle`. Here `prefix` is
+        defined by this argument, `root_pid` is the process ID on the root
+        process (i.e. process 0), `root_py2f` is the Fortran MPI communicator
+        on the root process, and `rank` is the process rank.
+    :arg comm: An :class:`mpi4py.MPI.Comm`. The MPI communicator.
+    """
+
     def __init__(self, prefix, *, comm=None):
         if comm is None:
             comm = DEFAULT_COMM
@@ -562,6 +811,16 @@ class PickleCheckpoints(Checkpoints):
 
 
 class HDF5Checkpoints(Checkpoints):
+    """Disk checkpointing using the h5py library.
+
+    :arg prefix: Checkpoint files are stored at
+        `[prefix]_[root_pid]_[root_py2f].hdf5`. Here `prefix` is defined by
+        this argument, `root_pid` is the process ID on the root process (i.e.
+        process 0), and `root_py2f` is the Fortran MPI communicator on the root
+        process.
+    :arg comm: An :class:`mpi4py.MPI.Comm`. The MPI communicator.
+    """
+
     def __init__(self, prefix, *, comm=None):
         if comm is None:
             comm = DEFAULT_COMM
