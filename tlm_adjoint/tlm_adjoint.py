@@ -31,8 +31,8 @@ from .checkpoint_schedules import MemoryCheckpointSchedule, \
     PeriodicDiskCheckpointSchedule
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     PickleCheckpoints, ReplayStorage
-from .equations import ControlsMarker, Equation, FunctionalMarker, \
-    ZeroAssignment
+from .equation import Equation
+from .equations import ControlsMarker, FunctionalMarker, ZeroAssignment
 from .functional import Functional
 from .manager import restore_manager, set_manager
 
@@ -1178,6 +1178,9 @@ class EquationManager:
                 if dep in M or dep in tlm_map:
                     tlm_eq = eq.tangent_linear(M, dM, tlm_map)
                     if tlm_eq is None:
+                        warnings.warn("Equation.tangent_linear should return "
+                                      "an Equation",
+                                      DeprecationWarning)
                         tlm_eq = ZeroAssignment([tlm_map[x] for x in X])
                     tlm_eq._tlm_adjoint__tlm_root_id = getattr(
                         eq, "_tlm_adjoint__tlm_root_id", eq.id())

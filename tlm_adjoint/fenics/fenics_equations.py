@@ -28,7 +28,8 @@ from ..interface import check_space_type, function_assign, function_comm, \
 from .backend_code_generator_interface import assemble, complex_mode
 
 from ..caches import Cache
-from ..equations import Equation, LinearEquation, Matrix, MatrixActionRHS, \
+from ..equation import Equation
+from ..equations import LinearEquation, Matrix, MatrixActionRHS, \
     ZeroAssignment, get_tangent_linear
 
 from .caches import form_dependencies, form_key

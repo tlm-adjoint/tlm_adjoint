@@ -21,7 +21,8 @@
 from .interface import function_id, is_function, space_new, time_system_eq
 
 from .alias import Alias
-from .equations import Assignment, Equation
+from .equation import Equation
+from .equations import Assignment
 
 from collections import OrderedDict
 from operator import itemgetter

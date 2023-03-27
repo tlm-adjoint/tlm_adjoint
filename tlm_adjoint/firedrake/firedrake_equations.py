@@ -27,7 +27,8 @@ from .backend_code_generator_interface import assemble, complex_mode, \
     matrix_multiply
 
 from ..caches import Cache
-from ..equations import Equation, ZeroAssignment, get_tangent_linear
+from ..equation import Equation
+from ..equations import ZeroAssignment, get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \

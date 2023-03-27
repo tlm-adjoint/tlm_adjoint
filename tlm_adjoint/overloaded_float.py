@@ -27,7 +27,8 @@ from .interface import DEFAULT_COMM, FunctionInterface, SpaceInterface, \
     space_comm, space_dtype
 
 from .caches import Caches
-from .equations import Assignment, Equation, ZeroAssignment, get_tangent_linear
+from .equation import Equation
+from .equations import Assignment, ZeroAssignment, get_tangent_linear
 from .manager import annotation_enabled, tlm_enabled
 
 from collections.abc import Sequence
