@@ -60,9 +60,9 @@ notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0, follows.
 
 ===============================================================================
 
-The 'eigendecompose' function in tlm_adjoint/eigendecomposition.py loosely
-follows the slepc4py 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information
-follows.
+The 'eigendecompose' function in tlm_adjoint/eigendecomposition.py was
+originally developed by loosely following the slepc4py 3.6.0 demo demo/ex3.py.
+slepc4py 3.6.0 license information follows.
 
 =========================
 LICENSE: SLEPc for Python
