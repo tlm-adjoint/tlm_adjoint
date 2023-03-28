@@ -22,11 +22,10 @@ from .interface import check_space_types, check_space_types_conjugate_dual, \
     check_space_types_dual, conjugate_dual_space_type, function_assign, \
     function_axpy, function_comm, function_copy, function_dtype, \
     function_get_values, function_global_size, function_id, function_inner, \
-    function_local_indices, function_local_size, function_new, \
-    function_new_conjugate_dual, function_replacement, function_set_values, \
-    function_space, function_space_type, function_sum, \
-    function_update_caches, function_zero, is_function, \
-    no_space_type_checking, space_new
+    function_local_indices, function_local_size, function_new_conjugate_dual, \
+    function_replacement, function_set_values, function_space, \
+    function_space_type, function_sum, function_update_caches, function_zero, \
+    is_function, no_space_type_checking, space_new
 
 from .adjoint import AdjointModelRHS
 from .alias import WeakAlias
@@ -41,9 +40,6 @@ import warnings
 
 __all__ = \
     [
-        "ControlsMarker",
-        "FunctionalMarker",
-
         "get_tangent_linear",
 
         "Assignment",
@@ -80,55 +76,6 @@ __all__ = \
         "SumRHS",
         "SumSolver"
     ]
-
-
-class ControlsMarker(Equation):
-    def __init__(self, M):
-        """
-        Represents the equation "controls = inputs".
-
-        Arguments:
-
-        M  A function, or a sequence of functions. May be non-checkpointed.
-        """
-
-        if is_function(M):
-            M = (M,)
-
-        super(Equation, self).__init__()
-        self._X = tuple(M)
-        self._deps = tuple(M)
-        self._nl_deps = ()
-        self._ic_deps = ()
-        self._adj_ic_deps = ()
-        self._adj_X_type = tuple("conjugate_dual" for m in M)
-
-    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
-        return B
-
-
-class FunctionalMarker(Equation):
-    def __init__(self, J):
-        """
-        Represents the equation "output = functional".
-
-        Arguments:
-
-        J  A function. The functional.
-        """
-
-        J = J.function()
-        # Extra function allocation could be avoided
-        J_ = function_new(J)
-        super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index != 1:
-            raise IndexError("Unexpected dep_index")
-        return (-1.0, adj_x)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
 
 
 def get_tangent_linear(x, M, dM, tlm_map):
