@@ -78,6 +78,22 @@ __all__ = \
 
 
 class ZeroAssignment(Equation):
+    r"""Represents an assignment
+
+    .. math::
+
+        x = 0.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x \right) = x.
+
+    :arg X: A function or a :class:`Sequence` of functions defining the forward
+        solution :math:`x`.
+    """
+
     def __init__(self, X):
         if is_function(X):
             X = (X,)
@@ -105,6 +121,8 @@ class ZeroAssignment(Equation):
 
 
 class NullSolver(ZeroAssignment):
+    ""
+
     def __init__(self, X):
         warnings.warn("NullSolver is deprecated -- "
                       "use ZeroAssignment instead",
@@ -113,6 +131,22 @@ class NullSolver(ZeroAssignment):
 
 
 class Assignment(Equation):
+    r"""Represents an assignment
+
+    .. math::
+
+        x = y.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x, y \right) = x - y.
+
+    :arg x: A function defining the forward solution :math:`x`.
+    :arg y: A function defining :math:`y`.
+    """
+
     def __init__(self, x, y):
         check_space_types(x, y)
         super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
@@ -142,6 +176,8 @@ class Assignment(Equation):
 
 
 class AssignmentSolver(Assignment):
+    ""
+
     def __init__(self, y, x):
         warnings.warn("AssignmentSolver is deprecated -- "
                       "use Assignment instead",
@@ -150,6 +186,26 @@ class AssignmentSolver(Assignment):
 
 
 class LinearCombination(Equation):
+    r"""Represents an assignment
+
+    .. math::
+
+        x = \sum_i \alpha_i y_i.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x, y_1, y_2, \ldots \right)
+            = x - \sum_i \alpha_i y_i.
+
+    :arg x: A function defining the forward solution :math:`x`.
+    :arg args: A :class:`Sequence` of two element :class:`Sequence` objects.
+        The :math:`i` th element consists of `(alpha_i, y_i)`, where `alpha_i`
+        is a scalar corresponding to :math:`\alpha_i` and `y_i` a function
+        corresponding :math:`y_i`.
+    """
+
     def __init__(self, x, *args):
         alpha = []
         Y = []
@@ -196,6 +252,8 @@ class LinearCombination(Equation):
 
 
 class LinearCombinationSolver(LinearCombination):
+    ""
+
     def __init__(self, x, *args):
         warnings.warn("LinearCombinationSolver is deprecated -- "
                       "use LinearCombination instead",
@@ -204,6 +262,8 @@ class LinearCombinationSolver(LinearCombination):
 
 
 class ScaleSolver(LinearCombination):
+    ""
+
     def __init__(self, alpha, y, x):
         warnings.warn("ScaleSolver is deprecated -- "
                       "use LinearCombination instead",
@@ -212,11 +272,32 @@ class ScaleSolver(LinearCombination):
 
 
 class Axpy(LinearCombination):
+    r"""Represents an assignment
+
+    .. math::
+
+        y_\text{new} = y_\text{old} + \alpha x.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( y_\text{new}, y_\text{old}, x \right)
+            = y_\text{new} - y_\text{old} - \alpha x.
+
+    :arg y_new: A function defining the forward solution :math:`y_\text{new}`.
+    :arg y_old: A function defining :math:`y_\text{old}`.
+    :arg alpha: A scalar defining :math:`\alpha`.
+    :arg x: A function defining :math:`x`.
+    """
+
     def __init__(self, y_new, y_old, alpha, x):
         super().__init__(y_new, (1.0, y_old), (alpha, x))
 
 
 class AxpySolver(Axpy):
+    ""
+
     def __init__(self, y_old, alpha, x, y_new, /):
         warnings.warn("AxpySolver is deprecated -- "
                       "use Axpy instead",
