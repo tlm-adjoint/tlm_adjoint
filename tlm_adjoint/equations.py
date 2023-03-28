@@ -21,10 +21,10 @@
 from .interface import check_space_types, check_space_types_conjugate_dual, \
     check_space_types_dual, conjugate_dual_space_type, function_assign, \
     function_axpy, function_comm, function_dtype, function_get_values, \
-    function_global_size, function_id, function_inner, \
-    function_local_indices, function_local_size, function_new_conjugate_dual, \
-    function_replacement, function_set_values, function_space, \
-    function_space_type, function_sum, function_zero, is_function, space_new
+    function_id, function_inner, function_local_size, \
+    function_new_conjugate_dual, function_replacement, function_set_values, \
+    function_space, function_space_type, function_sum, function_zero, \
+    is_function, space_new
 
 from .alias import WeakAlias
 from .equation import Equation, Referrer
@@ -51,11 +51,6 @@ __all__ = \
         "InnerProductRHS",
         "InnerProduct",
         "MatrixActionRHS",
-
-        "Storage",
-
-        "HDF5Storage",
-        "MemoryStorage",
 
         "AssignmentSolver",
         "AxpySolver",
@@ -1152,77 +1147,3 @@ class SumRHS(RHS):
             return None
         else:
             return SumRHS(tau_y)
-
-
-class Storage(Equation):
-    def __init__(self, x, key, save=False):
-        super().__init__(x, [x], nl_deps=[], ic=False, adj_ic=False)
-        self._key = key
-        self._save = save
-
-    def key(self):
-        return self._key
-
-    def is_saved(self):
-        raise NotImplementedError("Method not overridden")
-
-    def load(self, x):
-        raise NotImplementedError("Method not overridden")
-
-    def save(self, x):
-        raise NotImplementedError("Method not overridden")
-
-    def forward_solve(self, x, deps=None):
-        if not self._save or self.is_saved():
-            self.load(x)
-        else:
-            self.save(x)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        else:
-            raise IndexError("dep_index out of bounds")
-
-    def tangent_linear(self, M, dM, tlm_map):
-        return ZeroAssignment(tlm_map[self.x()])
-
-
-class MemoryStorage(Storage):
-    def __init__(self, x, d, key, save=False):
-        super().__init__(x, key, save=save)
-        self._d = d
-
-    def is_saved(self):
-        return self.key() in self._d
-
-    def load(self, x):
-        function_set_values(x, self._d[self.key()])
-
-    def save(self, x):
-        self._d[self.key()] = function_get_values(x)
-
-
-class HDF5Storage(Storage):
-    def __init__(self, x, h, key, save=False):
-        super().__init__(x, key, save=save)
-        self._h = h
-
-    def is_saved(self):
-        return self.key() in self._h
-
-    def load(self, x):
-        d = self._h[self.key()]["value"]
-        function_set_values(x, d[function_local_indices(x)])
-
-    def save(self, x):
-        key = self.key()
-        self._h.create_group(key)
-        values = function_get_values(x)
-        d = self._h[key].create_dataset("value",
-                                        shape=(function_global_size(x),),
-                                        dtype=values.dtype)
-        d[function_local_indices(x)] = values

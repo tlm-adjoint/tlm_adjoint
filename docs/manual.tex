@@ -1562,7 +1562,7 @@ class, and overriding key methods.
 A subclass of \texttt{Storage} must call the \texttt{Storage} constructor. The
 \texttt{Storage} constructor has the form
 \begin{lstlisting}
-def __init__(self, x, key, save=False):
+def __init__(self, x, key, *, save=False):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
