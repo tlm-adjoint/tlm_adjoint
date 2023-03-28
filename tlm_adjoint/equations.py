@@ -30,6 +30,7 @@ from .interface import check_space_types, check_space_types_conjugate_dual, \
 from .adjoint import AdjointModelRHS
 from .alias import WeakAlias
 from .equation import Equation, Referrer
+from .tangent_linear import get_tangent_linear
 
 from collections.abc import Sequence
 import copy
@@ -40,8 +41,6 @@ import warnings
 
 __all__ = \
     [
-        "get_tangent_linear",
-
         "Assignment",
         "Axpy",
         "FixedPointSolver",
@@ -76,13 +75,6 @@ __all__ = \
         "SumRHS",
         "SumSolver"
     ]
-
-
-def get_tangent_linear(x, M, dM, tlm_map):
-    if x in M:
-        return dM[M.index(x)]
-    else:
-        return tlm_map[x]
 
 
 class ZeroAssignment(Equation):

@@ -33,8 +33,9 @@ from .backend_code_generator_interface import assemble, \
 
 from ..caches import CacheRef
 from ..equation import Equation
-from ..equations import Assignment, ZeroAssignment, get_tangent_linear
+from ..equations import Assignment, ZeroAssignment
 from ..overloaded_float import SymbolicFloat
+from ..tangent_linear import get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form
