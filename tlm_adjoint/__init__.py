@@ -22,6 +22,7 @@ from .caches import *                # noqa: F401
 from .eigendecomposition import *    # noqa: F401
 from .equation import *              # noqa: F401
 from .equations import *             # noqa: F401
+from .fixed_point import *           # noqa: F401
 from .functional import *            # noqa: F401
 from .hessian import *               # noqa: F401
 from .hessian import GeneralGaussNewton as GaussNewton  # noqa: F401
