@@ -31,8 +31,7 @@ from .checkpoint_schedules import MemoryCheckpointSchedule, \
     PeriodicDiskCheckpointSchedule
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     PickleCheckpoints, ReplayStorage
-from .equation import Equation
-from .equations import ZeroAssignment
+from .equation import Equation, ZeroAssignment
 from .functional import Functional
 from .markers import ControlsMarker, FunctionalMarker
 from .manager import restore_manager, set_manager

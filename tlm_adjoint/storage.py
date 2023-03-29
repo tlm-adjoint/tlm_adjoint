@@ -21,8 +21,7 @@
 from .interface import function_get_values, function_global_size, \
     function_local_indices, function_set_values
 
-from .equation import Equation
-from .equations import ZeroAssignment
+from .equation import Equation, ZeroAssignment
 
 __all__ = \
     [

@@ -20,7 +20,7 @@
 
 from .interface import check_space_types, function_id, function_is_alias, \
     function_is_checkpointed, function_new, function_replacement, \
-    function_update_caches, function_update_state, is_function
+    function_update_caches, function_update_state, function_zero, is_function
 
 from .alias import gc_disabled
 from .manager import manager as _manager
@@ -34,7 +34,10 @@ import weakref
 
 __all__ = \
     [
-        "Equation"
+        "Equation",
+        "ZeroAssignment",
+
+        "NullSolver"
     ]
 
 
@@ -599,3 +602,56 @@ class Equation(Referrer):
         """
 
         raise NotImplementedError("Method not overridden")
+
+
+class ZeroAssignment(Equation):
+    r"""Represents an assignment
+
+    .. math::
+
+        x = 0.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x \right) = x.
+
+    :arg X: A function or a :class:`Sequence` of functions defining the forward
+        solution :math:`x`.
+    """
+
+    def __init__(self, X):
+        if is_function(X):
+            X = (X,)
+        super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False)
+
+    def forward_solve(self, X, deps=None):
+        if is_function(X):
+            X = (X,)
+        for x in X:
+            function_zero(x)
+
+    def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
+        if is_function(adj_X):
+            adj_X = (adj_X,)
+        if dep_index < len(adj_X):
+            return adj_X[dep_index]
+        else:
+            raise IndexError("dep_index out of bounds")
+
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
+        return B
+
+    def tangent_linear(self, M, dM, tlm_map):
+        return ZeroAssignment([tlm_map[x] for x in self.X()])
+
+
+class NullSolver(ZeroAssignment):
+    ""
+
+    def __init__(self, X):
+        warnings.warn("NullSolver is deprecated -- "
+                      "use ZeroAssignment instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(X)

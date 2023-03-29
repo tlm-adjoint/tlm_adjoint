@@ -24,8 +24,7 @@ from .interface import function_assign, function_axpy, function_copy, \
 
 from .adjoint import AdjointModelRHS
 from .alias import WeakAlias
-from .equation import Equation
-from .equations import ZeroAssignment
+from .equation import Equation, ZeroAssignment
 
 import copy
 import logging

@@ -155,7 +155,7 @@ def forward(psi_0, kappa):
             self._A = None
             self._A_kappa = None
 
-        def forward_action(self, nl_deps, x, b, method="assign"):
+        def forward_action(self, nl_deps, x, b, *, method="assign"):
             check_space_type(x, "primal")
             check_space_type(b, "conjugate_dual")
 
@@ -171,7 +171,7 @@ def forward(psi_0, kappa):
             else:
                 raise ValueError(f"Invalid method: '{method:s}'")
 
-        def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
+        def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *,
                            method="assign"):
             if b_index != 0:
                 raise IndexError("Invalid index")
@@ -192,7 +192,7 @@ def forward(psi_0, kappa):
                 self._A = A(kappa, alpha=self._alpha, beta=self._beta)
                 self._A_kappa = kappa.vector().copy()
 
-        def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
+        def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, *,  # noqa: E501
                                       method="assign"):
             if nl_dep_index == 0:
                 sb = self._beta * dK_dkappa_adjoint_action(x, adj_x)
