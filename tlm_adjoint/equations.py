@@ -128,9 +128,9 @@ class LinearCombination(Equation):
             = x - \sum_i \alpha_i y_i.
 
     :arg x: A function defining the forward solution :math:`x`.
-    :arg args: A :class:`Sequence` of two element :class:`Sequence` objects.
-        The :math:`i` th element consists of `(alpha_i, y_i)`, where `alpha_i`
-        is a scalar corresponding to :math:`\alpha_i` and `y_i` a function
+    :arg args: A :class:`tuple` of two element :class:`Sequence` objects. The
+        :math:`i` th element consists of `(alpha_i, y_i)`, where `alpha_i` is a
+        scalar corresponding to :math:`\alpha_i` and `y_i` a function
         corresponding :math:`y_i`.
     """
 
@@ -234,6 +234,8 @@ class AxpySolver(Axpy):
 
 
 class MatrixActionSolver(LinearEquation):
+    ""
+
     def __init__(self, Y, A, X):
         warnings.warn("MatrixActionSolver is deprecated",
                       DeprecationWarning, stacklevel=2)
@@ -241,11 +243,33 @@ class MatrixActionSolver(LinearEquation):
 
 
 class DotProduct(LinearEquation):
+    r"""Represents an assignment
+
+    .. math::
+
+        x = \alpha z^T y.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x, y, z \right) = x - \alpha z^T y.
+
+    :arg x: A function whose degrees of freedom define the forward solution
+        :math:`x`.
+    :arg y: A function whose degrees of freedom define :math:`y`.
+    :arg z: A function whose degrees of freedom define :math:`z`. May be the
+        same function as `y`.
+    :arg alpha: A scalar defining :math:`\alpha`.
+    """
+
     def __init__(self, x, y, z, *, alpha=1.0):
         super().__init__(x, DotProductRHS(y, z, alpha=alpha))
 
 
 class DotProductSolver(DotProduct):
+    ""
+
     def __init__(self, y, z, x, alpha=1.0):
         warnings.warn("DotProductSolver is deprecated -- "
                       "use DotProduct instead",
@@ -254,11 +278,35 @@ class DotProductSolver(DotProduct):
 
 
 class InnerProduct(LinearEquation):
+    r"""Represents an assignment
+
+    .. math::
+
+        x = \alpha z^* M y.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x, y, z \right) = x - \alpha z^* M y.
+
+    :arg x: A function whose degrees of freedom define the forward solution
+        :math:`x`.
+    :arg y: A function whose degrees of freedom define :math:`y`.
+    :arg z: A function whose degrees of freedom define :math:`z`. May be the
+        same function a `y`.
+    :arg alpha: A scalar defining :math:`\alpha`.
+    :arg M: A :class:`Matrix` defining :math:`M`. Must have no dependencies.
+        Defaults to an identity matrix.
+    """
+
     def __init__(self, x, y, z, *, alpha=1.0, M=None):
         super().__init__(x, InnerProductRHS(y, z, alpha=alpha, M=M))
 
 
 class InnerProductSolver(InnerProduct):
+    ""
+
     def __init__(self, y, z, x, alpha=1.0, M=None):
         warnings.warn("InnerProductSolver is deprecated -- "
                       "use InnerProduct instead",
@@ -267,6 +315,8 @@ class InnerProductSolver(InnerProduct):
 
 
 class NormSqSolver(InnerProduct):
+    ""
+
     def __init__(self, y, x, alpha=1.0, M=None):
         warnings.warn("NormSqSolver is deprecated",
                       DeprecationWarning, stacklevel=2)
@@ -274,6 +324,8 @@ class NormSqSolver(InnerProduct):
 
 
 class SumSolver(LinearEquation):
+    ""
+
     def __init__(self, y, x):
         warnings.warn("SumSolver is deprecated",
                       DeprecationWarning, stacklevel=2)
@@ -282,6 +334,16 @@ class SumSolver(LinearEquation):
 
 
 class MatrixActionRHS(RHS):
+    """Represents a right-hand-side term
+
+    .. math::
+
+        A x.
+
+    :arg A: A :class:`Matrix` defining :math:`A`.
+    :arg x: A function or a :class:`Sequence` of functions defining :math:`x`.
+    """
+
     def __init__(self, A, X):
         if is_function(X):
             X = (X,)
@@ -362,17 +424,19 @@ class MatrixActionRHS(RHS):
 
 
 class DotProductRHS(RHS):
-    def __init__(self, x, y, alpha=1.0):
-        """
-        Represents a dot product of the form, y^T x, with *no* complex
-        conjugation.
+    r"""Represents a right-hand-side term
 
-        Arguments:
+    .. math::
 
-        x, y   Dot product arguments. May be the same function.
-        alpha  (Optional) Scale the result of the dot product by alpha.
-        """
+        \alpha y^T x.
 
+    :arg x: A function whose degrees of freedom define :math:`x`.
+    :arg y: A function whose degrees of freedom define :math:`y`. May be the
+        same function as `x`.
+    :arg alpha: A scalar defining :math:`\alpha`.
+    """
+
+    def __init__(self, x, y, *, alpha=1.0):
         check_space_types_dual(x, y)
 
         x_equals_y = function_id(x) == function_id(y)
@@ -466,18 +530,21 @@ class DotProductRHS(RHS):
 
 
 class InnerProductRHS(RHS):
-    def __init__(self, x, y, alpha=1.0, M=None):
-        """
-        Represents an inner product, y^* M x.
+    r"""Represents a right-hand-side term
 
-        Arguments:
+    .. math::
 
-        x, y   Inner product arguments. May be the same function.
-        alpha  (Optional) Scale the result of the inner product by alpha.
-        M      (Optional) Matrix defining the inner product. Must have no
-               non-linear dependencies. Defaults to an identity matrix.
-        """
+        \alpha y^* M x.
 
+    :arg x: A function whose degrees of freedom define :math:`x`.
+    :arg y: A function whose degrees of freedom define :math:`y`. May be the
+        same function as `x`.
+    :arg alpha: A scalar defining :math:`\alpha`.
+    :arg M: A :class:`Matrix` defining :math:`M`. Must have no dependencies.
+        Defaults to an identity matrix.
+    """
+
+    def __init__(self, x, y, *, alpha=1.0, M=None):
         if M is None:
             check_space_types_conjugate_dual(x, y)
         else:
@@ -614,6 +681,8 @@ class InnerProductRHS(RHS):
 
 
 class NormSqRHS(InnerProductRHS):
+    ""
+
     def __init__(self, x, alpha=1.0, M=None):
         warnings.warn("NormSqRHS is deprecated",
                       DeprecationWarning, stacklevel=2)
@@ -621,6 +690,8 @@ class NormSqRHS(InnerProductRHS):
 
 
 class SumRHS(RHS):
+    ""
+
     def __init__(self, x):
         warnings.warn("SumRHS is deprecated",
                       DeprecationWarning, stacklevel=2)

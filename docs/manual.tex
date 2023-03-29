@@ -912,8 +912,8 @@ define dependencies. \texttt{tlm\_adjoint} does not distinguish between
 symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
 the form
 \begin{lstlisting}
-def __init__(self, x, deps, nl_deps=None,
-             *, ic_deps=None, ic=None,
+def __init__(self, x, deps, nl_deps=None, *,
+             ic_deps=None, ic=None,
              adj_ic_deps=None, adj_ic=None,
              adj_type="conjugate_dual"):
 \end{lstlisting}
