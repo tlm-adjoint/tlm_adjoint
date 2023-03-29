@@ -33,6 +33,7 @@ __all__ = \
     [
         "CachedGaussNewton",
         "CachedHessian",
+
         "SingleBlockHessian"
     ]
 
@@ -157,18 +158,17 @@ class HessianOptimization:
 
 
 class CachedHessian(Hessian, HessianOptimization):
+    """Represents a Hessian associated with a given forward model. Uses a
+    cached forward calculation.
+
+    :arg J: The :class:`Functional` defining the Hessian.
+    :arg manager: The :class:`EquationManager` used to record the forward. This
+        must have used `'memory'` checkpointing with automatic dropping of
+        function references disabled. `manager()` is used if not supplied.
+    :arg cache_adjoint: Whether to cache the first order adjoint calculation.
+    """
+
     def __init__(self, J, *, manager=None, cache_adjoint=True):
-        """
-        A Hessian class for the case where memory checkpointing is used,
-        without automatic dropping of references to function objects.
-
-        Arguments:
-
-        J        The Functional.
-        manager  (Optional) The equation manager used to process the forward.
-        cache_adjoint  (Optional) Whether to cache the first order adjoint.
-        """
-
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
@@ -223,6 +223,8 @@ class CachedHessian(Hessian, HessianOptimization):
 
 
 class SingleBlockHessian(CachedHessian):
+    ""
+
     def __init__(self, *args, **kwargs):
         warnings.warn("SingleBlockHessian class is deprecated -- "
                       "use CachedHessian instead",
@@ -231,6 +233,19 @@ class SingleBlockHessian(CachedHessian):
 
 
 class CachedGaussNewton(GaussNewton, HessianOptimization):
+    """Represents a Gauss-Newton approximation to a Hessian associated with a
+    given forward model. Uses a cached forward calculation.
+
+    :arg X: A function or a :class:`Sequence` of functions defining the state.
+    :arg R_inv_action: See :class:`GaussNewton`.
+    :arg B_inv_action: See :class:`GaussNewton`.
+    :arg J_space: The space for the functional. `FloatSpace()` is used if not
+        supplied.
+    :arg manager: The :class:`EquationManager` used to record the forward. This
+        must have used `'memory'` checkpointing with automatic dropping of
+        function references disabled. `manager()` is used if not supplied.
+    """
+
     def __init__(self, X, R_inv_action, B_inv_action=None,
                  *, J_space=None, manager=None):
         if not isinstance(X, Sequence):
