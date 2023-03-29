@@ -35,18 +35,19 @@ __all__ = \
 
 
 class Functional:
+    """A convenience class for defining functionals.
+
+    This allocates and stores an internal function, but note that this function
+    can change e.g. after adding terms.
+
+    :arg space: The space for the :class:`Functional`. Internal functions are
+        in this space. Defaults to `FloatSpace()`.
+    :arg name: A :class:`str` name for the functional.
+    """
+
     _id_counter = [0]
 
     def __init__(self, *, space=None, name=None, _fn=None):
-        """
-        A functional.
-
-        Arguments:
-
-        space  (Optional) The space for the functional.
-        name   (Optional) The name of the functional.
-        """
-
         if _fn is None:
             if space is None:
                 space = FloatSpace()
@@ -69,19 +70,31 @@ class Functional:
         self._id_counter[0] += 1
 
     def id(self):
+        """Return the unique :class:`int` ID associated with this
+        :class:`Functional`.
+
+        :returns: The unique :class:`int` ID.
+        """
+
         return self._id
 
     def assign(self, term, *, manager=None, annotate=None, tlm=None):
-        """
-        Assign the functional.
+        r"""Assign to the functional,
 
-        Arguments:
+        .. math::
 
-        term      A Form or function, to which the functional is assigned.
-        manager   (Optional) The equation manager.
-        annotate  (Optional) Whether the equation should be annotated.
-        tlm       (Optional) Whether to derive (and solve) associated
-                  tangent-linear equations.
+            \mathcal{J} = b.
+
+        Note that this method allocates a new internal function.
+
+        :arg term: The value. Defines the value of :math:`b`. Valid types
+            depend upon the backend. :math:`b` may be a function, and with the
+            FEniCS or Firedrake backends may be a rank zero UFL :class:`Form`.
+        :arg manager: The :class:`EquationManager`. Defaults to
+            `manager()`.
+        :arg annotate: Whether the :class:`EquationManager` should record the
+            solution of equations.
+        :arg tlm: Whether tangent-linear equations should be solved.
         """
 
         if manager is None:
@@ -96,19 +109,31 @@ class Functional:
         self._fn = new_fn
 
     def addto(self, term=None, *, manager=None, annotate=None, tlm=None):
-        """
-        Add to the functional.
+        r"""Add to the functional. Performs two assignments,
 
-        Arguments:
+        .. math::
 
-        term      (Optional) A Form or function, which is added to the
-                  functional. If not supplied then the functional is copied
-                  into a new function (useful for avoiding long range
-                  cross-block dependencies).
-        manager   (Optional) The equation manager.
-        annotate  (Optional) Whether the equations should be annotated.
-        tlm       (Optional) Whether to derive (and solve) associated
-                  tangent-linear equations.
+            \mathcal{J}_* = \mathcal{J}_\text{old},
+
+        .. math::
+
+            \mathcal{J}_{new} = \mathcal{J}_* + b,
+
+        where :math:`\mathcal{J}_\text{old}` and :math:`\mathcal{J}_\text{new}`
+        are, respectively, the old and new values for the functional, and
+        :math:`b` is the term to add.
+
+        Note that this method allocates a new internal function.
+
+        :arg term: The value. Defines the value of :math:`b`. Valid types
+            depend upon the backend. :math:`b` may be a function, and with
+            the FEniCS or Firedrake backends may be a rank zero UFL
+            :class:`Form`.
+        :arg manager: The :class:`EquationManager`. Defaults to
+            `manager()`.
+        :arg annotate: Whether the :class:`EquationManager` should record the
+            solution of equations.
+        :arg tlm: Whether tangent-linear equations should be solved.
         """
 
         if manager is None:
@@ -130,8 +155,9 @@ class Functional:
         self._fn = new_fn
 
     def function(self):
-        """
-        Return the function storing the functional value.
+        """Return the internal function currently storing the value.
+
+        :returns: The internal function.
         """
 
         return self._fn
@@ -144,23 +170,39 @@ class Functional:
         return self._fn
 
     def space(self):
-        """
-        Return the space for the functional.
+        """Return the space for the functional.
+
+        :returns: The space
         """
 
         return function_space(self._fn)
 
     def value(self):
-        """
-        Return the value of the functional.
+        """Return the current value of the functional.
+
+        :returns: The scalar value.
         """
 
         return function_scalar_value(self._fn)
 
     def tlm_functional(self, *args, manager=None):
-        """
-        Return a Functional associated with evaluation of a tangent-linear
-        associated with the functional.
+        """Return a :class:`Functional` associated with a tangent-linear
+        variable associated with the functional.
+
+        :arg args: A :class:`Sequence` of `(M, dM)` pairs. Here `M` and `dM`
+            are each a function or a sequence of functions defining a
+            derivative and derivative direction. The tangent-linear variable is
+            the derivative of the functional with respect to each `M` and with
+            direction defined by each `dM`. Supplying a single pair requests a
+            :class:`Functional` associated with a first order tangent-linear
+            variable. Supplying multiple pairs leads to a :class:`Functional`
+            associated with higher order tangent-linear variables. The relevant
+            tangent-linear models must have been configured for the
+            :class:`EquationManager` `manager`.
+        :arg manager: The :class:`EquationManager`. Defaults to
+            `manager()`.
+        :returns: A :class:`Functional` associated with the tangent-linear
+            variable.
         """
 
         if manager is None:
