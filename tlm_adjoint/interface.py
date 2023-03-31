@@ -18,6 +18,50 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+r"""This module defines an interface for interaction with backend data types.
+This is implemented via runtime binding of mixins. The
+:class:`FunctionInterface` adds methods to 'functions' which can be used to
+interact with backend variables. The :class:`SpaceInterface` adds methods to
+'spaces' which define the vector spaces in which those 'functions' are defined.
+
+The extra methods are accessed using the :class:`Callable` objects defined in
+this module (which also handle some extra details, e.g. related to cache
+invalidation and space type checking). Typically these are prefixed with
+`space_` for spaces and `function_` for functions.
+
+The term 'function' originates from finite element discrete functions, but
+there is no assumption that these correspond to actual functions defined on any
+particular computational domain. For example the :class:`SymbolicFloat` class
+represents a scalar variable.
+
+The interface distinguishes between original backend 'functions', which both
+define symbolic variables and store values, and replacement 'functions', which
+define the same variables but which need not store values.
+
+Functions have an associated 'space type', which indicates e.g. if the variable
+is 'primal', meaning a member on an originating vector space, or 'conjugate
+dual', meaning a member of the corresponding antidual space of antilinear
+functionals from the originating vector space. Functions can also be 'dual',
+meaning a member of the dual space of linear functionals, or 'conjugate',
+meaning a member of a space defined by a conjugate operator from the primal
+space. This conjugate operator is defined by complex conjugation of the vector
+of degrees of freedom, and could e.g. correspond to complex conjugation of a
+finite element discretized function.
+
+The space type associated with a function is defined relative to an originating
+vector space (e.g. a finite element discrete function space). A 'relative space
+type' is defined relative to one of the 'primal', 'conjugate', 'dual', or
+'conjugate dual' spaces. For example the primal space associated with the dual
+space is the dual space, and the dual space associated with the dual space is
+the primal space.
+
+This module defines a default communicator `DEFAULT_COMM`, which is
+`mpi4py.MPI.COMM_WORLD` if mpi4py is available. Note that here and elsewhere
+communicators are defined to be of type :class:`mpi4py.MPI.Comm`. However if
+mpi4py is not available a dummy 'serial' communicator is used, of type
+:class:`SerialComm`.
+"""
+
 from collections.abc import Mapping
 from collections import deque
 import contextlib
@@ -52,11 +96,9 @@ __all__ = \
         "garbage_cleanup",
 
         "add_interface",
-        "weakref_method",
 
         "SpaceInterface",
         "is_space",
-        "new_space_id",
         "space_comm",
         "space_dtype",
         "space_id",
@@ -73,7 +115,6 @@ __all__ = \
         "no_space_type_checking",
         "paused_space_type_checking",
         "relative_space_type",
-        "space_type_warning",
 
         "FunctionInterface",
         "is_function",
@@ -99,7 +140,6 @@ __all__ = \
         "function_new_conjugate",
         "function_new_conjugate_dual",
         "function_new_dual",
-        "function_new_tangent_linear",
         "function_replacement",
         "function_set_values",
         "function_space",
@@ -109,21 +149,17 @@ __all__ = \
         "function_update_caches",
         "function_update_state",
         "function_zero",
-        "new_function_id",
 
         "function_is_scalar",
         "function_scalar_value",
 
-        "function_is_alias",
-
         "subtract_adjoint_derivative_action",
-        "finalize_adjoint_derivative_action",
 
-        "functional_term_eq",
-        "time_system_eq"
+        "function_is_alias"
     ]
 
 
+DEFAULT_COMM = None
 if MPI is None:
     # As for mpi4py 3.1.4 API
     class SerialComm:
@@ -212,6 +248,16 @@ def comm_parent(dup_comm):
 
 
 def comm_dup(comm):
+    """
+    Duplicate a communicator. The duplicated communicator is freed when the
+    associated object is destroyed.
+
+    :arg comm: An :class:`mpi4py.MPI.Comm`, the base communicator to be
+        duplicated.
+    :returns: An :class:`mpi4py.MPI.Comm`. A duplicated MPI communicator which
+        is freed when the object is is destroyed.
+    """
+
     if MPI is not None and comm is MPI.COMM_NULL:
         return comm
 
@@ -234,6 +280,18 @@ _dup_comms = {}
 
 
 def comm_dup_cached(comm):
+    """If the communicator `comm` has previously been duplicated using
+    :func:`comm_dup_cached`, then return the previous result. Otherwise
+    duplicate the communicator and cache the result. The duplicated
+    communicator is freed when the original base communicator is freed.
+
+    :arg comm: An :class:`mpi4py.MPI.Comm`, the base communicator to be
+        duplicated.
+    :returns: An :class:`mpi4py.MPI.Comm`. A duplicated MPI communicator, or a
+        previously cached duplicated MPI communicator, which is freed when the
+        original base communicator is freed.
+    """
+
     if MPI is not None and comm is MPI.COMM_NULL:
         return comm
 
@@ -257,6 +315,12 @@ def comm_dup_cached(comm):
 
 
 def garbage_cleanup(comm):
+    """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, and
+    any base communicator from which it was duplicated.
+
+    :arg comm: An :class:`mpi4py.MPI.Comm`.
+    """
+
     if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
         while True:
             PETSc.garbage_cleanup(comm)
@@ -282,12 +346,6 @@ def weakref_method(fn, obj):
 
 class protecteddict(Mapping):  # noqa: N801
     def __init__(self, *args, **kwargs):
-        """
-        A mapping where previous key: value pairs are partially protected from
-        modification. d_ prefixed methods can be used to modify key: value
-        pairs.
-        """
-
         self._d = dict(*args, **kwargs)
 
     def __getitem__(self, key):
@@ -299,8 +357,7 @@ class protecteddict(Mapping):  # noqa: N801
         self._d[key] = value
 
     def __iter__(self):
-        for key in self._d:
-            yield key
+        yield from self._d
 
     def __len__(self):
         return len(self._d)
@@ -313,6 +370,17 @@ class protecteddict(Mapping):  # noqa: N801
 
 
 def add_interface(obj, interface_cls, attrs=None):
+    """Attach a mixin `interface_cls`, defining an interface, to `obj`.
+
+    :arg obj: An object to which the mixin should be attached.
+    :arg interface_cls: A subclass of :class:`SpaceInterface` or
+        :class:`FunctionInterface` defining the interface.
+    :arg attrs: A :class:`Mapping` defining any attributes. Used to set an
+        attribute `_tlm_adjoint__space_interface_attrs` (for a
+        :class:`SpaceInterface`) or `_tlm_adjoint__function_interface_attrs`
+        (for a :class:`FunctionInterface`).
+    """
+
     if attrs is None:
         attrs = {}
 
@@ -332,6 +400,12 @@ def add_interface(obj, interface_cls, attrs=None):
 
 
 class SpaceInterface:
+    """A mixin defining an interface for spaces. Space types do not inherit
+    from this class -- instead an interface is defined by a
+    :class:`SpaceInterface` subclass, and methods are bound dynamically at
+    runtime using :func:`add_interface`.
+    """
+
     prefix = "_tlm_adjoint__space_interface"
     names = ("_comm", "_dtype", "_id", "_new")
 
@@ -352,33 +426,73 @@ class SpaceInterface:
         raise NotImplementedError("Method not overridden")
 
 
-def is_space(x):
-    return hasattr(x, "_tlm_adjoint__space_interface")
+def is_space(space):
+    """Return whether `space` is a space -- i.e. has had a
+    :class:`SpaceInterface` attached.
+
+    :arg space: An arbitrary :class:`object`.
+    :returns: `True` if `space` is a space, and `False` otherwise.
+    """
+
+    return hasattr(space, "_tlm_adjoint__space_interface")
 
 
 def space_comm(space):
+    """
+    :arg space: A space.
+    :returns: The :class:`mpi4py.MPI.Comm` associated with the space.
+    """
+
     return space._tlm_adjoint__space_interface_comm()
 
 
 def space_dtype(space):
+    """
+    :arg space: A space.
+    :returns: The data type associated with the space. Typically
+        :class:`numpy.float64` or :class:`numpy.complex128`.
+    """
+
     return space._tlm_adjoint__space_interface_dtype()
 
 
-_space_id_counter = [0]
+_space_id_counter = 0
 
 
 def new_space_id():
-    space_id = _space_id_counter[0]
-    _space_id_counter[0] += 1
+    global _space_id_counter
+    space_id = _space_id_counter
+    _space_id_counter += 1
     return space_id
 
 
 def space_id(space):
+    """Return the unique :class:`int` ID associated with a space.
+
+    :arg space: The space.
+    :returns: The unique :class:`int` ID.
+    """
+
     return space._tlm_adjoint__space_interface_id()
 
 
 def space_new(space, *, name=None, space_type="primal", static=False,
               cache=None, checkpoint=None):
+    """Return a new function.
+
+    :arg space: The space.
+    :arg name: A :class:`str` name for the function.
+    :arg space_type: The space type for the new function. `'primal'`, `'dual'`,
+        `'conjugate'`, or `'conjugate_dual'`.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving this function may be cached.
+        Default `static`.
+    :arg checkpoint: Defines whether a :class:`CheckpointStorage` should store
+        this function by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+    :returns: The new function.
+    """
+
     if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
         raise ValueError("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
@@ -387,6 +501,16 @@ def space_new(space, *, name=None, space_type="primal", static=False,
 
 
 def relative_space_type(space_type, rel_space_type):
+    """Return a relative space type. For example if `space_type` is `'dual'`
+    and `rel_space_type` is `'conjugate_dual'`, this returns `'conjugate'`.
+
+    :arg space_type: An input space type. One of `'primal'`, `'conjugate'`,
+        `'dual'`, or `'conjugate_dual'`.
+    :arg rel_space_type: The relative space type to return. One of `'primal'`,
+         `'conjugate'`, `'dual'`, or `'conjugate_dual'`.
+    :returns: A space type relative to `space_type`.
+    """
+
     space_type_fn = {"primal": lambda space_type: space_type,
                      "conjugate": conjugate_space_type,
                      "dual": dual_space_type,
@@ -395,16 +519,46 @@ def relative_space_type(space_type, rel_space_type):
 
 
 def conjugate_space_type(space_type):
+    r"""Defines a map
+
+        - `'primal'` :math:`\rightarrow` `'conjugate'`
+        - `'conjugate'` :math:`\rightarrow` `'primal'`
+        - `'dual'` :math:`\rightarrow` `'conjugate_dual'`
+        - `'conjugate_dual'` :math:`\rightarrow` `'dual'`
+
+    :returns: The space type conjugate to `space_type`.
+    """
+
     return {"primal": "conjugate", "conjugate": "primal",
             "dual": "conjugate_dual", "conjugate_dual": "dual"}[space_type]
 
 
 def dual_space_type(space_type):
+    r"""Defines a map
+
+        - `'primal'` :math:`\rightarrow` `'dual'`
+        - `'conjugate'` :math:`\rightarrow` `'conjugate_dual'`
+        - `'dual'` :math:`\rightarrow` `'primal'`
+        - `'conjugate_dual'` :math:`\rightarrow` `'conjugate'`
+
+    :returns: The space type dual to `space_type`.
+    """
+
     return {"primal": "dual", "conjugate": "conjugate_dual",
             "dual": "primal", "conjugate_dual": "conjugate"}[space_type]
 
 
 def conjugate_dual_space_type(space_type):
+    r"""Defines a map
+
+        - `'primal'` :math:`\rightarrow` `'conjugate_dual'`
+        - `'conjugate'` :math:`\rightarrow` `'dual'`
+        - `'dual'` :math:`\rightarrow` `'conjugate'`
+        - `'conjugate_dual'` :math:`\rightarrow` `'primal'`
+
+    :returns: The space type conjugate dual to `space_type`.
+    """
+
     return {"primal": "conjugate_dual", "conjugate": "dual",
             "dual": "conjugate", "conjugate_dual": "primal"}[space_type]
 
@@ -413,6 +567,13 @@ _check_space_types = 0
 
 
 def no_space_type_checking(fn):
+    """Decorator to disable space type checking.
+
+    :arg fn: :class:`Callable` for which space type checking should be
+        disabled.
+    :returns: A :class:`Callable` for which space type checking is disabled.
+    """
+
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
         with paused_space_type_checking():
@@ -422,6 +583,13 @@ def no_space_type_checking(fn):
 
 @contextlib.contextmanager
 def paused_space_type_checking():
+    """Construct a context manager which can be used to temporarily disable
+    space type checking.
+
+    :returns: A context manager which can be used to temporarily disable
+        space type checking.
+    """
+
     global _check_space_types
     _check_space_types += 1
     try:
@@ -436,6 +604,15 @@ def space_type_warning(msg, *, stacklevel=1):
 
 
 def check_space_type(x, space_type):
+    """Check that a function has a given space type.
+
+    Emits a warning if the check fails and space type checking is enabled.
+
+    :arg x: A function, whose space type should be checked.
+    :arg space_type: The space type. One of `'primal'`, `'conjugate'`,
+        `'dual'`, or `'conjugate_dual'`.
+    """
+
     if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
         raise ValueError("Invalid space type")
     if function_space_type(x) != space_type:
@@ -443,30 +620,72 @@ def check_space_type(x, space_type):
 
 
 def check_space_types(x, y, *, rel_space_type="primal"):
+    """Check that `x` and `y` have compatible space types.
+
+    Emits a warning if the check fails and space type checking is enabled.
+
+    :arg x: A function.
+    :arg y: A function.
+    :arg rel_space_type: Check that the space type of `x` is `rel_space_type`
+        relative to `y`. For example if `rel_space_type='dual'`, and the
+        space type of `y` is `'conjuguate_dual'`, checks that the space type of
+        `x` is `'conjugate'`.
+    """
+
     if function_space_type(x) != \
             function_space_type(y, rel_space_type=rel_space_type):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
 def check_space_types_conjugate(x, y):
+    """Check that `x` has space type conjugate to the space type for `y`.
+
+    Emits a warning if the check fails and space type checking is enabled.
+
+    :arg x: A function.
+    :arg y: A function.
+    """
+
     if function_space_type(x) != \
             function_space_type(y, rel_space_type="conjugate"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
 def check_space_types_dual(x, y):
+    """Check that `x` has space type dual to the space type for `y`.
+
+    Emits a warning if the check fails and space type checking is enabled.
+
+    :arg x: A function.
+    :arg y: A function.
+    """
+
     if function_space_type(x) != \
             function_space_type(y, rel_space_type="dual"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
 def check_space_types_conjugate_dual(x, y):
+    """Check that `x` has space type conjugate dual to the space type for `y`.
+
+    Emits a warning if the check fails and space type checking is enabled.
+
+    :arg x: A function.
+    :arg y: A function.
+    """
+
     if function_space_type(x) != \
             function_space_type(y, rel_space_type="conjugate_dual"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
 class FunctionInterface:
+    """A mixin defining an interface for functions. Functions types do not
+    inherit from this class -- instead an interface is defined by a
+    :class:`FunctionInterface` subclass, and methods are bound dynamically at
+    runtime using :func:`add_interface`.
+    """
+
     prefix = "_tlm_adjoint__function_interface"
     names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
              "_state", "_update_state", "_is_static", "_is_cached",
@@ -578,70 +797,172 @@ class FunctionInterface:
 
 
 def is_function(x):
+    """Return whether `x` is a function -- i.e. has had a
+    :class:`FunctionInterface` added.
+
+    :arg x: An arbitrary :class:`object`.
+    :returns: `True` if `x` is a function, and `False` otherwise.
+    """
+
     return hasattr(x, "_tlm_adjoint__function_interface")
 
 
 def function_comm(x):
+    """
+    :arg x: A function.
+    :returns: The :class:`mpi4py.MPI.Comm` associated with the function.
+    """
+
     return x._tlm_adjoint__function_interface_comm()
 
 
 def function_space(x):
+    """
+    :arg x: A function.
+    :returns: The space associated with the function.
+    """
+
     return x._tlm_adjoint__function_interface_space()
 
 
 def function_space_type(x, *, rel_space_type="primal"):
+    """Return the space type of a function.
+
+    :arg x: The function.
+    :arg rel_space_type: If supplied then return a space type relative to the
+        function space type. One of `'primal'`, `'conjugate'`, `'dual'`, or
+        `'conjugate_dual'`.
+    :returns: The space type.
+    """
+
     space_type = x._tlm_adjoint__function_interface_space_type()
     return relative_space_type(space_type, rel_space_type)
 
 
 def function_dtype(x):
+    """
+    :arg x: A function.
+    :returns: The data type associated with the function. Typically
+        :class:`numpy.float64` or :class:`numpy.complex128`.
+    """
+
     return x._tlm_adjoint__function_interface_dtype()
 
 
-_function_id_counter = [0]
+_function_id_counter = 0
 
 
 def new_function_id():
-    function_id = _function_id_counter[0]
-    _function_id_counter[0] += 1
+    global _function_id_counter
+    function_id = _function_id_counter
+    _function_id_counter += 1
     return function_id
 
 
 def function_id(x):
+    """Return the :class:`int` ID associated with a function.
+
+    Note that two functions share the same ID if they represent the same
+    variable -- for example if one function represents both a variable and
+    stores a value, and a second the same variable with no value (i.e. is a
+    'replacement'), then the two functions share the same ID.
+
+    :arg x: The function.
+    :returns: The :class:`int` ID.
+    """
+
     return x._tlm_adjoint__function_interface_id()
 
 
 def function_name(x):
+    """
+    :arg x: A function.
+    :returns: The :class:`str` name of the function.
+    """
+
     return x._tlm_adjoint__function_interface_name()
 
 
 def function_state(x):
+    """Return the value of the state counter for a function. Updated when the
+    value of the function changes.
+
+    :arg x: The function.
+    :returns: The :class:`int` state value.
+    """
+
     return x._tlm_adjoint__function_interface_state()
 
 
 def function_update_state(*X):
+    """Update the state counter for zero of more functions. Invalidates cache
+    entries.
+
+    :arg X: A :class:`tuple` of functions whose state value should be updated.
+    """
+
     for x in X:
         x._tlm_adjoint__function_interface_update_state()
     function_update_caches(*X)
 
 
 def function_is_static(x):
+    """Return whether a function is flagged as 'static'.
+
+    The 'static' flag is used when instantiating functions to set the default
+    caching and checkpointing behaviour, but plays no other role.
+
+    :arg x: The function.
+    :returns: Whether the function is flagged as static.
+    """
+
     return x._tlm_adjoint__function_interface_is_static()
 
 
 def function_is_cached(x):
+    """Return whether results involving this function may be cached.
+
+    :arg x: The function.
+    :returns: Whether results involving the function may be cached.
+    """
+
     return x._tlm_adjoint__function_interface_is_cached()
 
 
 def function_is_checkpointed(x):
+    """Return whether the function is 'checkpointed', meaning that a
+    :class:`CheckpointStorage` stores this function by value. If not
+    'checkpointed' then a :class:`CheckpointStorage` stores this function by
+    reference.
+
+    Only functions which are 'checkpointed' may appear as the solution of
+    equations.
+
+    :arg x: The function.
+    :returns: Whether the function is 'checkpointed'.
+    """
+
     return x._tlm_adjoint__function_interface_is_checkpointed()
 
 
 def function_caches(x):
+    """Return the :class:`Caches` associated with a function.
+
+    :arg x: The function.
+    :returns: The :class:`Caches` associated with the function.
+    """
+
     return x._tlm_adjoint__function_interface_caches()
 
 
 def function_update_caches(*X, value=None):
+    """Check for cache invalidation associated with a possible change in value.
+
+    :arg X: A :class:`tuple` of functions whose value may have changed.
+    :arg value: A function or a :class:`Sequence` of functions defining the
+        possible new values. `X` is used if not supplied.
+    """
+
     if value is None:
         for x in X:
             if function_is_replacement(x):
@@ -656,11 +977,22 @@ def function_update_caches(*X, value=None):
 
 
 def function_zero(x):
+    """Zero a function.
+
+    :arg x: The function.
+    """
+
     x._tlm_adjoint__function_interface_zero()
     function_update_state(x)
 
 
 def function_assign(x, y):
+    """Perform an assignment `x = y`.
+
+    :arg x: A function.
+    :arg y: A function.
+    """
+
     if is_function(y):
         check_space_types(x, y)
     x._tlm_adjoint__function_interface_assign(y)
@@ -668,6 +1000,13 @@ def function_assign(x, y):
 
 
 def function_axpy(y, alpha, x, /):
+    """Perform an in-place addition `y += alpha * x`.
+
+    :arg y: A function.
+    :arg alpha: A scalar.
+    :arg x: A function.
+    """
+
     if is_function(x):
         check_space_types(y, x)
     y._tlm_adjoint__function_interface_axpy(alpha, x)
@@ -675,42 +1014,119 @@ def function_axpy(y, alpha, x, /):
 
 
 def function_inner(x, y):
+    """Compute the :math:`l_2` inner product of the degrees of freedom vectors
+    associated with `x` and `y`. By convention if `y` is in the conjugate dual
+    space associated with `x`, this evaluates the functional associated with
+    `y` at `x`.
+
+    :arg x: A function.
+    :arg y: A function.
+    :returns: The result of the inner product.
+    """
+
     if is_function(y):
         check_space_types_conjugate_dual(x, y)
     return x._tlm_adjoint__function_interface_inner(y)
 
 
 def function_sum(x):
+    """Compute the sum of all degrees of freedom associated with a function.
+
+    :arg x: The function.
+    :returns: The sum of the degrees of freedom associated with `x`.
+    """
+
     return x._tlm_adjoint__function_interface_sum()
 
 
 def function_linf_norm(x):
+    r"""Compute the :math:`l_\infty` norm of the degrees of freedom vector
+    associated with a function.
+
+    :arg x: The function.
+    :returns: The :math:`l_\infty` norm of the degrees of freedom vector.
+    """
+
     return x._tlm_adjoint__function_interface_linf_norm()
 
 
 def function_local_size(x):
+    """Return the process local number of degrees of freedom associated with
+    a function. This is the number of 'owned' degrees of freedom.
+
+    :arg x: The function.
+    :returns: The process local number of degrees of freedom for the function.
+    """
+
     return x._tlm_adjoint__function_interface_local_size()
 
 
 def function_global_size(x):
+    """Return the global number of degrees of freedom associated with a
+    function. This is the total number of 'owned' degrees of freedom, summed
+    across all processes.
+
+    :arg x: The function.
+    :returns: The global number of degrees of freedom for the function.
+    """
+
     return x._tlm_adjoint__function_interface_global_size()
 
 
 def function_local_indices(x):
+    """Return the indices of process local degrees of freedom associated with
+    a function.
+
+    :arg x: The function.
+    :returns: An :class:`Iterable`, yielding the indices of the process local
+        elements.
+    """
+
     return x._tlm_adjoint__function_interface_local_indices()
 
 
 def function_get_values(x):
+    """Return the process local degrees of freedom vector associated with a
+    function.
+
+    :arg x: The function.
+    :returns: A :class:`numpy.ndarray` containing the degrees of freedom.
+        Should not be modified.
+    """
+
     return x._tlm_adjoint__function_interface_get_values()
 
 
 def function_set_values(x, values):
+    """Set the process local degrees of freedom vector associated with a
+    function.
+
+    :arg x: The function.
+    :arg values: A :class:`numpy.ndarray` containing the degrees of freedom
+        values.
+    """
+
     x._tlm_adjoint__function_interface_set_values(values)
     function_update_state(x)
 
 
 def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
                  rel_space_type="primal"):
+    """Return a new function defined using the same space as `x`.
+
+    :arg x: A function.
+    :arg name: A :class:`str` name for the new function.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving the new function may be
+        cached. Default `static`.
+    :arg checkpoint: Defines whether a :class:`CheckpointStorage` should store
+        the new function by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+    :arg rel_space_type: Defines the space type of the new function, relative
+        to the space type of `x`.
+    :returns: The new function.
+    """
+
     if rel_space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
         raise ValueError("Invalid relative space type")
     return x._tlm_adjoint__function_interface_new(
@@ -720,6 +1136,12 @@ def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
 
 def function_new_conjugate(x, *, name=None, static=False, cache=None,
                            checkpoint=None):
+    """Return a new conjugate function. See :func:`function_new`.
+
+    :returns: A new function defined using the same space as `x`, with space
+        type conjugate to the space type for `x`.
+    """
+
     return function_new(x, name=name, static=static, cache=cache,
                         checkpoint=checkpoint,
                         rel_space_type="conjugate")
@@ -727,6 +1149,12 @@ def function_new_conjugate(x, *, name=None, static=False, cache=None,
 
 def function_new_dual(x, *, name=None, static=False, cache=None,
                       checkpoint=None):
+    """Return a new dual function. See :func:`function_new`.
+
+    :returns: A new function defined using the same space as `x`, with space
+        type dual to the space type for `x`.
+    """
+
     return function_new(x, name=name, static=static, cache=cache,
                         checkpoint=checkpoint,
                         rel_space_type="dual")
@@ -734,12 +1162,23 @@ def function_new_dual(x, *, name=None, static=False, cache=None,
 
 def function_new_conjugate_dual(x, *, name=None, static=False, cache=None,
                                 checkpoint=None):
+    """Return a new conjugate dual function. See :func:`function_new`.
+
+    :returns: A new function defined using the same space as `x`, with space
+        type conjugate dual to the space type for `x`.
+    """
+
     return function_new(x, name=name, static=static, cache=cache,
                         checkpoint=checkpoint,
                         rel_space_type="conjugate_dual")
 
 
 def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
+    """Copy a function. See :func:`function_new`.
+
+    :returns: The copied function.
+    """
+
     return x._tlm_adjoint__function_interface_copy(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
@@ -754,24 +1193,60 @@ def function_new_tangent_linear(x, *, name=None):
 
 
 def function_replacement(x):
+    """Return a function, associated with the same variable as `x`, but
+    possibly without a value.
+
+    :arg x: The function.
+    :returns: A function which symbolically represents the same variable as
+        `x`, but which may not store a value. May return `x` itself.
+    """
+
     return x._tlm_adjoint__function_interface_replacement()
 
 
 def function_is_replacement(x):
+    """Return whether a function is a 'replacement', meaning that it has no
+    associated value.
+
+    :arg x: The function.
+    :returns: Whether `x` is a replacement.
+    """
+
     return x._tlm_adjoint__function_interface_is_replacement()
 
 
 def function_is_scalar(x):
+    """Return whether a function defines a scalar variable.
+
+    :arg x: The function.
+    :returns: Whether `x` defines a scalar variable.
+    """
+
     return x._tlm_adjoint__function_interface_is_scalar()
 
 
 def function_scalar_value(x):
+    """If `x` defines a scalar variable, returns its value.
+
+    :arg x: The function, defining a scalar variable.
+    :returns: The scalar value.
+    """
+
     if not function_is_scalar(x):
         raise ValueError("Invalid function")
     return x._tlm_adjoint__function_interface_scalar_value()
 
 
 def function_is_alias(x):
+    """Return whether a function is an 'alias', meaning part or all of the
+    degree of freedom vector associated with the function is shared with some
+    different aliased function. A function may not appear as an equation
+    dependency if it is an alias.
+
+    :arg x: The function.
+    :returns: Whether the function is an alias.
+    """
+
     return x._tlm_adjoint__function_interface_is_alias()
 
 
@@ -784,6 +1259,17 @@ def add_subtract_adjoint_derivative_action(backend, fn):
 
 
 def subtract_adjoint_derivative_action(x, y):
+    """Subtract an adjoint right-hand-side contribution defined by `y` from
+    the right-hand-side defined by `x`.
+
+    :arg x: A function storing the adjoint right-hand-side.
+    :arg y: A contribution to subtract from the adjoint right-hand-side. An
+        :meth:`Equation.adjoint_derivative_action` return value. Valid types
+        depend upon the backend used, but `y` may be a function, or a two
+        element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and `F`
+        a function, with the value defined by the product of `alpha` and `F`.
+    """
+
     for fn in _subtract_adjoint_derivative_action.values():
         if fn(x, y) != NotImplemented:
             break
