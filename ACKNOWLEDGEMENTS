@@ -114,16 +114,17 @@ and adjoint information using the approach described in [1, 2].
 
 The MultistageCheckpointSchedule class in
 tlm_adjoint/checkpoint_schedules/binomial.py implements the binomial
-checkpointing strategy described in [3], with multi-stage offline checkpointing
-schedules equivalent to those described in [4].
+checkpointing strategy described in [3]. A memory/disk storage distribution is
+determined by an initial run of the checkpoint schedule, leading to a
+distribution equivalent to that in [4].
 
-[3]  A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation of
-     checkpointing for the reverse or adjoint mode of computational
-     differentiation", ACM Transactions on Mathematical Software, 26(1),
-     pp. 19--45, 2000
-[4]  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
-     checkpointing", SIAM Journal on Scientific Computing, 31(3),
-     pp. 1946--1967, 2009
+[3]  Andreas Griewank and Andrea Walther, 'Algorithm 799: revolve: an
+     implementation of checkpointing for the reverse or adjoint mode of
+     computational differentiation', ACM Transactions on Mathematical Software,
+     26(1), pp. 19--45, 2000, doi: 10.1145/347837.347846
+[4]  Philipp Stumm and Andrea Walther, 'MultiStage approaches for optimal
+     offline checkpointing', SIAM Journal on Scientific Computing, 31(3), pp.
+     1946--1967, 2009, doi: 10.1137/080718036
 
 ===============================================================================
 
