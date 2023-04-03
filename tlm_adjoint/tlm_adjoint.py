@@ -22,7 +22,7 @@ from .interface import DEFAULT_COMM, comm_dup, function_assign, \
     function_copy, function_id, function_is_replacement, function_name, \
     garbage_cleanup, is_function
 
-from .adjoint import AdjointModelRHS
+from .adjoint import AdjointCache, AdjointModelRHS, DependencyGraphTranspose
 from .alias import WeakAlias, gc_disabled
 from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
     Write, EndForward, EndReverse
@@ -35,22 +35,19 @@ from .equation import Equation, ZeroAssignment
 from .functional import Functional
 from .markers import ControlsMarker, FunctionalMarker
 from .manager import restore_manager, set_manager
-from .tangent_linear import J_tangent_linears, TangentLinear, \
-    TangentLinearMap, tlm_key, tlm_keys
+from .tangent_linear import TangentLinear, TangentLinearMap, tlm_key, tlm_keys
 
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Sequence
 import contextlib
 import copy
 import enum
 import functools
-import itertools
 import logging
 try:
     import MPI
 except ImportError:
     MPI = None
-import numpy as np
 import os
 import warnings
 import weakref
@@ -59,308 +56,6 @@ __all__ = \
     [
         "EquationManager"
     ]
-
-
-class DependencyGraphTranspose:
-    def __init__(self, Js, M, blocks, *,
-                 prune_forward=True, prune_adjoint=True):
-        if isinstance(blocks, Sequence):
-            # Sequence
-            blocks_n = tuple(range(len(blocks)))
-        else:
-            # Mapping
-            blocks_n = tuple(sorted(blocks.keys()))
-
-        # Transpose dependency graph
-        last_eq = {}
-        transpose_deps = {n: tuple([None for dep in eq.dependencies()]
-                                   for eq in blocks[n])
-                          for n in blocks_n}
-        for n in blocks_n:
-            block = blocks[n]
-            for i, eq in enumerate(block):
-                for m, x in enumerate(eq.X()):
-                    last_eq[function_id(x)] = (n, i, m)
-                for j, dep in enumerate(eq.dependencies()):
-                    dep_id = function_id(dep)
-                    if dep_id in last_eq:
-                        p, k, m = last_eq[dep_id]
-                        if p < n or k < i:
-                            transpose_deps[n][i][j] = (p, k, m)
-        del last_eq
-
-        if prune_forward:
-            # Extra reverse traversal to add edges associated with adjoint
-            # initial conditions
-            last_eq = {}
-            transpose_deps_ics = copy.deepcopy(transpose_deps)
-            for p in reversed(blocks_n):
-                block = blocks[p]
-                for k in range(len(block) - 1, -1, -1):
-                    eq = block[k]
-                    dep_map = {function_id(dep): j
-                               for j, dep in enumerate(eq.dependencies())}
-                    for dep in eq.adjoint_initial_condition_dependencies():
-                        dep_id = function_id(dep)
-                        if dep_id in last_eq:
-                            n, i, m = last_eq[dep_id]
-                            assert n > p or (n == p and i > k)
-                            transpose_deps_ics[n][i][m] \
-                                = (p, k, dep_map[dep_id])
-                    for m, x in enumerate(eq.X()):
-                        x_id = function_id(x)
-                        last_eq[x_id] = (p, k, m)
-            del last_eq
-
-            # Pruning, forward traversal
-            active_M = {function_id(dep) for dep in M}
-            active_forward = {n: np.full(len(blocks[n]), False, dtype=bool)
-                              for n in blocks_n}
-            for n in blocks_n:
-                block = blocks[n]
-                for i, eq in enumerate(block):
-                    if len(active_M) > 0:
-                        X_ids = set(map(function_id, eq.X()))
-                        if not X_ids.isdisjoint(active_M):
-                            active_M.difference_update(X_ids)
-                            active_forward[n][i] = True
-                    if not active_forward[n][i]:
-                        for j, dep in enumerate(eq.dependencies()):
-                            if transpose_deps_ics[n][i][j] is not None:
-                                p, k, m = transpose_deps_ics[n][i][j]
-                                if active_forward[p][k]:
-                                    active_forward[n][i] = True
-                                    break
-        else:
-            active_forward = {n: np.full(len(blocks[n]), True, dtype=bool)
-                              for n in blocks_n}
-
-        active = {J_i: copy.deepcopy(active_forward) for J_i in range(len(Js))}
-
-        if prune_adjoint:
-            # Pruning, reverse traversal
-            for J_i, J in enumerate(Js):
-                J_id = function_id(J)
-                active_J = True
-                active_adjoint = {n: np.full(len(blocks[n]), False, dtype=bool)
-                                  for n in blocks_n}
-                for n in reversed(blocks_n):
-                    block = blocks[n]
-                    for i in range(len(block) - 1, -1, -1):
-                        eq = block[i]
-                        if active_J:
-                            for x in eq.X():
-                                if function_id(x) == J_id:
-                                    active_J = False
-                                    active_adjoint[n][i] = True
-                                    break
-                        if active_adjoint[n][i]:
-                            for j, dep in enumerate(eq.dependencies()):
-                                if transpose_deps[n][i][j] is not None:
-                                    p, k, m = transpose_deps[n][i][j]
-                                    active_adjoint[p][k] = True
-                        else:
-                            active[J_i][n][i] = False
-
-        solved = copy.deepcopy(active)
-
-        stored_adj_ics = {J_i: {n: tuple([None for x in eq.X()]
-                                         for eq in blocks[n])
-                                for n in blocks_n} for J_i in range(len(Js))}
-        adj_ics = {J_i: {} for J_i in range(len(Js))}
-        for J_i in range(len(Js)):
-            for n in blocks_n:
-                block = blocks[n]
-                for i, eq in enumerate(block):
-                    adj_ic_ids = set(map(function_id,
-                                         eq.adjoint_initial_condition_dependencies()))  # noqa: E501
-                    for m, x in enumerate(eq.X()):
-                        x_id = function_id(x)
-
-                        stored_adj_ics[J_i][n][i][m] = adj_ics[J_i].get(x_id, None)  # noqa: E501
-
-                        if x_id in adj_ic_ids:
-                            adj_ics[J_i][x_id] = (n, i)
-                        elif x_id in adj_ics[J_i]:
-                            del adj_ics[J_i][x_id]
-
-        self._transpose_deps = transpose_deps
-        self._active = active
-        self._solved = solved
-        self._stored_adj_ics = stored_adj_ics
-        self._adj_ics = adj_ics
-
-    def __contains__(self, key):
-        n, i, j = key
-        return self._transpose_deps[n][i][j] is not None
-
-    def __getitem__(self, key):
-        n, i, j = key
-        p, k, m = self._transpose_deps[n][i][j]
-        return p, k, m
-
-    def is_active(self, J_i, n, i):
-        return self._active[J_i][n][i]
-
-    def any_is_active(self, n, i):
-        for J_i in self._active:
-            if self._active[J_i][n][i]:
-                return True
-        return False
-
-    def is_solved(self, J_i, n, i):
-        return self._solved[J_i][n][i]
-
-    def set_not_solved(self, J_i, n, i):
-        self._solved[J_i][n][i] = False
-
-    def has_adj_ic(self, J_i, x):
-        if isinstance(x, int):
-            x_id = x
-        else:
-            x_id = function_id(x)
-
-        if x_id in self._adj_ics[J_i]:
-            n, i = self._adj_ics[J_i][x_id]
-            return self.is_solved(J_i, n, i)
-        else:
-            return False
-
-    def is_stored_adj_ic(self, J_i, n, i, m):
-        stored_adj_ics = self._stored_adj_ics[J_i][n][i][m]
-        if stored_adj_ics is None:
-            return False
-        else:
-            p, k = stored_adj_ics
-            return self.is_solved(J_i, p, k)
-
-    def adj_Bs(self, J_i, n, i, eq, B):
-        dep_Bs = {}
-        for j, dep in enumerate(eq.dependencies()):
-            if (n, i, j) in self:
-                p, k, m = self[(n, i, j)]
-                if self.is_solved(J_i, p, k):
-                    dep_Bs[j] = B[p][k][m]
-
-        return dep_Bs
-
-
-class AdjointCache:
-    def __init__(self):
-        self._cache = {}
-        self._keys = {}
-        self._cache_key = None
-
-    def __len__(self):
-        return len(self._cache)
-
-    def __contains__(self, key):
-        J_i, n, i = key
-        return (J_i, n, i) in self._cache
-
-    def clear(self):
-        self._cache.clear()
-        self._keys.clear()
-        self._cache_key = None
-
-    def get(self, J_i, n, i, *, copy=True):
-        adj_X = self._cache[(J_i, n, i)]
-        if copy:
-            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-        return adj_X
-
-    def pop(self, J_i, n, i, *, copy=True):
-        adj_X = self._cache.pop((J_i, n, i))
-        if copy:
-            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-        return adj_X
-
-    def remove(self, J_i, n, i):
-        del self._cache[(J_i, n, i)]
-
-    def cache(self, J_i, n, i, adj_X, *, copy=True, store=False):
-        if (J_i, n, i) in self._keys \
-                and (store or len(self._keys[(J_i, n, i)]) > 0):
-            if (J_i, n, i) in self._cache:
-                adj_X = self._cache[(J_i, n, i)]
-            elif copy:
-                adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-            else:
-                adj_X = tuple(adj_X)
-
-            if store:
-                self._cache[(J_i, n, i)] = adj_X
-            for J_j, p, k in self._keys[(J_i, n, i)]:
-                self._cache[(J_j, p, k)] = adj_X
-
-    def initialize(self, Js, blocks, transpose_deps, *,
-                   cache_degree=None):
-        J_roots, tlm_adj = J_tangent_linears(Js, blocks,
-                                             max_adjoint_degree=cache_degree)
-        J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
-                           for J in J_roots)
-
-        cache_key = tuple((J_root_ids[J_i], adj_tlm_key)
-                          for J_i, adj_tlm_key
-                          in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
-
-        if self._cache_key is None or self._cache_key != cache_key:
-            self.clear()
-
-        self._keys.clear()
-        self._cache_key = None
-
-        if cache_degree is None or cache_degree > 0:
-            self._cache_key = cache_key
-
-            if isinstance(blocks, Sequence):
-                # Sequence
-                blocks_n = tuple(range(len(blocks)))
-            else:
-                # Mapping
-                blocks_n = tuple(sorted(blocks.keys()))
-
-            eqs = defaultdict(lambda: [])
-            for n in reversed(blocks_n):
-                block = blocks[n]
-                for i in range(len(block) - 1, -1, -1):
-                    eq = block[i]
-
-                    if isinstance(eq, (ControlsMarker, FunctionalMarker)):
-                        continue
-
-                    eq_id = eq.id()
-                    eq_tlm_root_id = getattr(eq, "_tlm_adjoint__tlm_root_id", eq_id)  # noqa: E501
-                    eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
-
-                    for J_i, adj_tlm_key in tlm_adj.get(eq_tlm_key, ()):
-                        if transpose_deps.is_solved(J_i, n, i) \
-                                or (J_i, n, i) in self._cache:
-                            if cache_degree is not None:
-                                assert len(adj_tlm_key) < cache_degree
-                            eqs[eq_tlm_root_id].append(
-                                ((J_i, n, i),
-                                 (J_root_ids[J_i], adj_tlm_key)))
-
-                    eq_root = {}
-                    for (J_j, p, k), adj_key in eqs.pop(eq_id, []):
-                        assert transpose_deps.is_solved(J_j, p, k) \
-                            or (J_j, p, k) in self._cache
-                        if adj_key in eq_root:
-                            self._keys[eq_root[adj_key]].append((J_j, p, k))
-                            if (J_j, p, k) in self._cache \
-                                    and eq_root[adj_key] not in self._cache:
-                                self._cache[eq_root[adj_key]] = self._cache[(J_j, p, k)]  # noqa: E501
-                        else:
-                            eq_root[adj_key] = (J_j, p, k)
-                            self._keys[eq_root[adj_key]] = []
-            assert len(eqs) == 0
-
-        for (J_i, n, i) in self._cache:
-            transpose_deps.set_not_solved(J_i, n, i)
-        for eq_root in self._keys:
-            for (J_i, n, i) in self._keys[eq_root]:
-                transpose_deps.set_not_solved(J_i, n, i)
 
 
 class AnnotationState(enum.Enum):
