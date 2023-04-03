@@ -197,8 +197,8 @@ def test_oscillator(setup_test, test_leaks,
 @pytest.mark.firedrake
 @pytest.mark.parametrize("n_steps", [1, 2, 5, 20])
 @seed_test
-def test_diffusion_1d_timestepping(setup_test, test_leaks,
-                                   tmp_path, n_steps):
+def test_diffusion_1d(setup_test, test_leaks,
+                      tmp_path, n_steps):
     configure_checkpointing("multistage",
                             {"blocks": n_steps, "snaps_on_disk": 2,
                              "snaps_in_ram": 3,
@@ -214,30 +214,29 @@ def test_diffusion_1d_timestepping(setup_test, test_leaks,
     kappa = Constant(1.0, domain=mesh, name="kappa", static=True)
 
     def forward(T_0, kappa):
-        from tlm_adjoint.timestepping import N, TimeFunction, TimeLevels, \
-            TimeSystem, n
+        import sympy as sp
+        n = sp.Symbol("n", int=True)
+        N = sp.Symbol("N", int=True)
 
-        levels = TimeLevels([n, n + 1], {n: n + 1})
-        T = TimeFunction(levels, space, name="T")
-        T[n].rename("T_n", "a Function")
-        T[n + 1].rename("T_np1", "a Function")
+        T = {n: Function(space, name="T_n"),
+             n + 1: Function(space, name="T_np1")}
+        T[0] = T[n]
+        T[N] = T[n]
 
-        system = TimeSystem()
+        eq_T_np1 = EquationSolver(
+            inner(trial, test) * dx
+            + dt * inner(kappa * grad(trial), grad(test)) * dx
+            == inner(T[n], test) * dx,
+            T[n + 1],
+            DirichletBC(space, 1.0, "on_boundary"),
+            solver_parameters=ls_parameters_cg)
 
-        system.add_solve(Assignment(T[0], T_0))
-
-        system.add_solve(inner(trial, test) * dx
-                         + dt * inner(kappa * grad(trial), grad(test)) * dx
-                         == inner(T[n], test) * dx,
-                         T[n + 1],
-                         DirichletBC(space, 1.0, "on_boundary"),
-                         solver_parameters=ls_parameters_cg)
-
+        T[0].assign(T_0)
         for n_step in range(n_steps):
-            system.timestep()
+            eq_T_np1.solve()
+            T[n].assign(T[n + 1])
             if n_step < n_steps - 1:
                 new_block()
-        system.finalize()
 
         J = Functional(name="J")
         J.assign((dot(T[N], T[N]) ** 2) * dx)

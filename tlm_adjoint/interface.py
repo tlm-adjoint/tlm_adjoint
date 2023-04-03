@@ -1323,22 +1323,6 @@ def functional_term_eq(x, term):
     raise RuntimeError("Unexpected case encountered in functional_term_eq")
 
 
-_time_system_eq = {}
-
-
-def add_time_system_eq(backend, fn):
-    assert backend not in _time_system_eq
-    _time_system_eq[backend] = fn
-
-
-def time_system_eq(*args, **kwargs):
-    for fn in _time_system_eq.values():
-        eq = fn(*args, **kwargs)
-        if eq != NotImplemented:
-            return eq
-    raise RuntimeError("Unexpected case encountered in time_system_eq")
-
-
 _logger = logging.getLogger("tlm_adjoint")
 _handler = logging.StreamHandler(stream=sys.stdout)
 _handler.setFormatter(logging.Formatter(fmt="%(message)s"))

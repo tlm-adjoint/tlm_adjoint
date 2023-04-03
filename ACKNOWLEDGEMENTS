@@ -140,14 +140,3 @@ information for [6].
 [6]  D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
      M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt rates",
      Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020
-
-===============================================================================
-
-The interface provided in tlm_adjoint/timestepping.py aims for a degree of
-consistency with the API of the 'timestepping' library, as in dolfin-adjoint
-timestepping_2017.1.0 branch, and as described in [7].
-[7]  J. R. Maddison and P. E. Farrell, "Rapid development and adjoining of
-     transient finite element models", Computer Methods in Applied Mechanics
-     and Engineering, 276, pp. 95--121, 2014
-
-===============================================================================

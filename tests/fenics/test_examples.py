@@ -86,11 +86,3 @@ def test_manual_override_forward(setup_test):
 @seed_test
 def test_manual_override_adjoint(setup_test, test_leaks):
     run_example(os.path.join("manual", "override_adjoint.py"))
-
-
-@pytest.mark.fenics
-@pytest.mark.example
-@pytest.mark.skipif(MPI.COMM_WORLD.size > 1, reason="serial only")
-@seed_test
-def test_manual_diffusion_adjoint_timestepping(setup_test, test_leaks):
-    run_example(os.path.join("manual", "diffusion_adjoint_timestepping.py"))
