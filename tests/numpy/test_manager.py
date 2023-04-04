@@ -501,7 +501,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     reset_manager()
     configure_tlm((F, zeta))
     start_manager()
-    stop_annotating()
+    stop_manager(tlm=False)
     Assignment(G, F).solve()
     stop_manager()
 

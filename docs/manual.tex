@@ -2266,17 +2266,17 @@ currently active \texttt{EquationManager}. In the following the
 \texttt{manager} argument is optional, and defaults to the currently active
 \texttt{EquationManager}.
 \begin{lstlisting}
-def configure_checkpointing(cp_method, cp_parameters, manager=None):
+def configure_checkpointing(cp_method, cp_parameters, *, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.configure\_checkpointing}. See section
 \ref{sect:configure_checkpointing}.
 \begin{lstlisting}
-def manager_info(info=print, manager=None):
+def manager_info(*, info=print, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.info}. Displays information about the currently
 active equation manager, using the function \texttt{info} to display strings.
 \begin{lstlisting}
-def reset_manager(cp_method=None, cp_parameters=None, manager=None):
+def reset_manager(cp_method=None, cp_parameters=None, *, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.reset}. Resets the \texttt{EquationManager}, and
 optionally defines a new checkpointing configuration.
@@ -2308,7 +2308,7 @@ def function_tlm(x, *args, manager=None):
 Calls \texttt{EquationManager.function\_tlm}. Accesses a tangent-linear
 variable.
 \begin{lstlisting}
-def compute_gradient(Js, M, callback=None, prune_forward=True,
+def compute_gradient(Js, M, *, callback=None, prune_forward=True,
                      prune_adjoint=True, prune_replay=True,
                      cache_adjoint_degree=None, adj_ics=None, manager=None):
 \end{lstlisting}
@@ -2332,7 +2332,7 @@ corresponding to the adjoint solution for the equation \texttt{eq}, which is
 equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
 \texttt{Functional}.
 \begin{lstlisting}
-def new_block(manager=None):
+def new_block(*, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.new\_block}. Indicates the start of a new block
 of equations (see section \ref{sect:blocks}).
