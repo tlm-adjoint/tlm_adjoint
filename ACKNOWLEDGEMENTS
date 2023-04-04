@@ -140,3 +140,13 @@ information for [6].
 [6]  D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
      M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt rates",
      Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020
+
+===============================================================================
+
+The functions in tlm_adjoint/verification.py implement Taylor remainder
+convergence testing using the approach described in
+
+[7] P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
+    derivation of the adjoint of high-level transient finite element programs',
+    SIAM Journal on Scientific Computing 35(4), pp. C369--C393, 2013, doi:
+    10.1137/120873558

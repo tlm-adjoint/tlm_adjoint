@@ -1845,7 +1845,7 @@ approach described in \citet{farrell2013}, can be performed using the
 upon the interface for the \texttt{taylor\_test} function in dolfin-adjoint
 2017.1.0) is
 \begin{lstlisting}
-def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
+def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5, manager=None):
 \end{lstlisting}
 with arguments
@@ -1941,7 +1941,7 @@ the \texttt{taylor\_test\_tlm} function) or a second order adjoint calculation
 
 The \texttt{taylor\_test\_tlm} function has interface
 \begin{lstlisting}
-def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
+def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                     manager=None):
 \end{lstlisting}
 with arguments
@@ -1963,8 +1963,8 @@ evaluated using a (\texttt{tlm\_order})th order tangent-linear calculation.
 
 The \texttt{taylor\_test\_tlm\_adjoint} function has interface
 \begin{lstlisting}
-def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
-                            size=5, manager=None):
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
+                            dMs=None, size=5, manager=None):
 \end{lstlisting}
 with arguments
 \begin{itemize}
