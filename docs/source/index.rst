@@ -29,48 +29,22 @@ Features
       otherwise supported by tlm_adjoint or the backend library, to be added,
       with adjoint or tangent-linear information defined manually.
 
-Example
-=======
+Examples
+========
 
-The following example, using Firedrake, solves a discrete Poisson equation with
-:math:`P_1` continuous finite elements and homogeneous Dirichlet boundary
-conditions, and then computes a derivative with respect to a control, and also
-a Hessian action on a given direction.
+The following Jupyter notebooks introduce derivative calculations using
+tlm_adjoint.
 
-.. code-block:: python
-
-    from firedrake import *
-    from tlm_adjoint.firedrake import *
-
-    mesh = UnitSquareMesh(10, 10)
-    X = SpatialCoordinate(mesh)
-
-    space = FunctionSpace(mesh, "Lagrange", 1)
-    test = TestFunction(space)
-    trial = TrialFunction(space)
-
-    # Define the control
-    m = Function(space, name="m")
-    m.interpolate(X[0] * X[1], annotate=False, tlm=False)
-
-    # Configure a tangent-linear model, computing directional derivatives with
-    # respect to m with direction defined by zeta
-    zeta = Function(space, name="zeta")
-    zeta.assign(Constant(1.0), annotate=False, tlm=False)
-    configure_tlm((m, zeta))
-
-    # Solve the Poisson equation with homogeneous Dirichlet boundary conditions
-    u = Function(space, name="u")
-    solve(inner(grad(trial), grad(test)) * dx == inner(m * m, test) * dx, u,
-          DirichletBC(space, 0.0, "on_boundary"))
-
-    # Define a functional
-    J = Functional(name="J")
-    J.assign(inner(u, u) * dx)
-
-    # Compute the derivative of J with respect to m, and a Hessian action on
-    # zeta
-    dJ, ddJ = compute_gradient((J, J.tlm_functional((m, zeta))), m)
+- `Getting started with tlm_adjoint <examples/0_getting_started.ipynb>`__:
+  Introduces derivative calculations using tlm_adjoint.
+- `Time-independent example <examples/1_time_independent.ipynb>`__: An example
+  including the solution of a time-independent partial differential equation
+  using Firedrake.
+- `Verifying derivative calculations <examples/2_verification.ipynb>`__:
+  Introduces Taylor remainder convergence testing.
+- `Time-dependent example <examples/3_time_dependent.ipynb>`__: An example
+  including the solution of a time-dependent partial differential equation
+  using Firedrake. Introduces checkpointing.
 
 Indices and tables
 ==================
