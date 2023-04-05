@@ -258,14 +258,14 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 super().__init__(nl_deps=[], ic=False, adj_ic=False)
 
             @no_space_type_checking
-            def forward_action(self, nl_deps, x, b, method="assign"):
+            def forward_action(self, nl_deps, x, b, *, method="assign"):
                 if method == "assign":
                     function_assign(b, x)
                 else:
                     raise ValueError(f"Unexpected method '{method:s}'")
 
             @no_space_type_checking
-            def adjoint_action(self, nl_deps, adj_x, b, b_index=0,
+            def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *,
                                method="assign"):
                 if b_index != 0:
                     raise IndexError("Invalid index")
@@ -639,7 +639,7 @@ def test_tlm_annotation(setup_test, test_leaks):
     reset_manager()
     configure_tlm((F, zeta))
     start_manager()
-    stop_annotating()
+    stop_manager(tlm=False)
     Assignment(G, F).solve()
     stop_manager()
 

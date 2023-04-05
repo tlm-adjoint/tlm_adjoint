@@ -18,6 +18,91 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+r"""This module implements Taylor remainder convergence testing using the
+approach described in
+
+  - P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
+    derivation of the adjoint of high-level transient finite element programs',
+    SIAM Journal on Scientific Computing 35(4), pp. C369--C393, 2013, doi:
+    10.1137/120873558
+
+Specifically for a sufficiently regular functional :math:`J`, via Taylor's
+theorem we have, for some direction :math:`\zeta` and with perturbation
+magnitude controlled by :math:`\varepsilon`,
+
+.. math::
+
+    \left| J \left( m + \varepsilon \right) - J \left( m \right) \right|
+        = O \left( \varepsilon \right),
+
+.. math::
+
+    \left| J \left( m + \varepsilon \right) - J \left( m \right)
+        - \varepsilon dJ \left( m; \zeta \right) \right|
+        = O \left( \varepsilon^2 \right),
+
+where here :math:`dJ \left( m; \zeta \right)` denotes the directional
+derivative of :math:`J` with respect to :math:`m` with direction :math:`\zeta`.
+Here we refer to the quantity appearing on the left-hand-side in the first case
+as the 'uncorrected Taylor remainder magnitude', and the quantity appearing on
+the left-hand-side in the second case as the 'corrected Taylor remainder
+magnitude'
+
+A Taylor remainder convergence test considers some direction, and a number of
+different values for :math:`\varepsilon`, and investigates the convergence
+rates of the uncorrected and corrected Taylor remainder magnitudes, with the
+directional derivative computed using a tangent-linear or adjoint. In a
+successful verification the uncorrected Taylor remainder magnitude is observed
+to converge to zero at first order, while the corrected Taylor remainder
+magnitude is observed to converge to zero at second order.
+
+There are a number of ways that a Taylor remainder convergence test can fail,
+including:
+
+  - The computed derivative is incorrect. This is the case that the test is
+    designed to find, and indicates an error in the tangent-linear or adjoint
+    calculation.
+  - The considered values of :math:`\varepsilon` are too large, and the
+    asymptotic convergence orders are not observable.
+  - The considered values of :math:`\varepsilon` are too small, and iterative
+    solver tolerances or floating point roundoff prevent the converge orders
+    being observable.
+  - The convergence order is higher than expected. For example if the
+    directional derivative is zero then the uncorrected Taylor remainder
+    magnitude can converge at higher than first order.
+
+In principle higher order derivative calculations can be tested by considering
+more terms in the Taylor expansion of the functional. In practice the
+corresponding higher order convergence rate can mean that iterative solver
+tolerances or floating point roundoff effects are more problematic. Instead,
+one can verify the derivative of a derivative, by redefining :math:`J` to be a
+directional derivative of some other functional :math:`K`, with the directional
+derivative computed using a tangent-linear. A successful verification then once
+again corresponds to second order convergence of the corrected Taylor remainder
+magnitude.
+
+The functions defined in this module log the uncorrected and corrected Taylor
+remainder magnitudes, and also log the observed orders computed using a power
+law fit between between consecutive pairs of values of :math:`\varepsilon`.
+Logging is performed on a logging module logger, with name
+`'tlm_adjoint.verification`' and with severity `logging.INFO`. The minimum
+order computed for the corrected Taylor remainder magnitude is returned.
+
+A typical test considers tangent-linears and adjoints up to the relevant order,
+e.g. to verify Hessian calculations
+
+.. code-block:: python
+
+    min_order = taylor_test_tlm(forward, M, 1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, M, 1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, M, 2)
+    assert min_order > 1.99
+"""
+
 from .interface import function_assign, function_axpy, function_copy, \
     function_dtype, function_inner, function_is_cached, \
     function_is_checkpointed, function_is_static, function_linf_norm, \
@@ -57,42 +142,69 @@ def wrapped_forward(forward):
 
 @local_caches
 @restore_manager
-def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
+def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5, manager=None):
-    # Aims for similar behaviour to the dolfin-adjoint taylor_test function in
-    # dolfin-adjoint 2017.1.0. Arguments based on dolfin-adjoint taylor_test
-    # arguments
-    #   forward (renamed from J)
-    #   M (renamed from m)
-    #   J_val (renamed from Jm)
-    #   dJ (renamed from dJdm)
-    #   ddJ (renamed from HJm)
-    #   seed
-    #   dM (renamed from perturbation_direction)
-    #   M0 (renamed from value)
-    #   size
-    """
-    Perform a Taylor remainder verification test.
+    r"""Perform a Taylor remainder convergence test. Aims for similar behaviour
+    to the :func:`taylor_test` function in dolfin-adjoint 2017.1.0.
 
-    Arguments:
+    Uncorrected and corrected Taylor remainder magnitudes are computed by
+    repeatedly re-running the forward and evaluating the functional. The
+    perturbation direction :math:`\zeta` is defined by the `dM` argument.
+    :math:`\varepsilon` is set equal to
 
-    forward  A callable which takes as input one or more functions defining the
-             value of the control, and returns the functional.
-    M        A function, or a sequence of functions. The control parameters.
-    J_val    The reference functional value.
-    dJ       (Optional if ddJ is supplied) A function, or a sequence of
-             functions, storing the complex conjugate of the derivative of J
-             with respect to M.
-    ddJ      (Optional) A Hessian used to compute Hessian actions associated
-             with the second derivative of J with respect to M.
-    seed     (Optional) The maximum scaling for the perturbation is seed
-             multiplied by the inf norm of the reference value (degrees of
-             freedom inf norm) of the control (or 1 if this is less than 1).
-    dM       A perturbation direction. Values generated using
-             numpy.random.random are used if not supplied.
-    M0       (Optional) The reference value of the control.
-    size     (Optional) The number of perturbed forward runs used in the test.
-    manager  (Optional) The equation manager.
+    .. math::
+
+        \varepsilon = 2^{-p} \eta \max \left( 1,
+            \left\| m \right\|_{l_\infty} \right)
+            \quad \text{ for } p \in \left\{ 0, \ldots, P - 1 \right\},
+
+    where the norm appearing here is defined to be the :math:`l_\infty` norm of
+    the control value degree of freedom vector. The argument `seed` sets the
+    value of :math:`\eta`, and the argument `size` sets the value of :math:`P`.
+
+    :arg forward: A :class:`Callable` which accepts one or more function
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional :math:`J`. Corresponds to the `J` argument in the
+        dolfin-adjoint :func:`taylor_test` function.
+    :arg M: A function or a :class:`Sequence` of functions defining the control
+        variable :math:`m`. Corresponds to the `m` argument in the
+        dolfin-adjoint :func:`taylor_test` function.
+    :arg J_val: A scalar defining the value of the functional :math:`J` for
+        control value defined by `M0`. Corresponds to the `Jm` argument in the
+        dolfin-adjoint :func:`taylor_test` function.
+    :arg dJ: A function or a :class:`Sequence` of functions defining a value
+        for the derivative of the functional with respect to the control.
+        Required if `ddJ` is not supplied. Corresponds to the `dJdm` argument
+        in the dolfin-adjoint :func:`taylor_test` function.
+    :arg ddJ: A :class:`tlm_adjoint.hessian.Hessian` used to compute the
+        Hessian action on the considered perturbation direction. If supplied
+        then a higher order corrected Taylor remainder magnitude is computed.
+        If `dJ` is not supplied, also computes the first order directional
+        derivative. Corresponds to the `HJm` argument in the dolfin-adjoint
+        :func:`taylor_test` function.
+    :arg seed: Defines the value of :math:`\eta`. Controls the magnitude of the
+        perturbation. Corresponds to the `seed` argument in the dolfin-adjoint
+        :func:`taylor_test` function.
+    :arg dM: Defines the perturbation direction :math:`\zeta`. A direction with
+        degrees of freedom vector real and (in the complex case) complex parts
+        set by :func:`numpy.random.random` is used if not supplied. Corresponds
+        to the `perturbation_direction` argument in the dolfin-adjoint
+        :func:`taylor_test` function.
+    :arg M0: Defines the value of the control at which the functional and
+        derivatives are evaluated. `M` is used if not supplied. Corresponds to
+        the `value` argument in the dolfin-adjoint :func:`taylor_test`
+        function.
+    :arg size: The number of values of :math:`\varepsilon` to consider.
+        Corresponds to the `size` argument in the dolfin-adjoint
+        :func:`taylor_test` function.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager()` is used if not supplied.
+    :returns: The minimum order observed, via a power law fit between
+        consecutive pairs of values of :math:`\varepsilon`, in the calculations
+        for the corrected Taylor remainder magnitude. In a successful
+        verification this should be close to 2 if `ddJ` is not supplied, and
+        close to 3 if `ddJ` is supplied.
     """
 
     if not isinstance(M, Sequence):
@@ -185,8 +297,46 @@ def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
 
 @local_caches
-def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
+def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                     manager=None):
+    r"""Perform a Taylor remainder convergence test for a functional :math:`J`
+    defined to the `(tlm_order - 1)` th derivative of some functional
+    :math:`K`. The `tlm_order` th derivative of :math:`K`, appearing in the
+    corrected Taylor remainder magnitude, is computed using a `tlm_order` th
+    order tangent-linear.
+
+    :arg forward: A :class:`Callable` which accepts one or more function
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional :math:`K`.
+    :arg M: A function or a :class:`Sequence` of functions defining the control
+        variable :math:`m` and its value.
+    :arg tlm_order: An :class:`int` defining the tangent-linear order to
+       test.
+    :arg seed: Controls the perturbation magnitude. See :func:`taylor_test`.
+    :arg dMs: A :class:`Sequence` of length `tlm_order` whose elements are each
+        a function or a :class:`Sequence` of functions. The functional
+        :math:`J` appearing in the definition of the Taylor remainder
+        magnitudes is defined to be a `(tlm_adjoint - 1)` th derivative,
+        defined by successively taking the derivative of :math:`K` with respect
+        to the control and with directions defined by the `dM[:-1]` (with the
+        directions considered in order). The perturbation direction
+        :math:`\zeta` is defined by `dM[-1]` -- see :func:`taylor_test`.
+        Directions with degrees of freedom vector real and (in the complex
+        case) complex parts set by :func:`numpy.random.random` are used if not
+        supplied.
+    :arg size: The number of values of :math:`\varepsilon` to consider. See
+        :func:`taylor_test`.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
+        create an internal manager via
+        :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new`. `manager()` is
+        used if not supplied.
+    :returns: The minimum order observed, via a power law fit between
+        consecutive pairs of values of :math:`\varepsilon`, in the calculations
+        for the corrected Taylor remainder magnitude. In a successful
+        verification this should be close to 2.
+    """
+
     if not isinstance(M, Sequence):
         if dMs is not None:
             dMs = tuple((dM,) for dM in dMs)
@@ -272,8 +422,45 @@ def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
 
 
 @local_caches
-def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
-                            size=5, manager=None):
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
+                            dMs=None, size=5, manager=None):
+    r"""Perform a Taylor remainder convergence test for a functional :math:`J`
+    defined to the `(adjoint_order - 1)` th derivative of some functional
+    :math:`K`. The `adjoint_order` th derivative of :math:`K`, appearing in the
+    corrected Taylor remainder magnitude, is computed using an adjoint
+    associated with an `(adjoint_order - 1)` th order tangent-linear.
+
+    :arg forward: A :class:`Callable` which accepts one or more function
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional :math:`K`.
+    :arg M: A function or a :class:`Sequence` of functions defining the control
+        variable :math:`m` and its value.
+    :arg adjoint_order: An :class:`int` defining the adjoint order to test.
+    :arg seed: Controls the perturbation magnitude. See :func:`taylor_test`.
+    :arg dMs: A :class:`Sequence` of length `adjoint_order` whose elements are
+        each a function or a :class:`Sequence` of functions. The functional
+        :math:`J` appearing in the definition of the Taylor remainder
+        magnitudes is defined to be a `(adjoint_order - 1)` th derivative,
+        defined by successively taking the derivative of :math:`K` with respect
+        to the control and with directions defined by the `dM[:-1]` (with the
+        directions considered in order). The perturbation direction
+        :math:`\zeta` is defined by `dM[-1]` -- see :func:`taylor_test`.
+        Directions with degrees of freedom vector real and (in the complex
+        case) complex parts set by :func:`numpy.random.random` are used if not
+        supplied.
+    :arg size: The number of values of :math:`\varepsilon` to consider. See
+        :func:`taylor_test`.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
+        create an internal manager via
+        :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new`. `manager()` is
+        used if not supplied.
+    :returns: The minimum order observed, via a power law fit between
+        consecutive pairs of values of :math:`\varepsilon`, in the calculations
+        for the corrected Taylor remainder magnitude. In a successful
+        verification this should be close to 2.
+    """
+
     if not isinstance(M, Sequence):
         if dMs is not None:
             dMs = tuple((dM,) for dM in dMs)

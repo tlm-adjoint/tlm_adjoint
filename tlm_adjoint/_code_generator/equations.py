@@ -32,9 +32,10 @@ from .backend_code_generator_interface import assemble, \
     rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
 
 from ..caches import CacheRef
-from ..equations import Assignment, Equation, ZeroAssignment, \
-    get_tangent_linear
+from ..equation import Equation, ZeroAssignment
+from ..equations import Assignment
 from ..overloaded_float import SymbolicFloat
+from ..tangent_linear import get_tangent_linear
 
 from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
     split_form

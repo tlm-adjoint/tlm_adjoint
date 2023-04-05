@@ -27,27 +27,48 @@ import weakref
 
 __all__ = \
     [
-        "Cache",
         "CacheRef",
+
+        "Cache",
         "Caches",
+
         "clear_caches",
         "local_caches"
     ]
 
 
 class CacheRef:
+    """A cache entry. Stores a reference to a cached value, which can later be
+    cleared. Calling a :class:`CacheRef` returns the cached object, or `None`
+    if no object is referenced.
+
+    :arg value: The object to reference. `None` may be supplied to indicate an
+        empty cache entry.
+    """
+
     def __init__(self, value=None):
         self._value = value
 
     def __call__(self):
         return self._value
 
-    def _clear(self):
+    def clear(self):
+        """Clear the cache entry. After calling this method, calling the
+        :class:`CacheRef` will return `None`.
+        """
+
         self._value = None
 
 
 @gc_disabled
 def clear_caches(*deps):
+    """Clear caches entries.
+
+    :arg deps: A :class:`Sequence` of functions. If non-empty then clear only
+        cache entries which depend on the variables defined by the supplied
+        functions. Otherwise clear all cache entries.
+    """
+
     if len(deps) == 0:
         for cache in tuple(Cache._caches.valuerefs()):
             cache = cache()
@@ -59,6 +80,14 @@ def clear_caches(*deps):
 
 
 def local_caches(fn):
+    """Decorator clearing caches before and after calling the decorated
+    callable.
+
+    :arg fn: :class:`Callable` for which caches should be cleared.
+    :returns: A :class:`Callable` where caches are cleared before and after
+        calling.
+    """
+
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
         clear_caches()
@@ -70,6 +99,11 @@ def local_caches(fn):
 
 
 class Cache:
+    """Stores cache entries.
+
+    Cleared cache entries are removed from the :class:`Cache`.
+    """
+
     _id_counter = [0]
     _caches = weakref.WeakValueDictionary()
 
@@ -84,7 +118,7 @@ class Cache:
 
         def finalize_callback(cache):
             for value in cache.values():
-                value._clear()
+                value.clear()
 
         weakref.finalize(self, finalize_callback,
                          self._cache)
@@ -93,12 +127,24 @@ class Cache:
         return len(self._cache)
 
     def id(self):
+        """Return the unique :class:`int` ID associated with this cache.
+
+        :returns: The unique :class:`int` ID.
+        """
+
         return self._id
 
     def clear(self, *deps):
+        """Clear cache entries.
+
+        :arg deps: A :class:`Sequence` of functions. If non-empty then only
+            clear cache entries which depend on the variables defined by the
+            supplied functions. Otherwise clear all cache entries.
+        """
+
         if len(deps) == 0:
             for value in self._cache.values():
-                value._clear()
+                value.clear()
             self._cache.clear()
             self._deps_map.clear()
             for dep_caches in self._dep_caches.values():
@@ -136,7 +182,7 @@ class Cache:
                     #      in this cache.
                     for key, dep_ids in self._deps_map[dep_id].items():
                         # Step 1.
-                        self._cache[key]._clear()
+                        self._cache[key].clear()
                         del self._cache[key]
                         for dep_id2 in dep_ids:
                             if dep_id2 != dep_id:
@@ -158,6 +204,19 @@ class Cache:
                     del self._dep_caches[dep_id]
 
     def add(self, key, value, deps=None):
+        """Add a cache entry.
+
+        :arg key: The key associated with the cache entry.
+        :arg value: A :class:`Callable`, taking no arguments, returning the
+            value associated with the cache entry. Only called to if no entry
+            associated with `key` exists.
+        :arg deps: A :class:`Sequence` of functions, defining dependencies of
+            the cache entry.
+        :returns: A :class:`tuple` `(value_ref, value)`, where `value` is the
+            cache entry value and `value_ref` is a :class:`CacheRef` storing a
+            reference to the value.
+        """
+
         if deps is None:
             deps = []
 
@@ -189,10 +248,38 @@ class Cache:
         return value_ref, value
 
     def get(self, key, default=None):
+        """Return the cache entry associated with a given key, or `default` if
+        there is no cache entry associated with the key.
+
+        :arg key: The key.
+        :arg default: The value to return if there is no cache entry associated
+            with the key.
+        :returns: The cache entry, or `default` if there is no cache entry
+            associated with the key.
+        """
+
         return self._cache.get(key, default)
 
 
 class Caches:
+    """Multiple :class:`Cache` objects, associated with a function.
+
+    The function defines a variable on which cache entries may depend. It also
+    initially defines a value for that variable, and the value is indicated by
+    the function ID and function state value. The value may be changed either
+    by supplying a new function (changing the ID), or by changing the value of
+    the current function defining the value (which should be indicated by a
+    change to the function state value). Either change invalidates cache
+    entries, in the :class:`Cache` objects, which depend on the original
+    variable.
+
+    The :meth:`update` method can be used to check for cache entry
+    invalidation, and to clear invalid cache entries.
+
+    :arg x: The function defining a possible cache entry dependency, and an
+        initial value for that dependency.
+    """
+
     def __init__(self, x):
         self._caches = weakref.WeakValueDictionary()
         self._id = function_id(x)
@@ -203,6 +290,9 @@ class Caches:
 
     @gc_disabled
     def clear(self):
+        """Clear cache entries which depend on the associated function.
+        """
+
         for cache in tuple(self._caches.valuerefs()):
             cache = cache()
             if cache is not None:
@@ -210,14 +300,30 @@ class Caches:
                 assert not cache.id() in self._caches
 
     def add(self, cache):
+        """Add a new :class:`Cache` to the :class:`Caches`.
+
+        :arg cache: The :class:`Cache` to add to the :class:`Caches`.
+        """
+
         cache_id = cache.id()
         if cache_id not in self._caches:
             self._caches[cache_id] = cache
 
     def remove(self, cache):
+        """Remove a :class:`Cache` from the :class:`Caches`.
+
+        :arg cache: The :class:`Cache` to remove from the :class:`Caches`.
+        """
+
         del self._caches[cache.id()]
 
     def update(self, x):
+        """Check for cache invalidation associated with a possible change in
+        value, and clear invalid cache entries.
+
+        :arg x: A function which defines a potentially new value.
+        """
+
         state = (function_id(x), function_state(x))
         if state != self._state:
             self.clear()

@@ -23,16 +23,16 @@ from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
     backend_ScalarType, backend_Vector, cpp_PETScVector, info
 from ..interface import DEFAULT_COMM, SpaceInterface, \
     add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_subtract_adjoint_derivative_action, \
-    add_time_system_eq, check_space_types, comm_dup_cached, function_copy, \
-    function_new, function_space_type, new_function_id, new_space_id, \
-    space_id, space_new, subtract_adjoint_derivative_action
+    add_interface, add_subtract_adjoint_derivative_action, check_space_types, \
+    comm_dup_cached, function_copy, function_new, function_space_type, \
+    new_function_id, new_space_id, space_id, space_new, \
+    subtract_adjoint_derivative_action
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
 
 from .caches import form_neg
-from .equations import Assembly, EquationSolver
+from .equations import Assembly
 from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
     define_function_alias
@@ -462,31 +462,6 @@ def _functional_term_eq(x, term):
 
 
 add_functional_term_eq(backend, _functional_term_eq)
-
-
-def _time_system_eq(*args, **kwargs):
-    if len(args) >= 1:
-        eq = args[0]
-    elif "eq" in kwargs:
-        eq = kwargs["eq"]
-    else:
-        return NotImplemented
-
-    if len(args) >= 2:
-        x = args[1]
-    elif "x" in kwargs:
-        x = kwargs["x"]
-    else:
-        return NotImplemented
-
-    if isinstance(eq, ufl.classes.Equation) \
-            and isinstance(x, backend_Function):
-        return EquationSolver(*args, **kwargs)
-    else:
-        return NotImplemented
-
-
-add_time_system_eq(backend, _time_system_eq)
 
 
 def default_comm():

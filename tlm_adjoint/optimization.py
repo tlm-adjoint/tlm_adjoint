@@ -31,44 +31,40 @@ from .manager import compute_gradient, reset_manager, restore_manager, \
 
 from collections.abc import Sequence
 import numpy as np
-import warnings
 
 __all__ = \
     [
-        "OptimizationException",
-
         "minimize_scipy"
     ]
-
-
-class OptimizationException(Exception):  # noqa: N818
-    def __init__(self, *args, **kwargs):
-        warnings.warn("OptimizationException is deprecated",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(*args, **kwargs)
 
 
 @local_caches
 @restore_manager
 def minimize_scipy(forward, M0, *, manager=None, **kwargs):
-    """
-    Gradient-based minimization using scipy.optimize.minimize.
+    """Provides an interface with :func:`scipy.optimize.minimize` for
+    gradient-based optimization.
 
-    Arguments:
+    Note that the control variable is gathered onto the root process so that
+    the serial :func:`scipy.optimize.minimize` function may be used.
 
-    forward  A callable which takes as input the control and returns the
-             Functional to be minimized.
-    M0       A function, or a sequence of functions. Control parameters initial
-             guess.
-    manager  (Optional) The equation manager.
+    All keyword arguments except for `manager` are passed to
+    :func:`scipy.optimize.minimize`.
 
-    Any remaining keyword arguments are passed directly to
-    scipy.optimize.minimize.
+    **Important note:** No exception is raised if `return_value.success` is
+    `False`. Calling code should check this attribute.
 
-    Returns a tuple
-        (M, return_value)
-    where M is the value of the control parameters obtained, and return_value
-    is the return value of scipy.optimize.minimize.
+    :arg forward: A :class:`Callable` which accepts one or more function
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional.
+    :arg M0: A function or :class:`Sequence` of functions defining the control
+        variable, and the initial guess for the optimization.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager().new()` is used if not supplied.
+    :returns: A :class:`tuple` `(M, return_value)`. `M` is function or a
+        :class:`Sequence` of functions depending on the type of `M0`, and
+        stores the result. `return_value` is the return value of
+        :func:`scipy.optimize.minimize`.
     """
 
     if not isinstance(M0, Sequence):

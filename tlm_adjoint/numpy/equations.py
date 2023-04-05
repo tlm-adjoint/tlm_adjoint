@@ -21,7 +21,7 @@
 from ..interface import function_get_values, function_new_conjugate, \
     function_set_values
 
-from ..equations import LinearEquation, Matrix, RHS
+from ..linear_equation import LinearEquation, Matrix, RHS
 
 import numpy as np
 import warnings
@@ -53,7 +53,7 @@ class ConstantMatrix(Matrix):
             A.setflags(write=False)
         return A
 
-    def forward_action(self, nl_deps, x, b, method="assign"):
+    def forward_action(self, nl_deps, x, b, *, method="assign"):
         sb = self._A.dot(x.vector())
         if method == "assign":
             b.vector()[:] = sb
@@ -64,7 +64,7 @@ class ConstantMatrix(Matrix):
         else:
             raise ValueError(f"Invalid method: '{method:s}'")
 
-    def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
+    def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *, method="assign"):
         if b_index != 0:
             raise IndexError("Invalid index")
         sb = self._A_H.dot(adj_x.vector())
@@ -80,7 +80,7 @@ class ConstantMatrix(Matrix):
     def forward_solve(self, x, nl_deps, b):
         x.vector()[:] = np.linalg.solve(self._A, b.vector())
 
-    def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
+    def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, *,
                                   method="assign"):
         raise NotImplementedError("Unexpected call to "
                                   "adjoint_derivative_action")

@@ -912,8 +912,8 @@ define dependencies. \texttt{tlm\_adjoint} does not distinguish between
 symbolic and non-symbolic dependencies. The \texttt{Equation} constructor has
 the form
 \begin{lstlisting}
-def __init__(self, x, deps, nl_deps=None,
-             *, ic_deps=None, ic=None,
+def __init__(self, x, deps, nl_deps=None, *,
+             ic_deps=None, ic=None,
              adj_ic_deps=None, adj_ic=None,
              adj_type="conjugate_dual"):
 \end{lstlisting}
@@ -1206,7 +1206,7 @@ with constructor arguments
 The value of a matrix action $A x$ is defined by the \texttt{forward\_action}
 method. The \texttt{forward\_action} method has the form
 \begin{lstlisting}
-def forward_action(self, nl_deps, x, b, method="assign"):
+def forward_action(self, nl_deps, x, b, *, method="assign"):
 \end{lstlisting}
 with arguments
 \begin{itemize}
@@ -1232,7 +1232,7 @@ The value of a matrix action $A^* x$ is defined by the
 \texttt{adjoint\_action} method. The \texttt{adjoint\_action} method has the
 form
 \begin{lstlisting}
-def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
+def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *, method="assign"):
 \end{lstlisting}
 with arguments
 \begin{itemize}
@@ -1287,7 +1287,7 @@ The action of the adjoint of the derivative of $A x$ is defined by the
 \texttt{adjoint\_derivative\_action} method. The
 \texttt{adjoint\_derivative\_action} method has the form
 \begin{lstlisting}
-def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b,
+def adjoint_derivative_action(self, nl_deps, nl_dep_index, x, adj_x, b, *,
                               method="assign"):
 \end{lstlisting}
 with arguments
@@ -1330,10 +1330,10 @@ terms), a \texttt{RHS}, or a sequence of \texttt{RHS} objects.
 A \texttt{Matrix} may act on multiple functions. In this case methods have the
 form
 \begin{lstlisting}
-def forward_action(self, nl_deps, X, B, method="assign"):
+def forward_action(self, nl_deps, X, B, *, method="assign"):
 \end{lstlisting}
 \begin{lstlisting}
-def adjoint_action(self, nl_deps, adj_X, b, b_index=0, method="assign"):
+def adjoint_action(self, nl_deps, adj_X, b, b_index=0, *, method="assign"):
 \end{lstlisting}
 \begin{lstlisting}
 def forward_solve(self, X, nl_deps, B):
@@ -1342,7 +1342,7 @@ def forward_solve(self, X, nl_deps, B):
 def adjoint_solve(self, adj_X, nl_deps, B):
 \end{lstlisting}
 \begin{lstlisting}
-def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b,
+def adjoint_derivative_action(self, nl_deps, nl_dep_index, X, adj_X, b, *,
                               method="assign"):
 \end{lstlisting}
 \begin{lstlisting}
@@ -1562,7 +1562,7 @@ class, and overriding key methods.
 A subclass of \texttt{Storage} must call the \texttt{Storage} constructor. The
 \texttt{Storage} constructor has the form
 \begin{lstlisting}
-def __init__(self, x, key, save=False):
+def __init__(self, x, key, *, save=False):
 \end{lstlisting}
 with constructor arguments
 \begin{itemize}
@@ -1845,7 +1845,7 @@ approach described in \citet{farrell2013}, can be performed using the
 upon the interface for the \texttt{taylor\_test} function in dolfin-adjoint
 2017.1.0) is
 \begin{lstlisting}
-def taylor_test(forward, M, J_val, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
+def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5, manager=None):
 \end{lstlisting}
 with arguments
@@ -1941,7 +1941,7 @@ the \texttt{taylor\_test\_tlm} function) or a second order adjoint calculation
 
 The \texttt{taylor\_test\_tlm} function has interface
 \begin{lstlisting}
-def taylor_test_tlm(forward, M, tlm_order, seed=1.0e-2, dMs=None, size=5,
+def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                     manager=None):
 \end{lstlisting}
 with arguments
@@ -1963,8 +1963,8 @@ evaluated using a (\texttt{tlm\_order})th order tangent-linear calculation.
 
 The \texttt{taylor\_test\_tlm\_adjoint} function has interface
 \begin{lstlisting}
-def taylor_test_tlm_adjoint(forward, M, adjoint_order, seed=1.0e-2, dMs=None,
-                            size=5, manager=None):
+def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
+                            dMs=None, size=5, manager=None):
 \end{lstlisting}
 with arguments
 \begin{itemize}
@@ -2266,17 +2266,17 @@ currently active \texttt{EquationManager}. In the following the
 \texttt{manager} argument is optional, and defaults to the currently active
 \texttt{EquationManager}.
 \begin{lstlisting}
-def configure_checkpointing(cp_method, cp_parameters, manager=None):
+def configure_checkpointing(cp_method, cp_parameters, *, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.configure\_checkpointing}. See section
 \ref{sect:configure_checkpointing}.
 \begin{lstlisting}
-def manager_info(info=print, manager=None):
+def manager_info(*, info=print, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.info}. Displays information about the currently
 active equation manager, using the function \texttt{info} to display strings.
 \begin{lstlisting}
-def reset_manager(cp_method=None, cp_parameters=None, manager=None):
+def reset_manager(cp_method=None, cp_parameters=None, *, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.reset}. Resets the \texttt{EquationManager}, and
 optionally defines a new checkpointing configuration.
@@ -2308,7 +2308,7 @@ def function_tlm(x, *args, manager=None):
 Calls \texttt{EquationManager.function\_tlm}. Accesses a tangent-linear
 variable.
 \begin{lstlisting}
-def compute_gradient(Js, M, callback=None, prune_forward=True,
+def compute_gradient(Js, M, *, callback=None, prune_forward=True,
                      prune_adjoint=True, prune_replay=True,
                      cache_adjoint_degree=None, adj_ics=None, manager=None):
 \end{lstlisting}
@@ -2332,7 +2332,7 @@ corresponding to the adjoint solution for the equation \texttt{eq}, which is
 equation \texttt{i} in block \texttt{n} for the \texttt{J\_i}th
 \texttt{Functional}.
 \begin{lstlisting}
-def new_block(manager=None):
+def new_block(*, manager=None):
 \end{lstlisting}
 Calls \texttt{EquationManager.new\_block}. Indicates the start of a new block
 of equations (see section \ref{sect:blocks}).
@@ -2357,110 +2357,6 @@ and solution of tangent-linear equations.
 Derivation and solution of tangent-linear equations can be enabled and disabled
 using the \texttt{start\_manager} and \texttt{stop\_manager} functions  -- see
 section \ref{sect:EquationManager_control}.
-
-\section{\texttt{timestepping}}
-
-The \texttt{timestepping} module defines a syntax which is similar to that
-defined by the \texttt{timestepping} library \citep[see][]{maddison2014}. For
-example, the diffusion equation example described in section
-\ref{sect:diffusion} may be implemented via
-\begin{lstlisting}
-from firedrake import *
-from tlm_adjoint.firedrake import *
-from tlm_adjoint.timestepping import *
-stop_manager()
-
-t_N = 100
-configure_checkpointing("multistage", {"blocks": t_N, "snaps_in_ram": 5})
-
-mesh = UnitSquareMesh(100, 100)
-X = SpatialCoordinate(mesh)
-space = FunctionSpace(mesh, "Lagrange", 1)
-test, trial = TestFunction(space), TrialFunction(space)
-
-psi_0 = Function(space, name="psi_0", static=True)
-psi_0.interpolate(
-    exp(X[0] * X[1]) * sin(2.0 * pi * X[0]) * sin(5.0 * pi * X[1])
-    + sin(pi * X[0]) * sin(2.0 * pi * X[1]))
-
-kappa = Constant(0.001, static=True)
-dt = Constant(0.2, static=True)
-bc = HomogeneousDirichletBC(space, "on_boundary")
-levels = TimeLevels(levels=[n, n + 1], cycle_map={n: n + 1})
-
-
-def forward(psi_0, psi_n_file=None):
-    clear_caches()
-
-    system = TimeSystem()
-    psi = TimeFunction(levels, space, name="psi")
-
-    class InteriorAssignment(Equation):
-        def __init__(self, x, y):
-            super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-            self._bc = DirichletBC(function_space(x), 0.0, "on_boundary")
-
-        def forward_solve(self, x, deps=None):
-            _, y = self.dependencies() if deps is None else deps
-            function_assign(x, y)
-            self._bc.apply(x)
-
-        def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-            if dep_index == 0:
-                return adj_x
-            elif dep_index == 1:
-                b = function_copy(adj_x)
-                self._bc.apply(b)
-                return (-1.0, b)
-            else:
-                raise IndexError("dep_index out of bounds")
-
-        def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-            return b
-
-        def tangent_linear(self, M, dM, tlm_map):
-            x, y = self.dependencies()
-            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
-            if tlm_y is None:
-                return ZeroAssignment(tlm_map[x])
-            else:
-                return InteriorAssignment(tlm_map[x], tlm_y)
-
-    system.add_solve(InteriorAssignment(psi[0], psi_0))
-
-    system.add_solve(inner(trial / dt, test) * dx
-                     + inner(kappa * grad(trial), grad(test)) * dx
-                     == inner(psi[n] / dt, test) * dx,
-                     psi[n + 1], bc,
-                     solver_parameters={"ksp_type": "preonly",
-                                        "pc_type": "lu"})
-
-    system.assemble()
-
-    if psi_n_file is not None:
-        psi_n_file.write(psi[n], time=0.0)
-
-    for t_n in range(t_N):
-        system.timestep()
-
-        if psi_n_file is not None:
-            psi_n_file.write(psi[n], time=(t_n + 1) * float(dt))
-        if t_n < t_N - 1:
-            new_block()
-
-    system.finalize()
-
-    J = Functional(name="J")
-    J.assign(dot(psi[N] - Constant(1.0), psi[N] - Constant(1.0)) * dx)
-    return J
-
-
-start_manager()
-J = forward(psi_0, psi_n_file=File("psi.pvd"))
-stop_manager()
-
-dJ = compute_gradient(J, psi_0)
-\end{lstlisting}
 
 \section{Applications}
 

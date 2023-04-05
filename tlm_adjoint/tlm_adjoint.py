@@ -18,10 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import DEFAULT_COMM, check_space_types, comm_dup, \
-    function_assign, function_copy, function_id, function_is_replacement, \
-    function_name, function_new_tangent_linear, garbage_cleanup, is_function
+from .interface import DEFAULT_COMM, comm_dup, function_assign, \
+    function_copy, function_id, function_is_replacement, function_name, \
+    garbage_cleanup, is_function
 
+from .adjoint import AdjointCache, AdjointModelRHS, DependencyGraphTranspose
 from .alias import WeakAlias, gc_disabled
 from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
     Write, EndForward, EndReverse
@@ -30,25 +31,23 @@ from .checkpoint_schedules import MemoryCheckpointSchedule, \
     PeriodicDiskCheckpointSchedule
 from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
     PickleCheckpoints, ReplayStorage
-from .equations import AdjointModelRHS, ControlsMarker, Equation, \
-    FunctionalMarker, ZeroAssignment
+from .equation import Equation, ZeroAssignment
 from .functional import Functional
+from .markers import ControlsMarker, FunctionalMarker
 from .manager import restore_manager, set_manager
+from .tangent_linear import TangentLinear, TangentLinearMap, tlm_key, tlm_keys
 
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Sequence
 import contextlib
 import copy
 import enum
 import functools
-import itertools
 import logging
 try:
     import MPI
 except ImportError:
     MPI = None
-import numpy as np
-from operator import itemgetter
 import os
 import warnings
 import weakref
@@ -57,529 +56,6 @@ __all__ = \
     [
         "EquationManager"
     ]
-
-
-def tlm_key(M, dM):
-    if is_function(M):
-        M = (M,)
-    else:
-        M = tuple(M)
-    if is_function(dM):
-        dM = (dM,)
-    else:
-        dM = tuple(dM)
-
-    if len(M) != len(dM):
-        raise ValueError("Invalid tangent-linear model")
-    for m, dm in zip(M, dM):
-        check_space_types(m, dm)
-
-    return ((M, dM),
-            (tuple(function_id(m) for m in M),
-             tuple(function_id(dm) for dm in dM)))
-
-
-def tlm_keys(*args):
-    M_dM_keys = tuple(map(lambda arg: tlm_key(*arg), args))
-    for ks in itertools.chain.from_iterable(
-            distinct_combinations_indices((key for _, key in M_dM_keys), j)
-            for j in range(1, len(M_dM_keys) + 1)):
-        yield tuple(M_dM_keys[k] for k in ks)
-
-
-class TangentLinear:
-    def __init__(self, *, annotate=True):
-        self._children = {}
-        self._annotate = annotate
-
-    def __contains__(self, key):
-        _, key = tlm_key(*key)
-        return key in self._children
-
-    def __getitem__(self, key):
-        _, key = tlm_key(*key)
-        return self._children[key][1]
-
-    def __iter__(self):
-        yield from self.keys()
-
-    def __len__(self):
-        return len(self._children)
-
-    def keys(self):
-        for (M, dM), _ in self._children.values():
-            yield (M, dM)
-
-    def values(self):
-        for _, child in self._children.values():
-            yield child
-
-    def items(self):
-        yield from zip(self.keys(), self.values())
-
-    def add(self, M, dM, *, annotate=True):
-        (M, dM), key = tlm_key(M, dM)
-        if key not in self._children:
-            self._children[key] = ((M, dM), TangentLinear(annotate=annotate))
-
-    def remove(self, M, dM):
-        _, key = tlm_key(M, dM)
-        del self._children[key]
-
-    def clear(self):
-        self._children.clear()
-
-    def is_annotated(self):
-        return self._annotate
-
-    def set_is_annotated(self, annotate):
-        self._annotate = annotate
-
-
-class TangentLinearMap:
-    """
-    A map from forward to tangent-linear variables.
-    """
-
-    def __init__(self, M, dM):
-        (M, dM), _ = tlm_key(M, dM)
-
-        if len(M) == 1:
-            self._name_suffix = \
-                "_tlm(%s,%s)" % (function_name(M[0]),
-                                 function_name(dM[0]))
-        else:
-            self._name_suffix = \
-                "_tlm((%s),(%s))" % (",".join(map(function_name, M)),
-                                     ",".join(map(function_name, dM)))
-
-    @gc_disabled
-    def __contains__(self, x):
-        if hasattr(x, "_tlm_adjoint__tangent_linears"):
-            return self in x._tlm_adjoint__tangent_linears
-        else:
-            return False
-
-    @gc_disabled
-    def __getitem__(self, x):
-        if not is_function(x):
-            raise TypeError("x must be a function")
-
-        if not hasattr(x, "_tlm_adjoint__tangent_linears"):
-            x._tlm_adjoint__tangent_linears = weakref.WeakKeyDictionary()
-        if self not in x._tlm_adjoint__tangent_linears:
-            tau_x = function_new_tangent_linear(
-                x, name=f"{function_name(x):s}{self._name_suffix:s}")
-            if tau_x is not None:
-                tau_x._tlm_adjoint__tlm_root_id = getattr(
-                    x, "_tlm_adjoint__tlm_root_id", function_id(x))
-            x._tlm_adjoint__tangent_linears[self] = tau_x
-
-        return x._tlm_adjoint__tangent_linears[self]
-
-
-class DependencyGraphTranspose:
-    def __init__(self, Js, M, blocks, *,
-                 prune_forward=True, prune_adjoint=True):
-        if isinstance(blocks, Sequence):
-            # Sequence
-            blocks_n = tuple(range(len(blocks)))
-        else:
-            # Mapping
-            blocks_n = tuple(sorted(blocks.keys()))
-
-        # Transpose dependency graph
-        last_eq = {}
-        transpose_deps = {n: tuple([None for dep in eq.dependencies()]
-                                   for eq in blocks[n])
-                          for n in blocks_n}
-        for n in blocks_n:
-            block = blocks[n]
-            for i, eq in enumerate(block):
-                for m, x in enumerate(eq.X()):
-                    last_eq[function_id(x)] = (n, i, m)
-                for j, dep in enumerate(eq.dependencies()):
-                    dep_id = function_id(dep)
-                    if dep_id in last_eq:
-                        p, k, m = last_eq[dep_id]
-                        if p < n or k < i:
-                            transpose_deps[n][i][j] = (p, k, m)
-        del last_eq
-
-        if prune_forward:
-            # Extra reverse traversal to add edges associated with adjoint
-            # initial conditions
-            last_eq = {}
-            transpose_deps_ics = copy.deepcopy(transpose_deps)
-            for p in reversed(blocks_n):
-                block = blocks[p]
-                for k in range(len(block) - 1, -1, -1):
-                    eq = block[k]
-                    dep_map = {function_id(dep): j
-                               for j, dep in enumerate(eq.dependencies())}
-                    for dep in eq.adjoint_initial_condition_dependencies():
-                        dep_id = function_id(dep)
-                        if dep_id in last_eq:
-                            n, i, m = last_eq[dep_id]
-                            assert n > p or (n == p and i > k)
-                            transpose_deps_ics[n][i][m] \
-                                = (p, k, dep_map[dep_id])
-                    for m, x in enumerate(eq.X()):
-                        x_id = function_id(x)
-                        last_eq[x_id] = (p, k, m)
-            del last_eq
-
-            # Pruning, forward traversal
-            active_M = {function_id(dep) for dep in M}
-            active_forward = {n: np.full(len(blocks[n]), False, dtype=bool)
-                              for n in blocks_n}
-            for n in blocks_n:
-                block = blocks[n]
-                for i, eq in enumerate(block):
-                    if len(active_M) > 0:
-                        X_ids = set(map(function_id, eq.X()))
-                        if not X_ids.isdisjoint(active_M):
-                            active_M.difference_update(X_ids)
-                            active_forward[n][i] = True
-                    if not active_forward[n][i]:
-                        for j, dep in enumerate(eq.dependencies()):
-                            if transpose_deps_ics[n][i][j] is not None:
-                                p, k, m = transpose_deps_ics[n][i][j]
-                                if active_forward[p][k]:
-                                    active_forward[n][i] = True
-                                    break
-        else:
-            active_forward = {n: np.full(len(blocks[n]), True, dtype=bool)
-                              for n in blocks_n}
-
-        active = {J_i: copy.deepcopy(active_forward) for J_i in range(len(Js))}
-
-        if prune_adjoint:
-            # Pruning, reverse traversal
-            for J_i, J in enumerate(Js):
-                J_id = function_id(J)
-                active_J = True
-                active_adjoint = {n: np.full(len(blocks[n]), False, dtype=bool)
-                                  for n in blocks_n}
-                for n in reversed(blocks_n):
-                    block = blocks[n]
-                    for i in range(len(block) - 1, -1, -1):
-                        eq = block[i]
-                        if active_J:
-                            for x in eq.X():
-                                if function_id(x) == J_id:
-                                    active_J = False
-                                    active_adjoint[n][i] = True
-                                    break
-                        if active_adjoint[n][i]:
-                            for j, dep in enumerate(eq.dependencies()):
-                                if transpose_deps[n][i][j] is not None:
-                                    p, k, m = transpose_deps[n][i][j]
-                                    active_adjoint[p][k] = True
-                        else:
-                            active[J_i][n][i] = False
-
-        solved = copy.deepcopy(active)
-
-        stored_adj_ics = {J_i: {n: tuple([None for x in eq.X()]
-                                         for eq in blocks[n])
-                                for n in blocks_n} for J_i in range(len(Js))}
-        adj_ics = {J_i: {} for J_i in range(len(Js))}
-        for J_i in range(len(Js)):
-            for n in blocks_n:
-                block = blocks[n]
-                for i, eq in enumerate(block):
-                    adj_ic_ids = set(map(function_id,
-                                         eq.adjoint_initial_condition_dependencies()))  # noqa: E501
-                    for m, x in enumerate(eq.X()):
-                        x_id = function_id(x)
-
-                        stored_adj_ics[J_i][n][i][m] = adj_ics[J_i].get(x_id, None)  # noqa: E501
-
-                        if x_id in adj_ic_ids:
-                            adj_ics[J_i][x_id] = (n, i)
-                        elif x_id in adj_ics[J_i]:
-                            del adj_ics[J_i][x_id]
-
-        self._transpose_deps = transpose_deps
-        self._active = active
-        self._solved = solved
-        self._stored_adj_ics = stored_adj_ics
-        self._adj_ics = adj_ics
-
-    def __contains__(self, key):
-        n, i, j = key
-        return self._transpose_deps[n][i][j] is not None
-
-    def __getitem__(self, key):
-        n, i, j = key
-        p, k, m = self._transpose_deps[n][i][j]
-        return p, k, m
-
-    def is_active(self, J_i, n, i):
-        return self._active[J_i][n][i]
-
-    def any_is_active(self, n, i):
-        for J_i in self._active:
-            if self._active[J_i][n][i]:
-                return True
-        return False
-
-    def is_solved(self, J_i, n, i):
-        return self._solved[J_i][n][i]
-
-    def set_not_solved(self, J_i, n, i):
-        self._solved[J_i][n][i] = False
-
-    def has_adj_ic(self, J_i, x):
-        if isinstance(x, int):
-            x_id = x
-        else:
-            x_id = function_id(x)
-
-        if x_id in self._adj_ics[J_i]:
-            n, i = self._adj_ics[J_i][x_id]
-            return self.is_solved(J_i, n, i)
-        else:
-            return False
-
-    def is_stored_adj_ic(self, J_i, n, i, m):
-        stored_adj_ics = self._stored_adj_ics[J_i][n][i][m]
-        if stored_adj_ics is None:
-            return False
-        else:
-            p, k = stored_adj_ics
-            return self.is_solved(J_i, p, k)
-
-    def adj_Bs(self, J_i, n, i, eq, B):
-        dep_Bs = {}
-        for j, dep in enumerate(eq.dependencies()):
-            if (n, i, j) in self:
-                p, k, m = self[(n, i, j)]
-                if self.is_solved(J_i, p, k):
-                    dep_Bs[j] = B[p][k][m]
-
-        return dep_Bs
-
-
-def distinct_combinations_indices(iterable, r):
-    class Comparison:
-        def __init__(self, key, value):
-            self._key = key
-            self._value = value
-
-        def __eq__(self, other):
-            if isinstance(other, Comparison):
-                return self._key == other._key
-            else:
-                return NotImplemented
-
-        def __hash__(self):
-            return hash(self._key)
-
-        def value(self):
-            return self._value
-
-    t = tuple(Comparison(value, i) for i, value in enumerate(iterable))
-
-    try:
-        import more_itertools
-    except ImportError:
-        # Basic implementation likely suffices for most cases in practice
-        seen = set()
-        for combination in itertools.combinations(t, r):
-            if combination not in seen:
-                seen.add(combination)
-                yield tuple(e.value() for e in combination)
-        return
-
-    for combination in more_itertools.distinct_combinations(t, r):
-        yield tuple(e.value() for e in combination)
-
-
-def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
-    if isinstance(blocks, Sequence):
-        # Sequence
-        blocks_n = tuple(range(len(blocks)))
-    else:
-        # Mapping
-        blocks_n = tuple(sorted(blocks.keys()))
-
-    J_is = {function_id(J): J_i for J_i, J in enumerate(Js)}
-    J_roots = list(Js)
-    J_root_ids = {J_id: J_id for J_id in map(function_id, Js)}
-    remaining_Js = dict(enumerate(Js))
-    tlm_adj = defaultdict(lambda: [])
-
-    for n in reversed(blocks_n):
-        block = blocks[n]
-        for i in range(len(block) - 1, -1, -1):
-            eq = block[i]
-
-            if isinstance(eq, ControlsMarker):
-                continue
-            elif isinstance(eq, FunctionalMarker):
-                J, J_root = eq.dependencies()
-                J_id = function_id(J)
-                if J_id in J_root_ids:
-                    assert J_root_ids[J_id] == J_id
-                    J_roots[J_is[J_id]] = J_root
-                    J_root_ids[J_id] = function_id(J_root)
-                    assert J_root_ids[J_id] != J_id
-                del J, J_root, J_id
-                continue
-
-            eq_X_ids = set(map(function_id, eq.X()))
-            eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
-
-            found_Js = []
-            for J_i, J in remaining_Js.items():
-                if J_root_ids[function_id(J)] in eq_X_ids:
-                    found_Js.append(J_i)
-                    J_max_adjoint_degree = len(eq_tlm_key) + 1
-                    if max_adjoint_degree is not None:
-                        assert max_adjoint_degree >= 0
-                        J_max_adjoint_degree = min(J_max_adjoint_degree,
-                                                   max_adjoint_degree)
-                    for ks in itertools.chain.from_iterable(
-                            distinct_combinations_indices(eq_tlm_key, j)
-                            for j in range(len(eq_tlm_key) + 1 - J_max_adjoint_degree,  # noqa: E501
-                                           len(eq_tlm_key) + 1)):
-                        tlm_key = tuple(eq_tlm_key[k] for k in ks)
-                        ks = set(ks)
-                        adj_tlm_key = tuple(eq_tlm_key[k]
-                                            for k in range(len(eq_tlm_key))
-                                            if k not in ks)
-                        tlm_adj[tlm_key].append((J_i, adj_tlm_key))
-            for J_i in found_Js:
-                del remaining_Js[J_i]
-
-            if len(remaining_Js) == 0:
-                break
-        if len(remaining_Js) == 0:
-            break
-
-    return (tuple(J_roots),
-            {tlm_key: tuple(sorted(adj_key, key=itemgetter(0)))
-             for tlm_key, adj_key in tlm_adj.items()})
-
-
-class AdjointCache:
-    def __init__(self):
-        self._cache = {}
-        self._keys = {}
-        self._cache_key = None
-
-    def __len__(self):
-        return len(self._cache)
-
-    def __contains__(self, key):
-        J_i, n, i = key
-        return (J_i, n, i) in self._cache
-
-    def clear(self):
-        self._cache.clear()
-        self._keys.clear()
-        self._cache_key = None
-
-    def get(self, J_i, n, i, *, copy=True):
-        adj_X = self._cache[(J_i, n, i)]
-        if copy:
-            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-        return adj_X
-
-    def pop(self, J_i, n, i, *, copy=True):
-        adj_X = self._cache.pop((J_i, n, i))
-        if copy:
-            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-        return adj_X
-
-    def remove(self, J_i, n, i):
-        del self._cache[(J_i, n, i)]
-
-    def cache(self, J_i, n, i, adj_X, *, copy=True, store=False):
-        if (J_i, n, i) in self._keys \
-                and (store or len(self._keys[(J_i, n, i)]) > 0):
-            if (J_i, n, i) in self._cache:
-                adj_X = self._cache[(J_i, n, i)]
-            elif copy:
-                adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
-            else:
-                adj_X = tuple(adj_X)
-
-            if store:
-                self._cache[(J_i, n, i)] = adj_X
-            for J_j, p, k in self._keys[(J_i, n, i)]:
-                self._cache[(J_j, p, k)] = adj_X
-
-    def initialize(self, Js, blocks, transpose_deps, *,
-                   cache_degree=None):
-        J_roots, tlm_adj = J_tangent_linears(Js, blocks,
-                                             max_adjoint_degree=cache_degree)
-        J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
-                           for J in J_roots)
-
-        cache_key = tuple((J_root_ids[J_i], adj_tlm_key)
-                          for J_i, adj_tlm_key
-                          in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
-
-        if self._cache_key is None or self._cache_key != cache_key:
-            self.clear()
-
-        self._keys.clear()
-        self._cache_key = None
-
-        if cache_degree is None or cache_degree > 0:
-            self._cache_key = cache_key
-
-            if isinstance(blocks, Sequence):
-                # Sequence
-                blocks_n = tuple(range(len(blocks)))
-            else:
-                # Mapping
-                blocks_n = tuple(sorted(blocks.keys()))
-
-            eqs = defaultdict(lambda: [])
-            for n in reversed(blocks_n):
-                block = blocks[n]
-                for i in range(len(block) - 1, -1, -1):
-                    eq = block[i]
-
-                    if isinstance(eq, (ControlsMarker, FunctionalMarker)):
-                        continue
-
-                    eq_id = eq.id()
-                    eq_tlm_root_id = getattr(eq, "_tlm_adjoint__tlm_root_id", eq_id)  # noqa: E501
-                    eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
-
-                    for J_i, adj_tlm_key in tlm_adj.get(eq_tlm_key, ()):
-                        if transpose_deps.is_solved(J_i, n, i) \
-                                or (J_i, n, i) in self._cache:
-                            if cache_degree is not None:
-                                assert len(adj_tlm_key) < cache_degree
-                            eqs[eq_tlm_root_id].append(
-                                ((J_i, n, i),
-                                 (J_root_ids[J_i], adj_tlm_key)))
-
-                    eq_root = {}
-                    for (J_j, p, k), adj_key in eqs.pop(eq_id, []):
-                        assert transpose_deps.is_solved(J_j, p, k) \
-                            or (J_j, p, k) in self._cache
-                        if adj_key in eq_root:
-                            self._keys[eq_root[adj_key]].append((J_j, p, k))
-                            if (J_j, p, k) in self._cache \
-                                    and eq_root[adj_key] not in self._cache:
-                                self._cache[eq_root[adj_key]] = self._cache[(J_j, p, k)]  # noqa: E501
-                        else:
-                            eq_root[adj_key] = (J_j, p, k)
-                            self._keys[eq_root[adj_key]] = []
-            assert len(eqs) == 0
-
-        for (J_i, n, i) in self._cache:
-            transpose_deps.set_not_solved(J_i, n, i)
-        for eq_root in self._keys:
-            for (J_i, n, i) in self._keys[eq_root]:
-                transpose_deps.set_not_solved(J_i, n, i)
 
 
 class AnnotationState(enum.Enum):
@@ -595,76 +71,48 @@ class TangentLinearState(enum.Enum):
 
 
 class EquationManager:
+    """Core manager class.
+
+        - Plays the role of an adjoint 'tape'. Records forward equations as
+          they are solved.
+        - Interacts with checkpointing schedules for adjoint checkpointing and
+          forward replay.
+        - Derives and manages tangent-linear equations. Tangent-linear
+          equations are processed as new forward equations, allowing higher
+          order adjoint calculations.
+        - Handles function reference dropping, e.g. handles the dropping of
+          references to functions which store values, and their replacement
+          with symbolic equivalents, after
+          :class:`tlm_adjoint.equation.Equation` objects holding those
+          references have been destroyed. Internally the manager retains a
+          reference to a :class:`tlm_adjoint.alias.WeakAlias` subclass so that
+          the :class:`tlm_adjoint.equation.Equation` methods may be called
+          after the original :class:`tlm_adjoint.equation.Equation` is
+          destroyed.
+
+    The manager processes forward equations (and tangent-linear equations) as
+    they are solved. Equations are collected into 'blocks' of equations,
+    corresponding to 'steps' in step-based checkpointing schedules. For
+    checkpointing schedule configuration details see
+    :meth:`configure_checkpointing`.
+
+    The configuration of tangent-linear models is defined by a tangent-linear
+    tree. The root node of this tree corresponds to the forward model.
+    Following :math:`n` edges from the root node leads to a node associated
+    with an :math:`n` th order tangent-linear model. For tangent-linear
+    configuration details see :meth:`configure_tlm`.
+
+    On instantiation both equation annotation and tangent-linear derivation and
+    solution are *enabled*.
+
+    :arg comm: The :class:`mpi4py.MPI.Comm` associated with the manager.
+    :arg cp_method: See :meth:`configure_checkpointing`.
+    :arg cp_parameters: See :meth:`configure_checkpointing`.
+    """
+
     _id_counter = [0]
 
-    def __init__(self, comm=None, cp_method="memory", cp_parameters=None):
-        """
-        Manager for tangent-linear and adjoint models.
-
-        Arguments:
-        comm  (Optional) Communicator.
-
-        cp_method  (Optional) Checkpointing method. Default "memory".
-            Possible methods
-                none
-                    No storage.
-                memory
-                    Store everything in RAM.
-                periodic_disk
-                    Periodically store initial condition data on disk.
-                multistage
-                    Binomial checkpointing using the approach described in
-                        GW2000  A. Griewank and A. Walther, "Algorithm 799:
-                                Revolve: An implementation of checkpointing for
-                                the reverse or adjoint mode of computational
-                                differentiation", ACM Transactions on
-                                Mathematical Software, 26(1), pp. 19--45, 2000
-                    with a brute force search used to obtain behaviour
-                    described in
-                        SW2009  P. Stumm and A. Walther, "MultiStage approaches
-                                for optimal offline checkpointing", SIAM
-                                Journal on Scientific Computing, 31(3),
-                                pp. 1946--1967, 2009
-        cp_method may alternatively be a callable, used to construct a
-        CheckpointSchedule.
-
-        cp_parameters  (Optional) Checkpointing parameters dictionary.
-            Parameters for "none" method
-                drop_references  Whether to automatically drop references to
-                                 internal functions in the provided equations.
-                                 Logical, optional, default False.
-
-            Parameters for "memory" method
-                drop_references  Whether to automatically drop references to
-                                 internal functions in the provided equations.
-                                 Logical, optional, default False.
-
-            Parameters for "periodic_disk" method
-                path           Directory in which disk checkpoint data should
-                               be stored. String, optional, default
-                               "checkpoints~".
-                format         Disk checkpointing format. One of {"pickle",
-                               "hdf5"}, optional, default "hdf5".
-                period         Interval between checkpoints. Positive integer,
-                               required.
-
-            Parameters for "multistage" method
-                path           Directory in which disk checkpoint data should
-                               be stored. String, optional, default
-                               "checkpoints~".
-                format         Disk checkpointing format. One of {"pickle",
-                               "hdf5"}, optional, default "hdf5".
-                blocks         Total number of blocks. Positive integer,
-                               required.
-                snaps_in_ram   Number of "snaps" to store in RAM. Non-negative
-                               integer, optional, default 0.
-                snaps_on_disk  Number of "snaps" to store on disk. Non-negative
-                               integer, optional, default 0.
-        """
-        # "multistage" name, and "snaps_in_ram", and "snaps_on_disk" in
-        # "multistage" method, are similar to adj_checkpointing arguments in
-        # dolfin-adjoint 2017.1.0
-
+    def __init__(self, *, comm=None, cp_method="memory", cp_parameters=None):
         if comm is None:
             comm = DEFAULT_COMM
         if cp_parameters is None:
@@ -706,15 +154,16 @@ class EquationManager:
             return super().__getattr__(key)
 
     def comm(self):
+        """
+        :returns: The :class:`mpi4py.MPI.Comm` associated with the manager.
+        """
+
         return self._comm
 
-    def info(self, info=print):
-        """
-        Display information about the equation manager state.
+    def info(self, *, info=print):
+        """Print manager state information.
 
-        Arguments:
-
-        info  A callable which displays a provided string.
+        :arg info: A callable which accepts and prints a :class:`str`.
         """
 
         info("Equation manager status:")
@@ -757,10 +206,17 @@ class EquationManager:
             info(f"  Method: {self._cp_method:s}")
 
     def new(self, cp_method=None, cp_parameters=None):
-        """
-        Return a new equation manager sharing the communicator of this
-        equation manager. Optionally a new checkpointing configuration can be
-        provided.
+        """Construct a new :class:`EquationManager` sharing the communicator
+        with this :class:`EquationManager`. By default the new
+        :class:`EquationManager` also shares the checkpointing schedule
+        configuration with this :class:`EquationManager`, but this may be
+        overridden with the arguments `cp_method` and `cp_parameters`.
+
+        Both equation annotation and tangent-linear derivation and solution are
+        *enabled* for the new :class:`EquationManager`.
+
+        :arg cp_method: See :meth:`configure_checkpointing`.
+        :arg cp_parameters: See :meth:`configure_checkpointing`.
         """
 
         if cp_method is None:
@@ -778,9 +234,18 @@ class EquationManager:
 
     @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
-        """
-        Reset the equation manager. Optionally a new checkpointing
-        configuration can be provided.
+        """Reset the :class:`EquationManager`. Clears all recorded equations,
+        and all configured tangent-linear models.
+
+        By default the :class:`EquationManager` *retains* its previous
+        checkpointing schedule configuration, but this may be overridden with
+        the arguments `cp_method` and `cp_parameters`.
+
+        Both equation annotation and tangent-linear derivation and solution are
+        *enabled* after calling this method.
+
+        :arg cp_method: See :meth:`configure_checkpointing`.
+        :arg cp_parameters: See :meth:`configure_checkpointing`.
         """
 
         if cp_method is None:
@@ -811,8 +276,89 @@ class EquationManager:
         self.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
     def configure_checkpointing(self, cp_method, cp_parameters):
-        """
-        Provide a new checkpointing configuration.
+        """Provide a new checkpointing schedule configuration.
+
+        The checkpointing schedule type is defined by the argument `cp_method`,
+        and detailed configuration options are provided by the :class:`Mapping`
+        argument `cp_parameters`.
+
+        `cp_method` values:
+
+            - `'none'`: No checkpointing. Can be used for tangent-linear only
+              calculations. Options defined by `cp_parameters`:
+
+                - `'drop_references'`: Whether to automatically drop references
+                  to functions which store values. :class:`bool`, optional,
+                  default `False`.
+
+            - `'memory'`: Store all forward restart data and non-linear
+              dependency data in memory. Options defined by `cp_parameters`:
+
+                - `'drop_references'`: Whether to automatically drop references
+                  to functions which store values. :class:`bool`, optional,
+                  default `False`.
+
+            - `'periodic_disk`: Periodically store forward restart data on
+              disk. Options defined by `cp_parameters`:
+
+                - `'path'`: Directory in which disk checkpoint data should be
+                  stored. :class:`str`, optional, default `'checkpoints~'`.
+                - `'format'`: Disk storage format. Either `'pickle'`, for
+                  data storage using the pickle module, or `'hdf5'`, for data
+                  storage using the h5py library.
+                - `'period'`: Interval, in blocks, between storage of forward
+                  restart data. :class:`int`, required.
+
+            - `'multistage'`: Forward restart checkpointing with checkpoint
+              distribution as described in:
+
+                  - Andreas Griewank and Andrea Walther, 'Algorithm 799:
+                    revolve: an implementation of checkpointing for the reverse
+                    or adjoint mode of computational differentiation', ACM
+                    Transactions on Mathematical Software, 26(1), pp. 19--45,
+                    2000, doi: 10.1145/347837.347846
+
+              The memory/disk storage distribution is determined by an
+              initial run of the checkpointing schedule, leading to a
+              distribution equivalent to that in:
+
+                  - Philipp Stumm and Andrea Walther, 'MultiStage approaches
+                    for optimal offline checkpointing', SIAM Journal on
+                    Scientific Computing, 31(3), pp. 1946--1967, 2009, doi:
+                    10.1137/080718036
+
+              Options defined by `cp_parameters`:
+
+                - `'path'`: Directory in which disk checkpoint data should be
+                  stored. :class:`str`, optional, default `'checkpoints~'`.
+                - `'format'`: Disk storage format. Either `'pickle'`, for
+                  data storage using the pickle module, or `'hdf5'`, for data
+                  storage using the h5py library.
+                - `'blocks'`: The total number of blocks. :class:`int`,
+                  required.
+                - `'snaps_in_ram'`: Maximum number of memory checkpoints.
+                  :class:`int`, optional, default 0.
+                - `'snaps_on_disk'`: Maximum number of disk checkpoints.
+                  :class:`int`, optional, default 0.
+
+              The name 'multistage' originates from the corresponding
+              `strategy` argument value for the :func:`adj_checkpointing`
+              function in dolfin-adjoint (see e.g. version 2017.1.0). The
+              parameter names `snaps_in_ram` and `snaps_on_disk` originate from
+              the corresponding arguments for the :func:`adj_checkpointing`
+              function in dolfin-adjoint (see e.g. version 2017.1.0).
+
+            - :class:`Callable`: A :class:`Callable` returning a
+              :class:`tlm_adjoint.checkpoint_schedules.schedules.CheckpointSchedule`.
+              Options defined by `cp_parameters`:
+
+                - `'path'`: Directory in which disk checkpoint data should be
+                  stored. :class:`str`, optional, default `'checkpoints~'`.
+                - `'format'`: Disk storage format. Either `'pickle'`, for
+                  data storage using the pickle module, or `'hdf5'`, for data
+                  storage using the h5py library.
+                - Other parameters are passed as keyword arguments to the
+                  :class:`Callable`.
         """
 
         if len(self._block) != 0 or len(self._blocks) != 0:
@@ -897,25 +443,25 @@ class EquationManager:
         self._checkpoint()
 
     def configure_tlm(self, *args, annotate=None, tlm=True):
-        """
-        Configure the tangent-linear tree.
+        """Configure the tangent-linear tree.
 
-        Arguments:
-
-        args      ((M_0, dM_0), [...]). Identifies a node of the tangent-linear
-                  tree.
-        annotate  (Optional, default tlm) If true then enable annotation for
-                  the tangent-linear model associated with the node, and enable
-                  annotation for all tangent-linear models on which it depends.
-                  If false then disable annotation for the tangent-linear
-                  model associated with the node, all tangent-linear models
-                  which depend on it, and any tangent-linear models associated
-                  with new nodes.
-        tlm       (Optional) If true then add the tangent-linear model
-                  associated with the node, and add all tangent-linear models
-                  on which it depends. If false then remove the tangent-linear
-                  model associated with the node, and remove all tangent-linear
-                  models which depend on it.
+        :arg args: A :class:`tuple` of `(M_i, dM_i)` pairs. `M_i` is a function
+            or a :class:`Sequence` of functions defining a control. `dM_i` is a
+            function or a :class:`Sequence` of functions defining a derivative
+            direction. Identifies a node in the tree (and hence identifies a
+            tangent-linear model) corresponding to differentation, in order,
+            with respect to the each control defined by `M_i` and with each
+            direction defined by `dM_i`.
+        :arg annotate: If `True` then enable annotation for the identified
+            tangent-linear model, and enable annotation for all tangent-linear
+            models on which it depends. If `False` then disable annotation for
+            the identified tangent-linear model, all tangent-linear models
+            which depend on it, and any newly added tangent-linear models.
+            Defaults to `tlm`.
+        :arg tlm: If `True` then add (or retain) the identified tangent-linear
+            model, and add all tangent-linear models on which it depends. If
+            `False` then remove the identified tangent-linear model, and remove
+            all tangent-linear models which depend on it.
         """
 
         if self._tlm_state == TangentLinearState.FINAL:
@@ -998,14 +544,21 @@ class EquationManager:
 
     def tlm_enabled(self):
         """
-        Return whether derivation of tangent-linear equations is enabled.
+        :returns: Whether derivation and solution of tangent-linear equations
+            is enabled.
         """
 
         return self._tlm_state == TangentLinearState.DERIVING
 
     def function_tlm(self, x, *args):
-        """
-        Return a tangent-linear function associated with the function x.
+        """Return a function associated with a tangent-linear variable, and
+        storing its current value.
+
+        :arg x: A function defining the variable whose tangent-linear variable
+            should be returned.
+        :arg args: Identifies the tangent-linear model. See
+            :meth:`configure_tlm`.
+        :returns: A function associated with a tangent-linear variable.
         """
 
         tau = x
@@ -1023,14 +576,18 @@ class EquationManager:
 
     def annotation_enabled(self):
         """
-        Return whether the equation manager currently has annotation enabled.
+        :returns: Whether processing of equations is enabled.
         """
 
         return self._annotation_state == AnnotationState.ANNOTATING
 
     def start(self, *, annotate=True, tlm=True):
-        """
-        Start annotation or tangent-linear derivation.
+        """Start processing of equations and derivation and solution of
+        tangent-linear equations.
+
+        :arg annotate: Whether processing of equations should be enabled.
+        :arg tlm: Whether derivation and solution of tangent-linear equations
+            should be enabled.
         """
 
         if annotate:
@@ -1044,13 +601,18 @@ class EquationManager:
                    TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
     def stop(self, *, annotate=True, tlm=True):
-        """
-        Pause annotation or tangent-linear derivation. Returns a tuple
-        containing:
-            (annotation_state, tlm_state)
-        where annotation_state indicates whether annotation is enabled, and
-        tlm_state indicates whether tangent-linear equation derivation is
-        enabled, each evaluated before changing the state.
+        """Stop processing of equations and derivation and solution of
+        tangent-linear equations.
+
+        :arg annotate: Whether processing of equations should be disabled.
+        :arg tlm: Whether derivation and solution of tangent-linear equations
+            should be disabled.
+        :returns: A :class:`tuple` `(annotation_state, tlm_state)`.
+            `annotation_state` is a :class:`bool` indicating whether processing
+            of equations was enabled prior to the call to :meth:`stop`.
+            `tlm_state` is a :class:`bool` indicating whether derivation and
+            solution of tangent-linear equations was enabled prior to the call
+            to :meth:`stop`.
         """
 
         state = (self.annotation_enabled(), self.tlm_enabled())
@@ -1071,19 +633,32 @@ class EquationManager:
 
     @contextlib.contextmanager
     def paused(self, *, annotate=True, tlm=True):
+        """Construct a context manager which can be used to temporarily disable
+        processing of equations and derivation and solution of tangent-linear
+        equations.
+
+        :arg annotate: Whether processing of equations should be temporarily
+            disabled.
+        :arg tlm: Whether derivation and solution of tangent-linear equations
+            should be temporarily disabled.
+        :returns: A context manager which can be used to temporarily disable
+            processing of equations and derivation and solution of
+            tangent-linear equations.
+        """
+
         annotate, tlm = self.stop(annotate=annotate, tlm=tlm)
         try:
             yield
         finally:
             self.start(annotate=annotate, tlm=tlm)
 
-    def add_initial_condition(self, x, annotate=None):
-        """
-        Record an initial condition associated with the function x.
+    def add_initial_condition(self, x, *, annotate=None):
+        """Process an 'initial condition' -- a variable whose associated value
+        is needed prior to solving an equation.
 
-        annotate (default self.annotation_enabled()):
-            Whether to record the initial condition, storing data for
-            checkpointing as required.
+        :arg x: A function defining the variable and storing the value.
+        :arg annotate: Whether the initial condition should be processed.
+            Defaults to `self.annotation_enabled()`.
         """
 
         if annotate is None:
@@ -1095,18 +670,18 @@ class EquationManager:
 
             self._cp.add_initial_condition(x)
 
-    def add_equation(self, eq, annotate=None, tlm=None):
-        """
-        Process the provided equation, deriving (and solving) tangent-linear
-        equations as required. Assumes that the equation has already been
-        solved, and that the initial condition for eq.X() has been recorded if
-        necessary.
+    def add_equation(self, eq, *, annotate=None, tlm=None):
+        """Process a :class:`tlm_adjoint.equation.Equation` after it has been
+        solved.
 
-        annotate (default self.annotation_enabled()):
-            Whether to record the equation, storing data for checkpointing as
-            required.
-        tlm (default self.tlm_enabled()):
-            Whether to derive (and solve) associated tangent-linear equations.
+        :arg eq: The :class:`tlm_adjoint.equation.Equation`.
+        :arg annotate: Whether solution of this equation, and any
+            tangent-linear equations, should be recorded. If `True` then
+            overridden by the `annotate` configuration of tangent-linear
+            models. If `False` then overrides the `annotate` configuration of
+            tangent-linear models. Defaults to `self.annotation_enabled()`.
+        :arg tlm: Whether tangent-linear equations should be derived and
+            solved. Defaults to `self.tlm_enabled()`.
         """
 
         self.drop_references()
@@ -1177,6 +752,9 @@ class EquationManager:
                 if dep in M or dep in tlm_map:
                     tlm_eq = eq.tangent_linear(M, dM, tlm_map)
                     if tlm_eq is None:
+                        warnings.warn("Equation.tangent_linear should return "
+                                      "an Equation",
+                                      DeprecationWarning)
                         tlm_eq = ZeroAssignment([tlm_map[x] for x in X])
                     tlm_eq._tlm_adjoint__tlm_root_id = getattr(
                         eq, "_tlm_adjoint__tlm_root_id", eq.id())
@@ -1209,6 +787,11 @@ class EquationManager:
 
     @gc_disabled
     def drop_references(self):
+        """Drop references to functions which store values, referenced by
+        objects which have been destroyed, and replace them symbolic
+        equivalents.
+        """
+
         while len(self._to_drop_references) > 0:
             referrer = self._to_drop_references.pop()
             referrer._drop_references()
@@ -1268,7 +851,7 @@ class EquationManager:
         if delete:
             self._cp_disk.delete(n)
 
-    def _checkpoint(self, final=False):
+    def _checkpoint(self, *, final=False):
         assert len(self._block) == 0
         n = len(self._blocks)
         if final:
@@ -1334,7 +917,7 @@ class EquationManager:
                 pass
         del action
 
-    def _restore_checkpoint(self, n, transpose_deps=None):
+    def _restore_checkpoint(self, n, *, transpose_deps=None):
         if self._cp_schedule.max_n() is None:
             raise RuntimeError("Invalid checkpointing state")
         if n > self._cp_schedule.max_n() - self._cp_schedule.r() - 1:
@@ -1486,8 +1069,9 @@ class EquationManager:
         del action
 
     def new_block(self):
-        """
-        End the current block equation and begin a new block.
+        """End the current block of equations, and begin a new block. The
+        blocks of equations correspond to the 'steps' in step-based
+        checkpointing schedules.
         """
 
         self.drop_references()
@@ -1510,8 +1094,12 @@ class EquationManager:
         self._checkpoint(final=False)
 
     def finalize(self):
-        """
-        End the final block equation.
+        """End the final block of equations. Equations cannot be processed, and
+        new tangent-linear equations cannot be derived and solved, after a call
+        to this method.
+
+        Called by :meth:`compute_gradient`, and typically need not be called
+        manually.
         """
 
         self.drop_references()
@@ -1544,40 +1132,86 @@ class EquationManager:
             eq.reset_adjoint()
 
     @restore_manager
-    def compute_gradient(self, Js, M, callback=None, prune_forward=True,
+    def compute_gradient(self, Js, M, *, callback=None, prune_forward=True,
                          prune_adjoint=True, prune_replay=True,
                          cache_adjoint_degree=None, store_adjoint=False,
                          adj_ics=None):
-        """
-        Compute the derivative of one or more functionals with respect to one
-        or more control parameters by running adjoint models. Finalizes the
-        manager. Returns the complex conjugate of the derivative.
+        """Core adjoint driver method.
 
-        Arguments:
+        Compute the derivative of one or more functionals with respect to
+        one or model controls, using an adjoint approach.
 
-        Js         A Functional or function, or a sequence of these, defining
-                   the functionals.
-        M          A function, or a sequence of functions, defining the control
-                   parameters.
-        callback   (Optional) Callable of the form
-                       def callback(J_i, n, i, eq, adj_X):
-                   where adj_X is None, a function, or a sequence of functions,
-                   corresponding to the adjoint solution for the equation eq,
-                   which is equation i in block n for the J_i th Functional.
-        prune_forward  (Optional) Whether forward traversal graph pruning
-                       should be applied.
-        prune_adjoint  (Optional) Whether reverse traversal graph pruning
-                       should be applied.
-        prune_replay   (Optional) Whether graph pruning should be applied in
-                       forward replay.
-        cache_adjoint_degree
-                       (Optional) Cache and reuse adjoint solutions of this
-                       degree and lower. If not supplied then caching is
-                       applied for all degrees.
-        store_adjoint  (Optional) Whether adjoint solutions should be retained
-                       for use by a later call to compute_gradient.
-        adj_ics    (Optional) Map, or a sequence of maps, from forward
-                   functions or function IDs to adjoint initial conditions.
+        :arg Js: A function, :class:`tlm_adjoint.functional.Functional`, or a
+            :class:`Sequence` of these, defining the functionals to
+            differentiate.
+        :arg M: A function or a :class:`Sequence` of functions defining the
+            controls. Derivatives with respect to the controls are computed.
+        :arg callback: Diagnostic callback. A :class:`Callable` of the form
+
+            .. code-block:: python
+
+                def callback(J_i, n, i, eq, adj_X):
+
+            with
+
+                - `J_i`: A :class:`int` defining the index of the functional.
+                - `n`: A :class:`int` definining the index of the block of
+                  equations.
+                - `i`: A :class:`int` defining the index of the considered
+                  equation in block `n`.
+                - `eq`: The :class:`tlm_adjoint.equation.Equation`, equation
+                  `i` in block `n`.
+                - `adj_X`: The adjoint solution associated with equation `i` in
+                  block `n` for the `J_i` th functional. `None` indicates that
+                  the solution is zero or is not computed (due to an activity
+                  analysis). Otherwise a function if `eq` has a single solution
+                  component, and a :class:`Sequence` of functions otherwise.
+
+        :arg prune_forward: Controls the activity analysis. Whether a forward
+            traversal of the computational graph, tracing variables which
+            depend on the controls, should be applied.
+        :arg prune_adjoint: Controls the activity analysis. Whether a reverse
+            traversal of the computational graph, tracing variables on which
+            the functionals depend, should be applied.
+        :arg prune_replay: Controls the activity analysis. Whether an activity
+            analysis should be applied when solving forward equations during
+            checkpointing/replay.
+        :arg cache_adjoint_degree: Adjoint solutions can be cached and reused
+            across adjoint models where the solution is the same -- e.g. first
+            order adjoint solutions associated with the same functional and
+            same block and equation indices are equal. A value of `None`
+            indicates that caching should be applied at all degrees, a value of
+            0 indicates that no caching should be applied, and any positive
+            :class:`int` indicates that caching should be applied for adjoint
+            models up to and including degree `cache_adjoint_degree`.
+        :arg store_adjoint: Whether cached adjoint solutions should be retained
+            after the call to this method. Can be used to cache and reuse first
+            order adjoint solutions in multiple calls to this method.
+        :arg adj_ics: A :class:`Mapping`. Items are `(x, value)` where `x` is a
+            function or function ID identifying a forward variable. The adjoint
+            variable associated with the final equation solving for `x` should
+            be initialized to the value stored by the function `value`.
+        :returns: The conjugate of the derivatives. The return type depends on
+            the type of `Js` and `M`.
+
+              - If `Js` is a function or
+                :class:`tlm_adjoint.functional.Functional`, and `M` is a
+                function, returns a function storing the conjugate of the
+                derivative.
+              - If `Js` is a :class:`Sequence`, and `M` is a function, returns
+                a function whose :math:`i` th component stores the conjugate of
+                the derivative of the :math:`i` th functional.
+              - If `Js` is a function or
+                :class:`tlm_adjoint.functional.Functional`, and `M` is a
+                :class:`Sequence`, returns a :class:`Sequence` of functions
+                whose :math:`j` th component stores the conjugate of the
+                derivative with respect to the :math:`j` th control.
+              - If both `Js` and `M` are :class:`Sequence` objects, returns a
+                :class:`Sequence` whose :math:`i` th component stores the
+                conjugate of the derivatives of the :math:`i` th functional.
+                Each of these is a :class:`Sequence` of functions whose
+                :math:`j` th component stores the conjugate of the derivative
+                with respect to the :math:`j` th control.
         """
 
         if not isinstance(M, Sequence):

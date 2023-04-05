@@ -60,9 +60,9 @@ notice from dolfin/function/Function.cpp, DOLFIN 2017.2.0.post0, follows.
 
 ===============================================================================
 
-The 'eigendecompose' function in tlm_adjoint/eigendecomposition.py loosely
-follows the slepc4py 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information
-follows.
+The 'eigendecompose' function in tlm_adjoint/eigendecomposition.py was
+originally developed by loosely following the slepc4py 3.6.0 demo demo/ex3.py.
+slepc4py 3.6.0 license information follows.
 
 =========================
 LICENSE: SLEPc for Python
@@ -103,25 +103,28 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The FixedPointSolver class in tlm_adjoint/equations.py derives tangent-linear
 and adjoint information using the approach described in [1, 2].
 
-[1]  J. C. Gilbert, "Automatic differentiation and iterative processes",
-     Optimization Methods and Software, 1(1), pp. 13--21, 1992
-[2]  B. Christianson, "Reverse accumulation and attractive fixed points",
-     Optimization Methods and Software, 3(4), pp. 311--326, 1994
+[1] Jean Charles Gilbert, 'Automatic differentiation and iterative processes',
+    Optimization Methods and Software, 1(1), pp. 13--21, 1992,
+    doi: 10.1080/10556789208805503
+[2] Bruce Christianson, 'Reverse accumulation and attractive fixed points',
+    Optimization Methods and Software, 3(4), pp. 311--326, 1994,
+    doi: 10.1080/10556789408805572
 
 ===============================================================================
 
 The MultistageCheckpointSchedule class in
 tlm_adjoint/checkpoint_schedules/binomial.py implements the binomial
-checkpointing strategy described in [3], with multi-stage offline checkpointing
-schedules equivalent to those described in [4].
+checkpointing strategy described in [3]. A memory/disk storage distribution is
+determined by an initial run of the checkpoint schedule, leading to a
+distribution equivalent to that in [4].
 
-[3]  A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation of
-     checkpointing for the reverse or adjoint mode of computational
-     differentiation", ACM Transactions on Mathematical Software, 26(1),
-     pp. 19--45, 2000
-[4]  P. Stumm and A. Walther, "MultiStage approaches for optimal offline
-     checkpointing", SIAM Journal on Scientific Computing, 31(3),
-     pp. 1946--1967, 2009
+[3]  Andreas Griewank and Andrea Walther, 'Algorithm 799: revolve: an
+     implementation of checkpointing for the reverse or adjoint mode of
+     computational differentiation', ACM Transactions on Mathematical Software,
+     26(1), pp. 19--45, 2000, doi: 10.1145/347837.347846
+[4]  Philipp Stumm and Andrea Walther, 'MultiStage approaches for optimal
+     offline checkpointing', SIAM Journal on Scientific Computing, 31(3), pp.
+     1946--1967, 2009, doi: 10.1137/080718036
 
 ===============================================================================
 
@@ -140,11 +143,10 @@ information for [6].
 
 ===============================================================================
 
-The interface provided in tlm_adjoint/timestepping.py aims for a degree of
-consistency with the API of the 'timestepping' library, as in dolfin-adjoint
-timestepping_2017.1.0 branch, and as described in [7].
-[7]  J. R. Maddison and P. E. Farrell, "Rapid development and adjoining of
-     transient finite element models", Computer Methods in Applied Mechanics
-     and Engineering, 276, pp. 95--121, 2014
+The functions in tlm_adjoint/verification.py implement Taylor remainder
+convergence testing using the approach described in
 
-===============================================================================
+[7] P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
+    derivation of the adjoint of high-level transient finite element programs',
+    SIAM Journal on Scientific Computing 35(4), pp. C369--C393, 2013, doi:
+    10.1137/120873558

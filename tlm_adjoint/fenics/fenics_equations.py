@@ -28,8 +28,10 @@ from ..interface import check_space_type, function_assign, function_comm, \
 from .backend_code_generator_interface import assemble, complex_mode
 
 from ..caches import Cache
-from ..equations import Equation, LinearEquation, Matrix, MatrixActionRHS, \
-    ZeroAssignment, get_tangent_linear
+from ..equation import Equation, ZeroAssignment
+from ..equations import MatrixActionRHS
+from ..linear_equation import LinearEquation, Matrix
+from ..tangent_linear import get_tangent_linear
 
 from .caches import form_dependencies, form_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
@@ -449,7 +451,7 @@ class LocalMatrix(Matrix):
         self._P = P.copy()
         self._P_T = P.T
 
-    def forward_action(self, nl_deps, x, b, method="assign"):
+    def forward_action(self, nl_deps, x, b, *, method="assign"):
         if method == "assign":
             function_set_values(b, self._P.dot(function_get_values(x)))
         elif method == "add":
@@ -459,7 +461,7 @@ class LocalMatrix(Matrix):
         else:
             raise ValueError(f"Invalid method: '{method:s}'")
 
-    def adjoint_action(self, nl_deps, adj_x, b, b_index=0, method="assign"):
+    def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *, method="assign"):
         if b_index != 0:
             raise IndexError("Invalid index")
         if method == "assign":

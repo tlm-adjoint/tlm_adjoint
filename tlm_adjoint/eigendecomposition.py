@@ -18,42 +18,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-# 'eigendecompose' loosely follows the slepc4py 3.6.0 demo demo/ex3.py.
-# slepc4py 3.6.0 license information follows.
-#
-# =========================
-# LICENSE: SLEPc for Python
-# =========================
-#
-# :Author:  Lisandro Dalcin
-# :Contact: dalcinl@gmail.com
-#
-#
-# Copyright (c) 2015, Lisandro Dalcin.
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-# * Redistributions of source code must retain the above copyright
-#   notice, this list of conditions and the following disclaimer.
-#
-# * Redistributions in binary form must reproduce the above copyright
-#   notice, this list of conditions and the following disclaimer in the
-#   documentation and/or other materials provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# 'eigendecompose' was originally developed by loosely following the slepc4py
+# 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information can be found in
+# the 'eigendecompose' docstring.
 
 from .interface import check_space_types, function_get_values, \
     function_global_size, function_local_size, function_set_values, \
@@ -69,16 +36,17 @@ __all__ = \
     ]
 
 
-_flagged_error = [False]
+_flagged_error = False
 
 
 def flag_errors(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
+        global _flagged_error
         try:
             return fn(*args, **kwargs)
         except Exception:
-            _flagged_error[0] = True
+            _flagged_error = True
             raise
     return wrapped_fn
 
@@ -129,44 +97,92 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
                    problem_type=None, which=None, tolerance=1.0e-12,
                    configure=None):
     # First written 2018-03-01
-    """
-    Matrix-free interface with SLEPc via slepc4py, loosely following
-    the slepc4py 3.6.0 demo demo/ex3.py, for use in the calculation of a
-    Hessian eigendecomposition with a real control space.
+    r"""
+    Matrix-free interface with SLEPc via slepc4py, for the matrix free solution
+    of eigenproblems
 
-    Arguments:
+    .. math::
 
-    space          Eigenvector space.
-    A_action       Callable accepting a function and returning a function,
-                   defining the action of the left-hand-side matrix, e.g. as
-                   returned by Hessian.action_fn.
-    B_action       (Optional) Callable accepting a function and returning a
-                   function, defining the action of the right-hand-side matrix.
-    space_type     (Optional) "primal", "conjugate", "dual", or
-                   "conjugate_dual", defining the eigenvector space type.
-    action_type    (Optional) "primal", "dual", or "conjugate_dual", whether a
-                   matrix action is in the same space as the eigenvectors, or
-                   the associated dual or conjugate dual space.
-    N_eigenvalues  (Optional) Number of eigenvalues to attempt to find.
-                   Defaults to a full spectrum.
-    solver_type    (Optional) The solver type.
-    problem_type   (Optional) The problem type. If not supplied
-                   slepc4py.SLEPc.EPS.ProblemType.NHEP or
-                   slepc4py.SLEPc.EPS.ProblemType.GNHEP are used.
-    which          (Optional) Which eigenvalues to find. Defaults to
-                   slepc4py.SLEPc.EPS.Which.LARGEST_MAGNITUDE.
-    tolerance      (Optional) Tolerance, using slepc4py.SLEPc.EPS.Conv.REL
-                   convergence criterion.
-    configure      (Optional) Function handle accepting the EPS. Can be used
-                   for manual configuration.
+        A v = \lambda v,
 
-    Returns:
+    or generalized eigenproblems
 
-    A tuple (lam, V), where lam is an array of eigenvalues. For Hermitian
-    problems or with complex PETSc V is a tuple of functions containing
-    corresponding eigenvectors. Otherwise V is a tuple (V_r, V_i) where V_r and
-    V_i are each tuples of functions containing the real and imaginary parts of
-    corresponding eigenvectors.
+    .. math::
+
+        A v = \lambda B v.
+
+    Originally developed by loosely following the slepc4py 3.6.0 demo
+    demo/ex3.py. slepc4py 3.6.0 license information follows:
+
+    .. code-block:: text
+
+        =========================
+        LICENSE: SLEPc for Python
+        =========================
+
+        :Author:  Lisandro Dalcin
+        :Contact: dalcinl@gmail.com
+
+
+        Copyright (c) 2015, Lisandro Dalcin.
+        All rights reserved.
+
+        Redistribution and use in source and binary forms, with or without
+        modification, are permitted provided that the following conditions
+        are met:
+
+        * Redistributions of source code must retain the above copyright
+          notice, this list of conditions and the following disclaimer.
+
+        * Redistributions in binary form must reproduce the above copyright
+          notice, this list of conditions and the following disclaimer in the
+          documentation and/or other materials provided with the distribution.
+
+        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
+        "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+        LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+        A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+        HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+        SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+        LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+        DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+        THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+    :arg space: The space for each eigenvector.
+    :arg A_action: A :class:`Callable`. Accepts a single function argument, and
+        returns a function containing the result after left multiplication of
+        the input by :math:`A`.
+    :arg B_action: A :class:`Callable`. Accepts a single function argument, and
+        returns a function containing the result after left multiplication of
+        the input by :math:`B`.
+    :arg space_type: The space type of eigenvectors. `'primal'`, `'dual'`,
+        `'conjugate'`, or `'conjugate_dual'`.
+    :arg action_type: The space type relative to `space_type` of the result of
+        multiplication by :math:`A` or :math:`B`. `'primal'`, `'dual'`, or
+        `'conjugate_dual'`.
+    :arg N_eigenvalues: An :class:`int`, the number of eigenvalues to attempt
+        to compute. Defaults to the dimension of `space`.
+    :arg problem_type: The eigenproblem type -- see
+        :class:`slepc4py.SLEPc.EPS.ProblemType`. Defaults to
+        `slepc4py.SLEPc.EPS.ProblemType.GNHEP` if `B_action` is supplied, or
+        `slepc4py.SLEPc.EPS.ProblemType.NHEP` otherwise.
+    :arg which: Which eigenvalues to attempt to compute -- see
+        :class:`slepc4py.SLEPc.EPS.Which`. Defaults to
+        `slepc4py.SLEPc.EPS.Which.LARGEST_MAGNITUDE`.
+    :arg tolerance: Convergence tolerance. By default the convergence criterion
+        is defined using `slepc4py.SLEPc.EPS.Conv.REL`.
+    :arg configure: A callable accepting a single :class:`slepc4py.SLEPc.EPS`
+        argument. Used for detailed manual configuration. Called after all
+        other configuration options are set, but before the :meth:`EPS.setUp`
+        method is called.
+    :returns: A :class:`tuple` `(lam, V)`. `lam` is a :class:`numpy.ndarray`
+        containing eigenvalues. For non-Hermitian algorithms and a real build
+        of PETSc, `V` is a :class:`tuple` `(V_r, V_i)`, where `V_r` and `V_i`
+        are each a :class:`tuple` of functions containing respectively the real
+        and complex parts of corresponding eigenvectors. Otherwise `V` is a
+        :class:`tuple` of functions containing corresponding eigenvectors.
     """
 
     import petsc4py.PETSc as PETSc
@@ -232,9 +248,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         configure(esolver)
     esolver.setUp()
 
-    assert not _flagged_error[0]
+    assert not _flagged_error
     esolver.solve()
-    if _flagged_error[0]:
+    if _flagged_error:
         raise RuntimeError("Error encountered in SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
         raise RuntimeError("Not all requested eigenpairs converged")
