@@ -487,8 +487,9 @@ def space_new(space, *, name=None, space_type="primal", static=False,
     :arg static: Defines the default value for `cache` and `checkpoint`.
     :arg cache: Defines whether results involving this function may be cached.
         Default `static`.
-    :arg checkpoint: Defines whether a :class:`CheckpointStorage` should store
-        this function by value (`checkpoint=True`) or reference
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        function by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
     :returns: The new function.
     """
@@ -931,9 +932,10 @@ def function_is_cached(x):
 
 def function_is_checkpointed(x):
     """Return whether the function is 'checkpointed', meaning that a
-    :class:`CheckpointStorage` stores this function by value. If not
-    'checkpointed' then a :class:`CheckpointStorage` stores this function by
-    reference.
+    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this function
+    by value. If not 'checkpointed' then a
+    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this function
+    by reference.
 
     Only functions which are 'checkpointed' may appear as the solution of
     equations.
@@ -946,10 +948,12 @@ def function_is_checkpointed(x):
 
 
 def function_caches(x):
-    """Return the :class:`Caches` associated with a function.
+    """Return the :class:`tlm_adjoint.caches.Caches` associated with a
+    function.
 
     :arg x: The function.
-    :returns: The :class:`Caches` associated with the function.
+    :returns: The :class:`tlm_adjoint.caches.Caches` associated with the
+        function.
     """
 
     return x._tlm_adjoint__function_interface_caches()
@@ -1119,8 +1123,9 @@ def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
     :arg static: Defines the default value for `cache` and `checkpoint`.
     :arg cache: Defines whether results involving the new function may be
         cached. Default `static`.
-    :arg checkpoint: Defines whether a :class:`CheckpointStorage` should store
-        the new function by value (`checkpoint=True`) or reference
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store the
+        new function by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
     :arg rel_space_type: Defines the space type of the new function, relative
         to the space type of `x`.
@@ -1264,10 +1269,11 @@ def subtract_adjoint_derivative_action(x, y):
 
     :arg x: A function storing the adjoint right-hand-side.
     :arg y: A contribution to subtract from the adjoint right-hand-side. An
-        :meth:`Equation.adjoint_derivative_action` return value. Valid types
-        depend upon the backend used, but `y` may be a function, or a two
-        element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and `F`
-        a function, with the value defined by the product of `alpha` and `F`.
+        :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action` return
+        value. Valid types depend upon the backend used, but `y` may be a
+        function, or a two element :class:`tuple` `(alpha, F)`, where `alpha`
+        is a scalar and `F` a function, with the value defined by the product
+        of `alpha` and `F`.
     """
 
     for fn in _subtract_adjoint_derivative_action.values():

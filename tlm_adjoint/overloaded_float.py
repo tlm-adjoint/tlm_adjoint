@@ -113,8 +113,8 @@ class FloatSpace:
     """Defines the real or complex space.
 
     :arg float_cls: The :class:`SymbolicFloat` class, in particular used to
-        instantiate new functions in :func:`space_new`. Defaults to
-        :class:`SymbolicFloat`.
+        instantiate new functions in :func:`tlm_adjoint.interface.space_new`.
+        Defaults to :class:`SymbolicFloat`.
     :arg dtype: The data type associated with the space. Typically
         :class:`numpy.float64` or :class:`numpy.complex128`. Defaults to
         :class:`numpy.complex128`.
@@ -318,24 +318,26 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     :arg value: A scalar or SymPy :class:`Expr` defining the initial value. If
         a SymPy :class:`Expr` then, if annotation or derivation and solution of
         tangent-linear equations is enabled, an assignment is processed by the
-        :class:`EquationManager` `manager`.
+        :class:`tlm_adjoint.tlm_adjoint.EquationManager` `manager`.
     :arg name: A :class:`str` name for the :class:`SymbolicFloat`.
     :arg space_type: The space type for the :class:`SymbolicFloat`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
     :arg static: Defines the default value for `cache` and `checkpoint`.
     :arg cache: Defines whether results involving this :class:`SymbolicFloat`
         may be cached. Default `static`.
-    :arg checkpoint: Defines whether a :class:`CheckpointStorage` should store
-        this :class:`SymbolicFloat` by value (`checkpoint=True`) or reference
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        :class:`SymbolicFloat` by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
     :arg dtype: The data type associated with the :class:`SymbolicFloat`.
         Typically :class:`numpy.float64` or :class:`numpy.complex128`. Defaults
         to :class:`numpy.complex128`.
     :arg comm: The :class:`mpi4py.MPI.Comm` associated with the
         :class:`SymbolicFloat`.
-    :arg manager: The :class:`EquationManager`. Defaults to `manager()`.
-    :arg annotate: Whether the :class:`EquationManager` should record the
-        solution of equations.
+    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+        Defaults to `manager()`.
+    :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
+        should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
     """
 
@@ -411,8 +413,10 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         """:class:`SymbolicFloat` assignment.
 
         :arg y: A scalar or SymPy :class:`Expr` defining the value.
-        :arg manager: The :class:`EquationManager`. Defaults to `manager()`.
-        :arg annotate: Whether the :class:`EquationManager` should record the
+        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+            Defaults to `manager()`.
+        :arg annotate: Whether the
+            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
@@ -450,8 +454,10 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         """:class:`SymbolicFloat` in-place addition.
 
         :arg y: A scalar or SymPy :class:`Expr` defining the value to add.
-        :arg manager: The :class:`EquationManager`. Defaults to `manager()`.
-        :arg annotate: Whether the :class:`EquationManager` should record the
+        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+            Defaults to `manager()`.
+        :arg annotate: Whether the
+            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """

@@ -90,9 +90,10 @@ class Functional:
         :arg term: The value. Defines the value of :math:`b`. Valid types
             depend upon the backend. :math:`b` may be a function, and with the
             FEniCS or Firedrake backends may be a rank zero UFL :class:`Form`.
-        :arg manager: The :class:`EquationManager`. Defaults to
-            `manager()`.
-        :arg annotate: Whether the :class:`EquationManager` should record the
+        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+            Defaults to `manager()`.
+        :arg annotate: Whether the
+            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
@@ -129,9 +130,10 @@ class Functional:
             depend upon the backend. :math:`b` may be a function, and with
             the FEniCS or Firedrake backends may be a rank zero UFL
             :class:`Form`.
-        :arg manager: The :class:`EquationManager`. Defaults to
-            `manager()`.
-        :arg annotate: Whether the :class:`EquationManager` should record the
+        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+            Defaults to `manager()`.
+        :arg annotate: Whether the
+            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
@@ -198,9 +200,9 @@ class Functional:
             variable. Supplying multiple pairs leads to a :class:`Functional`
             associated with higher order tangent-linear variables. The relevant
             tangent-linear models must have been configured for the
-            :class:`EquationManager` `manager`.
-        :arg manager: The :class:`EquationManager`. Defaults to
-            `manager()`.
+            :class:`tlm_adjoint.tlm_adjoint.EquationManager` `manager`.
+        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+            Defaults to `manager()`.
         :returns: A :class:`Functional` associated with the tangent-linear
             variable.
         """

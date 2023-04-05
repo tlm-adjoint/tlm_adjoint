@@ -54,12 +54,13 @@ def minimize_scipy(forward, M0, *, manager=None, **kwargs):
     `False`. Calling code should check this attribute.
 
     :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or :class:`Functional` defining
-        the forward functional.
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional.
     :arg M0: A function or :class:`Sequence` of functions defining the control
         variable, and the initial guess for the optimization.
-    :arg manager: An :class:`EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager().new()` is used if not supplied.
     :returns: A :class:`tuple` `(M, return_value)`. `M` is function or a
         :class:`Sequence` of functions depending on the type of `M0`, and
         stores the result. `return_value` is the return value of

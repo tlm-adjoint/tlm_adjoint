@@ -129,10 +129,11 @@ class GeneralHessian(Hessian):
     :meth:`compute_gradient` or :meth:`action` re-run the forward.
 
     :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or :class:`Functional` defining
-        the forward functional.
-    :arg manager: An :class:`EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager().new()` is used if not supplied.
     """
 
     def __init__(self, forward, *, manager=None):
@@ -356,7 +357,8 @@ class GaussNewton(ABC):
 
 class GeneralGaussNewton(GaussNewton):
     """Represents a Gauss-Newton approximation to a Hessian associated with a
-    given forward model. Calls to :meth:`action` re-run the forward.
+    given forward model. Calls to :meth:`GaussNewton.action` re-run the
+    forward.
 
     :arg forward: A :class:`Callable` which accepts one or more function
         arguments, and which returns a function or :class:`Sequence` of
@@ -365,8 +367,8 @@ class GeneralGaussNewton(GaussNewton):
     :arg B_inv_action: See :class:`GaussNewton`.
     :arg J_space: The space for the functional. `FloatSpace()` is used if not
         supplied.
-    :arg manager: An :class:`EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager().new()` is used if not supplied.
     """
 
     def __init__(self, forward, R_inv_action, B_inv_action=None, *,

@@ -296,8 +296,8 @@ class InnerProduct(LinearEquation):
     :arg z: A function whose degrees of freedom define :math:`z`. May be the
         same function a `y`.
     :arg alpha: A scalar defining :math:`\alpha`.
-    :arg M: A :class:`Matrix` defining :math:`M`. Must have no dependencies.
-        Defaults to an identity matrix.
+    :arg M: A :class:`tlm_adjoint.linear_equation.Matrix` defining :math:`M`.
+        Must have no dependencies. Defaults to an identity matrix.
     """
 
     def __init__(self, x, y, z, *, alpha=1.0, M=None):
@@ -340,7 +340,7 @@ class MatrixActionRHS(RHS):
 
         A x.
 
-    :arg A: A :class:`Matrix` defining :math:`A`.
+    :arg A: A :class:`tlm_adjoint.linear_equation.Matrix` defining :math:`A`.
     :arg x: A function or a :class:`Sequence` of functions defining :math:`x`.
     """
 
@@ -540,8 +540,8 @@ class InnerProductRHS(RHS):
     :arg y: A function whose degrees of freedom define :math:`y`. May be the
         same function as `x`.
     :arg alpha: A scalar defining :math:`\alpha`.
-    :arg M: A :class:`Matrix` defining :math:`M`. Must have no dependencies.
-        Defaults to an identity matrix.
+    :arg M: A :class:`tlm_adjoint.linear_equation.Matrix` defining :math:`M`.
+        Must have no dependencies. Defaults to an identity matrix.
     """
 
     def __init__(self, x, y, *, alpha=1.0, M=None):

@@ -163,9 +163,10 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     value of :math:`\eta`, and the argument `size` sets the value of :math:`P`.
 
     :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or :class:`Functional` defining
-        the forward functional :math:`J`. Corresponds to the `J` argument in
-        the dolfin-adjoint :func:`taylor_test` function.
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional :math:`J`. Corresponds to the `J` argument in the
+        dolfin-adjoint :func:`taylor_test` function.
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m`. Corresponds to the `m` argument in the
         dolfin-adjoint :func:`taylor_test` function.
@@ -176,11 +177,11 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         for the derivative of the functional with respect to the control.
         Required if `ddJ` is not supplied. Corresponds to the `dJdm` argument
         in the dolfin-adjoint :func:`taylor_test` function.
-    :arg ddJ: A :class:`Hessian` used to compute the Hessian action on the
-        considered perturbation direction. If supplied then a higher order
-        corrected Taylor remainder magnitude is computed. If `dJ` is not
-        supplied, also computes the first order directional derivative.
-        Corresponds to the `HJm` argument in the dolfin-adjoint
+    :arg ddJ: A :class:`tlm_adjoint.hessian.Hessian` used to compute the
+        Hessian action on the considered perturbation direction. If supplied
+        then a higher order corrected Taylor remainder magnitude is computed.
+        If `dJ` is not supplied, also computes the first order directional
+        derivative. Corresponds to the `HJm` argument in the dolfin-adjoint
         :func:`taylor_test` function.
     :arg seed: Defines the value of :math:`\eta`. Controls the magnitude of the
         perturbation. Corresponds to the `seed` argument in the dolfin-adjoint
@@ -197,8 +198,8 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     :arg size: The number of values of :math:`\varepsilon` to consider.
         Corresponds to the `size` argument in the dolfin-adjoint
         :func:`taylor_test` function.
-    :arg manager: An :class:`EquationManager` which should be used internally.
-        `manager()` is used if not supplied.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager()` is used if not supplied.
     :returns: The minimum order observed, via a power law fit between
         consecutive pairs of values of :math:`\varepsilon`, in the calculations
         for the corrected Taylor remainder magnitude. In a successful
@@ -305,8 +306,9 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     order tangent-linear.
 
     :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or :class:`Functional` defining
-        the forward functional :math:`K`.
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional :math:`K`.
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m` and its value.
     :arg tlm_order: An :class:`int` defining the tangent-linear order to
@@ -325,8 +327,10 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         supplied.
     :arg size: The number of values of :math:`\varepsilon` to consider. See
         :func:`taylor_test`.
-    :arg manager: An :class:`EquationManager` used to create an internal
-         manager via :meth:`manager.new`. `manager()` is used if not supplied.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
+        create an internal manager via
+        :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new`. `manager()` is
+        used if not supplied.
     :returns: The minimum order observed, via a power law fit between
         consecutive pairs of values of :math:`\varepsilon`, in the calculations
         for the corrected Taylor remainder magnitude. In a successful
@@ -427,8 +431,9 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     associated with an `(adjoint_order - 1)` th order tangent-linear.
 
     :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or :class:`Functional` defining
-        the forward functional :math:`K`.
+        arguments, and which returns a function or
+        :class:`tlm_adjoint.functional.Functional` defining the forward
+        functional :math:`K`.
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m` and its value.
     :arg adjoint_order: An :class:`int` defining the adjoint order to test.
@@ -446,8 +451,10 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         supplied.
     :arg size: The number of values of :math:`\varepsilon` to consider. See
         :func:`taylor_test`.
-    :arg manager: An :class:`EquationManager` used to create an internal
-         manager via :meth:`manager.new`. `manager()` is used if not supplied.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
+        create an internal manager via
+        :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new`. `manager()` is
+        used if not supplied.
     :returns: The minimum order observed, via a power law fit between
         consecutive pairs of values of :math:`\varepsilon`, in the calculations
         for the corrected Taylor remainder magnitude. In a successful

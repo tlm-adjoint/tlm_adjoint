@@ -50,21 +50,24 @@ class CustomNormSq:
     and adjoint solutions of equations. The total squared norm is then the sum
     of the squares.
 
-    :arg eqs: A :class:`Sequence` of :class:`Equation` objects.
+    :arg eqs: A :class:`Sequence` of :class:`tlm_adjoint.equation.Equation`
+        objects.
     :arg norm_sqs: A :class:`Sequence`. Each element is either a
         :class:`Callable`, or a :class:`Sequence` of :class:`Callable` objects.
         The :class:`Callable` objects define the squared norm associated with
         the corresponding components of the forward solution for the
-        corresponding :class:`Equation` in `eqs`. Each :class:`Callable`
-        accepts a single function and returns a :class:`float`. Defaults to the
-        square of the :math:`l_2` norm of the degrees of freedom vector.
+        corresponding :class:`tlm_adjoint.equation.Equation` in `eqs`. Each
+        :class:`Callable` accepts a single function and returns a
+        :class:`float`. Defaults to the square of the :math:`l_2` norm of the
+        degrees of freedom vector.
     :arg adj_norm_sqs: A :class:`Sequence`. Each element is either a
         :class:`Callable`, or a :class:`Sequence` of :class:`Callable` objects.
         The :class:`Callable` objects define the squared norm associated with
         the corresponding components of the adjoint solution for the
-        corresponding :class:`Equation` in `eqs`. Each :class:`Callable`
-        accepts a single function and returns a :class:`float`. Defaults to the
-        square of the :math:`l_2` norm of the degrees of freedom vector.
+        corresponding :class:`tlm_adjoint.equation.Equation` in `eqs`. Each
+        :class:`Callable` accepts a single function and returns a
+        :class:`float`. Defaults to the square of the :math:`l_2` norm of the
+        degrees of freedom vector.
     """
 
     def __init__(self, eqs, *, norm_sqs=None, adj_norm_sqs=None):
@@ -139,9 +142,10 @@ class FixedPointSolver(Equation, CustomNormSq):
           points', Optimization Methods and Software, 3(4), pp. 311--326, 1994,
           doi: 10.1080/10556789408805572
 
-    :arg eqs: A :class:`Sequence` of :class:`Equation` objects. One forward
-        iteration consists of computing, in order, a forward solution for all
-        :class:`Equation` objects.
+    :arg eqs: A :class:`Sequence` of :class:`tlm_adjoint.equation.Equation`
+        objects. One forward iteration consists of computing, in order, a
+        forward solution for all :class:`tlm_adjoint.equation.Equation`
+        objects.
     :arg solver_parameters: A :class:`Mapping` defining solver parameters.
         Parameters (a number of which are based on KrylovSolver parameters in
         FEniCS 2017.2.0) are:
@@ -160,11 +164,12 @@ class FixedPointSolver(Equation, CustomNormSq):
               to use a non-zero initial guess in an adjoint solve. Defaults to
               `True`.
             - adjoint_eqs_index_0: One adjoint iteration consists of computing,
-              in reverse order, an adjoint solution for all :class:`Equation`
-              objects. This parameter defines which of these should be solved
-              for *first* -- the adjoint fixed-point iteration starts at
-              `eqs[(len(eqs) - 1 - adjoint_eqs_index_0) % len(eqs)]`. An
-              :class:`int`, and defaults to 0.
+              in reverse order, an adjoint solution for all
+              :class:`tlm_adjoint.equation.Equation` objects. This parameter
+              defines which of these should be solved for *first* -- the
+              adjoint fixed-point iteration starts at `eqs[(len(eqs) - 1 -
+              adjoint_eqs_index_0) % len(eqs)]`. An :class:`int`, and defaults
+              to 0.
 
     :arg norm_sqs: Defines the squared norm used to test for convergence in a
         forward solve. See :class:`CustomNormSq`.

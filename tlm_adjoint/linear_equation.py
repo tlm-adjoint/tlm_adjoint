@@ -56,8 +56,9 @@ class LinearEquation(Equation):
 
     :arg X: A function or a :class:`Sequence` of functions defining the forward
         solution `x`.
-    :arg B: A :class:`RHS` or a :class:`Sequence` of :class:`RHS` objects
-        defining the right-hand-side terms.
+    :arg B: A :class:`tlm_adjoint.linear_equation.RHS` or a :class:`Sequence`
+        of :class:`tlm_adjoint.linear_equation.RHS` objects defining the
+        right-hand-side terms.
     :arg A: A :class:`Matrix` defining the left-hand-side matrix. Defaults to
         an identity matrix if not supplied.
     :arg adj_type: The space type relative to `X` of adjoint variables.
@@ -311,7 +312,7 @@ class Matrix(Referrer):
     methods. This class does *not* inherit from :class:`abc.ABC`, so that
     methods may be implemented as needed.
 
-    :arg nl_deps: A :class:`Sequences` of functions, defining dependencies of
+    :arg nl_deps: A :class:`Sequence` of functions, defining dependencies of
         the matrix :math:`A`.
     :arg ic: Whether solution of a linear equation :math:`A x = b` for
         :math:`x` uses an initial guess. Defaults to `True`.
@@ -556,12 +557,13 @@ class Matrix(Referrer):
             direction. The tangent-linear model computes directional
             derivatives with respect to the control defined by `M` and with
             direction defined by `dM`.
-        :arg tlm_map: A :class:`TangentLinearMap` storing values for
-            tangent-linear variables.
+        :arg tlm_map: A :class:`tlm_adjoint.tangent_linear.TangentLinearMap`
+            storing values for tangent-linear variables.
         :arg X: Defines :math:`x`. A function if it has a single component, and
             a :class:`Sequence` of functions otherwise. Subclasses may replace
             this argument with `x` if there is a single component.
-        :returns: A :class:`RHS`, or a :class:`Sequence` of :class:`RHS`
+        :returns: A :class:`tlm_adjoint.linear_equation.RHS`, or a
+            :class:`Sequence` of :class:`tlm_adjoint.linear_equation.RHS`
             objects, defining the right-hand-side terms. Returning `None`
             indicates that there are no terms.
         """
@@ -605,7 +607,7 @@ class RHS(Referrer):
                               for dep in self._nl_deps)
 
     def dependencies(self):
-        """Return dependencies of the :class:`RHS`.
+        """Return dependencies of the :class:`tlm_adjoint.linear_equation.RHS`.
 
         :returns: A :class:`Sequence` of functions defining dependencies.
         """
@@ -613,7 +615,8 @@ class RHS(Referrer):
         return self._deps
 
     def nonlinear_dependencies(self):
-        """Return non-linear dependencies of the :class:`RHS`.
+        """Return non-linear dependencies of the
+        :class:`tlm_adjoint.linear_equation.RHS`.
 
         :returns: A :class:`Sequence` of functions defining non-linear
             dependencies.
@@ -626,8 +629,9 @@ class RHS(Referrer):
 
         :arg B: A function if it has a single component, and a
             :class:`Sequence` of functions otherwise. Should be updated by the
-            addition of this :class:`RHS`. Subclasses may replace this argument
-            with `b` if there is a single component.
+            addition of this :class:`tlm_adjoint.linear_equation.RHS`.
+            Subclasses may replace this argument with `b` if there is a single
+            component.
         :arg deps: A :class:`Sequence` of functions defining values of
             dependencies. Should not be modified.
         """
@@ -671,9 +675,10 @@ class RHS(Referrer):
             direction. The tangent-linear model computes directional
             derivatives with respect to the control defined by `M` and with
             direction defined by `dM`.
-        :arg tlm_map: A :class:`TangentLinearMap` storing values for
-            tangent-linear variables.
-        :returns: A :class:`RHS`, or a :class:`Sequence` of :class:`RHS`
+        :arg tlm_map: A :class:`tlm_adjoint.tangent_linear.TangentLinearMap`
+            storing values for tangent-linear variables.
+        :returns: A :class:`tlm_adjoint.linear_equation.RHS`, or a
+            :class:`Sequence` of :class:`tlm_adjoint.linear_equation.RHS`
             objects, defining the right-hand-side terms. Returning `None`
             indicates that there are no terms.
         """

@@ -82,11 +82,13 @@ class EquationManager:
           order adjoint calculations.
         - Handles function reference dropping, e.g. handles the dropping of
           references to functions which store values, and their replacement
-          with symbolic equivalents, after :class:`Equation` objects holding
-          those references have been destroyed. Internally the manager retains
-          a reference to a :class:`WeakAlias` subclass so that the
-          :class:`Equation` methods may be called after the original
-          :class:`Equation` is destroyed.
+          with symbolic equivalents, after
+          :class:`tlm_adjoint.equation.Equation` objects holding those
+          references have been destroyed. Internally the manager retains a
+          reference to a :class:`tlm_adjoint.alias.WeakAlias` subclass so that
+          the :class:`tlm_adjoint.equation.Equation` methods may be called
+          after the original :class:`tlm_adjoint.equation.Equation` is
+          destroyed.
 
     The manager processes forward equations (and tangent-linear equations) as
     they are solved. Equations are collected into 'blocks' of equations,
@@ -347,7 +349,8 @@ class EquationManager:
               function in dolfin-adjoint (see e.g. version 2017.1.0).
 
             - :class:`Callable`: A :class:`Callable` returning a
-              :class:`CheckpointSchedule`. Options defined by `cp_parameters`:
+              :class:`tlm_adjoint.checkpoint_schedules.schedules.CheckpointSchedule`.
+              Options defined by `cp_parameters`:
 
                 - `'path'`: Directory in which disk checkpoint data should be
                   stored. :class:`str`, optional, default `'checkpoints~'`.
@@ -668,9 +671,10 @@ class EquationManager:
             self._cp.add_initial_condition(x)
 
     def add_equation(self, eq, *, annotate=None, tlm=None):
-        """Process an :class:`Equation` after it has been solved.
+        """Process a :class:`tlm_adjoint.equation.Equation` after it has been
+        solved.
 
-        :arg eq: The :class:`Equation`.
+        :arg eq: The :class:`tlm_adjoint.equation.Equation`.
         :arg annotate: Whether solution of this equation, and any
             tangent-linear equations, should be recorded. If `True` then
             overridden by the `annotate` configuration of tangent-linear
@@ -1137,8 +1141,9 @@ class EquationManager:
         Compute the derivative of one or more functionals with respect to
         one or model controls, using an adjoint approach.
 
-        :arg Js: A function, :class:`Functional`, or a :class:`Sequence` of
-            these, defining the functionals to differentiate.
+        :arg Js: A function, :class:`tlm_adjoint.functional.Functional`, or a
+            :class:`Sequence` of these, defining the functionals to
+            differentiate.
         :arg M: A function or a :class:`Sequence` of functions defining the
             controls. Derivatives with respect to the controls are computed.
         :arg callback: Diagnostic callback. A :class:`Callable` of the form
@@ -1154,7 +1159,8 @@ class EquationManager:
                   equations.
                 - `i`: A :class:`int` defining the index of the considered
                   equation in block `n`.
-                - `eq`: The :class:`Equation`, equation `i` in block `n`.
+                - `eq`: The :class:`tlm_adjoint.equation.Equation`, equation
+                  `i` in block `n`.
                 - `adj_X`: The adjoint solution associated with equation `i` in
                   block `n` for the `J_i` th functional. `None` indicates that
                   the solution is zero or is not computed (due to an activity
@@ -1188,13 +1194,15 @@ class EquationManager:
         :returns: The conjugate of the derivatives. The return type depends on
             the type of `Js` and `M`.
 
-              - If `Js` is a function or :class:`Functional`, and `M` is a
+              - If `Js` is a function or
+                :class:`tlm_adjoint.functional.Functional`, and `M` is a
                 function, returns a function storing the conjugate of the
                 derivative.
               - If `Js` is a :class:`Sequence`, and `M` is a function, returns
                 a function whose :math:`i` th component stores the conjugate of
                 the derivative of the :math:`i` th functional.
-              - If `Js` is a function or :class:`Functional`, and `M` is a
+              - If `Js` is a function or
+                :class:`tlm_adjoint.functional.Functional`, and `M` is a
                 :class:`Sequence`, returns a :class:`Sequence` of functions
                 whose :math:`j` th component stores the conjugate of the
                 derivative with respect to the :math:`j` th control.

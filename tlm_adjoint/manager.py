@@ -18,12 +18,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-"""This module provides a simple :class:`EquationManager` interface. Functions
-defined here access and interact with the default manager, or optionally a
-different manager supplied via a `manager` argument.
+"""This module provides a simple
+:class:`tlm_adjoint.tlm_adjoint.EquationManager` interface. Functions defined
+here access and interact with the default manager, or optionally a different
+manager supplied via a `manager` argument.
 
-Documentation provided here indicates the :class:`EquationManager` methods
-where more complete documentation can be found.
+Documentation provided here indicates the
+:class:`tlm_adjoint.tlm_adjoint.EquationManager` methods where more complete
+documentation can be found.
 """
 
 import functools
@@ -62,7 +64,8 @@ _manager = None
 
 def manager():
     """
-    :returns: An :class:`EquationManager`, the current default manager.
+    :returns: A :class:`tlm_adjoint.tlm_adjoint.EquationManager`, the current
+        default manager.
     """
 
     return _manager
@@ -71,7 +74,8 @@ def manager():
 def set_manager(manager):
     """Set the default manager.
 
-    :arg manager: An :class:`EquationManager` to use as the default manager.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` to use as
+        the default manager.
     """
 
     global _manager
@@ -105,7 +109,8 @@ def restore_manager(fn):
 
 
 def configure_checkpointing(cp_method, cp_parameters, *, manager=None):
-    """See :meth:`EquationManager.configure_checkpointing`.
+    """See
+    :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_checkpointing`.
     """
 
     if cp_parameters is None:
@@ -116,7 +121,7 @@ def configure_checkpointing(cp_method, cp_parameters, *, manager=None):
 
 
 def manager_info(*, info=print, manager=None):
-    """See :meth:`EquationManager.info`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.info`.
     """
 
     if manager is None:
@@ -125,7 +130,7 @@ def manager_info(*, info=print, manager=None):
 
 
 def reset_manager(cp_method=None, cp_parameters=None, *, manager=None):
-    """See :meth:`EquationManager.reset`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.reset`.
     """
 
     if manager is None:
@@ -142,7 +147,7 @@ def reset(cp_method=None, cp_parameters=None, manager=None):
 
 
 def annotation_enabled(*, manager=None):
-    """See :meth:`EquationManager.annotation_enabled`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.annotation_enabled`.
     """
 
     if manager is None:
@@ -151,7 +156,7 @@ def annotation_enabled(*, manager=None):
 
 
 def start_manager(*, annotate=True, tlm=True, manager=None):
-    """See :meth:`EquationManager.start`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.start`.
     """
 
     if manager is None:
@@ -180,7 +185,7 @@ def start_tlm(manager=None):
 
 
 def stop_manager(*, annotate=True, tlm=True, manager=None):
-    """See :meth:`EquationManager.stop`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.stop`.
     """
 
     if manager is None:
@@ -209,7 +214,7 @@ def stop_tlm(manager=None):
 
 
 def paused_manager(*, annotate=True, tlm=True, manager=None):
-    """See :meth:`EquationManager.paused`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.paused`.
     """
 
     if manager is None:
@@ -218,7 +223,7 @@ def paused_manager(*, annotate=True, tlm=True, manager=None):
 
 
 def configure_tlm(*args, annotate=None, tlm=True, manager=None):
-    """See :meth:`EquationManager.configure_tlm`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_tlm`.
     """
 
     if manager is None:
@@ -236,7 +241,7 @@ def add_tlm(M, dM, max_depth=1, manager=None):
 
 
 def tlm_enabled(*, manager=None):
-    """See :meth:`EquationManager.tlm_enabled`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.tlm_enabled`.
     """
 
     if manager is None:
@@ -245,7 +250,7 @@ def tlm_enabled(*, manager=None):
 
 
 def function_tlm(x, *args, manager=None):
-    """See :meth:`EquationManager.function_tlm`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.function_tlm`.
     """
 
     if manager is None:
@@ -273,7 +278,7 @@ def reset_adjoint(manager=None):
 def compute_gradient(Js, M, *, callback=None, prune_forward=True,
                      prune_adjoint=True, prune_replay=True,
                      cache_adjoint_degree=None, adj_ics=None, manager=None):
-    """See :meth:`EquationManager.compute_gradient`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.compute_gradient`.
     """
 
     if manager is None:
@@ -287,7 +292,7 @@ def compute_gradient(Js, M, *, callback=None, prune_forward=True,
 
 
 def new_block(*, manager=None):
-    """See :meth:`EquationManager.new_block`.
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new_block`.
     """
 
     if manager is None:

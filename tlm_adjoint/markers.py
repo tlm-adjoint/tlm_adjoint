@@ -77,8 +77,8 @@ class FunctionalMarker(Equation):
 
         \mathcal{F} \left( J_\text{output}, J \right) = J_\text{output} - J.
 
-    :arg J: A function or :class:`Functional` defining the functional
-        :math:`J`.
+    :arg J: A function or :class:`tlm_adjoint.functional.Functional` defining
+        the functional :math:`J`.
     """
 
     def __init__(self, J):

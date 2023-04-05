@@ -93,8 +93,8 @@ class AdjointRHS:
         """Subtract a term from the right-hand-side.
 
         :arg b: The term to subtract.
-            :func:`subtract_adjoint_derivative_action` is used to subtract the
-            term.
+            :func:`tlm_adjoint.interface.subtract_adjoint_derivative_action` is
+            used to subtract the term.
         """
 
         if b is not None:
@@ -124,7 +124,8 @@ class AdjointEquationRHS:
         adj_eq_rhs = AdjointEquationRHS(eq)
         adj_rhs = adj_eq_rhs[m]
 
-    :arg eq: An :class:`Equation`. `eq.X()` defines the forward variables.
+    :arg eq: A :class:`tlm_adjoint.equation.Equation`. `eq.X()` defines the
+        forward variables.
     """
 
     def __init__(self, eq):
@@ -159,8 +160,8 @@ class AdjointEquationRHS:
         return tuple(B.b(copy=copy) for B in self._B)
 
     def finalize(self):
-        """Call the :meth:`finalize` methods of all :class:`AdjointRHS`
-        objects.
+        """Call the :meth:`AdjointRHS.finalize` methods of all
+        :class:`AdjointRHS` objects.
         """
 
         for b in self._B:
@@ -168,11 +169,11 @@ class AdjointEquationRHS:
 
     def is_empty(self):
         """Return whether all of the :class:`AdjointRHS` objects are 'empty',
-        meaning that the :meth:`initialize` method has not been called for any
-        :class:`AdjointRHS`.
+        meaning that the :meth:`AdjointRHS.initialize` method has not been
+        called for any :class:`AdjointRHS`.
 
-        :returns: `True` if the :meth:`initialize` method has not been called
-            for any :class:`AdjointRHS`, and `False` otherwise.
+        :returns: `True` if the :meth:`AdjointRHS.initialize` method has not
+            been called for any :class:`AdjointRHS`, and `False` otherwise.
         """
 
         for b in self._B:
@@ -198,7 +199,8 @@ class AdjointBlockRHS:
 
         adj_rhs = adj_block_rhs[(k, m)]
 
-    :arg block: A :class:`Sequence` of :class:`Equation` objects.
+    :arg block: A :class:`Sequence` of :class:`tlm_adjoint.equation.Equation`
+        objects.
     """
 
     def __init__(self, block):
@@ -222,8 +224,8 @@ class AdjointBlockRHS:
         return len(self._B) - 1, self._B.pop()
 
     def finalize(self):
-        """Call the :meth:`finalize` methods of all :class:`AdjointEquationRHS`
-        objects.
+        """Call the :meth:`AdjointEquationRHS.finalize` methods of all
+        :class:`AdjointEquationRHS` objects.
         """
 
         for B in self._B:
@@ -267,9 +269,10 @@ class AdjointModelRHS:
     automatically removed from the :class:`AdjointModelRHS`.
 
     :arg blocks: A :class:`Sequence` of :class:`Sequence` objects each
-        containing :class:`Equation` objects, or a :class:`Mapping` with items
-        `(index, block)` where `index` is an :class:`int` and `block` a
-        :class:`Sequence` of :class:`Equation` objects. In the latter case
+        containing :class:`tlm_adjoint.equation.Equation` objects, or a
+        :class:`Mapping` with items `(index, block)` where `index` is an
+        :class:`int` and `block` a :class:`Sequence` of
+        :class:`tlm_adjoint.equation.Equation` objects. In the latter case
         blocks are ordered by `index`.
     """
 

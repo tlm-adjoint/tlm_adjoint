@@ -39,8 +39,8 @@ class Storage(Equation):
     `save=False`, or on any subsequent forward solve, the value of the forward
     solution is loaded into `x`.
 
-    When processed by the :class:`EquationManager` this is equivalent to an
-    assignment
+    When processed by the :class:`tlm_adjoint.tlm_adjoint.EquationManager` this
+    is equivalent to an assignment
 
     .. math::
 

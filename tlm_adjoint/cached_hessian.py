@@ -161,10 +161,12 @@ class CachedHessian(Hessian, HessianOptimization):
     """Represents a Hessian associated with a given forward model. Uses a
     cached forward calculation.
 
-    :arg J: The :class:`Functional` defining the Hessian.
-    :arg manager: The :class:`EquationManager` used to record the forward. This
-        must have used `'memory'` checkpointing with automatic dropping of
-        function references disabled. `manager()` is used if not supplied.
+    :arg J: The :class:`tlm_adjoint.functional.Functional` defining the
+        Hessian.
+    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
+        record the forward. This must have used `'memory'` checkpointing with
+        automatic dropping of function references disabled. `manager()` is used
+        if not supplied.
     :arg cache_adjoint: Whether to cache the first order adjoint calculation.
     """
 
@@ -237,13 +239,14 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     given forward model. Uses a cached forward calculation.
 
     :arg X: A function or a :class:`Sequence` of functions defining the state.
-    :arg R_inv_action: See :class:`GaussNewton`.
-    :arg B_inv_action: See :class:`GaussNewton`.
+    :arg R_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
+    :arg B_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
     :arg J_space: The space for the functional. `FloatSpace()` is used if not
         supplied.
-    :arg manager: The :class:`EquationManager` used to record the forward. This
-        must have used `'memory'` checkpointing with automatic dropping of
-        function references disabled. `manager()` is used if not supplied.
+    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
+        record the forward. This must have used `'memory'` checkpointing with
+        automatic dropping of function references disabled. `manager()` is used
+        if not supplied.
     """
 
     def __init__(self, X, R_inv_action, B_inv_action=None,

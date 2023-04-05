@@ -64,7 +64,7 @@ class CheckpointStorage:
     Non-linear dependency data has an associated key `(n, i)`, where `n` is an
     :class:`int` indicating the block index and `i` is an :class:`int`
     indicating the equation index within that block. Non-linear-dependency data
-    for an :class:`Equation` can be accessed via, e.g.
+    for a :class:`tlm_adjoint.equation.Equation` can be accessed via, e.g.
 
     .. code-block:: python
 
@@ -72,7 +72,8 @@ class CheckpointStorage:
 
     where `cp` is a :class:`CheckpointStorage`. Here `nl_deps` is a
     :class:`tuple` of functions storing values associated with
-    `eq.nonlinear_dependencies()`, for :class:`Equation` `i` in block `n`.
+    `eq.nonlinear_dependencies()`, for :class:`tlm_adjoint.equation.Equation`
+    `i` in block `n`.
 
     :arg store_ics: Whether to enable storage of forward restart data.
     :arg store_data: Whether to enable storage of non-linear dependency data.
@@ -231,7 +232,8 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: An :class:`Equation`, equation `i` in block `n`.
+        :arg eq: A :class:`tlm_adjoint.equation.Equation`, equation `i` in
+            block `n`.
         """
 
         for m, x in enumerate(eq.X()):
@@ -273,7 +275,8 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: An :class:`Equation`, equation `i` in block `n`.
+        :arg eq: A :class:`tlm_adjoint.equation.Equation`, equation `i` in
+            block `n`.
         :arg deps: Equation dependency values. `eq.dependencies()` is used if
             not supplied.
         :arg nl_deps: Equation non-linear dependency values. Extracted from
@@ -305,7 +308,8 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: An :class:`Equation`, equation `i` in block `n`.
+        :arg eq: A :class:`tlm_adjoint.equation.Equation`, equation `i` in
+            block `n`.
         :arg nl_deps: Equation non-linear dependency values.
             `eq.nonlinear_dependencies()` is used if not supplied.
         """
@@ -464,13 +468,14 @@ class ReplayStorage:
             [...]
 
     :arg blocks: A :class:`Sequence` or :class:`Mapping`, whose elements or
-        values are :class:`Sequence` objects containing :class:`Equation`
-        objects. Forward equations.
+        values are :class:`Sequence` objects containing
+        :class:`tlm_adjoint.equation.Equation` objects. Forward equations.
     :arg N0: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
         forward equations which will be solved.
     :arg N1: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
         forward equations which will be solved.
-    :arg transpose_deps: A :class:`DependencyGraphTranspose`. If supplied then
+    :arg transpose_deps: A
+        :class:`tlm_adjoint.adjoint.DependencyGraphTranspose`. If supplied then
         an activity analysis is applied.
     """
 

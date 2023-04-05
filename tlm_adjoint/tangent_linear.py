@@ -161,10 +161,12 @@ class TangentLinearMap:
 
     where `x` is a function associated with the forward variable. If the
     function `x` is 'checkpointed', meaning that it is stored by value by a
-    :class:`CheckpointStorage`, then `tau_x` is a function associated with the
-    tangent-linear variable -- a new function is instantiated if needed. If the
-    function `x` is not 'checkpointed', meaning that it is stored by reference
-    by a :class:`CheckpointStorage`, then `tau_x` is `None`.
+    :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is a
+    function associated with the tangent-linear variable -- a new function is
+    instantiated if needed. If the function `x` is not 'checkpointed', meaning
+    that it is stored by reference by a
+    :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is
+    `None`.
 
     Containment can also be tested
 
@@ -244,7 +246,8 @@ def get_tangent_linear(x, M, dM, tlm_map):
     :returns: If `x` is a control variable then returns the associated
         direction. If `x` is not a control variable then returns a function
         corresponding to a tangent-linear variable if `x` is 'checkpointed'
-        (i.e. stored by value by a :class:`CheckpointStorage`), and `None`
+        (i.e. stored by value by a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage`), and `None`
         otherwise.
     """
 
