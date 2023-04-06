@@ -714,9 +714,8 @@ class FloatEquation(Equation):
 
         x = \mathcal{G} \left( y_1, y_2, \ldots \right),
 
-    for some :math:`\mathcal{G}` defined by a SymPy :class:`Expr`.
-
-    The forward residual is defined
+    for some :math:`\mathcal{G}` defined by a SymPy :class:`Expr`. The forward
+    residual is defined
 
     .. math::
 

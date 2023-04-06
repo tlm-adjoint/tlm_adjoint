@@ -61,7 +61,7 @@ a Hessian action on a given direction.
 
     # Solve the Poisson equation with homogeneous Dirichlet boundary conditions
     u = Function(space, name="u")
-    solve(inner(trial, test) * dx == inner(m * m, test) * dx, u,
+    solve(inner(grad(trial), grad(test)) * dx == inner(m * m, test) * dx, u,
           DirichletBC(space, 0.0, "on_boundary"))
 
     # Define a functional
