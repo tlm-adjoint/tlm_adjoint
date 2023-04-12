@@ -252,8 +252,6 @@ def test_mat_terms(setup_test, test_leaks,
     b_ref = Function(space, name="b_ref", space_type="conjugate_dual")
     assemble(form, tensor=function_vector(b_ref))
 
-    if not complex_mode:
-        form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
     cached_terms, mat_terms, non_cached_terms = split_form(form)
 
     assert cached_terms.empty()
@@ -277,3 +275,39 @@ def test_mat_terms(setup_test, test_leaks,
     b_error = function_copy(b_ref)
     function_axpy(b_error, -1.0, b)
     assert function_linf_norm(b_error) < 1.0e-17
+
+
+@pytest.mark.fenics
+@seed_test
+def test_mass_adjoint_caching(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+    trial = TrialFunction(space)
+
+    M = inner(trial, test) * dx
+
+    cache_ref_0, _ = assembly_cache().assemble(M)
+    cache_ref_1, _ = assembly_cache().assemble(adjoint(M))
+
+    assert len(assembly_cache()) == 1
+    assert cache_ref_0 is cache_ref_1
+
+
+@pytest.mark.fenics
+@seed_test
+def test_stiffness_adjoint_caching(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+    trial = TrialFunction(space)
+
+    K = inner(grad(trial), grad(test)) * dx
+
+    cache_ref_0, _ = assembly_cache().assemble(K)
+    cache_ref_1, _ = assembly_cache().assemble(adjoint(K))
+
+    assert len(assembly_cache()) == 1
+    assert cache_ref_0 is cache_ref_1

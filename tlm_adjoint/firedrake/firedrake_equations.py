@@ -23,8 +23,7 @@ from .backend import FunctionSpace, Interpolator, Tensor, TestFunction, \
 from ..interface import check_space_type, function_assign, function_comm, \
     function_is_scalar, function_new_conjugate_dual, function_scalar_value, \
     function_space, is_function, space_new, weakref_method
-from .backend_code_generator_interface import assemble, complex_mode, \
-    matrix_multiply
+from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
@@ -84,8 +83,6 @@ class LocalSolverCache(Cache):
             form_compiler_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        if not complex_mode:
-            form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)  # noqa: E501
         key = local_solver_key(form, form_compiler_parameters)
 
         def value():
