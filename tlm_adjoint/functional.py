@@ -69,6 +69,12 @@ class Functional:
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
 
+    def __float__(self):
+        return float(self.value())
+
+    def __complex__(self):
+        return complex(self.value())
+
     def id(self):
         """Return the unique :class:`int` ID associated with this
         :class:`Functional`.
@@ -181,6 +187,9 @@ class Functional:
 
     def value(self):
         """Return the current value of the functional.
+
+        The value may also be accessed by casting using :func:`float` or
+        :func:`complex`.
 
         :returns: The scalar value.
         """
