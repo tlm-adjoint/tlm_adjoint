@@ -70,8 +70,6 @@ _handler = logging.StreamHandler(stream=sys.stdout)
 _handler.setFormatter(logging.Formatter(fmt="%(message)s"))
 _logger.addHandler(_handler)
 
-gc.disable()  # See Firedrake issue #1569
-
 
 @pytest.fixture
 def setup_test():
