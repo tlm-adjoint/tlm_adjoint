@@ -1071,6 +1071,18 @@ def test_eliminate_zeros(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
+def test_ZeroFunction_expand_derivatives(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    F = ZeroFunction(space, name="F")
+
+    expr = ufl.algorithms.expand_derivatives(F.dx(0))
+    assert F in extract_coefficients(expr)
+    assert F not in extract_coefficients(eliminate_zeros(expr))
+
+
+@pytest.mark.firedrake
+@seed_test
 def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
