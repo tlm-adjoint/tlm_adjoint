@@ -1247,6 +1247,9 @@ class EquationManager:
         self.finalize()
         self.reset_adjoint(_warning=False)
 
+        if self._cp_schedule.is_exhausted():
+            raise RuntimeError("Invalid checkpointing state")
+
         # Functionals
         Js = tuple(Functional(_fn=J) if is_function(J) else J for J in Js)
 
