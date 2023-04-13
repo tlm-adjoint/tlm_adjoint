@@ -356,6 +356,12 @@ class ZeroFunction(Function, Zero):
     def assign(self, *args, **kwargs):
         raise RuntimeError("Cannot call assign method of ZeroFunction")
 
+    def interpolate(self, *args, **kwargs):
+        raise RuntimeError("Cannot call interpolate method of ZeroFunction")
+
+    def project(self, *args, **kwargs):
+        raise RuntimeError("Cannot call project method of ZeroFunction")
+
 
 def extract_coefficients(expr):
     if isinstance(expr, ufl.classes.Form):
