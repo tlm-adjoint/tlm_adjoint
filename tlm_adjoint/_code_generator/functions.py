@@ -30,7 +30,6 @@ from ..interface import FunctionInterface as _FunctionInterface
 from ..caches import Caches
 from ..overloaded_float import SymbolicFloat
 
-import mpi4py.MPI as MPI
 import numpy as np
 import ufl
 import weakref
@@ -310,36 +309,52 @@ class Constant(backend_Constant):
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
-class Zero(Constant):
-    def __init__(self, *, name=None, domain=None, space=None,
-                 space_type="primal", shape=None, comm=None):
-        super().__init__(name=name, domain=domain, space=space,
-                         space_type=space_type, shape=shape, comm=comm,
-                         static=True)
+class Function(backend_Function):
+    def __init__(self, *args, space_type="primal", static=False, cache=None,
+                 checkpoint=None, **kwargs):
+        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+            raise ValueError("Invalid space type")
+        if cache is None:
+            cache = static
+        if checkpoint is None:
+            checkpoint = not static
 
-    def assign(self, *args, **kwargs):
-        raise RuntimeError("Cannot call assign method of Zero")
+        super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
+
+class Zero:
     def _tlm_adjoint__function_interface_assign(self, y):
         raise RuntimeError("Cannot call _assign interface of Zero")
 
-    def _tlm_adjoint__function_interface_axpy(self, *args):  # self, alpha, x
+    def _tlm_adjoint__function_interface_axpy(self, alpha, x, /):
         raise RuntimeError("Cannot call _axpy interface of Zero")
 
     def _tlm_adjoint__function_interface_set_values(self, values):
         raise RuntimeError("Cannot call _set_values interface of Zero")
 
 
-class ZeroConstant(Zero):
+class ZeroConstant(Constant, Zero):
     def __init__(self, *, name=None, domain=None, space_type="primal",
-                 shape=None):
-        super().__init__(name=name, domain=domain, space_type=space_type,
-                         shape=shape, comm=MPI.COMM_NULL)
+                 shape=None, comm=None):
+        Constant.__init__(
+            self, name=name, domain=domain, space_type=space_type, shape=shape,
+            comm=comm, static=True)
+
+    def assign(self, *args, **kwargs):
+        raise RuntimeError("Cannot call assign method of ZeroConstant")
 
 
-class ZeroFunction(Zero):
+class ZeroFunction(Function, Zero):
     def __init__(self, space, *, name=None, space_type="primal"):
-        super().__init__(name=name, space=space, space_type=space_type)
+        Function.__init__(
+            self, space, name=name, space_type=space_type, static=True)
+
+    def assign(self, *args, **kwargs):
+        raise RuntimeError("Cannot call assign method of ZeroFunction")
 
 
 def extract_coefficients(expr):
@@ -394,23 +409,6 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
                 expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501
 
     return simplified_expr
-
-
-class Function(backend_Function):
-    def __init__(self, *args, space_type="primal", static=False, cache=None,
-                 checkpoint=None, **kwargs):
-        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
-            raise ValueError("Invalid space type")
-        if cache is None:
-            cache = static
-        if checkpoint is None:
-            checkpoint = not static
-
-        super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 class DirichletBC(backend_DirichletBC):
