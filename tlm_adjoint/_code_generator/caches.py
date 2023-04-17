@@ -18,6 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+"""This module is used by both the FEniCS and Firedrake backends, and
+implements finite element assembly and linear solver data caching.
+"""
+
 from .backend import TrialFunction, backend_DirichletBC, backend_Function
 from ..interface import function_id, function_is_cached, function_space, \
     is_function
@@ -35,15 +39,12 @@ import warnings
 __all__ = \
     [
         "AssemblyCache",
-        "LinearSolverCache",
         "assembly_cache",
-        "form_dependencies",
-        "is_cached",
-        "linear_solver",
-        "linear_solver_cache",
         "set_assembly_cache",
+
+        "LinearSolverCache",
+        "linear_solver_cache",
         "set_linear_solver_cache",
-        "split_form"
     ]
 
 
@@ -54,13 +55,13 @@ def is_cached(expr):
     return True
 
 
-def form_simplify_sign(form, *, sign=None):
+def form_simplify_sign(form):
     integrals = []
 
     for integral in form.integrals():
         integrand = integral.integrand()
 
-        integral_sign = sign
+        integral_sign = None
         while isinstance(integrand, ufl.classes.Product):
             a, b = integrand.ufl_operands
             if isinstance(a, ufl.classes.IntValue) and a == -1:
@@ -128,6 +129,12 @@ def form_simplify_conj(form):
 
 
 def split_arity(form, x, argument):
+    arity = len(form.arguments())
+    if arity >= 2:
+        raise ValueError("Invalid form arity")
+    if argument.number() < arity:
+        raise ValueError("Invalid argument")
+
     if x not in form.coefficients():
         # No dependence on x
         return ufl.classes.Form([]), form
@@ -138,7 +145,6 @@ def split_arity(form, x, argument):
         # Non-linear
         return ufl.classes.Form([]), form
 
-    arity = len(form.arguments())
     try:
         eq_form = ufl.algorithms.expand_derivatives(
             ufl.replace(form, {x: argument}))
@@ -304,9 +310,39 @@ def assemble_key(form, bcs, assemble_kwargs):
 
 
 class AssemblyCache(Cache):
-    def assemble(self, form, bcs=None, form_compiler_parameters=None,
+    """A :class:`tlm_adjoint.caches.Cache` for finite element assembly data.
+    """
+
+    def assemble(self, form, *,
+                 bcs=None, form_compiler_parameters=None,
                  solver_parameters=None, linear_solver_parameters=None,
                  replace_map=None):
+        """Perform finite element assembly and cache the result, or return a
+        previously cached result.
+
+        :arg form: The UFL :class:`Form` to assemble.
+        :arg bcs: Dirichlet boundary conditions.
+        :arg form_compiler_parameters: Form compiler parameters.
+        :arg solver_parameters: Deprecated.
+        :arg linear_solver_parameters: Linear solver parameters. Required for
+            assembly parameters which appear in the linear solver parameters
+            -- in particular the Firedrake `'mat_type'` parameter.
+        :arg replace_map: A :class:`Mapping` defining a map from symbolic
+            variables to values.
+        :returns: A :class:`tuple` `(value_ref, value)`, where `value` is the
+            result of the finite element assembly, and `value_ref` is a
+            :class:`tlm_adjoint.caches.CacheRef` storing a reference to
+            `value`.
+
+                - For an arity zero or arity one form `value_ref` stores the
+                  assembled value.
+                - For an arity two form `value_ref` is a tuple `(A, b_bc)`. `A`
+                  is the assembled matrix, and `b_bc` is a boundary condition
+                  right-hand-side term which should be added after assembling a
+                  right-hand-side with homogeneous boundary conditions applied.
+                  `b_bc` may be `None` to indicate that this term is zero.
+        """
+
         if bcs is None:
             bcs = ()
         elif isinstance(bcs, backend_DirichletBC):
@@ -326,8 +362,8 @@ class AssemblyCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        rank = len(form.arguments())
-        assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
+        arity = len(form.arguments())
+        assemble_kwargs = assemble_arguments(arity, form_compiler_parameters,
                                              linear_solver_parameters)
         key = assemble_key(form, bcs, assemble_kwargs)
 
@@ -336,19 +372,19 @@ class AssemblyCache(Cache):
                 assemble_form = form
             else:
                 assemble_form = ufl.replace(form, replace_map)
-            if rank == 0:
+            if arity == 0:
                 if len(bcs) > 0:
-                    raise TypeError("Unexpected boundary conditions for rank "
+                    raise TypeError("Unexpected boundary conditions for arity "
                                     "0 form")
                 b = assemble(assemble_form, **assemble_kwargs)
-            elif rank == 1:
+            elif arity == 1:
                 b = assemble(assemble_form, **assemble_kwargs)
                 for bc in bcs:
                     bc.apply(b)
-            elif rank == 2:
+            elif arity == 2:
                 b = assemble_matrix(assemble_form, bcs=bcs, **assemble_kwargs)
             else:
-                raise ValueError(f"Unexpected form rank {rank:d}")
+                raise ValueError(f"Unexpected form arity {arity:d}")
             return b
 
         return self.add(key, value,
@@ -363,10 +399,35 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 
 
 class LinearSolverCache(Cache):
-    def linear_solver(self, form, A=None, bcs=None,
-                      form_compiler_parameters=None,
-                      linear_solver_parameters=None,
-                      replace_map=None, assembly_cache=None):
+    """A :class:`tlm_adjoint.caches.Cache` for linear solver data.
+    """
+
+    def linear_solver(self, form, *,
+                      A=None, bcs=None, form_compiler_parameters=None,
+                      linear_solver_parameters=None, replace_map=None,
+                      assembly_cache=None):
+        """Construct a linear solver and cache the result, or return a
+        previously cached result.
+
+        :arg form: An arity two UFL :class:`Form`, defining the matrix.
+        :arg A: Deprecated.
+        :arg bcs: Dirichlet boundary conditions.
+        :arg form_compiler_parameters: Form compiler parameters.
+        :arg linear_solver_parameters: Linear solver parameters.
+        :arg replace_map: A :class:`Mapping` defining a map from symbolic
+            variables to values.
+        :arg assembly_cache: :class:`AssemblyCache` to use for finite element
+            assembly. Defaults to `assembly_cache()`.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a tuple
+            `(solver, A, b_bc)`, where `solver` is the linear solver, `A` is
+            the assembled matrix, and `b_bc` is a boundary condition
+            right-hand-side term which should be added after assembling a
+            right-hand-side with homogeneous boundary conditions applied.
+            `b_bc` may be `None` to indicate that this term is zero.
+            `value_ref` is a :class:`tlm_adjoint.caches.CacheRef` storing a
+            reference to `value`.
+        """
+
         if bcs is None:
             bcs = ()
         elif isinstance(bcs, backend_DirichletBC):
@@ -406,23 +467,43 @@ class LinearSolverCache(Cache):
                         deps=tuple(form_dependencies(form).values()))
 
 
-_assembly_cache = [AssemblyCache()]
+_assembly_cache = AssemblyCache()
 
 
 def assembly_cache():
-    return _assembly_cache[0]
+    """
+    :returns: The default :class:`AssemblyCache`.
+    """
+
+    return _assembly_cache
 
 
 def set_assembly_cache(assembly_cache):
-    _assembly_cache[0] = assembly_cache
+    """Set the default :class:`AssemblyCache`.
+
+    :arg assembly_cache: The new default :class:`AssemblyCache`.
+    """
+
+    global _assembly_cache
+    _assembly_cache = assembly_cache
 
 
-_linear_solver_cache = [LinearSolverCache()]
+_linear_solver_cache = LinearSolverCache()
 
 
 def linear_solver_cache():
-    return _linear_solver_cache[0]
+    """
+    :returns: The default :class:`LinearSolverCache`.
+    """
+
+    return _linear_solver_cache
 
 
 def set_linear_solver_cache(linear_solver_cache):
-    _linear_solver_cache[0] = linear_solver_cache
+    """Set the default :class:`LinearSolverCache`.
+
+    :arg linear_solver_cache: The new default :class:`LinearSolverCache`.
+    """
+
+    global _linear_solver_cache
+    _linear_solver_cache = linear_solver_cache

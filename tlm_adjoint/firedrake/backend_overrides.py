@@ -137,15 +137,15 @@ def assemble(expr, *args, annotate=None, tlm=None, **kwargs):
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
-    rank = len(form.arguments())
-    if rank != 0:
+    arity = len(form.arguments())
+    if arity != 0:
         form_compiler_parameters_ = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         if form_compiler_parameters is not None:
             update_parameters_dict(form_compiler_parameters_,
                                    form_compiler_parameters)
         form_compiler_parameters = form_compiler_parameters_
 
-        if rank == 1:
+        if arity == 1:
             if annotate is None:
                 annotate = annotation_enabled()
             if tlm is None:

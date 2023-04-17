@@ -22,6 +22,7 @@ from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend_code_generator_interface import \
     function_vector
+from tlm_adjoint.firedrake.caches import split_form
 
 from .test_base import *
 

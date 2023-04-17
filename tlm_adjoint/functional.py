@@ -95,7 +95,8 @@ class Functional:
 
         :arg term: The value. Defines the value of :math:`b`. Valid types
             depend upon the backend. :math:`b` may be a function, and with the
-            FEniCS or Firedrake backends may be a rank zero UFL :class:`Form`.
+            FEniCS or Firedrake backends may be an arity zero UFL
+            :class:`Form`.
         :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
             Defaults to `manager()`.
         :arg annotate: Whether the
@@ -135,7 +136,7 @@ class Functional:
 
         :arg term: The value. Defines the value of :math:`b`. Valid types
             depend upon the backend. :math:`b` may be a function, and with
-            the FEniCS or Firedrake backends may be a rank zero UFL
+            the FEniCS or Firedrake backends may be an arity zero UFL
             :class:`Form`.
         :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
             Defaults to `manager()`.

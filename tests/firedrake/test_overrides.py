@@ -331,7 +331,7 @@ def test_interpolate(setup_test, test_leaks,
 @pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
-def test_Assemble_rank_1(setup_test, test_leaks):
+def test_Assemble_arity_1(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
