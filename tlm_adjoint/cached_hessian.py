@@ -18,7 +18,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
-from .interface import comm_dup, function_id, function_new, function_state
+from .interface import comm_dup, function_id, function_new, function_state, \
+    is_function
 
 from .caches import clear_caches
 from .functional import Functional
@@ -161,8 +162,8 @@ class CachedHessian(Hessian, HessianOptimization):
     """Represents a Hessian associated with a given forward model. Uses a
     cached forward calculation.
 
-    :arg J: The :class:`tlm_adjoint.functional.Functional` defining the
-        Hessian.
+    :arg J: A function or :class:`tlm_adjoint.functional.Functional` defining
+        the Hessian.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
         automatic dropping of function references disabled. `manager()` is used
@@ -171,6 +172,8 @@ class CachedHessian(Hessian, HessianOptimization):
     """
 
     def __init__(self, J, *, manager=None, cache_adjoint=True):
+        if is_function(J):
+            J = Functional(_fn=J)
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)

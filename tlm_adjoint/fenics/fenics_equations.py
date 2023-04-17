@@ -25,7 +25,7 @@ from ..interface import check_space_type, function_assign, function_comm, \
     function_get_values, function_is_scalar, function_local_size, \
     function_new, function_new_conjugate_dual, function_scalar_value, \
     function_set_values, function_space, is_function, space_comm
-from .backend_code_generator_interface import assemble, complex_mode
+from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
@@ -222,8 +222,6 @@ class LocalSolverCache(Cache):
             solver_type = LocalSolver.SolverType.LU
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        assert not complex_mode
-        form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
         key = local_solver_key(form, solver_type)
 
         def value():

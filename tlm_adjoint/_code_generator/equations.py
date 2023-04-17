@@ -25,7 +25,7 @@ from ..interface import check_space_type, function_assign, function_id, \
     function_replacement, function_scalar_value, function_space, \
     function_update_caches, function_zero, is_function
 from .backend_code_generator_interface import assemble, \
-    assemble_linear_solver, complex_mode, copy_parameters_dict, \
+    assemble_linear_solver, copy_parameters_dict, \
     form_form_compiler_parameters, function_vector, homogenize, \
     interpolate_expression, matrix_multiply, \
     process_adjoint_solver_parameters, process_solver_parameters, r0_space, \
@@ -37,8 +37,7 @@ from ..equations import Assignment
 from ..overloaded_float import SymbolicFloat
 from ..tangent_linear import get_tangent_linear
 
-from .caches import assembly_cache, form_neg, is_cached, linear_solver_cache, \
-    split_form
+from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
     eliminate_zeros, extract_coefficients
 
@@ -360,7 +359,7 @@ class EquationSolver(ExprEquation):
         if linear:
             if x in lhs.coefficients() or x in rhs.coefficients():
                 raise ValueError("Invalid non-linear dependency")
-            F = ufl.action(lhs, coefficient=x) + form_neg(rhs)
+            F = ufl.action(lhs, coefficient=x) - rhs
             nl_solve_J = None
             J = lhs
         else:
@@ -497,8 +496,6 @@ class EquationSolver(ExprEquation):
 
         if self._forward_b_pa is None:
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
-            if not complex_mode:
-                rhs = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(rhs)  # noqa: E501
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
             mat_forms = {}
             for dep_index, dep in enumerate(eq_deps):
@@ -801,8 +798,7 @@ class EquationSolver(ExprEquation):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += form_neg(derivative(self._F, dep,
-                                                   argument=tau_dep))
+                    tlm_rhs -= derivative(self._F, dep, argument=tau_dep)
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():

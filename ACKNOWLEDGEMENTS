@@ -16,8 +16,10 @@ For a list of authors see AUTHORS in the tlm_adjoint root directory.
 
 tlm_adjoint is described in
 
-  J. R. Maddison, D. N. Goldberg, and B. D. Goddard, SIAM Journal on
-  Scientific Computing, 41(5), pp. C417--C445, 2019
+  James R. Maddison, Daniel N. Goldberg, and Benjamin D. Goddard, 'Automated
+  calculation of higher order partial differential equation constrained
+  derivative information', SIAM Journal on Scientific Computing, 41(5), pp.
+  C417--C445, 2019, doi: 10.1137/18M1209465
 
 tlm_adjoint was developed out of a custom extension to dolfin-adjoint, and
 previously made use of code derived from dolfin-adjoint, particularly in an

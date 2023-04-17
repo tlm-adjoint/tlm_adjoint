@@ -32,7 +32,6 @@ from .backend_code_generator_interface import assemble, is_valid_r0_space
 
 from ..overloaded_float import SymbolicFloat
 
-from .caches import form_neg
 from .equations import Assembly
 from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
@@ -375,9 +374,9 @@ def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, ufl.classes.Form) \
             and isinstance(x, (backend_Constant, backend_Function)):
         if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
-            x._tlm_adjoint__firedrake_adj_b += form_neg(y)
+            x._tlm_adjoint__firedrake_adj_b -= y
         else:
-            x._tlm_adjoint__firedrake_adj_b = form_neg(y)
+            x._tlm_adjoint__firedrake_adj_b = -y
     elif isinstance(x, backend_Constant):
         dtype = function_dtype(x)
         if isinstance(y, backend_Function) and function_is_scalar(y):

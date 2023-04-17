@@ -24,7 +24,7 @@ from .interface import check_space_type, function_is_scalar, function_name, \
 
 from .equations import Assignment, Axpy
 from .manager import manager as _manager
-from .overloaded_float import FloatSpace
+from .overloaded_float import Float, FloatSpace
 
 import warnings
 
@@ -41,7 +41,7 @@ class Functional:
     can change e.g. after adding terms.
 
     :arg space: The space for the :class:`Functional`. Internal functions are
-        in this space. Defaults to `FloatSpace()`.
+        in this space. Defaults to `FloatSpace(Float)`.
     :arg name: A :class:`str` name for the functional.
     """
 
@@ -50,7 +50,7 @@ class Functional:
     def __init__(self, *, space=None, name=None, _fn=None):
         if _fn is None:
             if space is None:
-                space = FloatSpace()
+                space = FloatSpace(Float)
             fn = space_new(space, name=name)
         else:
             fn = _fn
@@ -68,6 +68,12 @@ class Functional:
         self._fn = fn
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
+
+    def __float__(self):
+        return float(self.value())
+
+    def __complex__(self):
+        return complex(self.value())
 
     def id(self):
         """Return the unique :class:`int` ID associated with this
@@ -181,6 +187,9 @@ class Functional:
 
     def value(self):
         """Return the current value of the functional.
+
+        The value may also be accessed by casting using :func:`float` or
+        :func:`complex`.
 
         :returns: The scalar value.
         """

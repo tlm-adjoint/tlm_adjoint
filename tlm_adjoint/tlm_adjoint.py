@@ -888,12 +888,12 @@ class EquationManager:
             if cp_action.n >= n:
                 raise RuntimeError("Invalid checkpointing state")
             if cp_action.storage == "disk":
-                logger.debug(f"forward: save snapshot at {cp_action.n:d} "
-                             f"on disk")
+                logger.debug(f"forward: save checkpoint data at "
+                             f"{cp_action.n:d} on disk")
                 self._write_disk_checkpoint(cp_action.n)
             elif cp_action.storage == "RAM":
-                logger.debug(f"forward: save snapshot at {cp_action.n:d} "
-                             f"in RAM")
+                logger.debug(f"forward: save checkpoint data at "
+                             f"{cp_action.n:d} in RAM")
                 self._write_memory_checkpoint(cp_action.n)
             else:
                 raise ValueError(f"Unrecognized checkpointing storage: "
@@ -1017,7 +1017,7 @@ class EquationManager:
                 raise RuntimeError("Invalid checkpointing state")
 
             cp_n = cp_action.n
-            logger.debug(f'reverse: load snapshot at {cp_n:d} from '
+            logger.debug(f'reverse: load checkpoint data at {cp_n:d} from '
                          f'{cp_action.storage:s} and '
                          f'{"delete" if cp_action.delete else "keep":s}')
 
@@ -1045,12 +1045,12 @@ class EquationManager:
             if cp_action.n >= n:
                 raise RuntimeError("Invalid checkpointing state")
             if cp_action.storage == "disk":
-                logger.debug(f"reverse: save snapshot at {cp_action.n:d} "
-                             f"on disk")
+                logger.debug(f"reverse: save checkpoint data at "
+                             f"{cp_action.n:d} on disk")
                 self._write_disk_checkpoint(cp_action.n)
             elif cp_action.storage == "RAM":
-                logger.debug(f"reverse: save snapshot at {cp_action.n:d} "
-                             f"in RAM")
+                logger.debug(f"reverse: save checkpoint data at "
+                             f"{cp_action.n:d} in RAM")
                 self._write_memory_checkpoint(cp_action.n)
             else:
                 raise ValueError(f"Unrecognized checkpointing storage: "
@@ -1246,6 +1246,9 @@ class EquationManager:
         set_manager(self)
         self.finalize()
         self.reset_adjoint(_warning=False)
+
+        if self._cp_schedule.is_exhausted():
+            raise RuntimeError("Invalid checkpointing state")
 
         # Functionals
         Js = tuple(Functional(_fn=J) if is_function(J) else J for J in Js)

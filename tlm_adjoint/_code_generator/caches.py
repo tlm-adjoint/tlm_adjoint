@@ -38,7 +38,6 @@ __all__ = \
         "LinearSolverCache",
         "assembly_cache",
         "form_dependencies",
-        "form_neg",
         "is_cached",
         "linear_solver",
         "linear_solver_cache",
@@ -55,7 +54,7 @@ def is_cached(expr):
     return True
 
 
-def form_simplify_sign(form, sign=None):
+def form_simplify_sign(form, *, sign=None):
     integrals = []
 
     for integral in form.integrals():
@@ -89,8 +88,43 @@ def form_simplify_sign(form, sign=None):
     return ufl.classes.Form(integrals)
 
 
-def form_neg(form):
-    return form_simplify_sign(form, sign=-1)
+def form_simplify_conj(form):
+    if complex_mode:
+        def expr_conj(expr):
+            if isinstance(expr, ufl.classes.Conj):
+                x, = expr.ufl_operands
+                return expr_simplify_conj(x)
+            elif isinstance(expr, ufl.classes.Sum):
+                return sum(map(expr_conj, expr.ufl_operands),
+                           ufl.classes.Zero())
+            elif isinstance(expr, ufl.classes.Product):
+                x, y = expr.ufl_operands
+                return expr_conj(x) * expr_conj(y)
+            else:
+                return ufl.conj(expr)
+
+        def expr_simplify_conj(expr):
+            if isinstance(expr, ufl.classes.Conj):
+                x, = expr.ufl_operands
+                return expr_conj(x)
+            elif isinstance(expr, ufl.classes.Sum):
+                return sum(map(expr_simplify_conj, expr.ufl_operands),
+                           ufl.classes.Zero())
+            elif isinstance(expr, ufl.classes.Product):
+                x, y = expr.ufl_operands
+                return expr_simplify_conj(x) * expr_simplify_conj(y)
+            else:
+                return expr
+
+        def integral_simplify_conj(integral):
+            integrand = integral.integrand()
+            integrand = expr_simplify_conj(integrand)
+            return integral.reconstruct(integrand=integrand)
+
+        integrals = list(map(integral_simplify_conj, form.integrals()))
+        return ufl.classes.Form(integrals)
+    else:
+        return ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
 
 
 def split_arity(form, x, argument):
@@ -216,6 +250,9 @@ def split_terms(terms, base_integral,
 
 
 def split_form(form):
+    if not complex_mode:
+        form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
+
     def add_integral(integrals, base_integral, terms):
         if len(terms) > 0:
             integrand = sum(terms, ufl.classes.Zero())
@@ -257,6 +294,8 @@ def form_key(form):
     form = ufl.algorithms.expand_derivatives(form)
     form = ufl.algorithms.expand_compounds(form)
     form = ufl.algorithms.expand_indices(form)
+    form = form_simplify_conj(form)
+    form = form_simplify_sign(form)
     return form
 
 
@@ -287,8 +326,6 @@ class AssemblyCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        if not complex_mode:
-            form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)  # noqa: E501
         rank = len(form.arguments())
         assemble_kwargs = assemble_arguments(rank, form_compiler_parameters,
                                              linear_solver_parameters)
@@ -340,8 +377,6 @@ class LinearSolverCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        if not complex_mode:
-            form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)  # noqa: E501
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 

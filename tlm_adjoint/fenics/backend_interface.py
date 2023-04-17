@@ -31,7 +31,6 @@ from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, is_valid_r0_space, \
     r0_space
 
-from .caches import form_neg
 from .equations import Assembly
 from .functions import Caches, Constant, ConstantInterface, \
     ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
@@ -399,9 +398,9 @@ def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, ufl.classes.Form) \
             and isinstance(x, (backend_Constant, backend_Function)):
         if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-            x._tlm_adjoint__fenics_adj_b += form_neg(y)
+            x._tlm_adjoint__fenics_adj_b -= y
         else:
-            x._tlm_adjoint__fenics_adj_b = form_neg(y)
+            x._tlm_adjoint__fenics_adj_b = -y
     elif isinstance(y, tuple) \
             and len(y) == 2 \
             and isinstance(y[0], (int, np.integer, float, np.floating)) \
