@@ -46,8 +46,8 @@ tlm_adjoint.
   including the solution of a time-dependent partial differential equation
   using Firedrake. Introduces checkpointing.
 
-Indices and tables
-==================
+Indices
+=======
 
 * :ref:`genindex`
 * :ref:`modindex`
