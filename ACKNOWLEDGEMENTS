@@ -152,3 +152,13 @@ convergence testing using the approach described in
     derivation of the adjoint of high-level transient finite element programs',
     SIAM Journal on Scientific Computing 35(4), pp. C369--C393, 2013, doi:
     10.1137/120873558
+
+===============================================================================
+
+The automated assembly and linear solver caching used by the EquationSolver
+class in tlm_adjoint/_code_generator/equations.py is based on the approach
+described in
+
+[8] J. R. Maddison and P. E. Farrell, 'Rapid development and adjoining of
+    transient finite element models', Computer Methods in Applied Mechanics and
+    Engineering, 276, 95--121, 2014, doi: 10.1016/j.cma.2014.03.010
