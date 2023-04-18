@@ -124,7 +124,8 @@ class Functional:
 
         .. math::
 
-            \mathcal{J}_{new} = \mathcal{J}_\text{old} + J_\text{term},
+            \mathcal{J}_{new} = \mathcal{J}_\text{old}
+                + \mathcal{J}_\text{term},
 
         where :math:`\mathcal{J}_\text{old}` and :math:`\mathcal{J}_\text{new}`
         are, respectively, the old and new values for the functional, and

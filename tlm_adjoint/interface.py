@@ -1020,8 +1020,8 @@ def function_axpy(y, alpha, x, /):
 def function_inner(x, y):
     """Compute the :math:`l_2` inner product of the degrees of freedom vectors
     associated with `x` and `y`. By convention if `y` is in the conjugate dual
-    space associated with `x`, this evaluates the functional associated with
-    `y` at `x`.
+    space associated with `x`, this returns the complex conjugate of the
+    functional associated with `y` evaluated at `x`.
 
     :arg x: A function.
     :arg y: A function.
