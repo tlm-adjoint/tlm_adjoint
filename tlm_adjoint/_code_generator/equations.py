@@ -324,16 +324,13 @@ def unbind_form(form):
 
 
 def homogenized_bc(bc):
-    if bcs_is_homogeneous([bc]):
+    if bcs_is_homogeneous(bc):
         return bc
     else:
         hbc = homogenize(bc)
-        static = bcs_is_static([bc])
-        hbc.is_static = lambda: static
-        cache = bcs_is_cached([bc])
-        hbc.is_cached = lambda: cache
-        hbc.is_homogeneous = lambda: True
-        hbc.homogenize = lambda: hbc
+        hbc._tlm_adjoint__static = bcs_is_static(bc)
+        hbc._tlm_adjoint__cache = bcs_is_cached(bc)
+        hbc._tlm_adjoint__homogeneous = True
         return hbc
 
 
