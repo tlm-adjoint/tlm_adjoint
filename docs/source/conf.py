@@ -6,8 +6,7 @@ extensions = ["autoapi.extension",
 
 autoapi_type = "python"
 autoapi_dirs = ["../../tlm_adjoint"]
-autoapi_ignore = ["*/_code_generator/*",
-                  "*/checkpoint_schedules/*",
+autoapi_ignore = ["*/checkpoint_schedules/*",
                   "*/fenics/*",
                   "*/firedrake/*",
                   "*/numpy/*"]

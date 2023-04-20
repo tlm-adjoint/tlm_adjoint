@@ -135,9 +135,9 @@ def process_adjoint_solver_parameters(linear_solver_parameters):
         return linear_solver_parameters
 
 
-def assemble_arguments(rank, form_compiler_parameters, solver_parameters):
+def assemble_arguments(arity, form_compiler_parameters, solver_parameters):
     kwargs = {"form_compiler_parameters": form_compiler_parameters}
-    if rank == 2 and "mat_type" in solver_parameters:
+    if arity == 2 and "mat_type" in solver_parameters:
         kwargs["mat_type"] = solver_parameters["mat_type"]
     return kwargs
 

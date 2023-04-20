@@ -244,8 +244,8 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     :arg X: A function or a :class:`Sequence` of functions defining the state.
     :arg R_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
     :arg B_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
-    :arg J_space: The space for the functional. `FloatSpace()` is used if not
-        supplied.
+    :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
+        not supplied.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
         automatic dropping of function references disabled. `manager()` is used

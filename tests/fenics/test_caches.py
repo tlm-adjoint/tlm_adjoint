@@ -22,6 +22,7 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend_code_generator_interface import \
     function_vector
+from tlm_adjoint.fenics.caches import split_form
 
 from .test_base import *
 

@@ -549,7 +549,7 @@ class Equation(Referrer):
         """Subtract terms from other adjoint right-hand-sides.
 
         Can be overridden for an optimized implementation, but otherwise uses
-        :meth:`adjoint_derivative_action`.
+        :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action`.
 
         :arg adj_X: The adjoint solution. A function if the adjoint solution
             has a single component, otherwise a :class:`Sequence` of functions.

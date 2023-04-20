@@ -18,6 +18,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+"""This module is used by both the FEniCS and Firedrake backends, and
+implements finite element calculations. In particular the
+:class:`EquationSolver` class implements the solution of finite element
+variational problems.
+"""
+
 from .backend import TestFunction, TrialFunction, adjoint, \
     backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
 from ..interface import check_space_type, function_assign, function_id, \
@@ -73,8 +79,8 @@ def derivative_space(x):
 def derivative(form, x, argument=None):
     if argument is None:
         space = derivative_space(x)
-        rank = len(form.arguments())
-        Argument = {0: TestFunction, 1: TrialFunction}[rank]
+        arity = len(form.arguments())
+        Argument = {0: TestFunction, 1: TrialFunction}[arity]
         argument = Argument(space)
 
     return ufl.derivative(form, x, argument=argument)
@@ -109,7 +115,7 @@ def extract_dependencies(expr):
     return deps, nl_deps
 
 
-def apply_rhs_bcs(b, hbcs, b_bc=None):
+def apply_rhs_bcs(b, hbcs, *, b_bc=None):
     for bc in hbcs:
         bc.apply(b)
     if b_bc is not None:
@@ -139,8 +145,26 @@ class ExprEquation(Equation):
 
 
 class Assembly(ExprEquation):
-    def __init__(self, x, rhs, *, form_compiler_parameters=None,
-                 match_quadrature=None):
+    r"""Represents assignment to the result of finite element assembly:
+
+    .. code-block:: python
+
+        x = assemble(rhs)
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    :arg x: A function defining the forward solution.
+    :arg rhs: A UFL :class:`Form` to assemble. Should have arity 0 or 1, and
+        should not depend on the forward solution.
+    :arg form_compiler_parameters: Form compiler parameters.
+    :arg match_quadrature: Whether to set quadrature parameters consistently in
+        the forward, adjoint, and tangent-linears. Defaults to
+        `parameters['tlm_adjoint']['Assembly']['match_quadrature']`.
+    """
+
+    def __init__(self, x, rhs, *,
+                 form_compiler_parameters=None, match_quadrature=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
         if match_quadrature is None:
@@ -148,16 +172,16 @@ class Assembly(ExprEquation):
 
         rhs = ufl.classes.Form(rhs.integrals())
 
-        rank = len(rhs.arguments())
-        if rank == 0:
+        arity = len(rhs.arguments())
+        if arity == 0:
             check_space_type(x, "primal")
             if not function_is_scalar(x):
-                raise ValueError("Rank 0 forms can only be assigned to "
+                raise ValueError("Arity 0 forms can only be assigned to "
                                  "scalars")
-        elif rank == 1:
+        elif arity == 1:
             check_space_type(x, "conjugate_dual")
         else:
-            raise ValueError("Must be a rank 0 or rank 1 form")
+            raise ValueError("Must be an arity 0 or arity 1 form")
 
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
@@ -178,7 +202,7 @@ class Assembly(ExprEquation):
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
         self._rhs = rhs
         self._form_compiler_parameters = form_compiler_parameters
-        self._rank = rank
+        self._arity = arity
 
     def drop_references(self):
         replace_map = {dep: function_replacement(dep)
@@ -195,16 +219,16 @@ class Assembly(ExprEquation):
         else:
             rhs = self._replace(self._rhs, deps)
 
-        if self._rank == 0:
+        if self._arity == 0:
             function_assign(
                 x,
                 assemble(rhs, form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
-        elif self._rank == 1:
+        elif self._arity == 1:
             assemble(
                 rhs, form_compiler_parameters=self._form_compiler_parameters,
                 tensor=function_vector(x))
         else:
-            raise ValueError("Must be a rank 0 or rank 1 form")
+            raise ValueError("Must be an arity 0 or arity 1 form")
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -226,20 +250,20 @@ class Assembly(ExprEquation):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
-        if self._rank == 0:
+        if self._arity == 0:
             dF = ufl.classes.Form(
                 [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
                  for integral in dF.integrals()])  # dF = adjoint(dF)
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-function_scalar_value(adj_x), dF)
-        elif self._rank == 1:
+        elif self._arity == 1:
             dF = ufl.action(adjoint(dF), coefficient=adj_x)
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-1.0, dF)
         else:
-            raise ValueError("Must be a rank 0 or rank 1 form")
+            raise ValueError("Must be an arity 0 or arity 1 form")
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -264,6 +288,8 @@ class Assembly(ExprEquation):
 
 
 class AssembleSolver(Assembly):
+    ""
+
     def __init__(self, rhs, x, form_compiler_parameters=None,
                  match_quadrature=None):
         warnings.warn("AssembleSolver is deprecated -- "
@@ -298,29 +324,75 @@ def unbind_form(form):
 
 
 def homogenized_bc(bc):
-    if bcs_is_homogeneous([bc]):
+    if bcs_is_homogeneous(bc):
         return bc
     else:
         hbc = homogenize(bc)
-        static = bcs_is_static([bc])
-        hbc.is_static = lambda: static
-        cache = bcs_is_cached([bc])
-        hbc.is_cached = lambda: cache
-        hbc.is_homogeneous = lambda: True
-        hbc.homogenize = lambda: hbc
+        hbc._tlm_adjoint__static = bcs_is_static(bc)
+        hbc._tlm_adjoint__cache = bcs_is_cached(bc)
+        hbc._tlm_adjoint__homogeneous = True
         return hbc
 
 
 class EquationSolver(ExprEquation):
-    # eq, x, bcs, J, form_compiler_parameters and solver_parameters argument
-    # usage based on the interface for the solve function in FEniCS (see e.g.
-    # FEniCS 2017.1.0)
-    def __init__(self, eq, x, bcs=None, J=None, form_compiler_parameters=None,
-                 solver_parameters=None, adjoint_solver_parameters=None,
-                 tlm_solver_parameters=None, initial_guess=None,
-                 cache_jacobian=None, cache_adjoint_jacobian=None,
-                 cache_tlm_jacobian=None, cache_rhs_assembly=None,
-                 match_quadrature=None, defer_adjoint_assembly=None):
+    """Represents the solution of a finite element variational problem.
+
+    Caching is based on the approach described in
+
+        - J. R. Maddison and P. E. Farrell, 'Rapid development and adjoining of
+          transient finite element models', Computer Methods in Applied
+          Mechanics and Engineering, 276, 95--121, 2014, doi:
+          10.1016/j.cma.2014.03.010
+
+    The arguments `eq`, `x`, `bcs`, `J`, `form_compiler_parameters`, and
+    `solver_parameters` are based on the interface for the FEniCS :func:`solve`
+    function (see e.g. FEniCS 2017.1.0).
+
+    :arg eq: A UFL :class:`Equation` defining the finite element variational
+        problem.
+    :arg x: A function defining the forward solution.
+    :arg bcs: Dirichlet boundary conditions.
+    :arg J: A UFL :class:`Form` defining a Jacobian matrix approximation to use
+        in a non-linear forward solve.
+    :arg form_compiler_parameters: Form compiler parameters.
+    :arg solver_parameters: Linear or non-linear solver parameters.
+    :arg adjoint_solver_parameters: Linear solver parameters to use in an
+        adjoint solve.
+    :arg tlm_solver_parameters: Linear solver parameters to use when solving
+        tangent-linear problems.
+    :arg initial_guess: Deprecated.
+    :arg cache_jacobian: Whether to cache the forward Jacobian matrix and
+        linear solver data. Defaults to
+        `parameters['tlm_adjoint']['EquationSolver]['cache_jacobian']`. If
+        `None` then caching is autodetected.
+    :arg cache_adjoint_jacobian: Whether to cache the adjoint Jacobian matrix
+        and linear solver data. Defaults to `cache_jacobian`.
+    :arg cache_tlm_jacobian: Whether to cache the Jacobian matrix and linear
+        solver data when solving tangent-linear problems. Defaults to
+        `cache_jacobian`.
+    :arg cache_rhs_assembly: Whether to enable right-hand-side caching. If
+        enabled then right-hand-side terms are divided into terms which are
+        cached, terms which are converted into matrix multiplication by a
+        cached matrix, and terms which are not cached. Defaults to
+        `parameters['tlm_adjoint']['EquationSolver']['cache_rhs_assembly']`.
+    :arg match_quadrature: Whether to set quadrature parameters consistently in
+        the forward, adjoint, and tangent-linears. Defaults to
+        `parameters['tlm_adjoint']['EquationSolver']['match_quadrature']`.
+    :arg defer_adjoint_assembly: Whether to use 'deferred' adjoint assembly. If
+        adjoint assembly is deferred then initially only symbolic expressions
+        for adjoint right-hand-side terms are constructed. Finite element
+        assembly can occur later (with default form compiler parameters), when
+        further adjoint right-hand-side terms are available. Defaults to
+        `parameters['tlm_adjoint']['EquationSolver']['defer_adjoint_assembly']`.
+    """
+
+    def __init__(self, eq, x, bcs=None, *,
+                 J=None, form_compiler_parameters=None, solver_parameters=None,
+                 adjoint_solver_parameters=None, tlm_solver_parameters=None,
+                 initial_guess=None, cache_jacobian=None,
+                 cache_adjoint_jacobian=None, cache_tlm_jacobian=None,
+                 cache_rhs_assembly=None, match_quadrature=None,
+                 defer_adjoint_assembly=None):
         if bcs is None:
             bcs = []
         if form_compiler_parameters is None:
@@ -491,7 +563,7 @@ class EquationSolver(ExprEquation):
             if dF is not None:
                 self._adjoint_dF_cache[dep_index] = ufl.replace(dF, replace_map)  # noqa: E501
 
-    def _cached_rhs(self, deps, b_bc=None):
+    def _cached_rhs(self, deps, *, b_bc=None):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
@@ -827,7 +899,29 @@ class EquationSolver(ExprEquation):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
-def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
+def linear_equation_new_x(eq, x, *,
+                          manager=None, annotate=None, tlm=None):
+    r"""If a symbolic expression for a linear finite element variational
+    problem depends on the symbolic variable representing the problem solution,
+    then record the assignment `x_old = x`, and replace `x` with `x_old` in the
+    symbolic expression.
+
+    Required for the case where a 'new' value is computed by solving a linear
+    finite element variational problem depending on the 'old' value.
+
+    :arg eq: A UFL :class:`Equation` defining the finite element variational
+        problem.
+    :arg x: A function defining the solution to the finite element variational
+        problem.
+    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
+        Defaults to `manager()`.
+    :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
+        should record the solution of equations.
+    :arg tlm: Whether tangent-linear equations should be solved.
+    :returns: A UFL :class:`Equation` with `x` replaced with `x_old`, or `eq`
+        if the symbolic expression does not depend on `x`.
+    """
+
     lhs, rhs = eq.lhs, eq.rhs
     lhs_x_dep = x in lhs.coefficients()
     rhs_x_dep = x in rhs.coefficients()
@@ -844,6 +938,16 @@ def linear_equation_new_x(eq, x, manager=None, annotate=None, tlm=None):
 
 
 class Projection(EquationSolver):
+    """Represents the solution of a finite element variational problem
+    performing a projection of `rhs` onto the space for `x`.
+
+    :arg x: A function defining the forward solution.
+    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
+        space for `x`. Should not depend on `x`.
+
+    Remaining arguments are passed to the :class:`EquationSolver` constructor.
+    """
+
     def __init__(self, x, rhs, *args, **kwargs):
         space = function_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
@@ -854,6 +958,8 @@ class Projection(EquationSolver):
 
 
 class ProjectionSolver(Projection):
+    ""
+
     def __init__(self, rhs, x, *args, **kwargs):
         warnings.warn("ProjectionSolver is deprecated -- "
                       "use Projection instead",
@@ -862,6 +968,23 @@ class ProjectionSolver(Projection):
 
 
 class DirichletBCApplication(Equation):
+    r"""Represents the application of a Dirichlet boundary condition to a zero
+    valued function. Specifically, with the Firedrake backend this represents:
+
+    .. code-block:: python
+
+        x.zero()
+        DirichletBC(x.function_space(), y, *args, **kwargs).apply(x)
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    :arg x: A function, updated by the above operations.
+    :arg y: A function, defines the Dirichet boundary condition.
+
+    Remaining arguments are passed to `DirichletBC`.
+    """
+
     def __init__(self, x, y, *args, **kwargs):
         check_space_type(x, "primal")
         check_space_type(y, "primal")
@@ -906,6 +1029,8 @@ class DirichletBCApplication(Equation):
 
 
 class DirichletBCSolver(DirichletBCApplication):
+    ""
+
     def __init__(self, y, x, *args, **kwargs):
         warnings.warn("DirichletBCSolver is deprecated -- "
                       "use DirichletBCApplication instead",
@@ -914,6 +1039,16 @@ class DirichletBCSolver(DirichletBCApplication):
 
 
 class ExprEvaluation(ExprEquation):
+    r"""Represents interpolation of `rhs` onto the space for `x`.
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    :arg x: A function defining the forward solution.
+    :arg rhs: A UFL :class:`Expr` defining the expression to interpolate onto
+        the space for `x`. Should not depend on `x`.
+    """
+
     def __init__(self, x, rhs):
         if isinstance(rhs, ufl.classes.Form):
             raise TypeError("rhs should not be a Form")
@@ -981,6 +1116,8 @@ class ExprEvaluation(ExprEquation):
 
 
 class ExprEvaluationSolver(ExprEvaluation):
+    ""
+
     def __init__(self, rhs, x):
         warnings.warn("ExprEvaluationSolver is deprecated -- "
                       "use ExprEvaluation instead",

@@ -18,6 +18,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+"""This module is used by both the FEniCS and Firedrake backends, and includes
+functionality for handling UFL :class:`Coefficient` objects and boundary
+conditions.
+"""
+
 from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
     backend_ScalarType
 from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
@@ -38,21 +43,20 @@ import warnings
 __all__ = \
     [
         "Constant",
-        "DirichletBC",
         "Function",
-        "HomogeneousDirichletBC",
-        "ReplacementConstant",
-        "ReplacementFunction",
+        "extract_coefficients",
+
+        "Zero",
         "ZeroConstant",
         "ZeroFunction",
-        "bcs_is_cached",
-        "bcs_is_homogeneous",
-        "bcs_is_static",
-        "define_function_alias",
         "eliminate_zeros",
-        "extract_coefficients",
-        "new_count",
-        "replaced_form"
+
+        "Replacement",
+        "ReplacementConstant",
+        "ReplacementFunction",
+
+        "DirichletBC",
+        "HomogeneousDirichletBC"
     ]
 
 
@@ -254,6 +258,29 @@ class ConstantInterface(_FunctionInterface):
 
 
 class Constant(backend_Constant):
+    """Extends the backend `Constant` class.
+
+    :arg value: The initial value. `None` indicates a value of zero.
+    :arg name: A :class:`str` name.
+    :arg domain: The domain on which the :class:`Constant` is defined.
+    :arg space: The space on which the :class:`Constant` is defined.
+    :arg space_type: The space type for the :class:`Constant`. `'primal'`,
+        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
+    :arg shape: A :class:`tuple` of :class:`int` objects defining the shape of
+        the value.
+    :arg comm: An :class:`mpi4py.MPI.Comm`, communicator for the
+        :class:`Constant`.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving this :class:`Constant` may be
+        cached. Default `static`.
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        :class:`Constant` by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+
+    Remaining arguments are passed to the backend `Constant` constructor.
+    """
+
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
                  space_type="primal", shape=None, comm=None, static=False,
                  cache=None, checkpoint=None, **kwargs):
@@ -310,6 +337,21 @@ class Constant(backend_Constant):
 
 
 class Function(backend_Function):
+    """Extends the backend `Function` class.
+
+    :arg space_type: The space type for the :class:`Function`. `'primal'`,
+        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving this :class:`Function` may be
+        cached. Default `static`.
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        :class:`Function` by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+
+    Remaining arguments are passed to the backend `Function` constructor.
+    """
+
     def __init__(self, *args, space_type="primal", static=False, cache=None,
                  checkpoint=None, **kwargs):
         if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
@@ -327,6 +369,10 @@ class Function(backend_Function):
 
 
 class Zero:
+    """Mixin for defining a zero-valued function. Used for zero-valued
+    functions for which UFL zero elimination should not be applied.
+    """
+
     def _tlm_adjoint__function_interface_assign(self, y):
         raise RuntimeError("Cannot call _assign interface of Zero")
 
@@ -338,6 +384,12 @@ class Zero:
 
 
 class ZeroConstant(Constant, Zero):
+    """A :class:`Constant` which is flagged as having a value of zero.
+
+    Arguments are passed to the :class:`Constant` constructor, together with
+    `static=True`.
+    """
+
     def __init__(self, *, name=None, domain=None, space_type="primal",
                  shape=None, comm=None):
         Constant.__init__(
@@ -349,6 +401,12 @@ class ZeroConstant(Constant, Zero):
 
 
 class ZeroFunction(Function, Zero):
+    """A :class:`Function` which is flagged as having a value of zero.
+
+    Arguments are passed to the :class:`Function` constructor, together with
+    `static=True`.
+    """
+
     def __init__(self, space, *, name=None, space_type="primal"):
         Function.__init__(
             self, space, name=name, space_type=space_type, static=True)
@@ -364,6 +422,11 @@ class ZeroFunction(Function, Zero):
 
 
 def extract_coefficients(expr):
+    """
+    :returns: UFL :class:`Coefficient` objects on which the supplied UFL
+        :class:`Expr` or :class:`Form` depends.
+    """
+
     if isinstance(expr, ufl.classes.Form):
         return expr.coefficients()
     else:
@@ -371,6 +434,17 @@ def extract_coefficients(expr):
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):
+    """Apply zero elimination for :class:`Zero` objects in the supplied UFL
+    :class:`Expr` or :class:`Form`.
+
+    :arg expr: A UFL :class:`Expr` or :class:`Form`.
+    :arg force_non_empty_form: If `True` and if `expr` is a UFL :class:`Form`,
+        then the returned form is guaranteed to be non-empty, and may be
+        assembled.
+    :returns: A UFL :class:`Expr` or :class:`Form` with zero elimination
+        applied. May return `expr`.
+    """
+
     if isinstance(expr, ufl.classes.Form) \
             and "_tlm_adjoint__simplified_form" in expr._cache:
         simplified_expr = expr._cache["_tlm_adjoint__simplified_form"]
@@ -418,9 +492,20 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
 
 
 class DirichletBC(backend_DirichletBC):
+    """Extends the backend `DirichletBC`.
+
+    :arg static: A flag that indicates that the value for this
+        :class:`DirichletBC` will not change, and which determines whether
+        calculations involving this :class:`DirichletBC` can be cached. If
+        `None` then autodetected from the value.
+    :arg homogeneous: Deprecated.
+
+    Remaining arguments are passed to the backend `DirichletBC` constructor.
+    """
+
     # Based on FEniCS 2019.1.0 DirichletBC API
-    def __init__(self, V, g, sub_domain, *args, static=None, cache=None,
-                 homogeneous=None, _homogeneous=None, **kwargs):
+    def __init__(self, V, g, sub_domain, *args,
+                 static=None, homogeneous=None, _homogeneous=None, **kwargs):
         super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
@@ -434,8 +519,6 @@ class DirichletBC(backend_DirichletBC):
                 if not is_function(dep) or not function_is_checkpointed(dep):
                     static = False
                     break
-        if cache is None:
-            cache = static
         if homogeneous is not None:
             warnings.warn("homogeneous argument is deprecated -- "
                           "use HomogeneousDirichletBC instead",
@@ -448,35 +531,40 @@ class DirichletBC(backend_DirichletBC):
         else:
             homogeneous = _homogeneous
 
-        self.__static = static
-        self.__cache = cache
-        self.__homogeneous = homogeneous
-
-    def is_static(self):
-        return self.__static
-
-    def is_cached(self):
-        return self.__cache
-
-    def is_homogeneous(self):
-        return self.__homogeneous
+        self._tlm_adjoint__static = static
+        self._tlm_adjoint__cache = static
+        self._tlm_adjoint__homogeneous = homogeneous
 
     def homogenize(self):
-        if self.is_static():
+        """Homogenize the :class:`DirichletBC`, setting its value to zero.
+        """
+
+        if self._tlm_adjoint__static:
             raise RuntimeError("Cannot call homogenize method for static "
                                "DirichletBC")
-        if not self.__homogeneous:
+        if not self._tlm_adjoint__homogeneous:
             super().homogenize()
-            self.__homogeneous = True
+            self._tlm_adjoint__homogeneous = True
 
     def set_value(self, *args, **kwargs):
-        if self.is_static():
+        """Set the :class:`DirichletBC` value.
+
+        Arguments are passed to the base class `set_value` method.
+        """
+
+        if self._tlm_adjoint__static:
             raise RuntimeError("Cannot call set_value method for static "
                                "DirichletBC")
         super().set_value(*args, **kwargs)
 
 
 class HomogeneousDirichletBC(DirichletBC):
+    """A :class:`DirichletBC` whose value is zero.
+
+    Arguments are passed to the :class:`DirichletBC` constructor, together with
+    `static=True`.
+    """
+
     # Based on FEniCS 2019.1.0 DirichletBC API
     def __init__(self, V, sub_domain, *args, **kwargs):
         shape = V.ufl_element().value_shape()
@@ -489,22 +577,28 @@ class HomogeneousDirichletBC(DirichletBC):
 
 
 def bcs_is_static(bcs):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
     for bc in bcs:
-        if not hasattr(bc, "is_static") or not bc.is_static():
+        if not getattr(bc, "_tlm_adjoint__static", False):
             return False
     return True
 
 
 def bcs_is_cached(bcs):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
     for bc in bcs:
-        if not hasattr(bc, "is_cached") or not bc.is_cached():
+        if not getattr(bc, "_tlm_adjoint__cache", False):
             return False
     return True
 
 
 def bcs_is_homogeneous(bcs):
+    if isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
     for bc in bcs:
-        if not hasattr(bc, "is_homogeneous") or not bc.is_homogeneous():
+        if not getattr(bc, "_tlm_adjoint__homogeneous", False):
             return False
     return True
 
@@ -545,6 +639,10 @@ class ReplacementInterface(_FunctionInterface):
 
 
 class Replacement(ufl.classes.Coefficient):
+    """A UFL :class:`Coefficient` representing a symbolic variable but with no
+    value.
+    """
+
     def __init__(self, x):
         space = function_space(x)
 
@@ -576,11 +674,19 @@ class Replacement(ufl.classes.Coefficient):
 
 
 class ReplacementConstant(backend_Constant, Replacement):
+    """A backend `Constant` representing a symbolic variable but with no
+    value.
+    """
+
     def __init__(self, x):
         Replacement.__init__(self, x)
 
 
 class ReplacementFunction(backend_Function, Replacement):
+    """A backend `Function` representing a symbolic variable but with no
+    value.
+    """
+
     def __init__(self, x):
         Replacement.__init__(self, x)
 

@@ -29,7 +29,7 @@ from .functional import Functional
 from .manager import manager as _manager
 from .manager import compute_gradient, configure_tlm, function_tlm, \
     reset_manager, restore_manager, set_manager, start_manager, stop_manager
-from .overloaded_float import FloatSpace
+from .overloaded_float import Float, FloatSpace
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -248,14 +248,14 @@ class GaussNewton(ABC):
         and returns the action of the operator corresponding to :math:`B^{-1}`
         on those functions, returning the result as a function or a
         :class:`Sequence` of functions.
-    :arg J_space: The space for the functional. `FloatSpace()` is used if not
-        supplied.
+    :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
+        not supplied.
     """
 
     def __init__(self, R_inv_action, B_inv_action=None, *,
                  J_space=None):
         if J_space is None:
-            J_space = FloatSpace()
+            J_space = FloatSpace(Float)
 
         self._J_space = J_space
         self._R_inv_action = R_inv_action
@@ -365,8 +365,8 @@ class GeneralGaussNewton(GaussNewton):
         functions defining the state.
     :arg R_inv_action: See :class:`GaussNewton`.
     :arg B_inv_action: See :class:`GaussNewton`.
-    :arg J_space: The space for the functional. `FloatSpace()` is used if not
-        supplied.
+    :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
+        not supplied.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
     """
