@@ -58,7 +58,8 @@ def local_solver_key(form, form_compiler_parameters):
             parameters_key(form_compiler_parameters))
 
 
-def LocalSolver(form, form_compiler_parameters=None):
+def LocalSolver(form, *,
+                form_compiler_parameters=None):
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -77,8 +78,8 @@ def LocalSolver(form, form_compiler_parameters=None):
 
 
 class LocalSolverCache(Cache):
-    def local_solver(self, form, form_compiler_parameters=None,
-                     replace_map=None):
+    def local_solver(self, form, *,
+                     form_compiler_parameters=None, replace_map=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
@@ -98,21 +99,23 @@ class LocalSolverCache(Cache):
                         deps=tuple(form_dependencies(form).values()))
 
 
-_local_solver_cache = [LocalSolverCache()]
+_local_solver_cache = LocalSolverCache()
 
 
 def local_solver_cache():
-    return _local_solver_cache[0]
+    return _local_solver_cache
 
 
 def set_local_solver_cache(local_solver_cache):
-    _local_solver_cache[0] = local_solver_cache
+    global _local_solver_cache
+    _local_solver_cache = local_solver_cache
 
 
 class LocalProjection(EquationSolver):
-    def __init__(self, x, rhs, *, form_compiler_parameters=None,
-                 cache_jacobian=None, cache_rhs_assembly=None,
-                 match_quadrature=None, defer_adjoint_assembly=None):
+    def __init__(self, x, rhs, *,
+                 form_compiler_parameters=None, cache_jacobian=None,
+                 cache_rhs_assembly=None, match_quadrature=None,
+                 defer_adjoint_assembly=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
@@ -243,7 +246,8 @@ def vmesh_coords_map(vmesh, X_coords):
 
 
 class PointInterpolation(Equation):
-    def __init__(self, X, y, X_coords=None, *, _interp=None):
+    def __init__(self, X, y, X_coords=None, *,
+                 _interp=None):
         """
         Defines an equation which interpolates the continuous scalar-valued
         Function y at the points X_coords.

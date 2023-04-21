@@ -217,7 +217,8 @@ def local_solver_key(form, solver_type):
 
 
 class LocalSolverCache(Cache):
-    def local_solver(self, form, solver_type=None, replace_map=None):
+    def local_solver(self, form, solver_type=None, *,
+                     replace_map=None):
         if solver_type is None:
             solver_type = LocalSolver.SolverType.LU
 
@@ -237,21 +238,23 @@ class LocalSolverCache(Cache):
                         deps=tuple(form_dependencies(form).values()))
 
 
-_local_solver_cache = [LocalSolverCache()]
+_local_solver_cache = LocalSolverCache()
 
 
 def local_solver_cache():
-    return _local_solver_cache[0]
+    return _local_solver_cache
 
 
 def set_local_solver_cache(local_solver_cache):
-    _local_solver_cache[0] = local_solver_cache
+    global _local_solver_cache
+    _local_solver_cache = local_solver_cache
 
 
 class LocalProjection(EquationSolver):
-    def __init__(self, x, rhs, *, form_compiler_parameters=None,
-                 cache_jacobian=None, cache_rhs_assembly=None,
-                 match_quadrature=None, defer_adjoint_assembly=None):
+    def __init__(self, x, rhs, *,
+                 form_compiler_parameters=None, cache_jacobian=None,
+                 cache_rhs_assembly=None, match_quadrature=None,
+                 defer_adjoint_assembly=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
@@ -358,7 +361,8 @@ class LocalProjectionSolver(LocalProjection):
             defer_adjoint_assembly=defer_adjoint_assembly)
 
 
-def point_owners(x_coords, y_space, tolerance=0.0):
+def point_owners(x_coords, y_space, *,
+                 tolerance=0.0):
     comm = space_comm(y_space)
     rank = comm.rank
 
@@ -559,8 +563,8 @@ class InterpolationSolver(Interpolation):
 
 
 class PointInterpolation(Equation):
-    def __init__(self, X, y, X_coords=None, *, y_colors=None, y_cells=None,
-                 P=None, tolerance=0.0):
+    def __init__(self, X, y, X_coords=None, *,
+                 y_colors=None, y_cells=None, P=None, tolerance=0.0):
         """
         Defines an equation which interpolates the scalar-valued Function y at
         the points X_coords.

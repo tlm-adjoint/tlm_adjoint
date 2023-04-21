@@ -380,7 +380,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
         else:
             y = z
 
-        X_vals = [new_scalar_function(name=f"x_{i:d}")
+        X_vals = [Constant(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
         eq = PointInterpolation(X_vals, y, X_coords, P=P[0])
         eq.solve()
@@ -388,7 +388,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
 
         J = Functional(name="J")
         for x in X_vals:
-            term = new_scalar_function()
+            term = Constant()
             ExprEvaluation(term, x ** 3).solve()
             J.addto(term)
         return X_vals, J

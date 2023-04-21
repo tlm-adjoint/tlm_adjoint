@@ -29,9 +29,9 @@ from ..interface import check_space_type, function_assign, function_new, \
 from .backend_code_generator_interface import copy_parameters_dict, \
     update_parameters_dict
 
+from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
 
-from ..equations import Assignment
 from .equations import EquationSolver, ExprEvaluation, Projection, \
     linear_equation_new_x
 
