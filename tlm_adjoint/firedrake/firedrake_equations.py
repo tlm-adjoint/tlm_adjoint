@@ -72,14 +72,33 @@ def LocalSolver(form, *,
 
     def solve_local(self, x, b):
         matrix_multiply(self, b, tensor=x)
-    local_solver.solve_local = weakref_method(solve_local, local_solver)
+    local_solver._tlm_adjoint__solve_local = weakref_method(
+        solve_local, local_solver)
 
     return local_solver
 
 
 class LocalSolverCache(Cache):
+    """A :class:`tlm_adjoint.caches.Cache` for element-wise local block
+    diagonal linear solver data.
+    """
+
     def local_solver(self, form, *,
                      form_compiler_parameters=None, replace_map=None):
+        """Compute data for an element-wise local block diagonal linear
+        solver and cache the result, or return a previously cached result.
+
+        :arg form: An arity two UFL :class:`Form`, defining the element-wise
+            local block diagonal matrix.
+        :arg form_compiler_parameters: Form compiler parameters.
+        :arg replace_map: A :class:`Mapping` defining a map from symbolic
+            variables to values.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a Firedrake
+            :class:`Matrix` storing the assembled inverse matrix, and
+            `value_ref` is a :class:`tlm_adjoint.caches.CacheRef` storing a
+            reference to `value`.
+        """
+
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
@@ -103,15 +122,36 @@ _local_solver_cache = LocalSolverCache()
 
 
 def local_solver_cache():
+    """
+    :returns: The default :class:`LocalSolverCache`.
+    """
+
     return _local_solver_cache
 
 
 def set_local_solver_cache(local_solver_cache):
+    """Set the default :class:`LocalSolverCache`.
+
+    :arg local_solver_cache: The new default :class:`LocalSolverCache`.
+    """
+
     global _local_solver_cache
     _local_solver_cache = local_solver_cache
 
 
 class LocalProjection(EquationSolver):
+    """Represents the solution of a finite element variational problem
+    performing a projection onto the space for `x`, for the case where the mass
+    matrix is element-wise local block diagonal.
+
+    :arg x: A function defining the forward solution.
+    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
+        space for `x`, or a UFL :class:`Form` defining the right-hand-side
+        of the finite element variational problem. Should not depend on `x`.
+
+    Remaining arguments are passed to the :class:`EquationSolver` constructor.
+    """
+
     def __init__(self, x, rhs, *,
                  form_compiler_parameters=None, cache_jacobian=None,
                  cache_rhs_assembly=None, match_quadrature=None,
@@ -166,7 +206,7 @@ class LocalProjection(EquationSolver):
                 self._lhs,
                 form_compiler_parameters=self._form_compiler_parameters)
 
-        local_solver.solve_local(x, b)
+        local_solver._tlm_adjoint__solve_local(x, b)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if self._cache_jacobian:
@@ -182,7 +222,7 @@ class LocalProjection(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         adj_x = self.new_adj_x()
-        local_solver.solve_local(adj_x, b)
+        local_solver._tlm_adjoint__solve_local(adj_x, b)
         return adj_x
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -208,6 +248,8 @@ class LocalProjection(EquationSolver):
 
 
 class LocalProjectionSolver(LocalProjection):
+    ""
+
     def __init__(self, rhs, x, form_compiler_parameters=None,
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
@@ -246,21 +288,22 @@ def vmesh_coords_map(vmesh, X_coords):
 
 
 class PointInterpolation(Equation):
+    r"""Represents interpolation of a scalar-valued function at given points.
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    :arg X: A scalar-function, or a :class:`Sequence` of scalar-valued
+        functions, defining the forward solution.
+    :arg y: A scalar-valued Firedrake :class:`Function` to interpolate.
+    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+        to interpolate `y`. Shape is `(n, d)` where `n` is the number of
+        interpolation points and `d` is the geometric dimension. Ignored if `P`
+        is supplied.
+    """
+
     def __init__(self, X, y, X_coords=None, *,
                  _interp=None):
-        """
-        Defines an equation which interpolates the continuous scalar-valued
-        Function y at the points X_coords.
-
-        Arguments:
-
-        X          A scalar, or a sequence of scalars. The solution to the
-                   equation.
-        y          A continuous scalar-valued Function. The Function to be
-                   interpolated.
-        X_coords   A NumPy matrix. Points at which to interpolate y.
-        """
-
         if is_function(X):
             X = (X,)
 
@@ -346,6 +389,8 @@ class PointInterpolation(Equation):
 
 
 class PointInterpolationSolver(PointInterpolation):
+    ""
+
     def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
         if P is not None:
             warnings.warn("P argument is deprecated and has no effect",

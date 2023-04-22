@@ -939,11 +939,12 @@ def linear_equation_new_x(eq, x, *,
 
 class Projection(EquationSolver):
     """Represents the solution of a finite element variational problem
-    performing a projection of `rhs` onto the space for `x`.
+    performing a projection onto the space for `x`.
 
     :arg x: A function defining the forward solution.
     :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
-        space for `x`. Should not depend on `x`.
+        space for `x`, or a UFL :class:`Form` defining the right-hand-side
+        of the finite element variational problem. Should not depend on `x`.
 
     Remaining arguments are passed to the :class:`EquationSolver` constructor.
     """
