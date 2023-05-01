@@ -32,8 +32,7 @@ from ..interface import check_space_type, check_space_types, function_assign, \
 
 from .functions import eliminate_zeros
 
-from collections.abc import Iterable, Sequence
-import copy
+from collections.abc import Sequence
 import ffc
 import numpy as np
 import ufl
@@ -92,14 +91,16 @@ complex_mode = False
 
 def copy_parameters_dict(parameters):
     if isinstance(parameters, Parameters):
-        parameters = parameters.copy()
+        parameters = dict(parameters)
     new_parameters = {}
     for key in parameters:
         value = parameters[key]
         if isinstance(value, (Parameters, dict)):
             value = copy_parameters_dict(value)
-        elif isinstance(value, Iterable):
-            value = copy.copy(value)  # shallow copy only
+        elif isinstance(value, list):
+            value = list(value)
+        elif isinstance(value, set):
+            value = set(value)
         new_parameters[key] = value
     return new_parameters
 

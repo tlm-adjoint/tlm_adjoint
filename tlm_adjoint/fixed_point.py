@@ -26,7 +26,6 @@ from .adjoint import AdjointModelRHS
 from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
 
-import copy
 import logging
 import numpy as np
 import warnings
@@ -187,7 +186,7 @@ class FixedPointSolver(Equation, CustomNormSq):
                     raise ValueError("Duplicate solve")
                 X_ids.add(x_id)
 
-        solver_parameters = copy.deepcopy(solver_parameters)
+        solver_parameters = dict(solver_parameters)
         if "nonzero_adjoint_initial_guess" in solver_parameters:
             warnings.warn("nonzero_adjoint_initial_guess parameter is "
                           "deprecated -- use adjoint_nonzero_initial_guess "
@@ -251,7 +250,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         if nonzero_initial_guess:
             ic_deps = {}
             previous_x_ids = set()
-            remaining_x_ids = X_ids.copy()
+            remaining_x_ids = set(X_ids)
 
             for i, eq in enumerate(eqs):
                 for x in eq.X():
@@ -279,7 +278,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         if adjoint_nonzero_initial_guess:
             adj_ic_deps = {}
             previous_x_ids = set()
-            remaining_x_ids = X_ids.copy()
+            remaining_x_ids = set(X_ids)
 
             adjoint_i0 = solver_parameters["adjoint_eqs_index_0"]
             for i in range(len(eqs) - 1, -1, -1):

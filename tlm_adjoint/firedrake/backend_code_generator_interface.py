@@ -28,8 +28,7 @@ from ..interface import check_space_type, check_space_types, function_assign, \
 
 from .functions import eliminate_zeros
 
-from collections.abc import Iterable, Sequence
-import copy
+from collections.abc import Sequence
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
@@ -70,12 +69,14 @@ del _parameters
 
 
 def copy_parameters_dict(parameters):
-    new_parameters = parameters.copy()
+    new_parameters = dict(parameters)
     for key, value in parameters.items():
         if isinstance(value, (Parameters, dict)):
             value = copy_parameters_dict(value)
-        elif isinstance(value, Iterable):
-            value = copy.copy(value)  # shallow copy only
+        elif isinstance(value, list):
+            value = list(value)
+        elif isinstance(value, set):
+            value = set(value)
         new_parameters[key] = value
     return new_parameters
 
@@ -109,9 +110,9 @@ def process_solver_parameters(solver_parameters, linear):
 
 def process_adjoint_solver_parameters(linear_solver_parameters):
     if "tlm_adjoint" in linear_solver_parameters:
-        adjoint_solver_parameters = copy.copy(linear_solver_parameters)
+        adjoint_solver_parameters = dict(linear_solver_parameters)
         tlm_adjoint_parameters = adjoint_solver_parameters["tlm_adjoint"] \
-            = copy.copy(linear_solver_parameters["tlm_adjoint"])
+            = dict(linear_solver_parameters["tlm_adjoint"])
 
         tlm_adjoint_parameters["nullspace"] \
             = linear_solver_parameters["tlm_adjoint"]["transpose_nullspace"]
@@ -149,7 +150,7 @@ def strip_terminal_data(form):
         unbound_form, maps = \
             ufl.algorithms.strip_terminal_data(ufl.replace(form, replace_map))
 
-        binding_map = copy.copy(maps[0])
+        binding_map = dict(maps[0])
         for replacement_dep, dep in maps[0].items():
             if dep in replace_map_inverse:
                 binding_map[replacement_dep] = replace_map_inverse[dep]
@@ -169,7 +170,7 @@ def bind_form(form):
                     strip_terminal_data(eliminate_zeros(form, force_non_empty_form=True))  # noqa: E501
             unbound_form, maps = form._cache["_tlm_adjoint__unbound_form"]
 
-            binding_map = copy.copy(maps[0])
+            binding_map = dict(maps[0])
             for replacement_dep, dep in maps[0].items():
                 if dep in bindings:
                     binding_map[replacement_dep] = bindings[dep]
@@ -323,7 +324,7 @@ def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
 
 def linear_solver(A, linear_solver_parameters):
     if "tlm_adjoint" in linear_solver_parameters:
-        linear_solver_parameters = copy.copy(linear_solver_parameters)
+        linear_solver_parameters = dict(linear_solver_parameters)
         tlm_adjoint_parameters = linear_solver_parameters.pop("tlm_adjoint")
         options_prefix = tlm_adjoint_parameters.get("options_prefix", None)
         nullspace = tlm_adjoint_parameters.get("nullspace", None)
@@ -534,7 +535,7 @@ def solve(*args, **kwargs):
         solver_parameters = {}
 
     if "tlm_adjoint" in solver_parameters:
-        solver_parameters = copy.copy(solver_parameters)
+        solver_parameters = dict(solver_parameters)
         tlm_adjoint_parameters = solver_parameters.pop("tlm_adjoint")
 
         if "options_prefix" in tlm_adjoint_parameters:
