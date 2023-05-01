@@ -44,12 +44,11 @@ import warnings
 
 __all__ = \
     [
-        "new_scalar_function",
-
         "RealFunctionSpace",
         "default_comm",
         "function_space_id",
         "function_space_new",
+        "new_scalar_function",
         "info",
         "warning"
     ]
@@ -105,24 +104,25 @@ class FunctionSpaceInterface(SpaceInterface):
                         cache=cache, checkpoint=checkpoint)
 
 
-_FunctionSpace_add_interface = [True]
+_FunctionSpace_add_interface = True
 
 
 def FunctionSpace_add_interface_disabled(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        add_interface = _FunctionSpace_add_interface[0]
-        _FunctionSpace_add_interface[0] = False
+        global _FunctionSpace_add_interface
+        add_interface = _FunctionSpace_add_interface
+        _FunctionSpace_add_interface = False
         try:
             return fn(*args, **kwargs)
         finally:
-            _FunctionSpace_add_interface[0] = add_interface
+            _FunctionSpace_add_interface = add_interface
     return wrapped_fn
 
 
 def _FunctionSpace__init__(self, *args, **kwargs):
     backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    if _FunctionSpace_add_interface[0]:
+    if _FunctionSpace_add_interface:
         add_interface(self, FunctionSpaceInterface,
                       {"comm": comm_dup_cached(self.mesh().mpi_comm()),
                        "id": new_space_id()})
@@ -386,12 +386,6 @@ backend_Function._tlm_adjoint__orig_split = backend_Function.split
 backend_Function.split = _Function_split
 
 
-def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
-                        checkpoint=None):
-    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
-                    checkpoint=checkpoint)
-
-
 def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, backend_Vector):
         y = (1.0, y)
@@ -472,11 +466,20 @@ def default_comm():
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_scalar_function instead",
+                  "use Float instead",
                   DeprecationWarning, stacklevel=2)
     if comm is None:
         comm = DEFAULT_COMM
     return FunctionSpace(UnitIntervalMesh(comm, comm.size), "R", 0)
+
+
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
+                        checkpoint=None):
+    warnings.warn("new_scalar_function is deprecated -- "
+                  "use Float instead",
+                  DeprecationWarning, stacklevel=2)
+    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
+                    checkpoint=checkpoint)
 
 
 def function_space_id(*args, **kwargs):

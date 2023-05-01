@@ -158,11 +158,6 @@ def point_cells(coords, mesh):
 
 
 def greedy_coloring(space):
-    """
-    A basic greedy coloring of the (process local) node-node graph, ordered
-    using an advancing front.
-    """
-
     mesh = space.mesh()
     dofmap = space.dofmap()
     ownership_range = dofmap.ownership_range()
@@ -180,6 +175,9 @@ def greedy_coloring(space):
                     node_node_graph[j].add(k)
     node_node_graph = tuple(sorted(nodes, reverse=True)
                             for nodes in node_node_graph)
+
+    # A basic greedy coloring of the (process local) node-node graph, ordered
+    # using an advancing front
 
     seen = np.full(N, False, dtype=bool)
     colors = np.full(N, -1, dtype=np.int64)
@@ -217,7 +215,27 @@ def local_solver_key(form, solver_type):
 
 
 class LocalSolverCache(Cache):
-    def local_solver(self, form, solver_type=None, replace_map=None):
+    """A :class:`tlm_adjoint.caches.Cache` for element-wise local block
+    diagonal linear solvers.
+    """
+
+    def local_solver(self, form, solver_type=None, *,
+                     replace_map=None):
+        """Construct an element-wise local block diagonal linear solver and
+        cache the result, or return a previously cached result.
+
+        :arg form: An arity two UFL :class:`Form`, defining the element-wise
+            local block diagonal matrix.
+        :arg local_solver: DOLFIN :class:`LocalSolver.SolverType`. Defaults
+            to `dolfin.LocalSolver.SolverType.LU`.
+        :arg replace_map: A :class:`Mapping` defining a map from symbolic
+            variables to values.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a DOLFIN
+            :class:`LocalSolver` and `value_ref` is a
+            :class:`tlm_adjoint.caches.CacheRef` storing a reference to
+            `value`.
+        """
+
         if solver_type is None:
             solver_type = LocalSolver.SolverType.LU
 
@@ -237,21 +255,44 @@ class LocalSolverCache(Cache):
                         deps=tuple(form_dependencies(form).values()))
 
 
-_local_solver_cache = [LocalSolverCache()]
+_local_solver_cache = LocalSolverCache()
 
 
 def local_solver_cache():
-    return _local_solver_cache[0]
+    """
+    :returns: The default :class:`LocalSolverCache`.
+    """
+
+    return _local_solver_cache
 
 
 def set_local_solver_cache(local_solver_cache):
-    _local_solver_cache[0] = local_solver_cache
+    """Set the default :class:`LocalSolverCache`.
+
+    :arg local_solver_cache: The new default :class:`LocalSolverCache`.
+    """
+
+    global _local_solver_cache
+    _local_solver_cache = local_solver_cache
 
 
 class LocalProjection(EquationSolver):
-    def __init__(self, x, rhs, *, form_compiler_parameters=None,
-                 cache_jacobian=None, cache_rhs_assembly=None,
-                 match_quadrature=None, defer_adjoint_assembly=None):
+    """Represents the solution of a finite element variational problem
+    performing a projection onto the space for `x`, for the case where the mass
+    matrix is element-wise local block diagonal.
+
+    :arg x: A DOLFIN :class:`Function` defining the forward solution.
+    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
+        space for `x`, or a UFL :class:`Form` defining the right-hand-side
+        of the finite element variational problem. Should not depend on `x`.
+
+    Remaining arguments are passed to the :class:`EquationSolver` constructor.
+    """
+
+    def __init__(self, x, rhs, *,
+                 form_compiler_parameters=None, cache_jacobian=None,
+                 cache_rhs_assembly=None, match_quadrature=None,
+                 defer_adjoint_assembly=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
@@ -344,6 +385,8 @@ class LocalProjection(EquationSolver):
 
 
 class LocalProjectionSolver(LocalProjection):
+    ""
+
     def __init__(self, rhs, x, form_compiler_parameters=None,
                  cache_jacobian=None, cache_rhs_assembly=None,
                  match_quadrature=None, defer_adjoint_assembly=None):
@@ -358,7 +401,8 @@ class LocalProjectionSolver(LocalProjection):
             defer_adjoint_assembly=defer_adjoint_assembly)
 
 
-def point_owners(x_coords, y_space, tolerance=0.0):
+def point_owners(x_coords, y_space, *,
+                 tolerance=0.0):
     comm = space_comm(y_space)
     rank = comm.rank
 
@@ -482,34 +526,33 @@ class InterpolationMatrix(LocalMatrix):
 
 
 class Interpolation(LinearEquation):
-    def __init__(self, x, y, *, x_coords=None, y_colors=None, P=None,
+    r"""Represents interpolation of the scalar-valued function `y` onto the
+    space for `x`.
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    Internally this builds (or uses a supplied) interpolation matrix for the
+    local process *only*. This behaves correctly if the there are no edges
+    between owned and non-owned nodes in the degree of freedom graph associated
+    with the discrete function space for `y`.
+
+    :arg x: A scalar-valued DOLFIN :class:`Function` defining the forward
+        solution.
+    :arg y: A scalar-valued DOLFIN :class:`Function` to interpolate onto the
+        space for `x`.
+    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+        to interpolate `y`. Shape is `(n, d)` where `n` is the number of
+        process local degrees of freedom for `x` and `d` is the geometric
+        dimension. Defaults to the process local degree of freedom locations
+        for `x`. Ignored if `P` is supplied.
+    :arg P: The interpolation matrix. A SciPy :class:`spmatrix`.
+    :arg tolerance: Maximum permitted distance of an interpolation point from
+        a cell in the mesh for `y`. Ignored if `P` is supplied.
+    """
+
+    def __init__(self, x, y, *, x_coords=None, P=None,
                  tolerance=0.0):
-        """
-        Defines an equation which interpolates the scalar-valued Function y.
-
-        Internally this builds (or uses a supplied) interpolation matrix for
-        the *local process only*. This works correctly in parallel if y is in a
-        discontinuous function space (e.g. Discontinuous Lagrange) but may fail
-        in parallel otherwise.
-
-        For parallel cases this equation can be combined with
-        LocalProjectionSolver to first project the input field onto an
-        appropriate discontinuous space.
-
-        Arguments:
-
-        x          A scalar-valued Function. The solution to the equation.
-        y          A scalar-valued Function. The Function to be interpolated.
-        x_coords   (Optional) A NumPy array. Coordinates at which to
-                   interpolate the Function.
-        y_colors   (Optional) An integer NumPy vector. Node-node graph coloring
-                   for the space for y. Ignored if P is supplied. Generated
-                   using greedy_coloring if not supplied.
-        P          (Optional) Interpolation matrix.
-        tolerance  (Optional) Maximum distance of an interpolation point from
-                   a cell. Ignored if P is supplied.
-        """
-
         check_space_type(x, "primal")
         check_space_type(y, "primal")
 
@@ -534,9 +577,7 @@ class Interpolation(LinearEquation):
             if (y_distances > tolerance).any():
                 raise RuntimeError("Unable to locate one or more cells")
 
-            if y_colors is None:
-                y_colors = greedy_coloring(y_space)
-
+            y_colors = greedy_coloring(y_space)
             P = interpolation_matrix(x_coords, y, y_cells, y_colors)
         else:
             P = P.copy()
@@ -546,51 +587,48 @@ class Interpolation(LinearEquation):
 
 
 class InterpolationSolver(Interpolation):
+    ""
+
     def __init__(self, y, x, x_coords=None, y_colors=None, P=None, P_T=None,
                  tolerance=0.0):
+        if y_colors is not None:
+            warnings.warn("y_colors argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
         if P_T is not None:
             warnings.warn("P_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
         warnings.warn("InterpolationSolver is deprecated -- "
                       "use Interpolation instead",
                       DeprecationWarning, stacklevel=2)
-        super().__init__(x, y, x_coords=x_coords, y_colors=y_colors, P=P,
+        super().__init__(x, y, x_coords=x_coords, P=P,
                          tolerance=tolerance)
 
 
 class PointInterpolation(Equation):
-    def __init__(self, X, y, X_coords=None, *, y_colors=None, y_cells=None,
+    r"""Represents interpolation of a scalar-valued function at given points.
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    Internally this builds (or uses a supplied) interpolation matrix for the
+    local process *only*. This behaves correctly if the there are no edges
+    between owned and non-owned nodes in the degree of freedom graph associated
+    with the discrete function space for `y`.
+
+    :arg X: A scalar function, or a :class:`Sequence` of scalar functions,
+        defining the forward solution.
+    :arg y: A scalar-valued DOLFIN :class:`Function` to interpolate.
+    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+        to interpolate `y`. Shape is `(n, d)` where `n` is the number of
+        interpolation points and `d` is the geometric dimension. Ignored if `P`
+        is supplied.
+    :arg P: The interpolation matrix. A SciPy :class:`spmatrix`.
+    :arg tolerance: Maximum permitted distance of an interpolation point from
+        a cell in the mesh for `y`. Ignored if `P` is supplied.
+    """
+
+    def __init__(self, X, y, X_coords=None, *,
                  P=None, tolerance=0.0):
-        """
-        Defines an equation which interpolates the scalar-valued Function y at
-        the points X_coords.
-
-        Internally this builds (or uses a supplied) interpolation matrix for
-        the *local process only*. This works correctly in parallel if y is in a
-        discontinuous function space (e.g. Discontinuous Lagrange) but may fail
-        in parallel otherwise.
-
-        For parallel cases this equation can be combined with
-        LocalProjectionSolver to first project the input field onto an
-        appropriate discontinuous space.
-
-        Arguments:
-
-        X         A scalar, or a sequence of scalars. The solution to the
-                  equation.
-        y         A scalar-valued Function. The Function to be interpolated.
-        X_coords  A NumPy matrix. Points at which to interpolate y.
-                  Ignored if P is supplied, required otherwise.
-        y_colors  (Optional) An integer NumPy vector. Node-node graph coloring
-                  for the space for y. Ignored if P is supplied. Generated
-                  using greedy_coloring if not supplied.
-        y_cells   (Optional) An integer NumPy vector. The cells in the y mesh
-                  containing each point. Ignored if P is supplied.
-        P         (Optional) Interpolation matrix.
-        tolerance  (Optional) Maximum distance of an interpolation point from
-                   a cell. Ignored if P or y_cells are supplied.
-        """
-
         if is_function(X):
             X = (X,)
         for x in X:
@@ -614,12 +652,8 @@ class PointInterpolation(Equation):
         if P is None:
             y_space = function_space(y)
 
-            if y_cells is None:
-                y_cells = point_owners(X_coords, y_space, tolerance=tolerance)
-
-            if y_colors is None:
-                y_colors = greedy_coloring(y_space)
-
+            y_cells = point_owners(X_coords, y_space, tolerance=tolerance)
+            y_colors = greedy_coloring(y_space)
             P = interpolation_matrix(X_coords, y, y_cells, y_colors)
         else:
             P = P.copy()
@@ -678,13 +712,21 @@ class PointInterpolation(Equation):
 
 
 class PointInterpolationSolver(PointInterpolation):
+    ""
+
     def __init__(self, y, X, X_coords=None, y_colors=None, y_cells=None,
                  P=None, P_T=None, tolerance=0.0):
+        if y_colors is not None:
+            warnings.warn("y_colors argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
+        if y_cells is not None:
+            warnings.warn("y_cells argument is deprecated and has no effect",
+                          DeprecationWarning, stacklevel=2)
         if P_T is not None:
             warnings.warn("P_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
         warnings.warn("PointInterpolationSolver is deprecated -- "
                       "use PointInterpolation instead",
                       DeprecationWarning, stacklevel=2)
-        super().__init__(X, y, X_coords, y_colors=y_colors, y_cells=y_cells,
+        super().__init__(X, y, X_coords,
                          P=P, tolerance=tolerance)

@@ -34,8 +34,6 @@ __all__ = \
         "default_dtype",
         "set_default_dtype",
 
-        "new_scalar_function",
-
         "Function",
         "FunctionSpace",
 
@@ -44,6 +42,7 @@ __all__ = \
         "default_comm",
         "function_space_id",
         "function_space_new",
+        "new_scalar_function",
         "info",
         "warning"
     ]
@@ -80,7 +79,8 @@ class FunctionSpaceInterface(SpaceInterface):
 
 
 class FunctionSpace:
-    def __init__(self, dim, *, dtype=None):
+    def __init__(self, dim, *,
+                 dtype=None):
         comm = comm_dup_cached(DEFAULT_COMM)
         if comm.size > 1:
             raise RuntimeError("Serial only")
@@ -222,8 +222,9 @@ class FunctionInterface(_FunctionInterface):
 
 
 class Function:
-    def __init__(self, space, *, name=None, space_type="primal", static=False,
-                 cache=None, checkpoint=None, _data=None):
+    def __init__(self, space, *,
+                 name=None, space_type="primal", static=False, cache=None,
+                 checkpoint=None, _data=None):
         if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
             raise ValueError("Invalid space type")
         id = new_function_id()
@@ -369,12 +370,6 @@ class Replacement:
         return self._caches
 
 
-def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
-                        checkpoint=None):
-    return Function(FunctionSpace(1), name=name, static=static, cache=cache,
-                    checkpoint=checkpoint)
-
-
 def default_comm():
     warnings.warn("default_comm is deprecated",
                   DeprecationWarning, stacklevel=2)
@@ -383,9 +378,18 @@ def default_comm():
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_scalar_function instead",
+                  "use Float instead",
                   DeprecationWarning, stacklevel=2)
     return FunctionSpace(1)
+
+
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
+                        checkpoint=None):
+    warnings.warn("new_scalar_function is deprecated -- "
+                  "use Float instead",
+                  DeprecationWarning, stacklevel=2)
+    return Function(FunctionSpace(1), name=name, static=static, cache=cache,
+                    checkpoint=checkpoint)
 
 
 def function_space_id(*args, **kwargs):

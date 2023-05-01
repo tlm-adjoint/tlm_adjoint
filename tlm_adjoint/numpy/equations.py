@@ -37,7 +37,8 @@ __all__ = \
 
 
 class ConstantMatrix(Matrix):
-    def __init__(self, A, A_T=None, *, ic=False, adj_ic=False):
+    def __init__(self, A, *,
+                 A_T=None, ic=False, adj_ic=False):
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
@@ -95,7 +96,8 @@ class ConstantMatrix(Matrix):
 
 
 class ContractionArray:
-    def __init__(self, A, I, A_T=None, alpha=1.0):  # noqa: E741
+    def __init__(self, A, I, *,  # noqa: E741
+                 A_T=None, alpha=1.0):
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
@@ -150,7 +152,8 @@ class ContractionArray:
 
 
 class ContractionRHS(RHS):
-    def __init__(self, A, I, X, A_T=None, alpha=1.0):  # noqa: E741
+    def __init__(self, A, I, X, *,  # noqa: E741
+                 A_T=None, alpha=1.0):
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
                           DeprecationWarning, stacklevel=2)
@@ -224,7 +227,8 @@ class ContractionRHS(RHS):
 
 
 class Contraction(LinearEquation):
-    def __init__(self, x, A, I, Y, *, alpha=1.0):  # noqa: E741
+    def __init__(self, x, A, I, Y, *,  # noqa: E741
+                 alpha=1.0):
         super().__init__(x, ContractionRHS(A, I, Y, alpha=alpha))
 
 

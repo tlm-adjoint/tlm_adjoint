@@ -36,27 +36,16 @@ import ufl
 
 __all__ = \
     [
-        "assemble_arguments",
+        "complex_mode",
+
         "assemble_linear_solver",
         "assemble_matrix",
-        "complex_mode",
-        "copy_parameters_dict",
-        "form_form_compiler_parameters",
-        "function_vector",
-        "homogenize",
-        "interpolate_expression",
-        "is_valid_r0_space",
         "linear_solver",
-        "matrix_copy",
         "matrix_multiply",
-        "parameters_key",
-        "process_adjoint_solver_parameters",
-        "process_solver_parameters",
-        "r0_space",
-        "rhs_addto",
-        "rhs_copy",
-        "update_parameters_dict",
-        "verify_assembly",
+
+        "homogenize",
+
+        "interpolate_expression",
 
         "assemble",
         "solve"
@@ -195,8 +184,8 @@ def bind_form(form):
         return form
 
 
-def _assemble(form, tensor=None, form_compiler_parameters=None,
-              *args, **kwargs):
+def _assemble(form, tensor=None, *args,
+              form_compiler_parameters=None, **kwargs):
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -215,8 +204,8 @@ def _assemble(form, tensor=None, form_compiler_parameters=None,
     return b
 
 
-def _assemble_system(A_form, b_form=None, bcs=None,
-                     form_compiler_parameters=None, *args, **kwargs):
+def _assemble_system(A_form, b_form=None, bcs=None, *args,
+                     form_compiler_parameters=None, **kwargs):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -277,8 +266,8 @@ backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
 
-def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
-                    *args, **kwargs):
+def assemble_matrix(form, bcs=None, *args,
+                    form_compiler_parameters=None, **kwargs):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -291,10 +280,8 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
                             *args, **kwargs)
 
 
-def assemble(form, tensor=None, form_compiler_parameters=None,
-             *args, **kwargs):
-    # Similar interface to assemble in FEniCS 2019.1.0
-
+def assemble(form, tensor=None, *args,
+             form_compiler_parameters=None, **kwargs):
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -312,7 +299,7 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     return b
 
 
-def assemble_linear_solver(A_form, b_form=None, bcs=None,
+def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
                            form_compiler_parameters=None,
                            linear_solver_parameters=None):
     if bcs is None:
@@ -387,8 +374,8 @@ def matrix_copy(A):
     return A_copy
 
 
-def matrix_multiply(A, x, *, tensor=None, addto=False,
-                    action_type="conjugate_dual"):
+def matrix_multiply(A, x, *,
+                    tensor=None, addto=False, action_type="conjugate_dual"):
     if tensor is None:
         tensor = space_new(
             A.a.arguments()[0].function_space(),

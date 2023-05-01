@@ -40,27 +40,16 @@ import ufl
 
 __all__ = \
     [
-        "assemble_arguments",
+        "complex_mode",
+
         "assemble_linear_solver",
         "assemble_matrix",
-        "complex_mode",
-        "copy_parameters_dict",
-        "form_form_compiler_parameters",
-        "function_vector",
-        "homogenize",
-        "interpolate_expression",
-        "is_valid_r0_space",
         "linear_solver",
-        "matrix_copy",
         "matrix_multiply",
-        "parameters_key",
-        "process_adjoint_solver_parameters",
-        "process_solver_parameters",
-        "r0_space",
-        "rhs_addto",
-        "rhs_copy",
-        "update_parameters_dict",
-        "verify_assembly",
+
+        "homogenize",
+
+        "interpolate_expression",
 
         "assemble",
         "solve"
@@ -178,8 +167,8 @@ def assemble_arguments(arity, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
-                    *args, **kwargs):
+def assemble_matrix(form, bcs=None, *args,
+                    form_compiler_parameters=None, **kwargs):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -209,7 +198,7 @@ def assemble_matrix(form, bcs=None, form_compiler_parameters=None,
     return A, b_bc
 
 
-def assemble_linear_solver(A_form, b_form=None, bcs=None,
+def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
                            form_compiler_parameters=None,
                            linear_solver_parameters=None):
     if bcs is None:
@@ -278,8 +267,8 @@ def matrix_copy(A):
     return A.copy()
 
 
-def matrix_multiply(A, x, *, tensor=None, addto=False,
-                    action_type="conjugate_dual"):
+def matrix_multiply(A, x, *,
+                    tensor=None, addto=False, action_type="conjugate_dual"):
     if tensor is None:
         if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
             tensor = function_vector(space_new(

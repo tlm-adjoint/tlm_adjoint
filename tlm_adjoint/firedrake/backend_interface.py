@@ -45,12 +45,11 @@ import warnings
 
 __all__ = \
     [
-        "new_scalar_function",
-
         "RealFunctionSpace",
         "default_comm",
         "function_space_id",
         "function_space_new",
+        "new_scalar_function",
         "info",
         "warning"
     ]
@@ -364,12 +363,6 @@ backend_Function._tlm_adjoint__orig_sub = backend_Function.sub
 backend_Function.sub = _Function_sub
 
 
-def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
-                        checkpoint=None):
-    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
-                    checkpoint=checkpoint)
-
-
 def _subtract_adjoint_derivative_action(x, y):
     if isinstance(y, ufl.classes.Form) \
             and isinstance(x, (backend_Constant, backend_Function)):
@@ -435,11 +428,20 @@ def default_comm():
 
 def RealFunctionSpace(comm=None):
     warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use new_scalar_function instead",
+                  "use Float instead",
                   DeprecationWarning, stacklevel=2)
     if comm is None:
         comm = DEFAULT_COMM
     return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
+
+
+def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
+                        checkpoint=None):
+    warnings.warn("new_scalar_function is deprecated -- "
+                  "use Float instead",
+                  DeprecationWarning, stacklevel=2)
+    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
+                    checkpoint=checkpoint)
 
 
 def function_space_id(*args, **kwargs):
