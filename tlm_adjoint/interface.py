@@ -240,11 +240,7 @@ _parent_comms = {}
 
 
 def comm_parent(dup_comm):
-    comm_py2f = _parent_comms.get(dup_comm.py2f(), None)
-    if comm_py2f is None:
-        return dup_comm
-    else:
-        return f2py(comm_py2f)
+    return _parent_comms.get(dup_comm.py2f(), dup_comm)
 
 
 def comm_dup(comm):
@@ -262,7 +258,7 @@ def comm_dup(comm):
         return comm
 
     dup_comm = comm.Dup()
-    _parent_comms[dup_comm.py2f()] = comm.py2f()
+    _parent_comms[dup_comm.py2f()] = comm
 
     def finalize_callback(dup_comm_py2f):
         if MPI is not None and not MPI.Is_finalized():
@@ -299,7 +295,7 @@ def comm_dup_cached(comm):
 
     if dup_comm is None:
         dup_comm = comm.Dup()
-        _parent_comms[dup_comm.py2f()] = comm.py2f()
+        _parent_comms[dup_comm.py2f()] = comm
         _dup_comms[comm.py2f()] = dup_comm
 
         def finalize_callback(comm_py2f, dup_comm):
