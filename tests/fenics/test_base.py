@@ -202,8 +202,9 @@ def test_leaks():
 
     refs = 0
     for F in referenced_functions():
-        info(f"{function_name(F):s} referenced")
-        refs += 1
+        if not isinstance(F, ZeroConstant):
+            info(f"{function_name(F):s} referenced")
+            refs += 1
     if refs == 0:
         info("No references")
 
