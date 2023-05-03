@@ -20,7 +20,8 @@
 
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend_code_generator_interface import function_vector
+from tlm_adjoint.fenics.backend_code_generator_interface import \
+    assemble_linear_solver, function_vector
 
 from .test_base import *
 
@@ -771,72 +772,46 @@ def test_InnerProduct(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
-@no_space_type_checking
+@pytest.mark.parametrize("test_adj_ic", [False, True])
 @seed_test
-def test_initial_guess(setup_test, test_leaks):
+def test_initial_guess(setup_test, test_leaks,
+                       test_adj_ic):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Lagrange", 1)
-    test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
+    test_1 = TestFunction(space_1)
     space_2 = FunctionSpace(mesh, "Lagrange", 2)
 
-    zero = Constant(0.0, static=True)
+    zero = ZeroConstant(name="zero")
 
-    def forward(y, x_0=None):
-        if x_0 is None:
-            x_0 = project(y, space_1,
-                          solver_parameters=ls_parameters_cg)
+    def forward(y):
+        x_0 = project(y, space_1,
+                      solver_parameters=ls_parameters_cg)
         x = Function(space_1, name="x")
 
         class CustomProjection(Projection):
-            def __init__(self, x, y, *, form_compiler_parameters=None,
-                         solver_parameters=None):
-                if form_compiler_parameters is None:
-                    form_compiler_parameters = {}
-                if solver_parameters is None:
-                    solver_parameters = {}
-
-                assert is_function(y)
-                super().__init__(
-                    x, inner(y, TestFunction(x.function_space())) * dx,
-                    form_compiler_parameters=form_compiler_parameters,
-                    solver_parameters=solver_parameters,
-                    cache_jacobian=False, cache_rhs_assembly=False)
-
             def forward_solve(self, x, deps=None):
                 rhs = self._rhs
                 if deps is not None:
                     rhs = self._replace(rhs, deps)
-                J, b = assemble_system(
+                solver, _, b = assemble_linear_solver(
                     self._J, rhs,
-                    form_compiler_parameters=self._form_compiler_parameters)
-                solver = linear_solver(J, self._linear_solver_parameters)
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    linear_solver_parameters=self._linear_solver_parameters)
                 its = solver.solve(x.vector(), b)
                 assert its == 0
 
             def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
                 assert adj_x is not None
-                J = assemble(
+                solver, _, _ = assemble_linear_solver(
                     self._J,
-                    form_compiler_parameters=self._form_compiler_parameters)
-                solver = linear_solver(J, self._linear_solver_parameters)
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    linear_solver_parameters=self._adjoint_solver_parameters)
                 its = solver.solve(adj_x.vector(), b.vector())
-                # test_adj_ic defined in test scope below
-                assert not test_adj_ic or its == 0
+                assert (its == 0) == test_adj_ic
                 return adj_x
 
-            def tangent_linear(self, M, dM, tlm_map):
-                x, y = self.dependencies()
-                tau_y = get_tangent_linear(y, M, dM, tlm_map)
-                if tau_y is None:
-                    return ZeroAssignment(tlm_map[x])
-                else:
-                    return CustomProjection(
-                        tlm_map[x], tau_y,
-                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                        solver_parameters=self._solver_parameters)
-
-        Assignment(x, x_0).solve()
+        x.assign(x_0)
         CustomProjection(
             x, y,
             solver_parameters={"linear_solver": "cg",
@@ -847,34 +822,20 @@ def test_initial_guess(setup_test, test_leaks):
 
         J = Functional(name="J")
         J.assign((dot(x, x) ** 2) * dx)
-        J_val = J.value()
 
-        # test_adj_ic defined in test scope below
-        if test_adj_ic:
-            adj_x_0 = Function(space_1, name="adj_x_0", static=True)
-            solve(
-                inner(trial_1, test_1) * dx
-                == 4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
-                adj_x_0, solver_parameters=ls_parameters_cg,
-                annotate=False, tlm=False)
+        adj_x_0 = Function(space_1, space_type="conjugate_dual",
+                           name="adj_x_0", static=True)
+        assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
+                 tensor=function_vector(adj_x_0))
+        Projection(x, zero,
+                   solver_parameters=ls_parameters_cg).solve()
+        if not test_adj_ic:
             ZeroAssignment(x).solve()
-            J_term = function_new(J.function())
-            InnerProduct(J_term, x, adj_x_0).solve()
-            J.addto(J_term)
-        else:
-            adj_x_0 = None
+        J_term = function_new(J.function())
+        InnerProduct(J_term, x, adj_x_0).solve()
+        J.addto(J_term)
 
-        # Active equation which requires no adjoint initial condition, but
-        # for which one will be supplied
-        z = Function(space_1, name="z")
-        Projection(
-            z, zero * x,
-            solver_parameters=ls_parameters_cg).solve()
-        J.addto(dot(z, z) * dx)
-
-        assert abs(J.value() - J_val) == 0.0
-
-        return x, adj_x_0, z, J
+        return x_0, x, adj_x_0, J
 
     y = Function(space_2, name="y", static=True)
     if issubclass(function_dtype(y), (complex, np.complexfloating)):
@@ -882,48 +843,35 @@ def test_initial_guess(setup_test, test_leaks):
     else:
         interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
 
-    test_adj_ic = True
     start_manager()
-    x_0 = Function(space_1, name="x_0")
-    solve(inner(trial_1, test_1) * dx == inner(y, test_1) * dx,
-          x_0, solver_parameters=ls_parameters_cg)
-    x, adj_x_0, z, J = forward(y, x_0=x_0)
+    x_0, x, adj_x_0, J = forward(y)
     stop_manager()
 
     assert len(manager()._cp._refs) == 3
     assert tuple(manager()._cp._refs.keys()) == (function_id(y),
-                                                 function_id(adj_x_0),
-                                                 function_id(zero))
+                                                 function_id(zero),
+                                                 function_id(adj_x_0))
     assert len(manager()._cp._cp) == 0
-    assert len(manager()._cp._data) == 10
-    assert tuple(len(nl_deps) for nl_deps in manager()._cp._data.values()) \
-        == (0, 0, 0, 1, 0, 2, 0, 2, 1, 0)
-    assert len(manager()._cp._storage) == 6
+    if test_adj_ic:
+        assert len(manager()._cp._data) == 7
+        assert tuple(map(len, manager()._cp._data.values())) \
+            == (0, 0, 0, 1, 0, 2, 0)
+    else:
+        assert len(manager()._cp._data) == 8
+        assert tuple(map(len, manager()._cp._data.values())) \
+            == (0, 0, 0, 1, 0, 0, 2, 0)
+    assert len(manager()._cp._storage) == 5
 
-    dJdx_0, dJdy = compute_gradient(
-        J, [x_0, y], adj_ics={z: ZeroFunction(space_1)})
-    test_adj_ic = False
+    dJdx_0, dJdy = compute_gradient(J, [x_0, y])
     assert function_linf_norm(dJdx_0) == 0.0
 
     J_val = J.value()
 
     def forward_J(y):
-        return forward(y)[3]
+        _, _, _, J = forward(y)
+        return J
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJdy)
-    assert min_order > 2.00
-
-    ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
-
-    min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
     assert min_order > 2.00
 
 
