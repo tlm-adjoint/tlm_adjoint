@@ -363,20 +363,21 @@ class DependencyGraphTranspose:
                     eq = block[k]
                     dep_map = {function_id(dep): j
                                for j, dep in enumerate(eq.dependencies())}
-                    for dep in eq.adjoint_initial_condition_dependencies():
-                        dep_id = function_id(dep)
-                        if dep_id in last_eq:
-                            n, i, m = last_eq[dep_id]
-                            assert n > p or (n == p and i > k)
-                            transpose_deps_ics[n][i][m] \
-                                = (p, k, dep_map[dep_id])
+                    adj_ic_ids = set(map(function_id,
+                                         eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                     for m, x in enumerate(eq.X()):
+                        adj_x_type = function_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
                         x_id = function_id(x)
-                        last_eq[x_id] = (p, k, m)
+                        if x_id in adj_ic_ids and x_id in last_eq:
+                            adj_x_n_i_j_type, (n, i, j) = last_eq[x_id]
+                            if adj_x_type == adj_x_n_i_j_type:
+                                assert n > p or (n == p and i > k)
+                                transpose_deps_ics[n][i][j] = (p, k, m)
+                        last_eq[x_id] = (adj_x_type, (p, k, dep_map[x_id]))
             del last_eq
 
             # Pruning, forward traversal
-            active_M = {function_id(dep) for dep in M}
+            active_M = set(map(function_id, M))
             active_forward = {n: np.full(len(blocks[n]), False, dtype=bool)
                               for n in blocks_n}
             for n in blocks_n:
@@ -432,20 +433,26 @@ class DependencyGraphTranspose:
                                 for n in blocks_n} for J_i in range(len(Js))}
         adj_ics = {J_i: {} for J_i in range(len(Js))}
         for J_i in range(len(Js)):
+            last_eq = {}
             for n in blocks_n:
                 block = blocks[n]
                 for i, eq in enumerate(block):
                     adj_ic_ids = set(map(function_id,
                                          eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                     for m, x in enumerate(eq.X()):
+                        adj_x_type = function_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
                         x_id = function_id(x)
-
-                        stored_adj_ics[J_i][n][i][m] = adj_ics[J_i].get(x_id, None)  # noqa: E501
-
+                        if x_id in last_eq:
+                            adj_x_p_k_m_type, (p, k) = last_eq[x_id]
+                            if adj_x_type == adj_x_p_k_m_type:
+                                stored_adj_ics[J_i][n][i][m] = (p, k)
                         if x_id in adj_ic_ids:
                             adj_ics[J_i][x_id] = (n, i)
-                        elif x_id in adj_ics[J_i]:
-                            del adj_ics[J_i][x_id]
+                            last_eq[x_id] = (adj_x_type, (n, i))
+                        else:
+                            adj_ics[J_i].pop(x_id, None)
+                            last_eq.pop(x_id, None)
+            del last_eq
 
         self._transpose_deps = transpose_deps
         self._active = active

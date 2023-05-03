@@ -429,21 +429,30 @@ class EquationSolver(ExprEquation):
             J = ufl.classes.Form(J.integrals())
 
         if linear:
+            if len(lhs.arguments()) != 2:
+                raise ValueError("Unexpected number of left-hand-side "
+                                 "arguments")
+            if rhs.arguments() != (lhs.arguments()[0],):
+                raise ValueError("Invalid right-hand-side arguments")
             if x in lhs.coefficients() or x in rhs.coefficients():
                 raise ValueError("Invalid non-linear dependency")
+
             F = ufl.action(lhs, coefficient=x) - rhs
             nl_solve_J = None
             J = lhs
         else:
-            F = lhs
+            if len(lhs.arguments()) != 1:
+                raise ValueError("Unexpected number of left-hand-side "
+                                 "arguments")
             if rhs != 0:
                 raise ValueError("Invalid right-hand-side")
+
+            F = lhs
             nl_solve_J = J
             J = derivative(F, x)
             J = ufl.algorithms.expand_derivatives(J)
 
         deps, nl_deps = extract_dependencies(F)
-
         if nl_solve_J is not None:
             for dep in nl_solve_J.coefficients():
                 if is_function(dep):

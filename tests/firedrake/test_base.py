@@ -199,7 +199,8 @@ def test_leaks():
 
     refs = 0
     for F in referenced_functions():
-        if function_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
+        if function_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates" \
+                and not isinstance(F, ZeroConstant):
             info(f"{function_name(F):s} referenced")
             refs += 1
     if refs == 0:
