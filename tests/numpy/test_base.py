@@ -22,7 +22,6 @@ from tlm_adjoint.numpy import *
 from tlm_adjoint.numpy import manager as _manager
 from tlm_adjoint.alias import gc_disabled
 
-import copy
 import functools
 import gc
 import hashlib
@@ -74,7 +73,7 @@ def setup_test():
 def seed_test(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        h_kwargs = copy.copy(kwargs)
+        h_kwargs = dict(kwargs)
         if "tmp_path" in inspect.signature(fn).parameters:
             # Raises an error if tmp_path is a positional argument
             del h_kwargs["tmp_path"]

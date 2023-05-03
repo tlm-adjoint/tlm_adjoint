@@ -23,7 +23,6 @@ from tlm_adjoint.firedrake import *
 
 from .test_base import *
 
-import copy
 import mpi4py.MPI as MPI
 import numpy as np
 import pytest
@@ -115,7 +114,7 @@ def diffusion_ref():
 def test_oscillator(setup_test, test_leaks,
                     tmp_path, cp_method, cp_parameters):
     n_steps = 20
-    cp_parameters = copy.copy(cp_parameters)
+    cp_parameters = dict(cp_parameters)
     if cp_method != "memory":
         cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":

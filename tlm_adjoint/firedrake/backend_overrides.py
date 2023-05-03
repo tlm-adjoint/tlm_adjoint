@@ -36,7 +36,6 @@ from .equations import Assembly, EquationSolver, ExprEvaluation, Projection, \
     linear_equation_new_x
 from .firedrake_equations import LocalProjection
 
-import copy
 import numpy as np
 import ufl
 
@@ -76,10 +75,10 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
                              near_nullspace=None):
     if options_prefix is not None or nullspace is not None \
        or transpose_nullspace is not None or near_nullspace is not None:
-        solver_parameters = copy.copy(solver_parameters)
+        solver_parameters = dict(solver_parameters)
         if "tlm_adjoint" in solver_parameters:
             tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = \
-                copy.copy(solver_parameters["tlm_adjoint"])
+                dict(solver_parameters["tlm_adjoint"])
         else:
             tlm_adjoint_parameters = solver_parameters["tlm_adjoint"] = {}
 

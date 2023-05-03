@@ -100,7 +100,7 @@ def setup_test():
 def seed_test(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        h_kwargs = copy.copy(kwargs)
+        h_kwargs = dict(kwargs)
         if "tmp_path" in inspect.signature(fn).parameters:
             # Raises an error if tmp_path is a positional argument
             del h_kwargs["tmp_path"]

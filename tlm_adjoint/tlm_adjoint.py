@@ -40,7 +40,6 @@ from .tangent_linear import TangentLinear, TangentLinearMap, tlm_key, tlm_keys
 from collections import deque
 from collections.abc import Sequence
 import contextlib
-import copy
 import enum
 import functools
 import logging
@@ -170,7 +169,7 @@ class EquationManager:
         info(f"Annotation state: {self._annotation_state:s}")
         info(f"Tangent-linear state: {self._tlm_state:s}")
         info("Equations:")
-        blocks = copy.copy(self._blocks)
+        blocks = list(self._blocks)
         if len(self._block) > 0:
             blocks.append(self._block)
         for n, block in enumerate(blocks):
@@ -365,7 +364,7 @@ class EquationManager:
             raise RuntimeError("Cannot configure checkpointing after "
                                "equations have been recorded")
 
-        cp_parameters = copy.copy(cp_parameters)
+        cp_parameters = dict(cp_parameters)
 
         if not callable(cp_method) and cp_method in ["none", "memory"]:
             if "replace" in cp_parameters:
@@ -381,7 +380,7 @@ class EquationManager:
             alias_eqs = True
 
         if callable(cp_method):
-            cp_schedule_kwargs = copy.copy(cp_parameters)
+            cp_schedule_kwargs = dict(cp_parameters)
             if "path" in cp_schedule_kwargs:
                 del cp_schedule_kwargs["path"]
             if "format" in cp_schedule_kwargs:
