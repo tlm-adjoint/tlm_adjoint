@@ -46,6 +46,13 @@ tlm_adjoint.
   including the solution of a time-dependent partial differential equation
   using Firedrake. Introduces checkpointing.
 
+Source and license
+==================
+
+The source code is available from the
+`tlm_adjoint GitHub repository <https://github.com/tlm-adjoint/tlm_adjoint>`_.
+tlm_adjoint is licensed under the GNU LGPL version 3.
+
 Indices
 =======
 
