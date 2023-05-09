@@ -162,3 +162,14 @@ described in
 [8] J. R. Maddison and P. E. Farrell, 'Rapid development and adjoining of
     transient finite element models', Computer Methods in Applied Mechanics and
     Engineering, 276, 95--121, 2014, doi: 10.1016/j.cma.2014.03.010
+
+===============================================================================
+
+The file tlm_adjoint/optimization.py includes an implementation of the L-BFGS
+algorithm [9,10].
+
+[9]  Jorge Nocedal and Stephen J. Wright, 'Numerical optimization', Springer,
+     New York, NY, 2006, Second edition, doi: 10.1007/978-0-387-40065-5
+[10] Richard H. Byrd, Peihuang Lu, and Jorge Nocedal, and Ciyou Zhu, 'A limited
+     memory algorithm for bound constrained optimization', SIAM Journal on
+     Scientific Computing, 16(5), 1190--1208, 1995, doi: 10.1137/0916069
