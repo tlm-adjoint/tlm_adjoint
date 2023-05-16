@@ -114,6 +114,7 @@ from .functional import Functional
 from .manager import manager as _manager
 from .manager import configure_tlm, paused_manager, reset_manager, \
     restore_manager, set_manager, start_manager, stop_manager
+from .tlm_adjoint import EquationManager
 
 from collections.abc import Sequence
 import functools
@@ -143,7 +144,7 @@ def wrapped_forward(forward):
 @local_caches
 @restore_manager
 def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
-                M0=None, size=5, manager=None):
+                M0=None, size=5):
     r"""Perform a Taylor remainder convergence test. Aims for similar behaviour
     to the :func:`taylor_test` function in dolfin-adjoint 2017.1.0.
 
@@ -198,8 +199,6 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     :arg size: The number of values of :math:`\varepsilon` to consider.
         Corresponds to the `size` argument in the dolfin-adjoint
         :func:`taylor_test` function.
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
-        should be used internally. `manager()` is used if not supplied.
     :returns: The minimum order observed, via a power law fit between
         consecutive pairs of values of :math:`\varepsilon`, in the calculations
         for the corrected Taylor remainder magnitude. In a successful
@@ -215,12 +214,12 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         if M0 is not None:
             M0 = (M0,)
         return taylor_test(forward, (M,), J_val, dJ=dJ, ddJ=ddJ, seed=seed,
-                           dM=dM, M0=M0, size=size, manager=manager)
+                           dM=dM, M0=M0, size=size)
 
     logger = logging.getLogger("tlm_adjoint.verification")
     forward = wrapped_forward(forward)
-    if manager is not None:
-        set_manager(manager)
+    set_manager(EquationManager(cp_method="memory", cp_parameters={}))
+    stop_manager()
 
     if M0 is None:
         M0 = tuple(map(function_copy, M))
@@ -517,4 +516,4 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     dJ = tlm_manager.compute_gradient(J, M)
 
     return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, dM=dM_test,
-                       size=size, manager=tlm_manager)
+                       size=size)
