@@ -30,6 +30,12 @@ __all__ = \
 
 
 class MemoryCheckpointSchedule(CheckpointSchedule):
+    """A checkpointing schedule where all forward restart and non-linear
+    dependency data are stored in memory.
+
+    Online, unlimited adjoint calculations permitted.
+    """
+
     def iter(self):
         # Forward
 

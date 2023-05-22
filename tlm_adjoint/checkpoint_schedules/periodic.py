@@ -28,6 +28,18 @@ __all__ = \
 
 
 class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
+    """A checkpointing schedule where forward restart checkpoints are stored
+    periodically to disk. Non-linear dependency data is recomputed for use by
+    the adjoint by re-running the forward from these checkpoints. If the
+    storage period is greater than one then non-linear dependency data for
+    multiple steps are recomputed and stored when advancing the adjoint.
+
+    Online, unlimited adjoint calculations permitted.
+
+    :arg period: Forward restart checkpoints are stored to disk every `period`
+        forward steps in the initial forward calculation.
+    """
+
     def __init__(self, period):
         if period < 1:
             raise ValueError("period must be positive")

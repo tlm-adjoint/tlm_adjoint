@@ -227,6 +227,25 @@ def mixed_steps_tabulation_0(n, s, schedule):
 
 
 class MixedCheckpointSchedule(CheckpointSchedule):
+    """A checkpointing schedule which mixes storage of forward restart data and
+    non-linear dependency data in checkpointing units. Assumes that the data
+    required to restart the forward has the same size as the data required to
+    advance the adjoint over a step.
+
+    Described in
+
+        - James R. Maddison, 'On the implementation of checkpointing with
+          high-level algorithmic differentiation',
+          https://arxiv.org/abs/2305.09568v1, 2023
+
+    Offline, one adjoint calculation permitted.
+
+    :arg max_n: The number of forward steps in the initial forward calculation.
+    :arg snapshots: The number of available checkpointing units.
+    :arg storage: Checkpointing unit storage location. Either `'RAM'` or
+        `'disk'`.
+    """
+
     def __init__(self, max_n, snapshots, *, storage="disk"):
         if snapshots < min(1, max_n - 1):
             raise ValueError("Invalid number of snapshots")

@@ -29,6 +29,12 @@ __all__ = \
 
 
 class NoneCheckpointSchedule(CheckpointSchedule):
+    """A checkpointing schedule for the case where no adjoint calculation is
+    performed.
+
+    Online, zero adjoint calculations permitted.
+    """
+
     def __init__(self):
         super().__init__()
         self._exhausted = False
