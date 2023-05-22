@@ -38,6 +38,11 @@ __all__ = \
 
 
 class CheckpointAction:
+    """A checkpointing action.
+
+    Parameters can be accessed via the `args` attribute.
+    """
+
     def __init__(self, *args):
         self.args = args
 
@@ -49,6 +54,14 @@ class CheckpointAction:
 
 
 class Clear(CheckpointAction):
+    """A checkpointing action which clears the intermediate storage.
+
+    :arg clear_ics: Whether to clear stored forward restart data. Accessed
+        via the `clear_ics` attribute.
+    :arg clear_data: Whether to clear stored non-linear dependency data.
+        Accessed via the `clear_data` attribute.
+    """
+
     def __init__(self, clear_ics, clear_data):
         super().__init__(clear_ics, clear_data)
 
@@ -62,6 +75,14 @@ class Clear(CheckpointAction):
 
 
 class Configure(CheckpointAction):
+    """A checkpointing action which configures the intermediate storage.
+
+    :arg store_ics: Whether to store forward restart data. Accessed via the
+        `store_ics` attribute.
+    :arg store_data: Whether to store non-linear dependency data. Accessed
+        via the `store_data` attribute.
+    """
+
     def __init__(self, store_ics, store_data):
         super().__init__(store_ics, store_data)
 
@@ -75,6 +96,14 @@ class Configure(CheckpointAction):
 
 
 class Forward(CheckpointAction):
+    """A checkpointing action which indicates forward advancement.
+
+    :arg n0: The forward should start from the start of this step. Accessed via
+        the `n0` attribute.
+    :arg n1: The forward should advance to the start of this step. Accessed via
+        the `n1` attribute.
+    """
+
     def __init__(self, n0, n1):
         super().__init__(n0, n1)
 
@@ -97,6 +126,14 @@ class Forward(CheckpointAction):
 
 
 class Reverse(CheckpointAction):
+    """A checkpointing action which indicates adjoint advancement.
+
+    :arg n1: The adjoint should advance from the start of this step. Accessed
+        via the `n1` attribute.
+    :arg n0: The adjoint should to the start of this step. Accessed via the
+        `n0` attribute.
+    """
+
     def __init__(self, n1, n0):
         super().__init__(n1, n0)
 
@@ -119,6 +156,17 @@ class Reverse(CheckpointAction):
 
 
 class Read(CheckpointAction):
+    """A checkpointing action which indicates loading of data from a
+    checkpointing unit.
+
+    :arg n: The step with which the loaded data is associated. Accessed via the
+        `n` attribute.
+    :arg storage: The storage from which the data should be loaded. Either
+        `'RAM'` or `'disk'`. Accessed via the `storage` attribute.
+    :arg delete: Whether the data should be deleted from the indicated storage
+        after it has been loaded. Accessed via the `delete` attribute.
+    """
+
     def __init__(self, n, storage, delete):
         super().__init__(n, storage, delete)
 
@@ -136,6 +184,15 @@ class Read(CheckpointAction):
 
 
 class Write(CheckpointAction):
+    """A checkpointing action which indicates saving of data to a checkpointing
+    unit.
+
+    :arg n: The step with which the saved data is associated. Accessed via the
+        `n` attribute.
+    :arg storage: The storage to which the data should be saved. Either `'RAM'`
+        or `'disk'`. Accessed via the `storage` attribute.
+    """
+
     def __init__(self, n, storage):
         super().__init__(n, storage)
 
@@ -149,10 +206,22 @@ class Write(CheckpointAction):
 
 
 class EndForward(CheckpointAction):
+    """A checkpointing action which indicates the end of the initial forward
+    calculation.
+    """
+
     pass
 
 
 class EndReverse(CheckpointAction):
+    """A checkpointing action which indicates the end of an adjoint
+    calculation.
+
+    :arg exhausted: Indicates whether the schedule has concluded. If `True`
+       then this action should be the last action in the schedule. Accessed via
+       the `exhausted` attribute.
+    """
+
     def __init__(self, exhausted):
         super().__init__(exhausted)
 
@@ -162,50 +231,46 @@ class EndReverse(CheckpointAction):
 
 
 class CheckpointSchedule(ABC):
-    """
-    A checkpointing schedule.
+    """A checkpointing schedule.
 
-    The schedule is defined by iter, which yields actions in a similar manner
-    to the approach used in
-       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
-       of checkpointing for the reverse or adjoint mode of computational
-       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
-       19--45, 2000
-    e.g. 'forward', 'read', and 'write' correspond to ADVANCE, RESTORE, and
-    TAKESHOT respectively in Griewank and Walther 2000 (although here 'write'
-    actions occur *after* forward advancement from snapshots).
+    Actions in the schedule are accessed by iterating over elements, and
+    actions may be implemented using single-dispatch functions. e.g.
 
-    The iter method yields (action, data), with:
+    .. code-block:: python
 
-    Clear(clear_ics, clear_data)
-    Clear checkpoint storage. clear_ics indicates whether stored initial
-    condition data should be cleared. clear_data indicates whether stored
-    non-linear dependency data should be cleared.
+        @functools.singledispatch
+        def action(cp_action):
+            raise TypeError(f"Unexpected checkpointing action: {cp_action}")
 
-    Configure(store_ics, store_data)
-    Configure checkpoint storage. store_ics indicates whether initial condition
-    data should be stored. store_data indicates whether non-linear dependency
-    data should be stored.
+        @action.register(Forward)
+        def action_forward(cp_action):
+            logger.debug(f"forward: forward advance to {cp_action.n1:d}")
 
-    Forward(n0, n1)
-    Run the forward from the start of block n0 to the start of block n1.
+        # ...
 
-    Reverse(n1, n0)
-    Run the adjoint from the start of block n1 to the start of block n0.
+        for cp_action in cp_schedule:
+            action(cp_action)
+            if isinstance(cp_action, EndReverse):
+                break
 
-    Read(n, storage, delete)
-    Read checkpoint data associated with block n from the indicated storage.
-    delete indicates whether the checkpoint data should be deleted.
+    Schedules control an intermediate storage, which buffers forward restart
+    data for forward restart checkpoints, and which stores non-linear
+    dependency data either for storage in checkpointing units or for immediate
+    use by the adjoint. For details see
 
-    Write(n, storage)
-    Write checkpoint data associated with block n to the indicated storage.
+      - James R. Maddison, 'On the implementation of checkpointing with
+        high-level algorithmic differentiation',
+        https://arxiv.org/abs/2305.09568v1, 2023
 
-    EndForward()
-    End the forward calculation.
+    In 'offline' schedules, where the number of steps in the forward
+    calculation is initially known, this should be provided using the `max_n`
+    argument on instantiation. In 'online' schedules, where the number of steps
+    in the forward calculation is initially unknown, the number of forward
+    steps should later be provided using the :meth:`finalize` method.
 
-    EndReverse(exhausted)
-    End a reverse calculation. If exhausted is False then a further reverse
-    calculation can be performed.
+    :arg max_n: The number of steps in the initial forward calculation. If not
+        supplied then this should later be provided by calling the
+        :meth:`finalize` method.
     """
 
     def __init__(self, max_n=None):
@@ -237,29 +302,64 @@ class CheckpointSchedule(ABC):
 
     @abstractmethod
     def iter(self):
+        """A generator which should be overridden in derived classes in order
+        to define a checkpointing schedule.
+        """
+
         raise NotImplementedError
 
     @abstractmethod
     def is_exhausted(self):
+        """Return whether the schedule has concluded. Note that some schedules
+        permit multiple adjoint calculation, and may never conclude.
+        """
+
         raise NotImplementedError
 
     @abstractmethod
     def uses_disk_storage(self):
+        """Return whether the schedule may use disk storage. If `False` then no
+        disk storage is required.
+        """
+
         raise NotImplementedError
 
     def n(self):
+        """Return the forward location. After executing all actions defined so
+        far in the schedule the forward is at the start of this step.
+        """
+
         return self._n
 
     def r(self):
+        """Return the number of adjoint steps advanced in the current adjoint
+        calculation after executing all actions defined so far in the schedule.
+        """
+
         return self._r
 
     def max_n(self):
+        """Return the number of forward steps in the initial forward
+        calculation. May return `None` if this has not yet been provided to the
+        scheduler.
+        """
+
         return self._max_n
 
     def is_running(self):
+        """Return whether the schedule is 'running' -- i.e. at least one action
+        has been defined so far in the schedule.
+        """
+
         return hasattr(self, "_iter")
 
     def finalize(self, n):
+        """Indicate the number of forward steps in the initial forward
+        calculation.
+
+        :arg n: The number of steps in the initial forward calculation.
+        """
+
         if n < 1:
             raise ValueError("n must be positive")
         if self._max_n is None:

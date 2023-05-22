@@ -45,18 +45,11 @@ __all__ = \
 
 @njit
 def n_advance(n, snapshots, *, trajectory="maximum"):
-    """
-    Determine an optimal offline snapshot interval, taking n steps and with the
-    given number of snapshots, using the approach of
-       GW2000 A. Griewank and A. Walther, "Algorithm 799: Revolve: An
-              implementation of checkpointing for the reverse or adjoint mode
-              of computational differentiation", ACM Transactions on
-              Mathematical Software, 26(1), pp. 19--45, 2000
-
-    trajectory:  "maximum"   Choose the maximum permitted step size.
-                 "revolve"   Choose the step size as in GW2000, bottom of
-                             p. 34.
-    """
+    # GW2000 reference:
+    #   Andreas Griewank and Andrea Walther, 'Algorithm 799: revolve: an
+    #   implementation of checkpointing for the reverse or adjoint mode of
+    #   computational differentiation', ACM Transactions on Mathematical
+    #   Software, 26(1), pp. 19--45, 2000, doi: 10.1145/347837.347846
 
     if n < 1:
         raise ValueError("Require at least one block")
@@ -163,15 +156,6 @@ def optimal_steps(n, s):
 def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
                        write_weight=1.0, read_weight=1.0, delete_weight=0.0,
                        trajectory="maximum"):
-    """
-    Allocate a stack of snapshots based upon the number of read/writes,
-    preferentially allocating to RAM. Yields the approach described in
-       P. Stumm and A. Walther, "MultiStage approaches for optimal offline
-       checkpointing", SIAM Journal on Scientific Computing, 31(3), pp.
-       1946--1967, 2009
-    but applies a brute force approach to determine the allocation.
-    """
-
     snapshots_in_ram = min(snapshots_in_ram, max_n - 1)
     snapshots_on_disk = min(snapshots_on_disk, max_n - 1)
     snapshots = min(snapshots_in_ram + snapshots_on_disk, max_n - 1)
@@ -215,6 +199,9 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
     def action_pass(cp_action):
         pass
 
+    # Run the schedule, keeping track of the total read/write/delete costs
+    # associated with each storage location on the stack of checkpointing units
+
     while True:
         cp_action = next(cp_schedule)
         action(cp_action)
@@ -222,6 +209,14 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
             break
 
     assert snapshot_i == -1
+
+    # Allocate the checkpointing units with highest cost to RAM, and the
+    # remaining units to disk. For read and write costs of one and zero delete
+    # costs the distribution of storage between RAM and disk is then equivalent
+    # to that in
+    #   Philipp Stumm and Andrea Walther, 'MultiStage approaches for optimal
+    #   offline checkpointing', SIAM Journal on Scientific Computing, 31(3),
+    #   pp. 1946--1967, 2009, doi: 10.1137/080718036
 
     allocation = ["disk" for _ in range(snapshots)]
     for i, _ in sorted(enumerate(weights), key=itemgetter(1),
@@ -232,17 +227,47 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
 
 
 class MultistageCheckpointSchedule(CheckpointSchedule):
-    """
-    Implements binomial checkpointing using the approach described in
-       A. Griewank and A. Walther, "Algorithm 799: Revolve: An implementation
-       of checkpointing for the reverse or adjoint mode of computational
-       differentiation", ACM Transactions on Mathematical Software, 26(1), pp.
-       19--45, 2000
-    Uses a multistage allocation as described in
-       P. Stumm and A. Walther, "MultiStage approaches for optimal offline
-       checkpointing", SIAM Journal on Scientific Computing, 31(3), pp.
-       1946--1967, 2009
-    but applies a brute force approach to determine the allocation.
+    """A binomial checkpointing schedule using the approach described in
+
+      - Andreas Griewank and Andrea Walther, 'Algorithm 799: revolve: an
+        implementation of checkpointing for the reverse or adjoint mode of
+        computational differentiation', ACM Transactions on Mathematical
+        Software, 26(1), pp. 19--45, 2000, doi: 10.1145/347837.347846
+
+    hereafter referred to as GW2000.
+
+    Uses a 'MultiStage' distribution of checkpoints between RAM and disk
+    equivalent to that described in
+
+        - Philipp Stumm and Andrea Walther, 'MultiStage approaches for optimal
+          offline checkpointing', SIAM Journal on Scientific Computing, 31(3),
+          pp. 1946--1967, 2009, doi: 10.1137/080718036
+
+    The distribution between RAM and disk is determined using an initial run of
+    the schedule.
+
+    Offline, one adjoint calculation permitted.
+
+    :arg max_n: The number of forward steps in the initial forward calculation.
+    :arg snapshots_in_ram: The maximum number of forward restart checkpoints
+        to store in memory.
+    :arg snapshots_on_disk: The maximum number of forward restart checkpoints
+        to store on disk.
+    :arg trajectory: When advancing `n` forward steps with `s` checkpointing
+        units available there are in general multiple solutions to the problem
+        of determining the number of forward steps to advance before storing
+        a new forward restart checkpoint -- see Fig. 4 of GW2000. This argument
+        selects a solution:
+
+            - `'revolve'`: The standard revolve solution, as specified in the
+              equation at the bottom of p. 34 of GW2000.
+            - `'maximum'`: The maximum possible number of steps, corresponding
+              to the maximum step size compatible with the optimal region in
+              Fig. 4 of GW2000.
+
+    The argument names `snaps_in_ram` and `snaps_on_disk` originate from the
+    corresponding arguments for the :func:`adj_checkpointing` function in
+    dolfin-adjoint (see e.g. version 2017.1.0).
     """
 
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,
@@ -386,22 +411,38 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
 
 
 class TwoLevelCheckpointSchedule(CheckpointSchedule):
+    """A two-level mixed periodic/binomial checkpointing schedule using the
+    approach described in
+
+        - Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
+          Narayanan, and Daniel Goldberg, 'Providing the ARCHER community with
+          adjoint modelling tools for high-performance oceanographic and
+          cryospheric computation', version 1.1, EPCC, 2016
+
+    and in the supporting information for
+
+        - D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and M.
+          Morlighem, 'Bathymetric influences on Antarctic ice-shelf melt
+          rates', Journal of Geophysical Research: Oceans, 125(11),
+          e2020JC016370, 2020, doi: 10.1029/2020JC016370
+
+    Online, unlimited adjoint calculations permitted.
+
+    :arg period: Forward restart checkpoints are stored to disk every `period`
+        forward steps in the initial forward calculation.
+    :arg binomial_snapshots: The maximum number of additional forward restart
+        checkpointing units to use when advancing the adjoint between periodic
+        disk checkpoints.
+    :arg binomial_storage: The storage to use for the additional forward
+        restart checkpoints generated when advancing the adjoint between
+        periodic disk checkpoints. Either `'RAM'` or `'disk'`.
+    :arg binomial_trajectory: See the `trajectory` constructor argument for
+        :class:`MultistageCheckpointSchedule`.
+    """
+
     def __init__(self, period, binomial_snapshots, *,
                  binomial_storage="disk",
                  binomial_trajectory="maximum"):
-        """
-        The two-level mixed periodic/binomial checkpointing approach of
-          Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
-          Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
-          adjoint modelling tools for high-performance oceanographic and
-          cryospheric computation", version 1.1, EPCC, 2016
-        and the supporting information for
-          D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
-          M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt
-          rates", Journal of Geophysical Research: Oceans, 125(11),
-          e2020JC016370, 2020
-        """
-
         if period < 1:
             raise ValueError("period must be positive")
         if binomial_storage not in ["RAM", "disk"]:

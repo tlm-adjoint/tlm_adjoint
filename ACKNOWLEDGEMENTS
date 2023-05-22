@@ -21,6 +21,13 @@ tlm_adjoint is described in
   derivative information', SIAM Journal on Scientific Computing, 41(5), pp.
   C417--C445, 2019, doi: 10.1137/18M1209465
 
+Checkpointing with tlm_adjoint, and mixed forward restart / non-linear
+deependency data schedules defined by the code in
+tlm_adjoint/checkpoint_schedules/mixed.py, are described in
+
+  James R. Maddison, 'On the implementation of checkpointing with high-level
+  algorithmic differentiation', https://arxiv.org/abs/2305.09568v1, 2023
+
 tlm_adjoint was developed out of a custom extension to dolfin-adjoint, and
 previously made use of code derived from dolfin-adjoint, particularly in an
 earlier version of the EquationSolver.adjoint_derivative_action method in
@@ -136,12 +143,13 @@ periodic/binomial checkpointing approach described in [5] and the supporting
 information for [6].
 
 [5]  Gavin J. Pringle, Daniel C. Jones, Sudipta Goswami, Sri Hari Krishna
-     Narayanan, and Daniel Goldberg, "Providing the ARCHER community with
+     Narayanan, and Daniel Goldberg, 'Providing the ARCHER community with
      adjoint modelling tools for high-performance oceanographic and cryospheric
-     computation", version 1.1, EPCC, 2016
-[6]  D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and
-     M. Morlighem, "Bathymetric influences on Antarctic ice-shelf melt rates",
-     Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020
+     computation', version 1.1, EPCC, 2016
+[6]  D. N. Goldberg, T. A. Smith, S. H. K. Narayanan, P. Heimbach, and M.
+     Morlighem,, 'Bathymetric influences on Antarctic ice-shelf melt rates',
+     Journal of Geophysical Research: Oceans, 125(11), e2020JC016370, 2020,
+     doi: 10.1029/2020JC016370
 
 ===============================================================================
 

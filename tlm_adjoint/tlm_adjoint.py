@@ -348,7 +348,7 @@ class EquationManager:
               function in dolfin-adjoint (see e.g. version 2017.1.0).
 
             - :class:`Callable`: A :class:`Callable` returning a
-              :class:`tlm_adjoint.checkpoint_schedules.schedules.CheckpointSchedule`.
+              :class:`tlm_adjoint.checkpoint_schedules.schedule.CheckpointSchedule`.
               Options defined by `cp_parameters`:
 
                 - `'path'`: Directory in which disk checkpoint data should be
