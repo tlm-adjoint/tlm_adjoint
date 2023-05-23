@@ -32,7 +32,7 @@ class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
     periodically to disk. Non-linear dependency data is recomputed for use by
     the adjoint by re-running the forward from these checkpoints. If the
     storage period is greater than one then non-linear dependency data for
-    multiple steps are recomputed and stored when advancing the adjoint.
+    multiple steps is recomputed and stored when advancing the adjoint.
 
     Online, unlimited adjoint calculations permitted.
 

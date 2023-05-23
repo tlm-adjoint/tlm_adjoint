@@ -18,6 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+"""This module includes functionality for use with the tlm_adjoint FEniCS
+backend.
+"""
+
 from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
     TestFunction, TrialFunction, backend_Function, backend_ScalarType, \
     parameters
