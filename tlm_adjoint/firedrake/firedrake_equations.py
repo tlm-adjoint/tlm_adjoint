@@ -18,6 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+"""This module includes functionality for use with the tlm_adjoint Firedrake
+backend.
+"""
+
 from .backend import FunctionSpace, Interpolator, Tensor, TestFunction, \
     TrialFunction, VertexOnlyMesh, backend_Function, backend_assemble
 from ..interface import check_space_type, function_assign, function_comm, \

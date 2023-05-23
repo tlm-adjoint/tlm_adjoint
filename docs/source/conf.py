@@ -18,7 +18,9 @@ autoapi_ignore = ["*/_code_generator/__init__.py",
                   "*/firedrake/backend_code_generator_interface.py",
                   "*/firedrake/backend_interface.py",
                   "*/firedrake/backend_overrides.py",
-                  "*/numpy/*.py"]
+                  "*/numpy/__init__.py",
+                  "*/numpy/backend.py",
+                  "*/numpy/backend_interface.py"]
 autoapi_add_toctree_entry = False
 autoapi_options = {"private-members": False}
 
