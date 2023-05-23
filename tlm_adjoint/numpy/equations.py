@@ -18,6 +18,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with tlm_adjoint.  If not, see <https://www.gnu.org/licenses/>.
 
+"""This module includes functionality for use with the tlm_adjoint NumPy
+backend.
+"""
+
 from ..interface import function_get_values, function_new_conjugate, \
     function_set_values
 
@@ -37,6 +41,16 @@ __all__ = \
 
 
 class ConstantMatrix(Matrix):
+    r"""A matrix :math:`A` with no dependencies.
+
+    :arg A: An ndim 2 :class:`numpy.ndarray` defining :math:`A`.
+    :arg A_T: Deprecated.
+    :arg ic: Whether solution of a linear equation :math:`A x = b` for
+        :math:`x` uses an initial guess.
+    :arg adj_ic: Whether solution of an adjoint linear equation :math:`A^*
+        \lambda = b` for :math:`\lambda` uses an initial guess.
+    """
+
     def __init__(self, A, *,
                  A_T=None, ic=False, adj_ic=False):
         if A_T is not None:
@@ -152,6 +166,23 @@ class ContractionArray:
 
 
 class ContractionRHS(RHS):
+    r"""Represents a right-hand-side term corresponding to
+
+    .. math::
+
+        \sum_{i_0} \sum_{i_1} \ldots \sum_{i_{N - 1}}
+            A_{i_0,i_1,\ldots,j,\ldots,i_{N - 1}}
+            x_{i_0} x_{i_1} \ldots x_{i_{N - 1}},
+
+    where :math:`A` has rank :math:`(N - 1)`.
+
+    :arg A: An ndim :math:`(N - 1)` :class:`numpy.ndarray`.
+    :arg I: A :class:`Sequence` of length :math:`(N - 1)` defining the
+        :math:`i_0,\ldots,i_{N - 1}`.
+    :arg X: A :class:`Sequence` of functions defining the
+        :math:`x_0,\ldots,x_{N - 1}`.
+    """
+
     def __init__(self, A, I, X, *,  # noqa: E741
                  A_T=None, alpha=1.0):
         if A_T is not None:
@@ -227,12 +258,43 @@ class ContractionRHS(RHS):
 
 
 class Contraction(LinearEquation):
+    r"""
+    Represents an assignment
+
+    .. math::
+
+        x = \alpha \sum_{i_0} \sum_{i_1} \ldots \sum_{i_{N - 1}}
+            A_{i_0,i_1,\ldots,j,\ldots,i_{N - 1}}
+            y_{i_0} y_{i_1} \ldots y_{i_{N - 1}},
+
+    where :math:`A` has rank :math:`(N - 1)`.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x, y_0, \ldots, y_{N - 1} \right)
+            = x - \alpha \sum_{i_0} \sum_{i_1} \ldots \sum_{i_{N - 1}}
+            A_{i_0,i_1,\ldots,j,\ldots,i_{N - 1}}
+            y_{i_0} y_{i_1} \ldots y_{i_{N - 1}}.
+
+    :arg x: A function corresponding to `x`.
+    :arg A: An ndim :math:`(N - 1)` :class:`numpy.ndarray`.
+    :arg I: A :class:`Sequence` of length :math:`(N - 1)` defining the
+        :math:`i_0,\ldots,i_{N - 1}`.
+    :arg Y: A :class:`Sequence` of functions defining the
+        :math:`y_0,\ldots,y_{N - 1}`.
+    :arg alpha: A scalar defining :math:`\alpha`.
+    """
+
     def __init__(self, x, A, I, Y, *,  # noqa: E741
                  alpha=1.0):
         super().__init__(x, ContractionRHS(A, I, Y, alpha=alpha))
 
 
 class ContractionSolver(Contraction):
+    ""
+
     def __init__(self, A, I, Y, x, A_T=None, alpha=1.0):  # noqa: E741
         if A_T is not None:
             warnings.warn("A_T argument is deprecated and has no effect",
