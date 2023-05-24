@@ -28,8 +28,8 @@ from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
 from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
     comm_parent, function_caches, function_comm, function_dtype, function_id, \
     function_is_cached, function_is_checkpointed, function_is_static, \
-    function_name, function_replacement, function_space, function_space_type, \
-    is_function, space_comm
+    function_linf_norm, function_name, function_replacement, function_space, \
+    function_space_type, is_function, space_comm
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -404,12 +404,17 @@ class ZeroFunction(Function, Zero):
     """A :class:`Function` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Function` constructor, together with
-    `static=True`.
+    `static=True`, `cache=True`, and `checkpoint=False`
     """
 
-    def __init__(self, space, *, name=None, space_type="primal"):
+    def __init__(self, *args, space_type="primal", **kwargs):
         Function.__init__(
-            self, space, name=name, space_type=space_type, static=True)
+            self, *args, **kwargs,
+            space_type=space_type, static=True, cache=True, checkpoint=False)
+        # Firedrake requires the ability to pass a value to the constructor, so
+        # we check that we have a zero-valued function here
+        if function_linf_norm(self) != 0.0:
+            raise RuntimeError("ZeroFunction is not zero-valued")
 
     def assign(self, *args, **kwargs):
         raise RuntimeError("Cannot call assign method of ZeroFunction")

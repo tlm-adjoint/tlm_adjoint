@@ -1073,6 +1073,8 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
         return J
 
     m = ZeroFunction(space, name="m")
+    for m_i in m.subfunctions:
+        assert function_linf_norm(m_i) == 0.0
 
     start_manager()
     J = forward(m)
