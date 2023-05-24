@@ -97,7 +97,7 @@ def form_simplify_conj(form):
                 return expr_simplify_conj(x)
             elif isinstance(expr, ufl.classes.Sum):
                 return sum(map(expr_conj, expr.ufl_operands),
-                           ufl.classes.Zero())
+                           ufl.classes.Zero(shape=expr.ufl_shape))
             elif isinstance(expr, ufl.classes.Product):
                 x, y = expr.ufl_operands
                 return expr_conj(x) * expr_conj(y)
@@ -110,7 +110,7 @@ def form_simplify_conj(form):
                 return expr_conj(x)
             elif isinstance(expr, ufl.classes.Sum):
                 return sum(map(expr_simplify_conj, expr.ufl_operands),
-                           ufl.classes.Zero())
+                           ufl.classes.Zero(shape=expr.ufl_shape))
             elif isinstance(expr, ufl.classes.Product):
                 x, y = expr.ufl_operands
                 return expr_simplify_conj(x) * expr_simplify_conj(y)
@@ -129,9 +129,12 @@ def form_simplify_conj(form):
 
 
 def split_arity(form, x, argument):
-    arity = len(form.arguments())
+    form_arguments = form.arguments()
+    arity = len(form_arguments)
     if arity >= 2:
         raise ValueError("Invalid form arity")
+    if arity == 1 and form_arguments[0].number() != 0:
+        raise ValueError("Invalid form argument")
     if argument.number() < arity:
         raise ValueError("Invalid argument")
 
@@ -256,6 +259,8 @@ def split_terms(terms, base_integral,
 
 
 def split_form(form):
+    if len(form.arguments()) != 1:
+        raise ValueError("Arity 1 form required")
     if not complex_mode:
         form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
 
