@@ -107,13 +107,6 @@ def test_long_range(setup_test, test_leaks,
 @no_space_type_checking
 @seed_test
 def test_EmptyEquation(setup_test, test_leaks):
-    class EmptyEquation(Equation):
-        def __init__(self):
-            super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
-
-        def forward_solve(self, X, deps=None):
-            pass
-
     mesh = UnitIntervalMesh(100)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -555,18 +548,13 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (200, 20),
                                                    (200, 50),
                                                    (1000, 50)])
-@pytest.mark.parametrize("prune", [False, True])
 @no_space_type_checking
 @seed_test
 def test_binomial_checkpointing(setup_test, test_leaks,
-                                tmp_path, n_steps, snaps_in_ram,
-                                prune):
+                                tmp_path, n_steps, snaps_in_ram):
     n_forward_solves = [0]
 
-    class EmptyEquation(Equation):
-        def __init__(self):
-            super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
-
+    class Counter(Instruction):
         def forward_solve(self, X, deps=None):
             n_forward_solves[0] += 1
 
@@ -577,7 +565,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
 
     def forward(m):
         for n in range(n_steps):
-            EmptyEquation().solve()
+            Counter().solve()
             if n < n_steps - 1:
                 new_block()
 
@@ -591,15 +579,12 @@ def test_binomial_checkpointing(setup_test, test_leaks,
     J = forward(m)
     stop_manager()
 
-    dJ = compute_gradient(J, m, prune_replay=prune)
+    dJ = compute_gradient(J, m)
 
     info(f"Number of forward steps        : {n_forward_solves[0]:d}")
-    if prune:
-        assert n_forward_solves[0] == n_steps
-    else:
-        n_forward_solves_optimal = optimal_steps(n_steps, snaps_in_ram)
-        info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
-        assert n_forward_solves[0] == n_forward_solves_optimal
+    n_forward_solves_optimal = optimal_steps(n_steps, snaps_in_ram)
+    info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
+    assert n_forward_solves[0] == n_forward_solves_optimal
 
     min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ)
     assert min_order > 1.99

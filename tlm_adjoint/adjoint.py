@@ -22,6 +22,7 @@ from .interface import finalize_adjoint_derivative_action, function_copy, \
     function_id, function_space, function_space_type, space_new, \
     subtract_adjoint_derivative_action
 
+from .instructions import Instruction
 from .markers import ControlsMarker, FunctionalMarker
 from .tangent_linear import J_tangent_linears
 
@@ -383,6 +384,8 @@ class DependencyGraphTranspose:
             for n in blocks_n:
                 block = blocks[n]
                 for i, eq in enumerate(block):
+                    if isinstance(eq, Instruction):
+                        active_forward[n][i] = True
                     if len(active_M) > 0:
                         X_ids = set(map(function_id, eq.X()))
                         if not X_ids.isdisjoint(active_M):
@@ -423,7 +426,7 @@ class DependencyGraphTranspose:
                                 if transpose_deps[n][i][j] is not None:
                                     p, k, m = transpose_deps[n][i][j]
                                     active_adjoint[p][k] = True
-                        else:
+                        elif not isinstance(eq, Instruction):
                             active[J_i][n][i] = False
 
         solved = copy.deepcopy(active)

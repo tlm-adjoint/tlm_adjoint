@@ -34,6 +34,8 @@ import warnings
 
 __all__ = \
     [
+        "EmptyEquation",
+
         "Assignment",
         "Axpy",
         "LinearCombination",
@@ -56,6 +58,17 @@ __all__ = \
         "SumRHS",
         "SumSolver"
     ]
+
+
+class EmptyEquation(Equation):
+    """An adjoint tape record with no associated solution variables.
+    """
+
+    def __init__(self):
+        super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
+
+    def forward_solve(self, x, deps=None):
+        pass
 
 
 class Assignment(Equation):
