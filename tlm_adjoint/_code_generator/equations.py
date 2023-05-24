@@ -1109,7 +1109,7 @@ class ExprEvaluation(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero()
+        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
