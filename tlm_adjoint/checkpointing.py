@@ -24,6 +24,8 @@ from .interface import DEFAULT_COMM, comm_dup, function_assign, \
     function_new, function_scalar_value, function_set_values, function_space, \
     function_space_type, space_id, space_new
 
+from .instructions import Instruction
+
 from abc import ABC, abstractmethod
 from collections import deque
 try:
@@ -501,6 +503,9 @@ class ReplayStorage:
                 block = blocks[n]
                 for i in range(len(block) - 1, - 1, -1):
                     eq = block[i]
+
+                    if isinstance(eq, Instruction):
+                        active[n][i] = True
 
                     if transpose_deps.any_is_active(n, i):
                         # Adjoint equation is active, mark forward equations

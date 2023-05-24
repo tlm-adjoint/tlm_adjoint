@@ -26,6 +26,7 @@ from .equations import *           # noqa: F401
 from .fixed_point import *         # noqa: F401
 from .functional import *          # noqa: F401
 from .hessian import *             # noqa: F401
+from .instructions import *        # noqa: F401
 from .interface import *           # noqa: F401
 from .linear_equation import *     # noqa: F401
 from .manager import *             # noqa: F401
