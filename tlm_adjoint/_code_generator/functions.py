@@ -475,15 +475,14 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
                 domain, = ufl.domain.extract_domains(expr)
             else:
                 domain, = expr.ufl_domains()
-            zero = ZeroConstant(domain=domain)
             if len(arguments) == 0:
-                simplified_expr = zero * ufl.ds
+                simplified_expr = ZeroConstant(domain=domain) * ufl.ds
             elif len(arguments) == 1:
                 test, = arguments
-                simplified_expr = zero * ufl.conj(test) * ufl.ds
+                simplified_expr = ufl.inner(ZeroConstant(domain=domain, shape=test.ufl_shape), test) * ufl.ds  # noqa: E501
             else:
                 test, trial = arguments
-                simplified_expr = zero * ufl.inner(trial, test) * ufl.ds
+                simplified_expr = ZeroConstant(domain=domain) * ufl.inner(trial, test) * ufl.ds  # noqa: E501
 
             if isinstance(expr, ufl.classes.Form):
                 expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501

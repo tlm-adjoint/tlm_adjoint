@@ -1016,6 +1016,31 @@ def test_eliminate_zeros(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("Space", [FunctionSpace,
+                                   VectorFunctionSpace,
+                                   TensorFunctionSpace])
+@seed_test
+def test_eliminate_zeros_arity_1(setup_test, test_leaks,
+                                 Space):
+    mesh = UnitSquareMesh(10, 10)
+    space = Space(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+    F = ZeroFunction(space, name="F")
+
+    form = (inner(F, test) * dx
+            + Constant(1.0) * inner(grad(F), grad(test)) * dx)
+
+    zero_form = eliminate_zeros(form)
+    assert len(zero_form.integrals()) == 0
+
+    zero_form = eliminate_zeros(form, force_non_empty_form=True)
+    assert F not in zero_form.coefficients()
+    b = Function(space, space_type="conjugate_dual")
+    assemble(zero_form, tensor=function_vector(b))
+    assert function_linf_norm(b) == 0.0
+
+
+@pytest.mark.firedrake
 @seed_test
 def test_ZeroFunction_expand_derivatives(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
