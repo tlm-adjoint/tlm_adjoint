@@ -11,7 +11,7 @@ checkpointing schedules, and allowing for caching of finite element matrices
 and linear solvers.
 
 Features
-========
+--------
 
     - Integrates with the FEniCS or Firedrake automated code generation
       libraries, and applies a high-level algorithmic differentiation approach
@@ -30,7 +30,7 @@ Features
       with adjoint or tangent-linear information defined manually.
 
 Examples
-========
+--------
 
 The following Jupyter notebooks introduce derivative calculations using
 tlm_adjoint.
@@ -47,14 +47,25 @@ tlm_adjoint.
   using Firedrake. Introduces checkpointing.
 
 Source and license
-==================
+------------------
 
 The source code is available from the
 `tlm_adjoint GitHub repository <https://github.com/tlm-adjoint/tlm_adjoint>`_.
 tlm_adjoint is licensed under the GNU LGPL version 3.
 
 Indices
-=======
+-------
 
 * :ref:`genindex`
 * :ref:`modindex`
+
+.. toctree::
+    :hidden:
+
+    self
+
+.. toctree::
+    :hidden:
+    :maxdepth: 0
+
+    acknowledgements
