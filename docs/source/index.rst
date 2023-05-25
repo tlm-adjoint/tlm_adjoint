@@ -2,13 +2,13 @@ tlm_adjoint
 ===========
 
 tlm_adjoint is a high-level algorithmic differentiation tool, principally for
-use with `FEniCS <https://fenicsproject.org/>`_ or `Firedrake
-<https://firedrakeproject.org/>`_.
+use with `FEniCS <https://fenicsproject.org>`_ or `Firedrake
+<https://firedrakeproject.org>`_.
 
 The primary aim of tlm_adjoint is to enable higher order adjoint calculations
 -- and in particular to compute Hessian information -- while also using adjoint
-checkpointing schedules, and allowing for caching of finite element matrices
-and linear solvers.
+checkpointing schedules, and allowing for caching of assembled finite element
+data, and caching of linear solver data.
 
 Features
 --------
@@ -68,4 +68,5 @@ Indices
     :hidden:
     :maxdepth: 0
 
+    dependencies
     acknowledgements
