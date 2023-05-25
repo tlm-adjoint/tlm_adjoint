@@ -27,8 +27,7 @@ autoapi_options = {"private-members": False}
 nbsphinx_execute = "never"
 
 html_theme = "sphinx_rtd_theme"
-html_theme_options = {"display_version": False,
-                      "titles_only": True}
+html_theme_options = {"display_version": False}
 
 exclude_patterns = []
 html_static_path = ["static"]
