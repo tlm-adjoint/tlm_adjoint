@@ -11,7 +11,8 @@ modules = [("backend", "tlm_adjoint.firedrake"),
            ("equations", "tlm_adjoint._code_generator"),
            ("backend_interface", "tlm_adjoint.firedrake"),
            ("backend_overrides", "tlm_adjoint.firedrake"),
-           ("firedrake_equations", "tlm_adjoint.firedrake")]
+           ("firedrake_equations", "tlm_adjoint.firedrake"),
+           ("block_system", "tlm_adjoint._code_generator")]
 
 for module_name, package in modules:
     if package == "tlm_adjoint._code_generator":
@@ -36,6 +37,8 @@ from .backend import backend, backend_ScalarType  # noqa: E402,F401
 from .backend_code_generator_interface import linear_solver  # noqa: E402,F401
 from .backend_interface import *    # noqa: E402,F401
 from .backend_overrides import *    # noqa: E402,F401
+from .block_system import \
+    (ConstantNullspace, DirichletBCNullspace, NoneNullspace, UnityNullspace)  # noqa: E402,E501,F401
 from .caches import *               # noqa: E402,F401
 from .equations import *            # noqa: E402,F401
 from .firedrake_equations import *  # noqa: E402,F401

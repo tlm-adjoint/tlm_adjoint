@@ -246,6 +246,7 @@ def comm_dup(comm):
     def finalize_callback(dup_comm_py2f):
         if MPI is not None and not MPI.Is_finalized():
             dup_comm = f2py(dup_comm_py2f)
+            garbage_cleanup(dup_comm)
             dup_comm.Free()
         _parent_comms.pop(dup_comm_py2f, None)
 
@@ -283,6 +284,7 @@ def comm_dup_cached(comm):
 
         def finalize_callback(comm_py2f, dup_comm):
             if MPI is not None and not MPI.Is_finalized():
+                garbage_cleanup(dup_comm)
                 dup_comm.Free()
             _parent_comms.pop(dup_comm.py2f(), None)
             _dup_comms.pop(comm_py2f, None)

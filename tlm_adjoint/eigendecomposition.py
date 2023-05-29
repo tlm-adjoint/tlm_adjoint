@@ -5,13 +5,14 @@
 # 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information can be found in
 # the 'eigendecompose' docstring.
 
-from .interface import check_space_types, function_get_values, \
+from .interface import check_space_types, comm_dup, function_get_values, \
     function_global_size, function_local_size, function_set_values, \
     is_function, space_comm, space_new, space_type_warning
 
 import functools
 import numpy as np
 import warnings
+import weakref
 
 __all__ = \
     [
@@ -19,17 +20,17 @@ __all__ = \
     ]
 
 
-_flagged_error = False
+_error_flag = False
 
 
 def flag_errors(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        global _flagged_error
+        global _error_flag
         try:
             return fn(*args, **kwargs)
         except Exception:
-            _flagged_error = True
+            _error_flag = True
             raise
     return wrapped_fn
 
@@ -200,6 +201,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
     comm = space_comm(space)
+    comm = comm_dup(comm)
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action),
@@ -215,6 +217,8 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         B_matrix.setUp()
 
     esolver = SLEPc.EPS().create(comm=comm)
+    weakref.finalize(esolver, lambda comm: None,
+                     comm)  # Hold a reference to the communicator
     if solver_type is not None:
         esolver.setType(solver_type)
     esolver.setProblemType(problem_type)
@@ -231,9 +235,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         configure(esolver)
     esolver.setUp()
 
-    assert not _flagged_error
+    assert not _error_flag
     esolver.solve()
-    if _flagged_error:
+    if _error_flag:
         raise RuntimeError("Error encountered in SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
         raise RuntimeError("Not all requested eigenpairs converged")
