@@ -224,13 +224,13 @@ class GaussNewton(ABC):
     covariance.
 
     :arg R_inv_action: A :class:`Callable` which accepts one or more functions,
-        and returns the action of the operator corresponding to
-        :math:`R_\text{obs}^{-1}` on those functions, returning the result as a
-        function or a :class:`Sequence` of functions.
+        and returns the conjugate of the action of the operator corresponding
+        to :math:`R_\text{obs}^{-1}` on those functions, returning the
+        result as a function or a :class:`Sequence` of functions.
     :arg B_inv_action: A :class:`Callable` which accepts one or more functions,
-        and returns the action of the operator corresponding to :math:`B^{-1}`
-        on those functions, returning the result as a function or a
-        :class:`Sequence` of functions.
+        and returns the conjugate of the action of the operator corresponding
+        to :math:`B^{-1}` on those functions, returning the result as a
+        function or a :class:`Sequence` of functions.
     :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
         not supplied.
     """

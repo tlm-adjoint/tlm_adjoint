@@ -12,7 +12,8 @@ modules = [("backend", "tlm_adjoint.fenics"),
            ("backend_interface", "tlm_adjoint.fenics"),
            ("backend_overrides", "tlm_adjoint.fenics"),
            ("fenics_equations", "tlm_adjoint.fenics"),
-           ("block_system", "tlm_adjoint._code_generator")]
+           ("block_system", "tlm_adjoint._code_generator"),
+           ("hessian_system", "tlm_adjoint._code_generator")]
 
 for module_name, package in modules:
     if package == "tlm_adjoint._code_generator":
@@ -43,3 +44,4 @@ from .caches import *              # noqa: E402,F401
 from .equations import *           # noqa: E402,F401
 from .fenics_equations import *    # noqa: E402,F401
 from .functions import *           # noqa: E402,F401
+from .hessian_system import *      # noqa: E402,F401

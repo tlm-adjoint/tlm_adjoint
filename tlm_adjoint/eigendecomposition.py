@@ -81,9 +81,8 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
                    problem_type=None, which=None, tolerance=1.0e-12,
                    configure=None):
     # First written 2018-03-01
-    r"""
-    Matrix-free interface with SLEPc via slepc4py, for the matrix free solution
-    of eigenproblems
+    r"""Interface with SLEPc via slepc4py, for the matrix free solution of
+    eigenproblems
 
     .. math::
 
