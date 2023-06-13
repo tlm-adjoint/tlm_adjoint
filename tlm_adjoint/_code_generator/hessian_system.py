@@ -305,8 +305,8 @@ def hessian_eigendecompose(
             problem_type = SLEPc.EPS.ProblemType.GNHEP
 
     Lam, V = eigendecompose(
-        space, H_action, B_action=B_inv_action, space_type=arg_space_type,
-        action_type=action_space_type, problem_type=problem_type,
+        space, H_action, B_action=B_inv_action, arg_space_type=arg_space_type,
+        action_space_type=action_space_type, problem_type=problem_type,
         configure=configure, **kwargs)
 
     if correct_eigenvectors:
