@@ -72,7 +72,7 @@ Logging is performed on a logging module logger, with name
 order computed for the corrected Taylor remainder magnitude is returned.
 
 A typical test considers tangent-linears and adjoints up to the relevant order,
-e.g. to verify Hessian calculations
+e.g. to verify Hessian matrix calculations
 
 .. code-block:: python
 
@@ -162,11 +162,11 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         Required if `ddJ` is not supplied. Corresponds to the `dJdm` argument
         in the dolfin-adjoint :func:`taylor_test` function.
     :arg ddJ: A :class:`tlm_adjoint.hessian.Hessian` used to compute the
-        Hessian action on the considered perturbation direction. If supplied
-        then a higher order corrected Taylor remainder magnitude is computed.
-        If `dJ` is not supplied, also computes the first order directional
-        derivative. Corresponds to the `HJm` argument in the dolfin-adjoint
-        :func:`taylor_test` function.
+        Hessian matrix action on the considered perturbation direction. If
+        supplied then a higher order corrected Taylor remainder magnitude is
+        computed. If `dJ` is not supplied, also computes the first order
+        directional derivative. Corresponds to the `HJm` argument in the
+        dolfin-adjoint :func:`taylor_test` function.
     :arg seed: Defines the value of :math:`\eta`. Controls the magnitude of the
         perturbation. Corresponds to the `seed` argument in the dolfin-adjoint
         :func:`taylor_test` function.

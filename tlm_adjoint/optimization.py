@@ -250,10 +250,10 @@ def wrapped_action(M, *,
 
 
 class LBFGSHessianApproximation:
-    """L-BFGS Hessian approximation.
+    """L-BFGS Hessian matrix approximation.
 
     :arg m: Maximum number of vector pairs to retain in the L-BFGS Hessian
-        approximation.
+        matrix approximation.
     """
 
     def __init__(self, m):
@@ -291,10 +291,10 @@ class LBFGSHessianApproximation:
 
     def inverse_action(self, X, *,
                        H_0_action=None, theta=1.0):
-        """Compute the action of the approximate Hessian inverse on some
+        """Compute the action of the approximate Hessian matrix inverse on some
         given direction.
 
-        Implements the L-BFGS Hessian inverse action approximation as in
+        Implements the L-BFGS Hessian matrix inverse action approximation as in
         Algorithm 7.4 of
 
             - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
@@ -309,10 +309,10 @@ class LBFGSHessianApproximation:
               doi: 10.1137/0916069
 
         :arg X: A function or a :class:`Sequence` of functions defining the
-            direction on which to compute the approximate Hessian inverse
-            action.
+            direction on which to compute the approximate Hessian matrix
+            inverse action.
         :arg H_0_action: A :class:`Callable` defining the action of the
-            non-updated Hessian inverse approximation on some direction.
+            non-updated Hessian matrix inverse approximation on some direction.
             Accepts one or more functions as arguments, defining the direction,
             and returns a function or a :class:`Sequence` of functions defining
             the action on this direction. Should correspond to a positive
@@ -525,9 +525,9 @@ def l_bfgs(F, Fp, X0, *,
 
     in a more general inner product space.
 
-    By default uses 'theta scaling' to define the initial Hessian inverse
-    approximation, based on the approach in equation (3.7) and point 7 on p.
-    1204 of
+    By default uses 'theta scaling' to define the initial Hessian matrix
+    inverse approximation, based on the approach in equation (3.7) and point 7
+    on p. 1204 of
 
         - Richard H. Byrd, Peihuang Lu, and Jorge Nocedal, and Ciyou Zhu, 'A
           limited memory algorithm for bound constrained optimization', SIAM
@@ -541,8 +541,8 @@ def l_bfgs(F, Fp, X0, *,
           Springer, New York, NY, 2006, Second edition,
           doi: 10.1007/978-0-387-40065-5
 
-    Precisely the Hessian inverse approximation, before being updated, is
-    scaled by :math:`1 / \theta` with, on the first iteration,
+    Precisely the Hessian matrix inverse approximation, before being updated,
+    is scaled by :math:`1 / \theta` with, on the first iteration,
 
     .. math::
 
@@ -568,7 +568,7 @@ def l_bfgs(F, Fp, X0, *,
     :arg X0: A function or a :class:`Sequence` of functions defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
-        Hessian inverse approximation.
+        Hessian matrix inverse approximation.
     :arg s_atol: Absolute tolerance for the step change norm convergence
         criterion.
     :arg g_atol: Absolute tolerance for the gradient norm convergence
@@ -598,10 +598,10 @@ def l_bfgs(F, Fp, X0, *,
         converged.
     :arg max_its: The maximum number of iterations.
     :arg H_0_action: A :class:`Callable` defining the action of the non-updated
-        Hessian inverse approximation on some direction. Accepts one or more
-        functions as arguments, defining the direction, and returns a function
-        or a :class:`Sequence` of functions defining the action on this
-        direction. Should correspond to a positive definite operator. An
+        Hessian matrix inverse approximation on some direction. Accepts one or
+        more functions as arguments, defining the direction, and returns a
+        function or a :class:`Sequence` of functions defining the action on
+        this direction. Should correspond to a positive definite operator. An
         identity is used if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
     :arg delta: Controls the initial value of :math:`\theta` in 'theta

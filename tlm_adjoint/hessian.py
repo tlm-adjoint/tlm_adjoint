@@ -38,8 +38,8 @@ def conjugate(X):
 
 
 class Hessian(ABC):
-    r"""Represents a Hessian associated with a given forward model. Abstract
-    base class.
+    r"""Represents a Hessian matrix associated with a given forward model.
+    Abstract base class.
     """
 
     def __init__(self):
@@ -62,9 +62,9 @@ class Hessian(ABC):
 
     @abstractmethod
     def action(self, M, dM, M0=None):
-        r"""Compute (the conjugate of) a Hessian action on some :math:`\zeta`
-        using an adjoint of a tangent-linear model. i.e. considering
-        derivatives to be column vectors, compute
+        r"""Compute (the conjugate of) a Hessian matrix action on some
+        :math:`\zeta` using an adjoint of a tangent-linear model. i.e.
+        considering derivatives to be column vectors, compute
 
         .. math::
 
@@ -74,30 +74,30 @@ class Hessian(ABC):
         :arg M: A function or a :class:`Sequence` of functions defining the
             control variable.
         :arg dM: A function or a :class:`Sequence` of functions defining
-            :math:`\zeta`. The (conjugate of the) Hessian action on
+            :math:`\zeta`. The (conjugate of the) Hessian matrix action on
             :math:`\zeta` is computed.
         :arg M0: A function or a :class:`Sequence` of functions defining the
             control value. `M` is used if not supplied.
         :returns: A tuple `(J, dJ, ddJ)`. `J` is the value of the functional.
             `dJ` is the value of :math:`\left( d \mathcal{J} / d m \right)^T
             \zeta`. `ddJ` stores the (conjugate of the) result of the Hessian
-            action on :math:`\zeta`, and is a function or a :class:`Sequence`
-            of functions depending on the type of `M`.
+            matrix action on :math:`\zeta`, and is a function or a
+            :class:`Sequence` of functions depending on the type of `M`.
         """
 
         raise NotImplementedError
 
     def action_fn(self, m, m0=None):
         """Return a :class:`Callable` which can be used to compute Hessian
-        actions.
+        matrix actions.
 
         :arg m: A function defining the control variable.
         :arg m0: A function defining the control value. `m` is used if not
             supplied.
         :returns: A :class:`Callable` which accepts a single function argument,
-            and returns the result of the Hessian action on that argument as a
-            function. Note that the result is *not* the conjugate of the
-            Hessian action on the input argument.
+            and returns the result of the Hessian matrix action on that
+            argument as a function. Note that the result is *not* the conjugate
+            of the Hessian matrix action on the input argument.
         """
 
         def action(dm):
@@ -108,8 +108,8 @@ class Hessian(ABC):
 
 
 class GeneralHessian(Hessian):
-    """Represents a Hessian associated with a given forward model. Calls to
-    :meth:`compute_gradient` or :meth:`action` re-run the forward.
+    """Represents a Hessian matrix associated with a given forward model. Calls
+    to :meth:`compute_gradient` or :meth:`action` re-run the forward.
 
     :arg forward: A :class:`Callable` which accepts one or more function
         arguments, and which returns a function or
@@ -209,10 +209,10 @@ class GeneralHessian(Hessian):
 
 
 class GaussNewton(ABC):
-    r"""Represents a Gauss-Newton approximation for a Hessian. Abstract base
-    class.
+    r"""Represents a Gauss-Newton approximation for a Hessian matrix. Abstract
+    base class.
 
-    In terms of matrices this defines a Hessian approximation
+    In terms of matrices this defines a Hessian matrix approximation
 
     .. math::
 
@@ -250,8 +250,9 @@ class GaussNewton(ABC):
 
     @restore_manager
     def action(self, M, dM, M0=None):
-        r"""Compute (the conjugate of) a Hessian action on some :math:`\zeta`,
-        using the Gauss-Newton approximation for the Hessian. i.e. compute
+        r"""Compute (the conjugate of) a Hessian matrix action on some
+        :math:`\zeta`, using the Gauss-Newton approximation for the Hessian
+        matrix. i.e. compute
 
         .. math::
 
@@ -260,13 +261,13 @@ class GaussNewton(ABC):
         :arg M: A function or a :class:`Sequence` of functions defining the
             control variable.
         :arg dM: A function or a :class:`Sequence` of functions defining
-            :math:`\zeta`. The (conjugate of the) approximated Hessian action
-            on :math:`\zeta` is computed.
+            :math:`\zeta`. The (conjugate of the) approximated Hessian matrix
+            action on :math:`\zeta` is computed.
         :arg M0: A function or a :class:`Sequence` of functions defining the
             control value. `M` is used if not supplied.
         :returns: The (conjugate of the) result of the approximated Hessian
-            action on :math:`\zeta`. A function or a :class:`Sequence` of
-            functions depending on the type of `M`.
+            matrix action on :math:`\zeta`. A function or a :class:`Sequence`
+            of functions depending on the type of `M`.
         """
 
         if not isinstance(M, Sequence):
@@ -321,15 +322,16 @@ class GaussNewton(ABC):
 
     def action_fn(self, m, m0=None):
         """Return a :class:`Callable` which can be used to compute Hessian
-        actions using the Gauss-Newton approximation.
+        matrix actions using the Gauss-Newton approximation.
 
         :arg m: A function defining the control variable.
         :arg m0: A function defining the control value. `m` is used if not
             supplied.
         :returns: A :class:`Callable` which accepts a single function argument,
-            and returns the result of the approximated Hessian action on that
-            argument as a function. Note that the result is *not* the conjugate
-            of the approximated Hessian action on the input argument.
+            and returns the result of the approximated Hessian matrix action on
+            that argument as a function. Note that the result is *not* the
+            conjugate of the approximated Hessian matrix action on the input
+            argument.
         """
 
         def action(dm):
@@ -339,8 +341,8 @@ class GaussNewton(ABC):
 
 
 class GeneralGaussNewton(GaussNewton):
-    """Represents a Gauss-Newton approximation to a Hessian associated with a
-    given forward model. Calls to :meth:`GaussNewton.action` re-run the
+    """Represents a Gauss-Newton approximation to a Hessian matrix associated
+    with a given forward model. Calls to :meth:`GaussNewton.action` re-run the
     forward.
 
     :arg forward: A :class:`Callable` which accepts one or more function
