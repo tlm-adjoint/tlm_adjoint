@@ -235,7 +235,7 @@ def conjugate_dual_identity_action(*X):
 
 
 def wrapped_action(M, *,
-                   copy=False):
+                   copy=True):
     M_arg = M
 
     def M(*X):
@@ -316,8 +316,7 @@ class LBFGSHessianApproximation:
             Accepts one or more functions as arguments, defining the direction,
             and returns a function or a :class:`Sequence` of functions defining
             the action on this direction. Should correspond to a positive
-            definite operator. Input arguments should not be modified. An
-            identity is used if not supplied.
+            definite operator. An identity is used if not supplied.
         :returns: A function or a :class:`Sequence` of functions storing the
             result.
         """
@@ -327,7 +326,7 @@ class LBFGSHessianApproximation:
         X = functions_copy(X)
 
         if H_0_action is None:
-            H_0_action = wrapped_action(conjugate_dual_identity_action)
+            H_0_action = wrapped_action(conjugate_dual_identity_action, copy=False)  # noqa: E501
         else:
             H_0_action = wrapped_action(H_0_action, copy=True)
 
@@ -401,7 +400,7 @@ def line_search(F, Fp, X, minus_P, *,
     if line_search_rank0_kwargs is None:
         line_search_rank0_kwargs = {}
 
-    Fp = wrapped_action(Fp)
+    Fp = wrapped_action(Fp, copy=False)
 
     if is_function(X):
         X_rank1 = (X,)
@@ -602,8 +601,8 @@ def l_bfgs(F, Fp, X0, *,
         Hessian inverse approximation on some direction. Accepts one or more
         functions as arguments, defining the direction, and returns a function
         or a :class:`Sequence` of functions defining the action on this
-        direction. Should correspond to a positive definite operator. Input
-        arguments should not be modified. An identity is used if not supplied.
+        direction. Should correspond to a positive definite operator. An
+        identity is used if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
     :arg delta: Controls the initial value of :math:`\theta` in 'theta
         scaling'. If `None` then on the first iteration :math:`\theta` is set
@@ -618,9 +617,9 @@ def l_bfgs(F, Fp, X0, *,
         space elements and :math:`M` is a Hermitian and positive definite
         matrix. Accepts one or more functions as arguments, defining the
         direction, and returns a function or a :class:`Sequence` of functions
-        defining the action of :math:`M` on this direction. Input arguments
-        should not be modified. An identity is used if not supplied. Required
-        if `H_0_action` or `M_inv_action` are supplied.
+        defining the action of :math:`M` on this direction. An identity is used
+        if not supplied. Required if `H_0_action` or `M_inv_action` are
+        supplied.
     :arg M_inv_action: A :class:`Callable` defining a (conjugate) dual space
         inner product,
 
@@ -632,8 +631,8 @@ def l_bfgs(F, Fp, X0, *,
         (conjugate) dual space elements and :math:`M` is as for `M_action`.
         Accepts one or more functions as arguments, defining the direction, and
         returns a function or a :class:`Sequence` of functions defining the
-        action of :math:`M^{-1}` on this direction. Input arguments should not
-        be modified. `H_0_action` is used if not supplied.
+        action of :math:`M^{-1}` on this direction. `H_0_action` is used if not
+        supplied.
     :arg c1: Armijo condition parameter. :math:`c_1` in equation (3.6a) of
 
             - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
@@ -709,28 +708,30 @@ def l_bfgs(F, Fp, X0, *,
             with paused_space_type_checking():
                 return abs(functions_inner(X, X))
     else:
-        H_0_action = wrapped_action(H_0_action)
+        H_0_norm_sq_H_0_action = wrapped_action(H_0_action, copy=True)
 
         def H_0_norm_sq(X):
-            return abs(functions_inner(H_0_action(*X), X))
+            return abs(functions_inner(H_0_norm_sq_H_0_action(*X), X))
 
     if M_action is None:
         def M_norm_sq(X):
             with paused_space_type_checking():
                 return abs(functions_inner(X, X))
     else:
-        M_action = wrapped_action(M_action)
+        M_norm_sq_M_action = wrapped_action(M_action, copy=True)
 
         def M_norm_sq(X):
-            return abs(functions_inner(X, M_action(*X)))
+            return abs(functions_inner(X, M_norm_sq_M_action(*X)))
+    del M_action
 
     if M_inv_action is None:
         M_inv_norm_sq = H_0_norm_sq
     else:
-        M_inv_action = wrapped_action(M_inv_action)
+        M_inv_norm_sq_M_inv_action = wrapped_action(M_inv_action, copy=True)
 
         def M_inv_norm_sq(X):
-            return abs(functions_inner(M_inv_action(*X), X))
+            return abs(functions_inner(M_inv_norm_sq_M_inv_action(*X), X))
+    del M_inv_action
 
     if comm is None:
         comm = function_comm(X0[0])
