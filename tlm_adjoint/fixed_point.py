@@ -28,26 +28,24 @@ def l2_norm_sq(x):
 class CustomNormSq:
     r"""Defines the square of the norm of forward and adjoint solutions.
 
-    :class:`Callable` objects are used to define squared norms for the forward
-    and adjoint solutions of equations. The total squared norm is then the sum
-    of the squares.
+    Callables are used to define squared norms for the forward and adjoint
+    solutions of equations. The total squared norm is then the sum of the
+    squares.
 
     :arg eqs: A :class:`Sequence` of :class:`tlm_adjoint.equation.Equation`
         objects.
-    :arg norm_sqs: A :class:`Sequence`. Each element is either a
-        :class:`Callable`, or a :class:`Sequence` of :class:`Callable` objects.
-        The :class:`Callable` objects define the squared norm associated with
-        the corresponding components of the forward solution for the
-        corresponding :class:`tlm_adjoint.equation.Equation` in `eqs`. Each
-        :class:`Callable` accepts a single function and returns a
-        :class:`float`. Defaults to the square of the :math:`l_2` norm of the
-        degrees of freedom vector.
-    :arg adj_norm_sqs: A :class:`Sequence`. Each element is either a
-        :class:`Callable`, or a :class:`Sequence` of :class:`Callable` objects.
-        The :class:`Callable` objects define the squared norm associated with
-        the corresponding components of the adjoint solution for the
-        corresponding :class:`tlm_adjoint.equation.Equation` in `eqs`. Each
-        :class:`Callable` accepts a single function and returns a
+    :arg norm_sqs: A :class:`Sequence`. Each element is either a callable, or a
+        :class:`Sequence` of callables. The callables define the squared norm
+        associated with the corresponding components of the forward solution
+        for the corresponding :class:`tlm_adjoint.equation.Equation` in `eqs`.
+        Each callable accepts a single function and returns a :class:`float`.
+        Defaults to the square of the :math:`l_2` norm of the degrees of
+        freedom vector.
+    :arg adj_norm_sqs: A :class:`Sequence`. Each element is either a callable,
+        or a :class:`Sequence` of callables. The callables define the squared
+        norm associated with the corresponding components of the adjoint
+        solution for the corresponding :class:`tlm_adjoint.equation.Equation`
+        in `eqs`. Each callable accepts a single function and returns a
         :class:`float`. Defaults to the square of the :math:`l_2` norm of the
         degrees of freedom vector.
     """

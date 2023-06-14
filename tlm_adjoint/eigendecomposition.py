@@ -135,12 +135,12 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     :arg space: The space for each eigenvector.
-    :arg A_action: A :class:`Callable`. Accepts a single function argument, and
-        returns a function containing the result after left multiplication of
-        the input by :math:`A`.
-    :arg B_action: A :class:`Callable`. Accepts a single function argument, and
-        returns a function containing the result after left multiplication of
-        the input by :math:`B`.
+    :arg A_action: A callable. Accepts a single function argument, and returns
+        a function containing the result after left multiplication of the input
+        by :math:`A`.
+    :arg B_action: A callable. Accepts a single function argument, and returns
+        a function containing the result after left multiplication of the input
+        by :math:`B`.
     :arg arg_space_type: The space type of eigenvectors. `'primal'`, `'dual'`,
         `'conjugate'`, or `'conjugate_dual'`.
     :arg action_space_type: The space type of the result of multiplication by

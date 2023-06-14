@@ -16,10 +16,9 @@ __all__ = \
 def gc_disabled(fn):
     """Decorator to disable the Python garbage collector.
 
-    :arg fn: :class:`Callable` for which the Python garbage collector should be
+    :arg fn: A callable for which the Python garbage collector should be
         disabled.
-    :returns: A :class:`Callable` for which the Python garbage collector is
-        disabled.
+    :returns: A callable for which the Python garbage collector is disabled.
     """
 
     @functools.wraps(fn)

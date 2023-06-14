@@ -45,10 +45,9 @@ def minimize_scipy(forward, M0, *,
     **Important note:** No exception is raised if `return_value.success` is
     `False`. Calling code should check this attribute.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional.
     :arg M0: A function or :class:`Sequence` of functions defining the control
         variable, and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
@@ -311,12 +310,12 @@ class LBFGSHessianApproximation:
         :arg X: A function or a :class:`Sequence` of functions defining the
             direction on which to compute the approximate Hessian matrix
             inverse action.
-        :arg H_0_action: A :class:`Callable` defining the action of the
-            non-updated Hessian matrix inverse approximation on some direction.
-            Accepts one or more functions as arguments, defining the direction,
-            and returns a function or a :class:`Sequence` of functions defining
-            the action on this direction. Should correspond to a positive
-            definite operator. An identity is used if not supplied.
+        :arg H_0_action: A callable defining the action of the non-updated
+            Hessian matrix inverse approximation on some direction. Accepts one
+            or more functions as arguments, defining the direction, and returns
+            a function or a :class:`Sequence` of functions defining the action
+            on this direction. Should correspond to a positive definite
+            operator. An identity is used if not supplied.
         :returns: A function or a :class:`Sequence` of functions storing the
             result.
         """
@@ -558,13 +557,13 @@ def l_bfgs(F, Fp, X0, *,
     gradient, gradient change, and step, and where :math:`M^{-1}` and
     :math:`H_0` are defined by `M_inv_action` and `H_0_action` respectively.
 
-    :arg F: A :class:`Callable` defining the functional. Accepts one or more
-        functions as arguments, and returns the value of the functional.
-        Input arguments should not be modified.
-    :arg Fp: A :class:`Callable` defining the functional gradient. Accepts one
-        or more functions as inputs, and returns a function or
-        :class:`Sequence` of functions storing the value of the gradient.
-        Input arguments should not be modified.
+    :arg F: A callable defining the functional. Accepts one or more functions
+        as arguments, and returns the value of the functional. Input arguments
+        should not be modified.
+    :arg Fp: A callable defining the functional gradient. Accepts one or more
+        functions as inputs, and returns a function or :class:`Sequence` of
+        functions storing the value of the gradient. Input arguments should not
+        be modified.
     :arg X0: A function or a :class:`Sequence` of functions defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
@@ -573,8 +572,8 @@ def l_bfgs(F, Fp, X0, *,
         criterion.
     :arg g_atol: Absolute tolerance for the gradient norm convergence
         criterion.
-    :arg converged: A :class:`Callable` defining a callback, and which can be
-        used to define custom convergence criteria. Takes the form
+    :arg converged: A callable defining a callback, and which can be used to
+        define custom convergence criteria. Takes the form
 
         .. code-block:: python
 
@@ -597,17 +596,17 @@ def l_bfgs(F, Fp, X0, *,
         Returns a :class:`bool` indicating whether the optimization has
         converged.
     :arg max_its: The maximum number of iterations.
-    :arg H_0_action: A :class:`Callable` defining the action of the non-updated
-        Hessian matrix inverse approximation on some direction. Accepts one or
-        more functions as arguments, defining the direction, and returns a
-        function or a :class:`Sequence` of functions defining the action on
-        this direction. Should correspond to a positive definite operator. An
+    :arg H_0_action: A callable defining the action of the non-updated Hessian
+        matrix inverse approximation on some direction. Accepts one or more
+        functions as arguments, defining the direction, and returns a function
+        or a :class:`Sequence` of functions defining the action on this
+        direction. Should correspond to a positive definite operator. An
         identity is used if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
     :arg delta: Controls the initial value of :math:`\theta` in 'theta
         scaling'. If `None` then on the first iteration :math:`\theta` is set
         equal to one.
-    :arg M_action: A :class:`Callable` defining a primal space inner product,
+    :arg M_action: A callable defining a primal space inner product,
 
         .. math::
 
@@ -620,8 +619,8 @@ def l_bfgs(F, Fp, X0, *,
         defining the action of :math:`M` on this direction. An identity is used
         if not supplied. Required if `H_0_action` or `M_inv_action` are
         supplied.
-    :arg M_inv_action: A :class:`Callable` defining a (conjugate) dual space
-        inner product,
+    :arg M_inv_action: A callable defining a (conjugate) dual space inner
+        product,
 
         .. math::
 
@@ -829,10 +828,9 @@ def minimize_l_bfgs(forward, M0, *,
                     m=30, manager=None, **kwargs):
     """Functional minimization using the L-BFGS algorithm.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional.
     :arg M0: A function or :class:`Sequence` of functions defining the control
         variable, and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which

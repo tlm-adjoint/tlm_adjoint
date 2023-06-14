@@ -88,16 +88,16 @@ class Hessian(ABC):
         raise NotImplementedError
 
     def action_fn(self, m, m0=None):
-        """Return a :class:`Callable` which can be used to compute Hessian
-        matrix actions.
+        """Return a callable which can be used to compute Hessian matrix
+        actions.
 
         :arg m: A function defining the control variable.
         :arg m0: A function defining the control value. `m` is used if not
             supplied.
-        :returns: A :class:`Callable` which accepts a single function argument,
-            and returns the result of the Hessian matrix action on that
-            argument as a function. Note that the result is *not* the conjugate
-            of the Hessian matrix action on the input argument.
+        :returns: A callable which accepts a single function argument, and
+            returns the result of the Hessian matrix action on that argument as
+            a function. Note that the result is *not* the conjugate of the
+            Hessian matrix action on the input argument.
         """
 
         def action(dm):
@@ -111,10 +111,9 @@ class GeneralHessian(Hessian):
     """Represents a Hessian matrix associated with a given forward model. Calls
     to :meth:`compute_gradient` or :meth:`action` re-run the forward.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
     """
@@ -223,14 +222,14 @@ class GaussNewton(ABC):
     covariance and :math:`B^{-1}` corresponds to the background inverse
     covariance.
 
-    :arg R_inv_action: A :class:`Callable` which accepts one or more functions,
-        and returns the conjugate of the action of the operator corresponding
-        to :math:`R_\text{obs}^{-1}` on those functions, returning the
-        result as a function or a :class:`Sequence` of functions.
-    :arg B_inv_action: A :class:`Callable` which accepts one or more functions,
-        and returns the conjugate of the action of the operator corresponding
-        to :math:`B^{-1}` on those functions, returning the result as a
+    :arg R_inv_action: A callable which accepts one or more functions, and
+        returns the conjugate of the action of the operator corresponding to
+        :math:`R_\text{obs}^{-1}` on those functions, returning the result as a
         function or a :class:`Sequence` of functions.
+    :arg B_inv_action: A callable which accepts one or more functions, and
+        returns the conjugate of the action of the operator corresponding to
+        :math:`B^{-1}` on those functions, returning the result as a function
+        or a :class:`Sequence` of functions.
     :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
         not supplied.
     """
@@ -321,14 +320,14 @@ class GaussNewton(ABC):
         return ddJ
 
     def action_fn(self, m, m0=None):
-        """Return a :class:`Callable` which can be used to compute Hessian
-        matrix actions using the Gauss-Newton approximation.
+        """Return a callable which can be used to compute Hessian matrix
+        actions using the Gauss-Newton approximation.
 
         :arg m: A function defining the control variable.
         :arg m0: A function defining the control value. `m` is used if not
             supplied.
-        :returns: A :class:`Callable` which accepts a single function argument,
-            and returns the result of the approximated Hessian matrix action on
+        :returns: A callable which accepts a single function argument, and
+            returns the result of the approximated Hessian matrix action on
             that argument as a function. Note that the result is *not* the
             conjugate of the approximated Hessian matrix action on the input
             argument.
@@ -345,9 +344,9 @@ class GeneralGaussNewton(GaussNewton):
     with a given forward model. Calls to :meth:`GaussNewton.action` re-run the
     forward.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or :class:`Sequence` of
-        functions defining the state.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`Sequence` of functions defining the
+        state.
     :arg R_inv_action: See :class:`GaussNewton`.
     :arg B_inv_action: See :class:`GaussNewton`.
     :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
