@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import comm_dup, function_assign, function_axpy, \
-    function_comm, function_copy, function_dtype, function_get_values, \
-    function_inner, function_is_cached, function_is_checkpointed, \
-    function_is_static, function_linf_norm, function_local_size, \
-    function_new, function_new_conjugate_dual, function_set_values, \
-    garbage_cleanup, is_function, paused_space_type_checking, space_comm
+from .interface import (
+    comm_dup_cached, function_assign, function_axpy, function_comm,
+    function_copy, function_dtype, function_get_values, function_inner,
+    function_is_cached, function_is_checkpointed, function_is_static,
+    function_linf_norm, function_local_size, function_new,
+    function_new_conjugate_dual, function_set_values, garbage_cleanup,
+    is_function, paused_space_type_checking, space_comm)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
@@ -66,7 +67,7 @@ def minimize_scipy(forward, M0, *,
     if manager is None:
         manager = _manager().new()
     set_manager(manager)
-    comm = comm_dup(manager.comm())
+    comm = manager.comm()
 
     N = [0]
     for m0 in M0:
@@ -414,7 +415,7 @@ def line_search(F, Fp, X, minus_P, *,
 
     if comm is None:
         comm = function_comm(X_rank1[0])
-    comm = comm_dup(comm)
+    comm = comm_dup_cached(comm)
 
     last_F = [None, None]
 

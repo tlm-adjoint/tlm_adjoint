@@ -107,7 +107,6 @@ from contextlib import contextmanager
 from enum import Enum
 from functools import cached_property, wraps
 import logging
-import weakref
 
 __all__ = \
     [
@@ -1246,8 +1245,6 @@ class System:
             pc.setUp()
 
         ksp_solver = PETSc.KSP().create(comm=self._comm)
-        weakref.finalize(ksp_solver, lambda comm: None,
-                         self._comm)  # Hold a reference to the communicator
         ksp_solver.setType(solver_parameters.get("linear_solver", "fgmres"))
         if pc_fn is not None:
             ksp_solver.setPC(pc)

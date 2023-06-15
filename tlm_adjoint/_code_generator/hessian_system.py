@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from ..interface import (
-    check_space_types, check_space_types_conjugate, comm_dup, function_assign,
-    function_axpy, function_copy, function_dtype, function_get_values,
-    function_inner, function_new_conjugate, function_set_values,
-    function_space, function_space_type, is_function, space_comm, space_dtype)
+    check_space_types, check_space_types_conjugate, comm_dup_cached,
+    function_assign, function_axpy, function_copy, function_dtype,
+    function_get_values, function_inner, function_new_conjugate,
+    function_set_values, function_space, function_space_type, is_function,
+    space_comm, space_dtype)
 
 from ..eigendecomposition import eigendecompose
 
@@ -155,7 +156,7 @@ class HessianSystem(System):
 
         if comm is None:
             comm = space_comm(arg_spaces.mixed_space())
-        comm = comm_dup(comm)
+        comm = comm_dup_cached(comm, key="HessianSystem")
 
         super().__init__(
             arg_spaces, action_spaces, matrix,

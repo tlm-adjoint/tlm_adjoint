@@ -6,14 +6,13 @@
 # the 'eigendecompose' docstring.
 
 from .interface import (
-    check_space_type, comm_dup, function_get_values, function_global_size,
-    function_local_size, function_set_values, is_function, relative_space_type,
-    space_comm, space_new)
+    check_space_type, comm_dup_cached, function_get_values,
+    function_global_size, function_local_size, function_set_values,
+    is_function, relative_space_type, space_comm, space_new)
 
 import functools
 import numpy as np
 import warnings
-import weakref
 
 __all__ = \
     [
@@ -198,7 +197,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
     comm = space_comm(space)
-    comm = comm_dup(comm)
+    comm = comm_dup_cached(comm, key="eigendecompose")
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action),
@@ -214,8 +213,6 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         B_matrix.setUp()
 
     esolver = SLEPc.EPS().create(comm=comm)
-    weakref.finalize(esolver, lambda comm: None,
-                     comm)  # Hold a reference to the communicator
     if solver_type is not None:
         esolver.setType(solver_type)
     esolver.setProblemType(problem_type)

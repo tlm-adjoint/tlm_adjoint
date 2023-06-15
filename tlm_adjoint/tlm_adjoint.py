@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import DEFAULT_COMM, comm_dup, function_assign, \
-    function_copy, function_id, function_is_replacement, function_name, \
-    garbage_cleanup, is_function
+from .interface import (
+    DEFAULT_COMM, comm_dup_cached, function_assign, function_copy, function_id,
+    function_is_replacement, function_name, garbage_cleanup, is_function)
 
 from .adjoint import AdjointCache, AdjointModelRHS, DependencyGraphTranspose
 from .alias import WeakAlias, gc_disabled
@@ -100,7 +100,7 @@ class EquationManager:
         if cp_parameters is None:
             cp_parameters = {}
 
-        comm = comm_dup(comm)
+        comm = comm_dup_cached(comm)
 
         self._comm = comm
         self._to_drop_references = []
