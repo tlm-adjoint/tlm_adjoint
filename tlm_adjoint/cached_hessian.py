@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import comm_dup, function_id, function_new, function_state, \
-    is_function
+from .interface import function_id, function_new, function_state, is_function
 
 from .caches import clear_caches
 from .functional import Functional
@@ -29,7 +28,7 @@ class HessianOptimization:
         if manager._alias_eqs:
             raise RuntimeError("Invalid equation manager state")
 
-        comm = comm_dup(manager.comm())
+        comm = manager.comm()
 
         blocks = list(manager._blocks) + [list(manager._block)]
 

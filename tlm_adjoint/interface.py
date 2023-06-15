@@ -259,14 +259,15 @@ def comm_dup(comm):
 _dup_comms = {}
 
 
-def comm_dup_cached(comm):
-    """If the communicator `comm` has previously been duplicated using
-    :func:`comm_dup_cached`, then return the previous result. Otherwise
+def comm_dup_cached(comm, *, key=None):
+    """If the communicator `comm` with key `key` has previously been duplicated
+    using :func:`comm_dup_cached`, then return the previous result. Otherwise
     duplicate the communicator and cache the result. The duplicated
     communicator is freed when the original base communicator is freed.
 
     :arg comm: An :class:`mpi4py.MPI.Comm`, the base communicator to be
         duplicated.
+    :arg key: The key.
     :returns: An :class:`mpi4py.MPI.Comm`. A duplicated MPI communicator, or a
         previously cached duplicated MPI communicator, which is freed when the
         original base communicator is freed.
@@ -275,22 +276,27 @@ def comm_dup_cached(comm):
     if MPI is not None and comm is MPI.COMM_NULL:
         return comm
 
-    dup_comm = _dup_comms.get(comm.py2f(), None)
+    if key is None:
+        key = comm.py2f()
+    else:
+        key = (comm.py2f(), key)
+
+    dup_comm = _dup_comms.get(key, None)
 
     if dup_comm is None:
         dup_comm = comm.Dup()
         _parent_comms[dup_comm.py2f()] = comm
-        _dup_comms[comm.py2f()] = dup_comm
+        _dup_comms[key] = dup_comm
 
-        def finalize_callback(comm_py2f, dup_comm):
+        def finalize_callback(key, dup_comm):
             if MPI is not None and not MPI.Is_finalized():
                 garbage_cleanup(dup_comm)
                 dup_comm.Free()
             _parent_comms.pop(dup_comm.py2f(), None)
-            _dup_comms.pop(comm_py2f, None)
+            _dup_comms.pop(key, None)
 
         comm_finalize(comm, finalize_callback,
-                      comm.py2f(), dup_comm)
+                      key, dup_comm)
 
     return dup_comm
 

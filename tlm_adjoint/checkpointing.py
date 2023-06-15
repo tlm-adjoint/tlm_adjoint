@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import DEFAULT_COMM, comm_dup, function_assign, \
-    function_copy, function_get_values, function_global_size, function_id, \
-    function_is_checkpointed, function_is_scalar, function_local_indices, \
-    function_new, function_scalar_value, function_set_values, function_space, \
-    function_space_type, space_id, space_new
+from .interface import (
+    DEFAULT_COMM, comm_dup_cached, function_assign, function_copy,
+    function_get_values, function_global_size, function_id,
+    function_is_checkpointed, function_is_scalar, function_local_indices,
+    function_new, function_scalar_value, function_set_values, function_space,
+    function_space_type, space_id, space_new)
 
 from .instructions import Instruction
 
@@ -712,7 +713,7 @@ class PickleCheckpoints(Checkpoints):
         if comm is None:
             comm = DEFAULT_COMM
 
-        comm = comm_dup(comm)
+        comm = comm_dup_cached(comm)
         cp_filenames = {}
 
         def finalize_callback(cp_filenames):
@@ -818,7 +819,7 @@ class HDF5Checkpoints(Checkpoints):
         if comm is None:
             comm = DEFAULT_COMM
 
-        comm = comm_dup(comm)
+        comm = comm_dup_cached(comm, key="HDF5Checkpoints")
         cp_filenames = {}
 
         def finalize_callback(comm, rank, cp_filenames):
