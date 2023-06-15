@@ -124,9 +124,9 @@ _overload = 0
 def no_float_overloading(fn):
     """Decorator to disable :class:`OverloadedFloat` operator overloading.
 
-    :arg fn: :class:`Callable` for which :class:`OverloadedFloat` operator
-        overloading should be disabled.
-    :returns: A :class:`Callable` for which :class:`OverloadedFloat` operator
+    :arg fn: A callable for which :class:`OverloadedFloat` operator overloading
+        should be disabled.
+    :returns: A callable for which :class:`OverloadedFloat` operator
         overloading is disabled.
     """
 

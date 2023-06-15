@@ -330,7 +330,7 @@ class EquationManager:
               the corresponding arguments for the :func:`adj_checkpointing`
               function in dolfin-adjoint (see e.g. version 2017.1.0).
 
-            - :class:`Callable`: A :class:`Callable` returning a
+            - A callable: A callable returning a
               :class:`tlm_adjoint.checkpoint_schedules.schedule.CheckpointSchedule`.
               Options defined by `cp_parameters`:
 
@@ -340,7 +340,7 @@ class EquationManager:
                   data storage using the pickle module, or `'hdf5'`, for data
                   storage using the h5py library.
                 - Other parameters are passed as keyword arguments to the
-                  :class:`Callable`.
+                  callable.
         """
 
         if len(self._block) != 0 or len(self._blocks) != 0:
@@ -1128,7 +1128,7 @@ class EquationManager:
             differentiate.
         :arg M: A function or a :class:`Sequence` of functions defining the
             controls. Derivatives with respect to the controls are computed.
-        :arg callback: Diagnostic callback. A :class:`Callable` of the form
+        :arg callback: Diagnostic callback. A callable of the form
 
             .. code-block:: python
 

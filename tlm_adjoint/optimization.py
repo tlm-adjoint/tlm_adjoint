@@ -45,10 +45,9 @@ def minimize_scipy(forward, M0, *,
     **Important note:** No exception is raised if `return_value.success` is
     `False`. Calling code should check this attribute.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional.
     :arg M0: A function or :class:`Sequence` of functions defining the control
         variable, and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
@@ -235,7 +234,7 @@ def conjugate_dual_identity_action(*X):
 
 
 def wrapped_action(M, *,
-                   copy=False):
+                   copy=True):
     M_arg = M
 
     def M(*X):
@@ -250,10 +249,10 @@ def wrapped_action(M, *,
 
 
 class LBFGSHessianApproximation:
-    """L-BFGS Hessian approximation.
+    """L-BFGS Hessian matrix approximation.
 
     :arg m: Maximum number of vector pairs to retain in the L-BFGS Hessian
-        approximation.
+        matrix approximation.
     """
 
     def __init__(self, m):
@@ -291,10 +290,10 @@ class LBFGSHessianApproximation:
 
     def inverse_action(self, X, *,
                        H_0_action=None, theta=1.0):
-        """Compute the action of the approximate Hessian inverse on some
+        """Compute the action of the approximate Hessian matrix inverse on some
         given direction.
 
-        Implements the L-BFGS Hessian inverse action approximation as in
+        Implements the L-BFGS Hessian matrix inverse action approximation as in
         Algorithm 7.4 of
 
             - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
@@ -309,15 +308,14 @@ class LBFGSHessianApproximation:
               doi: 10.1137/0916069
 
         :arg X: A function or a :class:`Sequence` of functions defining the
-            direction on which to compute the approximate Hessian inverse
-            action.
-        :arg H_0_action: A :class:`Callable` defining the action of the
-            non-updated Hessian inverse approximation on some direction.
-            Accepts one or more functions as arguments, defining the direction,
-            and returns a function or a :class:`Sequence` of functions defining
-            the action on this direction. Should correspond to a positive
-            definite operator. Input arguments should not be modified. An
-            identity is used if not supplied.
+            direction on which to compute the approximate Hessian matrix
+            inverse action.
+        :arg H_0_action: A callable defining the action of the non-updated
+            Hessian matrix inverse approximation on some direction. Accepts one
+            or more functions as arguments, defining the direction, and returns
+            a function or a :class:`Sequence` of functions defining the action
+            on this direction. Should correspond to a positive definite
+            operator. An identity is used if not supplied.
         :returns: A function or a :class:`Sequence` of functions storing the
             result.
         """
@@ -327,7 +325,7 @@ class LBFGSHessianApproximation:
         X = functions_copy(X)
 
         if H_0_action is None:
-            H_0_action = wrapped_action(conjugate_dual_identity_action)
+            H_0_action = wrapped_action(conjugate_dual_identity_action, copy=False)  # noqa: E501
         else:
             H_0_action = wrapped_action(H_0_action, copy=True)
 
@@ -401,7 +399,7 @@ def line_search(F, Fp, X, minus_P, *,
     if line_search_rank0_kwargs is None:
         line_search_rank0_kwargs = {}
 
-    Fp = wrapped_action(Fp)
+    Fp = wrapped_action(Fp, copy=False)
 
     if is_function(X):
         X_rank1 = (X,)
@@ -526,9 +524,9 @@ def l_bfgs(F, Fp, X0, *,
 
     in a more general inner product space.
 
-    By default uses 'theta scaling' to define the initial Hessian inverse
-    approximation, based on the approach in equation (3.7) and point 7 on p.
-    1204 of
+    By default uses 'theta scaling' to define the initial Hessian matrix
+    inverse approximation, based on the approach in equation (3.7) and point 7
+    on p. 1204 of
 
         - Richard H. Byrd, Peihuang Lu, and Jorge Nocedal, and Ciyou Zhu, 'A
           limited memory algorithm for bound constrained optimization', SIAM
@@ -542,8 +540,8 @@ def l_bfgs(F, Fp, X0, *,
           Springer, New York, NY, 2006, Second edition,
           doi: 10.1007/978-0-387-40065-5
 
-    Precisely the Hessian inverse approximation, before being updated, is
-    scaled by :math:`1 / \theta` with, on the first iteration,
+    Precisely the Hessian matrix inverse approximation, before being updated,
+    is scaled by :math:`1 / \theta` with, on the first iteration,
 
     .. math::
 
@@ -559,23 +557,23 @@ def l_bfgs(F, Fp, X0, *,
     gradient, gradient change, and step, and where :math:`M^{-1}` and
     :math:`H_0` are defined by `M_inv_action` and `H_0_action` respectively.
 
-    :arg F: A :class:`Callable` defining the functional. Accepts one or more
-        functions as arguments, and returns the value of the functional.
-        Input arguments should not be modified.
-    :arg Fp: A :class:`Callable` defining the functional gradient. Accepts one
-        or more functions as inputs, and returns a function or
-        :class:`Sequence` of functions storing the value of the gradient.
-        Input arguments should not be modified.
+    :arg F: A callable defining the functional. Accepts one or more functions
+        as arguments, and returns the value of the functional. Input arguments
+        should not be modified.
+    :arg Fp: A callable defining the functional gradient. Accepts one or more
+        functions as inputs, and returns a function or :class:`Sequence` of
+        functions storing the value of the gradient. Input arguments should not
+        be modified.
     :arg X0: A function or a :class:`Sequence` of functions defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
-        Hessian inverse approximation.
+        Hessian matrix inverse approximation.
     :arg s_atol: Absolute tolerance for the step change norm convergence
         criterion.
     :arg g_atol: Absolute tolerance for the gradient norm convergence
         criterion.
-    :arg converged: A :class:`Callable` defining a callback, and which can be
-        used to define custom convergence criteria. Takes the form
+    :arg converged: A callable defining a callback, and which can be used to
+        define custom convergence criteria. Takes the form
 
         .. code-block:: python
 
@@ -598,17 +596,17 @@ def l_bfgs(F, Fp, X0, *,
         Returns a :class:`bool` indicating whether the optimization has
         converged.
     :arg max_its: The maximum number of iterations.
-    :arg H_0_action: A :class:`Callable` defining the action of the non-updated
-        Hessian inverse approximation on some direction. Accepts one or more
+    :arg H_0_action: A callable defining the action of the non-updated Hessian
+        matrix inverse approximation on some direction. Accepts one or more
         functions as arguments, defining the direction, and returns a function
         or a :class:`Sequence` of functions defining the action on this
-        direction. Should correspond to a positive definite operator. Input
-        arguments should not be modified. An identity is used if not supplied.
+        direction. Should correspond to a positive definite operator. An
+        identity is used if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
     :arg delta: Controls the initial value of :math:`\theta` in 'theta
         scaling'. If `None` then on the first iteration :math:`\theta` is set
         equal to one.
-    :arg M_action: A :class:`Callable` defining a primal space inner product,
+    :arg M_action: A callable defining a primal space inner product,
 
         .. math::
 
@@ -618,11 +616,11 @@ def l_bfgs(F, Fp, X0, *,
         space elements and :math:`M` is a Hermitian and positive definite
         matrix. Accepts one or more functions as arguments, defining the
         direction, and returns a function or a :class:`Sequence` of functions
-        defining the action of :math:`M` on this direction. Input arguments
-        should not be modified. An identity is used if not supplied. Required
-        if `H_0_action` or `M_inv_action` are supplied.
-    :arg M_inv_action: A :class:`Callable` defining a (conjugate) dual space
-        inner product,
+        defining the action of :math:`M` on this direction. An identity is used
+        if not supplied. Required if `H_0_action` or `M_inv_action` are
+        supplied.
+    :arg M_inv_action: A callable defining a (conjugate) dual space inner
+        product,
 
         .. math::
 
@@ -632,8 +630,8 @@ def l_bfgs(F, Fp, X0, *,
         (conjugate) dual space elements and :math:`M` is as for `M_action`.
         Accepts one or more functions as arguments, defining the direction, and
         returns a function or a :class:`Sequence` of functions defining the
-        action of :math:`M^{-1}` on this direction. Input arguments should not
-        be modified. `H_0_action` is used if not supplied.
+        action of :math:`M^{-1}` on this direction. `H_0_action` is used if not
+        supplied.
     :arg c1: Armijo condition parameter. :math:`c_1` in equation (3.6a) of
 
             - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
@@ -709,28 +707,30 @@ def l_bfgs(F, Fp, X0, *,
             with paused_space_type_checking():
                 return abs(functions_inner(X, X))
     else:
-        H_0_action = wrapped_action(H_0_action)
+        H_0_norm_sq_H_0_action = wrapped_action(H_0_action, copy=True)
 
         def H_0_norm_sq(X):
-            return abs(functions_inner(H_0_action(*X), X))
+            return abs(functions_inner(H_0_norm_sq_H_0_action(*X), X))
 
     if M_action is None:
         def M_norm_sq(X):
             with paused_space_type_checking():
                 return abs(functions_inner(X, X))
     else:
-        M_action = wrapped_action(M_action)
+        M_norm_sq_M_action = wrapped_action(M_action, copy=True)
 
         def M_norm_sq(X):
-            return abs(functions_inner(X, M_action(*X)))
+            return abs(functions_inner(X, M_norm_sq_M_action(*X)))
+    del M_action
 
     if M_inv_action is None:
         M_inv_norm_sq = H_0_norm_sq
     else:
-        M_inv_action = wrapped_action(M_inv_action)
+        M_inv_norm_sq_M_inv_action = wrapped_action(M_inv_action, copy=True)
 
         def M_inv_norm_sq(X):
-            return abs(functions_inner(M_inv_action(*X), X))
+            return abs(functions_inner(M_inv_norm_sq_M_inv_action(*X), X))
+    del M_inv_action
 
     if comm is None:
         comm = function_comm(X0[0])
@@ -828,10 +828,9 @@ def minimize_l_bfgs(forward, M0, *,
                     m=30, manager=None, **kwargs):
     """Functional minimization using the L-BFGS algorithm.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional.
     :arg M0: A function or :class:`Sequence` of functions defining the control
         variable, and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which

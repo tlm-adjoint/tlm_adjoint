@@ -52,7 +52,7 @@ def test_GaussNewton(setup_test, test_leaks):
 
     def B_inv_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(eps * inner(ufl.conj(x), test) * dx,
+        assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx,
                  tensor=function_vector(y))
         return y
 
@@ -115,7 +115,7 @@ def test_CachedGaussNewton(setup_test):
 
     def B_inv_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(eps * inner(ufl.conj(x), test) * dx,
+        assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx,
                  tensor=function_vector(y))
         return y
 

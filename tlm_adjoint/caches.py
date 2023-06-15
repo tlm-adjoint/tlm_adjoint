@@ -66,9 +66,8 @@ def local_caches(fn):
     """Decorator clearing caches before and after calling the decorated
     callable.
 
-    :arg fn: :class:`Callable` for which caches should be cleared.
-    :returns: A :class:`Callable` where caches are cleared before and after
-        calling.
+    :arg fn: A callable for which caches should be cleared.
+    :returns: A callable where caches are cleared before and after calling.
     """
 
     @functools.wraps(fn)
@@ -190,8 +189,8 @@ class Cache:
         """Add a cache entry.
 
         :arg key: The key associated with the cache entry.
-        :arg value: A :class:`Callable`, taking no arguments, returning the
-            value associated with the cache entry. Only called to if no entry
+        :arg value: A callable, taking no arguments, returning the value
+            associated with the cache entry. Only called to if no entry
             associated with `key` exists.
         :arg deps: A :class:`Sequence` of functions, defining dependencies of
             the cache entry.

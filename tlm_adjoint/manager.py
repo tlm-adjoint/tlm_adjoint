@@ -67,7 +67,7 @@ def set_manager(manager):
 
 def restore_manager(fn):
     """Decorator to revert the default manager to the manager used prior to
-    calling the decorated :class:`Callable`. A typical use is
+    calling the decorated callable. A typical use is
 
     .. code-block:: python
 
@@ -76,9 +76,9 @@ def restore_manager(fn):
             set_manager(manager().new())
             forward(*M)
 
-    :arg fn: A decorated :class:`Callable`.
-    :returns: A :class:`Callable`, where the default manager on entry
-        is restored on exit.
+    :arg fn: A decorated callable.
+    :returns: A callable, where the default manager on entry is restored on
+        exit.
     """
 
     @functools.wraps(fn)

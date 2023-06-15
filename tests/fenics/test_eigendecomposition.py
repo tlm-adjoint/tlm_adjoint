@@ -34,8 +34,9 @@ def test_HEP(setup_test, test_leaks):
         return y
 
     import slepc4py.SLEPc as SLEPc
-    lam, V = eigendecompose(space, M_action, action_type="conjugate_dual",
-                            problem_type=SLEPc.EPS.ProblemType.HEP)
+    lam, V = eigendecompose(
+        space, M_action, action_space_type="conjugate_dual",
+        problem_type=SLEPc.EPS.ProblemType.HEP)
 
     assert (lam > 0.0).all()
 
@@ -63,7 +64,8 @@ def test_NHEP(setup_test, test_leaks):
         assemble(inner(x.dx(0), test) * dx, tensor=function_vector(y))
         return y
 
-    lam, V = eigendecompose(space, N_action, action_type="conjugate_dual")
+    lam, V = eigendecompose(
+        space, N_action, action_space_type="conjugate_dual")
 
     assert abs(lam.real).max() < 1.0e-15
 

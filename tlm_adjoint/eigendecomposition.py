@@ -5,13 +5,15 @@
 # 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information can be found in
 # the 'eigendecompose' docstring.
 
-from .interface import check_space_types, function_get_values, \
-    function_global_size, function_local_size, function_set_values, \
-    is_function, space_comm, space_new, space_type_warning
+from .interface import (
+    check_space_type, comm_dup, function_get_values, function_global_size,
+    function_local_size, function_set_values, is_function, relative_space_type,
+    space_comm, space_new)
 
 import functools
 import numpy as np
 import warnings
+import weakref
 
 __all__ = \
     [
@@ -19,17 +21,17 @@ __all__ = \
     ]
 
 
-_flagged_error = False
+_error_flag = False
 
 
 def flag_errors(fn):
     @functools.wraps(fn)
     def wrapped_fn(*args, **kwargs):
-        global _flagged_error
+        global _error_flag
         try:
             return fn(*args, **kwargs)
         except Exception:
-            _flagged_error = True
+            _error_flag = True
             raise
     return wrapped_fn
 
@@ -53,17 +55,17 @@ class PythonMatrix:
         y.setArray(y_a)
 
 
-def wrapped_action(space, space_type, action_type, action):
+def wrapped_action(space, arg_space_type, action_space_type, action):
     action_arg = action
 
     def action(x):
         x_a = x
-        x = space_new(space, space_type=space_type)
+        x = space_new(space, space_type=arg_space_type)
         function_set_values(x, x_a)
 
         y = action_arg(x)
         if is_function(y):
-            check_space_types(x, y, rel_space_type=action_type)
+            check_space_type(y, action_space_type)
             y_a = function_get_values(y)
         else:
             warnings.warn("Action callable should return a function",
@@ -75,14 +77,13 @@ def wrapped_action(space, space_type, action_type, action):
     return action
 
 
-def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
-                   action_type="dual", N_eigenvalues=None, solver_type=None,
-                   problem_type=None, which=None, tolerance=1.0e-12,
-                   configure=None):
+def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
+                   action_space_type=None, N_eigenvalues=None,
+                   solver_type=None, problem_type=None, which=None,
+                   tolerance=1.0e-12, configure=None):
     # First written 2018-03-01
-    r"""
-    Matrix-free interface with SLEPc via slepc4py, for the matrix free solution
-    of eigenproblems
+    r"""Interface with SLEPc via slepc4py, for the matrix free solution of
+    eigenproblems
 
     .. math::
 
@@ -134,17 +135,18 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     :arg space: The space for each eigenvector.
-    :arg A_action: A :class:`Callable`. Accepts a single function argument, and
-        returns a function containing the result after left multiplication of
-        the input by :math:`A`.
-    :arg B_action: A :class:`Callable`. Accepts a single function argument, and
-        returns a function containing the result after left multiplication of
-        the input by :math:`B`.
-    :arg space_type: The space type of eigenvectors. `'primal'`, `'dual'`,
+    :arg A_action: A callable. Accepts a single function argument, and returns
+        a function containing the result after left multiplication of the input
+        by :math:`A`.
+    :arg B_action: A callable. Accepts a single function argument, and returns
+        a function containing the result after left multiplication of the input
+        by :math:`B`.
+    :arg arg_space_type: The space type of eigenvectors. `'primal'`, `'dual'`,
         `'conjugate'`, or `'conjugate_dual'`.
-    :arg action_type: The space type relative to `space_type` of the result of
-        multiplication by :math:`A` or :math:`B`. `'primal'`, `'dual'`, or
-        `'conjugate_dual'`.
+    :arg action_space_type: The space type of the result of multiplication by
+        :math:`A` or :math:`B`. `'primal'`, `'dual'`, `'conjugate'`, or
+        `'conjugate_dual'`. Defaults to the space type conjugate dual to
+        `arg_space_type`.
     :arg N_eigenvalues: An :class:`int`, the number of eigenvalues to attempt
         to compute. Defaults to the dimension of `space`.
     :arg problem_type: The eigenproblem type -- see
@@ -171,20 +173,16 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
 
-    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+    if arg_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
-    if action_type not in ["primal", "dual", "conjugate_dual"]:
-        raise ValueError("Invalid action type")
+    if action_space_type is None:
+        action_space_type = relative_space_type(arg_space_type, "conjugate_dual")  # noqa: E501
+    elif action_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:  # noqa: E501
+        raise ValueError("Invalid space type")
 
-    A_action = wrapped_action(space, space_type, action_type, A_action)
-    if B_action is None:
-        if action_type in ["dual", "conjugate_dual"]:
-            space_type_warning("B_action argument expected with action type "
-                               "'dual' or 'conjugate_dual'")
-        else:
-            assert action_type == "primal"
-    else:
-        B_action = wrapped_action(space, space_type, action_type, B_action)
+    A_action = wrapped_action(space, arg_space_type, action_space_type, A_action)  # noqa: E501
+    if B_action is not None:
+        B_action = wrapped_action(space, arg_space_type, action_space_type, B_action)  # noqa: E501
 
     if problem_type is None:
         if B_action is None:
@@ -194,12 +192,13 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
     if which is None:
         which = SLEPc.EPS.Which.LARGEST_MAGNITUDE
 
-    X = space_new(space, space_type=space_type)
+    X = space_new(space, space_type=arg_space_type)
     n, N = function_local_size(X), function_global_size(X)
     del X
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
     comm = space_comm(space)
+    comm = comm_dup(comm)
 
     A_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         PythonMatrix(A_action),
@@ -215,6 +214,8 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         B_matrix.setUp()
 
     esolver = SLEPc.EPS().create(comm=comm)
+    weakref.finalize(esolver, lambda comm: None,
+                     comm)  # Hold a reference to the communicator
     if solver_type is not None:
         esolver.setType(solver_type)
     esolver.setProblemType(problem_type)
@@ -231,9 +232,9 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         configure(esolver)
     esolver.setUp()
 
-    assert not _flagged_error
+    assert not _error_flag
     esolver.solve()
-    if _flagged_error:
+    if _error_flag:
         raise RuntimeError("Error encountered in SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
         raise RuntimeError("Not all requested eigenpairs converged")
@@ -242,7 +243,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
                   dtype=PETSc.RealType if esolver.isHermitian()
                   else PETSc.ComplexType)
     v_r = A_matrix.getVecRight()
-    V_r = tuple(space_new(space, space_type=space_type)
+    V_r = tuple(space_new(space, space_type=arg_space_type)
                 for n in range(N_ev))
     if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
         v_i = None
@@ -252,7 +253,7 @@ def eigendecompose(space, A_action, *, B_action=None, space_type="primal",
         if esolver.isHermitian():
             V_i = None
         else:
-            V_i = tuple(space_new(space, space_type=space_type)
+            V_i = tuple(space_new(space, space_type=arg_space_type)
                         for n in range(N_ev))
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)

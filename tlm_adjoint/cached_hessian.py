@@ -142,11 +142,11 @@ class HessianOptimization:
 
 
 class CachedHessian(Hessian, HessianOptimization):
-    """Represents a Hessian associated with a given forward model. Uses a
-    cached forward calculation.
+    """Represents a Hessian matrix associated with a given forward model. Uses
+    a cached forward calculation.
 
     :arg J: A function or :class:`tlm_adjoint.functional.Functional` defining
-        the Hessian.
+        the Hessian matrix.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
         automatic dropping of function references disabled. `manager()` is used
@@ -221,8 +221,8 @@ class SingleBlockHessian(CachedHessian):
 
 
 class CachedGaussNewton(GaussNewton, HessianOptimization):
-    """Represents a Gauss-Newton approximation to a Hessian associated with a
-    given forward model. Uses a cached forward calculation.
+    """Represents a Gauss-Newton approximation to a Hessian matrix associated
+    with a given forward model. Uses a cached forward calculation.
 
     :arg X: A function or a :class:`Sequence` of functions defining the state.
     :arg R_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.

@@ -7,10 +7,10 @@ This is implemented via runtime binding of mixins. The
 interact with backend variables. The :class:`SpaceInterface` adds methods to
 'spaces' which define the vector spaces in which those 'functions' are defined.
 
-The extra methods are accessed using the :class:`Callable` objects defined in
-this module (which also handle some extra details, e.g. related to cache
-invalidation and space type checking). Typically these are prefixed with
-`space_` for spaces and `function_` for functions.
+The extra methods are accessed using the callables defined in this module
+(which also handle some extra details, e.g. related to cache invalidation and
+space type checking). Typically these are prefixed with `space_` for spaces and
+`function_` for functions.
 
 The term 'function' originates from finite element discrete functions, but
 there is no assumption that these correspond to actual functions defined on any
@@ -246,6 +246,7 @@ def comm_dup(comm):
     def finalize_callback(dup_comm_py2f):
         if MPI is not None and not MPI.Is_finalized():
             dup_comm = f2py(dup_comm_py2f)
+            garbage_cleanup(dup_comm)
             dup_comm.Free()
         _parent_comms.pop(dup_comm_py2f, None)
 
@@ -283,6 +284,7 @@ def comm_dup_cached(comm):
 
         def finalize_callback(comm_py2f, dup_comm):
             if MPI is not None and not MPI.Is_finalized():
+                garbage_cleanup(dup_comm)
                 dup_comm.Free()
             _parent_comms.pop(dup_comm.py2f(), None)
             _dup_comms.pop(comm_py2f, None)
@@ -549,9 +551,8 @@ _check_space_types = 0
 def no_space_type_checking(fn):
     """Decorator to disable space type checking.
 
-    :arg fn: :class:`Callable` for which space type checking should be
-        disabled.
-    :returns: A :class:`Callable` for which space type checking is disabled.
+    :arg fn: A callable for which space type checking should be disabled.
+    :returns: A callable for which space type checking is disabled.
     """
 
     @functools.wraps(fn)

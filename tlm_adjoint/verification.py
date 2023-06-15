@@ -72,7 +72,7 @@ Logging is performed on a logging module logger, with name
 order computed for the corrected Taylor remainder magnitude is returned.
 
 A typical test considers tangent-linears and adjoints up to the relevant order,
-e.g. to verify Hessian calculations
+e.g. to verify Hessian matrix calculations
 
 .. code-block:: python
 
@@ -146,11 +146,10 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     the control value degree of freedom vector. The argument `seed` sets the
     value of :math:`\eta`, and the argument `size` sets the value of :math:`P`.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional :math:`J`. Corresponds to the `J` argument in the
-        dolfin-adjoint :func:`taylor_test` function.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional :math:`J`. Corresponds to the `J`
+        argument in the dolfin-adjoint :func:`taylor_test` function.
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m`. Corresponds to the `m` argument in the
         dolfin-adjoint :func:`taylor_test` function.
@@ -162,11 +161,11 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         Required if `ddJ` is not supplied. Corresponds to the `dJdm` argument
         in the dolfin-adjoint :func:`taylor_test` function.
     :arg ddJ: A :class:`tlm_adjoint.hessian.Hessian` used to compute the
-        Hessian action on the considered perturbation direction. If supplied
-        then a higher order corrected Taylor remainder magnitude is computed.
-        If `dJ` is not supplied, also computes the first order directional
-        derivative. Corresponds to the `HJm` argument in the dolfin-adjoint
-        :func:`taylor_test` function.
+        Hessian matrix action on the considered perturbation direction. If
+        supplied then a higher order corrected Taylor remainder magnitude is
+        computed. If `dJ` is not supplied, also computes the first order
+        directional derivative. Corresponds to the `HJm` argument in the
+        dolfin-adjoint :func:`taylor_test` function.
     :arg seed: Defines the value of :math:`\eta`. Controls the magnitude of the
         perturbation. Corresponds to the `seed` argument in the dolfin-adjoint
         :func:`taylor_test` function.
@@ -287,10 +286,9 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     corrected Taylor remainder magnitude, is computed using a `tlm_order` th
     order tangent-linear.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional :math:`K`.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional :math:`K`.
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m` and its value.
     :arg tlm_order: An :class:`int` defining the tangent-linear order to
@@ -412,10 +410,9 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     corrected Taylor remainder magnitude, is computed using an adjoint
     associated with an `(adjoint_order - 1)` th order tangent-linear.
 
-    :arg forward: A :class:`Callable` which accepts one or more function
-        arguments, and which returns a function or
-        :class:`tlm_adjoint.functional.Functional` defining the forward
-        functional :math:`K`.
+    :arg forward: A callable which accepts one or more function arguments, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional :math:`K`.
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m` and its value.
     :arg adjoint_order: An :class:`int` defining the adjoint order to test.
