@@ -171,6 +171,7 @@ def test_leaks():
     yield
 
     gc.collect()
+    garbage_cleanup(DEFAULT_COMM)
 
     # Clear some internal storage that is allowed to keep references
     clear_caches()
@@ -182,6 +183,7 @@ def test_leaks():
     manager._adj_cache.clear()
 
     gc.collect()
+    garbage_cleanup(DEFAULT_COMM)
 
     refs = 0
     for F in referenced_functions():

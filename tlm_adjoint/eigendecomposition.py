@@ -171,6 +171,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
 
     import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
+    global _error_flag
 
     if arg_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
@@ -229,7 +230,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         configure(esolver)
     esolver.setUp()
 
-    assert not _error_flag
+    _error_flag = False
     esolver.solve()
     if _error_flag:
         raise RuntimeError("Error encountered in SLEPc.EPS.solve")

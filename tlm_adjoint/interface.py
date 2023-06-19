@@ -73,7 +73,6 @@ import weakref
 __all__ = \
     [
         "DEFAULT_COMM",
-        "comm_dup",
         "comm_dup_cached",
         "comm_parent",
         "garbage_cleanup",
@@ -220,43 +219,12 @@ else:
 
 
 _parent_comms = {}
+_dup_comms = {}
+_dupped_comms = {}
 
 
 def comm_parent(dup_comm):
     return _parent_comms.get(dup_comm.py2f(), dup_comm)
-
-
-def comm_dup(comm):
-    """
-    Duplicate a communicator. The duplicated communicator is freed when the
-    associated object is destroyed.
-
-    :arg comm: An :class:`mpi4py.MPI.Comm`, the base communicator to be
-        duplicated.
-    :returns: An :class:`mpi4py.MPI.Comm`. A duplicated MPI communicator which
-        is freed when the object is is destroyed.
-    """
-
-    if MPI is not None and comm is MPI.COMM_NULL:
-        return comm
-
-    dup_comm = comm.Dup()
-    _parent_comms[dup_comm.py2f()] = comm
-
-    def finalize_callback(dup_comm_py2f):
-        if MPI is not None and not MPI.Is_finalized():
-            dup_comm = f2py(dup_comm_py2f)
-            garbage_cleanup(dup_comm)
-            dup_comm.Free()
-        _parent_comms.pop(dup_comm_py2f, None)
-
-    weakref.finalize(dup_comm, finalize_callback,
-                     dup_comm.py2f())
-
-    return dup_comm
-
-
-_dup_comms = {}
 
 
 def comm_dup_cached(comm, *, key=None):
@@ -286,29 +254,35 @@ def comm_dup_cached(comm, *, key=None):
     if dup_comm is None:
         dup_comm = comm.Dup()
         _parent_comms[dup_comm.py2f()] = comm
+        _dupped_comms.setdefault(comm.py2f(), {})[key] = dup_comm
         _dup_comms[key] = dup_comm
 
-        def finalize_callback(key, dup_comm):
+        def finalize_callback(comm_py2f, key, dup_comm):
             if MPI is not None and not MPI.Is_finalized():
                 garbage_cleanup(dup_comm)
                 dup_comm.Free()
             _parent_comms.pop(dup_comm.py2f(), None)
+            _dupped_comms.pop(comm_py2f, None)
             _dup_comms.pop(key, None)
 
         comm_finalize(comm, finalize_callback,
-                      key, dup_comm)
+                      comm.py2f(), key, dup_comm)
 
     return dup_comm
 
 
 def garbage_cleanup(comm):
-    """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, and
-    any base communicator from which it was duplicated.
+    """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, any
+    communicators duplicated from it using :func:`comm_dup_cached`, and base
+    communicators from which it was duplicated using :func:`comm_dup_cached`.
 
     :arg comm: An :class:`mpi4py.MPI.Comm`.
     """
 
     if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
+        for dup_comms in _dupped_comms.values():
+            for dup_comm in dup_comms.values():
+                PETSc.garbage_cleanup(dup_comm)
         while True:
             PETSc.garbage_cleanup(comm)
             parent_comm = comm_parent(comm)
