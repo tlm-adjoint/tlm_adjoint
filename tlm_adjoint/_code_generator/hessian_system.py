@@ -391,7 +391,7 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
 
     .. math::
 
-        H^{-1} \approx B + V \Lambda \left( I + \lambda \right)^{-1} V^T
+        H^{-1} \approx B + V \Lambda \left( I + \Lambda \right)^{-1} V^T
 
     where
 
