@@ -1185,6 +1185,8 @@ class System:
         :returns: The PETSc :class:`KSP`.
         """
 
+        global _error_flag
+
         if solver_parameters is None:
             solver_parameters = {}
 
@@ -1293,7 +1295,7 @@ class System:
             self._action_space.split_to_mixed(b_fn, b_c)
         del b_c
 
-        assert not _error_flag
+        _error_flag = False
         with vec(u_fn) as u_v, vec(b_fn) as b_v:
             ksp_solver.solve(b_v, u_v)
         del b_fn
