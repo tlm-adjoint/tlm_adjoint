@@ -288,7 +288,7 @@ class AssembleSolver(Assembly):
 
 
 def unbound_form(form, deps):
-    replacement_deps = tuple(function_replacement(dep) for dep in deps)
+    replacement_deps = tuple(map(function_replacement, deps))
     assert len(deps) == len(replacement_deps)
     replaced_form = ufl.replace(form, dict(zip(deps, replacement_deps)))
     replaced_form._cache["_tlm_adjoint__replacement_deps"] = replacement_deps
@@ -302,8 +302,7 @@ def bind_form(form, deps):
 
 
 def unbind_form(form):
-    if "_tlm_adjoint__bindings" in form._cache:
-        del form._cache["_tlm_adjoint__bindings"]
+    form._cache.pop("_tlm_adjoint__bindings", None)
 
 
 def homogenized_bc(bc):
