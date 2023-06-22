@@ -243,7 +243,7 @@ def test_diffusion_1d(setup_test, test_leaks,
     if issubclass(function_dtype(kappa), (complex, np.complexfloating)):
         dm_kappa = None
     else:
-        dm_kappa = Constant(1.0, name="dm_kappa", static=True)
+        dm_kappa = Constant(1.0, domain=mesh, name="dm_kappa", static=True)
     for m, forward_J, dJ, dm in \
             [(T_0, lambda T_0: forward(T_0, kappa), dJs[0], None),
              (kappa, lambda kappa: forward(T_0, kappa), dJs[1], dm_kappa)]:

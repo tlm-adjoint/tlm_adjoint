@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .backend import Parameters, backend_Constant, backend_DirichletBC, \
-    backend_Function, backend_KrylovSolver, backend_LUSolver, \
-    backend_LinearVariationalSolver, backend_Matrix, \
-    backend_NonlinearVariationalProblem, backend_NonlinearVariationalSolver, \
-    backend_assemble, backend_assemble_system, backend_project, \
-    backend_solve, extract_args, parameters
-from ..interface import check_space_type, function_assign, function_new, \
-    function_space, function_update_state, space_id, space_new
-from .backend_code_generator_interface import copy_parameters_dict, \
-    update_parameters_dict
+from .backend import (
+    Parameters, backend_Constant, backend_DirichletBC, backend_Function,
+    backend_KrylovSolver, backend_LUSolver, backend_LinearVariationalSolver,
+    backend_Matrix, backend_NonlinearVariationalProblem,
+    backend_NonlinearVariationalSolver, backend_assemble,
+    backend_assemble_system, backend_project, backend_solve, extract_args,
+    parameters)
+from ..interface import (
+    check_space_type, function_assign, function_comm, function_new,
+    function_space, function_update_state, space_id, space_new)
+from .backend_code_generator_interface import (
+    copy_parameters_dict, update_parameters_dict)
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
 
-from .equations import EquationSolver, ExprEvaluation, Projection, \
-    linear_equation_new_x
+from .equations import (
+    EquationSolver, ExprEvaluation, Projection, linear_equation_new_x)
+from .functions import Constant, extract_coefficients
 
 import numpy as np
 import ufl
@@ -291,7 +294,7 @@ def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
-        if x in ufl.algorithms.extract_coefficients(v):
+        if x in extract_coefficients(v):
             x_old = function_new(x)
             Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
             v = ufl.replace(v, {x: x_old})
@@ -355,7 +358,7 @@ def _Constant_assign(self, x, *, annotate=None, tlm=None):
     if annotate or tlm:
         if isinstance(x, (int, np.integer,
                           float, np.floating)):
-            Assignment(self, backend_Constant(x)).solve(
+            Assignment(self, Constant(x, comm=function_comm(self))).solve(
                 annotate=annotate, tlm=tlm)
             return
         elif isinstance(x, backend_Constant):
@@ -363,7 +366,7 @@ def _Constant_assign(self, x, *, annotate=None, tlm=None):
                 Assignment(self, x).solve(annotate=annotate, tlm=tlm)
                 return
         elif isinstance(x, ufl.classes.Expr):
-            if self in ufl.algorithms.extract_coefficients(x):
+            if self in extract_coefficients(x):
                 self_old = function_new(self)
                 Assignment(self_old, self).solve(
                     annotate=annotate, tlm=tlm)
@@ -396,7 +399,7 @@ def _Function_assign(self, rhs, *, annotate=None, tlm=None):
                 return
         elif isinstance(rhs, ufl.classes.Expr):
             x_space = function_space(self)
-            deps = ufl.algorithms.extract_coefficients(rhs)
+            deps = extract_coefficients(rhs)
             for dep in deps:
                 if isinstance(dep, backend_Function):
                     dep_space = function_space(dep)
@@ -468,24 +471,24 @@ class LUSolver(backend_LUSolver):
     def __init__(self, *args):
         super().__init__(*args)
         if len(args) >= 1 and isinstance(args[0], backend_Matrix):
-            self.__A = args[0]
-            self.__linear_solver = args[1] if len(args) >= 2 else "default"
+            self._tlm_adjoint__A = args[0]
+            self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"  # noqa: E501
         elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
-            self.__A = args[1]
-            self.__linear_solver = args[2] if len(args) >= 3 else "default"
+            self._tlm_adjoint__A = args[1]
+            self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"  # noqa: E501
         else:
-            self.__linear_solver = args[0] if len(args) >= 1 else "default"
+            self._tlm_adjoint__linear_solver = args[0] if len(args) >= 1 else "default"  # noqa: E501
 
     def set_operator(self, A):
         super().set_operator(A)
-        self.__A = A
+        self._tlm_adjoint__A = A
 
     def solve(self, *args, annotate=None, tlm=None):
         if isinstance(args[0], backend_Matrix):
             A, x, b = args
-            self.__A = A
+            self._tlm_adjoint__A = A
         else:
-            A = self.__A
+            A = self._tlm_adjoint__A
             x, b = args
 
         if annotate is None:
@@ -510,7 +513,7 @@ class LUSolver(backend_LUSolver):
                 linear_equation_new_x(A_form == b_form, x,
                                       annotate=annotate, tlm=tlm),
                 x, bcs,
-                solver_parameters={"linear_solver": self.__linear_solver,
+                solver_parameters={"linear_solver": self._tlm_adjoint__linear_solver,  # noqa: E501
                                    "lu_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
@@ -534,20 +537,20 @@ class KrylovSolver(backend_KrylovSolver):
     def __init__(self, *args):
         super().__init__(*args)
         if len(args) >= 1 and isinstance(args[0], backend_Matrix):
-            self.__A = args[0]
-            self.__linear_solver = args[1] if len(args) >= 2 else "default"
-            self.__preconditioner = args[2] if len(args) >= 3 else "default"
+            self._tlm_adjoint__A = args[0]
+            self._tlm_adjoint__linear_solver = args[1] if len(args) >= 2 else "default"  # noqa: E501
+            self._tlm_adjoint__preconditioner = args[2] if len(args) >= 3 else "default"  # noqa: E501
         elif len(args) >= 2 and isinstance(args[1], backend_Matrix):
-            self.__A = args[1]
-            self.__linear_solver = args[2] if len(args) >= 3 else "default"
-            self.__preconditioner = args[3] if len(args) >= 4 else "default"
+            self._tlm_adjoint__A = args[1]
+            self._tlm_adjoint__linear_solver = args[2] if len(args) >= 3 else "default"  # noqa: E501
+            self._tlm_adjoint__preconditioner = args[3] if len(args) >= 4 else "default"  # noqa: E501
         else:
-            self.__linear_solver = args[0] if len(args) >= 1 else "default"
-            self.__preconditioner = args[1] if len(args) >= 2 else "default"
+            self._tlm_adjoint__linear_solver = args[0] if len(args) >= 1 else "default"  # noqa: E501
+            self._tlm_adjoint__preconditioner = args[1] if len(args) >= 2 else "default"  # noqa: E501
 
     def set_operator(self, A):
         super().set_operator(A)
-        self.__A = A
+        self._tlm_adjoint__A = A
 
     def set_operators(self, *args, **kwargs):
         raise NotImplementedError("Preconditioners not supported")
@@ -555,9 +558,9 @@ class KrylovSolver(backend_KrylovSolver):
     def solve(self, *args, annotate=None, tlm=None):
         if isinstance(args[0], backend_Matrix):
             A, x, b = args
-            self.__A = None
+            self._tlm_adjoint__A = None
         else:
-            A = self.__A
+            A = self._tlm_adjoint__A
             x, b = args
 
         if annotate is None:
@@ -582,8 +585,8 @@ class KrylovSolver(backend_KrylovSolver):
                 linear_equation_new_x(A_form == b_form, x,
                                       annotate=annotate, tlm=tlm),
                 x, bcs,
-                solver_parameters={"linear_solver": self.__linear_solver,
-                                   "preconditioner": self.__preconditioner,
+                solver_parameters={"linear_solver": self._tlm_adjoint__linear_solver,  # noqa: E501
+                                   "preconditioner": self._tlm_adjoint__preconditioner,  # noqa: E501
                                    "krylov_solver": self.parameters},
                 form_compiler_parameters=form_compiler_parameters,
                 cache_jacobian=False, cache_rhs_assembly=False)
@@ -607,23 +610,24 @@ class KrylovSolver(backend_KrylovSolver):
 class LinearVariationalSolver(backend_LinearVariationalSolver):
     def __init__(self, problem):
         super().__init__(problem)
-        self.__problem = problem
+        self._tlm_adjoint__problem = problem
 
     def solve(self, *, annotate=None, tlm=None):
-        x = self.__problem.u_ufl
+        x = self._tlm_adjoint__problem.u_ufl
 
         if annotate is None:
             annotate = annotation_enabled()
         if tlm is None:
             tlm = tlm_enabled()
         if annotate or tlm:
-            lhs, rhs = self.__problem.a_ufl, self.__problem.L_ufl
+            lhs = self._tlm_adjoint__problem.a_ufl
+            rhs = self._tlm_adjoint__problem.L_ufl
             eq = EquationSolver(
                 linear_equation_new_x(lhs == rhs, x,
                                       annotate=annotate, tlm=tlm),
-                x, self.__problem.bcs(),
+                x, self._tlm_adjoint__problem.bcs(),
                 solver_parameters=self.parameters,
-                form_compiler_parameters=self.__problem.form_compiler_parameters,  # noqa: E501
+                form_compiler_parameters=self._tlm_adjoint__problem.form_compiler_parameters,  # noqa: E501
                 cache_jacobian=False, cache_rhs_assembly=False)
             eq.solve(annotate=annotate, tlm=tlm)
         else:
@@ -649,10 +653,10 @@ class NonlinearVariationalProblem(backend_NonlinearVariationalProblem):
 class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
     def __init__(self, problem):
         super().__init__(problem)
-        self.__problem = problem
+        self._tlm_adjoint__problem = problem
 
     def solve(self, *, annotate=None, tlm=None):
-        x = self.__problem.u_ufl
+        x = self._tlm_adjoint__problem.u_ufl
 
         if annotate is None:
             annotate = annotation_enabled()
@@ -660,10 +664,10 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
             tlm = tlm_enabled()
         if annotate or tlm:
             eq = EquationSolver(
-                self.__problem.F_ufl == 0, x,
-                self.__problem._tlm_adjoint__bcs, J=self.__problem.J_ufl,
+                self._tlm_adjoint__problem.F_ufl == 0, x,
+                self._tlm_adjoint__problem._tlm_adjoint__bcs, J=self._tlm_adjoint__problem.J_ufl,  # noqa: E501
                 solver_parameters=self.parameters,
-                form_compiler_parameters=self.__problem.form_compiler_parameters,  # noqa: E501
+                form_compiler_parameters=self._tlm_adjoint__problem.form_compiler_parameters,  # noqa: E501
                 cache_jacobian=False, cache_rhs_assembly=False)
 
             eq._pre_process(annotate=annotate)

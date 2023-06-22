@@ -6,14 +6,16 @@ implements finite element assembly and linear solver data caching.
 """
 
 from .backend import TrialFunction, backend_DirichletBC, backend_Function
-from ..interface import function_id, function_is_cached, function_space, \
-    is_function
-from .backend_code_generator_interface import assemble, assemble_arguments, \
-    assemble_matrix, complex_mode, linear_solver, matrix_copy, parameters_key
+from ..interface import (
+    function_id, function_is_cached, function_space, is_function)
+from .backend_code_generator_interface import (
+    assemble, assemble_arguments, assemble_matrix, complex_mode, linear_solver,
+    matrix_copy, parameters_key)
 
 from ..caches import Cache
 
-from .functions import eliminate_zeros, extract_coefficients, replaced_form
+from .functions import (
+    derivative, eliminate_zeros, extract_coefficients, replaced_form)
 
 from collections import defaultdict
 import ufl
@@ -121,13 +123,14 @@ def split_arity(form, x, argument):
     if argument.number() < arity:
         raise ValueError("Invalid argument")
 
-    if x not in form.coefficients():
+    if x not in extract_coefficients(form):
         # No dependence on x
         return ufl.classes.Form([]), form
 
-    form_derivative = ufl.derivative(form, x, argument=argument)
+    form_derivative = derivative(form, x, argument=argument,
+                                 enable_automatic_argument=False)
     form_derivative = ufl.algorithms.expand_derivatives(form_derivative)
-    if x in form_derivative.coefficients():
+    if x in extract_coefficients(form_derivative):
         # Non-linear
         return ufl.classes.Form([]), form
 
@@ -215,7 +218,7 @@ def split_terms(terms, base_integral,
                 non_cached_terms.append(term)
         else:
             mat_dep = None
-            for dep in ufl.algorithms.extract_coefficients(term):
+            for dep in extract_coefficients(term):
                 if not is_cached(dep):
                     if isinstance(dep, backend_Function) and mat_dep is None:
                         mat_dep = dep
@@ -275,7 +278,7 @@ def split_form(form):
 
 def form_dependencies(form):
     deps = {}
-    for dep in form.coefficients():
+    for dep in extract_coefficients(form):
         if is_function(dep):
             dep_id = function_id(dep)
             if dep_id not in deps:

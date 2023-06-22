@@ -960,7 +960,7 @@ class BlockMatrix(Matrix):
         del self._blocks[(i, j)]
 
     def __len__(self):
-        return len(self.__blocks)
+        return len(self._blocks)
 
     def keys(self):
         yield from sorted(self._blocks)

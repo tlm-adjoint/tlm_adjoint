@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .backend import FunctionSpace, Interpolator, Parameters, TestFunction, \
-    backend_Constant, backend_DirichletBC, backend_Function, \
-    backend_LinearSolver, backend_Matrix, backend_assemble, backend_solve, \
-    complex_mode, extract_args, homogenize, parameters
-from ..interface import check_space_type, check_space_types, function_assign, \
-    function_axpy, function_copy, function_dtype, function_inner, \
-    function_new_conjugate_dual, function_space, function_space_type, space_new
+from .backend import (
+    Interpolator, Parameters, TestFunction, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_LinearSolver,
+    backend_Matrix, backend_assemble, backend_solve, complex_mode,
+    extract_args, homogenize, parameters)
+from ..interface import (
+    check_space_type, check_space_types, function_assign, function_axpy,
+    function_copy, function_inner, function_new_conjugate_dual, function_space,
+    function_space_type, space_new)
 
-from .functions import eliminate_zeros
+from .functions import eliminate_zeros, extract_coefficients
 
 from collections.abc import Sequence
 import numpy as np
@@ -115,57 +117,10 @@ def assemble_arguments(arity, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
-def strip_terminal_data(form):
-    # Replace constants with no domain with constants on the first domain
-    domain, = form.ufl_domains()
-
-    replace_map = {}
-    replace_map_inverse = {}
-    for dep in form.coefficients():
-        if isinstance(dep, backend_Constant) and len(dep.ufl_domains()) == 0:
-            dep_arr = np.zeros(dep.ufl_shape, dtype=function_dtype(dep))
-            replace_map[dep] = backend_Constant(dep_arr, domain=domain)
-            replace_map_inverse[replace_map[dep]] = dep
-
-    if len(replace_map) == 0:
-        return ufl.algorithms.strip_terminal_data(form)
-    else:
-        unbound_form, maps = \
-            ufl.algorithms.strip_terminal_data(ufl.replace(form, replace_map))
-
-        binding_map = dict(maps[0])
-        for replacement_dep, dep in maps[0].items():
-            if dep in replace_map_inverse:
-                binding_map[replacement_dep] = replace_map_inverse[dep]
-
-        assert len(maps) == 2
-        maps = (binding_map, maps[1])
-
-        return (unbound_form, maps)
-
-
 def bind_form(form):
-    if "_tlm_adjoint__bindings" in form._cache:
-        bindings = form._cache["_tlm_adjoint__bindings"]
-        if hasattr(ufl.algorithms, "replace_terminal_data"):
-            if "_tlm_adjoint__unbound_form" not in form._cache:
-                form._cache["_tlm_adjoint__unbound_form"] = \
-                    strip_terminal_data(eliminate_zeros(form, force_non_empty_form=True))  # noqa: E501
-            unbound_form, maps = form._cache["_tlm_adjoint__unbound_form"]
-
-            binding_map = dict(maps[0])
-            for replacement_dep, dep in maps[0].items():
-                if dep in bindings:
-                    binding_map[replacement_dep] = bindings[dep]
-
-            assert len(maps) == 2
-            maps = (binding_map, maps[1])
-
-            return ufl.algorithms.replace_terminal_data(unbound_form, maps)
-        else:
-            return ufl.replace(form, bindings)
-    else:
-        return form
+    bindings = form._cache.get("_tlm_adjoint__bindings", {})
+    form = eliminate_zeros(form, force_non_empty_form=True)
+    return ufl.replace(form, bindings)
 
 
 def _assemble(form, tensor=None, *args,
@@ -396,16 +351,7 @@ def is_valid_r0_space(space):
 
 
 def r0_space(x):
-    if not hasattr(x, "_tlm_adjoint__r0_space"):
-        domain, = x.ufl_domains()
-        if len(x.ufl_shape) == 0:
-            space = FunctionSpace(domain, "R", 0)
-        else:
-            # See Firedrake issue #1456
-            raise NotImplementedError("Rank >= 1 Constant not implemented")
-        assert is_valid_r0_space(space)
-        x._tlm_adjoint__r0_space = space
-    return x._tlm_adjoint__r0_space
+    raise NotImplementedError
 
 
 def function_vector(x):
@@ -472,7 +418,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
     else:
         check_space_type(x, "conjugate_dual")
         check_space_type(adj_x, "conjugate_dual")
-    for dep in ufl.algorithms.extract_coefficients(expr):
+    for dep in extract_coefficients(expr):
         check_space_type(dep, "primal")
 
     expr = eliminate_zeros(expr)

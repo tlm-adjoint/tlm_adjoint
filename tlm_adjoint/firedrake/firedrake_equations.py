@@ -5,20 +5,23 @@
 backend.
 """
 
-from .backend import FunctionSpace, Interpolator, Tensor, TestFunction, \
-    TrialFunction, VertexOnlyMesh, backend_Function, backend_assemble
-from ..interface import check_space_type, function_assign, function_comm, \
-    function_is_scalar, function_new_conjugate_dual, function_scalar_value, \
-    function_space, is_function, space_new, weakref_method
+from .backend import (
+    FunctionSpace, Interpolator, Tensor, TestFunction, TrialFunction,
+    VertexOnlyMesh, backend_Function, backend_assemble)
+from ..interface import (
+    check_space_type, function_assign, function_comm, function_is_scalar,
+    function_new_conjugate_dual, function_scalar_value, function_space,
+    is_function, space_new, weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
+from ..manager import paused_manager
 from ..tangent_linear import get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
-from .equations import EquationSolver, bind_form, derivative, unbind_form, \
-    unbound_form
+from .equations import (
+    EquationSolver, bind_form, derivative, unbind_form, unbound_form)
 from .functions import eliminate_zeros
 
 import itertools
@@ -315,7 +318,8 @@ class PointInterpolation(Equation):
         interp = _interp
         if interp is None:
             y_space = function_space(y)
-            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
+            with paused_manager():
+                vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
             vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
             interp = Interpolator(TestFunction(y_space), vspace)
             if not hasattr(interp, "_tlm_adjoint__vmesh_coords_map"):

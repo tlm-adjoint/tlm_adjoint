@@ -190,10 +190,18 @@ def test_diffusion_1d(setup_test, test_leaks,
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
+
+    const_space = FunctionSpace(mesh, "R", 0)
+
+    def constant(value, *args, **kwargs):
+        F = Function(const_space, *args, **kwargs)
+        F.assign(value, annotate=False, tlm=False)
+        return F
+
     T_0 = Function(space, name="T_0", static=True)
     interpolate_expression(T_0, sin(pi * X[0]) + sin(10.0 * pi * X[0]))
     dt = Constant(0.01, static=True)
-    kappa = Constant(1.0, domain=mesh, name="kappa", static=True)
+    kappa = constant(1.0, name="kappa", static=True)
 
     def forward(T_0, kappa):
         import sympy as sp
@@ -238,7 +246,7 @@ def test_diffusion_1d(setup_test, test_leaks,
     if issubclass(function_dtype(kappa), (complex, np.complexfloating)):
         dm_kappa = None
     else:
-        dm_kappa = Constant(1.0, name="dm_kappa", static=True)
+        dm_kappa = constant(1.0, name="dm_kappa", static=True)
     for m, forward_J, dJ, dm in \
             [(T_0, lambda T_0: forward(T_0, kappa), dJs[0], None),
              (kappa, lambda kappa: forward(T_0, kappa), dJs[1], dm_kappa)]:
@@ -283,13 +291,21 @@ def test_diffusion_2d(setup_test, test_leaks,
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
+
+    const_space = FunctionSpace(mesh, "R", 0)
+
+    def constant(value, *args, **kwargs):
+        F = Function(const_space, *args, **kwargs)
+        F.assign(value, annotate=False, tlm=False)
+        return F
+
     T_0 = Function(space, name="T_0", static=True)
     interpolate_expression(T_0, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
     dt = Constant(0.01, static=True)
-    kappa = [Constant(1.0, domain=mesh, name="kappa_00", static=True),
-             Constant(0.0, domain=mesh, name="kappa_10", static=True),
-             Constant(0.0, domain=mesh, name="kappa_01", static=True),
-             Constant(1.0, domain=mesh, name="kappa_11", static=True)]
+    kappa = [constant(1.0, name="kappa_00", static=True),
+             constant(0.0, name="kappa_10", static=True),
+             constant(0.0, name="kappa_01", static=True),
+             constant(1.0, name="kappa_11", static=True)]
     bc = HomogeneousDirichletBC(space, "on_boundary")
 
     def forward(kappa_00, kappa_01, kappa_10, kappa_11):

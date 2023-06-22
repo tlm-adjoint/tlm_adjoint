@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from fenics import *
-from fenics import assemble as backend_assemble
 from tlm_adjoint.fenics import *
+from tlm_adjoint.fenics.backend import backend_assemble
 from tlm_adjoint.fenics.backend_code_generator_interface import (
     assemble as backend_code_generator_interface_assemble)
 
