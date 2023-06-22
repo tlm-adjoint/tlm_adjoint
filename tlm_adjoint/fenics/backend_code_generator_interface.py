@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .backend import Form, FunctionSpace, Parameters, TensorFunctionSpace, \
-    TestFunction, TrialFunction, UserExpression, as_backend_type, \
-    backend_Constant, backend_DirichletBC, backend_Function, \
-    backend_KrylovSolver, backend_LUSolver, backend_LinearVariationalSolver, \
-    backend_NonlinearVariationalSolver, backend_ScalarType, backend_assemble, \
-    backend_assemble_system, backend_solve, cpp_LinearVariationalProblem, \
-    cpp_NonlinearVariationalProblem, extract_args, has_lu_solver_method, \
-    parameters
-from ..interface import check_space_type, check_space_types, function_assign, \
-    function_get_values, function_inner, function_new_conjugate_dual, \
-    function_set_values, function_space, function_space_type, space_new
+from .backend import (
+    Form, FunctionSpace, Parameters, TensorFunctionSpace, TestFunction,
+    UserExpression, as_backend_type, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_KrylovSolver, backend_LUSolver,
+    backend_ScalarType, backend_assemble, backend_assemble_system,
+    backend_solve as solve, has_lu_solver_method, parameters)
+from ..interface import (
+    check_space_type, check_space_types, function_assign, function_get_values,
+    function_inner, function_new_conjugate_dual, function_set_values,
+    function_space, function_space_type, space_new)
 
 from .functions import eliminate_zeros
 
@@ -425,181 +424,41 @@ def interpolate_expression(x, expr, *, adj_x=None):
 # Form objects are cached on UFL form objects
 
 
-def dolfin_form(form, form_compiler_parameters):
-    if form_compiler_parameters is None:
-        form_compiler_parameters = parameters["form_compiler"]
+def bind_form(form):
+    bindings = form._cache.get("_tlm_adjoint__bindings", {})
+    form = eliminate_zeros(form, force_non_empty_form=True)
+    return ufl.replace(form, bindings)
 
-    if "_tlm_adjoint__form" in form._cache and \
-       parameters_key(form_compiler_parameters) != \
-       form._cache["_tlm_adjoint__form_compiler_parameters_key"]:
-        del form._cache["_tlm_adjoint__form"]
-        del form._cache["_tlm_adjoint__deps_map"]
-        del form._cache["_tlm_adjoint__form_compiler_parameters_key"]
-
-    if "_tlm_adjoint__form" in form._cache:
-        dolfin_form = form._cache["_tlm_adjoint__form"]
-        bindings = form._cache.get("_tlm_adjoint__bindings", None)
-        if bindings is None:
-            deps = form.coefficients()
-        else:
-            deps = tuple(bindings.get(c, c) for c in form.coefficients())
-        for i, j in enumerate(form._cache["_tlm_adjoint__deps_map"]):
-            cpp_object = deps[j]._cpp_object
-            dolfin_form.set_coefficient(i, cpp_object)
-    else:
-        bindings = form._cache.get("_tlm_adjoint__bindings", None)
-        if bindings is not None:
-            dep_cpp_object = {}
-            for dep in form.coefficients():
-                if dep in bindings:
-                    dep_binding = bindings[dep]
-                    dep_cpp_object[dep] = getattr(dep, "_cpp_object", None)
-                    dep._cpp_object = dep_binding._cpp_object
-
-        simplified_form = eliminate_zeros(form, force_non_empty_form=True)
-        dolfin_form = Form(
-            simplified_form,
-            form_compiler_parameters=copy_parameters_dict(form_compiler_parameters))  # noqa: E501
-        if not hasattr(dolfin_form, "_compiled_form"):
-            dolfin_form._compiled_form = None
-
-        if bindings is not None:
-            for dep, cpp_object in dep_cpp_object.items():
-                if cpp_object is None:
-                    del dep._cpp_object
-                else:
-                    dep._cpp_object = cpp_object
-
-        form._cache["_tlm_adjoint__form"] = dolfin_form
-        form._cache["_tlm_adjoint__deps_map"] = \
-            tuple(map(dolfin_form.original_coefficient_position,
-                      range(dolfin_form.num_coefficients())))
-        form._cache["_tlm_adjoint__form_compiler_parameters_key"] = \
-            parameters_key(form_compiler_parameters)
-    return dolfin_form
-
-
-def clear_dolfin_form(form):
-    for i in range(form.num_coefficients()):
-        form.set_coefficient(i, None)
 
 # Aim for compatibility with FEniCS 2019.1.0 API
 
 
-def assemble(form, tensor=None, form_compiler_parameters=None,
-             *args, **kwargs):
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
+def assemble(form, tensor=None, *args, **kwargs):
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
-    is_dolfin_form = isinstance(form, Form)
-    if not is_dolfin_form:
-        form = dolfin_form(form, form_compiler_parameters)
-    b = backend_assemble(form, tensor=tensor, *args, **kwargs)
-    if not is_dolfin_form:
-        clear_dolfin_form(form)
-
-    return b
+    if not isinstance(form, Form):
+        form = bind_form(form)
+    return backend_assemble(form, tensor=tensor, *args, **kwargs)
 
 
 def assemble_system(A_form, b_form, bcs=None, x0=None,
                     form_compiler_parameters=None, add_values=False,
                     finalize_tensor=True, keep_diagonal=False, A_tensor=None,
                     b_tensor=None, *args, **kwargs):
-    if bcs is None:
-        bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
     if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
         check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
 
-    A_is_dolfin_form = isinstance(A_form, Form)
-    b_is_dolfin_form = isinstance(b_form, Form)
-    if not A_is_dolfin_form:
-        A_form = dolfin_form(A_form, form_compiler_parameters)
-    if not b_is_dolfin_form:
-        b_form = dolfin_form(b_form, form_compiler_parameters)
-    return_value = backend_assemble_system(
-        A_form, b_form, bcs=bcs, x0=x0, add_values=add_values,
-        finalize_tensor=finalize_tensor, keep_diagonal=keep_diagonal,
-        A_tensor=A_tensor, b_tensor=b_tensor, *args, **kwargs)
-    if not A_is_dolfin_form:
-        clear_dolfin_form(A_form)
-    if not b_is_dolfin_form:
-        clear_dolfin_form(b_form)
-    return return_value
+    if not isinstance(A_form, Form):
+        A_form = bind_form(A_form)
+    if not isinstance(b_form, Form):
+        b_form = bind_form(b_form)
+    return backend_assemble_system(
+        A_form, b_form, bcs=bcs, x0=x0,
+        form_compiler_parameters=form_compiler_parameters,
+        add_values=add_values, finalize_tensor=finalize_tensor,
+        keep_diagonal=keep_diagonal, A_tensor=A_tensor, b_tensor=b_tensor,
+        *args, **kwargs)
 
 
-def solve(*args, **kwargs):
-    if not isinstance(args[0], ufl.classes.Equation):
-        return backend_solve(*args, **kwargs)
-
-    extracted_args = extract_args(*args, **kwargs)
-    if len(extracted_args) == 8:
-        (eq, x, bcs, J,
-         tol, M,
-         form_compiler_parameters,
-         solver_parameters) \
-            = extracted_args
-        preconditioner = None
-    else:
-        (eq, x, bcs, J,
-         tol, M,
-         preconditioner,
-         form_compiler_parameters,
-         solver_parameters) = extracted_args
-    del extracted_args
-
-    check_space_type(x, "primal")
-    if bcs is None:
-        bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-    if solver_parameters is None:
-        solver_parameters = {}
-
-    if tol is not None or M is not None or preconditioner is not None:
-        return backend_solve(*args, **kwargs)
-
-    lhs, rhs = eq.lhs, eq.rhs
-    linear = isinstance(rhs, ufl.classes.Form)
-    if linear:
-        lhs = dolfin_form(lhs, form_compiler_parameters)
-        rhs = dolfin_form(rhs, form_compiler_parameters)
-        cpp_object = x._cpp_object
-        problem = cpp_LinearVariationalProblem(lhs, rhs, cpp_object, bcs)
-        solver = backend_LinearVariationalSolver(problem)
-        solver.parameters.update(solver_parameters)
-        return_value = solver.solve()
-        clear_dolfin_form(lhs)
-        clear_dolfin_form(rhs)
-        return return_value
-    else:
-        F = lhs
-        assert rhs == 0
-        if J is None:
-            if "_tlm_adjoint__J" in F._cache:
-                J = F._cache["_tlm_adjoint__J"]
-            else:
-                J = ufl.derivative(F, x,
-                                   argument=TrialFunction(x.function_space()))
-                J = ufl.algorithms.expand_derivatives(J)
-                F._cache["_tlm_adjoint__J"] = J
-
-        F = dolfin_form(F, form_compiler_parameters)
-        J = dolfin_form(J, form_compiler_parameters)
-        cpp_object = x._cpp_object
-        problem = cpp_NonlinearVariationalProblem(F, cpp_object, bcs, J)
-        solver = backend_NonlinearVariationalSolver(problem)
-        solver.parameters.update(solver_parameters)
-        return_value = solver.solve()
-        clear_dolfin_form(F)
-        clear_dolfin_form(J)
-        return return_value
+# def solve(*args, **kwargs):

@@ -2,11 +2,15 @@
 # -*- coding: utf-8 -*-
 
 from fenics import *
+from fenics import assemble as backend_assemble
 from tlm_adjoint.fenics import *
+from tlm_adjoint.fenics.backend_code_generator_interface import (
+    assemble as backend_code_generator_interface_assemble)
 
 from .test_base import *
 
 import mpi4py.MPI as MPI
+import numpy as np
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -220,3 +224,47 @@ def test_Function_assign(setup_test, test_leaks):
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
                                         dMs=(dm, dm))
     assert min_order > 2.00
+
+
+@pytest.mark.fenics
+@pytest.mark.parametrize("ZeroFunction", [Function, ZeroFunction])
+@pytest.mark.parametrize("assemble", [backend_assemble,
+                                      assemble,
+                                      backend_code_generator_interface_assemble])  # noqa: E501
+@seed_test
+def test_assemble_ZeroFunction(setup_test, test_leaks,
+                               ZeroFunction, assemble):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    F = ZeroFunction(space, name="F")
+    G = Function(space, name="G")
+
+    form = (F + G) * dx
+
+    b = assemble(form)
+    assert abs(b) == 0.0
+
+    G.assign(Constant(np.sqrt(2.0)))
+    b_ref = backend_assemble(form)
+    assert abs(b_ref - np.sqrt(2.0)) < 1.0e-15
+
+    for _ in range(3):
+        b = assemble(form)
+        assert abs(b - b_ref) == 0.0
+
+    G = Function(space, name="G")
+    F = ZeroFunction(space, name="F")
+
+    form = (F + G) * dx
+
+    b = assemble(form)
+    assert abs(b) == 0.0
+
+    G.assign(Constant(np.sqrt(2.0)))
+    b_ref = backend_assemble(form)
+    assert abs(b_ref - np.sqrt(2.0)) < 1.0e-15
+
+    for _ in range(3):
+        b = assemble(form)
+        assert abs(b - b_ref) == 0.0
