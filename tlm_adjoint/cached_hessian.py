@@ -67,6 +67,8 @@ class HessianOptimization:
                 if eq_id not in manager._eqs:
                     manager._eqs[eq_id] = eq
                 manager._block.append(eq)
+                assert ((0, len(manager._blocks), len(manager._block) - 1)
+                        not in manager._adj_cache)
                 eq_nl_deps = eq.nonlinear_dependencies()
                 nl_deps = self._nl_deps[(n, i)]
                 manager._cp.update_keys(
