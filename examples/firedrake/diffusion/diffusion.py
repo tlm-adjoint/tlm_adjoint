@@ -3,7 +3,6 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake import manager as _manager
 
 # import h5py
 import logging
@@ -42,7 +41,7 @@ function_set_values(zeta_2,
 # File("zeta_2.pvd").write(zeta_2)
 
 
-def forward(kappa, manager=None, output_filename=None):
+def forward(kappa, output_filename=None):
     clear_caches()
 
     Psi_n = Function(space, name="Psi_n")
@@ -60,14 +59,14 @@ def forward(kappa, manager=None, output_filename=None):
     if output_filename is not None:
         f = File(output_filename)
 
-    Assignment(Psi_n, Psi_0).solve(manager=manager)
+    Assignment(Psi_n, Psi_0).solve()
     if output_filename is not None:
         f.write(Psi_n, time=0.0)
     for n in range(N):
-        eq.solve(manager=manager)
+        eq.solve()
         if n < N - 1:
-            cycle.solve(manager=manager)
-            (_manager() if manager is None else manager).new_block()
+            cycle.solve()
+            new_block()
         else:
             Psi_n = Psi_np1
             Psi_n.rename("Psi_n", "a Function")
@@ -76,7 +75,7 @@ def forward(kappa, manager=None, output_filename=None):
             f.write(Psi_n, time=(n + 1) * float(dt))
 
     J = Functional(name="J")
-    J.assign(dot(Psi_n, Psi_n) * dx, manager=manager)
+    J.assign(dot(Psi_n, Psi_n) * dx)
 
     return J
 

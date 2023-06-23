@@ -9,6 +9,7 @@ from ..interface import (
     space_comm, space_dtype)
 
 from ..eigendecomposition import eigendecompose
+from ..manager import manager_disabled
 
 from .block_system import (
     BackendMixedSpace, BlockNullspace, Matrix, NoneNullspace, Preconditioner,
@@ -162,6 +163,7 @@ class HessianSystem(System):
             arg_spaces, action_spaces, matrix,
             nullspaces=BlockNullspace(nullspace), comm=comm)
 
+    @manager_disabled()
     def solve(self, u, b, **kwargs):
         """Solve a linear system involving a Hessian matrix,
 

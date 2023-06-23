@@ -20,6 +20,8 @@ from .equations import Assembly
 from .functions import (
     Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
     ReplacementFunction, Zero, define_function_alias)
+
+from ..manager import manager_disabled
 from ..overloaded_float import SymbolicFloat
 
 import functools
@@ -170,6 +172,7 @@ class FunctionInterface(_FunctionInterface):
     def _zero(self):
         self.vector().zero()
 
+    @manager_disabled()
     @check_vector_size
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
@@ -181,20 +184,19 @@ class FunctionInterface(_FunctionInterface):
             self.vector().axpy(1.0, y.vector())
         elif isinstance(y, (int, np.integer, float, np.floating)):
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(backend_ScalarType(y)),
-                            annotate=False, tlm=False)
+                self.assign(backend_Constant(backend_ScalarType(y)))
             else:
                 y_arr = np.full(self.ufl_shape, backend_ScalarType(y),
                                 dtype=backend_ScalarType)
-                self.assign(backend_Constant(y_arr),
-                            annotate=False, tlm=False)
+                self.assign(backend_Constant(y_arr))
         elif isinstance(y, Zero):
             self.vector().zero()
         elif isinstance(y, backend_Constant):
-            self.assign(y, annotate=False, tlm=False)
+            self.assign(y)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
+    @manager_disabled()
     @check_vector_size
     def _axpy(self, alpha, x, /):
         alpha = backend_ScalarType(alpha)
@@ -207,23 +209,22 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(x, (int, np.integer, float, np.floating)):
             x_ = function_new(self)
             if len(self.ufl_shape) == 0:
-                x_.assign(backend_Constant(backend_ScalarType(x)),
-                          annotate=False, tlm=False)
+                x_.assign(backend_Constant(backend_ScalarType(x)))
             else:
                 x_arr = np.full(self.ufl_shape, backend_ScalarType(x),
                                 dtype=backend_ScalarType)
-                x_.assign(backend_Constant(x_arr),
-                          annotate=False, tlm=False)
+                x_.assign(backend_Constant(x_arr))
             self.vector().axpy(alpha, x_.vector())
         elif isinstance(x, Zero):
             pass
         elif isinstance(x, backend_Constant):
             x_ = backend_Function(self.function_space())
-            x_.assign(x, annotate=False, tlm=False)
+            x_.assign(x)
             self.vector().axpy(alpha, x_.vector())
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
+    @manager_disabled()
     @check_vector_size
     def _inner(self, y):
         if isinstance(y, backend_Function):
@@ -234,7 +235,7 @@ class FunctionInterface(_FunctionInterface):
             inner = 0.0
         elif isinstance(y, backend_Constant):
             y_ = backend_Function(self.function_space())
-            y_.assign(y, annotate=False, tlm=False)
+            y_.assign(y)
             inner = y_.vector().inner(self.vector())
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
@@ -394,8 +395,7 @@ def _subtract_adjoint_derivative_action(x, y):
             check_space_types(x, y._tlm_adjoint__function)
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) == 0:
-                x.assign(backend_ScalarType(x) - alpha * y.max(),
-                         annotate=False, tlm=False)
+                x.assign(backend_ScalarType(x) - alpha * y.max())
             else:
                 value = x.values()
                 y_fn = backend_Function(r0_space(x))
@@ -403,8 +403,7 @@ def _subtract_adjoint_derivative_action(x, y):
                 for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
                     value[i] -= alpha * y_fn_c.vector().max()
                 value.shape = x.ufl_shape
-                x.assign(backend_Constant(value),
-                         annotate=False, tlm=False)
+                x.assign(backend_Constant(value))
         elif isinstance(x, backend_Function):
             if x.vector().local_size() != y.local_size():
                 raise ValueError("Invalid function space")

@@ -13,6 +13,8 @@ from ..interface import (
     function_inner, function_new_conjugate_dual, function_set_values,
     function_space, function_space_type, space_new)
 
+from ..manager import manager_disabled
+
 from .functions import eliminate_zeros, extract_coefficients
 
 from collections.abc import Sequence
@@ -276,6 +278,7 @@ def matrix_multiply(A, x, *,
     return tensor
 
 
+@manager_disabled()
 def is_valid_r0_space(space):
     if not hasattr(space, "_tlm_adjoint__is_valid_r0_space"):
         e = space.ufl_element()
@@ -283,15 +286,14 @@ def is_valid_r0_space(space):
             valid = False
         elif len(e.value_shape()) == 0:
             r = backend_Function(space)
-            r.assign(backend_Constant(1.0), annotate=False, tlm=False)
+            r.assign(backend_Constant(1.0))
             valid = (r.vector().max() == 1.0)
         else:
             r = backend_Function(space)
             r_arr = np.arange(1, np.prod(r.ufl_shape) + 1,
                               dtype=backend_ScalarType)
             r_arr.shape = r.ufl_shape
-            r.assign(backend_Constant(r_arr),
-                     annotate=False, tlm=False)
+            r.assign(backend_Constant(r_arr))
             for i, r_c in enumerate(r.split(deepcopy=True)):
                 if r_c.vector().max() != i + 1:
                     valid = False
@@ -367,6 +369,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
         assert (b - b_debug).norm("linf") <= b_tolerance * b_debug.norm("linf")
 
 
+@manager_disabled()
 def interpolate_expression(x, expr, *, adj_x=None):
     if adj_x is None:
         check_space_type(x, "primal")
@@ -398,7 +401,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
             function_assign(x, value)
         elif isinstance(x, backend_Function):
             try:
-                x.assign(expr, annotate=False, tlm=False)
+                x.assign(expr)
             except RuntimeError:
                 x.interpolate(Expr())
         else:

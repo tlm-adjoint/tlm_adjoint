@@ -640,10 +640,9 @@ class EquationManager:
 
         :arg x: A function defining the variable and storing the value.
         :arg annotate: Whether the initial condition should be processed.
-            Defaults to `self.annotation_enabled()`.
         """
 
-        if annotate is None:
+        if annotate is None or annotate:
             annotate = self.annotation_enabled()
         if annotate:
             if self._annotation_state == AnnotationState.FINAL:
@@ -658,17 +657,14 @@ class EquationManager:
 
         :arg eq: The :class:`tlm_adjoint.equation.Equation`.
         :arg annotate: Whether solution of this equation, and any
-            tangent-linear equations, should be recorded. If `True` then
-            overridden by the `annotate` configuration of tangent-linear
-            models. If `False` then overrides the `annotate` configuration of
-            tangent-linear models. Defaults to `self.annotation_enabled()`.
+            tangent-linear equations, should be recorded.
         :arg tlm: Whether tangent-linear equations should be derived and
-            solved. Defaults to `self.tlm_enabled()`.
+            solved.
         """
 
         self.drop_references()
 
-        if annotate is None:
+        if annotate is None or annotate:
             annotate = self.annotation_enabled()
         if annotate:
             if self._annotation_state == AnnotationState.FINAL:
@@ -689,7 +685,7 @@ class EquationManager:
             self._cp.add_equation(
                 len(self._blocks), len(self._block) - 1, eq)
 
-        if tlm is None:
+        if tlm is None or tlm:
             tlm = self.tlm_enabled()
         if tlm:
             if self._tlm_state == TangentLinearState.FINAL:

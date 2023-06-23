@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import check_space_types_conjugate_dual, function_axpy, \
-    function_copy, function_get_values, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_name, \
-    function_new, function_new_conjugate, function_set_values, is_function
+from .interface import (
+    check_space_types_conjugate_dual, function_axpy, function_copy,
+    function_get_values, function_is_cached, function_is_checkpointed,
+    function_is_static, function_name, function_new, function_new_conjugate,
+    function_set_values, is_function)
 
 from .caches import local_caches
 from .equations import InnerProduct
 from .functional import Functional
 from .manager import manager as _manager
-from .manager import compute_gradient, configure_tlm, function_tlm, \
-    reset_manager, restore_manager, set_manager, start_manager, stop_manager
+from .manager import (
+    compute_gradient, configure_tlm, function_tlm, paused_manager,
+    reset_manager, restore_manager, set_manager, start_manager, stop_manager)
 from .overloaded_float import Float, FloatSpace
 
 from abc import ABC, abstractmethod
@@ -296,9 +298,9 @@ class GaussNewton(ABC):
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
             J_term = function_new(J.function())
-            InnerProduct(J_term, x, function_copy(R_inv_tau_x)).solve(
-                tlm=False)
-            J.addto(J_term, tlm=False)
+            with paused_manager(annotate=False, tlm=True):
+                InnerProduct(J_term, x, function_copy(R_inv_tau_x)).solve()
+                J.addto(J_term)
         stop_manager()
 
         # Likelihood term: J^* R^{-1} conj(J dM)

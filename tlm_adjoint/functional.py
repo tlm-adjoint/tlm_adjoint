@@ -6,7 +6,7 @@ from .interface import check_space_type, function_is_scalar, function_name, \
     is_function, space_id, space_new
 
 from .equations import Assignment, Axpy
-from .manager import manager as _manager
+from .manager import function_tlm
 from .overloaded_float import Float, FloatSpace
 
 import warnings
@@ -67,7 +67,7 @@ class Functional:
 
         return self._id
 
-    def assign(self, term, *, manager=None, annotate=None, tlm=None):
+    def assign(self, term, *, annotate=None, tlm=None):
         r"""Assign to the functional,
 
         .. math::
@@ -80,26 +80,21 @@ class Functional:
             depend upon the backend. :math:`b` may be a function, and with the
             FEniCS or Firedrake backends may be an arity zero UFL
             :class:`Form`.
-        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-            Defaults to `manager()`.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        if manager is None:
-            manager = _manager()
-
         new_fn = function_new(self._fn, name=self._name)
         if is_function(term) and function_is_scalar(term):
             new_fn_eq = Assignment(new_fn, term)
         else:
             new_fn_eq = functional_term_eq(new_fn, term)
-        new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
+        new_fn_eq.solve(annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
-    def addto(self, term=None, *, manager=None, annotate=None, tlm=None):
+    def addto(self, term=None, *, annotate=None, tlm=None):
         r"""Add to the functional. Performs two assignments,
 
         .. math::
@@ -121,30 +116,25 @@ class Functional:
             depend upon the backend. :math:`b` may be a function, and with
             the FEniCS or Firedrake backends may be an arity zero UFL
             :class:`Form`.
-        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-            Defaults to `manager()`.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        if manager is None:
-            manager = _manager()
-
         new_fn = function_new(self._fn, name=self._name)
         if term is None:
             new_fn_eq = Assignment(new_fn, self._fn)
-            new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
+            new_fn_eq.solve(annotate=annotate, tlm=tlm)
         else:
             if is_function(term) and function_is_scalar(term):
                 term_fn = term
             else:
                 term_fn = function_new(self._fn, name=f"{self._name:s}_term")
                 term_eq = functional_term_eq(term_fn, term)
-                term_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
+                term_eq.solve(annotate=annotate, tlm=tlm)
             new_fn_eq = Axpy(new_fn, self._fn, 1.0, term_fn)
-            new_fn_eq.solve(manager=manager, annotate=annotate, tlm=tlm)
+            new_fn_eq.solve(annotate=annotate, tlm=tlm)
         self._fn = new_fn
 
     def function(self):
@@ -181,7 +171,7 @@ class Functional:
 
         return function_scalar_value(self._fn)
 
-    def tlm_functional(self, *args, manager=None):
+    def tlm_functional(self, *args):
         """Return a :class:`Functional` associated with a tangent-linear
         variable associated with the functional.
 
@@ -195,26 +185,18 @@ class Functional:
             associated with higher order tangent-linear variables. The relevant
             tangent-linear models must have been configured for the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` `manager`.
-        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-            Defaults to `manager()`.
         :returns: A :class:`Functional` associated with the tangent-linear
             variable.
         """
 
-        if manager is None:
-            manager = _manager()
+        return Functional(_fn=function_tlm(self.function(), *args))
 
-        return Functional(_fn=manager.function_tlm(self.function(), *args))
-
-    def tlm(self, M, dM, *, max_depth=1, manager=None):
+    def tlm(self, M, dM, *, max_depth=1):
         warnings.warn("Functional.tlm method is deprecated -- "
                       "use Functional.tlm_functional instead",
                       DeprecationWarning, stacklevel=2)
 
-        if manager is None:
-            manager = _manager()
-
-        J_fn = manager.function_tlm(
+        J_fn = function_tlm(
             self.function(), *[(M, dM) for depth in range(max_depth)])
 
         return Functional(_fn=J_fn)

@@ -18,6 +18,7 @@ from ..interface import (
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
+from ..manager import manager_disabled
 from ..overloaded_float import SymbolicFloat
 
 import numpy as np
@@ -104,14 +105,16 @@ class ConstantInterface(_FunctionInterface):
                 = Caches(self)
         return self._tlm_adjoint__function_interface_attrs["caches"]
 
+    @manager_disabled()
     def _zero(self):
         if len(self.ufl_shape) == 0:
             value = 0.0
         else:
             value = np.zeros(self.ufl_shape, dtype=function_dtype(self))
             value = backend_Constant(value)
-        self.assign(value, annotate=False, tlm=False)
+        self.assign(value)
 
+    @manager_disabled()
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
             y = y.value()
@@ -128,8 +131,9 @@ class ConstantInterface(_FunctionInterface):
             value = y
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
-        self.assign(value, annotate=False, tlm=False)
+        self.assign(value)
 
+    @manager_disabled()
     def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
@@ -153,7 +157,7 @@ class ConstantInterface(_FunctionInterface):
                 value = backend_Constant(value)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
-        self.assign(value, annotate=False, tlm=False)
+        self.assign(value)
 
     def _inner(self, y):
         if isinstance(y, backend_Constant):
@@ -202,6 +206,7 @@ class ConstantInterface(_FunctionInterface):
         values.setflags(write=False)
         return values
 
+    @manager_disabled()
     def _set_values(self, values):
         if not np.can_cast(values, function_dtype(self)):
             raise ValueError("Invalid dtype")
@@ -211,10 +216,10 @@ class ConstantInterface(_FunctionInterface):
         values = comm.bcast(values, root=0)
         if len(self.ufl_shape) == 0:
             values.shape = (1,)
-            self.assign(values[0], annotate=False, tlm=False)
+            self.assign(values[0])
         else:
             values.shape = self.ufl_shape
-            self.assign(backend_Constant(values), annotate=False, tlm=False)
+            self.assign(backend_Constant(values))
 
     def _replacement(self):
         if isinstance(self, ufl.classes.Coefficient):

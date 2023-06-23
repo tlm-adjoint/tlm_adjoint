@@ -2,14 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    Interpolator, Parameters, TestFunction, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_LinearSolver,
-    backend_Matrix, backend_assemble, backend_solve, complex_mode,
-    extract_args, homogenize, parameters)
+    LinearSolver, Interpolator, Parameters, TestFunction, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_Matrix, backend_assemble,
+    backend_solve, complex_mode, extract_args, homogenize, parameters)
 from ..interface import (
     check_space_type, check_space_types, function_assign, function_axpy,
     function_copy, function_inner, function_new_conjugate_dual, function_space,
     function_space_type, space_new)
+
+from ..manager import manager_disabled
+from ..override import override_method
 
 from .functions import eliminate_zeros, extract_coefficients
 
@@ -196,16 +198,12 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
     return A, b
 
 
-def _LinearSolver_lifted(self, b):
+@override_method(LinearSolver, "_lifted")
+def LinearSolver_lifted(self, orig, orig_args, b):
     if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
-        return backend_LinearSolver._tlm_adjoint__orig__lifted(self, b)
+        return orig_args()
     else:
         return b
-
-
-assert not hasattr(backend_LinearSolver, "_tlm_adjoint__orig__lifted")
-backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
-backend_LinearSolver._lifted = _LinearSolver_lifted
 
 
 def assemble_matrix(form, bcs=None, *,
@@ -277,11 +275,11 @@ def linear_solver(A, linear_solver_parameters):
         nullspace = None
         transpose_nullspace = None
         near_nullspace = None
-    return backend_LinearSolver(A, solver_parameters=linear_solver_parameters,
-                                options_prefix=options_prefix,
-                                nullspace=nullspace,
-                                transpose_nullspace=transpose_nullspace,
-                                near_nullspace=near_nullspace)
+    return LinearSolver(A, solver_parameters=linear_solver_parameters,
+                        options_prefix=options_prefix,
+                        nullspace=nullspace,
+                        transpose_nullspace=transpose_nullspace,
+                        near_nullspace=near_nullspace)
 
 
 def form_form_compiler_parameters(form, form_compiler_parameters):
@@ -335,6 +333,7 @@ def matrix_multiply(A, x, *,
     return tensor
 
 
+@manager_disabled()
 def is_valid_r0_space(space):
     if not hasattr(space, "_tlm_adjoint__is_valid_r0_space"):
         e = space.ufl_element()
@@ -342,7 +341,7 @@ def is_valid_r0_space(space):
             valid = False
         elif len(e.value_shape()) == 0:
             r = backend_Function(space)
-            r.assign(backend_Constant(1.0), annotate=False, tlm=False)
+            r.assign(backend_Constant(1.0))
             with r.dat.vec_ro as r_v:
                 r_max = r_v.max()[1]
             valid = (r_max == 1.0)
@@ -415,6 +414,7 @@ def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
                 <= b_tolerance * b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)  # noqa: E501
 
 
+@manager_disabled()
 def interpolate_expression(x, expr, *, adj_x=None):
     if adj_x is None:
         check_space_type(x, "primal")
@@ -428,9 +428,9 @@ def interpolate_expression(x, expr, *, adj_x=None):
 
     if adj_x is None:
         if isinstance(x, backend_Constant):
-            x.assign(expr, annotate=False, tlm=False)
+            x.assign(expr)
         elif isinstance(x, backend_Function):
-            x.interpolate(expr, annotate=False, tlm=False)
+            x.interpolate(expr)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
     elif isinstance(x, backend_Constant):
@@ -443,8 +443,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
         x_space = function_space(x)
         adj_x_space = function_space(adj_x)
         interp = Interpolator(ufl.conj(expr) * TestFunction(x_space), adj_x_space)  # noqa: E501
-        interp.interpolate(adj_x, transpose=True, output=x,
-                           annotate=False, tlm=False)
+        interp.interpolate(adj_x, transpose=True, output=x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 

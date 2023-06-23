@@ -193,9 +193,10 @@ def test_diffusion_1d(setup_test, test_leaks,
 
     const_space = FunctionSpace(mesh, "R", 0)
 
+    @manager_disabled()
     def constant(value, *args, **kwargs):
         F = Function(const_space, *args, **kwargs)
-        F.assign(value, annotate=False, tlm=False)
+        F.assign(value)
         return F
 
     T_0 = Function(space, name="T_0", static=True)
@@ -294,9 +295,10 @@ def test_diffusion_2d(setup_test, test_leaks,
 
     const_space = FunctionSpace(mesh, "R", 0)
 
+    @manager_disabled()
     def constant(value, *args, **kwargs):
         F = Function(const_space, *args, **kwargs)
-        F.assign(value, annotate=False, tlm=False)
+        F.assign(value)
         return F
 
     T_0 = Function(space, name="T_0", static=True)
