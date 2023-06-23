@@ -3,16 +3,17 @@
 
 from .backend import (
     Form, FunctionSpace, Parameters, TensorFunctionSpace, TestFunction,
-    UserExpression, as_backend_type, backend_Constant, backend_DirichletBC,
-    backend_Function, backend_KrylovSolver, backend_LUSolver,
-    backend_ScalarType, backend_assemble, backend_assemble_system,
-    backend_solve as solve, has_lu_solver_method, parameters)
+    UserExpression, VectorFunctionSpace, as_backend_type, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_KrylovSolver,
+    backend_LUSolver, backend_ScalarType, backend_assemble,
+    backend_assemble_system, backend_solve as solve, has_lu_solver_method,
+    parameters)
 from ..interface import (
     check_space_type, check_space_types, function_assign, function_get_values,
     function_inner, function_new_conjugate_dual, function_set_values,
     function_space, function_space_type, space_new)
 
-from .functions import eliminate_zeros
+from .functions import eliminate_zeros, extract_coefficients
 
 from collections.abc import Sequence
 import ffc
@@ -308,6 +309,9 @@ def r0_space(x):
         domain = domain.ufl_cargo()
         if len(x.ufl_shape) == 0:
             space = FunctionSpace(domain, "R", 0)
+        elif len(x.ufl_shape) == 1:
+            space = VectorFunctionSpace(domain, "R", 0,
+                                        dim=ufl.shape[0])
         else:
             space = TensorFunctionSpace(domain, "R", degree=0,
                                         shape=x.ufl_shape)
@@ -370,7 +374,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
     else:
         check_space_type(x, "conjugate_dual")
         check_space_type(adj_x, "conjugate_dual")
-    for dep in ufl.algorithms.extract_coefficients(expr):
+    for dep in extract_coefficients(expr):
         check_space_type(dep, "primal")
 
     expr = eliminate_zeros(expr)
@@ -418,10 +422,6 @@ def interpolate_expression(x, expr, *, adj_x=None):
                 x, function_get_values(expr_val).conjugate() * function_get_values(adj_x))  # noqa: E501
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
-
-
-# The following override assemble, assemble_system, and solve so that DOLFIN
-# Form objects are cached on UFL form objects
 
 
 def bind_form(form):

@@ -7,18 +7,20 @@ implements finite element calculations. In particular the
 variational problems.
 """
 
-from .backend import TestFunction, TrialFunction, adjoint, \
-    backend_DirichletBC, backend_Function, backend_FunctionSpace, parameters
-from ..interface import check_space_type, function_assign, function_id, \
-    function_is_scalar, function_new, function_new_conjugate_dual, \
-    function_replacement, function_scalar_value, function_space, \
-    function_update_caches, function_zero, is_function
-from .backend_code_generator_interface import assemble, \
-    assemble_linear_solver, copy_parameters_dict, \
-    form_form_compiler_parameters, function_vector, homogenize, \
-    interpolate_expression, matrix_multiply, \
-    process_adjoint_solver_parameters, process_solver_parameters, r0_space, \
-    rhs_addto, rhs_copy, solve, update_parameters_dict, verify_assembly
+from .backend import (
+    TestFunction, TrialFunction, adjoint, backend_DirichletBC,
+    backend_Function, parameters)
+from ..interface import (
+    check_space_type, function_assign, function_id, function_is_scalar,
+    function_new, function_new_conjugate_dual, function_replacement,
+    function_scalar_value, function_space, function_update_caches,
+    function_zero, is_function)
+from .backend_code_generator_interface import (
+    assemble, assemble_linear_solver, copy_parameters_dict,
+    form_form_compiler_parameters, function_vector, homogenize,
+    interpolate_expression, matrix_multiply, process_adjoint_solver_parameters,
+    process_solver_parameters, rhs_addto, rhs_copy, solve,
+    update_parameters_dict, verify_assembly)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
@@ -27,8 +29,9 @@ from ..overloaded_float import SymbolicFloat
 from ..tangent_linear import get_tangent_linear
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
-from .functions import bcs_is_cached, bcs_is_homogeneous, bcs_is_static, \
-    eliminate_zeros, extract_coefficients
+from .functions import (
+    bcs_is_cached, bcs_is_homogeneous, bcs_is_static, derivative, diff,
+    eliminate_zeros, extract_coefficients)
 
 import numpy as np
 import ufl
@@ -50,27 +53,8 @@ __all__ = \
     ]
 
 
-def derivative_space(x):
-    space = function_space(x)
-    if not isinstance(space, backend_FunctionSpace):
-        e = x.ufl_element()
-        assert e.family() == "Real" and e.degree() == 0
-        space = r0_space(x)
-    return space
-
-
-def derivative(form, x, argument=None):
-    if argument is None:
-        space = derivative_space(x)
-        arity = len(form.arguments())
-        Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(space)
-
-    return ufl.derivative(form, x, argument=argument)
-
-
 def derivative_dependencies(expr, dep):
-    dexpr = ufl.derivative(expr, dep)
+    dexpr = derivative(expr, dep, enable_automatic_argument=False)
     dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return extract_coefficients(dexpr)
 
@@ -416,7 +400,8 @@ class EquationSolver(ExprEquation):
                                  "arguments")
             if rhs.arguments() != (lhs.arguments()[0],):
                 raise ValueError("Invalid right-hand-side arguments")
-            if x in lhs.coefficients() or x in rhs.coefficients():
+            if x in extract_coefficients(lhs) \
+                    or x in extract_coefficients(rhs):
                 raise ValueError("Invalid non-linear dependency")
 
             F = ufl.action(lhs, coefficient=x) - rhs
@@ -436,7 +421,7 @@ class EquationSolver(ExprEquation):
 
         deps, nl_deps = extract_dependencies(F)
         if nl_solve_J is not None:
-            for dep in nl_solve_J.coefficients():
+            for dep in extract_coefficients(nl_solve_J):
                 if is_function(dep):
                     dep_id = function_id(dep)
                     if dep_id not in deps:
@@ -619,7 +604,7 @@ class EquationSolver(ExprEquation):
                 rhs_addto(b, cached_b)
 
         if b is None:
-            raise RuntimeError("Empty right-hand-side")
+            b = function_vector(function_new_conjugate_dual(self.x()))
 
         apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
         return b
@@ -914,8 +899,8 @@ def linear_equation_new_x(eq, x, *,
     """
 
     lhs, rhs = eq.lhs, eq.rhs
-    lhs_x_dep = x in lhs.coefficients()
-    rhs_x_dep = x in rhs.coefficients()
+    lhs_x_dep = x in extract_coefficients(lhs)
+    rhs_x_dep = x in extract_coefficients(rhs)
     if lhs_x_dep or rhs_x_dep:
         x_old = function_new(x)
         Assignment(x_old, x).solve(manager=manager, annotate=annotate, tlm=tlm)
@@ -1076,7 +1061,7 @@ class ExprEvaluation(ExprEquation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        dF = ufl.diff(self._rhs, dep)
+        dF = diff(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
@@ -1096,7 +1081,10 @@ class ExprEvaluation(ExprEquation):
             if dep != x:
                 tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
                 if tau_dep is not None:
-                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
+                    # Cannot use += as Firedrake might add to the *values* for
+                    # tlm_rhs
+                    tlm_rhs = (tlm_rhs
+                               + derivative(self._rhs, dep, argument=tau_dep))
 
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])

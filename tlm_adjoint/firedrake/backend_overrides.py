@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .backend import Interpolator, Parameters, Projector, backend_Constant, \
-    backend_DirichletBC, backend_Function, backend_LinearSolver, \
-    backend_LinearVariationalProblem, backend_LinearVariationalSolver, \
-    backend_NonlinearVariationalSolver, backend_Vector, backend_assemble, \
-    backend_interpolate, backend_project, backend_solve, extract_args, \
-    extract_linear_solver_args, parameters
-from ..interface import check_space_type, function_new, function_space, \
-    function_update_state, is_function, space_id, space_new
-from .backend_code_generator_interface import copy_parameters_dict, \
-    update_parameters_dict
+from .backend import (
+    Interpolator, Parameters, Projector, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_LinearSolver, backend_LinearVariationalProblem,
+    backend_LinearVariationalSolver, backend_NonlinearVariationalSolver,
+    backend_Vector, backend_assemble, backend_interpolate, backend_project,
+    backend_solve, extract_args, extract_linear_solver_args, parameters)
+from ..interface import (
+    check_space_type, function_comm, function_new, function_space,
+    function_update_state, is_function, space_id, space_new)
+from .backend_code_generator_interface import (
+    copy_parameters_dict, update_parameters_dict)
 
 from ..manager import annotation_enabled, paused_manager, tlm_enabled
 
 from ..equations import Assignment
-from .equations import Assembly, EquationSolver, ExprEvaluation, Projection, \
-    linear_equation_new_x
+from .equations import (
+    Assembly, EquationSolver, ExprEvaluation, Projection,
+    linear_equation_new_x)
+from .functions import Constant, extract_coefficients
 from .firedrake_equations import LocalProjection
 
 import numpy as np
@@ -188,8 +191,8 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
                 solver_parameters = {}
 
             if isinstance(eq_arg.rhs, ufl.classes.Form) \
-                    and (x in eq_arg.lhs.coefficients()
-                         or x in eq_arg.rhs.coefficients()):
+                    and (x in extract_coefficients(eq_arg.lhs)
+                         or x in extract_coefficients(eq_arg.rhs)):
                 # See Firedrake issue #2555
                 raise ValueError("Invalid dependency")
             if Jp is not None:
@@ -283,7 +286,7 @@ def project(v, V, bcs=None, solver_parameters=None,
             solver_parameters = {}
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
-        if x in ufl.algorithms.extract_coefficients(v):
+        if x in extract_coefficients(v):
             x_old = function_new(x)
             Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
             v = ufl.replace(v, {x: x_old})
@@ -321,7 +324,7 @@ def _Constant_assign(self, value, *, annotate=None, tlm=None):
         if isinstance(value, (int, np.integer,
                               float, np.floating,
                               complex, np.complexfloating)):
-            Assignment(self, backend_Constant(value)).solve(
+            Assignment(self, Constant(value, comm=function_comm(self))).solve(
                 annotate=annotate, tlm=tlm)
             return
         elif isinstance(value, backend_Constant):
@@ -329,7 +332,7 @@ def _Constant_assign(self, value, *, annotate=None, tlm=None):
                 Assignment(self, value).solve(annotate=annotate, tlm=tlm)
                 return
         elif isinstance(value, ufl.classes.Expr):
-            if self in ufl.algorithms.extract_coefficients(value):
+            if self in extract_coefficients(value):
                 self_old = function_new(self)
                 Assignment(self_old, self).solve(
                     annotate=annotate, tlm=tlm)
@@ -360,7 +363,7 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
             if isinstance(expr, (int, np.integer,
                                  float, np.floating,
                                  complex, np.complexfloating)):
-                expr = backend_Constant(expr)
+                expr = Constant(expr, comm=function_comm(self))
             if isinstance(expr, backend_Function) \
                     and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
                 if expr is not self:
@@ -368,7 +371,7 @@ def _Function_assign(self, expr, subset=None, *, annotate=None, tlm=None):
                         annotate=annotate, tlm=tlm)
                     return self
             elif isinstance(expr, ufl.classes.Expr):
-                if self in ufl.algorithms.extract_coefficients(expr):
+                if self in extract_coefficients(expr):
                     self_old = function_new(self)
                     Assignment(self_old, self).solve(
                         annotate=annotate, tlm=tlm)
@@ -506,7 +509,7 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
 
             A = self._problem.J
             b = self._problem._tlm_adjoint__b
-            if x in A.coefficients() or x in b.coefficients():
+            if x in extract_coefficients(A) or x in extract_coefficients(b):
                 # See Firedrake issue #2555
                 raise ValueError("Invalid dependency")
 

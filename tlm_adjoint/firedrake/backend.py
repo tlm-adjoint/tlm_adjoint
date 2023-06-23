@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from firedrake import Constant, DirichletBC, Function, FunctionSpace, \
-    Interpolator, LinearSolver, LinearVariationalProblem, \
-    LinearVariationalSolver, NonlinearVariationalSolver, Parameters, \
-    Projector, Tensor, TestFunction, TrialFunction, UnitIntervalMesh, Vector, \
-    VertexOnlyMesh, adjoint, assemble, homogenize, info, interpolate, \
-    parameters, project, solve
-from firedrake.utils import complex_mode
+from firedrake import *
+from firedrake.utils import complex_mode  # noqa: F401
 import firedrake
 
 backend = "Firedrake"
@@ -31,43 +26,3 @@ backend_assemble = assemble
 backend_interpolate = interpolate
 backend_project = project
 backend_solve = solve
-
-__all__ = \
-    [
-        "backend",
-
-        "backend_ScalarType",
-
-        "extract_args",
-        "extract_linear_solver_args",
-
-        "backend_Constant",
-        "backend_DirichletBC",
-        "backend_Function",
-        "backend_FunctionSpace",
-        "backend_LinearSolver",
-        "backend_LinearVariationalProblem",
-        "backend_LinearVariationalSolver",
-        "backend_Matrix",
-        "backend_NonlinearVariationalSolver",
-        "backend_Vector",
-        "backend_assemble",
-        "backend_interpolate",
-        "backend_project",
-        "backend_solve",
-
-        "FunctionSpace",
-        "Interpolator",
-        "Parameters",
-        "Projector",
-        "Tensor",
-        "TestFunction",
-        "TrialFunction",
-        "UnitIntervalMesh",
-        "VertexOnlyMesh",
-        "adjoint",
-        "complex_mode",
-        "homogenize",
-        "info",
-        "parameters"
-    ]

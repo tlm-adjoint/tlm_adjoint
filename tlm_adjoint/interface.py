@@ -106,6 +106,7 @@ __all__ = \
         "function_comm",
         "function_copy",
         "function_dtype",
+        "function_form_derivative_space",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -648,13 +649,13 @@ class FunctionInterface:
     """
 
     prefix = "_tlm_adjoint__function_interface"
-    names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
-             "_state", "_update_state", "_is_static", "_is_cached",
-             "_is_checkpointed", "_caches", "_zero", "_assign", "_axpy",
-             "_inner", "_sum", "_linf_norm", "_local_size", "_global_size",
-             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value",
-             "_is_alias")
+    names = ("_comm", "_space", "_form_derivative_space", "_space_type",
+             "_dtype", "_id", "_name", "_state", "_update_state", "_is_static",
+             "_is_cached", "_is_checkpointed", "_caches", "_zero", "_assign",
+             "_axpy", "_inner", "_sum", "_linf_norm", "_local_size",
+             "_global_size", "_local_indices", "_get_values", "_set_values",
+             "_new", "_copy", "_replacement", "_is_replacement", "_is_scalar",
+             "_scalar_value", "_is_alias")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate FunctionInterface object")
@@ -663,6 +664,9 @@ class FunctionInterface:
         return space_comm(function_space(self))
 
     def _space(self):
+        raise NotImplementedError("Method not overridden")
+
+    def _form_derivative_space(self):
         raise NotImplementedError("Method not overridden")
 
     def _space_type(self):
@@ -784,6 +788,15 @@ def function_space(x):
     """
 
     return x._tlm_adjoint__function_interface_space()
+
+
+def function_form_derivative_space(x):
+    """
+    :returns: The space in which a derivative is defined when differentiating a
+        UFL :class:`Form` with respect to the function.
+    """
+
+    return x._tlm_adjoint__function_interface_form_derivative_space()
 
 
 def function_space_type(x, *, rel_space_type="primal"):

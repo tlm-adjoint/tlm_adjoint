@@ -4,9 +4,9 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
-from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
-from tlm_adjoint.firedrake.backend_code_generator_interface import \
-    complex_mode, interpolate_expression
+from tlm_adjoint.firedrake.backend import backend_Function
+from tlm_adjoint.firedrake.backend_code_generator_interface import (
+    complex_mode, interpolate_expression)
 from tlm_adjoint.alias import gc_disabled
 
 import copy
@@ -139,15 +139,6 @@ def referenced_functions():
                  if F_ref is not None)
 
 
-def _Constant__init__(self, *args, **kwargs):
-    _Constant__init__orig(self, *args, **kwargs)
-    _function_ids[function_id(self)] = self
-
-
-_Constant__init__orig = backend_Constant.__init__
-backend_Constant.__init__ = _Constant__init__
-
-
 def _Function__init__(self, *args, **kwargs):
     _Function__init__orig(self, *args, **kwargs)
     _function_ids[function_id(self)] = self
@@ -184,8 +175,7 @@ def test_leaks():
 
     refs = 0
     for F in referenced_functions():
-        if function_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates" \
-                and not isinstance(F, ZeroConstant):
+        if function_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
             info(f"{function_name(F):s} referenced")
             refs += 1
     if refs == 0:

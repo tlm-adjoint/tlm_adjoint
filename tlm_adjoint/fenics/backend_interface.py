@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .backend import FunctionSpace, UnitIntervalMesh, as_backend_type, \
-    backend, backend_Constant, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType, backend_Vector, cpp_PETScVector, info
-from ..interface import DEFAULT_COMM, SpaceInterface, \
-    add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_subtract_adjoint_derivative_action, check_space_types, \
-    comm_dup_cached, function_copy, function_new, function_space_type, \
-    new_function_id, new_space_id, space_id, space_new, \
-    subtract_adjoint_derivative_action
+from .backend import (
+    FunctionSpace, UnitIntervalMesh, as_backend_type, backend,
+    backend_Constant, backend_Function, backend_FunctionSpace,
+    backend_ScalarType, backend_Vector, cpp_PETScVector, info)
+from ..interface import (
+    DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
+    add_functional_term_eq, add_interface,
+    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
+    function_copy, function_new, function_space, function_space_type,
+    new_function_id, new_space_id, space_id, space_new,
+    subtract_adjoint_derivative_action)
 from ..interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble, is_valid_r0_space, \
-    r0_space
+from .backend_code_generator_interface import (
+    assemble, is_valid_r0_space, r0_space)
 
 from .equations import Assembly
-from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
-    define_function_alias
+from .functions import (
+    Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
+    ReplacementFunction, Zero, define_function_alias)
 from ..overloaded_float import SymbolicFloat
 
 import functools
@@ -60,10 +62,11 @@ def _Constant__init__(self, *args, domain=None, space=None,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "state": 0,
-                   "space": space, "space_type": "primal",
-                   "dtype": backend_ScalarType, "static": False,
-                   "cache": False, "checkpoint": True})
+                  {"id": new_function_id(), "name": lambda x: x.name(),
+                   "state": 0, "space": space,
+                   "form_derivative_space": lambda x: r0_space(x),
+                   "space_type": "primal", "dtype": backend_ScalarType,
+                   "static": False, "cache": False, "checkpoint": True})
 
 
 assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
@@ -128,6 +131,9 @@ def check_vector_size(fn):
 class FunctionInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
+
+    def _form_derivative_space(self):
+        return function_space(self)
 
     def _space_type(self):
         return self._tlm_adjoint__function_interface_attrs["space_type"]

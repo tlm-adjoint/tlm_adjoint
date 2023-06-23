@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .backend import FunctionSpace, UnitIntervalMesh, backend, \
-    backend_Constant, backend_Function, backend_FunctionSpace, \
-    backend_ScalarType, info
-from ..interface import DEFAULT_COMM, SpaceInterface, \
-    add_finalize_adjoint_derivative_action, add_functional_term_eq, \
-    add_interface, add_subtract_adjoint_derivative_action, check_space_types, \
-    comm_dup_cached, function_comm, function_dtype, function_is_alias, \
-    function_is_scalar, function_scalar_value, new_function_id, new_space_id, \
-    space_id, space_new, subtract_adjoint_derivative_action
+from .backend import (
+    FunctionSpace, UnitIntervalMesh, backend, backend_Constant,
+    backend_Function, backend_FunctionSpace, backend_ScalarType, info)
+from ..interface import (
+    DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
+    add_functional_term_eq, add_interface,
+    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
+    function_comm, function_dtype, function_is_alias, function_is_scalar,
+    function_scalar_value, function_space, new_function_id, new_space_id,
+    space_id, space_new, subtract_adjoint_derivative_action)
 from ..interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import assemble, is_valid_r0_space
+from .backend_code_generator_interface import (
+    assemble, r0_space, is_valid_r0_space)
 
 from ..overloaded_float import SymbolicFloat
 
 from .equations import Assembly
-from .functions import Caches, Constant, ConstantInterface, \
-    ConstantSpaceInterface, Function, ReplacementFunction, Zero, \
-    define_function_alias
+from .functions import (
+    Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
+    ReplacementFunction, Zero, define_function_alias)
 
 from functools import cached_property
 import numpy as np
@@ -53,15 +55,28 @@ def _Constant__init__(self, value, domain=None, *,
         name = f"f_{self.count():d}"
 
     if space is None:
-        space = self.ufl_function_space()
+        if domain is None:
+            cell = None
+        else:
+            cell = domain.ufl_cell()
+        if len(self.ufl_shape) == 0:
+            element = ufl.classes.FiniteElement("R", cell, 0)
+        elif len(self.ufl_shape) == 1:
+            element = ufl.classes.VectorElement("R", cell, 0,
+                                                dim=self.ufl_shape[0])
+        else:
+            element = ufl.classes.TensorElement("R", cell, 0,
+                                                shape=self.ufl_shape)
+        space = ufl.classes.FunctionSpace(domain, element)
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "name": name, "state": 0,
-                   "space": space, "space_type": "primal",
-                   "dtype": self.dat.dtype.type, "static": False,
-                   "cache": False, "checkpoint": True})
+                  {"id": new_function_id(), "name": lambda x: x.name,
+                   "state": 0, "space": space,
+                   "form_derivative_space": lambda x: r0_space(x),
+                   "space_type": "primal", "dtype": self.dat.dtype.type,
+                   "static": False, "cache": False, "checkpoint": True})
 
 
 assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
@@ -102,6 +117,9 @@ class FunctionInterface(_FunctionInterface):
 
     def _space(self):
         return self.function_space()
+
+    def _form_derivative_space(self):
+        return function_space(self)
 
     def _space_type(self):
         return self._tlm_adjoint__function_interface_attrs["space_type"]

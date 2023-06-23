@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from firedrake import *
-from firedrake import assemble as backend_assemble
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.backend import backend_assemble
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
     assemble as backend_code_generator_interface_assemble)
 
@@ -284,7 +284,6 @@ def test_interpolate(setup_test, test_leaks,
         start_manager()
         y_1, J = forward(y_2)
         stop_manager()
-        manager_info()
 
         y_1_error = function_copy(y_1)
         function_axpy(y_1_error, -1.0, y_1_ref)

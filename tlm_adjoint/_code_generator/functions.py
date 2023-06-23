@@ -6,13 +6,15 @@ functionality for handling UFL :class:`Coefficient` objects and boundary
 conditions.
 """
 
-from .backend import backend_Constant, backend_DirichletBC, backend_Function, \
-    backend_ScalarType
-from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
-    comm_parent, function_caches, function_comm, function_dtype, function_id, \
-    function_is_cached, function_is_checkpointed, function_is_static, \
-    function_linf_norm, function_name, function_replacement, function_space, \
-    function_space_type, is_function, space_comm
+from .backend import (
+    TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_ScalarType)
+from ..interface import (
+    DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, function_caches,
+    function_comm, function_dtype, function_form_derivative_space, function_id,
+    function_is_cached, function_is_checkpointed, function_is_static,
+    function_linf_norm, function_name, function_replacement, function_space,
+    function_space_type, is_function, space_comm)
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -43,12 +45,6 @@ __all__ = \
     ]
 
 
-def new_count():
-    c = backend_Constant.__new__(backend_Constant, 0.0)
-    backend_Constant._tlm_adjoint__orig___init__(c, 0.0)
-    return c.count()
-
-
 class ConstantSpaceInterface(SpaceInterface):
     def _comm(self):
         return self._tlm_adjoint__space_interface_attrs["comm"]
@@ -71,6 +67,9 @@ class ConstantInterface(_FunctionInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 
+    def _form_derivative_space(self):
+        return self._tlm_adjoint__function_interface_attrs["form_derivative_space"](self)  # noqa: E501
+
     def _space_type(self):
         return self._tlm_adjoint__function_interface_attrs["space_type"]
 
@@ -81,11 +80,7 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["id"]
 
     def _name(self):
-        if hasattr(self, "name"):
-            assert "name" not in self._tlm_adjoint__function_interface_attrs
-            return self.name()
-        else:
-            return self._tlm_adjoint__function_interface_attrs["name"]
+        return self._tlm_adjoint__function_interface_attrs["name"](self)
 
     def _state(self):
         return self._tlm_adjoint__function_interface_attrs["state"]
@@ -222,9 +217,13 @@ class ConstantInterface(_FunctionInterface):
             self.assign(backend_Constant(values), annotate=False, tlm=False)
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementConstant(self)
-        return self._tlm_adjoint__replacement
+        if isinstance(self, ufl.classes.Coefficient):
+            if not hasattr(self, "_tlm_adjoint__replacement"):
+                self._tlm_adjoint__replacement = ReplacementConstant(self)
+            return self._tlm_adjoint__replacement
+        else:
+            # For Firedrake
+            return self
 
     def _is_replacement(self):
         return False
@@ -238,6 +237,28 @@ class ConstantInterface(_FunctionInterface):
 
     def _is_alias(self):
         return "alias" in self._tlm_adjoint__function_interface_attrs
+
+
+def constant_value(value=None, shape=None):
+    if value is None:
+        if shape is None:
+            shape = ()
+    elif shape is not None:
+        value_ = value
+        if not isinstance(value_, np.ndarray):
+            value_ = np.array(value_)
+        if value_.shape != shape:
+            raise ValueError("Invalid shape")
+        del value_
+
+    # Default value
+    if value is None:
+        if len(shape) == 0:
+            value = 0.0
+        else:
+            value = np.zeros(shape, dtype=backend_ScalarType)
+
+    return value
 
 
 class Constant(backend_Constant):
@@ -267,7 +288,7 @@ class Constant(backend_Constant):
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
                  space_type="primal", shape=None, comm=None, static=False,
                  cache=None, checkpoint=None, **kwargs):
-        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
 
         if domain is None and space is not None:
@@ -281,23 +302,8 @@ class Constant(backend_Constant):
                 shape = space.ufl_element().value_shape()
             elif shape != space.ufl_element().value_shape():
                 raise ValueError("Invalid shape")
-        if value is None:
-            if shape is None:
-                shape = tuple()
-        elif shape is not None:
-            value_ = value
-            if not isinstance(value_, np.ndarray):
-                value_ = np.array(value_)
-            if value_.shape != shape:
-                raise ValueError("Invalid shape")
-            del value_
 
-        # Default value
-        if value is None:
-            if len(shape) == 0:
-                value = 0.0
-            else:
-                value = np.zeros(shape, dtype=backend_ScalarType)
+        value = constant_value(value, shape)
 
         # Default comm
         if comm is None:
@@ -318,6 +324,22 @@ class Constant(backend_Constant):
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
+    def __new__(cls, value=None, *args, domain=None, space_type="primal",
+                shape=None, static=False, cache=None, checkpoint=None,
+                **kwargs):
+
+        if issubclass(cls, ufl.classes.Coefficient) or domain is None:
+            return object().__new__(cls)
+        else:
+            # For Firedrake
+            value = constant_value(value, shape)
+            F = super().__new__(cls, value, domain=domain)
+            F._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+            F._tlm_adjoint__function_interface_attrs.d_setitem("static", static)  # noqa: E501
+            F._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+            F._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+            return F
+
 
 class Function(backend_Function):
     """Extends the backend `Function` class.
@@ -337,7 +359,7 @@ class Function(backend_Function):
 
     def __init__(self, *args, space_type="primal", static=False, cache=None,
                  checkpoint=None, **kwargs):
-        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
         if cache is None:
             cache = static
@@ -370,14 +392,19 @@ class ZeroConstant(Constant, Zero):
     """A :class:`Constant` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Constant` constructor, together with
-    `static=True`.
+    `static=True`, `cache=True`, and `checkpoint=False`
     """
 
     def __init__(self, *, name=None, domain=None, space_type="primal",
                  shape=None, comm=None):
         Constant.__init__(
             self, name=name, domain=domain, space_type=space_type, shape=shape,
-            comm=comm, static=True)
+            comm=comm, static=True, cache=True, checkpoint=False)
+
+    def __new__(cls, *args, domain=None, shape=None, **kwargs):
+        return Constant.__new__(
+            cls, constant_value(shape=shape), *args, domain=domain,
+            shape=shape, static=True, cache=True, checkpoint=False, **kwargs)
 
     def assign(self, *args, **kwargs):
         raise RuntimeError("Cannot call assign method of ZeroConstant")
@@ -409,16 +436,122 @@ class ZeroFunction(Function, Zero):
         raise RuntimeError("Cannot call project method of ZeroFunction")
 
 
+def as_coefficient(x):
+    if isinstance(x, ufl.classes.Coefficient):
+        return x
+
+    # For Firedrake
+
+    if not isinstance(x, backend_Constant):
+        raise TypeError("Unexpected type")
+
+    if not hasattr(x, "_tlm_adjoint__Coefficient"):
+        if is_function(x):
+            space = function_space(x)
+        else:
+            if len(x.ufl_shape) == 0:
+                element = ufl.classes.FiniteElement("R", None, 0)
+            elif len(x.ufl_shape) == 1:
+                element = ufl.classes.VectorElement("R", None, 0,
+                                                    dim=x.ufl_shape[0])
+            else:
+                element = ufl.classes.TensorElement("R", None, 0,
+                                                    shape=x.ufl_shape)
+            space = ufl.classes.FunctionSpace(None, element)
+
+        x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space, count=x.count())  # noqa: E501
+
+    return x._tlm_adjoint__Coefficient
+
+
+def with_coefficient(expr, x):
+    x_coeff = as_coefficient(x)
+    if x_coeff is x:
+        return expr, {}, {}
+    else:
+        # For Firedrake
+        replace_map = {x: x_coeff}
+        replace_map_inverse = {x_coeff: x}
+        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
+
+
+def with_coefficients(expr):
+    if isinstance(expr, ufl.classes.Form) \
+            and "_tlm_adjoint__form_with_coefficients" in expr._cache:
+        return expr._cache["_tlm_adjoint__form_with_coefficients"]
+
+    if issubclass(backend_Constant, ufl.classes.Coefficient):
+        replace_map = {}
+    else:
+        # For Firedrake
+        constants = tuple(sorted(ufl.algorithms.extract_type(expr, backend_Constant),  # noqa: E501
+                          key=lambda c: c.count()))
+        replace_map = dict(zip(constants, map(as_coefficient, constants)))
+    replace_map_inverse = {c_coeff: c
+                           for c, c_coeff in replace_map.items()}
+
+    expr_with_coeffs = ufl.replace(expr, replace_map)
+    if isinstance(expr, ufl.classes.Form):
+        expr._cache["_tlm_adjoint__form_with_coefficients"] = \
+            (expr_with_coeffs, replace_map, replace_map_inverse)
+    return expr_with_coeffs, replace_map, replace_map_inverse
+
+
 def extract_coefficients(expr):
     """
-    :returns: UFL :class:`Coefficient` objects on which the supplied UFL
-        :class:`Expr` or :class:`Form` depends.
+    :returns: Functions on which the supplied UFL :class:`Expr` or
+        :class:`Form` depends.
     """
 
-    if isinstance(expr, ufl.classes.Form):
-        return expr.coefficients()
+    if isinstance(expr, ufl.classes.Form) \
+            and "_tlm_adjoint__form_coefficients" in expr._cache:
+        return expr._cache["_tlm_adjoint__form_coefficients"]
+
+    if issubclass(backend_Constant, ufl.classes.Coefficient):
+        cls = ufl.classes.Coefficient
     else:
-        return ufl.algorithms.extract_coefficients(expr)
+        # For Firedrake
+        cls = (ufl.classes.Coefficient, backend_Constant)
+    deps = tuple(sorted(ufl.algorithms.extract_type(expr, cls),
+                        key=lambda c: c.count()))
+
+    if isinstance(expr, ufl.classes.Form):
+        expr._cache["_tlm_adjoint__form_coefficients"] = deps
+    return deps
+
+
+def diff(expr, x):
+    expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
+    dexpr = ufl.diff(expr, replace_map.get(x, x))
+    dexpr = ufl.algorithms.expand_derivatives(dexpr)
+    return ufl.replace(dexpr, replace_map_inverse)
+
+
+def derivative(expr, x, argument=None, *,
+               enable_automatic_argument=True):
+    if isinstance(expr, ufl.classes.Expr):
+        expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
+    else:
+        arity = len(expr.arguments())
+        for expr_argument in expr.arguments():
+            if expr_argument.number() >= arity:
+                raise ValueError("Unexpected argument")
+
+        if argument is None and enable_automatic_argument:
+            Argument = {0: TestFunction, 1: TrialFunction}[arity]
+            argument = Argument(function_form_derivative_space(x))
+
+        if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
+            raise ValueError("Invalid argument")
+
+        expr, replace_map, replace_map_inverse = with_coefficients(expr)
+
+    if argument is not None:
+        argument, _, argument_replace_map_inverse = with_coefficients(argument)
+        replace_map_inverse.update(argument_replace_map_inverse)
+
+    dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
+    return ufl.replace(dexpr, replace_map_inverse)
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):
@@ -459,18 +592,17 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
             # Inefficient, but it is very difficult to generate a non-empty but
             # zero valued form
             arguments = expr.arguments()
-            if isinstance(expr, ufl.classes.Expr):
-                domain, = ufl.domain.extract_domains(expr)
-            else:
-                domain, = expr.ufl_domains()
+            zero = ZeroConstant()
             if len(arguments) == 0:
-                simplified_expr = ZeroConstant(domain=domain) * ufl.ds
+                domain, = expr.ufl_domains()
+                simplified_expr = zero * ufl.ds(domain)
             elif len(arguments) == 1:
                 test, = arguments
-                simplified_expr = ufl.inner(ZeroConstant(domain=domain, shape=test.ufl_shape), test) * ufl.ds  # noqa: E501
+                simplified_expr = ufl.inner(zero, test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
             else:
                 test, trial = arguments
-                simplified_expr = ZeroConstant(domain=domain) * ufl.inner(trial, test) * ufl.ds  # noqa: E501
+                simplified_expr = zero * ufl.inner(trial[tuple(0 for _ in trial.ufl_shape)],  # noqa: E501
+                                                   test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
 
             if isinstance(expr, ufl.classes.Form):
                 expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501
@@ -496,8 +628,7 @@ class DirichletBC(backend_DirichletBC):
         super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
-            static = True
-            for dep in ufl.algorithms.extract_coefficients(
+            for dep in extract_coefficients(
                     g if isinstance(g, ufl.classes.Expr)
                     else backend_Constant(g)):
                 # The 'static' flag for functions is only a hint. 'not
@@ -506,6 +637,8 @@ class DirichletBC(backend_DirichletBC):
                 if not is_function(dep) or not function_is_checkpointed(dep):
                     static = False
                     break
+            else:
+                static = True
         if homogeneous is not None:
             warnings.warn("homogeneous argument is deprecated -- "
                           "use HomogeneousDirichletBC instead",
@@ -594,6 +727,10 @@ class ReplacementInterface(_FunctionInterface):
     def _space(self):
         return self.ufl_function_space()
 
+    def _form_derivative_space(self):
+        return self._tlm_adjoint__function_interface_attrs.get(
+            "form_derivative_space", lambda x: function_space(x))(self)
+
     def _space_type(self):
         return self._tlm_adjoint__function_interface_attrs["space_type"]
 
@@ -639,8 +776,8 @@ class Replacement(ufl.classes.Coefficient):
         else:
             domain, = x_domains
 
-        super().__init__(space, count=new_count())
-        self.__domain = domain
+        super().__init__(space, count=x.count())
+        self._tlm_adjoint__domain = domain
         add_interface(self, ReplacementInterface,
                       {"id": function_id(x), "name": function_name(x),
                        "space": space,
@@ -651,13 +788,13 @@ class Replacement(ufl.classes.Coefficient):
                        "caches": function_caches(x)})
 
     def ufl_domain(self):
-        return self.__domain
+        return self._tlm_adjoint__domain
 
     def ufl_domains(self):
-        if self.__domain is None:
+        if self._tlm_adjoint__domain is None:
             return ()
         else:
-            return (self.__domain,)
+            return (self._tlm_adjoint__domain,)
 
 
 class ReplacementConstant(backend_Constant, Replacement):
@@ -667,6 +804,8 @@ class ReplacementConstant(backend_Constant, Replacement):
 
     def __init__(self, x):
         Replacement.__init__(self, x)
+        self._tlm_adjoint__function_interface_attrs["form_derivative_space"] \
+            = x._tlm_adjoint__function_interface_attrs["form_derivative_space"]
 
 
 class ReplacementFunction(backend_Function, Replacement):
@@ -680,7 +819,7 @@ class ReplacementFunction(backend_Function, Replacement):
 
 def replaced_form(form):
     replace_map = {}
-    for c in form.coefficients():
+    for c in extract_coefficients(form):
         if is_function(c):
             replace_map[c] = function_replacement(c)
     return ufl.replace(form, replace_map)

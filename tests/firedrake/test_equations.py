@@ -214,6 +214,9 @@ def test_FixedPointSolver(setup_test, test_leaks):
     b = Constant(3.0, name="b", static=True)
 
     def forward(a, b):
+        x.assign(0.0)
+        z.assign(0.0)
+
         eqs = [LinearCombination(z, (1.0, x), (1.0, b)),
                ExprEvaluation(x, a / sqrt(z))]
 
@@ -886,10 +889,10 @@ def test_form_binding(setup_test, test_leaks,
     # With FEniCS u.split() creates new Coefficient objects
     u_split = u.subfunctions
     form = test_form(u, u_split, test)
-    for c in form.coefficients():
+    for c in extract_coefficients(form):
         assert not function_is_replacement(c)
     form = unbound_form(form, test_form_deps(u, u_split))
-    for c in form.coefficients():
+    for c in extract_coefficients(form):
         assert function_is_replacement(c)
     del u, u_split
 
@@ -1017,7 +1020,7 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
     assert len(zero_form.integrals()) == 0
 
     zero_form = eliminate_zeros(form, force_non_empty_form=True)
-    assert F not in zero_form.coefficients()
+    assert F not in extract_coefficients(zero_form)
     b = Function(space, space_type="conjugate_dual")
     assemble(zero_form, tensor=function_vector(b))
     assert function_linf_norm(b) == 0.0
