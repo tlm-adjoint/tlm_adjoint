@@ -58,8 +58,8 @@ class MixedSpace(BackendMixedSpace):
 
     def new_mixed(self, *args, **kwargs):
         space_type = self._space_types[0]
-        return Function(self.mixed_space(), space_type=space_type,
-                        *args, **kwargs)
+        return Function(self.mixed_space(), *args, space_type=space_type,
+                        **kwargs)
 
 
 # Complex note: It is convenient to define a Hessian matrix action in terms of

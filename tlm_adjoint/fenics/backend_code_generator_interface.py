@@ -151,8 +151,8 @@ def assemble_arguments(arity, form_compiler_parameters, solver_parameters):
     return {"form_compiler_parameters": form_compiler_parameters}
 
 
-def assemble_matrix(form, bcs=None, *args,
-                    form_compiler_parameters=None, **kwargs):
+def assemble_matrix(form, bcs=None, *,
+                    form_compiler_parameters=None):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -170,13 +170,12 @@ def assemble_matrix(form, bcs=None, *args,
         dummy_rhs = ufl.inner(zero, test) * ufl.dx
         A, b_bc = assemble_system(
             form, dummy_rhs, bcs=bcs,
-            form_compiler_parameters=form_compiler_parameters, *args, **kwargs)
+            form_compiler_parameters=form_compiler_parameters)
         if b_bc.norm("linf") == 0.0:
             b_bc = None
     else:
         A = assemble(
-            form, form_compiler_parameters=form_compiler_parameters,
-            *args, **kwargs)
+            form, form_compiler_parameters=form_compiler_parameters)
         b_bc = None
 
     return A, b_bc
@@ -430,35 +429,26 @@ def bind_form(form):
     return ufl.replace(form, bindings)
 
 
-# Aim for compatibility with FEniCS 2019.1.0 API
-
-
-def assemble(form, tensor=None, *args, **kwargs):
+def assemble(form, tensor=None, *,
+             form_compiler_parameters=None):
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
     if not isinstance(form, Form):
         form = bind_form(form)
-    return backend_assemble(form, tensor=tensor, *args, **kwargs)
+    return backend_assemble(form, tensor,
+                            form_compiler_parameters=form_compiler_parameters)
 
 
-def assemble_system(A_form, b_form, bcs=None, x0=None,
-                    form_compiler_parameters=None, add_values=False,
-                    finalize_tensor=True, keep_diagonal=False, A_tensor=None,
-                    b_tensor=None, *args, **kwargs):
-    if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
-        check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
-
+def assemble_system(A_form, b_form, bcs=None, *,
+                    form_compiler_parameters=None):
     if not isinstance(A_form, Form):
         A_form = bind_form(A_form)
     if not isinstance(b_form, Form):
         b_form = bind_form(b_form)
     return backend_assemble_system(
-        A_form, b_form, bcs=bcs, x0=x0,
-        form_compiler_parameters=form_compiler_parameters,
-        add_values=add_values, finalize_tensor=finalize_tensor,
-        keep_diagonal=keep_diagonal, A_tensor=A_tensor, b_tensor=b_tensor,
-        *args, **kwargs)
+        A_form, b_form, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters)
 
 
 # def solve(*args, **kwargs):

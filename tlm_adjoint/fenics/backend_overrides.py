@@ -68,9 +68,8 @@ def assemble(form, tensor=None, form_compiler_parameters=None,
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
-    b = backend_assemble(form, tensor=tensor,
-                         form_compiler_parameters=form_compiler_parameters,
-                         add_values=add_values, *args, **kwargs)
+    b = backend_assemble(form, tensor, form_compiler_parameters, add_values,
+                         *args, **kwargs)
 
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         function_update_state(tensor._tlm_adjoint__function)
@@ -114,10 +113,8 @@ def assemble_system(A_form, b_form, bcs=None, x0=None,
         check_space_type(b_tensor._tlm_adjoint__function, "conjugate_dual")
 
     A, b = backend_assemble_system(
-        A_form, b_form, bcs=bcs, x0=x0,
-        form_compiler_parameters=form_compiler_parameters,
-        add_values=add_values, finalize_tensor=finalize_tensor,
-        keep_diagonal=keep_diagonal, A_tensor=A_tensor, b_tensor=b_tensor,
+        A_form, b_form, bcs, x0, form_compiler_parameters, add_values,
+        finalize_tensor, keep_diagonal, A_tensor, b_tensor,
         *args, **kwargs)
 
     if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
