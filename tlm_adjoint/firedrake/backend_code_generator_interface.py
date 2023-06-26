@@ -123,8 +123,12 @@ def bind_form(form):
     return ufl.replace(form, bindings)
 
 
-def _assemble(form, tensor=None, *args,
-              form_compiler_parameters=None, **kwargs):
+def _assemble(form, tensor=None, bcs=None, *,
+              form_compiler_parameters=None, mat_type=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -133,9 +137,8 @@ def _assemble(form, tensor=None, *args,
 
     form = eliminate_zeros(form, force_non_empty_form=True)
     b = backend_assemble(
-        form, tensor=tensor,
-        form_compiler_parameters=form_compiler_parameters,
-        *args, **kwargs)
+        form, tensor=tensor, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters, mat_type=mat_type)
 
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
@@ -143,8 +146,8 @@ def _assemble(form, tensor=None, *args,
     return b
 
 
-def _assemble_system(A_form, b_form=None, bcs=None, *args,
-                     form_compiler_parameters=None, **kwargs):
+def _assemble_system(A_form, b_form=None, bcs=None, *,
+                     form_compiler_parameters=None, mat_type=None):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -158,7 +161,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *args,
 
     A = _assemble(
         A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
-        *args, **kwargs)
+        mat_type=mat_type)
 
     if len(bcs) > 0:
         F = backend_Function(A_form.arguments()[0].function_space())
@@ -169,7 +172,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *args,
             b = _assemble(
                 -ufl.action(A_form, F), bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,
-                *args, **kwargs)
+                mat_type=mat_type)
 
             with b.dat.vec_ro as b_v:
                 if b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) == 0.0:
@@ -178,7 +181,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *args,
             b = _assemble(
                 b_form - ufl.action(A_form, F), bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,
-                *args, **kwargs)
+                mat_type=mat_type)
     else:
         if b_form is None:
             b = None
@@ -186,7 +189,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *args,
             b = _assemble(
                 b_form,
                 form_compiler_parameters=form_compiler_parameters,
-                *args, **kwargs)
+                mat_type=mat_type)
 
     A._tlm_adjoint__lift_bcs = False
 
@@ -205,8 +208,8 @@ backend_LinearSolver._tlm_adjoint__orig__lifted = backend_LinearSolver._lifted
 backend_LinearSolver._lifted = _LinearSolver_lifted
 
 
-def assemble_matrix(form, bcs=None, *args,
-                    form_compiler_parameters=None, **kwargs):
+def assemble_matrix(form, bcs=None, *,
+                    form_compiler_parameters=None, mat_type=None):
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -216,11 +219,11 @@ def assemble_matrix(form, bcs=None, *args,
 
     return _assemble_system(form, bcs=bcs,
                             form_compiler_parameters=form_compiler_parameters,
-                            *args, **kwargs)
+                            mat_type=mat_type)
 
 
-def assemble(form, tensor=None, *args,
-             form_compiler_parameters=None, **kwargs):
+def assemble(form, tensor=None, *,
+             form_compiler_parameters=None, mat_type=None):
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
@@ -230,7 +233,7 @@ def assemble(form, tensor=None, *args,
     form = bind_form(form)
     b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
-        *args, **kwargs)
+        mat_type=mat_type)
 
     if tensor is None and isinstance(b, backend_Function):
         b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
@@ -351,7 +354,7 @@ def is_valid_r0_space(space):
 
 
 def r0_space(x):
-    raise NotImplementedError
+    raise NotImplementedError("r0_space not implemented")
 
 
 def function_vector(x):

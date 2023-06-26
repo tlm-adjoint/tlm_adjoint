@@ -421,12 +421,8 @@ add_subtract_adjoint_derivative_action(backend,
 
 def _finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-        if isinstance(x, backend_Constant):
-            y = assemble(x._tlm_adjoint__fenics_adj_b)
-            subtract_adjoint_derivative_action(x, (-1.0, y))
-        else:
-            assemble(x._tlm_adjoint__fenics_adj_b, tensor=x.vector(),
-                     add_values=True)
+        y = assemble(x._tlm_adjoint__fenics_adj_b)
+        subtract_adjoint_derivative_action(x, (-1.0, y))
         delattr(x, "_tlm_adjoint__fenics_adj_b")
 
 
