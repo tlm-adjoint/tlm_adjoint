@@ -86,18 +86,19 @@ e.g. to verify Hessian matrix calculations
     assert min_order > 1.99
 """
 
-from .interface import function_assign, function_axpy, function_copy, \
-    function_dtype, function_inner, function_is_cached, \
-    function_is_checkpointed, function_is_static, function_linf_norm, \
-    function_local_size, function_name, function_new, function_set_values, \
-    garbage_cleanup, is_function, space_comm
+from .interface import (
+    function_assign, function_axpy, function_copy, function_dtype,
+    function_inner, function_is_cached, function_is_checkpointed,
+    function_is_static, function_linf_norm, function_local_size, function_name,
+    function_new, function_set_values, garbage_cleanup, is_function,
+    space_comm)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
 from .manager import manager as _manager
-from .manager import configure_tlm, paused_manager, reset_manager, \
-    restore_manager, set_manager, start_manager, stop_manager
-from .tlm_adjoint import EquationManager
+from .manager import (
+    configure_tlm, manager_disabled, reset_manager, restore_manager,
+    set_manager, start_manager, stop_manager)
 
 from collections.abc import Sequence
 import functools
@@ -125,7 +126,7 @@ def wrapped_forward(forward):
 
 
 @local_caches
-@restore_manager
+@manager_disabled()
 def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5):
     r"""Perform a Taylor remainder convergence test. Aims for similar behaviour
@@ -200,8 +201,6 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     logger = logging.getLogger("tlm_adjoint.verification")
     forward = wrapped_forward(forward)
-    set_manager(EquationManager(cp_method="memory", cp_parameters={}))
-    stop_manager()
 
     if M0 is None:
         M0 = tuple(map(function_copy, M))
@@ -245,8 +244,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
         clear_caches()
-        with paused_manager():
-            J_vals[i] = forward(*M1).value()
+        J_vals[i] = forward(*M1).value()
     if abs(J_vals.imag).max() == 0.0:
         J_vals = J_vals.real
 
@@ -372,6 +370,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         J = forward(*M)
         for dM in dMs:
             J = J.tlm_functional((M, dM))
+        stop_manager()
 
         return J
 
@@ -488,6 +487,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         J = forward(*M)
         for dM in dMs:
             J = J.tlm_functional((M, dM))
+        stop_manager()
 
         return J
 

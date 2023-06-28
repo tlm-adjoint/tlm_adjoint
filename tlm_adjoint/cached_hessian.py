@@ -7,6 +7,7 @@ from .caches import clear_caches
 from .functional import Functional
 from .hessian import GaussNewton, Hessian
 from .manager import manager as _manager
+from .manager import compute_gradient, set_manager, restore_manager
 from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
@@ -164,6 +165,7 @@ class CachedHessian(Hessian, HessianOptimization):
         self._J_state = function_state(J.function())
         self._J = Functional(_fn=J.function())
 
+    @restore_manager
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
             J_val, (dJ,) = self.compute_gradient(
@@ -176,17 +178,19 @@ class CachedHessian(Hessian, HessianOptimization):
 
         dM = tuple(function_new(m) for m in M)
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
+        set_manager(manager)
 
-        dJ = self._J.tlm_functional((M, dM), manager=manager)
+        dJ = self._J.tlm_functional((M, dM))
 
         J_val = self._J.value()
-        dJ = manager.compute_gradient(
+        dJ = compute_gradient(
             dJ, dM,
             cache_adjoint_degree=1 if self._cache_adjoint else 0,
             store_adjoint=self._cache_adjoint)
 
         return J_val, dJ
 
+    @restore_manager
     def action(self, M, dM, M0=None):
         if not isinstance(M, Sequence):
             J_val, dJ_val, (ddJ,) = self.action(
@@ -198,12 +202,13 @@ class CachedHessian(Hessian, HessianOptimization):
             raise RuntimeError("State has changed")
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
+        set_manager(manager)
 
-        dJ = self._J.tlm_functional((M, dM), manager=manager)
+        dJ = self._J.tlm_functional((M, dM))
 
         J_val = self._J.value()
         dJ_val = dJ.value()
-        ddJ = manager.compute_gradient(
+        ddJ = compute_gradient(
             dJ, M,
             cache_adjoint_degree=1 if self._cache_adjoint else 0,
             store_adjoint=self._cache_adjoint)

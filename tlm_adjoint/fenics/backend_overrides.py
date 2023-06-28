@@ -170,9 +170,9 @@ def extract_args_linear_solve(A, x, b,
 
 
 def solve(*args, annotate=None, tlm=None, **kwargs):
-    if annotate is None:
+    if annotate is None or annotate:
         annotate = annotation_enabled()
-    if tlm is None:
+    if tlm is None or tlm:
         tlm = tlm_enabled()
     if annotate or tlm:
         if isinstance(args[0], ufl.classes.Equation):
@@ -265,9 +265,9 @@ def solve(*args, annotate=None, tlm=None, **kwargs):
 def project(v, V=None, bcs=None, mesh=None, function=None, solver_type="lu",
             preconditioner_type="default", form_compiler_parameters=None, *,
             solver_parameters=None, annotate=None, tlm=None):
-    if annotate is None:
+    if annotate is None or annotate:
         annotate = annotation_enabled()
-    if tlm is None:
+    if tlm is None or tlm:
         tlm = tlm_enabled()
     if annotate or tlm or solver_parameters is not None:
         if function is None:
@@ -348,9 +348,9 @@ backend_DirichletBC.apply = _DirichletBC_apply
 
 
 def _Constant_assign(self, x, *, annotate=None, tlm=None):
-    if annotate is None:
+    if annotate is None or annotate:
         annotate = annotation_enabled()
-    if tlm is None:
+    if tlm is None or tlm:
         tlm = tlm_enabled()
     if annotate or tlm:
         if isinstance(x, (int, np.integer,
@@ -383,9 +383,9 @@ backend_Constant.assign = _Constant_assign
 
 
 def _Function_assign(self, rhs, *, annotate=None, tlm=None):
-    if annotate is None:
+    if annotate is None or annotate:
         annotate = annotation_enabled()
-    if tlm is None:
+    if tlm is None or tlm:
         tlm = tlm_enabled()
     if annotate or tlm:
         if isinstance(rhs, backend_Function) \
@@ -488,9 +488,9 @@ class LUSolver(backend_LUSolver):
             A = self._tlm_adjoint__A
             x, b = args
 
-        if annotate is None:
+        if annotate is None or annotate:
             annotate = annotation_enabled()
-        if tlm is None:
+        if tlm is None or tlm:
             tlm = tlm_enabled()
         if annotate or tlm:
             bcs = A._tlm_adjoint__bcs
@@ -560,9 +560,9 @@ class KrylovSolver(backend_KrylovSolver):
             A = self._tlm_adjoint__A
             x, b = args
 
-        if annotate is None:
+        if annotate is None or annotate:
             annotate = annotation_enabled()
-        if tlm is None:
+        if tlm is None or tlm:
             tlm = tlm_enabled()
         if annotate or tlm:
             bcs = A._tlm_adjoint__bcs
@@ -612,9 +612,9 @@ class LinearVariationalSolver(backend_LinearVariationalSolver):
     def solve(self, *, annotate=None, tlm=None):
         x = self._tlm_adjoint__problem.u_ufl
 
-        if annotate is None:
+        if annotate is None or annotate:
             annotate = annotation_enabled()
-        if tlm is None:
+        if tlm is None or tlm:
             tlm = tlm_enabled()
         if annotate or tlm:
             lhs = self._tlm_adjoint__problem.a_ufl
@@ -655,9 +655,9 @@ class NonlinearVariationalSolver(backend_NonlinearVariationalSolver):
     def solve(self, *, annotate=None, tlm=None):
         x = self._tlm_adjoint__problem.u_ufl
 
-        if annotate is None:
+        if annotate is None or annotate:
             annotate = annotation_enabled()
-        if tlm is None:
+        if tlm is None or tlm:
             tlm = tlm_enabled()
         if annotate or tlm:
             eq = EquationSolver(

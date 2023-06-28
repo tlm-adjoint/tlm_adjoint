@@ -186,8 +186,8 @@ def test_Nullspace(setup_test, test_leaks):
         solve(inner(grad(trial), grad(test)) * dx
               == -inner(F * F, test) * dx, psi,
               solver_parameters=ls_parameters_cg,
-              nullspace=VectorSpaceBasis(constant=True),
-              transpose_nullspace=VectorSpaceBasis(constant=True))
+              nullspace=VectorSpaceBasis(constant=True, comm=function_comm(psi)),  # noqa: E501
+              transpose_nullspace=VectorSpaceBasis(constant=True, comm=function_comm(psi)))  # noqa: E501
 
         J = Functional(name="J")
         J.assign((dot(psi, psi) ** 2) * dx

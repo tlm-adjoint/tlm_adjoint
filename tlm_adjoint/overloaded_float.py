@@ -317,8 +317,6 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         to :class:`numpy.complex128`.
     :arg comm: The :class:`mpi4py.MPI.Comm` associated with the
         :class:`SymbolicFloat`.
-    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-        Defaults to `manager()`.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
@@ -327,7 +325,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def __init__(self, value=0.0, *, name=None, space_type="primal",
                  static=False, cache=None, checkpoint=None,
                  dtype=None, comm=None,
-                 manager=None, annotate=None, tlm=None):
+                 annotate=None, tlm=None):
         id = new_function_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
@@ -354,18 +352,18 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             if value != 0.0:
                 function_assign(self, value)
         else:
-            self.assign(value, manager=manager, annotate=annotate, tlm=tlm)
+            self.assign(value, annotate=annotate, tlm=tlm)
 
     def __new__(cls, value=0.0, *, name=None, space_type="primal",
                 static=False, cache=None, checkpoint=None,
                 dtype=None, comm=None,
-                manager=None, annotate=None, tlm=None):
+                annotate=None, tlm=None):
         return super().__new__(cls, new_symbol_name())
 
     def new(self, value=0.0, *,
             name=None,
             static=False, cache=None, checkpoint=None,
-            manager=None, annotate=None, tlm=None):
+            annotate=None, tlm=None):
         """Return a new object, which same type as this :class:`SymbolicFloat`.
         For argument documentation see the :class:`SymbolicFloat` constructor.
 
@@ -383,7 +381,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         else:
             x.assign(
                 value,
-                manager=manager, annotate=annotate, tlm=tlm)
+                annotate=annotate, tlm=tlm)
         return x
 
     def __float__(self):
@@ -392,31 +390,29 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def __complex__(self):
         return complex(self.value())
 
-    def assign(self, y, *, manager=None, annotate=None, tlm=None):
+    def assign(self, y, *, annotate=None, tlm=None):
         """:class:`SymbolicFloat` assignment.
 
         :arg y: A scalar or SymPy :class:`Expr` defining the value.
-        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-            Defaults to `manager()`.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        if annotate is None:
-            annotate = annotation_enabled(manager=manager)
-        if tlm is None:
-            tlm = tlm_enabled(manager=manager)
+        if annotate is None or annotate:
+            annotate = annotation_enabled()
+        if tlm is None or tlm:
+            tlm = tlm_enabled()
         if annotate or tlm:
             if isinstance(y, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
                 Assignment(self, self.new(y)).solve(
-                    manager=manager, annotate=annotate, tlm=tlm)
+                    annotate=annotate, tlm=tlm)
             elif isinstance(y, sp.Expr):
                 FloatEquation(self, y).solve(
-                    manager=manager, annotate=annotate, tlm=tlm)
+                    annotate=annotate, tlm=tlm)
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         else:
@@ -433,12 +429,10 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                 raise TypeError(f"Unexpected type: {type(y)}")
 
     @no_float_overloading
-    def addto(self, y, *, manager=None, annotate=None, tlm=None):
+    def addto(self, y, *, annotate=None, tlm=None):
         """:class:`SymbolicFloat` in-place addition.
 
         :arg y: A scalar or SymPy :class:`Expr` defining the value to add.
-        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-            Defaults to `manager()`.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
@@ -446,8 +440,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         """
 
         x = self.new(value=self, name=f"{function_name(self):s}_old",
-                     manager=manager, annotate=annotate, tlm=tlm)
-        self.assign(x + y, manager=manager, annotate=annotate, tlm=tlm)
+                     annotate=annotate, tlm=tlm)
+        self.assign(x + y, annotate=annotate, tlm=tlm)
 
     def value(self):
         """Return the current value associated with the :class:`SymbolicFloat`.
@@ -467,10 +461,10 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
 # Required by Sphinx
 class SymbolicFloat(_tlm_adjoint__SymbolicFloat):
-    def assign(self, y, *, manager=None, annotate=None, tlm=None):
+    def assign(self, y, *, annotate=None, tlm=None):
         pass
 
-    def addto(self, y, *, manager=None, annotate=None, tlm=None):
+    def addto(self, y, *, annotate=None, tlm=None):
         pass
 
     def value(self):

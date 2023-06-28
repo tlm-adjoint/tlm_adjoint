@@ -15,6 +15,8 @@ from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import (
     assemble, r0_space, is_valid_r0_space)
 
+from ..manager import manager_disabled
+from ..override import override_method, override_property
 from ..overloaded_float import SymbolicFloat
 
 from .equations import Assembly
@@ -22,7 +24,6 @@ from .functions import (
     Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
     ReplacementFunction, Zero, define_function_alias)
 
-from functools import cached_property
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
@@ -41,18 +42,20 @@ __all__ = \
 
 
 # Aim for compatibility with Firedrake API, git master revision
-# efb48f4f178ae4989c146640025641cf0cc00a0e, Apr 19 2021
-def _Constant__init__(self, value, domain=None, *,
-                      name=None, space=None, comm=None,
-                      **kwargs):
-    if comm is None:
-        comm = DEFAULT_COMM
-    backend_Constant._tlm_adjoint__orig___init__(self, value, domain=domain,
-                                                 **kwargs)
+# a94b01c4b3361db9c73056d92fdbd01a5bc6d1aa, Jun 16 2023
+
+
+@override_method(backend_Constant, "__init__")
+def Constant__init__(self, orig, orig_args, value, domain=None, *,
+                     name=None, space=None, comm=None,
+                     **kwargs):
+    orig(self, value, domain=domain, **kwargs)
 
     if name is None:
         # Following FEniCS 2019.1.0 behaviour
         name = f"f_{self.count():d}"
+    if comm is None:
+        comm = DEFAULT_COMM
 
     if space is None:
         if domain is None:
@@ -79,11 +82,6 @@ def _Constant__init__(self, value, domain=None, *,
                    "static": False, "cache": False, "checkpoint": True})
 
 
-assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
-backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
-backend_Constant.__init__ = _Constant__init__
-
-
 class FunctionSpaceInterface(SpaceInterface):
     def _comm(self):
         return self._tlm_adjoint__space_interface_attrs["comm"]
@@ -100,15 +98,11 @@ class FunctionSpaceInterface(SpaceInterface):
                         cache=cache, checkpoint=checkpoint)
 
 
-def _FunctionSpace__init__(self, *args, **kwargs):
-    backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
+@override_method(backend_FunctionSpace, "__init__")
+def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     add_interface(self, FunctionSpaceInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_space_id()})
-
-
-assert not hasattr(backend_FunctionSpace, "_tlm_adjoint__orig___init__")
-backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
-backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 class FunctionInterface(_FunctionInterface):
@@ -159,6 +153,7 @@ class FunctionInterface(_FunctionInterface):
         with self.dat.vec_wo as x_v:
             x_v.zeroEntries()
 
+    @manager_disabled()
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
             y = y.value()
@@ -172,17 +167,15 @@ class FunctionInterface(_FunctionInterface):
                             complex, np.complexfloating)):
             dtype = function_dtype(self)
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(dtype(y)),
-                            annotate=False, tlm=False)
+                self.assign(backend_Constant(dtype(y)))
             else:
                 y_arr = np.full(self.ufl_shape, dtype(y), dtype=dtype)
-                self.assign(backend_Constant(y_arr),
-                            annotate=False, tlm=False)
+                self.assign(backend_Constant(y_arr))
         elif isinstance(y, Zero):
             with self.dat.vec_wo as x_v:
                 x_v.zeroEntries()
         elif isinstance(y, backend_Constant):
-            self.assign(y, annotate=False, tlm=False)
+            self.assign(y)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
@@ -196,6 +189,7 @@ class FunctionInterface(_FunctionInterface):
             values = comm.bcast(values, root=0)
             self.dat.data[:] = values
 
+    @manager_disabled()
     def _axpy(self, alpha, x, /):
         dtype = function_dtype(self)
         alpha = dtype(alpha)
@@ -209,12 +203,11 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(x, (int, np.integer,
                             float, np.floating,
                             complex, np.complexfloating)):
-            self.assign(self + alpha * dtype(x),
-                        annotate=False, tlm=False)
+            self.assign(self + alpha * dtype(x))
         elif isinstance(x, Zero):
             pass
         elif isinstance(x, backend_Constant):
-            self.assign(self + alpha * x, annotate=False, tlm=False)
+            self.assign(self + alpha * x)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -228,6 +221,7 @@ class FunctionInterface(_FunctionInterface):
             values = comm.bcast(values, root=0)
             self.dat.data[:] = values
 
+    @manager_disabled()
     def _inner(self, y):
         if isinstance(y, backend_Function):
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
@@ -238,7 +232,7 @@ class FunctionInterface(_FunctionInterface):
             inner = 0.0
         elif isinstance(y, backend_Constant):
             y_ = backend_Function(self.function_space())
-            y_.assign(y, annotate=False, tlm=False)
+            y_.assign(y)
             with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
         else:
@@ -307,61 +301,37 @@ class FunctionInterface(_FunctionInterface):
         return "alias" in self._tlm_adjoint__function_interface_attrs
 
 
-def _Function__init__(self, *args, **kwargs):
-    backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
+@override_method(backend_Function, "__init__")
+def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     add_interface(self, FunctionInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_function_id(),
                    "state": 0, "space_type": "primal", "static": False,
                    "cache": False, "checkpoint": True})
 
 
-assert not hasattr(backend_Function, "_tlm_adjoint__orig___init__")
-backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
-backend_Function.__init__ = _Function__init__
-
-
-def _Function__getattr__(self, key):
+@override_method(backend_Function, "__getattr__")
+def Function__getattr__(self, orig, orig_args, key):
     if "_data" not in self.__dict__:
         raise AttributeError(f"No attribute '{key:s}'")
-    return backend_Function._tlm_adjoint__orig__getattr__(self, key)
+    return orig_args()
 
 
-assert not hasattr(backend_Function, "_tlm_adjoint__orig__getattr__")
-backend_Function._tlm_adjoint__orig__getattr__ = backend_Function.__getattr__
-backend_Function.__getattr__ = _Function__getattr__
-
-
-# Aim for compatibility with Firedrake API, git master revision
-# c0b45ce2123fdeadf358df1d5655ce42f3b3d74b, Feb 1 2023
-@cached_property
-def _Function_subfunctions(self):
-    Y = backend_Function._tlm_adjoint__orig_subfunctions.__get__(self,
-                                                                 type(self))
+@override_property(backend_Function, "subfunctions", cached=True)
+def Function_subfunctions(self, orig):
+    Y = orig()
     for i, y in enumerate(Y):
         define_function_alias(y, self, key=("subfunctions", i))
     return Y
 
 
-assert not hasattr(backend_Function, "_tlm_adjoint__orig_subfunctions")
-backend_Function._tlm_adjoint__orig_subfunctions = backend_Function.subfunctions  # noqa: E501
-backend_Function.subfunctions = _Function_subfunctions
-backend_Function.subfunctions.__set_name__(
-    backend_Function.subfunctions, "_tlm_adjoint___Function_subfunctions")
-
-
-# Aim for compatibility with Firedrake API, git master revision
-# f322d327db1efb56e8078f4883a2d62fa0f63c45, Oct 26 2022
-def _Function_sub(self, i):
+@override_method(backend_Function, "sub")
+def Function_sub(self, orig, orig_args, i):
     self.subfunctions
-    y = backend_Function._tlm_adjoint__orig_sub(self, i)
+    y = orig_args()
     if not function_is_alias(y):
         define_function_alias(y, self, key=("sub", i))
     return y
-
-
-assert not hasattr(backend_Function, "_tlm_adjoint__orig_sub")
-backend_Function._tlm_adjoint__orig_sub = backend_Function.sub
-backend_Function.sub = _Function_sub
 
 
 def _subtract_adjoint_derivative_action(x, y):
@@ -388,7 +358,7 @@ def _subtract_adjoint_derivative_action(x, y):
             return NotImplemented
         check_space_types(x, y)
         y_value = function_scalar_value(y)
-        x.assign(dtype(x) - alpha * y_value, annotate=False, tlm=False)
+        x.assign(dtype(x) - alpha * y_value)
     else:
         return NotImplemented
 

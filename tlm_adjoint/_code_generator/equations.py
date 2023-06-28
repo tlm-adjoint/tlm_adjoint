@@ -44,6 +44,7 @@ __all__ = \
         "EquationSolver",
         "ExprEvaluation",
         "Projection",
+        "expr_new_x",
         "linear_equation_new_x",
 
         "AssembleSolver",
@@ -875,9 +876,31 @@ class EquationSolver(ExprEquation):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
+def expr_new_x(expr, x, *,
+               annotate=None, tlm=None):
+    """If an expression depends on `x`, then record the assignment `x_old =
+    x`, and replace `x` with `x_old` in the expression.
+
+    :arg expr: A UFL :class:`Expr`.
+    :arg x: Defines `x`.
+    :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
+        should record the solution of equations.
+    :arg tlm: Whether tangent-linear equations should be solved.
+    :returns: A UFL :class:`Expr` with `x` replaced with `x_old`, or `expr` if
+        the expression does not depend on `x`.
+    """
+
+    if x in extract_coefficients(expr):
+        x_old = function_new(x)
+        Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
+        return ufl.replace(expr, {x: x_old})
+    else:
+        return expr
+
+
 def linear_equation_new_x(eq, x, *,
-                          manager=None, annotate=None, tlm=None):
-    r"""If a symbolic expression for a linear finite element variational
+                          annotate=None, tlm=None):
+    """If a symbolic expression for a linear finite element variational
     problem depends on the symbolic variable representing the problem solution,
     then record the assignment `x_old = x`, and replace `x` with `x_old` in the
     symbolic expression.
@@ -889,8 +912,6 @@ def linear_equation_new_x(eq, x, *,
         problem.
     :arg x: A function defining the solution to the finite element variational
         problem.
-    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-        Defaults to `manager()`.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
@@ -903,7 +924,7 @@ def linear_equation_new_x(eq, x, *,
     rhs_x_dep = x in extract_coefficients(rhs)
     if lhs_x_dep or rhs_x_dep:
         x_old = function_new(x)
-        Assignment(x_old, x).solve(manager=manager, annotate=annotate, tlm=tlm)
+        Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
         if lhs_x_dep:
             lhs = ufl.replace(lhs, {x: x_old})
         if rhs_x_dep:

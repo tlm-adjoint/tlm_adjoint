@@ -3,8 +3,7 @@
 
 """This module provides a simple
 :class:`tlm_adjoint.tlm_adjoint.EquationManager` interface. Functions defined
-here access and interact with the default manager, or optionally a different
-manager supplied via a `manager` argument.
+here access and interact with the default manager.
 
 Documentation provided here indicates the
 :class:`tlm_adjoint.tlm_adjoint.EquationManager` methods where more complete
@@ -22,6 +21,7 @@ __all__ = \
         "configure_tlm",
         "function_tlm",
         "manager",
+        "manager_disabled",
         "manager_info",
         "paused_manager",
         "new_block",
@@ -91,193 +91,173 @@ def restore_manager(fn):
     return wrapped_fn
 
 
-def configure_checkpointing(cp_method, cp_parameters, *, manager=None):
+def configure_checkpointing(cp_method, cp_parameters):
     """See
     :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_checkpointing`.
     """
 
     if cp_parameters is None:
         cp_parameters = {}
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.configure_checkpointing(cp_method, cp_parameters=cp_parameters)
+    manager().configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
 
-def manager_info(*, info=print, manager=None):
+def manager_info(*, info=print):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.info`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.info(info=info)
+    manager().info(info=info)
 
 
-def reset_manager(cp_method=None, cp_parameters=None, *, manager=None):
+def reset_manager(cp_method=None, cp_parameters=None):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.reset`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.reset(cp_method=cp_method, cp_parameters=cp_parameters)
+    manager().reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
 
-def reset(cp_method=None, cp_parameters=None, manager=None):
+def reset(cp_method=None, cp_parameters=None):
     warnings.warn("reset is deprecated -- use reset_manager instead",
                   DeprecationWarning, stacklevel=2)
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.reset(cp_method=cp_method, cp_parameters=cp_parameters)
+    manager().reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
 
-def annotation_enabled(*, manager=None):
+def annotation_enabled():
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.annotation_enabled`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.annotation_enabled()
+    return manager().annotation_enabled()
 
 
-def start_manager(*, annotate=True, tlm=True, manager=None):
+def start_manager(*, annotate=True, tlm=True):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.start`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.start(annotate=annotate, tlm=tlm)
+    manager().start(annotate=annotate, tlm=tlm)
 
 
-def start_annotating(manager=None):
+def start_annotating():
     warnings.warn("start_annotating is deprecated -- "
                   "use start_manager instead",
                   DeprecationWarning, stacklevel=2)
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.start(annotate=True, tlm=False)
+    manager().start(annotate=True, tlm=False)
 
 
-def start_tlm(manager=None):
+def start_tlm():
     warnings.warn("start_tlm is deprecated -- "
                   "use start_manager instead",
                   DeprecationWarning, stacklevel=2)
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.start(annotate=False, tlm=True)
+    manager().start(annotate=False, tlm=True)
 
 
-def stop_manager(*, annotate=True, tlm=True, manager=None):
+def stop_manager(*, annotate=True, tlm=True):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.stop`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.stop(annotate=annotate, tlm=tlm)
+    return manager().stop(annotate=annotate, tlm=tlm)
 
 
-def stop_annotating(manager=None):
+def stop_annotating():
     warnings.warn("stop_annotating is deprecated -- "
                   "use stop_manager instead",
                   DeprecationWarning, stacklevel=2)
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.stop(annotate=True, tlm=False)
+    return manager().stop(annotate=True, tlm=False)
 
 
-def stop_tlm(manager=None):
+def stop_tlm():
     warnings.warn("stop_tlm is deprecated -- "
                   "use stop_manager instead",
                   DeprecationWarning, stacklevel=2)
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.stop(annotate=False, tlm=True)
+    return manager().stop(annotate=False, tlm=True)
 
 
-def paused_manager(*, annotate=True, tlm=True, manager=None):
+def paused_manager(*, annotate=True, tlm=True):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.paused`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.paused(annotate=annotate, tlm=tlm)
+    return manager().paused(annotate=annotate, tlm=tlm)
 
 
-def configure_tlm(*args, annotate=None, tlm=True, manager=None):
+def manager_disabled(*, annotate=True, tlm=True):
+    """Decorator which can be used to disable processing of equations and
+    derivation and solution of tangent-linear equations.
+
+    :arg annotate: Whether to disable processing of equations.
+    :arg tlm: Whether to disable derivation and solution of tangent-linear
+        equations.
+    """
+
+    def wrapper(fn):
+        @functools.wraps(fn)
+        def wrapped_fn(*args, **kwargs):
+            with paused_manager(annotate=annotate, tlm=tlm):
+                return fn(*args, **kwargs)
+
+        return wrapped_fn
+
+    return wrapper
+
+
+def configure_tlm(*args, annotate=None, tlm=True):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_tlm`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.configure_tlm(*args, annotate=annotate, tlm=tlm)
+    manager().configure_tlm(*args, annotate=annotate, tlm=tlm)
 
 
-def add_tlm(M, dM, max_depth=1, manager=None):
+def add_tlm(M, dM, max_depth=1):
     warnings.warn("add_tlm is deprecated -- "
                   "use configure_tlm instead",
                   DeprecationWarning, stacklevel=2)
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.add_tlm(M, dM, max_depth=max_depth, _warning=False)
+    manager().add_tlm(M, dM, max_depth=max_depth, _warning=False)
 
 
-def tlm_enabled(*, manager=None):
+def tlm_enabled():
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.tlm_enabled`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.tlm_enabled()
+    return manager().tlm_enabled()
 
 
-def function_tlm(x, *args, manager=None):
+def function_tlm(x, *args):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.function_tlm`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.function_tlm(x, *args)
+    return manager().function_tlm(x, *args)
 
 
-def tlm(M, dM, x, max_depth=1, manager=None):
+def tlm(M, dM, x, max_depth=1):
     warnings.warn("tlm is deprecated -- "
                   "use function_tlm instead",
                   DeprecationWarning, stacklevel=2)
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.tlm(M, dM, x, max_depth=max_depth, _warning=False)
+    return manager().tlm(M, dM, x, max_depth=max_depth, _warning=False)
 
 
-def reset_adjoint(manager=None):
+def reset_adjoint():
     warnings.warn("reset_adjoint is deprecated",
                   DeprecationWarning, stacklevel=2)
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.reset_adjoint(_warning=False)
+    manager().reset_adjoint(_warning=False)
 
 
 def compute_gradient(Js, M, *, callback=None, prune_forward=True,
                      prune_adjoint=True, prune_replay=True,
-                     cache_adjoint_degree=None, adj_ics=None, manager=None):
+                     cache_adjoint_degree=None, store_adjoint=False,
+                     adj_ics=None):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.compute_gradient`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    return manager.compute_gradient(Js, M, callback=callback,
-                                    prune_forward=prune_forward,
-                                    prune_adjoint=prune_adjoint,
-                                    prune_replay=prune_replay,
-                                    cache_adjoint_degree=cache_adjoint_degree,
-                                    adj_ics=adj_ics)
+    return manager().compute_gradient(
+        Js, M, callback=callback, prune_forward=prune_forward,
+        prune_adjoint=prune_adjoint, prune_replay=prune_replay,
+        cache_adjoint_degree=cache_adjoint_degree, store_adjoint=store_adjoint,
+        adj_ics=adj_ics)
 
 
-def new_block(*, manager=None):
+def new_block():
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new_block`.
     """
 
-    if manager is None:
-        manager = globals()["manager"]()
-    manager.new_block()
+    manager().new_block()

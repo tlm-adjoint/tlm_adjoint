@@ -803,8 +803,9 @@ def test_initial_guess(setup_test, test_leaks,
 
         adj_x_0 = Function(space_1, space_type="conjugate_dual",
                            name="adj_x_0", static=True)
-        assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
-                 tensor=function_vector(adj_x_0), annotate=False, tlm=False)
+        with paused_manager():
+            assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
+                     tensor=function_vector(adj_x_0))
         Projection(x, zero,
                    solver_parameters=ls_parameters_cg).solve()
         if not test_adj_ic:
@@ -831,13 +832,13 @@ def test_initial_guess(setup_test, test_leaks,
                                                  function_id(adj_x_0))
     assert len(manager()._cp._cp) == 0
     if test_adj_ic:
-        assert len(manager()._cp._data) == 7
-        assert tuple(map(len, manager()._cp._data.values())) \
-            == (0, 0, 0, 1, 0, 2, 0)
-    else:
         assert len(manager()._cp._data) == 8
         assert tuple(map(len, manager()._cp._data.values())) \
-            == (0, 0, 0, 1, 0, 0, 2, 0)
+            == (0, 0, 0, 0, 1, 0, 2, 0)
+    else:
+        assert len(manager()._cp._data) == 9
+        assert tuple(map(len, manager()._cp._data.values())) \
+            == (0, 0, 0, 0, 1, 0, 0, 2, 0)
     assert len(manager()._cp._storage) == 5
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])

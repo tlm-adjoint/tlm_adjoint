@@ -854,6 +854,7 @@ def minimize_l_bfgs(forward, M0, *,
     if manager is None:
         manager = _manager().new()
     set_manager(manager)
+    comm = manager.comm()
 
     M = [function_new(m0, static=function_is_static(m0),
                       cache=function_is_cached(m0),
@@ -884,7 +885,7 @@ def minimize_l_bfgs(forward, M0, *,
         last_F[2] = forward(*last_F[1])
         if is_function(last_F[2]):
             last_F[2] = Functional(_fn=last_F[2])
-        garbage_cleanup(manager.comm())
+        garbage_cleanup(comm)
         stop_manager()
 
         return last_F[2].value()
@@ -898,7 +899,7 @@ def minimize_l_bfgs(forward, M0, *,
 
     X, optimization_data = l_bfgs(
         F, Fp, M0,
-        m=m, comm=manager.comm(), **kwargs)
+        m=m, comm=comm, **kwargs)
 
     if is_function(X):
         X = (X,)

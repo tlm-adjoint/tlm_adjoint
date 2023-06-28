@@ -16,7 +16,6 @@ from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
-from ..manager import paused_manager
 from ..tangent_linear import get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
@@ -318,8 +317,7 @@ class PointInterpolation(Equation):
         interp = _interp
         if interp is None:
             y_space = function_space(y)
-            with paused_manager():
-                vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
+            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
             vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
             interp = Interpolator(TestFunction(y_space), vspace)
             if not hasattr(interp, "_tlm_adjoint__vmesh_coords_map"):
