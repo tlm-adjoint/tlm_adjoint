@@ -618,7 +618,7 @@ class ReplayStorage:
             if key in self:
                 self[key] = function_copy(value) if copy else value
 
-    def pop(self):
+    def popleft(self):
         """Remove the first equation from consideration. Used to deallocate
         forward variables which are no longer needed as the solution of
         forward equations progresses.
