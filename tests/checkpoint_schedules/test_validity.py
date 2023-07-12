@@ -18,6 +18,14 @@ try:
     import hrevolve
 except ImportError:
     hrevolve = None
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
+
+pytestmark = pytest.mark.skipif(
+    MPI is not None and MPI.COMM_WORLD.size > 1,
+    reason="tests must be run in serial")
 
 
 def memory(n, s):

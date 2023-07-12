@@ -8,6 +8,15 @@ from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 import functools
 import pytest
 
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
+
+pytestmark = pytest.mark.skipif(
+    MPI is not None and MPI.COMM_WORLD.size > 1,
+    reason="tests must be run in serial")
+
 
 @pytest.mark.parametrize("trajectory", ["revolve",
                                         "maximum"])

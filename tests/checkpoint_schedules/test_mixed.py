@@ -9,6 +9,15 @@ from tlm_adjoint.checkpoint_schedules.mixed import mixed_step_memoization, \
 import functools
 import pytest
 
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
+
+pytestmark = pytest.mark.skipif(
+    MPI is not None and MPI.COMM_WORLD.size > 1,
+    reason="tests must be run in serial")
+
 
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
