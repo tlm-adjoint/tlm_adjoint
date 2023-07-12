@@ -945,7 +945,7 @@ class BlockMatrix(Matrix):
     def __setitem__(self, key, value):
         i, j = key
         if value is None:
-            self.pop((i, j))
+            self.pop((i, j), None)
         else:
             if isinstance(value, ufl.classes.Form):
                 value = form_matrix(value)
@@ -977,9 +977,9 @@ class BlockMatrix(Matrix):
         for (i, j), block in other.items():
             self[(i, j)] = block
 
-    def pop(self, key, default=None):
+    def pop(self, key, *args, **kwargs):
         i, j = key
-        return self._blocks.pop((i, j), default)
+        return self._blocks.pop((i, j), *args, **kwargs)
 
     def mult_add(self, x, y):
         for (i, j), block in self.items():
