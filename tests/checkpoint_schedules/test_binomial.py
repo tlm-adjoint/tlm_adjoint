@@ -42,7 +42,9 @@ def test_MultistageCheckpointSchedule(trajectory,
         nonlocal model_n, model_steps
 
         # Start at the current location of the forward
-        assert model_n == cp_action.n0
+        assert cp_action.n0 == model_n
+        # End at or before the end of the forward
+        assert cp_action.n1 <= n
 
         if store_ics:
             # Advance at least one step when storing forward restart data

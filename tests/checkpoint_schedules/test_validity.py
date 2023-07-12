@@ -102,7 +102,10 @@ def test_validity(schedule, schedule_kwargs,
         nonlocal model_n
 
         # Start at the current location of the forward
-        assert model_n is not None and model_n == cp_action.n0
+        assert model_n is not None and cp_action.n0 == model_n
+        # If the schedule has been finalized, end at or before the end of the
+        # forward
+        assert cp_schedule.max_n() is None or cp_action.n1 <= n
 
         if cp_schedule.max_n() is not None:
             # Do not advance further than the current location of the adjoint

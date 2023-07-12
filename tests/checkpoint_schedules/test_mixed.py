@@ -40,7 +40,9 @@ def test_MixedCheckpointSchedule(n, S):
         nonlocal model_n, model_steps
 
         # Start at the current location of the forward
-        assert model_n is not None and model_n == cp_action.n0
+        assert model_n is not None and cp_action.n0 == model_n
+        # End at or before the end of the forward
+        assert cp_action.n1 <= n
 
         if store_ics:
             # Advance at least two steps when storing forward restart data
