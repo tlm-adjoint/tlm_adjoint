@@ -18,6 +18,14 @@ try:
     import hrevolve
 except ImportError:
     hrevolve = None
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
+
+pytestmark = pytest.mark.skipif(
+    MPI is not None and MPI.COMM_WORLD.size > 1,
+    reason="tests must be run in serial")
 
 
 def memory(n, s):
@@ -54,6 +62,7 @@ def mixed(n, s):
             {"RAM": 0, "disk": s}, 1)
 
 
+@pytest.mark.checkpoint_schedules
 @pytest.mark.parametrize(
     "schedule, schedule_kwargs",
     [(memory, {}),
@@ -102,7 +111,10 @@ def test_validity(schedule, schedule_kwargs,
         nonlocal model_n
 
         # Start at the current location of the forward
-        assert model_n is not None and model_n == cp_action.n0
+        assert model_n is not None and cp_action.n0 == model_n
+        # If the schedule has been finalized, end at or before the end of the
+        # forward
+        assert cp_schedule.max_n() is None or cp_action.n1 <= n
 
         if cp_schedule.max_n() is not None:
             # Do not advance further than the current location of the adjoint

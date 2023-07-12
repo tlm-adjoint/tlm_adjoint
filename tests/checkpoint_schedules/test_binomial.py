@@ -8,7 +8,17 @@ from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 import functools
 import pytest
 
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
 
+pytestmark = pytest.mark.skipif(
+    MPI is not None and MPI.COMM_WORLD.size > 1,
+    reason="tests must be run in serial")
+
+
+@pytest.mark.checkpoint_schedules
 @pytest.mark.parametrize("trajectory", ["revolve",
                                         "maximum"])
 @pytest.mark.parametrize("n, S", [(1, (0,)),
@@ -42,7 +52,9 @@ def test_MultistageCheckpointSchedule(trajectory,
         nonlocal model_n, model_steps
 
         # Start at the current location of the forward
-        assert model_n == cp_action.n0
+        assert cp_action.n0 == model_n
+        # End at or before the end of the forward
+        assert cp_action.n1 <= n
 
         if store_ics:
             # Advance at least one step when storing forward restart data

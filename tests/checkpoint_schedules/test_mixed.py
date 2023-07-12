@@ -9,7 +9,17 @@ from tlm_adjoint.checkpoint_schedules.mixed import mixed_step_memoization, \
 import functools
 import pytest
 
+try:
+    import mpi4py.MPI as MPI
+except ImportError:
+    MPI = None
 
+pytestmark = pytest.mark.skipif(
+    MPI is not None and MPI.COMM_WORLD.size > 1,
+    reason="tests must be run in serial")
+
+
+@pytest.mark.checkpoint_schedules
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
                                   (3, (1, 2)),
@@ -40,7 +50,9 @@ def test_MixedCheckpointSchedule(n, S):
         nonlocal model_n, model_steps
 
         # Start at the current location of the forward
-        assert model_n is not None and model_n == cp_action.n0
+        assert model_n is not None and cp_action.n0 == model_n
+        # End at or before the end of the forward
+        assert cp_action.n1 <= n
 
         if store_ics:
             # Advance at least two steps when storing forward restart data
