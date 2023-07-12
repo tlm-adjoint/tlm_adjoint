@@ -62,6 +62,7 @@ def mixed(n, s):
             {"RAM": 0, "disk": s}, 1)
 
 
+@pytest.mark.checkpoint_schedules
 @pytest.mark.parametrize(
     "schedule, schedule_kwargs",
     [(memory, {}),

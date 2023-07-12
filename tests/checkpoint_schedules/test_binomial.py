@@ -18,6 +18,7 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial")
 
 
+@pytest.mark.checkpoint_schedules
 @pytest.mark.parametrize("trajectory", ["revolve",
                                         "maximum"])
 @pytest.mark.parametrize("n, S", [(1, (0,)),

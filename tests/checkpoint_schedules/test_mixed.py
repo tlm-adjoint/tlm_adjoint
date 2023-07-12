@@ -19,6 +19,7 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial")
 
 
+@pytest.mark.checkpoint_schedules
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
                                   (3, (1, 2)),
