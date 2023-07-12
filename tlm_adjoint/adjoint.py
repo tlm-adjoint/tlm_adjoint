@@ -201,8 +201,8 @@ class AdjointBlockRHS:
         """Remove and return the last :class:`AdjointEquationRHS` in the
         :class:`AdjointBlockRHS`.
 
-        :returns: The last :class:`AdjointEquationRHS` in the
-            :class:`AdjointBlockRHS`.
+        :returns: A :class:`tuple` `(n, B)`. `B` is the removed
+            :class:`AdjointEquationRHS`, associated with block `n`.
         """
 
         return len(self._B) - 1, self._B.pop()
@@ -284,8 +284,9 @@ class AdjointModelRHS:
         """Remove and return the last :class:`AdjointEquationRHS` in the last
         :class:`AdjointBlockRHS` in the :class:`AdjointModelRHS`.
 
-        :returns: The last :class:`AdjointEquationRHS` in the last
-            :class:`AdjointBlockRHS` in the :class:`AdjointModelRHS`.
+        :returns: A :class:`tuple` `((n, i), B)`. `B` is the removed
+            :class:`AdjointEquationRHS`, associated with equation `i` in block
+            `n`.
         """
 
         n = self._blocks_n[-1]

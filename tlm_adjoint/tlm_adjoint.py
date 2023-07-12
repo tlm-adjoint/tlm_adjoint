@@ -972,7 +972,7 @@ class EquationManager:
                         self._cp.update_keys(
                             n1, i, eq)
 
-                    storage_state = storage.pop()
+                    storage_state = storage.popleft()
                     assert storage_state == (n1, i)
                 garbage_cleanup(self._comm)
             cp_n = cp_action.n1
