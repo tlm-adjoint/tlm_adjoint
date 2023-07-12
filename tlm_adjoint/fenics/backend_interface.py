@@ -20,6 +20,7 @@ from .equations import Assembly
 from .functions import (
     Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
     ReplacementFunction, Zero, define_function_alias)
+from ..override import override_method
 
 from ..manager import manager_disabled
 from ..overloaded_float import SymbolicFloat
@@ -41,14 +42,15 @@ __all__ = \
     ]
 
 
-def _Constant__init__(self, *args, domain=None, space=None,
-                      comm=None, **kwargs):
+@override_method(backend_Constant, "__init__")
+def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
+                     comm=None, **kwargs):
     if domain is not None and hasattr(domain, "ufl_domain"):
         domain = domain.ufl_domain()
     if comm is None:
         comm = DEFAULT_COMM
 
-    backend_Constant._tlm_adjoint__orig___init__(self, *args, **kwargs)
+    orig(self, *args, **kwargs)
 
     self.ufl_domain = lambda: domain
     if domain is None:
@@ -69,11 +71,6 @@ def _Constant__init__(self, *args, domain=None, space=None,
                    "form_derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": backend_ScalarType,
                    "static": False, "cache": False, "checkpoint": True})
-
-
-assert not hasattr(backend_Constant, "_tlm_adjoint__orig___init__")
-backend_Constant._tlm_adjoint__orig___init__ = backend_Constant.__init__
-backend_Constant.__init__ = _Constant__init__
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -108,17 +105,13 @@ def FunctionSpace_add_interface_disabled(fn):
     return wrapped_fn
 
 
-def _FunctionSpace__init__(self, *args, **kwargs):
-    backend_FunctionSpace._tlm_adjoint__orig___init__(self, *args, **kwargs)
+@override_method(backend_FunctionSpace, "__init__")
+def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     if _FunctionSpace_add_interface:
         add_interface(self, FunctionSpaceInterface,
                       {"comm": comm_dup_cached(self.mesh().mpi_comm()),
                        "id": new_space_id()})
-
-
-assert not hasattr(backend_FunctionSpace, "_tlm_adjoint__orig___init__")
-backend_FunctionSpace._tlm_adjoint__orig___init__ = backend_FunctionSpace.__init__  # noqa: E501
-backend_FunctionSpace.__init__ = _FunctionSpace__init__
 
 
 def check_vector_size(fn):
@@ -286,6 +279,7 @@ class FunctionInterface(_FunctionInterface):
         y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
+    @manager_disabled()
     @check_vector_size
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
         y = self.copy(deepcopy=True)
@@ -322,10 +316,12 @@ class FunctionInterface(_FunctionInterface):
         return "alias" in self._tlm_adjoint__function_interface_attrs
 
 
+@override_method(backend_Function, "__init__")
 @FunctionSpace_add_interface_disabled
-def _Function__init__(self, *args, **kwargs):
-    backend_Function._tlm_adjoint__orig___init__(self, *args, **kwargs)
-    self._tlm_adjoint__vector = self._tlm_adjoint__orig_vector()
+def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    self.vector()
+
     if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
         raise RuntimeError("PETSc backend required")
 
@@ -333,7 +329,7 @@ def _Function__init__(self, *args, **kwargs):
                   {"id": new_function_id(), "state": 0, "space_type": "primal",
                    "static": False, "cache": False, "checkpoint": True})
 
-    space = backend_Function._tlm_adjoint__orig_function_space(self)
+    space = self.function_space()
     if isinstance(args[0], backend_FunctionSpace) \
             and args[0].id() == space.id():
         id = space_id(args[0])
@@ -344,36 +340,24 @@ def _Function__init__(self, *args, **kwargs):
     self._tlm_adjoint__function_interface_attrs["space"] = space
 
 
-assert not hasattr(backend_Function, "_tlm_adjoint__orig___init__")
-backend_Function._tlm_adjoint__orig___init__ = backend_Function.__init__
-backend_Function.__init__ = _Function__init__
-
-
 # Aim for compatibility with FEniCS 2019.1.0 API
-def _Function_function_space(self):
-    if hasattr(self, "_tlm_adjoint__function_interface_attrs"):
+@override_method(backend_Function, "function_space")
+def Function_function_space(self, orig, orig_args):
+    if hasattr(self, "_tlm_adjoint__function_interface_attrs") \
+            and "space" in self._tlm_adjoint__function_interface_attrs:
         return self._tlm_adjoint__function_interface_attrs["space"]
     else:
-        return backend_Function._tlm_adjoint__orig_function_space(self)
-
-
-assert not hasattr(backend_Function, "_tlm_adjoint__orig_function_space")
-backend_Function._tlm_adjoint__orig_function_space = backend_Function.function_space  # noqa: E501
-backend_Function.function_space = _Function_function_space
+        return orig_args()
 
 
 # Aim for compatibility with FEniCS 2019.1.0 API
-def _Function_split(self, deepcopy=False):
-    Y = backend_Function._tlm_adjoint__orig_split(self, deepcopy=deepcopy)
+@override_method(backend_Function, "split")
+def Function_split(self, orig, orig_args, deepcopy=False):
+    Y = orig_args()
     if not deepcopy:
         for i, y in enumerate(Y):
             define_function_alias(y, self, key=("split", i))
     return Y
-
-
-assert not hasattr(backend_Function, "_tlm_adjoint__orig_split")
-backend_Function._tlm_adjoint__orig_split = backend_Function.split
-backend_Function.split = _Function_split
 
 
 def _subtract_adjoint_derivative_action(x, y):

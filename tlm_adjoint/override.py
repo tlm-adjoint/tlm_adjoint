@@ -8,7 +8,6 @@ import functools
 
 __all__ = []
 
-_OVERRIDE_KEY = "_tlm_adjoint__override"
 _OVERRIDE_PROPERTY_NAME_KEY = "_tlm_adjoint__override_property_name_%i"
 _OVERRIDE_PROPERTY_COUNTER_KEY = "_tlm_adjoint__override_property_counter"
 
@@ -23,9 +22,6 @@ def override_method(cls, name):
                             lambda: orig(self, *args, **kwargs),
                             *args, **kwargs)
 
-        if hasattr(orig, _OVERRIDE_KEY):
-            raise RuntimeError("Multiple overrides")
-        setattr(orig, _OVERRIDE_KEY, wrapped_override)
         setattr(cls, name, wrapped_override)
         return wrapped_override
 
@@ -37,15 +33,14 @@ def override_property(cls, name, *,
     orig = getattr(cls, name)
 
     def wrapper(override):
-        @(functools.cached_property if cached else property)
+        property_decorator = functools.cached_property if cached else property
+
+        @property_decorator
         @functools.wraps(orig)
         def wrapped_override(self, *args, **kwargs):
             return override(self, lambda: orig.__get__(self, type(self)),
                             *args, **kwargs)
 
-        if hasattr(orig, _OVERRIDE_KEY):
-            raise RuntimeError("Multiple override")
-        setattr(orig, _OVERRIDE_KEY, wrapped_override)
         setattr(cls, name, wrapped_override)
         if cached:
             override_counter = getattr(cls, _OVERRIDE_PROPERTY_COUNTER_KEY, -1) + 1  # noqa: E501
@@ -111,9 +106,6 @@ def manager_method(cls, name, *,
             else:
                 return wrapped_orig(self, *args, **kwargs)
 
-        if hasattr(orig, _OVERRIDE_KEY):
-            raise RuntimeError("Multiple overrides")
-        setattr(orig, _OVERRIDE_KEY, wrapped_override)
         setattr(cls, name, wrapped_override)
         return wrapped_override
 

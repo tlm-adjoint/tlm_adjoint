@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FormAssembler, Interpolator, LinearSolver, LinearVariationalProblem,
-    NonlinearVariationalSolver, Parameters, Projector, ProjectorBase,
-    backend_Constant, backend_DirichletBC, backend_Function, backend_Vector,
-    backend_assemble, backend_interpolate, backend_project, backend_solve,
-    parameters)
+    FormAssembler, Interpolator, LinearSolver, NonlinearVariationalSolver,
+    Parameters, Projector, ProjectorBase, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
+    backend_interpolate, backend_project, backend_solve, parameters)
 from ..interface import (
     function_comm, function_new, function_space, function_update_state,
     is_function, space_id, space_new)
@@ -269,13 +268,6 @@ def LinearSolver_solve(self, orig, orig_args, x, b, *, annotate, tlm):
     return_value = orig_args()
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
-
-
-@override_method(LinearVariationalProblem, "__init__")
-def LinearVariationalProblem__init__(self, orig, orig_args, a, L,
-                                     *args, **kwargs):
-    orig_args()
-    self._tlm_adjoint__b = L
 
 
 @override_method(NonlinearVariationalSolver, "__init__")

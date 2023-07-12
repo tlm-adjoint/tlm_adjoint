@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    Form, FunctionSpace, Parameters, TensorFunctionSpace, TestFunction,
-    UserExpression, VectorFunctionSpace, as_backend_type, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_KrylovSolver,
-    backend_LUSolver, backend_ScalarType, backend_assemble,
-    backend_assemble_system, backend_solve as solve, has_lu_solver_method,
-    parameters)
+    Form, FunctionSpace, LUSolver, KrylovSolver, Parameters,
+    TensorFunctionSpace, TestFunction, UserExpression, VectorFunctionSpace,
+    as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
+    backend_ScalarType, backend_assemble, backend_assemble_system,
+    backend_solve as solve, has_lu_solver_method, parameters)
 from ..interface import (
     check_space_type, check_space_types, function_assign, function_get_values,
     function_inner, function_new_conjugate_dual, function_set_values,
@@ -217,13 +216,13 @@ def linear_solver(A, linear_solver_parameters):
     is_lu_linear_solver = linear_solver == "default" \
         or has_lu_solver_method(linear_solver)
     if is_lu_linear_solver:
-        solver = backend_LUSolver(A, linear_solver)
+        solver = LUSolver(A, linear_solver)
         lu_parameters = linear_solver_parameters.get("lu_solver", {})
         update_parameters_dict(solver.parameters, lu_parameters)
     else:
         pc = linear_solver_parameters.get("preconditioner", "default")
         ks_parameters = linear_solver_parameters.get("krylov_solver", {})
-        solver = backend_KrylovSolver(A, linear_solver, pc)
+        solver = KrylovSolver(A, linear_solver, pc)
         update_parameters_dict(solver.parameters, ks_parameters)
     return solver
 
