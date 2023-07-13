@@ -464,7 +464,7 @@ def as_coefficient(x):
                                                     shape=x.ufl_shape)
             space = ufl.classes.FunctionSpace(None, element)
 
-        x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space, count=x.count())  # noqa: E501
+        x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space)
 
     return x._tlm_adjoint__Coefficient
 
