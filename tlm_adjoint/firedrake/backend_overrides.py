@@ -326,7 +326,8 @@ def NonlinearVariationalSolver_solve(
         self._problem.F == 0, self._problem.u, self._problem.bcs,
         J=self._problem.J, solver_parameters=solver_parameters,
         form_compiler_parameters=form_compiler_parameters,
-        cache_jacobian=False, cache_rhs_assembly=False)
+        cache_jacobian=self._problem._constant_jacobian,
+        cache_rhs_assembly=False)
 
     eq._pre_process(annotate=annotate)
     return_value = orig_args()
