@@ -594,8 +594,8 @@ def l_bfgs(F, Fp, X0, *,
             - `Y`: A function or a sequence of functions defining the gradient
               change.
 
-        Returns a :class:`bool` indicating whether the optimization has
-        converged.
+        Input functions should not be modified. Returns a :class:`bool`
+        indicating whether the optimization has converged.
     :arg max_its: The maximum number of iterations.
     :arg H_0_action: A callable defining the action of the non-updated Hessian
         matrix inverse approximation on some direction. Accepts one or more
@@ -804,13 +804,13 @@ def l_bfgs(F, Fp, X0, *,
                      f"F calls {F_calls[0]:d}, "
                      f"Fp calls {Fp_calls[0]:d}, "
                      f"functional value {new_F_val:.6e}")
+        if converged(it, old_F_val, new_F_val, X, new_Fp_val, S, Y):
+            break
         if s_atol is not None:
             s_norm_sq = M_norm_sq(S)
             logger.debug(f"  Change norm = {np.sqrt(s_norm_sq):.6e}")
             if s_norm_sq <= s_atol * s_atol:
                 break
-        if converged(it, old_F_val, new_F_val, X, new_Fp_val, S, Y):
-            break
 
         if it >= max_its:
             raise RuntimeError("L-BFGS: Maximum number of iterations exceeded")
