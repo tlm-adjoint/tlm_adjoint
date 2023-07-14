@@ -594,8 +594,8 @@ def l_bfgs(F, Fp, X0, *,
             - `Y`: A function or a sequence of functions defining the gradient
               change.
 
-        Returns a :class:`bool` indicating whether the optimization has
-        converged.
+        Input functions should not be modified. Returns a :class:`bool`
+        indicating whether the optimization has converged.
     :arg max_its: The maximum number of iterations.
     :arg H_0_action: A callable defining the action of the non-updated Hessian
         matrix inverse approximation on some direction. Accepts one or more
