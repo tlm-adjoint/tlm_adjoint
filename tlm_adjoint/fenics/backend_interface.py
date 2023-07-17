@@ -7,10 +7,10 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector, info)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
-    add_functional_term_eq, add_interface,
-    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
-    function_copy, function_new, function_space, function_space_type,
-    new_function_id, new_space_id, space_id, space_new,
+    add_interface, add_subtract_adjoint_derivative_action, check_space_types,
+    comm_dup_cached, function_copy, function_new, function_space,
+    function_space_type, new_function_id, new_space_id,
+    register_functional_term_eq, space_id, space_new,
     subtract_adjoint_derivative_action)
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import (
@@ -413,16 +413,15 @@ add_finalize_adjoint_derivative_action(backend,
                                        _finalize_adjoint_derivative_action)
 
 
-def _functional_term_eq(x, term):
-    if isinstance(term, ufl.classes.Form) \
-            and len(term.arguments()) == 0 \
-            and isinstance(x, (SymbolicFloat, backend_Constant, backend_Function)):  # noqa: E501
-        return Assembly(x, term)
-    else:
-        return NotImplemented
+def functional_term_eq_form(x, term):
+    if len(term.arguments()) > 0:
+        raise ValueError("Invalid number of arguments")
+    return Assembly(x, term)
 
 
-add_functional_term_eq(backend, _functional_term_eq)
+register_functional_term_eq(
+    (SymbolicFloat, backend_Constant, backend_Function), ufl.classes.Form,
+    functional_term_eq_form)
 
 
 def default_comm():

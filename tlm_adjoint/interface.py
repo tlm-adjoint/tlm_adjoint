@@ -45,11 +45,12 @@ mpi4py is not available a dummy 'serial' communicator is used, of type
 :class:`SerialComm`.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from collections import deque
 import contextlib
 import copy
 import functools
+import itertools
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -1286,20 +1287,36 @@ def finalize_adjoint_derivative_action(x):
         fn(x)
 
 
-_functional_term_eq = {}
-
-
-def add_functional_term_eq(backend, fn):
-    assert backend not in _functional_term_eq
-    _functional_term_eq[backend] = fn
-
-
+@functools.singledispatch
 def functional_term_eq(x, term):
-    for fn in _functional_term_eq.values():
-        eq = fn(x=x, term=term)
-        if eq != NotImplemented:
-            return eq
-    raise RuntimeError("Unexpected case encountered in functional_term_eq")
+    raise NotImplementedError("Unexpected case encountered")
+
+
+def register_functional_term_eq(x_cls, term_cls, fn, *,
+                                replace=False):
+    if not isinstance(x_cls, Sequence):
+        x_cls = (x_cls,)
+    if not isinstance(term_cls, Sequence):
+        term_cls = (term_cls,)
+    for x_cls, term_cls in itertools.product(x_cls, term_cls):
+        if x_cls not in functional_term_eq.registry:
+            @functools.singledispatch
+            def _x_fn(term, x):
+                raise NotImplementedError("Unexpected case encountered")
+
+            @functional_term_eq.register(x_cls)
+            def x_fn(x, term):
+                return functional_term_eq.dispatch(type(x))._tlm_adjoint__x_fn(term, x)  # noqa: E501
+
+            x_fn._tlm_adjoint__x_fn = _x_fn
+
+        _x_fn = functional_term_eq.registry[x_cls]._tlm_adjoint__x_fn
+        if term_cls in _x_fn.registry and not replace:
+            raise RuntimeError("Case already registered")
+
+        @_x_fn.register(term_cls)
+        def wrapped_fn(term, x):
+            return fn(x, term)
 
 
 _logger = logging.getLogger("tlm_adjoint")
