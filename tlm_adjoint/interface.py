@@ -1274,17 +1274,16 @@ def subtract_adjoint_derivative_action(x, y):
                                "subtract_adjoint_derivative_action")
 
 
-_finalize_adjoint_derivative_action = {}
-
-
-def add_finalize_adjoint_derivative_action(backend, fn):
-    assert backend not in _finalize_adjoint_derivative_action
-    _finalize_adjoint_derivative_action[backend] = fn
+_finalize_adjoint_derivative_action = []
 
 
 def finalize_adjoint_derivative_action(x):
-    for fn in _finalize_adjoint_derivative_action.values():
+    for fn in _finalize_adjoint_derivative_action:
         fn(x)
+
+
+def register_finalize_adjoint_derivative_action(fn):
+    _finalize_adjoint_derivative_action.append(fn)
 
 
 @functools.singledispatch

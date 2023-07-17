@@ -6,10 +6,10 @@ from .backend import (
     backend_Constant, backend_Function, backend_FunctionSpace,
     backend_ScalarType, backend_Vector, cpp_PETScVector, info)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
-    add_interface, add_subtract_adjoint_derivative_action, check_space_types,
-    comm_dup_cached, function_copy, function_new, function_space,
-    function_space_type, new_function_id, new_space_id,
+    DEFAULT_COMM, SpaceInterface, add_interface,
+    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
+    function_copy, function_new, function_space, function_space_type,
+    new_function_id, new_space_id, register_finalize_adjoint_derivative_action,
     register_functional_term_eq, space_id, space_new,
     subtract_adjoint_derivative_action)
 from ..interface import FunctionInterface as _FunctionInterface
@@ -402,15 +402,14 @@ add_subtract_adjoint_derivative_action(backend,
                                        _subtract_adjoint_derivative_action)
 
 
-def _finalize_adjoint_derivative_action(x):
+def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
         y = assemble(x._tlm_adjoint__fenics_adj_b)
         subtract_adjoint_derivative_action(x, (-1.0, y))
         delattr(x, "_tlm_adjoint__fenics_adj_b")
 
 
-add_finalize_adjoint_derivative_action(backend,
-                                       _finalize_adjoint_derivative_action)
+register_finalize_adjoint_derivative_action(finalize_adjoint_derivative_action)
 
 
 def functional_term_eq_form(x, term):

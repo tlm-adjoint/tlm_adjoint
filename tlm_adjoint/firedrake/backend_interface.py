@@ -5,12 +5,12 @@ from .backend import (
     FunctionSpace, UnitIntervalMesh, backend, backend_Constant,
     backend_Function, backend_FunctionSpace, backend_ScalarType, info)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
-    add_interface, add_subtract_adjoint_derivative_action, check_space_types,
-    comm_dup_cached, function_comm, function_dtype, function_is_alias,
-    function_is_scalar, function_scalar_value, function_space, new_function_id,
-    new_space_id, register_functional_term_eq, space_id, space_new,
-    subtract_adjoint_derivative_action)
+    DEFAULT_COMM, SpaceInterface, add_interface,
+    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
+    function_comm, function_dtype, function_is_alias, function_is_scalar,
+    function_scalar_value, function_space, new_function_id, new_space_id,
+    register_finalize_adjoint_derivative_action, register_functional_term_eq,
+    space_id, space_new, subtract_adjoint_derivative_action)
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import (
     assemble, r0_space, is_valid_r0_space)
@@ -367,15 +367,14 @@ add_subtract_adjoint_derivative_action(backend,
                                        _subtract_adjoint_derivative_action)
 
 
-def _finalize_adjoint_derivative_action(x):
+def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
         y = assemble(x._tlm_adjoint__firedrake_adj_b)
         subtract_adjoint_derivative_action(x, (-1.0, y))
         delattr(x, "_tlm_adjoint__firedrake_adj_b")
 
 
-add_finalize_adjoint_derivative_action(backend,
-                                       _finalize_adjoint_derivative_action)
+register_finalize_adjoint_derivative_action(finalize_adjoint_derivative_action)
 
 
 def functional_term_eq_form(x, term):
