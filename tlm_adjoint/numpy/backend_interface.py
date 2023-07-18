@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from ..interface import DEFAULT_COMM, SpaceInterface, add_interface, \
-    comm_dup_cached, new_function_id, new_space_id, space_id, space_new
+from ..interface import (
+    DEFAULT_COMM, SpaceInterface, add_interface, comm_dup_cached,
+    new_function_id, new_space_id, register_subtract_adjoint_derivative_action,
+    space_id, space_new, subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -351,6 +353,12 @@ class Replacement:
 
     def caches(self):
         return self._caches
+
+
+register_subtract_adjoint_derivative_action(
+    Function, object,
+    subtract_adjoint_derivative_action_base,
+    replace=True)
 
 
 def default_comm():
