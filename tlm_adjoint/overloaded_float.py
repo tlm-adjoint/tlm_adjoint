@@ -19,13 +19,13 @@ will lead to annotation of equations associated with the floating point
 calculations.
 """
 
-from .interface import DEFAULT_COMM, FunctionInterface, SpaceInterface, \
-    add_interface, add_subtract_adjoint_derivative_action, check_space_type, \
-    check_space_types, comm_dup_cached, function_assign, function_axpy, \
-    function_comm, function_dtype, function_id, function_is_scalar, \
-    function_name, function_new, function_new_conjugate_dual, \
-    function_scalar_value, is_function, new_function_id, new_space_id, \
-    space_comm, space_dtype
+from .interface import (
+    DEFAULT_COMM, FunctionInterface, SpaceInterface, add_interface,
+    check_space_type, comm_dup_cached, function_assign, function_comm,
+    function_dtype, function_id, function_name, function_new,
+    function_new_conjugate_dual, function_scalar_value, is_function,
+    new_function_id, new_space_id, register_subtract_adjoint_derivative_action,
+    space_comm, space_dtype, subtract_adjoint_derivative_action_base)
 
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
@@ -33,7 +33,6 @@ from .equations import Assignment
 from .manager import annotation_enabled, tlm_enabled
 from .tangent_linear import get_tangent_linear
 
-from collections.abc import Sequence
 import contextlib
 import functools
 import numpy as np
@@ -215,6 +214,7 @@ class FloatInterface(FunctionInterface):
             function_assign(self, function_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
+        alpha = function_dtype(self)(alpha)
         function_assign(self, self.value() + alpha * function_scalar_value(x))
 
     def _inner(self, y):
@@ -768,24 +768,7 @@ class FloatEquation(Equation):
             return FloatEquation(tlm_map[x], expr)
 
 
-def _subtract_adjoint_derivative_action(x, y):
-    if isinstance(x, SymbolicFloat):
-        if is_function(y) and function_is_scalar(y):
-            check_space_types(x, y)
-            function_axpy(x, -1.0, y)
-        elif isinstance(y, Sequence) \
-                and len(y) == 2 \
-                and isinstance(y[0], (int, np.integer,
-                                      float, np.floating,
-                                      complex, np.complexfloating)) \
-                and is_function(y[1]) and function_is_scalar(y[1]):
-            check_space_types(x, y[1])
-            function_axpy(x, -y[0], y[1])
-        else:
-            return NotImplemented
-    else:
-        return NotImplemented
-
-
-add_subtract_adjoint_derivative_action(
-    "_tlm_adjoint__SymbolicFloat", _subtract_adjoint_derivative_action)
+register_subtract_adjoint_derivative_action(
+    SymbolicFloat, object,
+    subtract_adjoint_derivative_action_base,
+    replace=True)

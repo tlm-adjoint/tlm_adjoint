@@ -45,11 +45,12 @@ mpi4py is not available a dummy 'serial' communicator is used, of type
 :class:`SerialComm`.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from collections import deque
 import contextlib
 import copy
 import functools
+import itertools
 import logging
 try:
     import mpi4py.MPI as MPI
@@ -1228,14 +1229,7 @@ def function_is_alias(x):
     return x._tlm_adjoint__function_interface_is_alias()
 
 
-_subtract_adjoint_derivative_action = {}
-
-
-def add_subtract_adjoint_derivative_action(backend, fn):
-    assert backend not in _subtract_adjoint_derivative_action
-    _subtract_adjoint_derivative_action[backend] = fn
-
-
+@functools.singledispatch
 def subtract_adjoint_derivative_action(x, y):
     """Subtract an adjoint right-hand-side contribution defined by `y` from
     the right-hand-side defined by `x`.
@@ -1243,63 +1237,103 @@ def subtract_adjoint_derivative_action(x, y):
     :arg x: A function storing the adjoint right-hand-side.
     :arg y: A contribution to subtract from the adjoint right-hand-side. An
         :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action` return
-        value. Valid types depend upon the backend used, but `y` may be a
-        function, or a two element :class:`tuple` `(alpha, F)`, where `alpha`
-        is a scalar and `F` a function, with the value defined by the product
-        of `alpha` and `F`.
+        value. Valid types depend upon the backend used. Typically this will be
+        a function, or a two element :class:`tuple` `(alpha, F)`, where `alpha`
+        is a scalar and `F` a function, with the value to subtract defined by
+        the product of `alpha` and `F`.
     """
 
-    for fn in _subtract_adjoint_derivative_action.values():
-        if fn(x, y) != NotImplemented:
-            break
+    raise NotImplementedError("Unexpected case encountered")
+
+
+def register_subtract_adjoint_derivative_action(x_cls, y_cls, fn, *,
+                                                replace=False):
+    if not isinstance(x_cls, Sequence):
+        x_cls = (x_cls,)
+    if not isinstance(y_cls, Sequence):
+        y_cls = (y_cls,)
+    for x_cls, y_cls in itertools.product(x_cls, y_cls):
+        if x_cls not in subtract_adjoint_derivative_action.registry:
+            @functools.singledispatch
+            def _x_fn(y, alpha, x):
+                raise NotImplementedError("Unexpected case encountered")
+
+            @subtract_adjoint_derivative_action.register(x_cls)
+            def x_fn(x, y):
+                if isinstance(y, tuple) \
+                        and len(y) == 2 \
+                        and isinstance(y[0], (int, np.integer,
+                                              float, np.floating,
+                                              complex, np.complexfloating)):
+                    alpha, y = y
+                else:
+                    alpha = 1.0
+                return subtract_adjoint_derivative_action.dispatch(type(x))._tlm_adjoint__x_fn(y, alpha, x)  # noqa: E501
+
+            x_fn._tlm_adjoint__x_fn = _x_fn
+
+        _x_fn = subtract_adjoint_derivative_action.registry[x_cls]._tlm_adjoint__x_fn  # noqa: E501
+        if y_cls in _x_fn.registry and not replace:
+            raise RuntimeError("Case already registered")
+
+        @_x_fn.register(y_cls)
+        def wrapped_fn(y, alpha, x):
+            return fn(x, alpha, y)
+
+
+def subtract_adjoint_derivative_action_base(x, alpha, y):
+    if y is None:
+        pass
+    elif is_function(y):
+        check_space_types(x, y)
+        alpha = function_dtype(x)(alpha)
+        function_axpy(x, -alpha, y)
     else:
-        if y is None:
-            pass
-        elif is_function(y):
-            check_space_types(x, y)
-            function_axpy(x, -1.0, y)
-        elif isinstance(y, tuple) \
-                and len(y) == 2 \
-                and isinstance(y[0], (int, np.integer,
-                                      float, np.floating,
-                                      complex, np.complexfloating)) \
-                and is_function(y[1]):
-            alpha, y = y
-            alpha = function_dtype(x)(alpha)
-            check_space_types(x, y)
-            function_axpy(x, -alpha, y)
-        else:
-            raise RuntimeError("Unexpected case encountered in "
-                               "subtract_adjoint_derivative_action")
+        raise NotImplementedError("Unexpected case encountered")
 
 
-_finalize_adjoint_derivative_action = {}
-
-
-def add_finalize_adjoint_derivative_action(backend, fn):
-    assert backend not in _finalize_adjoint_derivative_action
-    _finalize_adjoint_derivative_action[backend] = fn
+_finalize_adjoint_derivative_action = []
 
 
 def finalize_adjoint_derivative_action(x):
-    for fn in _finalize_adjoint_derivative_action.values():
+    for fn in _finalize_adjoint_derivative_action:
         fn(x)
 
 
-_functional_term_eq = {}
+def register_finalize_adjoint_derivative_action(fn):
+    _finalize_adjoint_derivative_action.append(fn)
 
 
-def add_functional_term_eq(backend, fn):
-    assert backend not in _functional_term_eq
-    _functional_term_eq[backend] = fn
-
-
+@functools.singledispatch
 def functional_term_eq(x, term):
-    for fn in _functional_term_eq.values():
-        eq = fn(x=x, term=term)
-        if eq != NotImplemented:
-            return eq
-    raise RuntimeError("Unexpected case encountered in functional_term_eq")
+    raise NotImplementedError("Unexpected case encountered")
+
+
+def register_functional_term_eq(x_cls, term_cls, fn, *,
+                                replace=False):
+    if not isinstance(x_cls, Sequence):
+        x_cls = (x_cls,)
+    if not isinstance(term_cls, Sequence):
+        term_cls = (term_cls,)
+    for x_cls, term_cls in itertools.product(x_cls, term_cls):
+        if x_cls not in functional_term_eq.registry:
+            @functools.singledispatch
+            def _x_fn(term, x):
+                raise NotImplementedError("Unexpected case encountered")
+
+            @functional_term_eq.register(x_cls)
+            def x_fn(x, term):
+                return functional_term_eq.dispatch(type(x))._tlm_adjoint__x_fn(term, x)  # noqa: E501
+
+            x_fn._tlm_adjoint__x_fn = _x_fn
+
+        _x_fn = functional_term_eq.registry[x_cls]._tlm_adjoint__x_fn
+        if term_cls in _x_fn.registry and not replace:
+            raise RuntimeError("Case already registered")
+
+        @_x_fn.register(term_cls)
+        def wrapped_fn(term, x):
+            return fn(x, term)
 
 
 _logger = logging.getLogger("tlm_adjoint")

@@ -13,8 +13,9 @@ from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, function_caches,
     function_comm, function_dtype, function_form_derivative_space, function_id,
     function_is_cached, function_is_checkpointed, function_is_static,
-    function_linf_norm, function_name, function_replacement, function_space,
-    function_space_type, is_function, space_comm)
+    function_linf_norm, function_name, function_replacement,
+    function_scalar_value, function_space, function_space_type, is_function,
+    space_comm)
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -155,6 +156,8 @@ class ConstantInterface(_FunctionInterface):
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
+        elif is_function(x):
+            value = dtype(self) + alpha * function_scalar_value(x)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
         self.assign(value)

@@ -2,16 +2,17 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FunctionSpace, UnitIntervalMesh, as_backend_type, backend,
-    backend_Constant, backend_Function, backend_FunctionSpace,
-    backend_ScalarType, backend_Vector, cpp_PETScVector, info)
+    FunctionSpace, UnitIntervalMesh, as_backend_type, backend_Constant,
+    backend_Function, backend_FunctionSpace, backend_ScalarType,
+    backend_Vector, cpp_PETScVector, info)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
-    add_functional_term_eq, add_interface,
-    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
-    function_copy, function_new, function_space, function_space_type,
-    new_function_id, new_space_id, space_id, space_new,
-    subtract_adjoint_derivative_action)
+    DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
+    check_space_types, comm_dup_cached, function_copy, function_new,
+    function_space, function_space_type, new_function_id, new_space_id,
+    register_finalize_adjoint_derivative_action, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, space_id, space_new,
+    subtract_adjoint_derivative_action,
+    subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import (
     assemble, is_valid_r0_space, r0_space)
@@ -360,69 +361,77 @@ def Function_split(self, orig, orig_args, deepcopy=False):
     return Y
 
 
-def _subtract_adjoint_derivative_action(x, y):
-    if isinstance(y, backend_Vector):
-        y = (1.0, y)
-    if isinstance(y, ufl.classes.Form) \
-            and isinstance(x, (backend_Constant, backend_Function)):
-        if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-            x._tlm_adjoint__fenics_adj_b -= y
-        else:
-            x._tlm_adjoint__fenics_adj_b = -y
-    elif isinstance(y, tuple) \
-            and len(y) == 2 \
-            and isinstance(y[0], (int, np.integer, float, np.floating)) \
-            and isinstance(y[1], backend_Vector):
-        alpha, y = y
-        alpha = backend_ScalarType(alpha)
-        if hasattr(y, "_tlm_adjoint__function"):
-            check_space_types(x, y._tlm_adjoint__function)
-        if isinstance(x, backend_Constant):
-            if len(x.ufl_shape) == 0:
-                x.assign(backend_ScalarType(x) - alpha * y.max())
-            else:
-                value = x.values()
-                y_fn = backend_Function(r0_space(x))
-                y_fn.vector().axpy(1.0, y)
-                for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-                    value[i] -= alpha * y_fn_c.vector().max()
-                value.shape = x.ufl_shape
-                x.assign(backend_Constant(value))
-        elif isinstance(x, backend_Function):
-            if x.vector().local_size() != y.local_size():
-                raise ValueError("Invalid function space")
-            x.vector().axpy(-alpha, y)
-        else:
-            return NotImplemented
+def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
+    if hasattr(y, "_tlm_adjoint__function"):
+        check_space_types(x, y._tlm_adjoint__function)
+    alpha = backend_ScalarType(alpha)
+
+    if len(x.ufl_shape) == 0:
+        x.assign(backend_ScalarType(x) - alpha * y.max())
     else:
-        return NotImplemented
+        value = x.values()
+        y_fn = backend_Function(r0_space(x))
+        y_fn.vector().axpy(1.0, y)
+        for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+            value[i] -= alpha * y_fn_c.vector().max()
+        value.shape = x.ufl_shape
+        x.assign(backend_Constant(value))
 
 
-add_subtract_adjoint_derivative_action(backend,
-                                       _subtract_adjoint_derivative_action)
+def subtract_adjoint_derivative_action_backend_function_vector(x, alpha, y):
+    if hasattr(y, "_tlm_adjoint__function"):
+        check_space_types(x, y._tlm_adjoint__function)
+    alpha = backend_ScalarType(alpha)
+
+    if x.vector().local_size() != y.local_size():
+        raise ValueError("Invalid function space")
+    x.vector().axpy(-alpha, y)
 
 
-def _finalize_adjoint_derivative_action(x):
+def subtract_adjoint_derivative_action_function_form(x, alpha, y):
+    check_space_type(x, "conjugate_dual")
+    if alpha != 1.0:
+        y = backend_Constant(alpha) * y
+    if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
+        x._tlm_adjoint__fenics_adj_b = x._tlm_adjoint__fenics_adj_b - y
+    else:
+        x._tlm_adjoint__fenics_adj_b = -y
+
+
+register_subtract_adjoint_derivative_action(
+    (backend_Constant, backend_Function), object,
+    subtract_adjoint_derivative_action_base,
+    replace=True)
+register_subtract_adjoint_derivative_action(
+    backend_Constant, backend_Vector,
+    subtract_adjoint_derivative_action_backend_constant_vector)
+register_subtract_adjoint_derivative_action(
+    backend_Function, backend_Vector,
+    subtract_adjoint_derivative_action_backend_function_vector)
+register_subtract_adjoint_derivative_action(
+    (backend_Constant, backend_Function), ufl.classes.Form,
+    subtract_adjoint_derivative_action_function_form)
+
+
+def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
         y = assemble(x._tlm_adjoint__fenics_adj_b)
         subtract_adjoint_derivative_action(x, (-1.0, y))
         delattr(x, "_tlm_adjoint__fenics_adj_b")
 
 
-add_finalize_adjoint_derivative_action(backend,
-                                       _finalize_adjoint_derivative_action)
+register_finalize_adjoint_derivative_action(finalize_adjoint_derivative_action)
 
 
-def _functional_term_eq(x, term):
-    if isinstance(term, ufl.classes.Form) \
-            and len(term.arguments()) == 0 \
-            and isinstance(x, (SymbolicFloat, backend_Constant, backend_Function)):  # noqa: E501
-        return Assembly(x, term)
-    else:
-        return NotImplemented
+def functional_term_eq_form(x, term):
+    if len(term.arguments()) > 0:
+        raise ValueError("Invalid number of arguments")
+    return Assembly(x, term)
 
 
-add_functional_term_eq(backend, _functional_term_eq)
+register_functional_term_eq(
+    (SymbolicFloat, backend_Constant, backend_Function), ufl.classes.Form,
+    functional_term_eq_form)
 
 
 def default_comm():

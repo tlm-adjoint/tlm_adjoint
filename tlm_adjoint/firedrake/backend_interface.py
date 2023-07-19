@@ -2,15 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FunctionSpace, UnitIntervalMesh, backend, backend_Constant,
-    backend_Function, backend_FunctionSpace, backend_ScalarType, info)
+    FunctionSpace, UnitIntervalMesh, backend_Constant, backend_Function,
+    backend_FunctionSpace, backend_ScalarType, info)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_finalize_adjoint_derivative_action,
-    add_functional_term_eq, add_interface,
-    add_subtract_adjoint_derivative_action, check_space_types, comm_dup_cached,
-    function_comm, function_dtype, function_is_alias, function_is_scalar,
-    function_scalar_value, function_space, new_function_id, new_space_id,
-    space_id, space_new, subtract_adjoint_derivative_action)
+    DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
+    comm_dup_cached, function_comm, function_dtype, function_is_alias,
+    function_space, new_function_id, new_space_id,
+    register_finalize_adjoint_derivative_action, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, space_id, space_new,
+    subtract_adjoint_derivative_action,
+    subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import (
     assemble, r0_space, is_valid_r0_space)
@@ -334,60 +335,44 @@ def Function_sub(self, orig, orig_args, i):
     return y
 
 
-def _subtract_adjoint_derivative_action(x, y):
-    if isinstance(y, ufl.classes.Form) \
-            and isinstance(x, (backend_Constant, backend_Function)):
-        if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
-            x._tlm_adjoint__firedrake_adj_b -= y
-        else:
-            x._tlm_adjoint__firedrake_adj_b = -y
-    elif isinstance(x, backend_Constant):
-        dtype = function_dtype(x)
-        if isinstance(y, backend_Function) and function_is_scalar(y):
-            alpha = 1.0
-        elif isinstance(y, tuple) \
-                and len(y) == 2 \
-                and isinstance(y[0], (int, np.integer,
-                                      float, np.floating,
-                                      complex, np.complexfloating)) \
-                and isinstance(y[1], backend_Function) \
-                and function_is_scalar(y[1]):
-            alpha, y = y
-            alpha = dtype(alpha)
-        else:
-            return NotImplemented
-        check_space_types(x, y)
-        y_value = function_scalar_value(y)
-        x.assign(dtype(x) - alpha * y_value)
+def subtract_adjoint_derivative_action_function_form(x, alpha, y):
+    check_space_type(x, "conjugate_dual")
+    if alpha != 1.0:
+        y = backend_Constant(alpha) * y
+    if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
+        x._tlm_adjoint__firedrake_adj_b = x._tlm_adjoint__firedrake_adj_b - y
     else:
-        return NotImplemented
+        x._tlm_adjoint__firedrake_adj_b = -y
 
 
-add_subtract_adjoint_derivative_action(backend,
-                                       _subtract_adjoint_derivative_action)
+register_subtract_adjoint_derivative_action(
+    (backend_Constant, backend_Function), object,
+    subtract_adjoint_derivative_action_base,
+    replace=True)
+register_subtract_adjoint_derivative_action(
+    (backend_Constant, backend_Function), ufl.classes.Form,
+    subtract_adjoint_derivative_action_function_form)
 
 
-def _finalize_adjoint_derivative_action(x):
+def finalize_adjoint_derivative_action(x):
     if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
         y = assemble(x._tlm_adjoint__firedrake_adj_b)
         subtract_adjoint_derivative_action(x, (-1.0, y))
         delattr(x, "_tlm_adjoint__firedrake_adj_b")
 
 
-add_finalize_adjoint_derivative_action(backend,
-                                       _finalize_adjoint_derivative_action)
+register_finalize_adjoint_derivative_action(finalize_adjoint_derivative_action)
 
 
-def _functional_term_eq(x, term):
-    if isinstance(term, ufl.classes.Form) \
-            and len(term.arguments()) == 0 \
-            and isinstance(x, (SymbolicFloat, backend_Constant, backend_Function)):  # noqa: E501
-        return Assembly(x, term)
-    else:
-        return NotImplemented
+def functional_term_eq_form(x, term):
+    if len(term.arguments()) > 0:
+        raise ValueError("Invalid number of arguments")
+    return Assembly(x, term)
 
 
-add_functional_term_eq(backend, _functional_term_eq)
+register_functional_term_eq(
+    (SymbolicFloat, backend_Constant, backend_Function), ufl.classes.Form,
+    functional_term_eq_form)
 
 
 def default_comm():
