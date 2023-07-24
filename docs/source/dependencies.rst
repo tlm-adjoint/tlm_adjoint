@@ -23,6 +23,7 @@ With the FEniCS backend tlm_adjoint requires:
 With the Firedrake backend tlm_adjoint requires:
 
   - `Firedrake <https://firedrakeproject.org>`_
+  - `PyOP2 <https://github.com/OP2/PyOP2>`_
   - `UFL <https://github.com/FEniCS/ufl>`_
   - `mpi4py <https://github.com/mpi4py/mpi4py>`_
   - `PETSc <https://petsc.org>`_

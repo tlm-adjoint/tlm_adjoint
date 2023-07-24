@@ -7,7 +7,7 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
     comm_dup_cached, function_comm, function_dtype, function_is_alias,
-    function_space, new_function_id, new_space_id,
+    function_space, new_function_id, new_space_id, register_garbage_cleanup,
     register_finalize_adjoint_derivative_action, register_functional_term_eq,
     register_subtract_adjoint_derivative_action, space_id, space_new,
     subtract_adjoint_derivative_action,
@@ -25,8 +25,10 @@ from .functions import (
     Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
     ReplacementFunction, Zero, define_function_alias)
 
+import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
+import pyop2
 import ufl
 import warnings
 
@@ -333,6 +335,18 @@ def Function_sub(self, orig, orig_args, i):
     if not function_is_alias(y):
         define_function_alias(y, self, key=("sub", i))
     return y
+
+
+def garbage_cleanup_internal_comm(comm):
+    if pyop2.mpi.is_pyop2_comm(comm):
+        raise RuntimeError("Should not call garbage_cleanup directly on a "
+                           "PyOP2 communicator")
+    internal_comm = comm.Get_attr(pyop2.mpi.innercomm_keyval)
+    if internal_comm is not None and internal_comm.py2f() != MPI.COMM_NULL.py2f():  # noqa: E501
+        PETSc.garbage_cleanup(internal_comm)
+
+
+register_garbage_cleanup(garbage_cleanup_internal_comm)
 
 
 def subtract_adjoint_derivative_action_function_form(x, alpha, y):

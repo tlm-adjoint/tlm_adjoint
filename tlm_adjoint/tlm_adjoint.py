@@ -1390,6 +1390,7 @@ class EquationManager:
                         # Finalize right-hand-sides in the control block
                         Bs[J_i][-1].finalize()
 
+                self.drop_references()
             garbage_cleanup(self._comm)
 
         for B in Bs:

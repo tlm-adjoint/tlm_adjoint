@@ -243,7 +243,7 @@ def comm_dup_cached(comm, *, key=None):
         original base communicator is freed.
     """
 
-    if MPI is not None and comm is MPI.COMM_NULL:
+    if MPI is not None and comm.py2f() == MPI.COMM_NULL.py2f():
         return comm
 
     if key is None:
@@ -260,8 +260,8 @@ def comm_dup_cached(comm, *, key=None):
         _dup_comms[key] = dup_comm
 
         def finalize_callback(comm_py2f, key, dup_comm):
+            garbage_cleanup(dup_comm)
             if MPI is not None and not MPI.Is_finalized():
-                garbage_cleanup(dup_comm)
                 dup_comm.Free()
             _parent_comms.pop(dup_comm.py2f(), None)
             _dupped_comms.pop(comm_py2f, None)
@@ -273,24 +273,38 @@ def comm_dup_cached(comm, *, key=None):
     return dup_comm
 
 
+_garbage_cleanup = []
+
+
+def register_garbage_cleanup(fn):
+    _garbage_cleanup.append(fn)
+
+
+if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
+    register_garbage_cleanup(PETSc.garbage_cleanup)
+
+
 def garbage_cleanup(comm):
     """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, any
-    communicators duplicated from it using :func:`comm_dup_cached`, and base
-    communicators from which it was duplicated using :func:`comm_dup_cached`.
+    communicators duplicated from it, and base communicators from which it was
+    duplicated.
 
     :arg comm: An :class:`mpi4py.MPI.Comm`.
     """
 
-    if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
-        for dup_comms in _dupped_comms.values():
-            for dup_comm in dup_comms.values():
-                PETSc.garbage_cleanup(dup_comm)
-        while True:
-            PETSc.garbage_cleanup(comm)
-            parent_comm = comm_parent(comm)
-            if parent_comm.py2f() == comm.py2f():
-                break
-            comm = parent_comm
+    for dup_comms in _dupped_comms.values():
+        for dup_comm in dup_comms.values():
+            if MPI is not None and not MPI.Is_finalized() and dup_comm.py2f() != MPI.COMM_NULL.py2f():  # noqa: E501
+                for fn in _garbage_cleanup:
+                    fn(dup_comm)
+    while True:
+        if MPI is not None and not MPI.Is_finalized() and comm.py2f() != MPI.COMM_NULL.py2f():  # noqa: E501
+            for fn in _garbage_cleanup:
+                fn(comm)
+        parent_comm = comm_parent(comm)
+        if parent_comm.py2f() == comm.py2f():
+            break
+        comm = parent_comm
 
 
 def weakref_method(fn, obj):
