@@ -4,6 +4,7 @@
 from tlm_adjoint.numpy import *
 from tlm_adjoint.numpy import manager as _manager
 from tlm_adjoint.alias import gc_disabled
+from tlm_adjoint.override import override_method
 
 import functools
 import gc
@@ -92,13 +93,10 @@ def referenced_functions():
                  if F_ref is not None)
 
 
-def _Function__init__(self, *args, **kwargs):
-    _Function__init__orig(self, *args, **kwargs)
+@override_method(Function, "__init__")
+def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     _function_ids[function_id(self)] = self
-
-
-_Function__init__orig = Function.__init__
-Function.__init__ = _Function__init__
 
 
 @pytest.fixture

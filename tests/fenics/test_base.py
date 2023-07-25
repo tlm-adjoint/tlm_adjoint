@@ -8,6 +8,7 @@ from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
 from tlm_adjoint.fenics.backend_code_generator_interface import \
     complex_mode, interpolate_expression
 from tlm_adjoint.alias import gc_disabled
+from tlm_adjoint.override import override_method
 
 import copy
 import functools
@@ -146,22 +147,16 @@ def referenced_functions():
                  if F_ref is not None)
 
 
-def _Constant__init__(self, *args, **kwargs):
-    _Constant__init__orig(self, *args, **kwargs)
+@override_method(backend_Constant, "__init__")
+def Constant__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     _function_ids[function_id(self)] = self
 
 
-_Constant__init__orig = backend_Constant.__init__
-backend_Constant.__init__ = _Constant__init__
-
-
-def _Function__init__(self, *args, **kwargs):
-    _Function__init__orig(self, *args, **kwargs)
+@override_method(backend_Function, "__init__")
+def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     _function_ids[function_id(self)] = self
-
-
-_Function__init__orig = backend_Function.__init__
-backend_Function.__init__ = _Function__init__
 
 
 @pytest.fixture
