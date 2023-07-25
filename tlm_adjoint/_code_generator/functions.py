@@ -225,13 +225,9 @@ class ConstantInterface(_FunctionInterface):
             self.assign(backend_Constant(values))
 
     def _replacement(self):
-        if isinstance(self, ufl.classes.Coefficient):
-            if not hasattr(self, "_tlm_adjoint__replacement"):
-                self._tlm_adjoint__replacement = ReplacementConstant(self)
-            return self._tlm_adjoint__replacement
-        else:
-            # For Firedrake
-            return self
+        if not hasattr(self, "_tlm_adjoint__replacement"):
+            self._tlm_adjoint__replacement = ReplacementConstant(self)
+        return self._tlm_adjoint__replacement
 
     def _is_replacement(self):
         return False
@@ -805,24 +801,21 @@ class Replacement(ufl.classes.Coefficient):
             return (self._tlm_adjoint__domain,)
 
 
-class ReplacementConstant(backend_Constant, Replacement):
-    """A backend `Constant` representing a symbolic variable but with no
-    value.
+class ReplacementConstant(Replacement):
+    """Represents a symbolic constant, but has no value.
     """
 
     def __init__(self, x):
-        Replacement.__init__(self, x)
+        super().__init__(x)
         self._tlm_adjoint__function_interface_attrs["form_derivative_space"] \
             = x._tlm_adjoint__function_interface_attrs["form_derivative_space"]
 
 
-class ReplacementFunction(backend_Function, Replacement):
-    """A backend `Function` representing a symbolic variable but with no
-    value.
+class ReplacementFunction(Replacement):
+    """Represents a symbolic function, but has no value.
     """
 
-    def __init__(self, x):
-        Replacement.__init__(self, x)
+    pass
 
 
 def replaced_form(form):

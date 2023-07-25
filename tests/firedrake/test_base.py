@@ -4,10 +4,11 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
-from tlm_adjoint.firedrake.backend import backend_Function
+from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
     complex_mode, interpolate_expression)
 from tlm_adjoint.alias import gc_disabled
+from tlm_adjoint.override import override_method
 
 import copy
 import functools
@@ -139,13 +140,16 @@ def referenced_functions():
                  if F_ref is not None)
 
 
-def _Function__init__(self, *args, **kwargs):
-    _Function__init__orig(self, *args, **kwargs)
+@override_method(backend_Constant, "__init__")
+def Constant__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
     _function_ids[function_id(self)] = self
 
 
-_Function__init__orig = backend_Function.__init__
-backend_Function.__init__ = _Function__init__
+@override_method(backend_Function, "__init__")
+def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    _function_ids[function_id(self)] = self
 
 
 @pytest.fixture
@@ -175,7 +179,8 @@ def test_leaks():
 
     refs = 0
     for F in referenced_functions():
-        if function_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
+        if not isinstance(F, ZeroConstant) \
+                and function_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
             info(f"{function_name(F):s} referenced")
             refs += 1
     if refs == 0:

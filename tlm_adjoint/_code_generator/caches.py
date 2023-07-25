@@ -15,7 +15,8 @@ from .backend_code_generator_interface import (
 from ..caches import Cache
 
 from .functions import (
-    derivative, eliminate_zeros, extract_coefficients, replaced_form)
+    ReplacementFunction, derivative, eliminate_zeros, extract_coefficients,
+    replaced_form)
 
 from collections import defaultdict
 import ufl
@@ -220,7 +221,7 @@ def split_terms(terms, base_integral,
             mat_dep = None
             for dep in extract_coefficients(term):
                 if not is_cached(dep):
-                    if isinstance(dep, backend_Function) and mat_dep is None:
+                    if isinstance(dep, (backend_Function, ReplacementFunction)) and mat_dep is None:  # noqa: E501
                         mat_dep = dep
                     else:
                         mat_dep = None
