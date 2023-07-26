@@ -47,3 +47,31 @@ def test_FunctionSpace_interface(setup_test, test_leaks):
     assert space_id(space) != space_id(function_space(F_0))
     assert space_id(space) != space_id(F_0.function_space())
     Function(F_0.function_space())
+
+
+@pytest.mark.fenics
+@seed_test
+def test_default_function_flags(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    # Constant, without domain
+    c = Constant(0.0)
+    assert function_is_static(c) is not None and not function_is_static(c)
+    assert function_is_cached(c) is not None and not function_is_cached(c)
+    assert function_is_checkpointed(c) is not None and function_is_checkpointed(c)  # noqa: E501
+    del c
+
+    # Constant, with domain
+    c = Constant(0.0, domain=mesh)
+    assert function_is_static(c) is not None and not function_is_static(c)
+    assert function_is_cached(c) is not None and not function_is_cached(c)
+    assert function_is_checkpointed(c) is not None and function_is_checkpointed(c)  # noqa: E501
+    del c
+
+    # Function
+    F = Function(space)
+    assert function_is_static(F) is not None and not function_is_static(F)
+    assert function_is_cached(F) is not None and not function_is_cached(F)
+    assert function_is_checkpointed(F) is not None and function_is_checkpointed(F)  # noqa: E501
+    del F
