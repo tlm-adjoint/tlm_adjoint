@@ -201,12 +201,18 @@ def tmp_path(tmp_path):
     return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 
-def run_example(example, clear_forward_globals=True):
+def run_example(example, *,
+                add_example_path=True, clear_forward_globals=True):
+    if add_example_path:
+        filename = os.path.join(os.path.dirname(__file__),
+                                os.path.pardir, os.path.pardir,
+                                "examples", "fenics", example)
+    else:
+        filename = example
+
     start_manager()
-    filename = os.path.join(os.path.dirname(__file__),
-                            os.path.pardir, os.path.pardir,
-                            "examples", "fenics", example)
     gl = runpy.run_path(filename)
+
     if clear_forward_globals:
         # Clear objects created by the script. Requires the script to define a
         # 'forward' function.

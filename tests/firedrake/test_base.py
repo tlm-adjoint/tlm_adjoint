@@ -15,6 +15,7 @@ import functools
 import gc
 import hashlib
 import inspect
+import json
 import logging
 import mpi4py.MPI as MPI
 import numpy as np
@@ -37,6 +38,7 @@ __all__ = \
         "interpolate_expression",
 
         "run_example",
+        "run_example_notebook",
         "seed_test",
         "setup_test",
         "test_configurations",
@@ -199,16 +201,51 @@ def tmp_path(tmp_path):
     return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 
-def run_example(example, clear_forward_globals=True):
+def run_example(example, *,
+                add_example_path=True, clear_forward_globals=True):
+    if add_example_path:
+        filename = os.path.join(os.path.dirname(__file__),
+                                os.path.pardir, os.path.pardir,
+                                "examples", "firedrake", example)
+    else:
+        filename = example
+
     start_manager()
-    filename = os.path.join(os.path.dirname(__file__),
-                            os.path.pardir, os.path.pardir,
-                            "examples", "firedrake", example)
     gl = runpy.run_path(filename)
+
     if clear_forward_globals:
         # Clear objects created by the script. Requires the script to define a
         # 'forward' function.
         gl["forward"].__globals__.clear()
+
+
+def run_example_notebook(example, tmp_path, *,
+                         add_example_path=True):
+    if MPI.COMM_WORLD.size > 1:
+        raise RuntimeError("Serial only")
+
+    if add_example_path:
+        filename = os.path.join(os.path.dirname(__file__),
+                                os.path.pardir, os.path.pardir,
+                                "docs", "source", "examples", example)
+    else:
+        filename = example
+    tmp_filename = os.path.join(tmp_path, "tmp.py")
+
+    with open(filename, "r") as nb_h, open(tmp_filename, "w") as py_h:
+        nb = json.load(nb_h)
+        if nb["metadata"]["language_info"]["name"] != "python":
+            raise RuntimeError("Expected a Python notebook")
+
+        for cell in nb["cells"]:
+            if cell["cell_type"] == "code":
+                for line in cell["source"]:
+                    py_h.write(line)
+                py_h.write("\n\n")
+
+    reset_manager("memory", {"drop_references": False})
+    run_example(tmp_filename,
+                add_example_path=False, clear_forward_globals=False)
 
 
 ls_parameters_cg = {"ksp_type": "cg",
