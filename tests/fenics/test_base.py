@@ -26,6 +26,7 @@ except ImportError:
         return obj(*args, **kwargs)
 from operator import itemgetter
 import os
+import petsc4py.PETSc as PETSc
 import pytest
 import runpy
 import weakref
@@ -52,6 +53,10 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
+    if MPI.COMM_WORLD.size > 1 and not hasattr(PETSc, "garbage_cleanup"):
+        gc_enabled = gc.isenabled()
+        gc.disable()
+
     parameters["ghost_mode"] = "none"
     parameters["tlm_adjoint"]["Assembly"]["match_quadrature"] = False
     parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] \
@@ -74,6 +79,10 @@ def setup_test():
 
     reset_manager("memory", {"drop_references": False})
     clear_caches()
+
+    if MPI.COMM_WORLD.size > 1 and not hasattr(PETSc, "garbage_cleanup") \
+            and gc_enabled:
+        gc.enable()
 
 
 def seed_test(fn):
@@ -201,12 +210,18 @@ def tmp_path(tmp_path):
     return MPI.COMM_WORLD.bcast(tmp_path, root=0)
 
 
-def run_example(example, clear_forward_globals=True):
+def run_example(example, *,
+                add_example_path=True, clear_forward_globals=True):
+    if add_example_path:
+        filename = os.path.join(os.path.dirname(__file__),
+                                os.path.pardir, os.path.pardir,
+                                "examples", "fenics", example)
+    else:
+        filename = example
+
     start_manager()
-    filename = os.path.join(os.path.dirname(__file__),
-                            os.path.pardir, os.path.pardir,
-                            "examples", "fenics", example)
     gl = runpy.run_path(filename)
+
     if clear_forward_globals:
         # Clear objects created by the script. Requires the script to define a
         # 'forward' function.

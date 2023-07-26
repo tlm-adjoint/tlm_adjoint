@@ -14,7 +14,7 @@ import pytest
 try:
     import mpi4py.MPI as MPI
     pytestmark = pytest.mark.skipif(
-        MPI.COMM_WORLD.size != 1, reason="serial only")
+        MPI.COMM_WORLD.size > 1, reason="serial only")
 except ImportError:
     pass
 
