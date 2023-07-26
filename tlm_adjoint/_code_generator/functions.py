@@ -337,6 +337,13 @@ class Constant(backend_Constant):
         else:
             # For Firedrake
             value = constant_value(value, shape)
+            if space_type not in {"primal", "conjugate",
+                                  "dual", "conjugate_dual"}:
+                raise ValueError("Invalid space type")
+            if cache is None:
+                cache = static
+            if checkpoint is None:
+                checkpoint = not static
             F = super().__new__(cls, value, domain=domain)
             F._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
             F._tlm_adjoint__function_interface_attrs.d_setitem("static", static)  # noqa: E501

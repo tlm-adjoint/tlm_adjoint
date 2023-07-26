@@ -79,3 +79,31 @@ def test_function_alias(setup_test, test_leaks,
         assert dim == 1 or function_is_alias(F_i)
     for F_i in F.subfunctions:
         assert function_is_alias(F_i)
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_default_function_flags(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    # Constant, without domain
+    c = Constant(0.0)
+    assert function_is_static(c) is not None and not function_is_static(c)
+    assert function_is_cached(c) is not None and not function_is_cached(c)
+    assert function_is_checkpointed(c) is not None and function_is_checkpointed(c)  # noqa: E501
+    del c
+
+    # Constant, with domain
+    c = Constant(0.0, domain=mesh)
+    assert function_is_static(c) is not None and not function_is_static(c)
+    assert function_is_cached(c) is not None and not function_is_cached(c)
+    assert function_is_checkpointed(c) is not None and function_is_checkpointed(c)  # noqa: E501
+    del c
+
+    # Function
+    F = Function(space)
+    assert function_is_static(F) is not None and not function_is_static(F)
+    assert function_is_cached(F) is not None and not function_is_cached(F)
+    assert function_is_checkpointed(F) is not None and function_is_checkpointed(F)  # noqa: E501
+    del F
