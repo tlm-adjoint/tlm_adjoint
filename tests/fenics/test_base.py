@@ -26,6 +26,7 @@ except ImportError:
         return obj(*args, **kwargs)
 from operator import itemgetter
 import os
+import petsc4py.PETSc as PETSc
 import pytest
 import runpy
 import weakref
@@ -52,6 +53,10 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
+    if MPI.COMM_WORLD.size > 1 and not hasattr(PETSc, "garbage_cleanup"):
+        gc_enabled = gc.isenabled()
+        gc.disable()
+
     parameters["ghost_mode"] = "none"
     parameters["tlm_adjoint"]["Assembly"]["match_quadrature"] = False
     parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] \
@@ -74,6 +79,10 @@ def setup_test():
 
     reset_manager("memory", {"drop_references": False})
     clear_caches()
+
+    if MPI.COMM_WORLD.size > 1 and not hasattr(PETSc, "garbage_cleanup") \
+            and gc_enabled:
+        gc.enable()
 
 
 def seed_test(fn):
