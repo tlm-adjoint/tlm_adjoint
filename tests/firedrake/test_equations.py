@@ -356,6 +356,85 @@ def test_PointInterpolation(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("ExprAssignment_cls", [ExprAssignment,
+                                                ExprInterpolation])
+@seed_test
+def test_ExprAssignment(setup_test, test_leaks,
+                        ExprAssignment_cls):
+    mesh = UnitIntervalMesh(20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 2)
+
+    def test_expression(c, y, z):
+        return (c ** 3) * y + np.sqrt(5.0) * z
+
+    def forward(c, y, z):
+        x = Function(space, name="x")
+        ExprAssignment_cls(x, test_expression(c, y, z)).solve()
+
+        J = Functional(name="J")
+        J.assign(((x - Constant(1.0)) ** 3) * dx)
+        return x, J
+
+    y = Function(space, name="y")
+    z = Function(space, name="z")
+    if complex_mode:
+        c = Constant(np.sqrt(2.0 + 1.j * np.sqrt(3.0)))
+        interpolate_expression(y,
+                               cos(3.0 * pi * X[0])
+                               + 1.j * sin(5.0 * pi * X[0]))
+        interpolate_expression(z,
+                               cos(7.0 * pi * X[0])
+                               + 1.j * sin(11.0 * pi * X[0]))
+    else:
+        c = Constant(np.sqrt(2.0))
+        interpolate_expression(y,
+                               cos(3.0 * pi * X[0]))
+        interpolate_expression(z,
+                               cos(7.0 * pi * X[0]))
+
+    start_manager()
+    x, J = forward(c, y, z)
+    stop_manager()
+
+    error_norm = abs(function_get_values(x)
+                     - test_expression(function_scalar_value(c),
+                                       function_get_values(y),
+                                       function_get_values(z))).max()
+    info(f"Error norm = {error_norm:.16e}")
+    assert error_norm < 1.0e-14
+
+    J_val = J.value()
+
+    dJ_c, dJ_y = compute_gradient(J, (c, y))
+
+    def forward_J_c(c):
+        _, J = forward(c, y, z)
+        return J
+
+    def forward_J_y(y):
+        _, J = forward(c, y, z)
+        return J
+
+    for m, dJ, forward_J in [(c, dJ_c, forward_J_c), (y, dJ_y, forward_J_y)]:
+        min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
+        assert min_order > 1.98
+
+        ddJ = Hessian(forward_J)
+        min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ)
+        assert min_order > 2.99
+
+        min_order = taylor_test_tlm(forward_J, m, tlm_order=1)
+        assert min_order > 1.99
+
+        min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1)
+        assert min_order > 1.99
+
+        min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
+        assert min_order > 1.99
+
+
+@pytest.mark.firedrake
 @seed_test
 def test_ExprInterpolation(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
@@ -376,7 +455,7 @@ def test_ExprInterpolation(setup_test, test_leaks):
         J.assign(x * x * x * dx)
         return x, J
 
-    y = Function(space, name="y", static=True)
+    y = Function(space, name="y")
     interpolate_expression(y, cos(3.0 * pi * X[0]))
     start_manager()
     x, J = forward(y)
@@ -393,7 +472,8 @@ def test_ExprInterpolation(setup_test, test_leaks):
     dJ = compute_gradient(J, y)
 
     def forward_J(y):
-        return forward(y)[1]
+        _, J = forward(y)
+        return J
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
     assert min_order > 2.00

@@ -450,7 +450,7 @@ def test_ExprInterpolation(setup_test, test_leaks):
         J.assign(x * x * x * dx)
         return x, J
 
-    y = Function(space, name="y", static=True)
+    y = Function(space, name="y")
     interpolate_expression(y, cos(3.0 * pi * X[0]))
     start_manager()
     x, J = forward(y)
@@ -467,7 +467,8 @@ def test_ExprInterpolation(setup_test, test_leaks):
     dJ = compute_gradient(J, y)
 
     def forward_J(y):
-        return forward(y)[1]
+        _, J = forward(y)
+        return J
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
     assert min_order > 2.00

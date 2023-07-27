@@ -1049,9 +1049,6 @@ class ExprInterpolation(ExprEquation):
     """
 
     def __init__(self, x, rhs):
-        if isinstance(rhs, ufl.classes.Form):
-            raise TypeError("rhs should not be a Form")
-
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
             raise ValueError("Invalid non-linear dependency")
