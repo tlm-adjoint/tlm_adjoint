@@ -18,7 +18,7 @@ from ..override import (
     override_property)
 
 from .equations import (
-    Assembly, EquationSolver, ExprEvaluation, Projection, expr_new_x,
+    Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import Constant, define_function_alias
 from .firedrake_equations import LocalProjection
@@ -124,7 +124,7 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
         else:
             eq = None
     elif isinstance(value, ufl.classes.Expr):
-        eq = ExprEvaluation(
+        eq = ExprInterpolation(
             self, expr_new_x(value, self, annotate=annotate, tlm=tlm))
     else:
         raise TypeError(f"Unexpected type: {type(value)}")
@@ -155,7 +155,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
         else:
             eq = None
     elif isinstance(expr, ufl.classes.Expr):
-        eq = ExprEvaluation(
+        eq = ExprInterpolation(
             self, expr_new_x(expr, self, annotate=annotate, tlm=tlm))
     else:
         raise TypeError(f"Unexpected type: {type(expr)}")
@@ -361,7 +361,7 @@ def Interpolator_interpolate(
     if len(args) != len(function):
         raise TypeError("Unexpected number of functions")
     expr = ufl.replace(self.expr, dict(zip(args, function)))
-    eq = ExprEvaluation(return_value, expr)
+    eq = ExprInterpolation(return_value, expr)
 
     assert len(eq.initial_condition_dependencies()) == 0
     eq._post_process(annotate=annotate, tlm=tlm)

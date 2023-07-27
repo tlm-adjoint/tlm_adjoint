@@ -19,7 +19,7 @@ from ..override import (
     add_manager_controls, manager_method, override_function, override_method)
 
 from .equations import (
-    EquationSolver, ExprEvaluation, Projection, expr_new_x,
+    EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import Constant, define_function_alias
 
@@ -349,8 +349,8 @@ def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
         else:
             eq = None
     elif isinstance(x, ufl.classes.Expr):
-        eq = ExprEvaluation(self, expr_new_x(x, self,
-                                             annotate=annotate, tlm=tlm))
+        eq = ExprInterpolation(self, expr_new_x(x, self,
+                                                annotate=annotate, tlm=tlm))
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -382,15 +382,15 @@ def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
             function_assign(self, value)
 
             if annotate or tlm:
-                eq = ExprEvaluation(self, rhs)
+                eq = ExprInterpolation(self, rhs)
                 assert len(eq.initial_condition_dependencies()) == 0
                 eq._post_process(annotate=annotate, tlm=tlm)
     else:
         orig_args()
 
         if annotate or tlm:
-            eq = ExprEvaluation(self, expr_new_x(rhs, self,
-                                                 annotate=annotate, tlm=tlm))
+            eq = ExprInterpolation(self, expr_new_x(rhs, self,
+                                                    annotate=annotate, tlm=tlm))  # noqa: E501
             assert len(eq.initial_condition_dependencies()) == 0
             eq._post_process(annotate=annotate, tlm=tlm)
 
