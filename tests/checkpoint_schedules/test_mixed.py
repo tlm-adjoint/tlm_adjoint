@@ -117,7 +117,7 @@ def test_MixedCheckpointSchedule(n, S):
             assert cp_action.n < n - model_r - 1
             # The loaded data is deleted iff non-linear dependency data for all
             # remaining steps can be checkpoint and stored
-            assert cp_action.delete is (cp_action.n >= n - model_r - 1
+            assert cp_action.delete == (cp_action.n >= n - model_r - 1
                                         - (s - len(snapshots) + 1))
 
             ics.clear()

@@ -115,7 +115,7 @@ def test_MultistageCheckpointSchedule(trajectory,
         assert cp_action.n < n - model_r
         # The loaded data is deleted iff it is exactly one step away from the
         # current location of the adjoint
-        assert cp_action.delete is (cp_action.n == n - model_r - 1)
+        assert cp_action.delete == (cp_action.n == n - model_r - 1)
 
         ics.clear()
         ics.update(cp[0])
