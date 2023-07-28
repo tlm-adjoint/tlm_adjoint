@@ -8,6 +8,7 @@ tlm_adjoint requires:
 
   - `NumPy <https://numpy.org/>`_
   - `SymPy <https://www.sympy.org>`_
+  - `checkpoint_schedules <https://www.firedrakeproject.org/checkpoint_schedules/>`_
 
 Backend dependencies
 --------------------

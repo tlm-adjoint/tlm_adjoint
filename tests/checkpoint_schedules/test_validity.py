@@ -12,10 +12,6 @@ import functools
 import pytest
 
 try:
-    import hrevolve
-except ImportError:
-    hrevolve = None
-try:
     import mpi4py.MPI as MPI
 except ImportError:
     MPI = None
@@ -72,10 +68,7 @@ def mixed(n, s):
      (two_level, {"period": 2}),
      (two_level, {"period": 7}),
      (two_level, {"period": 10}),
-     pytest.param(
-         h_revolve, {},
-         marks=pytest.mark.skipif(hrevolve is None,
-                                  reason="H-Revolve not available")),
+     (h_revolve, {}),
      (mixed, {})])
 @pytest.mark.parametrize("n, S", [(1, (0,)),
                                   (2, (1,)),
