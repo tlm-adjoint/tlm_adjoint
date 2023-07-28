@@ -217,7 +217,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
         z.assign(0.0)
 
         eqs = [LinearCombination(z, (1.0, x), (1.0, b)),
-               ExprEvaluation(x, a / sqrt(z))]
+               ExprInterpolation(x, a / sqrt(z))]
 
         fp_parameters = {"absolute_tolerance": 0.0,
                          "relative_tolerance": 1.0e-14}
@@ -376,7 +376,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
         J = Functional(name="J")
         for x in X_vals:
             term = Constant()
-            ExprEvaluation(term, x ** 3).solve()
+            ExprInterpolation(term, x ** 3).solve()
             J.addto(term)
         return X_vals, J
 
@@ -431,7 +431,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
 
 @pytest.mark.fenics
 @seed_test
-def test_ExprEvaluation(setup_test, test_leaks):
+def test_ExprInterpolation(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -444,13 +444,13 @@ def test_ExprEvaluation(setup_test, test_leaks):
         x = Function(space, name="x")
         y_int = Constant(name="y_int")
         Assembly(y_int, y * dx).solve()
-        ExprEvaluation(x, test_expression(y, y_int)).solve()
+        ExprInterpolation(x, test_expression(y, y_int)).solve()
 
         J = Functional(name="J")
         J.assign(x * x * x * dx)
         return x, J
 
-    y = Function(space, name="y", static=True)
+    y = Function(space, name="y")
     interpolate_expression(y, cos(3.0 * pi * X[0]))
     start_manager()
     x, J = forward(y)
@@ -467,7 +467,8 @@ def test_ExprEvaluation(setup_test, test_leaks):
     dJ = compute_gradient(J, y)
 
     def forward_J(y):
-        return forward(y)[1]
+        _, J = forward(y)
+        return J
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
     assert min_order > 2.00
@@ -1057,7 +1058,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
 
         Assignment(X[0], m).solve()
         LinearCombination(X[1], (1.0, X[0])).solve()
-        ExprEvaluation(X[2], m + X[1]).solve()
+        ExprInterpolation(X[2], m + X[1]).solve()
         Projection(X[3], m + X[2],
                    solver_parameters=ls_parameters_cg).solve()
 

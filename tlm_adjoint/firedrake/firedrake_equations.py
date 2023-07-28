@@ -7,11 +7,13 @@ backend.
 
 from .backend import (
     FunctionSpace, Interpolator, Tensor, TestFunction, TrialFunction,
-    VertexOnlyMesh, backend_Function, backend_assemble)
+    VertexOnlyMesh, backend_Constant, backend_Function, backend_assemble)
 from ..interface import (
-    check_space_type, function_assign, function_comm, function_is_scalar,
-    function_new_conjugate_dual, function_scalar_value, function_space,
-    is_function, space_new, weakref_method)
+    check_space_type, function_assign, function_comm, function_dtype,
+    function_get_values, function_id, function_inner, function_is_scalar,
+    function_new_conjugate_dual, function_replacement, function_scalar_value,
+    function_set_values, function_space, function_zero, is_function, space_new,
+    weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -20,11 +22,13 @@ from ..tangent_linear import get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
-    EquationSolver, bind_form, derivative, unbind_form, unbound_form)
-from .functions import eliminate_zeros
+    EquationSolver, ExprEquation, bind_form, derivative, extract_dependencies,
+    unbind_form, unbound_form)
+from .functions import diff, eliminate_zeros
 
 import itertools
 import numpy as np
+import pyop2
 import ufl
 import warnings
 
@@ -34,6 +38,7 @@ __all__ = \
         "local_solver_cache",
         "set_local_solver_cache",
 
+        "ExprAssignment",
         "LocalProjection",
         "PointInterpolation",
 
@@ -394,3 +399,101 @@ class PointInterpolationSolver(PointInterpolation):
                       "use PointInterpolation instead",
                       DeprecationWarning, stacklevel=2)
         super().__init__(X, y, X_coords)
+
+
+class ExprAssignment(ExprEquation):
+    r"""Represents an evaluation of `rhs`, storing the result in `x`. Uses
+    `Function.assign` to perform the evaluation.
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    :arg x: A Firedrake :class:`Function` defining the forward solution.
+    :arg rhs: A UFL :class:`Expr` defining the expression to evaluate. Should
+        not depend on `x`.
+    :arg subset: A PyOP2 :class:`Subset`. If provided then defines a subset of
+        degrees of freedom at which to evaluate `rhs`. Other degrees of freedom
+        are set to zero.
+    """
+
+    def __init__(self, x, rhs, *,
+                 subset=None):
+        deps, nl_deps = extract_dependencies(rhs)
+        if function_id(x) in deps:
+            raise ValueError("Invalid non-linear dependency")
+        deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
+        deps.insert(0, x)
+
+        if subset is not None:
+            subset = pyop2.Subset(subset.superset, subset.indices)
+
+        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
+        self._rhs = rhs
+        self._subset = subset
+
+    def drop_references(self):
+        replace_map = {dep: function_replacement(dep)
+                       for dep in self.dependencies()}
+
+        super().drop_references()
+
+        self._rhs = ufl.replace(self._rhs, replace_map)
+
+    def forward_solve(self, x, deps=None):
+        rhs = self._rhs
+        if deps is not None:
+            rhs = self._replace(rhs, deps)
+        if self._subset is not None:
+            function_zero(x)
+        x.assign(rhs, subset=self._subset)
+
+    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+        eq_deps = self.dependencies()
+        if dep_index < 0 or dep_index >= len(eq_deps):
+            raise IndexError("dep_index out of bounds")
+        elif dep_index == 0:
+            return adj_x
+
+        dep = eq_deps[dep_index]
+        dF = diff(self._rhs, dep)
+        dF = ufl.algorithms.expand_derivatives(dF)
+        dF = eliminate_zeros(dF)
+        dF = self._nonlinear_replace(dF, nl_deps)
+
+        F = function_new_conjugate_dual(dep)
+        if isinstance(F, backend_Constant):
+            dF = function_new_conjugate_dual(adj_x).assign(dF,
+                                                           subset=self._subset)
+            F.assign(function_inner(adj_x, dF))
+        elif isinstance(F, backend_Function):
+            dF = function_dtype(F)(dF).conjugate()
+            F.assign(adj_x, subset=self._subset)
+            # Work around Firedrake issue #3047
+            function_set_values(F, dF * function_get_values(F))
+        else:
+            raise TypeError(f"Unexpected type: {type(F)}")
+        return (-1.0, F)
+
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        return b
+
+    def tangent_linear(self, M, dM, tlm_map):
+        x = self.x()
+
+        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
+        for dep in self.dependencies():
+            if dep != x:
+                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                if tau_dep is not None:
+                    # Cannot use += as Firedrake might add to the *values* for
+                    # tlm_rhs
+                    tlm_rhs = (tlm_rhs
+                               + derivative(self._rhs, dep, argument=tau_dep))
+
+        if isinstance(tlm_rhs, ufl.classes.Zero):
+            return ZeroAssignment(tlm_map[x])
+        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
+        if isinstance(tlm_rhs, ufl.classes.Zero):
+            return ZeroAssignment(tlm_map[x])
+        else:
+            return ExprAssignment(tlm_map[x], tlm_rhs, subset=self._subset)

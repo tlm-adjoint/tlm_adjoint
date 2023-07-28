@@ -42,13 +42,14 @@ __all__ = \
         "Assembly",
         "DirichletBCApplication",
         "EquationSolver",
-        "ExprEvaluation",
+        "ExprInterpolation",
         "Projection",
         "expr_new_x",
         "linear_equation_new_x",
 
         "AssembleSolver",
         "DirichletBCSolver",
+        "ExprEvaluation",
         "ExprEvaluationSolver",
         "ProjectionSolver"
     ]
@@ -1036,7 +1037,7 @@ class DirichletBCSolver(DirichletBCApplication):
         super().__init__(x, y, *args, **kwargs)
 
 
-class ExprEvaluation(ExprEquation):
+class ExprInterpolation(ExprEquation):
     r"""Represents interpolation of `rhs` onto the space for `x`.
 
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
@@ -1048,9 +1049,6 @@ class ExprEvaluation(ExprEquation):
     """
 
     def __init__(self, x, rhs):
-        if isinstance(rhs, ufl.classes.Form):
-            raise TypeError("rhs should not be a Form")
-
         deps, nl_deps = extract_dependencies(rhs)
         if function_id(x) in deps:
             raise ValueError("Invalid non-linear dependency")
@@ -1113,14 +1111,24 @@ class ExprEvaluation(ExprEquation):
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])
         else:
-            return ExprEvaluation(tlm_map[x], tlm_rhs)
+            return ExprInterpolation(tlm_map[x], tlm_rhs)
 
 
-class ExprEvaluationSolver(ExprEvaluation):
+class ExprEvaluation(ExprInterpolation):
+    ""
+
+    def __init__(self, x, rhs):
+        warnings.warn("ExprEvaluation is deprecated -- "
+                      "use ExprInterpolation instead",
+                      DeprecationWarning, stacklevel=2)
+        super().__init__(x, rhs)
+
+
+class ExprEvaluationSolver(ExprInterpolation):
     ""
 
     def __init__(self, rhs, x):
         warnings.warn("ExprEvaluationSolver is deprecated -- "
-                      "use ExprEvaluation instead",
+                      "use ExprInterpolation instead",
                       DeprecationWarning, stacklevel=2)
         super().__init__(x, rhs)
