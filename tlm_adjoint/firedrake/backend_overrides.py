@@ -8,7 +8,7 @@ from .backend import (
     backend_interpolate, backend_project, backend_solve, parameters)
 from ..interface import (
     function_comm, function_new, function_space, function_update_state,
-    is_function, space_id, space_new)
+    is_function, no_space_type_checking, space_id, space_new)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
@@ -394,6 +394,12 @@ def Interpolator_interpolate(
     assert len(eq.initial_condition_dependencies()) == 0
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
+
+
+@override_method(backend_DirichletBC, "apply")
+@no_space_type_checking
+def DirichletBC_apply(self, orig, orig_args, *args, **kwargs):
+    return orig_args()
 
 
 @add_manager_controls
