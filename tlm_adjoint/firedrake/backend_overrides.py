@@ -12,6 +12,7 @@ from ..interface import (
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
+from ..equation import ZeroAssignment
 from ..equations import Assignment
 from ..override import (
     add_manager_controls, manager_method, override_function, override_method,
@@ -21,7 +22,7 @@ from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import Constant, define_function_alias
-from .firedrake_equations import LocalProjection
+from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numpy as np
 import ufl
@@ -141,31 +142,58 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
                 post_call=function_update_state_post_call)
 def Function_assign(self, orig, orig_args, expr, subset=None, *,
                     annotate, tlm):
-    if subset is not None:
-        raise NotImplementedError("subset not supported")
-
     if isinstance(expr, (int, np.integer,
                          float, np.floating,
                          complex, np.complexfloating)):
-        eq = Assignment(self, Constant(expr, comm=function_comm(self)))
-    elif isinstance(expr, backend_Function) \
-            and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
-        if expr is not self:
-            eq = Assignment(self, expr)
+        expr = Constant(expr, comm=function_comm(self))
+
+    def assign(x, y, *,
+               subset=None):
+        if x is None:
+            x = function_new(y)
+        if isinstance(y, ufl.classes.Zero):
+            ZeroAssignment(x).solve(annotate=annotate, tlm=tlm)
+        elif subset is None \
+                and isinstance(y, backend_Function) \
+                and space_id(function_space(y)) == space_id(function_space(x)):
+            Assignment(x, y).solve(annotate=annotate, tlm=tlm)
         else:
-            eq = None
-    elif isinstance(expr, ufl.classes.Expr):
-        eq = ExprInterpolation(
-            self, expr_new_x(expr, self, annotate=annotate, tlm=tlm))
+            ExprAssignment(x, y, subset=subset).solve(annotate=annotate, tlm=tlm)  # noqa: E501
+        return x
+
+    if subset is None:
+        if isinstance(expr, backend_Function) \
+                and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
+            if expr is not self:
+                eq = Assignment(self, expr)
+            else:
+                eq = None
+        elif isinstance(expr, ufl.classes.Expr):
+            expr = expr_new_x(expr, self, annotate=annotate, tlm=tlm)
+            eq = ExprAssignment(self, expr)
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
     else:
-        raise TypeError(f"Unexpected type: {type(expr)}")
+        if isinstance(expr, ufl.classes.Expr):
+            x_0 = assign(None, self)
+            expr = ufl.replace(expr, {self: x_0})
+            x_1 = assign(None, self, subset=subset)
+            assign(self, ufl.classes.Zero(shape=self.ufl_shape))
+            eq = ExprAssignment(self, expr, subset=subset)
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
 
     if eq is not None:
         assert len(eq.initial_condition_dependencies()) == 0
-    return_value = orig_args()
+    orig(self, expr, subset=subset)
     if eq is not None:
         eq._post_process(annotate=annotate, tlm=tlm)
-    return return_value
+
+    if subset is not None:
+        x_2 = assign(None, self)
+        assign(self, x_0 - x_1 + x_2)
+
+    return self
 
 
 @manager_method(backend_Function, "project",

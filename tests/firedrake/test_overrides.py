@@ -401,3 +401,66 @@ def test_assemble_ZeroFunction(setup_test, test_leaks,
     for _ in range(3):
         b = assemble(form)
         assert abs(b - b_ref) < 1.0e-15
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_DirichletBC_apply(setup_test, test_leaks, tmp_path):
+    configure_checkpointing("periodic_disk", {"period": 1})
+
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 2)
+
+    def forward(y):
+        x = Function(space, name="x")
+        x.assign(2 * y)
+        DirichletBC(space, y, "on_boundary").apply(x)
+
+        y_bc = Function(space, name="y_bc")
+        DirichletBC(space, y, "on_boundary").apply(y_bc)
+
+        assert np.sqrt(abs(assemble(inner(x + y_bc - 2 * y,
+                                          x + y_bc - 2 * y) * dx))) < 1.0e-15
+        assert np.sqrt(abs(assemble(inner(x - y, x - y) * ds))) < 1.0e-15
+        assert np.sqrt(abs(assemble(inner(y_bc - y, y_bc - y) * ds))) < 1.0e-15
+
+        J = Functional(name="J")
+        J.assign(((x - Constant(1.0)) ** 3) * ds
+                 + ((x + y_bc) ** 3) * dx)
+        return J
+
+    y = Function(space, name="y")
+    if complex_mode:
+        interpolate_expression(
+            y,
+            cos(pi * X[0]) * cos(2.0 * pi * X[1])
+            + 1.j * cos(3.0 * pi * X[0]) * cos(4.0 * pi * X[1]))
+    else:
+        interpolate_expression(
+            y,
+            cos(pi * X[0]) * cos(2.0 * pi * X[1]))
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, y)
+
+    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, y, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2)
+    assert min_order > 1.99
