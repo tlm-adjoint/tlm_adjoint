@@ -792,10 +792,8 @@ def test_initial_guess(setup_test, test_leaks,
     x_0, _, adj_x_0, J = forward(y)
     stop_manager()
 
-    assert len(manager()._cp._refs) == 3
-    assert tuple(manager()._cp._refs.keys()) == (var_id(y),
-                                                 var_id(zero),
-                                                 var_id(adj_x_0))
+    assert len(manager()._cp._refs) == 1
+    assert tuple(manager()._cp._refs.keys()) == (var_id(adj_x_0),)
     assert len(manager()._cp._cp) == 0
     if test_adj_ic:
         assert len(manager()._cp._data) == 8
@@ -805,7 +803,7 @@ def test_initial_guess(setup_test, test_leaks,
         assert len(manager()._cp._data) == 9
         assert tuple(map(len, manager()._cp._data.values())) \
             == (0, 0, 0, 1, 0, 0, 2, 0, 0)
-    assert len(manager()._cp._storage) == 5
+    assert len(manager()._cp._storage) == 3
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
     assert var_linf_norm(dJdx_0) == 0.0
