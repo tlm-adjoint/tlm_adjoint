@@ -307,8 +307,12 @@ class FunctionInterface(_FunctionInterface):
 @override_method(backend_Function, "__init__")
 def Function__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
+    comm = self.comm
+    if pyop2.mpi.is_pyop2_comm(comm):
+        # Work around Firedrake issue #3043
+        comm = self.function_space().comm
     add_interface(self, FunctionInterface,
-                  {"comm": comm_dup_cached(self.comm), "id": new_function_id(),
+                  {"comm": comm_dup_cached(comm), "id": new_function_id(),
                    "state": 0, "space_type": "primal", "static": False,
                    "cache": False, "checkpoint": True})
 
