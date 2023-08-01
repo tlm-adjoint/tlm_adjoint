@@ -9,14 +9,13 @@ from tlm_adjoint.firedrake.backend_code_generator_interface import \
 from .test_base import *
 
 import firedrake
-import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pytest
 import ufl
 
 pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
+    DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
 
 
@@ -271,11 +270,11 @@ def test_FixedPointSolver(setup_test, test_leaks):
     "overlap_type", [(firedrake.DistributedMeshOverlapType.NONE, 0),
                      pytest.param(
                          (firedrake.DistributedMeshOverlapType.FACET, 1),
-                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                         marks=pytest.mark.skipif(DEFAULT_COMM.size == 1,
                                                   reason="parallel only")),
                      pytest.param(
                          (firedrake.DistributedMeshOverlapType.VERTEX, 1),
-                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                         marks=pytest.mark.skipif(DEFAULT_COMM.size == 1,
                                                   reason="parallel only"))])
 @pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
                                            (5, 5, 5)])

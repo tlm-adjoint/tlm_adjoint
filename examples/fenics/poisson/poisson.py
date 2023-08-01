@@ -4,7 +4,6 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 
-import mpi4py.MPI as MPI
 import numpy as np
 # import petsc4py.PETSc as PETSc
 
@@ -16,7 +15,7 @@ stop_manager()
 
 # Seed the random number generator, to ensure reproducibility of the later
 # Taylor verification
-np.random.seed(82844243 + MPI.COMM_WORLD.rank)
+np.random.seed(82844243 + DEFAULT_COMM.rank)
 
 # Configure a simple discrete function space
 mesh = UnitSquareMesh(20, 20)

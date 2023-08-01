@@ -9,13 +9,12 @@ from tlm_adjoint.fenics.caches import split_form
 
 from .test_base import *
 
-import mpi4py.MPI as MPI
 import numpy as np
 import pytest
 import ufl
 
 pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
+    DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
 
 

@@ -9,7 +9,7 @@ import pytest
 import ufl
 
 pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
+    MPI.COMM_WORLD.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
 
 from tlm_adjoint.fenics.block_system import (  # noqa: E402

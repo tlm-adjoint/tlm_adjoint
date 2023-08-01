@@ -6,7 +6,6 @@ from tlm_adjoint.fenics import *
 
 from .test_base import *
 
-import mpi4py.MPI as MPI
 import numpy as np
 import pytest
 
@@ -16,7 +15,7 @@ except ImportError:
     hrevolve = None
 
 pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
+    DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
 
 
@@ -28,7 +27,7 @@ def oscillator_ref():
     dt = Constant(0.01)
     T_0 = Constant((1.0, 0.0))
 
-    mesh = UnitIntervalMesh(MPI.COMM_WORLD.size)
+    mesh = UnitIntervalMesh(DEFAULT_COMM.size)
     space = FunctionSpace(mesh, "R", 0)
     space = FunctionSpace(mesh, space.ufl_element() * space.ufl_element())
     test = TestFunction(space)

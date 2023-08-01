@@ -15,7 +15,6 @@ from ..test_base import run_example as _run_example
 
 import gc
 import logging
-import mpi4py.MPI as MPI
 try:
     from operator import call
 except ImportError:
@@ -50,7 +49,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    if MPI.COMM_WORLD.size > 1 and not hasattr(PETSc, "garbage_cleanup"):
+    if DEFAULT_COMM.size > 1 and not hasattr(PETSc, "garbage_cleanup"):
         gc_enabled = gc.isenabled()
         gc.disable()
 
@@ -77,7 +76,7 @@ def setup_test():
     reset_manager("memory", {"drop_references": False})
     clear_caches()
 
-    if MPI.COMM_WORLD.size > 1 and not hasattr(PETSc, "garbage_cleanup") \
+    if DEFAULT_COMM.size > 1 and not hasattr(PETSc, "garbage_cleanup") \
             and gc_enabled:
         gc.enable()
 
@@ -102,10 +101,10 @@ def test_configurations(request):
 @pytest.fixture(
     params=["none",
             pytest.param("shared_facets",
-                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                         marks=pytest.mark.skipif(DEFAULT_COMM.size == 1,
                                                   reason="parallel only")),
             pytest.param("shared_vertices",
-                         marks=pytest.mark.skipif(MPI.COMM_WORLD.size == 1,
+                         marks=pytest.mark.skipif(DEFAULT_COMM.size == 1,
                                                   reason="parallel only"))])
 def test_ghost_modes(request):
     parameters["ghost_mode"] = request.param
