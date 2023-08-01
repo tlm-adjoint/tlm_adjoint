@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from ..test_base import *
-
 from tlm_adjoint.numpy import *
 from tlm_adjoint.numpy import manager as _manager
 from tlm_adjoint.alias import gc_disabled
 from tlm_adjoint.override import override_method
 
-import functools
+from ..test_base import chdir_tmp_path, seed_test, tmp_path
+from ..test_base import run_example as _run_example
+
 import gc
-import hashlib
-import inspect
 import logging
 import numpy as np
 try:
@@ -20,10 +18,8 @@ except ImportError:
     # For Python < 3.11, following Python 3.11 API
     def call(obj, /, *args, **kwargs):
         return obj(*args, **kwargs)
-from operator import itemgetter
 import os
 import pytest
-import runpy
 import weakref
 
 __all__ = \
@@ -36,7 +32,8 @@ __all__ = \
         "seed_test",
         "setup_test",
         "test_default_dtypes",
-        "test_leaks"
+        "test_leaks",
+        "tmp_path"
     ]
 
 
@@ -54,26 +51,6 @@ def setup_test():
 
     reset_manager("memory", {"drop_references": False})
     clear_caches()
-
-
-def seed_test(fn):
-    @functools.wraps(fn)
-    def wrapped_fn(*args, **kwargs):
-        h_kwargs = dict(kwargs)
-        if "tmp_path" in inspect.signature(fn).parameters:
-            # Raises an error if tmp_path is a positional argument
-            del h_kwargs["tmp_path"]
-
-        h = hashlib.sha256()
-        h.update(fn.__name__.encode("utf-8"))
-        h.update(str(args).encode("utf-8"))
-        h.update(str(sorted(h_kwargs.items(), key=itemgetter(0))).encode("utf-8"))  # noqa: E501
-        seed = int(h.hexdigest(), 16)
-        seed %= 2 ** 32
-        np.random.seed(seed)
-
-        return fn(*args, **kwargs)
-    return wrapped_fn
 
 
 @pytest.fixture(params=[{"default_dtype": np.float64},
@@ -133,16 +110,6 @@ def test_leaks():
     manager.reset("memory", {"drop_references": False})
 
 
-@pytest.fixture
-def chdir_tmp_path(tmp_path):
-    cwd = os.getcwd()
-    os.chdir(tmp_path)
-
-    yield
-
-    os.chdir(cwd)
-
-
 def run_example(example, *,
                 add_example_path=True, clear_forward_globals=True):
     if add_example_path:
@@ -151,14 +118,7 @@ def run_example(example, *,
                                 "examples", "numpy", example)
     else:
         filename = example
-
-    start_manager()
-    gl = runpy.run_path(filename)
-
-    if clear_forward_globals:
-        # Clear objects created by the script. Requires the script to define a
-        # 'forward' function.
-        gl["forward"].__globals__.clear()
+    _run_example(filename, clear_forward_globals=clear_forward_globals)
 
 
 def info(message):
