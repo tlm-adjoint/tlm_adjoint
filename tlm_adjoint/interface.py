@@ -280,8 +280,13 @@ def register_garbage_cleanup(fn):
     _garbage_cleanup.append(fn)
 
 
-if PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
-    register_garbage_cleanup(PETSc.garbage_cleanup)
+if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
+    def garbage_cleanup_base(comm):
+        if not MPI.Is_finalized() and not PETSc.Sys.isFinalized() \
+                and comm.py2f() != MPI.COMM_NULL.py2f():
+            PETSc.garbage_cleanup(comm)
+
+    register_garbage_cleanup(garbage_cleanup_base)
 
 
 def garbage_cleanup(comm):
@@ -294,13 +299,11 @@ def garbage_cleanup(comm):
 
     for dup_comms in _dupped_comms.values():
         for dup_comm in dup_comms.values():
-            if MPI is not None and not MPI.Is_finalized() and dup_comm.py2f() != MPI.COMM_NULL.py2f():  # noqa: E501
-                for fn in _garbage_cleanup:
-                    fn(dup_comm)
-    while True:
-        if MPI is not None and not MPI.Is_finalized() and comm.py2f() != MPI.COMM_NULL.py2f():  # noqa: E501
             for fn in _garbage_cleanup:
-                fn(comm)
+                fn(dup_comm)
+    while True:
+        for fn in _garbage_cleanup:
+            fn(comm)
         parent_comm = comm_parent(comm)
         if parent_comm.py2f() == comm.py2f():
             break
