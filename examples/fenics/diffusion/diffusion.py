@@ -5,13 +5,12 @@ from fenics import *
 from tlm_adjoint.fenics import *
 
 # import h5py
-import mpi4py.MPI as MPI
 import numpy as np
 # import petsc4py.PETSc as PETSc
 
 stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
-np.random.seed(87838678 + MPI.COMM_WORLD.rank)
+np.random.seed(87838678 + DEFAULT_COMM.rank)
 
 mesh = UnitSquareMesh(50, 50)
 space = FunctionSpace(mesh, "Lagrange", 1)

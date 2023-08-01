@@ -8,12 +8,8 @@ from .test_base import *
 import numpy as np
 import pytest
 
-try:
-    import mpi4py.MPI as MPI
-    pytestmark = pytest.mark.skipif(
-        MPI.COMM_WORLD.size > 1, reason="serial only")
-except ImportError:
-    pass
+pytestmark = pytest.mark.skipif(
+    DEFAULT_COMM.size > 1, reason="serial only")
 
 
 @pytest.mark.numpy

@@ -8,14 +8,13 @@ from tlm_adjoint.fenics.backend_code_generator_interface import \
 
 from .test_base import *
 
-import mpi4py.MPI as MPI
 import numpy as np
 import os
 import pytest
 import ufl
 
 pytestmark = pytest.mark.skipif(
-    MPI.COMM_WORLD.size not in [1, 4],
+    DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
 
 
@@ -274,7 +273,7 @@ def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
-    if MPI.COMM_WORLD.size > 1:
+    if DEFAULT_COMM.size > 1:
         y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
     x_space = FunctionSpace(mesh, "Lagrange", 2)
 
@@ -282,7 +281,7 @@ def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
     P = [None]
 
     def forward(z):
-        if MPI.COMM_WORLD.size > 1:
+        if DEFAULT_COMM.size > 1:
             y = Function(y_space, name="y")
             LocalProjection(y, z).solve()
         else:
@@ -350,7 +349,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
     mesh = UnitCubeMesh(N_x, N_y, N_z)
     X = SpatialCoordinate(mesh)
     z_space = FunctionSpace(mesh, "Lagrange", 3)
-    if MPI.COMM_WORLD.size > 1:
+    if DEFAULT_COMM.size > 1:
         y_space = FunctionSpace(mesh, "Discontinuous Lagrange", 3)
     X_coords = np.array([[0.1, 0.1, 0.1],
                          [0.2, 0.3, 0.4],
@@ -361,7 +360,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
     P = [None]
 
     def forward(z):
-        if MPI.COMM_WORLD.size > 1:
+        if DEFAULT_COMM.size > 1:
             y = Function(y_space, name="y")
             LocalProjection(y, z).solve()
         else:
