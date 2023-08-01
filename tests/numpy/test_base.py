@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from ..test_base import *
+
 from tlm_adjoint.numpy import *
 from tlm_adjoint.numpy import manager as _manager
 from tlm_adjoint.alias import gc_disabled

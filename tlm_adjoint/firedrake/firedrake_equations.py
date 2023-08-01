@@ -12,8 +12,8 @@ from ..interface import (
     check_space_type, function_assign, function_comm, function_dtype,
     function_get_values, function_id, function_inner, function_is_scalar,
     function_new_conjugate_dual, function_replacement, function_scalar_value,
-    function_set_values, function_space, function_zero, is_function, space_new,
-    weakref_method)
+    function_set_values, function_space, function_space_type, function_zero,
+    is_function, space_new, weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -418,7 +418,8 @@ class ExprAssignment(ExprEquation):
 
     def __init__(self, x, rhs, *,
                  subset=None):
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(
+            rhs, space_type=function_space_type(x))
         if function_id(x) in deps:
             raise ValueError("Invalid non-linear dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())

@@ -22,8 +22,3 @@ from .verification import *        # noqa: F401
 
 from .hessian import GeneralGaussNewton as GaussNewton  # noqa: F401
 from .hessian import GeneralHessian as Hessian          # noqa: F401
-
-del adjoint, alias, cached_hessian, caches, checkpointing, \
-    eigendecomposition, equation, equations, fixed_point, functional, \
-    hessian, interface, linear_equation, markers, optimization, \
-    overloaded_float, storage, tangent_linear, tlm_adjoint, verification  # noqa: E501,F821

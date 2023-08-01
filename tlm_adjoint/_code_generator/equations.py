@@ -61,7 +61,8 @@ def derivative_dependencies(expr, dep):
     return extract_coefficients(dexpr)
 
 
-def extract_dependencies(expr):
+def extract_dependencies(expr, *,
+                         space_type="primal"):
     deps = {}
     nl_deps = {}
     for dep in extract_coefficients(expr):
@@ -79,7 +80,7 @@ def extract_dependencies(expr):
 
     assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
     for dep in deps.values():
-        check_space_type(dep, "primal")
+        check_space_type(dep, space_type)
 
     return deps, nl_deps
 
