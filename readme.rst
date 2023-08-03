@@ -35,7 +35,7 @@ About
         :alt: Pypi version
         
 :Citation:
-	.. image:: https://img.shields.io/badge/Citation-SIAM%20paper-orange
+    .. image:: https://img.shields.io/badge/Citation-SIAM%20paper-orange
 		:target: https://doi.org/10.1137/18M1209465
 		
     .. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.7695475.svg
