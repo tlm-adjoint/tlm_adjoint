@@ -37,7 +37,7 @@ About
 :Citation:
 	.. image:: https://img.shields.io/badge/Citation-SIAM%20paper-orange
 		:target: https://doi.org/10.1137/18M1209465
-        :alt: SIAM Paper
+        
 
 
     .. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.7695475.svg
@@ -48,7 +48,6 @@ About
 
 	.. image:: https://img.shields.io/badge/Test-passing%20FEniCS-green
 		:target: https://github.com/tlm-adjoint/tlm_adjoint/blob/main/.github/workflows/test-fenics.yml
-        :alt: FEniCS build status
 	
 	.. image:: https://img.shields.io/badge/Test-passing%20Firedrake-green
 		:target: https://github.com/tlm-adjoint/tlm_adjoint/blob/main/.github/workflows/test-firedrake.yml
