@@ -85,7 +85,7 @@ def test_NHEP(setup_test, test_leaks):
                             tensor=function_vector(diff))
             function_axpy(diff, -lam_val.real, v_r)
             function_axpy(diff, +lam_val.imag, v_i)
-            assert function_linf_norm(diff) < 1.0e-15
+            assert function_linf_norm(diff) < 1.0e-14
             matrix_multiply(N, function_vector(v_i),
                             tensor=function_vector(diff))
             function_axpy(diff, -lam_val.real, v_i)

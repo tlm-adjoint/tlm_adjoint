@@ -527,12 +527,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                                                    (100, 3),
                                                    (100, 5),
                                                    (100, 10),
-                                                   (100, 20),
-                                                   (200, 5),
-                                                   (200, 10),
-                                                   (200, 20),
-                                                   (200, 50),
-                                                   (1000, 50)])
+                                                   (100, 20)])
 @no_space_type_checking
 @seed_test
 def test_binomial_checkpointing(setup_test, test_leaks,

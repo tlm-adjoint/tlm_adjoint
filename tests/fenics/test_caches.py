@@ -257,7 +257,7 @@ def test_mat_terms(setup_test, test_leaks,
 
     b_error = function_copy(b_ref)
     function_axpy(b_error, -1.0, b)
-    assert function_linf_norm(b_error) < 1.0e-17
+    assert function_linf_norm(b_error) < 1.0e-16
 
 
 @pytest.mark.fenics

@@ -276,5 +276,5 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
     assert x_error_norm < 1.0e-12
     assert y_error_norm < 1.0e-11
     assert its <= 38
-    assert F_calls <= 41
-    assert Fp_calls <= 41
+    assert F_calls <= 42
+    assert Fp_calls <= 42

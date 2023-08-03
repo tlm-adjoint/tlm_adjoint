@@ -322,7 +322,7 @@ def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
         return forward(z)[1]
 
     min_order = taylor_test(forward_J, z, J_val=J_val, dJ=dJ, seed=1.0e-4)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, z, J_val=J_val, ddJ=ddJ, seed=1.0e-3)

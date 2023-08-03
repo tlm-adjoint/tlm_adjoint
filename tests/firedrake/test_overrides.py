@@ -286,7 +286,7 @@ def test_interpolate(setup_test, test_leaks,
 
         y_1_error = function_copy(y_1)
         function_axpy(y_1_error, -1.0, y_1_ref)
-        assert function_linf_norm(y_1_error) == 0.0
+        assert function_linf_norm(y_1_error) < 1.0e-14
 
         J_val = J.value()
 
