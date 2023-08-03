@@ -43,12 +43,16 @@ About
         :alt: Zenodo
 
 :Tests:
+	.. image:: https://img.shields.io/badge/Test-passing%20base%20code-green
+		:target: https://github.com/tlm-adjoint/tlm_adjoint/actions/workflows/test-base.yml
+		:alt: Code base status
 
 	.. image:: https://img.shields.io/badge/Test-passing%20FEniCS-green
-		:target: https://github.com/tlm-adjoint/tlm_adjoint/blob/main/.github/workflows/test-fenics.yml
+		:target: https://github.com/tlm-adjoint/tlm_adjoint/actions/workflows/test-fenics.yml
+		:alt: FEniCS build base
 	
 	.. image:: https://img.shields.io/badge/Test-passing%20Firedrake-green
-		:target: https://github.com/tlm-adjoint/tlm_adjoint/blob/main/.github/workflows/test-firedrake.yml
+		:target: https://github.com/tlm-adjoint/tlm_adjoint/actions/workflows/test-firedrake.yml
 		:alt: Firedrake build status
 
 :License:
