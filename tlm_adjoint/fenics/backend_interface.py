@@ -252,9 +252,7 @@ class FunctionInterface(_FunctionInterface):
 
     @check_vector_size
     def _get_values(self):
-        values = self.vector().get_local().view()
-        values.setflags(write=False)
-        return values
+        return self.vector().get_local().copy()  # copy likely not required
 
     @check_vector_size
     def _set_values(self, values):

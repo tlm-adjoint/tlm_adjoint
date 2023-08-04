@@ -244,10 +244,9 @@ class FloatInterface(FunctionInterface):
 
     def _get_values(self):
         comm = function_comm(self)
-        value = self.value()
-        values = np.array([value] if comm.rank == 0 else [],
-                          dtype=type(value))
-        values.setflags(write=False)
+        dtype = function_dtype(self)
+        value = dtype(self.value())
+        values = np.array([value] if comm.rank == 0 else [], dtype=dtype)
         return values
 
     def _set_values(self, values):

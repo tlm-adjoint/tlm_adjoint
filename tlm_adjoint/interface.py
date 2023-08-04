@@ -1081,12 +1081,11 @@ def function_local_indices(x):
 
 
 def function_get_values(x):
-    """Return the process local degrees of freedom vector associated with a
-    function.
+    """Return a copy of the process local degrees of freedom vector associated
+    with a function.
 
     :arg x: The function.
     :returns: A :class:`numpy.ndarray` containing the degrees of freedom.
-        Should not be modified.
     """
 
     return x._tlm_adjoint__function_interface_get_values()

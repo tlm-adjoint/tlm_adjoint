@@ -177,9 +177,7 @@ class FunctionInterface(_FunctionInterface):
         return slice(0, self.vector().shape[0])
 
     def _get_values(self):
-        values = self.vector().view()
-        values.setflags(write=False)
-        return values
+        return self.vector().copy()
 
     def _set_values(self, values):
         if not np.can_cast(values, self.dtype()):
