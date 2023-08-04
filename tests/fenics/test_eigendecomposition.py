@@ -163,6 +163,8 @@ def test_CachedHessian(setup_test):
     assert abs(error).max() == 0.0
 
     if issubclass(space_dtype(space), (complex, np.complexfloating)):
+        # Minor gap in test, as could use a different order from the real
+        # components
         error = (np.array(sorted(lam.imag), dtype=np.float64)
                  - np.array(sorted(lam_opt.imag), dtype=np.float64))
         assert abs(error).max() == 0.0

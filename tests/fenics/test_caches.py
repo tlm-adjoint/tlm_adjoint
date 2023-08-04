@@ -227,7 +227,7 @@ def test_mat_terms(setup_test, test_leaks,
     x = Function(space, name="x")
     x_expr = exp(X[0]) * X[1]
     if issubclass(function_dtype(x), (complex, np.complexfloating)):
-        x_expr += X[0] * sin(X[1]) * 1.j
+        x_expr = x_expr + X[0] * sin(X[1]) * 1.0j
     interpolate_expression(x, x_expr)
 
     form = inner(ufl.conj(x) if x_conjugate else x, test) * dx

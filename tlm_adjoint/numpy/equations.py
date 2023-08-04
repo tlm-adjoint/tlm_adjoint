@@ -106,7 +106,7 @@ class ContractionArray:
         self._A = A.copy()
         self._A_conjugate = A.conjugate()
         self._I = tuple(I)
-        self._alpha = A.dtype.type(alpha)
+        self._alpha = alpha
 
     def A(self):
         A = self._A

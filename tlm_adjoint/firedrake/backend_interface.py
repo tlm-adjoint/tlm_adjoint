@@ -168,11 +168,10 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(y, (int, np.integer,
                             float, np.floating,
                             complex, np.complexfloating)):
-            dtype = function_dtype(self)
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(dtype(y)))
+                self.assign(backend_Constant(y))
             else:
-                y_arr = np.full(self.ufl_shape, dtype(y), dtype=dtype)
+                y_arr = np.full(self.ufl_shape, y)
                 self.assign(backend_Constant(y_arr))
         elif isinstance(y, Zero):
             with self.dat.vec_wo as x_v:
@@ -194,8 +193,6 @@ class FunctionInterface(_FunctionInterface):
 
     @manager_disabled()
     def _axpy(self, alpha, x, /):
-        dtype = function_dtype(self)
-        alpha = dtype(alpha)
         if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, backend_Function):
@@ -206,7 +203,7 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(x, (int, np.integer,
                             float, np.floating,
                             complex, np.complexfloating)):
-            self.assign(self + alpha * dtype(x))
+            self.assign(self + alpha * x)
         elif isinstance(x, Zero):
             pass
         elif isinstance(x, backend_Constant):

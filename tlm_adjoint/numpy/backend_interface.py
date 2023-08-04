@@ -126,16 +126,15 @@ class FunctionInterface(_FunctionInterface):
         self.vector()[:] = 0.0
 
     def _assign(self, y):
-        dtype = self.dtype()
         if isinstance(y, SymbolicFloat):
             y = y.value()
         if isinstance(y, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)) \
-                and np.can_cast(y, dtype):
-            self.vector()[:] = dtype(y)
+                and np.can_cast(y, self.dtype()):
+            self.vector()[:] = y
         elif isinstance(y, Function):
-            if np.can_cast(y.dtype(), dtype):
+            if np.can_cast(y.dtype(), self.dtype()):
                 self.vector()[:] = y.vector()
             else:
                 raise ValueError("Invalid dtype")
@@ -143,17 +142,15 @@ class FunctionInterface(_FunctionInterface):
             raise TypeError("Invalid type")
 
     def _axpy(self, alpha, x, /):
-        dtype = self.dtype()
-        alpha = dtype(alpha)
         if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)) \
-                and np.can_cast(x, dtype):
-            self.vector()[:] += alpha * dtype(x)
+                and np.can_cast(x, self.dtype()):
+            self.vector()[:] += alpha * x
         elif isinstance(x, Function):
-            if np.can_cast(x.dtype(), dtype):
+            if np.can_cast(x.dtype(), self.dtype()):
                 self.vector()[:] += alpha * x.vector()
             else:
                 raise ValueError("Invalid dtype")
@@ -185,8 +182,7 @@ class FunctionInterface(_FunctionInterface):
         return values
 
     def _set_values(self, values):
-        dtype = self.dtype()
-        if not np.can_cast(values, dtype):
+        if not np.can_cast(values, self.dtype()):
             raise ValueError("Invalid dtype")
         if values.shape != self.vector().shape:
             raise ValueError("Invalid shape")

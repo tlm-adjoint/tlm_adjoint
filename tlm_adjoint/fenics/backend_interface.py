@@ -7,11 +7,11 @@ from .backend import (
     backend_Vector, cpp_PETScVector, info)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    check_space_types, comm_dup_cached, function_copy, function_new,
-    function_space, function_space_type, new_function_id, new_space_id,
-    register_finalize_adjoint_derivative_action, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, space_id, space_new,
-    subtract_adjoint_derivative_action,
+    check_space_types, comm_dup_cached, function_copy, function_dtype,
+    function_new, function_scalar_value, function_space, function_space_type,
+    new_function_id, new_space_id, register_finalize_adjoint_derivative_action,
+    register_functional_term_eq, register_subtract_adjoint_derivative_action,
+    space_id, space_new, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import (
@@ -61,8 +61,6 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
 
     if space is None:
         space = self.ufl_function_space()
-        if self.values().dtype.type != backend_ScalarType:
-            raise ValueError("Invalid dtype")
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
@@ -70,7 +68,7 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
                   {"id": new_function_id(), "name": lambda x: x.name(),
                    "state": 0, "space": space,
                    "form_derivative_space": lambda x: r0_space(x),
-                   "space_type": "primal", "dtype": backend_ScalarType,
+                   "space_type": "primal", "dtype": self.values().dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
 
 
@@ -178,10 +176,9 @@ class FunctionInterface(_FunctionInterface):
             self.vector().axpy(1.0, y.vector())
         elif isinstance(y, (int, np.integer, float, np.floating)):
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(backend_ScalarType(y)))
+                self.assign(backend_Constant(y))
             else:
-                y_arr = np.full(self.ufl_shape, backend_ScalarType(y),
-                                dtype=backend_ScalarType)
+                y_arr = np.full(self.ufl_shape, y)
                 self.assign(backend_Constant(y_arr))
         elif isinstance(y, Zero):
             self.vector().zero()
@@ -193,7 +190,6 @@ class FunctionInterface(_FunctionInterface):
     @manager_disabled()
     @check_vector_size
     def _axpy(self, alpha, x, /):
-        alpha = backend_ScalarType(alpha)
         if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, backend_Function):
@@ -203,10 +199,9 @@ class FunctionInterface(_FunctionInterface):
         elif isinstance(x, (int, np.integer, float, np.floating)):
             x_ = function_new(self)
             if len(self.ufl_shape) == 0:
-                x_.assign(backend_Constant(backend_ScalarType(x)))
+                x_.assign(backend_Constant(x))
             else:
-                x_arr = np.full(self.ufl_shape, backend_ScalarType(x),
-                                dtype=backend_ScalarType)
+                x_arr = np.full(self.ufl_shape, x)
                 x_.assign(backend_Constant(x_arr))
             self.vector().axpy(alpha, x_.vector())
         elif isinstance(x, Zero):
@@ -263,7 +258,7 @@ class FunctionInterface(_FunctionInterface):
 
     @check_vector_size
     def _set_values(self, values):
-        if not np.can_cast(values, backend_ScalarType):
+        if not np.can_cast(values, function_dtype(self)):
             raise ValueError("Invalid dtype")
         if values.shape != (self.vector().local_size(),):
             raise ValueError("Invalid shape")
@@ -364,10 +359,9 @@ def Function_split(self, orig, orig_args, deepcopy=False):
 def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
     if hasattr(y, "_tlm_adjoint__function"):
         check_space_types(x, y._tlm_adjoint__function)
-    alpha = backend_ScalarType(alpha)
 
     if len(x.ufl_shape) == 0:
-        x.assign(backend_ScalarType(x) - alpha * y.max())
+        x.assign(function_scalar_value(x) - alpha * y.max())
     else:
         value = x.values()
         y_fn = backend_Function(r0_space(x))
@@ -381,7 +375,6 @@ def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
 def subtract_adjoint_derivative_action_backend_function_vector(x, alpha, y):
     if hasattr(y, "_tlm_adjoint__function"):
         check_space_types(x, y._tlm_adjoint__function)
-    alpha = backend_ScalarType(alpha)
 
     if x.vector().local_size() != y.local_size():
         raise ValueError("Invalid function space")
