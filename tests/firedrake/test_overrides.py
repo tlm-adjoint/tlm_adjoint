@@ -405,7 +405,9 @@ def test_assemble_ZeroFunction(setup_test, test_leaks,
 @pytest.mark.firedrake
 @seed_test
 def test_DirichletBC_apply(setup_test, test_leaks, tmp_path):
-    configure_checkpointing("periodic_disk", {"period": 1})
+    configure_checkpointing("periodic_disk",
+                            {"period": 1,
+                             "path": str(tmp_path / "checkpoints~")})
 
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
