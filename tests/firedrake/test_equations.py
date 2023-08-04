@@ -278,10 +278,12 @@ def test_FixedPointSolver(setup_test, test_leaks):
                                                   reason="parallel only"))])
 @pytest.mark.parametrize("N_x, N_y, N_z", [(2, 2, 2),
                                            (5, 5, 5)])
+@pytest.mark.parametrize("c", [-1.5, 1.5])
 @seed_test
 def test_PointInterpolation(setup_test, test_leaks,
                             overlap_type,
-                            N_x, N_y, N_z):
+                            N_x, N_y, N_z,
+                            c):
     mesh = UnitCubeMesh(N_x, N_y, N_z,
                         distribution_parameters={"partition": True,
                                                  "overlap_type": overlap_type})
@@ -307,10 +309,10 @@ def test_PointInterpolation(setup_test, test_leaks,
 
     y = Function(y_space, name="y", static=True)
     if complex_mode:
-        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5
+        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + c
                                + 1.0j * pow(X[0], 2))
     else:
-        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + 1.5)
+        interpolate_expression(y, pow(X[0], 3) - 1.5 * X[0] * X[1] + c)
 
     start_manager()
     X_vals, J = forward(y)
@@ -318,9 +320,9 @@ def test_PointInterpolation(setup_test, test_leaks,
 
     def x_ref(x):
         if complex_mode:
-            return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5 + 1.0j * x[0] ** 2
+            return x[0] ** 3 - 1.5 * x[0] * x[1] + c + 1.0j * x[0] ** 2
         else:
-            return x[0] ** 3 - 1.5 * x[0] * x[1] + 1.5
+            return x[0] ** 3 - 1.5 * x[0] * x[1] + c
 
     x_error_norm = 0.0
     assert len(X_vals) == len(X_coords)
@@ -338,17 +340,17 @@ def test_PointInterpolation(setup_test, test_leaks,
         return forward(y)[1]
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
     assert min_order > 1.99

@@ -435,11 +435,9 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
         if owned.any() and not owned.all():
             raise RuntimeError("Non-process-local node-node graph")
 
-    y_colors_N = np.full((1,), -1, dtype=y_colors.dtype)
     comm = function_comm(y)
-    comm.Allreduce(np.array([y_colors.max() + 1], dtype=y_colors.dtype),
-                   y_colors_N, op=MPI.MAX)
-    y_colors_N = y_colors_N[0]
+    y_colors_N = y_colors.max() + 1
+    y_colors_N = comm.allreduce(y_colors_N, op=MPI.MAX)
     assert y_colors_N >= 0
     y_nodes = tuple([] for i in range(y_colors_N))
     for y_node, color in enumerate(y_colors):
@@ -662,7 +660,7 @@ class PointInterpolation(Equation):
 
         comm = function_comm(y)
         x_v = np.full(len(X), np.NAN, dtype=backend_ScalarType)
-        comm.Allreduce(x_v_local, x_v, op=MPI.MAX)
+        comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):
             function_assign(x, x_v[i])
