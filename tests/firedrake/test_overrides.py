@@ -241,7 +241,7 @@ def test_interpolate(setup_test, test_leaks,
     if complex_mode:
         interpolate_expression(y_2,
                                cos(3.0 * pi * X[0])
-                               + 1.j * sin(5.0 * pi * X[0]))
+                               + 1.0j * sin(5.0 * pi * X[0]))
     else:
         interpolate_expression(y_2,
                                cos(3.0 * pi * X[0]))
@@ -434,7 +434,7 @@ def test_DirichletBC_apply(setup_test, test_leaks, tmp_path):
         interpolate_expression(
             y,
             cos(pi * X[0]) * cos(2.0 * pi * X[1])
-            + 1.j * cos(3.0 * pi * X[0]) * cos(4.0 * pi * X[1]))
+            + 1.0j * cos(3.0 * pi * X[0]) * cos(4.0 * pi * X[1]))
     else:
         interpolate_expression(
             y,

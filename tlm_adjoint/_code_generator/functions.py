@@ -122,11 +122,10 @@ class ConstantInterface(_FunctionInterface):
         if isinstance(y, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
-            dtype = function_dtype(self)
             if len(self.ufl_shape) == 0:
-                value = dtype(y)
+                value = y
             else:
-                value = np.full(self.ufl_shape, dtype(y), dtype=dtype)
+                value = np.full(self.ufl_shape, y)
                 value = backend_Constant(value)
         elif isinstance(y, backend_Constant):
             value = y
@@ -136,28 +135,28 @@ class ConstantInterface(_FunctionInterface):
 
     @manager_disabled()
     def _axpy(self, alpha, x, /):
-        dtype = function_dtype(self)
-        alpha = dtype(alpha)
         if isinstance(x, SymbolicFloat):
             x = x.value()
         if isinstance(x, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
             if len(self.ufl_shape) == 0:
-                value = (dtype(self) + alpha * dtype(x))
+                value = (function_scalar_value(self) + alpha * x)
             else:
-                value = self.values() + alpha * dtype(x)
+                value = self.values() + alpha * x
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
         elif isinstance(x, backend_Constant):
             if len(self.ufl_shape) == 0:
-                value = (dtype(self) + alpha * dtype(x))
+                value = (function_scalar_value(self)
+                         + alpha * function_scalar_value(x))
             else:
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
         elif is_function(x):
-            value = dtype(self) + alpha * function_scalar_value(x)
+            value = (function_scalar_value(self)
+                     + alpha * function_scalar_value(x))
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
         self.assign(value)

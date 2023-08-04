@@ -1303,7 +1303,6 @@ def subtract_adjoint_derivative_action_base(x, alpha, y):
         pass
     elif is_function(y):
         check_space_types(x, y)
-        alpha = function_dtype(x)(alpha)
         function_axpy(x, -alpha, y)
     else:
         raise NotImplementedError("Unexpected case encountered")

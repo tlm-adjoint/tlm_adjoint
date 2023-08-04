@@ -292,7 +292,7 @@ def test_PointInterpolation(setup_test, test_leaks,
     X_coords = np.array([[0.1, 0.1, 0.1],
                          [0.2, 0.3, 0.4],
                          [0.9, 0.8, 0.7],
-                         [0.4, 0.2, 0.3]], dtype=np.float64)
+                         [0.4, 0.2, 0.3]], dtype=backend_ScalarType)
 
     def forward(y):
         X_vals = [Constant(name=f"x_{i:d}")
@@ -380,13 +380,13 @@ def test_ExprAssignment(setup_test, test_leaks,
     y = Function(space, name="y")
     z = Function(space, name="z")
     if complex_mode:
-        c = Constant(np.sqrt(2.0 + 1.j * np.sqrt(3.0)))
+        c = Constant(np.sqrt(2.0 + 1.0j * np.sqrt(3.0)))
         interpolate_expression(y,
                                cos(3.0 * pi * X[0])
-                               + 1.j * sin(5.0 * pi * X[0]))
+                               + 1.0j * sin(5.0 * pi * X[0]))
         interpolate_expression(z,
                                cos(7.0 * pi * X[0])
-                               + 1.j * sin(11.0 * pi * X[0]))
+                               + 1.0j * sin(11.0 * pi * X[0]))
     else:
         c = Constant(np.sqrt(2.0))
         interpolate_expression(y,
@@ -507,7 +507,7 @@ def test_ExprInterpolation_transpose(setup_test, test_leaks,
     if complex_mode:
         interpolate_expression(y_2,
                                cos(3.0 * pi * X[0])
-                               + 1.j * sin(5.0 * pi * X[0]))
+                               + 1.0j * sin(5.0 * pi * X[0]))
     else:
         interpolate_expression(y_2,
                                cos(3.0 * pi * X[0]))

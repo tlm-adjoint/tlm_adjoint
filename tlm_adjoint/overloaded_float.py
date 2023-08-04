@@ -214,7 +214,6 @@ class FloatInterface(FunctionInterface):
             function_assign(self, function_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
-        alpha = function_dtype(self)(alpha)
         function_assign(self, self.value() + alpha * function_scalar_value(x))
 
     def _inner(self, y):

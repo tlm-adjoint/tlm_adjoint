@@ -9,11 +9,11 @@ from .backend import (
     FunctionSpace, Interpolator, Tensor, TestFunction, TrialFunction,
     VertexOnlyMesh, backend_Constant, backend_Function, backend_assemble)
 from ..interface import (
-    check_space_type, function_assign, function_comm, function_dtype,
-    function_get_values, function_id, function_inner, function_is_scalar,
+    check_space_type, comm_dup_cached, function_assign, function_comm,
+    function_id, function_inner, function_is_scalar,
     function_new_conjugate_dual, function_replacement, function_scalar_value,
-    function_set_values, function_space, function_space_type, function_zero,
-    is_function, space_new, weakref_method)
+    function_space, function_space_type, function_zero, is_function, space_new,
+    weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
@@ -259,7 +259,7 @@ class LocalProjectionSolver(LocalProjection):
 
 
 def vmesh_coords_map(vmesh, X_coords):
-    comm = vmesh.comm
+    comm = comm_dup_cached(vmesh.comm)
     N, _ = X_coords.shape
 
     vmesh_coords = vmesh.coordinates.dat.data_ro
@@ -467,10 +467,8 @@ class ExprAssignment(ExprEquation):
                                                            subset=self._subset)
             F.assign(function_inner(adj_x, dF))
         elif isinstance(F, backend_Function):
-            dF = function_dtype(F)(dF).conjugate()
-            F.assign(adj_x, subset=self._subset)
-            # Work around Firedrake issue #3047
-            function_set_values(F, dF * function_get_values(F))
+            dF = dF(()).conjugate()
+            F.assign(dF * adj_x, subset=self._subset)
         else:
             raise TypeError(f"Unexpected type: {type(F)}")
         return (-1.0, F)

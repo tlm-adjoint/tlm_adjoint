@@ -134,7 +134,6 @@ class LinearCombination(Equation):
         alpha = []
         Y = []
         for a, y in args:
-            a = function_dtype(x)(a)
             if a.imag == 0.0:
                 a = a.real
             check_space_types(x, y)
@@ -466,11 +465,7 @@ class DotProductRHS(RHS):
         comm = function_comm(b)
         if comm.size > 1:
             import mpi4py.MPI as MPI
-            d_local = np.array([d], dtype=function_dtype(b))
-            d_global = np.full((1,), np.NAN, dtype=function_dtype(b))
-            comm.Allreduce(d_local, d_global, op=MPI.SUM)
-            d, = d_global
-            del d_local, d_global
+            d = comm.allreduce(d, op=MPI.SUM)
 
         function_set_values(b, function_get_values(b) + self._alpha * d)
 
