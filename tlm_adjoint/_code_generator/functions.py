@@ -202,10 +202,9 @@ class ConstantInterface(_FunctionInterface):
     def _get_values(self):
         comm = function_comm(self)
         if comm.rank == 0:
-            values = self.values().view()
+            values = self.values().copy()
         else:
             values = np.array([], dtype=function_dtype(self))
-        values.setflags(write=False)
         return values
 
     @manager_disabled()

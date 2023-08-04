@@ -268,7 +268,6 @@ class FunctionInterface(_FunctionInterface):
         with self.dat.vec_ro as x_v:
             with x_v as x_v_a:
                 values = x_v_a.copy()
-        values.setflags(write=False)
         return values
 
     def _set_values(self, values):
