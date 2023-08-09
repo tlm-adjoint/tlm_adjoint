@@ -392,7 +392,7 @@ class FixedPointSolver(Equation, CustomNormSq):
                 raise RuntimeError(
                     f"Fixed point iteration, forward iteration {it:d}, "
                     f"NaN encountered")
-            if R_norm_sq < tolerance_sq or R_norm_sq == 0.0:
+            if R_norm_sq <= tolerance_sq:
                 break
             if it >= maximum_iterations:
                 raise RuntimeError(
@@ -523,7 +523,7 @@ class FixedPointSolver(Equation, CustomNormSq):
                 raise RuntimeError(
                     f"Fixed point iteration, adjoint iteration {it:d}, "
                     f"NaN encountered")
-            if R_norm_sq < tolerance_sq or R_norm_sq == 0.0:
+            if R_norm_sq <= tolerance_sq:
                 break
             if it >= maximum_iterations:
                 raise RuntimeError(
