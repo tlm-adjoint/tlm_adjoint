@@ -27,8 +27,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install python3-dolfin python3-h5py python3-numpy python3-pytest python3-scipy
+          sudo apt-get install python3-dolfin python3-h5py python3-numpy python3-pytest python3-pytest-timeout python3-pytest-xdist python3-scipy python3-sympy
       - name: Run tests
         run: |
           cd tlm_adjoint
-          pytest-3 -v tests/fenics
+          pytest-3 -v tests/fenics -n 2 --timeout=300 --timeout-method=thread
