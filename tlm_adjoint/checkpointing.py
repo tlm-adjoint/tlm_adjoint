@@ -706,7 +706,7 @@ class PickleCheckpoints(Checkpoints):
         defined by this argument, `root_pid` is the process ID on the root
         process (i.e. process 0), `root_py2f` is the Fortran MPI communicator
         on the root process, and `rank` is the process rank.
-    :arg comm: An :class:`mpi4py.MPI.Comm`. The MPI communicator.
+    :arg comm: A communicator.
     """
 
     def __init__(self, prefix, *, comm=None):
@@ -812,7 +812,7 @@ class HDF5Checkpoints(Checkpoints):
         this argument, `root_pid` is the process ID on the root process (i.e.
         process 0), and `root_py2f` is the Fortran MPI communicator on the root
         process.
-    :arg comm: An :class:`mpi4py.MPI.Comm`. The MPI communicator.
+    :arg comm: A communicator.
     """
 
     def __init__(self, prefix, *, comm=None):

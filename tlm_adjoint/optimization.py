@@ -645,7 +645,7 @@ def l_bfgs(F, Fp, X0, *,
               Springer, New York, NY, 2006, Second edition,
               doi: 10.1007/978-0-387-40065-5
 
-    :arg comm: An :class:`mpi4py.MPI.Comm`.
+    :arg comm: A communicator.
     :returns: A :class:`tuple` `(X, (it, F_calls, Fp_calls, hessian_approx))`
         with
 

@@ -100,7 +100,7 @@ class FloatSpace:
     :arg dtype: The data type associated with the space. Typically
         :class:`numpy.float64` or :class:`numpy.complex128`. Defaults to
         :class:`numpy.complex128`.
-    :arg comm: The :class:`mpi4py.MPI.Comm` associated with the space.
+    :arg comm: The communicator associated with the space.
     """
 
     def __init__(self, float_cls=None, *, dtype=None, comm=None):
@@ -313,8 +313,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     :arg dtype: The data type associated with the :class:`SymbolicFloat`.
         Typically :class:`numpy.float64` or :class:`numpy.complex128`. Defaults
         to :class:`numpy.complex128`.
-    :arg comm: The :class:`mpi4py.MPI.Comm` associated with the
-        :class:`SymbolicFloat`.
+    :arg comm: The communicator associated with the :class:`SymbolicFloat`.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
