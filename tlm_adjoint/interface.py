@@ -39,10 +39,8 @@ space is the dual space, and the dual space associated with the dual space is
 the primal space.
 
 This module defines a default communicator `DEFAULT_COMM`, which is
-`mpi4py.MPI.COMM_WORLD` if mpi4py is available. Note that here and elsewhere
-communicators are defined to be of type :class:`mpi4py.MPI.Comm`. However if
-mpi4py is not available a dummy 'serial' communicator is used, of type
-:class:`SerialComm`.
+`mpi4py.MPI.COMM_WORLD` if mpi4py is available. If mpi4py is not available a
+dummy 'serial' communicator is used, of type :class:`SerialComm`.
 """
 
 from collections.abc import Mapping, Sequence
@@ -235,12 +233,11 @@ def comm_dup_cached(comm, *, key=None):
     duplicate the communicator and cache the result. The duplicated
     communicator is freed when the original base communicator is freed.
 
-    :arg comm: An :class:`mpi4py.MPI.Comm`, the base communicator to be
-        duplicated.
+    :arg comm: A communicator, the base communicator to be duplicated.
     :arg key: The key.
-    :returns: An :class:`mpi4py.MPI.Comm`. A duplicated MPI communicator, or a
-        previously cached duplicated MPI communicator, which is freed when the
-        original base communicator is freed.
+    :returns: A communicator. A duplicated MPI communicator, or a previously
+        cached duplicated MPI communicator, which is freed when the original
+        base communicator is freed.
     """
 
     if MPI is not None and comm.py2f() == MPI.COMM_NULL.py2f():
@@ -289,25 +286,35 @@ if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
     register_garbage_cleanup(garbage_cleanup_base)
 
 
-def garbage_cleanup(comm):
+def garbage_cleanup(comm=None):
     """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, any
-    communicators duplicated from it, and base communicators from which it was
-    duplicated.
+    communicators duplicated from it, base communicators from which it was
+    duplicated, and any communicators duplicated from those base communicators.
 
-    :arg comm: An :class:`mpi4py.MPI.Comm`.
+    :arg comm: A communicator. Defaults to `DEFAULT_COMM`.
     """
 
-    for dup_comms in _dupped_comms.values():
-        for dup_comm in dup_comms.values():
-            for fn in _garbage_cleanup:
-                fn(dup_comm)
-    while True:
+    if comm is None:
+        comm = DEFAULT_COMM
+    if MPI is not None and (MPI.Is_finalized()
+                            or comm.py2f() == MPI.COMM_NULL.py2f()):
+        return
+
+    parent_comm = comm_parent(comm)
+    if MPI is not None and parent_comm.py2f() == MPI.COMM_NULL.py2f():
+        parent_comm = comm
+
+    if parent_comm.py2f() != comm.py2f():
+        garbage_cleanup(parent_comm)
+    else:
         for fn in _garbage_cleanup:
             fn(comm)
-        parent_comm = comm_parent(comm)
-        if parent_comm.py2f() == comm.py2f():
-            break
-        comm = parent_comm
+
+        for dup_comm in _dupped_comms.get(comm.py2f(), {}).values():
+            if MPI is None or (not MPI.Is_finalized()
+                               and dup_comm.py2f() != MPI.COMM_NULL.py2f()):
+                for fn in _garbage_cleanup:
+                    fn(dup_comm)
 
 
 def weakref_method(fn, obj):
@@ -420,7 +427,7 @@ def is_space(space):
 def space_comm(space):
     """
     :arg space: A space.
-    :returns: The :class:`mpi4py.MPI.Comm` associated with the space.
+    :returns: The communicator associated with the space.
     """
 
     return space._tlm_adjoint__space_interface_comm()
@@ -793,7 +800,7 @@ def is_function(x):
 def function_comm(x):
     """
     :arg x: A function.
-    :returns: The :class:`mpi4py.MPI.Comm` associated with the function.
+    :returns: The communicator associated with the function.
     """
 
     return x._tlm_adjoint__function_interface_comm()

@@ -87,7 +87,7 @@ class EquationManager:
     On instantiation both equation annotation and tangent-linear derivation and
     solution are *enabled*.
 
-    :arg comm: The :class:`mpi4py.MPI.Comm` associated with the manager.
+    :arg comm: The communicator associated with the manager.
     :arg cp_method: See :meth:`configure_checkpointing`.
     :arg cp_parameters: See :meth:`configure_checkpointing`.
     """
@@ -137,7 +137,7 @@ class EquationManager:
 
     def comm(self):
         """
-        :returns: The :class:`mpi4py.MPI.Comm` associated with the manager.
+        :returns: The communicator associated with the manager.
         """
 
         return self._comm

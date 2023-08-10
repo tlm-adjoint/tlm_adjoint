@@ -281,8 +281,7 @@ class Constant(*Constant_base):
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
     :arg shape: A :class:`tuple` of :class:`int` objects defining the shape of
         the value.
-    :arg comm: An :class:`mpi4py.MPI.Comm`, communicator for the
-        :class:`Constant`.
+    :arg comm: The communicator for the :class:`Constant`.
     :arg static: Defines the default value for `cache` and `checkpoint`.
     :arg cache: Defines whether results involving this :class:`Constant` may be
         cached. Default `static`.
