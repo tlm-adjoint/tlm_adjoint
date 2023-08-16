@@ -263,14 +263,7 @@ def constant_value(value=None, shape=None):
     return value
 
 
-if issubclass(backend_Constant, ufl.classes.Coefficient):
-    Constant_base = (backend_Constant,)
-else:
-    # For Firedrake
-    Constant_base = (backend_Constant, ufl.classes.Coefficient)
-
-
-class Constant(*Constant_base):
+class Constant(backend_Constant):
     """Extends the backend `Constant` class.
 
     :arg value: The initial value. `None` indicates a value of zero.
@@ -325,12 +318,9 @@ class Constant(*Constant_base):
         if checkpoint is None:
             checkpoint = not static
 
-        backend_Constant.__init__(
-            self, value, *args, name=name, domain=domain, space=space,
+        super().__init__(
+            value, *args, name=name, domain=domain, space=space,
             comm=comm, **kwargs)
-        if not issubclass(backend_Constant, ufl.classes.Coefficient):
-            # For Firedrake
-            ufl.classes.Coefficient.__init__(self, function_space(self))
         self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
@@ -456,9 +446,7 @@ class ZeroFunction(Function, Zero):
 
 
 def as_coefficient(x):
-    if isinstance(x, ufl.classes.Coefficient) \
-            and (issubclass(backend_Constant, ufl.classes.Coefficient)
-                 or not isinstance(x, backend_Constant)):
+    if isinstance(x, ufl.classes.Coefficient):
         return x
 
     # For Firedrake
