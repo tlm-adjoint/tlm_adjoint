@@ -13,11 +13,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  test-real:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
       image: firedrakeproject/firedrake:latest
+      options: --user root
+    env:
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+    steps:
+      - name: Checkout 
+        uses: actions/checkout@v3
+        with:
+          path: 'tlm_adjoint'
+      - name: Install dependencies
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          python3 -m pip install pytest-timeout pytest-xdist
+      - name: Run tests
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          cd tlm_adjoint
+          pytest -v tests/firedrake -n 2 --timeout=300 --timeout-method=thread
+  test-complex:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: firedrakeproject/firedrake-complex:latest
       options: --user root
     env:
       OMP_NUM_THREADS: 1
