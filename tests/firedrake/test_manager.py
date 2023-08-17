@@ -719,7 +719,6 @@ def test_adjoint_caching(setup_test, test_leaks):
         assert min_order > 2.00
 
     reset_manager()
-    stop_manager()
 
     configure_tlm((m, dm_0))
     start_manager()
@@ -751,7 +750,6 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert function_linf_norm(ddJ_error) == 0.0
 
     reset_manager()
-    stop_manager()
 
     configure_tlm((m, dm_0), (m, dm_1))
     start_manager()
@@ -799,7 +797,6 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert function_linf_norm(dddJ_error) == 0.0
 
     reset_manager()
-    stop_manager()
 
     configure_tlm((m, dm_0), (m, dm_0))
     start_manager()
@@ -838,7 +835,6 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert function_linf_norm(dddJ_error) < 1.0e-18
 
     reset_manager()
-    stop_manager()
 
     dm_0 = Function(space, name="dm_0")
     interpolate_expression(dm_0, sin(pi * X[0]) * sin(pi * X[1]))

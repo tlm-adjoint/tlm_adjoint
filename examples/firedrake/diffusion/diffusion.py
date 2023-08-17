@@ -10,7 +10,6 @@ import numpy as np
 # import petsc4py.PETSc as PETSc
 
 logging.getLogger("firedrake").setLevel(logging.INFO)
-stop_manager()
 # PETSc.Options().setValue("citations", "petsc.bib")
 np.random.seed(87838678 + DEFAULT_COMM.rank)
 

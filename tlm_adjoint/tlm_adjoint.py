@@ -243,8 +243,8 @@ class EquationManager:
         self.drop_references()
         garbage_cleanup(self._comm)
 
-        self._annotation_state = AnnotationState.ANNOTATING
-        self._tlm_state = TangentLinearState.DERIVING
+        self._annotation_state = AnnotationState.STOPPED
+        self._tlm_state = TangentLinearState.STOPPED
         self._eqs = {}
         self._blocks = []
         self._block = []
