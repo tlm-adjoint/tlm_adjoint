@@ -7,9 +7,6 @@ from tlm_adjoint.fenics import *
 import numpy as np
 # import petsc4py.PETSc as PETSc
 
-# Disable the manager until it is needed
-stop_manager()
-
 # Save relevant citation information
 # PETSc.Options().setValue("citations", "petsc.bib")
 

@@ -362,7 +362,6 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     def forward_tlm(dMs, *M):
         set_manager(tlm_manager)
         reset_manager()
-        stop_manager()
         clear_caches()
 
         configure_tlm(*[(M, dM) for dM in dMs])
@@ -478,7 +477,6 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     def forward_tlm(*M, annotate=False):
         set_manager(tlm_manager)
         reset_manager()
-        stop_manager()
         clear_caches()
 
         configure_tlm(*[(M, dM) for dM in dMs],

@@ -21,9 +21,8 @@ def cg(A, b, x0):
 
 
 N_t = 10
-reset_manager("multistage", {"blocks": N_t, "snaps_on_disk": 1,
-                             "snaps_in_ram": 1})
-stop_manager()
+configure_checkpointing("multistage", {"blocks": N_t, "snaps_on_disk": 1,
+                                       "snaps_in_ram": 1})
 np.random.seed(48377229)
 
 dtype = default_dtype()

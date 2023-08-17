@@ -146,7 +146,6 @@ class GeneralHessian(Hessian):
 
         set_manager(self._manager)
         reset_manager()
-        stop_manager()
 
         if M0 is None:
             M0 = M
@@ -178,7 +177,6 @@ class GeneralHessian(Hessian):
 
         set_manager(self._manager)
         reset_manager()
-        stop_manager()
 
         if M0 is None:
             M0 = M
@@ -372,7 +370,6 @@ class GeneralGaussNewton(GaussNewton):
     def _setup_manager(self, M, dM, M0=None):
         set_manager(self._manager)
         reset_manager()
-        stop_manager()
 
         if M0 is None:
             M0 = M

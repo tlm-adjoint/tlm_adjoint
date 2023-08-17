@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint import DEFAULT_COMM, start_manager
+from tlm_adjoint import DEFAULT_COMM
 from tlm_adjoint.override import override_function
 import tlm_adjoint.interface
 
@@ -70,7 +70,6 @@ def chdir_tmp_path(tmp_path):
 
 def run_example(filename, *,
                 clear_forward_globals=True):
-    start_manager()
     gl = runpy.run_path(filename)
 
     if clear_forward_globals:

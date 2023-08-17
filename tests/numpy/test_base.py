@@ -44,7 +44,6 @@ def setup_test():
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
     reset_manager("memory", {"drop_references": True})
-    stop_manager()
     clear_caches()
 
     yield

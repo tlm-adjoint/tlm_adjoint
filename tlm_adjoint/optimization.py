@@ -134,7 +134,6 @@ def minimize_scipy(forward, M0, *,
         J_M[0] = tuple(function_copy(m) for m in M)
 
         reset_manager()
-        stop_manager()
         clear_caches()
 
         start_manager()
@@ -878,7 +877,6 @@ def minimize_l_bfgs(forward, M0, *,
         functions_assign(M, X)
 
         reset_manager()
-        stop_manager()
 
         last_F[1] = M
         start_manager()
