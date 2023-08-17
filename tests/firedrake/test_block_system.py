@@ -124,7 +124,7 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
             except ConvergenceError:
                 assert solver_1.ksp.getConvergedReason() == PETSc.KSP.ConvergedReason.DIVERGED_MAX_IT  # noqa: E501
 
-    ksp_solver = system.solve(
+    ksp_its = system.solve(
         (u_0, u_1), (b_0, b_1),
         solver_parameters={"linear_solver": "cg",
                            "relative_tolerance": 1.0e-14,
@@ -140,12 +140,12 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
     assert u_1_error_norm < 1.0e-12
 
     if pc == "none":
-        assert ksp_solver.getIterationNumber() <= 69
+        assert ksp_its <= 69
     elif pc == "block_jacobi":
-        assert ksp_solver.getIterationNumber() <= 31
+        assert ksp_its <= 31
     else:
         assert pc == "block_chebyshev"
-        assert ksp_solver.getIterationNumber() <= 13
+        assert ksp_its <= 13
 
 
 @pytest.mark.firedrake

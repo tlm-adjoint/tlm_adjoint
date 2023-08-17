@@ -274,6 +274,11 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
                 with v_i as v_i_a:
                     function_set_values(V_i[i], v_i_a)
 
+    esolver.destroy()
+    A_matrix.destroy()
+    if B_matrix is not None:
+        B_matrix.destroy()
+
     if V_i is None:
         return lam, V_r
     else:

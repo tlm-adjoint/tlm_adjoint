@@ -93,7 +93,7 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
             except RuntimeError:
                 pass
 
-    ksp_solver = system.solve(
+    ksp_its = system.solve(
         (u_0, u_1), (b_0, b_1),
         solver_parameters={"linear_solver": "cg",
                            "relative_tolerance": 1.0e-14,
@@ -109,10 +109,10 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
     assert u_1_error_norm < 1.0e-12
 
     if pc == "none":
-        assert ksp_solver.getIterationNumber() <= 70
+        assert ksp_its <= 70
     else:
         assert pc == "block_cg_jacobi"
-        assert ksp_solver.getIterationNumber() <= 32
+        assert ksp_its <= 32
 
 
 @pytest.mark.fenics

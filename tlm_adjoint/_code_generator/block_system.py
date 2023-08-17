@@ -1182,7 +1182,7 @@ class System:
             the initial guess.
         :arg correct_solution: Whether to apply a nullspace correction to
             the solution.
-        :returns: The PETSc :class:`KSP`.
+        :returns: The number of Krylov iterations.
         """
 
         global _error_flag
@@ -1314,5 +1314,11 @@ class System:
         if _error_flag:
             raise ConvergenceError("Error encountered in PETSc solve",
                                    ksp=ksp_solver)
+        ksp_its = ksp_solver.getIterationNumber()
 
-        return ksp_solver
+        ksp_solver.destroy()
+        mat_A.destroy()
+        if pc_fn is not None:
+            pc.destroy()
+
+        return ksp_its
