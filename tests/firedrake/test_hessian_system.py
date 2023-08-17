@@ -118,18 +118,18 @@ def test_hessian_solve(setup_test,
 
         pc_fn = hessian_eigendecomposition_pc(B, Lam, V)
 
-    ksp = system.solve(
+    ksp_its = system.solve(
         v, b_ref, pc_fn=pc_fn,
         solver_parameters={"linear_solver": "cg",
                            "absolute_tolerance": 1.0e-12,
                            "relative_tolerance": 1.0e-12})
 
     if N_eigenvalues == 0:
-        assert ksp.getIterationNumber() <= 14
+        assert ksp_its <= 14
     elif N_eigenvalues == 5:
-        assert ksp.getIterationNumber() <= 6
+        assert ksp_its <= 6
     elif N_eigenvalues == 16:
-        assert ksp.getIterationNumber() == 1
+        assert ksp_its == 1
 
     H = Hessian(forward_J)
     _, _, b = H.action(m, v)
