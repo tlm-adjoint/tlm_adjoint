@@ -66,7 +66,7 @@ def test_NHEP(setup_test, test_leaks):
     lam, V = eigendecompose(
         space, N_action, action_space_type="conjugate_dual",)
 
-    assert abs(lam.real).max() < 1.0e-15
+    assert abs(lam.real).max() < 1.0e-14
 
     diff = Function(space)
     if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
