@@ -257,12 +257,12 @@ def comm_dup_cached(comm, *, key=None):
         _dup_comms[key] = dup_comm
 
         def finalize_callback(comm_py2f, key, dup_comm):
-            garbage_cleanup(dup_comm)
-            if MPI is not None and not MPI.Is_finalized():
-                dup_comm.Free()
             _parent_comms.pop(dup_comm.py2f(), None)
             _dupped_comms.pop(comm_py2f, None)
             _dup_comms.pop(key, None)
+            garbage_cleanup(dup_comm)
+            if MPI is not None and not MPI.Is_finalized():
+                dup_comm.Free()
 
         comm_finalize(comm, finalize_callback,
                       comm.py2f(), key, dup_comm)
@@ -296,25 +296,32 @@ def garbage_cleanup(comm=None):
 
     if comm is None:
         comm = DEFAULT_COMM
-    if MPI is not None and (MPI.Is_finalized()
-                            or comm.py2f() == MPI.COMM_NULL.py2f()):
+    if MPI is None \
+            or MPI.Is_finalized() \
+            or comm.py2f() == MPI.COMM_NULL.py2f():
         return
 
-    parent_comm = comm_parent(comm)
-    if MPI is not None and parent_comm.py2f() == MPI.COMM_NULL.py2f():
-        parent_comm = comm
+    while True:
+        parent_comm = comm_parent(comm)
+        if MPI is None \
+                or parent_comm.py2f() == MPI.COMM_NULL.py2f() \
+                or parent_comm.py2f() == comm.py2f():
+            break
+        comm = parent_comm
 
-    if parent_comm.py2f() != comm.py2f():
-        garbage_cleanup(parent_comm)
-    else:
+    comm_stack = [comm]
+    comms = {}
+    while len(comm_stack) > 0:
+        comm = comm_stack.pop()
+        if MPI is not None \
+                and comm.py2f() != MPI.COMM_NULL.py2f() \
+                and comm.py2f() not in comms:
+            comms[comm.py2f()] = comm
+            comm_stack.extend(_dupped_comms.get(comm.py2f(), {}).values())
+
+    for comm in comms.values():
         for fn in _garbage_cleanup:
             fn(comm)
-
-        for dup_comm in _dupped_comms.get(comm.py2f(), {}).values():
-            if MPI is None or (not MPI.Is_finalized()
-                               and dup_comm.py2f() != MPI.COMM_NULL.py2f()):
-                for fn in _garbage_cleanup:
-                    fn(dup_comm)
 
 
 def weakref_method(fn, obj):
