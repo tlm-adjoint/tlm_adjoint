@@ -30,6 +30,8 @@ def tlm_key(M, dM):
     else:
         dM = tuple(dM)
 
+    if len(set(M)) != len(M):
+        raise ValueError("Invalid tangent-linear model")
     if len(M) != len(dM):
         raise ValueError("Invalid tangent-linear model")
     for m, dm in zip(M, dM):
