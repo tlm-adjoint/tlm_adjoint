@@ -49,10 +49,7 @@ def distinct_combinations_indices(iterable, r):
             self._value = value
 
         def __eq__(self, other):
-            if isinstance(other, Comparison):
-                return self._key == other._key
-            else:
-                return NotImplemented
+            return self._key == other._key
 
         def __hash__(self):
             return hash(self._key)
