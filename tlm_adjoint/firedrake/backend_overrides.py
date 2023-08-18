@@ -151,7 +151,8 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
                subset=None):
         if x is None:
             x = function_new(y)
-        if isinstance(y, ufl.classes.Zero):
+        if subset is None \
+                and isinstance(y, ufl.classes.Zero):
             ZeroAssignment(x).solve(annotate=annotate, tlm=tlm)
         elif subset is None \
                 and isinstance(y, backend_Function) \
