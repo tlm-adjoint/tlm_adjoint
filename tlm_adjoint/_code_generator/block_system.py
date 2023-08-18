@@ -783,7 +783,7 @@ class BlockNullspace(Nullspace):
         super().__init__()
         self._nullspaces = nullspaces
 
-    def __new__(cls, nullspaces):
+    def __new__(cls, nullspaces, *args, **kwargs):
         if not isinstance(nullspaces, Sequence):
             nullspaces = (nullspaces,)
         for nullspace in nullspaces:
