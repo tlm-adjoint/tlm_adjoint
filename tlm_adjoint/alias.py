@@ -44,7 +44,7 @@ class Alias:
             raise TypeError("Cannot alias Alias")
         super().__setattr__("_tlm_adjoint__alias", obj)
 
-    def __new__(cls, obj):
+    def __new__(cls, obj, *args, **kwargs):
         obj_cls = type(obj)
 
         class Alias(cls, obj_cls):
@@ -87,7 +87,7 @@ class WeakAlias:
             raise TypeError("Cannot alias WeakAlias")
         super().__setattr__("_tlm_adjoint__alias__dict__", obj.__dict__)
 
-    def __new__(cls, obj):
+    def __new__(cls, obj, *args, **kwargs):
         obj_cls = type(obj)
 
         class WeakAlias(cls, obj_cls):

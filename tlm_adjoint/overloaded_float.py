@@ -351,10 +351,10 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         else:
             self.assign(value, annotate=annotate, tlm=tlm)
 
-    def __new__(cls, value=0.0, *, name=None, space_type="primal",
+    def __new__(cls, value=0.0, *args, name=None, space_type="primal",
                 static=False, cache=None, checkpoint=None,
                 dtype=None, comm=None,
-                annotate=None, tlm=None):
+                annotate=None, tlm=None, **kwargs):
         return super().__new__(cls, new_symbol_name())
 
     def new(self, value=0.0, *,
