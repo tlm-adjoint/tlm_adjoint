@@ -263,11 +263,6 @@ def constant_value(value=None, shape=None):
     return value
 
 
-c = backend_Constant(0.0)
-_Constant_counted_class = getattr(c, "_counted_class", None)
-del c
-
-
 class Constant(backend_Constant):
     """Extends the backend `Constant` class.
 
@@ -330,9 +325,6 @@ class Constant(backend_Constant):
         self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-
-        if _Constant_counted_class is not None:
-            self._counted_class = _Constant_counted_class
 
     def __new__(cls, value=None, *args, domain=None, space_type="primal",
                 shape=None, static=False, cache=None, checkpoint=None,
