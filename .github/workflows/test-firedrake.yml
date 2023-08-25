@@ -31,6 +31,11 @@ jobs:
         run: |
           . /home/firedrake/firedrake/bin/activate
           python3 -m pip install pytest-timeout pytest-xdist
+      - name: Lint
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          cd tlm_adjoint
+          flake8
       - name: Run tests
         run: |
           . /home/firedrake/firedrake/bin/activate
@@ -54,6 +59,11 @@ jobs:
         run: |
           . /home/firedrake/firedrake/bin/activate
           python3 -m pip install pytest-timeout pytest-xdist
+      - name: Lint
+        run: |
+          . /home/firedrake/firedrake/bin/activate
+          cd tlm_adjoint
+          flake8
       - name: Run tests
         run: |
           . /home/firedrake/firedrake/bin/activate
