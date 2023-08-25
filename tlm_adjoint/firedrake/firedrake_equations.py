@@ -7,7 +7,8 @@ backend.
 
 from .backend import (
     FunctionSpace, Interpolator, Tensor, TestFunction, TrialFunction,
-    VertexOnlyMesh, backend_Constant, backend_Function, backend_assemble)
+    VertexOnlyMesh, backend_Constant, backend_Function, backend_assemble,
+    complex_mode)
 from ..interface import (
     check_space_type, comm_dup_cached, function_assign, function_comm,
     function_id, function_inner, function_is_scalar,
@@ -456,21 +457,39 @@ class ExprAssignment(ExprEquation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        dF = diff(self._rhs, dep)
-        dF = ufl.algorithms.expand_derivatives(dF)
-        dF = eliminate_zeros(dF)
-        dF = self._nonlinear_replace(dF, nl_deps)
+        if len(dep.ufl_shape) > 0:
+            if complex_mode:
+                raise NotImplementedError("Case not implemented")
+            F = function_new_conjugate_dual(dep)
+            if isinstance(F, backend_Constant):
+                raise NotImplementedError("Case not implemented")
 
-        F = function_new_conjugate_dual(dep)
-        if isinstance(F, backend_Constant):
-            dF = function_new_conjugate_dual(adj_x).assign(dF,
-                                                           subset=self._subset)
-            F.assign(function_inner(adj_x, dF))
-        elif isinstance(F, backend_Function):
-            dF = dF(()).conjugate()
-            F.assign(dF * adj_x, subset=self._subset)
+            # This works so long as the assignment is defined in terms of a
+            # linear combination but is subtly the wrong thing to do, since dep
+            # and adj_x are in spaces which are relatively antidual
+            dF = derivative(self._rhs, dep, adj_x)
+            dF = ufl.algorithms.expand_derivatives(dF)
+            dF = eliminate_zeros(dF)
+            dF = self._nonlinear_replace(dF, nl_deps)
+
+            F.assign(dF, subset=self._subset)
         else:
-            raise TypeError(f"Unexpected type: {type(F)}")
+            F = function_new_conjugate_dual(dep)
+
+            dF = diff(self._rhs, dep)
+            dF = ufl.algorithms.expand_derivatives(dF)
+            dF = eliminate_zeros(dF)
+            dF = self._nonlinear_replace(dF, nl_deps)
+
+            if isinstance(F, backend_Constant):
+                dF = function_new_conjugate_dual(adj_x).assign(
+                    dF, subset=self._subset)
+                F.assign(function_inner(adj_x, dF))
+            elif isinstance(F, backend_Function):
+                dF = dF(()).conjugate()
+                F.assign(dF * adj_x, subset=self._subset)
+            else:
+                raise TypeError(f"Unexpected type: {type(F)}")
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
