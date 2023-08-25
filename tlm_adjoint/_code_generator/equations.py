@@ -1081,12 +1081,16 @@ class ExprInterpolation(ExprEquation):
             return adj_x
 
         dep = eq_deps[dep_index]
+        if len(dep.ufl_shape) > 0:
+            raise NotImplementedError("Case not implemented")
+
+        F = function_new_conjugate_dual(dep)
+
         dF = diff(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
 
-        F = function_new_conjugate_dual(dep)
         interpolate_expression(F, dF, adj_x=adj_x)
         return (-1.0, F)
 

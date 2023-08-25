@@ -436,6 +436,58 @@ def test_ExprAssignment(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
+@pytest.mark.skipif(complex_mode, reason="real only")
+@seed_test
+def test_ExprAssignment_vector(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = VectorFunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(m):
+        u = Function(space, name="u").assign(m)
+        u.assign(2 * u + m)
+
+        J = Functional(name="J")
+        J.assign(((dot(u, u) + Constant(1.0)) ** 2) * dx)
+        return u, J
+
+    m0 = Function(space, name="m0")
+    interpolate_expression(
+        m0, as_vector((cos(pi * X[0]), X[1] * exp(X[0]))))
+    m = Function(space, name="m").assign(m0)
+
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    assert np.sqrt(abs(assemble(inner(u - 3 * m0, u - 3 * m0) * dx))) < 1.0e-15
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
+    assert min_order > 2.00
+
+
+@pytest.mark.firedrake
 @seed_test
 def test_ExprInterpolation(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
