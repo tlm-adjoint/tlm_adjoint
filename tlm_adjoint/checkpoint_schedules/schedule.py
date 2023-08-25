@@ -33,7 +33,7 @@ class CheckpointAction:
         return f"{type(self).__name__}{self.args!r}"
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.args == other.args
+        return type(self) is type(other) and self.args == other.args
 
 
 class Clear(CheckpointAction):
