@@ -326,10 +326,9 @@ class Constant(backend_Constant):
         self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
         self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
-    def __new__(cls, value=None, *args, domain=None, space_type="primal",
-                shape=None, static=False, cache=None, checkpoint=None,
-                **kwargs):
-
+    def __new__(cls, value=None, *args, name=None, domain=None,
+                space_type="primal", shape=None, static=False, cache=None,
+                checkpoint=None, **kwargs):
         if issubclass(cls, ufl.classes.Coefficient) or domain is None:
             return object().__new__(cls)
         else:
@@ -343,6 +342,7 @@ class Constant(backend_Constant):
             if checkpoint is None:
                 checkpoint = not static
             F = super().__new__(cls, value, domain=domain)
+            F.rename(name=name)
             F._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
             F._tlm_adjoint__function_interface_attrs.d_setitem("static", static)  # noqa: E501
             F._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
