@@ -14,6 +14,21 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.fenics
+@pytest.mark.parametrize(
+    "cls",
+    [lambda name: Float(name=name),
+     lambda name: Constant(name=name),
+     lambda name: Constant(domain=UnitIntervalMesh(20), name=name),
+     lambda name: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1),
+                           name=name)])
+@seed_test
+def test_name(setup_test, cls):
+    name = "_tlm_adjoint__test_name"
+    F = cls(name=name)
+    assert function_name(F) == name
+
+
+@pytest.mark.fenics
 @seed_test
 def test_FunctionSpace_interface(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
