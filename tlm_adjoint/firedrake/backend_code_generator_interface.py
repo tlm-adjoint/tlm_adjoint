@@ -20,6 +20,7 @@ import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -358,6 +359,8 @@ def r0_space(x):
 
 
 def function_vector(x):
+    warnings.warn("function_vector is deprecated",
+                  DeprecationWarning, stacklevel=2)
     return x
 
 

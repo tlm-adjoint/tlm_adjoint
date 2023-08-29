@@ -3,8 +3,8 @@
 
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend_code_generator_interface import \
-    assemble_linear_solver, function_vector
+from tlm_adjoint.fenics.backend_code_generator_interface import (
+    assemble_linear_solver)
 
 from .test_base import *
 
@@ -786,7 +786,7 @@ def test_initial_guess(setup_test, test_leaks,
                     self._J, rhs,
                     form_compiler_parameters=self._form_compiler_parameters,
                     linear_solver_parameters=self._linear_solver_parameters)
-                its = solver.solve(x.vector(), b)
+                its = solver.solve(x, b)
                 assert its == 0
 
             def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
@@ -795,7 +795,7 @@ def test_initial_guess(setup_test, test_leaks,
                     self._J,
                     form_compiler_parameters=self._form_compiler_parameters,
                     linear_solver_parameters=self._adjoint_solver_parameters)
-                its = solver.solve(adj_x.vector(), b.vector())
+                its = solver.solve(adj_x, b)
                 assert (its == 0) == test_adj_ic
                 return adj_x
 
@@ -814,7 +814,7 @@ def test_initial_guess(setup_test, test_leaks,
         adj_x_0 = Function(space_1, space_type="conjugate_dual",
                            name="adj_x_0", static=True)
         assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
-                 tensor=function_vector(adj_x_0))
+                 tensor=adj_x_0)
         Projection(x, zero,
                    solver_parameters=ls_parameters_cg).solve()
         if not test_adj_ic:
@@ -868,10 +868,10 @@ def test_initial_guess(setup_test, test_leaks,
 @seed_test
 def test_form_binding(setup_test, test_leaks,
                       dim):
-    from tlm_adjoint.fenics.backend_code_generator_interface import \
-        assemble as bind_assemble
-    from tlm_adjoint.fenics.equations import bind_form, unbind_form, \
-        unbound_form
+    from tlm_adjoint.fenics.backend_code_generator_interface import (
+        assemble as bind_assemble)
+    from tlm_adjoint.fenics.equations import (
+        bind_form, unbind_form, unbound_form)
 
     mesh = UnitSquareMesh(30, 30)
     X = SpatialCoordinate(mesh)
@@ -917,14 +917,13 @@ def test_form_binding(setup_test, test_leaks,
                         space, solver_parameters=ls_parameters_cg)
         u_split = u.split()
         assembled_form_ref = Function(space, space_type="conjugate_dual")
-        assemble(test_form(u, u_split, test),
-                 tensor=function_vector(assembled_form_ref))
+        assemble(test_form(u, u_split, test), tensor=assembled_form_ref)
 
         assert "_tlm_adjoint__bindings" not in form._cache
         bind_form(form, test_form_deps(u, u_split))
         assert "_tlm_adjoint__bindings" in form._cache
         assembled_form = Function(space, space_type="conjugate_dual")
-        bind_assemble(form, tensor=function_vector(assembled_form))
+        bind_assemble(form, tensor=assembled_form)
         unbind_form(form)
         assert "_tlm_adjoint__bindings" not in form._cache
 
@@ -1007,7 +1006,7 @@ def test_eliminate_zeros(setup_test, test_leaks):
         L_z = eliminate_zeros(L, force_non_empty_form=True)
         assert not L_z.empty()
         b = Function(space, space_type="conjugate_dual")
-        assemble(L_z, tensor=function_vector(b))
+        assemble(L_z, tensor=b)
         assert function_linf_norm(b) == 0.0
 
 
@@ -1044,7 +1043,7 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
     zero_form = eliminate_zeros(form, force_non_empty_form=True)
     assert F not in extract_coefficients(zero_form)
     b = Function(space, space_type="conjugate_dual")
-    assemble(zero_form, tensor=function_vector(b))
+    assemble(zero_form, tensor=b)
     assert function_linf_norm(b) == 0.0
 
 

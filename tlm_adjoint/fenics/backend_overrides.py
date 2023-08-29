@@ -109,7 +109,9 @@ def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
 
 @override_method(cpp_Assembler, "assemble")
 def Assembler_assemble(self, orig, orig_args, tensor, form):
-    return_value = orig_args()
+    if isinstance(tensor, backend_Function):
+        tensor = tensor.vector()
+    return_value = orig(self, tensor, form)
     if hasattr(tensor, "_tlm_adjoint__function"):
         function_update_state(tensor._tlm_adjoint__function)
 
@@ -307,15 +309,31 @@ def _DirichletBC_apply(self, orig, orig_args, *args):
             A, = args
         else:
             b, = args
+            if isinstance(b, backend_Function):
+                b = b.vector()
+            args = (b,)
     elif len(args) == 2:
         if isinstance(args[0], backend_Matrix):
             A, b = args
+            if isinstance(b, backend_Function):
+                b = b.vector()
+            args = (A, b)
         else:
             b, x = args
+            if isinstance(b, backend_Function):
+                b = b.vector()
+            if isinstance(x, backend_Function):
+                x = x.vector()
+            args = (b, x)
     else:
         A, b, x = args
+        if isinstance(b, backend_Function):
+            b = b.vector()
+        if isinstance(x, backend_Function):
+            x = x.vector()
+        args = (A, b, x)
 
-    orig_args()
+    orig(self, *args)
 
     if b is not None and hasattr(b, "_tlm_adjoint__function"):
         function_update_state(b._tlm_adjoint__function)
@@ -474,7 +492,20 @@ def Solver_solve_args(self, *args):
         if A is None:
             raise RuntimeError("A not defined")
         x, b = args
+    if isinstance(x, backend_Function):
+        x = x.vector()
+    if isinstance(b, backend_Function):
+        b = b.vector()
     return A, x, b
+
+
+def Solver_solve_pre_call(self, *args):
+    A_arg = _getattr(self, "A") is None
+    A, x, b = Solver_solve_args(self, *args)
+    if A_arg:
+        return (A, x, b), {}
+    else:
+        return (x, b), {}
 
 
 def Solver_solve_post_call(self, return_value, *args):
@@ -489,6 +520,7 @@ def Solver_solve_post_call(self, return_value, *args):
 
 @manager_method(LUSolver, "solve")
 def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm,
+                   pre_call=Solver_solve_pre_call,
                    post_call=Solver_solve_post_call):
     A, x, b = Solver_solve_args(self, *args)
 
@@ -515,7 +547,7 @@ def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm,
         form_compiler_parameters=form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
     eq._pre_process(annotate=annotate)
-    return_value = super().solve(*args)
+    return_value = orig_args()
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
 
@@ -565,6 +597,7 @@ def KrylovSolver_set_operators(self, orig, orig_args, A, P):
 
 
 @manager_method(KrylovSolver, "solve",
+                pre_call=Solver_solve_pre_call,
                 post_call=Solver_solve_post_call)
 def KrylovSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     A, x, b = Solver_solve_args(self, *args)

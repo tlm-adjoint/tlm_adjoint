@@ -3,8 +3,6 @@
 
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend_code_generator_interface import \
-    function_vector
 
 from .test_base import *
 
@@ -137,7 +135,7 @@ def test_l_bfgs_single(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
     test = TestFunction(space)
     M_l = Function(space, name="M_l", space_type="conjugate_dual")
-    assemble(test * dx, tensor=function_vector(M_l))
+    assemble(test * dx, tensor=M_l)
 
     x_star = Function(space, name="x_star")
     interpolate_expression(x_star, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
@@ -149,7 +147,7 @@ def test_l_bfgs_single(setup_test, test_leaks):
     def Fp(x):
         check_space_type(x, "primal")
         Fp = Function(space, name="Fp", space_type="conjugate_dual")
-        assemble(inner(x - x_star, test) * dx, tensor=function_vector(Fp))
+        assemble(inner(x - x_star, test) * dx, tensor=Fp)
         return Fp
 
     def H_0_action(x):
@@ -200,8 +198,8 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
     test_y = TestFunction(space_y)
     M_l_x = Function(space_x, name="M_l_x", space_type="conjugate_dual")
     M_l_y = Function(space_y, name="M_l_y", space_type="conjugate_dual")
-    assemble(test_x * dx, tensor=function_vector(M_l_x))
-    assemble(test_y * dx, tensor=function_vector(M_l_y))
+    assemble(test_x * dx, tensor=M_l_x)
+    assemble(test_y * dx, tensor=M_l_y)
 
     x_star = Function(space_x, name="x_star")
     interpolate_expression(x_star, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
@@ -220,10 +218,8 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
         check_space_type(y, "primal")
         Fp = (Function(space_x, name="Fp_0", space_type="conjugate_dual"),
               Function(space_y, name="Fp_1", space_type="conjugate_dual"))
-        assemble(inner(x - x_star, test_x) * dx,
-                 tensor=function_vector(Fp[0]))
-        assemble(inner(alpha_y * (y - y_star), test_y) * dx,
-                 tensor=function_vector(Fp[1]))
+        assemble(inner(x - x_star, test_x) * dx, tensor=Fp[0])
+        assemble(inner(alpha_y * (y - y_star), test_y) * dx, tensor=Fp[1])
         return Fp
 
     def H_0_action(x, y):

@@ -17,8 +17,8 @@ from ..interface import (
     function_zero, is_function)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
-    form_form_compiler_parameters, function_vector, homogenize,
-    interpolate_expression, matrix_multiply, process_adjoint_solver_parameters,
+    form_form_compiler_parameters, homogenize, interpolate_expression,
+    matrix_multiply, process_adjoint_solver_parameters,
     process_solver_parameters, rhs_addto, rhs_copy, solve,
     update_parameters_dict, verify_assembly)
 
@@ -195,7 +195,7 @@ class Assembly(ExprEquation):
         elif self._arity == 1:
             assemble(
                 rhs, form_compiler_parameters=self._form_compiler_parameters,
-                tensor=function_vector(x))
+                tensor=x)
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
@@ -588,10 +588,9 @@ class EquationSolver(ExprEquation):
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
-                b = matrix_multiply(mat, function_vector(dep))
+                b = matrix_multiply(mat, dep)
             else:
-                matrix_multiply(mat, function_vector(dep), tensor=b,
-                                addto=True)
+                matrix_multiply(mat, dep, tensor=b, addto=True)
 
         if cached_form is not None:
             cached_b = cached_form[1]()
@@ -606,7 +605,7 @@ class EquationSolver(ExprEquation):
                 rhs_addto(b, cached_b)
 
         if b is None:
-            b = function_vector(function_new_conjugate_dual(self.x()))
+            b = function_new_conjugate_dual(self.x())
 
         apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
         return b
@@ -723,7 +722,7 @@ class EquationSolver(ExprEquation):
                     J_mat, b, self._bcs, self._form_compiler_parameters,
                     self._linear_solver_parameters, J_tolerance, b_tolerance)
 
-            J_solver.solve(function_vector(x), b)
+            J_solver.solve(x, b)
         else:
             # Case 5: Non-linear
             assert self._rhs == 0
@@ -786,7 +785,7 @@ class EquationSolver(ExprEquation):
                                 replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     else:
                         mat, _ = mat_bc
-                    dep_B.sub(matrix_multiply(mat, function_vector(adj_x)))
+                    dep_B.sub(matrix_multiply(mat, adj_x))
                 else:
                     # Cached form, immediate assembly
                     assert isinstance(cache, ufl.classes.Form)
@@ -820,8 +819,8 @@ class EquationSolver(ExprEquation):
                         replace_map=self._nonlinear_replace_map(nl_deps))
             J_solver, _, _ = J_solver_mat_bc
 
-            apply_rhs_bcs(function_vector(b), self._hbcs)
-            J_solver.solve(function_vector(adj_x), function_vector(b))
+            apply_rhs_bcs(b, self._hbcs)
+            J_solver.solve(adj_x, b)
 
             return adj_x
         else:
@@ -835,8 +834,8 @@ class EquationSolver(ExprEquation):
                 linear_solver_parameters=self._adjoint_solver_parameters)
             unbind_form(self._adjoint_J)
 
-            apply_rhs_bcs(function_vector(b), self._hbcs)
-            J_solver.solve(function_vector(adj_x), function_vector(b))
+            apply_rhs_bcs(b, self._hbcs)
+            J_solver.solve(adj_x, b)
 
             return adj_x
 
@@ -997,7 +996,7 @@ class DirichletBCApplication(Equation):
         function_zero(x)
         backend_DirichletBC(
             function_space(x), y,
-            *self._bc_args, **self._bc_kwargs).apply(function_vector(x))
+            *self._bc_args, **self._bc_kwargs).apply(x)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index == 0:
@@ -1007,7 +1006,7 @@ class DirichletBCApplication(Equation):
             F = function_new_conjugate_dual(y)
             backend_DirichletBC(
                 function_space(y), adj_x,
-                *self._bc_args, **self._bc_kwargs).apply(function_vector(F))
+                *self._bc_args, **self._bc_kwargs).apply(F)
             return (-1.0, F)
         else:
             raise IndexError("dep_index out of bounds")

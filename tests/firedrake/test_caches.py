@@ -3,8 +3,6 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.backend_code_generator_interface import \
-    function_vector
 from tlm_adjoint.firedrake.caches import split_form
 
 from .test_base import *
@@ -215,8 +213,8 @@ def test_cached_adjoint(setup_test, test_leaks,
 @seed_test
 def test_mat_terms(setup_test, test_leaks,
                    x_conjugate):
-    from tlm_adjoint.firedrake.backend_code_generator_interface import \
-        assemble_matrix, matrix_multiply
+    from tlm_adjoint.firedrake.backend_code_generator_interface import (
+        assemble_matrix, matrix_multiply)
 
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
@@ -233,7 +231,7 @@ def test_mat_terms(setup_test, test_leaks,
     form = inner(ufl.conj(x) if x_conjugate else x, test) * dx
 
     b_ref = Function(space, name="b_ref", space_type="conjugate_dual")
-    assemble(form, tensor=function_vector(b_ref))
+    assemble(form, tensor=b_ref)
 
     cached_terms, mat_terms, non_cached_terms = split_form(form)
 
@@ -246,14 +244,14 @@ def test_mat_terms(setup_test, test_leaks,
         A, = tuple(mat_terms.values())
         A, b_bc = assemble_matrix(A)
         b = Function(space, name="b", space_type="conjugate_dual")
-        matrix_multiply(A, function_vector(x), tensor=function_vector(b))
+        matrix_multiply(A, x, tensor=b)
         assert b_bc is None
     else:
         assert len(mat_terms) == 0
         assert not non_cached_terms.empty()
 
         b = Function(space, name="b", space_type="conjugate_dual")
-        assemble(non_cached_terms, tensor=function_vector(b))
+        assemble(non_cached_terms, tensor=b)
 
     b_error = function_copy(b_ref)
     function_axpy(b_error, -1.0, b)

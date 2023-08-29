@@ -3,8 +3,7 @@
 
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend_code_generator_interface import \
-    function_vector, matrix_multiply
+from tlm_adjoint.fenics.backend_code_generator_interface import matrix_multiply
 
 from .test_base import *
 
@@ -29,7 +28,7 @@ def test_HEP(setup_test, test_leaks):
 
     def M_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(inner(x, test) * dx, tensor=function_vector(y))
+        assemble(inner(x, test) * dx, tensor=y)
         return y
 
     import slepc4py.SLEPc as SLEPc
@@ -42,8 +41,7 @@ def test_HEP(setup_test, test_leaks):
     diff = Function(space)
     assert len(lam) == len(V)
     for lam_val, v in zip(lam, V):
-        matrix_multiply(M, function_vector(v),
-                        tensor=function_vector(diff))
+        matrix_multiply(M, v, tensor=diff)
         function_axpy(diff, -lam_val, v)
         assert function_linf_norm(diff) < 1.0e-16
 
@@ -60,7 +58,7 @@ def test_NHEP(setup_test, test_leaks):
 
     def N_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(inner(x.dx(0), test) * dx, tensor=function_vector(y))
+        assemble(inner(x.dx(0), test) * dx, tensor=y)
         return y
 
     lam, V = eigendecompose(
@@ -72,8 +70,7 @@ def test_NHEP(setup_test, test_leaks):
     if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
         assert len(lam) == len(V)
         for lam_val, v in zip(lam, V):
-            matrix_multiply(N, function_vector(v),
-                            tensor=function_vector(diff))
+            matrix_multiply(N, v, tensor=diff)
             function_axpy(diff, -lam_val, v)
             assert function_linf_norm(diff) == 0.0
     else:
@@ -81,13 +78,11 @@ def test_NHEP(setup_test, test_leaks):
         assert len(lam) == len(V_r)
         assert len(lam) == len(V_i)
         for lam_val, v_r, v_i in zip(lam, V_r, V_i):
-            matrix_multiply(N, function_vector(v_r),
-                            tensor=function_vector(diff))
+            matrix_multiply(N, v_r, tensor=diff)
             function_axpy(diff, -lam_val.real, v_r)
             function_axpy(diff, +lam_val.imag, v_i)
             assert function_linf_norm(diff) < 1.0e-15
-            matrix_multiply(N, function_vector(v_i),
-                            tensor=function_vector(diff))
+            matrix_multiply(N, v_i, tensor=diff)
             function_axpy(diff, -lam_val.real, v_i)
             function_axpy(diff, -lam_val.imag, v_r)
             assert function_linf_norm(diff) < 1.0e-15

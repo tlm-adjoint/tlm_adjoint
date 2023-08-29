@@ -3,7 +3,6 @@
 
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend_code_generator_interface import function_vector
 
 from .test_base import *
 
@@ -45,14 +44,12 @@ def test_GaussNewton(setup_test, test_leaks):
 
     def R_inv_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(inner(grad(ufl.conj(x)), grad(test)) * dx,
-                 tensor=function_vector(y))
+        assemble(inner(grad(ufl.conj(x)), grad(test)) * dx, tensor=y)
         return y
 
     def B_inv_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx,
-                 tensor=function_vector(y))
+        assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx, tensor=y)
         return y
 
     F = Function(space, name="F")
@@ -108,14 +105,12 @@ def test_CachedGaussNewton(setup_test):
 
     def R_inv_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(inner(grad(ufl.conj(x)), grad(test)) * dx,
-                 tensor=function_vector(y))
+        assemble(inner(grad(ufl.conj(x)), grad(test)) * dx, tensor=y)
         return y
 
     def B_inv_action(x):
         y = function_new_conjugate_dual(x)
-        assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx,
-                 tensor=function_vector(y))
+        assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx, tensor=y)
         return y
 
     F = Function(space, name="F")
