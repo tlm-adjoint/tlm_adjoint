@@ -19,7 +19,6 @@ from .backend_code_generator_interface import assemble, matrix_multiply
 
 from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
-from ..tangent_linear import get_tangent_linear
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
@@ -226,7 +225,7 @@ class LocalProjection(EquationSolver):
         tlm_rhs = ufl.classes.Form([])
         for dep in self.dependencies():
             if dep != x:
-                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                tau_dep = tlm_map[dep]
                 if tau_dep is not None:
                     tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
@@ -375,7 +374,7 @@ class PointInterpolation(Equation):
         X = self.X()
         y = self.dependencies()[-1]
 
-        tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+        tlm_y = tlm_map[y]
         if tlm_y is None:
             return ZeroAssignment([tlm_map[x] for x in X])
         else:
@@ -501,7 +500,7 @@ class ExprAssignment(ExprEquation):
         tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
         for dep in self.dependencies():
             if dep != x:
-                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                tau_dep = tlm_map[dep]
                 if tau_dep is not None:
                     # Cannot use += as Firedrake might add to the *values* for
                     # tlm_rhs

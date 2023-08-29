@@ -11,6 +11,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 import itertools
 from operator import itemgetter
+import warnings
 import weakref
 
 __all__ = \
@@ -141,30 +142,27 @@ class TangentLinearMap:
 
         tau_x = tlm_map[x]
 
-    where `x` is a function associated with the forward variable. If the
-    function `x` is 'checkpointed', meaning that it is stored by value by a
-    :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is a
-    function associated with the tangent-linear variable -- a new function is
-    instantiated if needed. If the function `x` is not 'checkpointed', meaning
-    that it is stored by reference by a
-    :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is
-    `None`.
+    where `x` is a function associated with the forward variable.
 
-    Containment can also be tested
+        - If `x` is defines a component of the control, then `tau_x` is a
+          function defining the associated component of the direction.
+        - If `x` does not define a component of the control but is
+          'checkpointed', meaning that it is stored by value by a
+          :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is
+          a function associated with the tangent-linear variable. A new
+          function is instantiated if needed.
+        - Otherwise `tau_x` is `None`, indicating that the tangent-linear
+          variable is zero.
+
+    Containment can be tested
 
     .. code-block:: python
 
         if x in tlm_map:
             [...]
 
-    and returns `True` if a tangent-linear function associated with `x` has
-    been instantiated.
-
-    Note that a :class:`TangentLinearMap` should not be used to map from the
-    control `M` to the derivative direction `dM`. Typically a
-    :class:`TangentLinearMap` should not be used directly, and instead
-    :func:`get_tangent_linear` should be used, which *does* map from the
-    control to the direction.
+    and returns `True` if `x` defines a component or control, or a
+    tangent-linear function associated with `x` has been instantiated.
 
     :arg M: A function or :class:`Sequence` of functions defining the control.
     :arg dM: A function or :class:`Sequence` of functions defining the
@@ -184,6 +182,14 @@ class TangentLinearMap:
             self._name_suffix = \
                 "_tlm((%s),(%s))" % (",".join(map(function_name, M)),
                                      ",".join(map(function_name, dM)))
+
+        assert len(M) == len(dM)
+        for m, dm in zip(M, dM):
+            if not hasattr(m, "_tlm_adjoint__tangent_linears"):
+                m._tlm_adjoint__tangent_linears = weakref.WeakKeyDictionary()
+            # Do not set _tlm_adjoint__tlm_root_id, as dm cannot appear as the
+            # solution to an Equation
+            m._tlm_adjoint__tangent_linears[self] = dm
 
     @gc_disabled
     def __contains__(self, x):
@@ -211,32 +217,10 @@ class TangentLinearMap:
 
 
 def get_tangent_linear(x, M, dM, tlm_map):
-    """Return a tangent-linear variable associated with a variable `x`.
-
-    This function should be used in place of accessing via the
-    :class:`TangentLinearMap`, if the variable `x` may be a control variable.
-
-    :arg x: A function defining the variable for which a tangent-linear
-        variable should be returned.
-    :arg M: A :class:`Sequence` of functions defining the control.
-    :arg dM: A :class:`Sequence` of functions defining the derivative
-        direction. The tangent-linear model computes directional derivatives
-        with respect to the control defined by `M` and with direction defined
-        by `dM`.
-    :arg tlm_map: A :class:`TangentLinearMap` storing values for tangent-linear
-        variables.
-    :returns: If `x` is a control variable then returns the associated
-        direction. If `x` is not a control variable then returns a function
-        corresponding to a tangent-linear variable if `x` is 'checkpointed'
-        (i.e. stored by value by a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage`), and `None`
-        otherwise.
-    """
-
-    if x in M:
-        return dM[M.index(x)]
-    else:
-        return tlm_map[x]
+    warnings.warn("get_tangent_linear is deprecated -- "
+                  "use a TangentLinearMap instead",
+                  DeprecationWarning, stacklevel=2)
+    return tlm_map[x]
 
 
 def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):

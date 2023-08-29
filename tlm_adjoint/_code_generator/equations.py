@@ -26,7 +26,6 @@ from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
 from ..equations import Assignment
 from ..overloaded_float import SymbolicFloat
-from ..tangent_linear import get_tangent_linear
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
@@ -244,7 +243,7 @@ class Assembly(ExprEquation):
         tlm_rhs = ufl.classes.Form([])
         for dep in self.dependencies():
             if dep != x:
-                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                tau_dep = tlm_map[dep]
                 if tau_dep is not None:
                     tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
@@ -847,7 +846,7 @@ class EquationSolver(ExprEquation):
         tlm_rhs = ufl.classes.Form([])
         for dep in self.dependencies():
             if dep != x:
-                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                tau_dep = tlm_map[dep]
                 if tau_dep is not None:
                     tlm_rhs -= derivative(self._F, dep, argument=tau_dep)
 
@@ -1019,7 +1018,7 @@ class DirichletBCApplication(Equation):
     def tangent_linear(self, M, dM, tlm_map):
         x, y = self.dependencies()
 
-        tau_y = get_tangent_linear(y, M, dM, tlm_map)
+        tau_y = tlm_map[y]
         if tau_y is None:
             return ZeroAssignment(tlm_map[x])
         else:
@@ -1103,7 +1102,7 @@ class ExprInterpolation(ExprEquation):
         tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
         for dep in self.dependencies():
             if dep != x:
-                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                tau_dep = tlm_map[dep]
                 if tau_dep is not None:
                     # Cannot use += as Firedrake might add to the *values* for
                     # tlm_rhs

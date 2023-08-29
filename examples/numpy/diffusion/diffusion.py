@@ -199,7 +199,7 @@ def forward(psi_0, kappa):
 
         def tangent_linear_rhs(self, M, dM, tlm_map, x):
             kappa, = self.nonlinear_dependencies()
-            tau_kappa = get_tangent_linear(kappa, M, dM, tlm_map)
+            tau_kappa = tlm_map[kappa]
             if tau_kappa is None:
                 return None
             else:

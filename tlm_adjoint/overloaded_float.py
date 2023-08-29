@@ -31,7 +31,6 @@ from .caches import Caches
 from .equation import Equation, ZeroAssignment
 from .equations import Assignment
 from .manager import annotation_enabled, tlm_enabled
-from .tangent_linear import get_tangent_linear
 
 import contextlib
 import functools
@@ -756,7 +755,7 @@ class FloatEquation(Equation):
         expr = 0
         deps = self.dependencies()
         for dep_index, dF_expr in self._dF_expr.items():
-            tau_dep = get_tangent_linear(deps[dep_index], M, dM, tlm_map)
+            tau_dep = tlm_map[deps[dep_index]]
             if tau_dep is not None:
                 expr += dF_expr * tau_dep
         if isinstance(expr, int) and expr == 0:
