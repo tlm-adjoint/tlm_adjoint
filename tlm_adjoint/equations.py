@@ -10,7 +10,6 @@ from .interface import check_space_types, check_space_types_conjugate_dual, \
 from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
 from .linear_equation import LinearEquation, RHS
-from .tangent_linear import get_tangent_linear
 
 import numpy as np
 import warnings
@@ -92,7 +91,7 @@ class Assignment(Equation):
 
     def tangent_linear(self, M, dM, tlm_map):
         x, y = self.dependencies()
-        tau_y = get_tangent_linear(y, M, dM, tlm_map)
+        tau_y = tlm_map[y]
         if tau_y is None:
             return ZeroAssignment(tlm_map[x])
         else:
@@ -168,7 +167,7 @@ class LinearCombination(Equation):
         args = []
         assert len(self._alpha) == len(ys)
         for alpha, y in zip(self._alpha, ys):
-            tau_y = get_tangent_linear(y, M, dM, tlm_map)
+            tau_y = tlm_map[y]
             if tau_y is not None:
                 args.append((alpha, tau_y))
         return LinearCombination(tlm_map[x], *args)
@@ -403,7 +402,7 @@ class MatrixActionRHS(RHS):
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
 
         X = [deps[j] for j in self._x_indices]
-        tlm_X = tuple(get_tangent_linear(x, M, dM, tlm_map) for x in X)
+        tlm_X = tuple(tlm_map[x] for x in X)
         tlm_B = [MatrixActionRHS(self._A, tlm_X)]
 
         if N_A_nl_deps > 0:
@@ -503,17 +502,17 @@ class DotProductRHS(RHS):
         if self._x_equals_y:
             x, = self.dependencies()
 
-            tlm_x = get_tangent_linear(x, M, dM, tlm_map)
+            tlm_x = tlm_map[x]
             if tlm_x is not None:
                 tlm_B.append(DotProductRHS(tlm_x, x, alpha=2.0 * self._alpha))
         else:
             x, y = self.dependencies()
 
-            tlm_x = get_tangent_linear(x, M, dM, tlm_map)
+            tlm_x = tlm_map[x]
             if tlm_x is not None:
                 tlm_B.append(DotProductRHS(tlm_x, y, alpha=self._alpha))
 
-            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+            tlm_y = tlm_map[y]
             if tlm_y is not None:
                 tlm_B.append(DotProductRHS(x, tlm_y, alpha=self._alpha))
 
@@ -645,7 +644,7 @@ class InnerProductRHS(RHS):
 
         if self._norm_sq:
             x = self.dependencies()[0]
-            tlm_x = get_tangent_linear(x, M, dM, tlm_map)
+            tlm_x = tlm_map[x]
             if tlm_x is not None:
                 if not issubclass(function_dtype(x), (float, np.floating)):
                     raise RuntimeError("Not complex differentiable")
@@ -656,12 +655,12 @@ class InnerProductRHS(RHS):
         else:
             x, y = self.dependencies()[:2]
 
-            tlm_x = get_tangent_linear(x, M, dM, tlm_map)
+            tlm_x = tlm_map[x]
             if tlm_x is not None:
                 tlm_B.append(InnerProductRHS(tlm_x, y, alpha=self._alpha,
                                              M=self._M))
 
-            tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+            tlm_y = tlm_map[y]
             if tlm_y is not None:
                 if not issubclass(function_dtype(y), (float, np.floating)):
                     raise RuntimeError("Not complex differentiable")
@@ -702,7 +701,7 @@ class SumRHS(RHS):
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         y, = self.dependencies()
-        tau_y = get_tangent_linear(y, M, dM, tlm_map)
+        tau_y = tlm_map[y]
         if tau_y is None:
             return None
         else:

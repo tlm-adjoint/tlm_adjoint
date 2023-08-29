@@ -18,7 +18,6 @@ from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
 from ..equations import MatrixActionRHS
 from ..linear_equation import LinearEquation, Matrix
-from ..tangent_linear import get_tangent_linear
 
 from .caches import form_dependencies, form_key
 from .equations import EquationSolver, bind_form, derivative, unbind_form, \
@@ -355,7 +354,7 @@ class LocalProjection(EquationSolver):
         tlm_rhs = ufl.classes.Form([])
         for dep in self.dependencies():
             if dep != x:
-                tau_dep = get_tangent_linear(dep, M, dM, tlm_map)
+                tau_dep = tlm_map[dep]
                 if tau_dep is not None:
                     tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
 
@@ -688,7 +687,7 @@ class PointInterpolation(Equation):
         X = self.X()
         y = self.dependencies()[-1]
 
-        tlm_y = get_tangent_linear(y, M, dM, tlm_map)
+        tlm_y = tlm_map[y]
         if tlm_y is None:
             return ZeroAssignment([tlm_map[x] for x in X])
         else:
