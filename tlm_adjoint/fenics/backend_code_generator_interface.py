@@ -20,6 +20,7 @@ from collections.abc import Sequence
 import ffc
 import numpy as np
 import ufl
+import warnings
 
 __all__ = \
     [
@@ -253,12 +254,17 @@ def matrix_copy(A):
 
 def matrix_multiply(A, x, *,
                     tensor=None, addto=False, action_type="conjugate_dual"):
+    if isinstance(x, backend_Function):
+        x = x.vector()
+    if tensor is not None and isinstance(tensor, backend_Function):
+        tensor = tensor.vector()
     if tensor is None:
         if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
-            tensor = function_vector(space_new(
+            tensor = space_new(
                 A._tlm_adjoint__form.arguments()[0].function_space(),
                 space_type=function_space_type(x._tlm_adjoint__function,
-                                               rel_space_type=action_type)))
+                                               rel_space_type=action_type))
+            tensor = tensor.vector()
         else:
             return A * x
     elif hasattr(tensor, "_tlm_adjoint__function") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
@@ -321,6 +327,8 @@ def r0_space(x):
 
 
 def function_vector(x):
+    warnings.warn("function_vector is deprecated",
+                  DeprecationWarning, stacklevel=2)
     return x.vector()
 
 

@@ -3,8 +3,8 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.backend_code_generator_interface import \
-    assemble_linear_solver, function_vector
+from tlm_adjoint.firedrake.backend_code_generator_interface import (
+    assemble_linear_solver)
 
 from .test_base import *
 
@@ -35,8 +35,7 @@ def test_hessian_solve(setup_test,
 
     def B_inv(u):
         b = Function(space, space_type="conjugate_dual")
-        assemble(ufl.conj(beta) * inner(ufl.conj(u), test) * dx,
-                 tensor=function_vector(b))
+        assemble(ufl.conj(beta) * inner(ufl.conj(u), test) * dx, tensor=b)
         return b
 
     def B(b):
@@ -44,7 +43,7 @@ def test_hessian_solve(setup_test,
         solver, _, _ = assemble_linear_solver(
             ufl.conj(beta) * inner(ufl.conj(trial), test) * dx, bcs=bc,
             linear_solver_parameters=ls_parameters_cg)
-        solver.solve(function_vector(u), function_vector(function_copy(b)))
+        solver.solve(u, function_copy(b))
         return u
 
     def forward(u_ref, m):
@@ -87,8 +86,8 @@ def test_hessian_solve(setup_test,
 
     b_ref = Function(space, name="b_ref", space_type="conjugate_dual")
     assemble(inner((sin(5.0 * pi * X[0]) * sin(7.0 * pi * X[1])) ** 2, test) * dx,  # noqa: E501
-             tensor=function_vector(b_ref))
-    bc.apply(function_vector(b_ref))
+             tensor=b_ref)
+    bc.apply(b_ref)
 
     start_manager()
     _, J, J_mismatch = forward(u_ref, m)

@@ -3,8 +3,8 @@
 
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.backend_code_generator_interface import \
-    assemble_linear_solver, function_vector
+from tlm_adjoint.firedrake.backend_code_generator_interface import (
+    assemble_linear_solver)
 
 from .test_base import *
 
@@ -938,7 +938,7 @@ def test_initial_guess(setup_test, test_leaks,
                            name="adj_x_0", static=True)
         with paused_manager():
             assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
-                     tensor=function_vector(adj_x_0))
+                     tensor=adj_x_0)
         Projection(x, zero,
                    solver_parameters=ls_parameters_cg).solve()
         if not test_adj_ic:
@@ -992,10 +992,10 @@ def test_initial_guess(setup_test, test_leaks,
 @seed_test
 def test_form_binding(setup_test, test_leaks,
                       dim):
-    from tlm_adjoint.firedrake.backend_code_generator_interface import \
-        assemble as bind_assemble
-    from tlm_adjoint.firedrake.equations import bind_form, unbind_form, \
-        unbound_form
+    from tlm_adjoint.firedrake.backend_code_generator_interface import (
+        assemble as bind_assemble)
+    from tlm_adjoint.firedrake.equations import (
+        bind_form, unbind_form, unbound_form)
 
     mesh = UnitSquareMesh(30, 30)
     X = SpatialCoordinate(mesh)
@@ -1041,14 +1041,13 @@ def test_form_binding(setup_test, test_leaks,
                         space, solver_parameters=ls_parameters_cg)
         u_split = u.subfunctions
         assembled_form_ref = Function(space, space_type="conjugate_dual")
-        assemble(test_form(u, u_split, test),
-                 tensor=function_vector(assembled_form_ref))
+        assemble(test_form(u, u_split, test), tensor=assembled_form_ref)
 
         assert "_tlm_adjoint__bindings" not in form._cache
         bind_form(form, test_form_deps(u, u_split))
         assert "_tlm_adjoint__bindings" in form._cache
         assembled_form = Function(space, space_type="conjugate_dual")
-        bind_assemble(form, tensor=function_vector(assembled_form))
+        bind_assemble(form, tensor=assembled_form)
         unbind_form(form)
         assert "_tlm_adjoint__bindings" not in form._cache
 
@@ -1131,8 +1130,20 @@ def test_eliminate_zeros(setup_test, test_leaks):
         L_z = eliminate_zeros(L, force_non_empty_form=True)
         assert not L_z.empty()
         b = Function(space, space_type="conjugate_dual")
-        assemble(L_z, tensor=function_vector(b))
+        assemble(L_z, tensor=b)
         assert function_linf_norm(b) == 0.0
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_ZeroFunction_expand_derivatives(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    F = ZeroFunction(space, name="F")
+
+    expr = ufl.algorithms.expand_derivatives(F.dx(0))
+    assert F in extract_coefficients(expr)
+    assert F not in extract_coefficients(eliminate_zeros(expr))
 
 
 @pytest.mark.firedrake
@@ -1156,20 +1167,8 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
     zero_form = eliminate_zeros(form, force_non_empty_form=True)
     assert F not in extract_coefficients(zero_form)
     b = Function(space, space_type="conjugate_dual")
-    assemble(zero_form, tensor=function_vector(b))
+    assemble(zero_form, tensor=b)
     assert function_linf_norm(b) == 0.0
-
-
-@pytest.mark.firedrake
-@seed_test
-def test_ZeroFunction_expand_derivatives(setup_test, test_leaks):
-    mesh = UnitIntervalMesh(10)
-    space = FunctionSpace(mesh, "Lagrange", 1)
-    F = ZeroFunction(space, name="F")
-
-    expr = ufl.algorithms.expand_derivatives(F.dx(0))
-    assert F in extract_coefficients(expr)
-    assert F not in extract_coefficients(eliminate_zeros(expr))
 
 
 @pytest.mark.firedrake
