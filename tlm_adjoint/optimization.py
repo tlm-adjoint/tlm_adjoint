@@ -7,13 +7,15 @@ from .interface import (
     function_is_cached, function_is_checkpointed, function_is_static,
     function_linf_norm, function_local_size, function_new,
     function_new_conjugate_dual, function_set_values, garbage_cleanup,
-    is_function, paused_space_type_checking, space_comm)
+    is_function, paused_space_type_checking)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
+from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
-from .manager import compute_gradient, reset_manager, restore_manager, \
-    set_manager, start_manager, stop_manager
+from .manager import (
+    compute_gradient, reset_manager, restore_manager, set_manager,
+    start_manager, stop_manager)
 
 from collections import deque
 from collections.abc import Sequence
@@ -28,6 +30,106 @@ __all__ = \
         "l_bfgs",
         "minimize_l_bfgs"
     ]
+
+
+class ReducedFunctional:
+    def __init__(self, forward, *,
+                 manager=None):
+        if manager is None:
+            manager = _manager().new()
+
+        self._manager = manager
+        self._forward = forward
+        self._M = None
+        self._J = None
+
+    @restore_manager
+    def objective(self, M, *,
+                  force=False):
+        if not isinstance(M, Sequence):
+            M = (M,)
+        if self._M is not None and len(M) != len(self._M):
+            raise ValueError("Invalid control")
+        for m in M:
+            if not issubclass(function_dtype(m), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+
+        set_manager(self._manager)
+
+        if force or self._M is None or self._J is None:
+            self._M = None
+            self._J = None
+        else:
+            assert len(M) == len(self._M)
+            for m, m_val in zip(M, self._M):
+                m_error = function_copy(m)
+                function_axpy(m_error, -1.0, m_val)
+                if function_linf_norm(m_error) != 0.0:
+                    self._M = None
+                    self._J = None
+                    break
+
+        if self._J is None:
+            M = tuple(function_copy(m, static=function_is_static(m),
+                                    cache=function_is_cached(m),
+                                    checkpoint=function_is_checkpointed(m))
+                      for m in M)
+
+            reset_manager()
+            clear_caches()
+
+            start_manager()
+            J = self._forward(*M)
+            if is_function(J):
+                J = Functional(_fn=J)
+            stop_manager()
+
+            self._M = M
+            self._J = J
+
+        assert self._M is not None
+        assert self._J is not None
+
+        J_val = self._J.value()
+        if not isinstance(J_val, (float, np.floating)):
+            raise ValueError("Invalid dtype")
+        return J_val
+
+    @restore_manager
+    def gradient(self, M):
+        if not isinstance(M, Sequence):
+            dJ, = self.gradient((M,))
+            return dJ
+
+        set_manager(self._manager)
+
+        _ = self.objective(M, force=self._manager._cp_schedule.is_exhausted())
+        dJ = compute_gradient(self._J, self._M)
+
+        for dJ_i in dJ:
+            if not issubclass(function_dtype(dJ_i), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+        return dJ
+
+    def hessian_action(self, M, dM):
+        if not isinstance(M, Sequence):
+            ddJ, = self.hessian_action((M,), (dM,))
+            return ddJ
+
+        for m in M:
+            if not issubclass(function_dtype(m), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+        for dm in dM:
+            if not issubclass(function_dtype(dm), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+
+        ddJ = Hessian(self._forward, manager=self._manager.new())
+        _, _, ddJ = ddJ.action(M, dM)
+
+        for ddJ_i in ddJ:
+            if not issubclass(function_dtype(ddJ_i), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+        return ddJ
 
 
 @local_caches
@@ -108,47 +210,15 @@ def minimize_scipy(forward, M0, *,
         for i, f in enumerate(F):
             function_set_values(f, x[N[i]:N[i + 1]])
 
-    M = [function_new(m0, static=function_is_static(m0),
-                      cache=function_is_cached(m0),
-                      checkpoint=function_is_checkpointed(m0))
-         for m0 in M0]
-    J = [None]
-    J_M = [None, None]
+    M = tuple(function_new(m0, static=function_is_static(m0),
+                           cache=function_is_cached(m0),
+                           checkpoint=function_is_checkpointed(m0))
+              for m0 in M0)
+    J_hat = ReducedFunctional(forward, manager=manager)
 
-    def fun(x, *, force=False):
+    def fun(x):
         set(M, x)
-
-        if not force and J[0] is not None:
-            change_norm = 0.0
-            assert len(M) == len(J_M[0])
-            for m, m0 in zip(M, J_M[0]):
-                change = function_copy(m)
-                function_axpy(change, -1.0, m0)
-                change_norm = max(change_norm, function_linf_norm(change))
-            if change_norm == 0.0:
-                J_val = J[0].value()
-                if not isinstance(J_val, (float, np.floating)):
-                    raise TypeError("Unexpected type")
-                return J_val
-
-        J_M[0] = tuple(function_copy(m) for m in M)
-
-        reset_manager()
-        clear_caches()
-
-        start_manager()
-        J[0] = forward(*M)
-        if is_function(J[0]):
-            J[0] = Functional(_fn=J[0])
-        garbage_cleanup(space_comm(J[0].space()))
-        stop_manager()
-
-        J_M[1] = M
-
-        J_val = J[0].value()
-        if not isinstance(J_val, (float, np.floating)):
-            raise TypeError("Unexpected type")
-        return J_val
+        return J_hat.objective(M)
 
     def fun_bcast(x):
         if comm.rank == 0:
@@ -156,10 +226,8 @@ def minimize_scipy(forward, M0, *,
         return fun(x)
 
     def jac(x):
-        fun(x, force=J_M[1] is None)
-        dJ = compute_gradient(J[0], J_M[1])
-        if manager._cp_schedule.is_exhausted():
-            J_M[1] = None
+        set(M, x)
+        dJ = J_hat.gradient(M)
         return get(dJ)
 
     def jac_bcast(x):
@@ -855,48 +923,10 @@ def minimize_l_bfgs(forward, M0, *,
     set_manager(manager)
     comm = manager.comm()
 
-    M = [function_new(m0, static=function_is_static(m0),
-                      cache=function_is_cached(m0),
-                      checkpoint=function_is_checkpointed(m0))
-         for m0 in M0]
-
-    last_F = [None, None, None]
-
-    def F(*X, force=False):
-        if not force and last_F[0] is not None:
-            change_norm = 0.0
-            assert len(X) == len(last_F[0])
-            for m, last_m in zip(X, last_F[0]):
-                change = function_copy(m)
-                function_axpy(change, -1.0, last_m)
-                change_norm = max(change_norm, function_linf_norm(change))
-            if change_norm == 0.0:
-                return last_F[2].value()
-
-        last_F[0] = functions_copy(X)
-        functions_assign(M, X)
-
-        reset_manager()
-
-        last_F[1] = M
-        start_manager()
-        last_F[2] = forward(*last_F[1])
-        if is_function(last_F[2]):
-            last_F[2] = Functional(_fn=last_F[2])
-        garbage_cleanup(comm)
-        stop_manager()
-
-        return last_F[2].value()
-
-    def Fp(*X):
-        F(*X, force=last_F[1] is None)
-        dJ = compute_gradient(last_F[2], last_F[1])
-        if manager._cp_schedule.is_exhausted():
-            last_F[1] = None
-        return dJ
+    J_hat = ReducedFunctional(forward, manager=manager)
 
     X, optimization_data = l_bfgs(
-        F, Fp, M0,
+        lambda *M: J_hat.objective(M), lambda *M: J_hat.gradient(M), M0,
         m=m, comm=comm, **kwargs)
 
     if is_function(X):
