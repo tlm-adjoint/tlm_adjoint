@@ -92,7 +92,8 @@ def run_example_notebook(filename, tmp_path):
         for cell in nb["cells"]:
             if cell["cell_type"] == "code":
                 for line in cell["source"]:
-                    py_h.write(line)
+                    if not line.startswith("%matplotlib "):
+                        py_h.write(line)
                 py_h.write("\n\n")
 
     run_example(tmp_filename, clear_forward_globals=False)
