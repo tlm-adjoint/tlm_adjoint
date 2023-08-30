@@ -45,6 +45,9 @@ tlm_adjoint.
 - `Time-dependent example <examples/3_time_dependent.ipynb>`__: An example
   including the solution of a time-dependent partial differential equation
   using Firedrake. Introduces checkpointing.
+- `Visualizing derivatives <examples/4_riesz_maps.ipynb>`__: The use of a Riesz
+  map to visualize the result of differentiating with respect to a finite
+  element discretized function using the adjoint method.
 
 Source and license
 ------------------

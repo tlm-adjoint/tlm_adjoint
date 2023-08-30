@@ -30,6 +30,7 @@ def test_poisson(setup_test, test_leaks):
 @pytest.mark.firedrake
 @pytest.mark.example
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@seed_test
 def test_0_getting_started(setup_test, tmp_path):
     run_example_notebook("0_getting_started.ipynb", tmp_path)
 
@@ -38,6 +39,7 @@ def test_0_getting_started(setup_test, tmp_path):
 @pytest.mark.example
 @pytest.mark.skipif(complex_mode, reason="real only")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@seed_test
 def test_1_time_independent(setup_test, tmp_path):
     reset_manager("memory", {"drop_references": False})
     run_example_notebook("1_time_independent.ipynb", tmp_path)
@@ -47,6 +49,7 @@ def test_1_time_independent(setup_test, tmp_path):
 @pytest.mark.example
 @pytest.mark.skipif(complex_mode, reason="real only")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@seed_test
 def test_2_verification(setup_test, tmp_path):
     reset_manager("memory", {"drop_references": False})
     run_example_notebook("2_verification.ipynb", tmp_path)
@@ -57,5 +60,15 @@ def test_2_verification(setup_test, tmp_path):
 @pytest.mark.skipif(complex_mode, reason="real only")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.skip  # Long example
+@seed_test
 def test_3_time_dependent(setup_test, tmp_path):
     run_example_notebook("3_time_dependent.ipynb", tmp_path)
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(complex_mode, reason="real only")
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@seed_test
+def test_4_riesz_maps(setup_test, tmp_path):
+    run_example_notebook("4_riesz_maps.ipynb", tmp_path)
