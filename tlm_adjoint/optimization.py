@@ -3,17 +3,19 @@
 
 from .interface import (
     comm_dup_cached, function_assign, function_axpy, function_comm,
-    function_copy, function_dtype, function_get_values, function_inner,
-    function_is_cached, function_is_checkpointed, function_is_static,
-    function_linf_norm, function_local_size, function_new,
+    function_copy, function_dtype, function_get_values, function_global_size,
+    function_inner, function_is_cached, function_is_checkpointed,
+    function_is_static, function_linf_norm, function_local_size, function_new,
     function_new_conjugate_dual, function_set_values, garbage_cleanup,
-    is_function, paused_space_type_checking, space_comm)
+    is_function, paused_space_type_checking)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
+from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
-from .manager import compute_gradient, reset_manager, restore_manager, \
-    set_manager, start_manager, stop_manager
+from .manager import (
+    compute_gradient, reset_manager, restore_manager, set_manager,
+    start_manager, stop_manager)
 
 from collections import deque
 from collections.abc import Sequence
@@ -26,12 +28,112 @@ __all__ = \
 
         "LBFGSHessianApproximation",
         "l_bfgs",
-        "minimize_l_bfgs"
+        "minimize_l_bfgs",
+        "minimize_tao"
     ]
 
 
+class ReducedFunctional:
+    def __init__(self, forward, *,
+                 manager=None):
+        if manager is None:
+            manager = _manager().new()
+
+        self._manager = manager
+        self._forward = forward
+        self._M = None
+        self._J = None
+
+    @restore_manager
+    def objective(self, M, *,
+                  force=False):
+        if not isinstance(M, Sequence):
+            M = (M,)
+        if self._M is not None and len(M) != len(self._M):
+            raise ValueError("Invalid control")
+        for m in M:
+            if not issubclass(function_dtype(m), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+
+        set_manager(self._manager)
+
+        if force or self._M is None or self._J is None:
+            self._M = None
+            self._J = None
+        else:
+            assert len(M) == len(self._M)
+            for m, m_val in zip(M, self._M):
+                m_error = function_copy(m)
+                function_axpy(m_error, -1.0, m_val)
+                if function_linf_norm(m_error) != 0.0:
+                    self._M = None
+                    self._J = None
+                    break
+
+        if self._J is None:
+            M = tuple(function_copy(m, static=function_is_static(m),
+                                    cache=function_is_cached(m),
+                                    checkpoint=function_is_checkpointed(m))
+                      for m in M)
+
+            reset_manager()
+            clear_caches()
+
+            start_manager()
+            J = self._forward(*M)
+            if is_function(J):
+                J = Functional(_fn=J)
+            stop_manager()
+
+            self._M = M
+            self._J = J
+
+        assert self._M is not None
+        assert self._J is not None
+
+        J_val = self._J.value()
+        if not isinstance(J_val, (float, np.floating)):
+            raise ValueError("Invalid dtype")
+        return J_val
+
+    @restore_manager
+    def gradient(self, M):
+        if not isinstance(M, Sequence):
+            dJ, = self.gradient((M,))
+            return dJ
+
+        set_manager(self._manager)
+
+        _ = self.objective(M, force=self._manager._cp_schedule.is_exhausted())
+        dJ = compute_gradient(self._J, self._M)
+
+        for dJ_i in dJ:
+            if not issubclass(function_dtype(dJ_i), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+        return dJ
+
+    def hessian_action(self, M, dM):
+        if not isinstance(M, Sequence):
+            ddJ, = self.hessian_action((M,), (dM,))
+            return ddJ
+
+        for m in M:
+            if not issubclass(function_dtype(m), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+        for dm in dM:
+            if not issubclass(function_dtype(dm), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+
+        ddJ = Hessian(self._forward, manager=self._manager.new())
+        _, _, ddJ = ddJ.action(M, dM)
+
+        for ddJ_i in ddJ:
+            if not issubclass(function_dtype(ddJ_i), (float, np.floating)):
+                raise ValueError("Invalid dtype")
+        return ddJ
+
+
 @local_caches
-@restore_manager
 def minimize_scipy(forward, M0, *,
                    manager=None, **kwargs):
     """Provides an interface with :func:`scipy.optimize.minimize` for
@@ -66,7 +168,6 @@ def minimize_scipy(forward, M0, *,
 
     if manager is None:
         manager = _manager().new()
-    set_manager(manager)
     comm = manager.comm()
 
     N = [0]
@@ -108,47 +209,15 @@ def minimize_scipy(forward, M0, *,
         for i, f in enumerate(F):
             function_set_values(f, x[N[i]:N[i + 1]])
 
-    M = [function_new(m0, static=function_is_static(m0),
-                      cache=function_is_cached(m0),
-                      checkpoint=function_is_checkpointed(m0))
-         for m0 in M0]
-    J = [None]
-    J_M = [None, None]
+    M = tuple(function_new(m0, static=function_is_static(m0),
+                           cache=function_is_cached(m0),
+                           checkpoint=function_is_checkpointed(m0))
+              for m0 in M0)
+    J_hat = ReducedFunctional(forward, manager=manager)
 
-    def fun(x, *, force=False):
+    def fun(x):
         set(M, x)
-
-        if not force and J[0] is not None:
-            change_norm = 0.0
-            assert len(M) == len(J_M[0])
-            for m, m0 in zip(M, J_M[0]):
-                change = function_copy(m)
-                function_axpy(change, -1.0, m0)
-                change_norm = max(change_norm, function_linf_norm(change))
-            if change_norm == 0.0:
-                J_val = J[0].value()
-                if not isinstance(J_val, (float, np.floating)):
-                    raise TypeError("Unexpected type")
-                return J_val
-
-        J_M[0] = tuple(function_copy(m) for m in M)
-
-        reset_manager()
-        clear_caches()
-
-        start_manager()
-        J[0] = forward(*M)
-        if is_function(J[0]):
-            J[0] = Functional(_fn=J[0])
-        garbage_cleanup(space_comm(J[0].space()))
-        stop_manager()
-
-        J_M[1] = M
-
-        J_val = J[0].value()
-        if not isinstance(J_val, (float, np.floating)):
-            raise TypeError("Unexpected type")
-        return J_val
+        return J_hat.objective(M)
 
     def fun_bcast(x):
         if comm.rank == 0:
@@ -156,10 +225,8 @@ def minimize_scipy(forward, M0, *,
         return fun(x)
 
     def jac(x):
-        fun(x, force=J_M[1] is None)
-        dJ = compute_gradient(J[0], J_M[1])
-        if manager._cp_schedule.is_exhausted():
-            J_M[1] = None
+        set(M, x)
+        dJ = J_hat.gradient(M)
         return get(dJ)
 
     def jac_bcast(x):
@@ -823,7 +890,6 @@ def l_bfgs(F, Fp, X0, *,
 
 
 @local_caches
-@restore_manager
 def minimize_l_bfgs(forward, M0, *,
                     m=30, manager=None, **kwargs):
     """Functional minimization using the L-BFGS algorithm.
@@ -852,53 +918,179 @@ def minimize_l_bfgs(forward, M0, *,
 
     if manager is None:
         manager = _manager().new()
-    set_manager(manager)
     comm = manager.comm()
 
-    M = [function_new(m0, static=function_is_static(m0),
-                      cache=function_is_cached(m0),
-                      checkpoint=function_is_checkpointed(m0))
-         for m0 in M0]
-
-    last_F = [None, None, None]
-
-    def F(*X, force=False):
-        if not force and last_F[0] is not None:
-            change_norm = 0.0
-            assert len(X) == len(last_F[0])
-            for m, last_m in zip(X, last_F[0]):
-                change = function_copy(m)
-                function_axpy(change, -1.0, last_m)
-                change_norm = max(change_norm, function_linf_norm(change))
-            if change_norm == 0.0:
-                return last_F[2].value()
-
-        last_F[0] = functions_copy(X)
-        functions_assign(M, X)
-
-        reset_manager()
-
-        last_F[1] = M
-        start_manager()
-        last_F[2] = forward(*last_F[1])
-        if is_function(last_F[2]):
-            last_F[2] = Functional(_fn=last_F[2])
-        garbage_cleanup(comm)
-        stop_manager()
-
-        return last_F[2].value()
-
-    def Fp(*X):
-        F(*X, force=last_F[1] is None)
-        dJ = compute_gradient(last_F[2], last_F[1])
-        if manager._cp_schedule.is_exhausted():
-            last_F[1] = None
-        return dJ
+    J_hat = ReducedFunctional(forward, manager=manager)
 
     X, optimization_data = l_bfgs(
-        F, Fp, M0,
+        lambda *M: J_hat.objective(M), lambda *M: J_hat.gradient(M), M0,
         m=m, comm=comm, **kwargs)
 
     if is_function(X):
         X = (X,)
     return X, optimization_data
+
+
+@local_caches
+def minimize_tao(forward, m0, *,
+                 method=None, gatol, grtol, gttol=0.0,
+                 M_inv_action=None,
+                 configure=None, manager=None):
+    r"""Functional minimization using TAO.
+
+    :arg forward: A callable which accepts one function argument, and
+        which returns a function or :class:`tlm_adjoint.functional.Functional`
+        defining the forward functional.
+    :arg m0: A function defining the control variable, and the initial guess
+        for the optimization.
+    :arg method: TAO type. Defaults to `PETSc.TAO.Type.LMVM`.
+    :arg gatol: TAO gradient absolute tolerance.
+    :arg grtol: TAO gradient relative tolerance.
+    :arg gttol: TAO gradient norm change relative tolerance.
+    :arg M_inv_action: A callable defining a (conjugate) dual space inner
+        product,
+
+        .. math::
+
+            \left< x, y \right>_{M^{-1}} = y^* M^{-1} x,
+
+        where :math:`x` and :math:`y` are degree of freedom vectors for
+        (conjugate) dual space elements and :math:`M` is a Hermitian and
+        positive definite matrix. Accepts one function argument, defining the
+        direction, and returns a function defining the action of :math:`M^{-1}`
+        on this direction.
+    :arg configure: A callable accepting a single :class:`petsc4py.PETSc.TAO`
+        argument. Used for detailed manual configuration. Called after all
+        other configuration options are set.
+    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
+        should be used internally. `manager().new()` is used if not supplied.
+    """
+
+    import petsc4py.PETSc as PETSc
+
+    if method is None:
+        method = PETSc.TAO.Type.LMVM
+    if not issubclass(function_dtype(m0), (float, np.floating)):
+        raise ValueError("Invalid dtype")
+
+    def from_petsc(y, x):
+        with y as y_a:
+            if not issubclass(y_a.dtype.type, (float, np.floating)):
+                raise ValueError("Invalid dtype")
+
+            function_set_values(x, y_a)
+
+    def to_petsc(x, y):
+        if is_function(y):
+            y_a = function_get_values(y)
+        else:
+            y_a = y
+
+        if not issubclass(y_a.dtype.type, (float, np.floating)):
+            raise ValueError("Invalid dtype")
+        if not np.can_cast(y_a, PETSc.ScalarType):
+            raise ValueError("Invalid dtype")
+        if y_a.shape != (x.getLocalSize(),):
+            raise ValueError("Invalid shape")
+
+        x.setArray(y_a)
+
+    if manager is None:
+        manager = _manager().new()
+    comm = manager.comm()
+    comm = comm_dup_cached(comm, key="minimize_tao")
+
+    tao = PETSc.TAO().create(comm=comm)
+    tao.setType(method)
+    tao.setTolerances(gatol=gatol, grtol=grtol, gttol=gttol)
+
+    m = function_new(m0, static=function_is_static(m0),
+                     cache=function_is_cached(m0),
+                     checkpoint=function_is_checkpointed(m0))
+    J_hat = ReducedFunctional(forward, manager=manager)
+
+    def objective(tao, x):
+        from_petsc(x, m)
+        J_val = J_hat.objective(m)
+        return J_val
+
+    def gradient(tao, x, g):
+        from_petsc(x, m)
+        dJ = J_hat.gradient(m)
+        to_petsc(g, dJ)
+
+    def objective_gradient(tao, x, g):
+        from_petsc(x, m)
+        J_val = J_hat.objective(m)
+        dJ = J_hat.gradient(m)
+        to_petsc(g, dJ)
+        return J_val
+
+    def hessian(tao, x, H, P):
+        H.getPythonContext().set_m(x)
+
+    class Hessian:
+        def __init__(self, m0):
+            self._m = function_new(m0, static=function_is_static(m0),
+                                   cache=function_is_cached(m0),
+                                   checkpoint=function_is_checkpointed(m0))
+            self._dm = function_new(m0)
+            self._shift = 0.0
+
+        def set_m(self, x):
+            from_petsc(x, self._m)
+
+        def shift(self, A, alpha):
+            self._shift += alpha
+
+        def mult(self, A, x, y):
+            from_petsc(x, self._dm)
+            ddJ = J_hat.hessian_action(self._m, self._dm)
+            y_a = function_get_values(ddJ)
+            if self._shift != 0.0:
+                with x as x_a:
+                    y_a += self._shift * x_a
+            to_petsc(y, y_a)
+
+    n = function_local_size(m0)
+    N = function_global_size(m0)
+    H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                        Hessian(m0), comm=comm)
+    H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+    H_matrix.setUp()
+
+    tao.setObjective(objective)
+    tao.setGradient(gradient, None)
+    tao.setObjectiveGradient(objective_gradient, None)
+    tao.setHessian(hessian, H_matrix)
+
+    if M_inv_action is not None:
+        class GradientNorm:
+            def __init__(self, m0):
+                self._g = function_new_conjugate_dual(m0)
+
+            def mult(self, A, x, y):
+                from_petsc(x, self._g)
+                M_inv_x = M_inv_action(self._g)
+                to_petsc(y, M_inv_x)
+
+        M_inv_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
+                                                GradientNorm(m0), comm=comm)
+        M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+        tao.setGradientNorm(M_inv_matrix)
+
+    if configure is not None:
+        configure(tao)
+
+    x = H_matrix.getVecRight()
+    to_petsc(x, m0)
+    tao.solve(x)
+    from_petsc(x, m)
+
+    tao.destroy()
+    H_matrix.destroy()
+    if M_inv_action is not None:
+        M_inv_matrix.destroy()
+    x.destroy()
+
+    return m

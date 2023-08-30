@@ -10,7 +10,6 @@ from .interface import (
     function_global_size, function_local_size, function_set_values,
     is_function, relative_space_type, space_comm, space_new)
 
-import functools
 import numpy as np
 import warnings
 
@@ -20,26 +19,10 @@ __all__ = \
     ]
 
 
-_error_flag = False
-
-
-def flag_errors(fn):
-    @functools.wraps(fn)
-    def wrapped_fn(*args, **kwargs):
-        global _error_flag
-        try:
-            return fn(*args, **kwargs)
-        except Exception:
-            _error_flag = True
-            raise
-    return wrapped_fn
-
-
 class PythonMatrix:
     def __init__(self, action):
         self._action = action
 
-    @flag_errors
     def mult(self, A, x, y):
         import petsc4py.PETSc as PETSc
 
@@ -171,7 +154,6 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
 
     import petsc4py.PETSc as PETSc
     import slepc4py.SLEPc as SLEPc
-    global _error_flag
 
     if arg_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
@@ -230,10 +212,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         configure(esolver)
     esolver.setUp()
 
-    _error_flag = False
     esolver.solve()
-    if _error_flag:
-        raise RuntimeError("Error encountered in SLEPc.EPS.solve")
     if esolver.getConverged() < N_ev:
         raise RuntimeError("Not all requested eigenpairs converged")
 
@@ -278,6 +257,9 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
     A_matrix.destroy()
     if B_matrix is not None:
         B_matrix.destroy()
+    v_r.destroy()
+    if v_i is not None:
+        v_i.destroy()
 
     if V_i is None:
         return lam, V_r

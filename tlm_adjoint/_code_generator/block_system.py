@@ -129,20 +129,6 @@ __all__ = \
         "System"
     ]
 
-_error_flag = False
-
-
-def flag_errors(fn):
-    @wraps(fn)
-    def wrapped_fn(*args, **kwargs):
-        global _error_flag
-        try:
-            return fn(*args, **kwargs)
-        except Exception:
-            _error_flag = True
-            raise
-    return wrapped_fn
-
 
 # Following naming of PyOP2 Dat.vec_context access types
 class Access(Enum):
@@ -1043,7 +1029,6 @@ class SystemMatrix(PETScInterface):
         super().__init__(arg_space, action_space, nullspace)
         self._matrix = matrix
 
-    @flag_errors
     def mult(self, A, x, y):
         self._pre_mult(x)
 
@@ -1061,7 +1046,6 @@ class Preconditioner(PETScInterface):
         super().__init__(arg_space, action_space, nullspace)
         self._pc_fn = pc_fn
 
-    @flag_errors
     def apply(self, pc, x, y):
         self._pre_mult(x)
 
@@ -1185,8 +1169,6 @@ class System:
         :returns: The number of Krylov iterations.
         """
 
-        global _error_flag
-
         if solver_parameters is None:
             solver_parameters = {}
 
@@ -1295,7 +1277,6 @@ class System:
             self._action_space.split_to_mixed(b_fn, b_c)
         del b_c
 
-        _error_flag = False
         with vec(u_fn) as u_v, vec(b_fn) as b_v:
             ksp_solver.solve(b_v, u_v)
         del b_fn
@@ -1310,9 +1291,6 @@ class System:
 
         if ksp_solver.getConvergedReason() <= 0:
             raise ConvergenceError("Solver failed to converge",
-                                   ksp=ksp_solver)
-        if _error_flag:
-            raise ConvergenceError("Error encountered in PETSc solve",
                                    ksp=ksp_solver)
         ksp_its = ksp_solver.getIterationNumber()
 
