@@ -518,10 +518,10 @@ def Solver_solve_post_call(self, return_value, *args):
     return return_value
 
 
-@manager_method(LUSolver, "solve")
-def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm,
-                   pre_call=Solver_solve_pre_call,
-                   post_call=Solver_solve_post_call):
+@manager_method(LUSolver, "solve",
+                pre_call=Solver_solve_pre_call,
+                post_call=Solver_solve_post_call)
+def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     A, x, b = Solver_solve_args(self, *args)
 
     bcs = A._tlm_adjoint__bcs
