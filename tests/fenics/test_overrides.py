@@ -267,3 +267,66 @@ def test_assemble_ZeroFunction(setup_test, test_leaks,
     for _ in range(3):
         b = assemble(form)
         assert abs(b - b_ref) == 0.0
+
+
+@pytest.mark.fenics
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@seed_test
+def test_LUSolver(setup_test, test_leaks):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    bc = DirichletBC(space, 0.0, "on_boundary")
+
+    def forward(m):
+        b = assemble(inner(m, test) * dx)
+        bc.apply(b)
+        K = assemble(inner(grad(trial), grad(test)) * dx)
+        bc.apply(K)
+
+        u = Function(space, name="u")
+        K_solver = LUSolver(K)
+        K_solver.solve(u, b)
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(1.0)) ** 4) * dx)
+        return u, J
+
+    m = Function(space, name="m")
+    interpolate_expression(m, X[0] * sin(pi * X[0]) * sin(2.0 * pi * X[1]))
+    u_ref = Function(space, name="u_ref")
+    solve(inner(grad(trial), grad(test)) * dx == inner(m, test) * dx,
+          u_ref, bc, solver_parameters=ls_parameters_cg)
+
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    u_error_norm = np.sqrt(abs(assemble(inner(u - u_ref, u - u_ref) * dx)))
+    print(f"{u_error_norm=}")
+    assert u_error_norm < 1.0e-17
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    J_val = J.value()
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
+    assert min_order > 1.99
