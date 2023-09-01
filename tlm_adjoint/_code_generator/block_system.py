@@ -125,7 +125,6 @@ __all__ = \
         "BlockMatrix",
         "form_matrix",
 
-        "ConvergenceError",
         "System"
     ]
 
@@ -879,9 +878,11 @@ class PETScMatrix(Matrix):
 
 
 def form_matrix(a, *args, **kwargs):
-    """Return a :class:`PETScMatrix` associated with a given sesquilinear form.
+    """Construct a :class:`PETScMatrix` associated with a given sesquilinear
+    form.
 
     :arg a: A UFL :class:`Form` defining the sesquilinear form.
+    :returns: The :class:`PETScMatrix`.
 
     Remaining arguments are passed to the backend :func:`assemble`.
     """
@@ -1059,16 +1060,6 @@ class Preconditioner(PETScInterface):
         self._post_mult(y)
 
 
-class ConvergenceError(RuntimeError):
-    """An outer Krylov solver convergence error. The PETSc KSP can be accessed
-    via the `ksp` attribute.
-    """
-
-    def __init__(self, *args, ksp, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ksp = ksp
-
-
 class System:
     """A linear system
 
@@ -1124,7 +1115,8 @@ class System:
         self._nullspace = nullspace
 
     def solve(self, u, b, *,
-              solver_parameters=None, pc_fn=None, configure=None,
+              solver_parameters=None, pc_fn=None,
+              pre_callback=None, post_callback=None,
               correct_initial_guess=True, correct_solution=True):
         """Solve the linear system.
 
@@ -1154,14 +1146,13 @@ class System:
 
             The preconditioner is applied to `b`, and the result stored in `u`.
             Defaults to an identity.
-        :arg configure: A callable accepting the PETSc :class:`KSP`.
-
-            .. code-block:: python
-
-                def configure(ksp):
-
-            Called after all other configuration of the :class:`KSP`, but
-            before :meth:`KSP.setUp`.
+        :arg pre_callback: A callable accepting a single
+            :class:`petsc4py.PETSc.KSP` argument. Used for detailed manual
+            configuration. Called after all other configuration options are
+            set, but before the :meth:`KSP.setUp` method is called.
+        :arg post_callback: A callable accepting a single
+            :class:`petsc4py.PETSc.KSP` argument. Called after the
+            :meth:`KSP.solve` method has been called.
         :arg correct_initial_guess: Whether to apply a nullspace correction to
             the initial guess.
         :arg correct_solution: Whether to apply a nullspace correction to
@@ -1257,10 +1248,6 @@ class System:
 
         ksp_solver.setMonitor(monitor)
 
-        if configure is not None:
-            configure(ksp_solver)
-        ksp_solver.setUp()
-
         if correct_initial_guess:
             self._nullspace.correct_soln(u)
         self._nullspace.correct_rhs(b_c)
@@ -1277,8 +1264,13 @@ class System:
             self._action_space.split_to_mixed(b_fn, b_c)
         del b_c
 
+        if pre_callback is not None:
+            pre_callback(ksp_solver)
+        ksp_solver.setUp()
         with vec(u_fn) as u_v, vec(b_fn) as b_v:
             ksp_solver.solve(b_v, u_v)
+        if post_callback is not None:
+            post_callback(ksp_solver)
         del b_fn
 
         if len(self._arg_space.flattened_space()) != 1:
@@ -1290,8 +1282,7 @@ class System:
             self._nullspace.correct_soln(u)
 
         if ksp_solver.getConvergedReason() <= 0:
-            raise ConvergenceError("Solver failed to converge",
-                                   ksp=ksp_solver)
+            raise RuntimeError("Convergence failure")
         ksp_its = ksp_solver.getIterationNumber()
 
         ksp_solver.destroy()

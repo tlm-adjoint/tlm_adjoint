@@ -48,6 +48,8 @@ tlm_adjoint.
 - `Visualizing derivatives <examples/4_riesz_maps.ipynb>`__: The use of a Riesz
   map to visualize the result of differentiating with respect to a finite
   element discretized function using the adjoint method.
+- `Functional minimization <examples/5_optimization.ipynb>`__: The solution of
+  partial differential equation constrained optimization problems.
 
 Source and license
 ------------------

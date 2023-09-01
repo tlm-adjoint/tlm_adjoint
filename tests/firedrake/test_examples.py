@@ -72,3 +72,12 @@ def test_3_time_dependent(setup_test, tmp_path):
 @seed_test
 def test_4_riesz_maps(setup_test, tmp_path):
     run_example_notebook("4_riesz_maps.ipynb", tmp_path)
+
+
+@pytest.mark.firedrake
+@pytest.mark.example
+@pytest.mark.skipif(complex_mode, reason="real only")
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
+@seed_test
+def test_5_optimization(setup_test, tmp_path):
+    run_example_notebook("5_optimization.ipynb", tmp_path)
