@@ -44,8 +44,7 @@ __all__ = \
     ]
 
 
-# Aim for compatibility with Firedrake API, git master revision
-# a94b01c4b3361db9c73056d92fdbd01a5bc6d1aa, Jun 16 2023
+# Aim for compatibility with Firedrake API
 
 
 @override_method(backend_Constant, "__init__")
