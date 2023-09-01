@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FormAssembler, Interpolator, LinearSolver, NonlinearVariationalSolver,
-    Parameters, Projector, ProjectorBase, backend_Constant,
+    FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
+    Projector, ProjectorBase, SameMeshInterpolator, backend_Constant,
     backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
     backend_interpolate, backend_project, backend_solve, parameters)
 from ..interface import (
@@ -73,8 +73,7 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
     return solver_parameters
 
 
-# Aim for compatibility with Firedrake API, git master revision
-# a94b01c4b3361db9c73056d92fdbd01a5bc6d1aa, Jun 16 2023
+# Aim for compatibility with Firedrake API
 
 
 def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
@@ -371,18 +370,22 @@ def ProjectorBase_residual(self, orig):
     return residual
 
 
-def Interpolator_interpolate_post_call(self, return_value, *args, **kwargs):
+def SameMeshInterpolator_interpolate_post_call(
+        self, return_value, *args, **kwargs):
     function_update_state(return_value)
     return return_value
 
 
-@manager_method(Interpolator, "interpolate",
-                post_call=Interpolator_interpolate_post_call)
-def Interpolator_interpolate(
+@manager_method(SameMeshInterpolator, "interpolate",
+                post_call=SameMeshInterpolator_interpolate_post_call)
+def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None, transpose=False,
+        default_missing_val=None,
         annotate, tlm, **kwargs):
     if transpose:
         raise NotImplementedError("transpose not supported")
+    if default_missing_val is not None:
+        raise NotImplementedError("default_missing_val not supported")
 
     return_value = orig_args()
 
