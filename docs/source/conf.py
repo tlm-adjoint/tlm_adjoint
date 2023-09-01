@@ -24,7 +24,7 @@ autoapi_ignore = ["*/_code_generator/__init__.py",
 autoapi_add_toctree_entry = False
 autoapi_options = {"private-members": False}
 
-nbsphinx_execute = "never"
+nbsphinx_execute = "auto"
 
 html_theme = "sphinx_rtd_theme"
 html_theme_options = {"display_version": False}
