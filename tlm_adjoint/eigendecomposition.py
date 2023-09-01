@@ -62,7 +62,7 @@ def wrapped_action(space, arg_space_type, action_space_type, action):
 def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
                    action_space_type=None, N_eigenvalues=None,
                    solver_type=None, problem_type=None, which=None,
-                   tolerance=1.0e-12, configure=None):
+                   tolerance=1.0e-12, pre_callback=None, post_callback=None):
     # First written 2018-03-01
     r"""Interface with SLEPc via slepc4py, for the matrix free solution of
     eigenproblems
@@ -140,10 +140,13 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         `slepc4py.SLEPc.EPS.Which.LARGEST_MAGNITUDE`.
     :arg tolerance: Convergence tolerance. By default the convergence criterion
         is defined using `slepc4py.SLEPc.EPS.Conv.REL`.
-    :arg configure: A callable accepting a single :class:`slepc4py.SLEPc.EPS`
-        argument. Used for detailed manual configuration. Called after all
-        other configuration options are set, but before the :meth:`EPS.setUp`
-        method is called.
+    :arg pre_callback: A callable accepting a single
+        :class:`slepc4py.SLEPc.EPS` argument. Used for detailed manual
+        configuration. Called after all other configuration options are set,
+        but before the :meth:`EPS.setUp` method is called.
+    :arg post_callback: A callable accepting a single
+        :class:`slepc4py.SLEPc.EPS` argument. Called after the
+        :meth:`EPS.solve` method has been called.
     :returns: A :class:`tuple` `(lam, V)`. `lam` is a :class:`numpy.ndarray`
         containing eigenvalues. For non-Hermitian algorithms and a real build
         of PETSc, `V` is a :class:`tuple` `(V_r, V_i)`, where `V_r` and `V_i`
@@ -208,13 +211,18 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
                           ncv=SLEPc.DECIDE, mpd=SLEPc.DECIDE)
     esolver.setConvergenceTest(SLEPc.EPS.Conv.REL)
     esolver.setTolerances(tol=tolerance, max_it=SLEPc.DECIDE)
-    if configure is not None:
-        configure(esolver)
-    esolver.setUp()
 
+    if pre_callback is not None:
+        pre_callback(esolver)
+    esolver.setUp()
     esolver.solve()
+    if post_callback is not None:
+        post_callback(esolver)
+
     if esolver.getConverged() < N_ev:
         raise RuntimeError("Not all requested eigenpairs converged")
+    if esolver.getConvergedReason() <= 0:
+        raise RuntimeError("Convergence failure")
 
     lam = np.full(N_ev, np.NAN,
                   dtype=PETSc.RealType if esolver.isHermitian()

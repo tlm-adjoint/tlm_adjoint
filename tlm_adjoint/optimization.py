@@ -935,7 +935,7 @@ def minimize_l_bfgs(forward, M0, *,
 def minimize_tao(forward, m0, *,
                  method=None, gatol, grtol, gttol=0.0,
                  M_inv_action=None,
-                 configure=None, manager=None):
+                 pre_callback=None, post_callback=None, manager=None):
     r"""Functional minimization using TAO.
 
     :arg forward: A callable which accepts one function argument, and
@@ -959,9 +959,12 @@ def minimize_tao(forward, m0, *,
         positive definite matrix. Accepts one function argument, defining the
         direction, and returns a function defining the action of :math:`M^{-1}`
         on this direction.
-    :arg configure: A callable accepting a single :class:`petsc4py.PETSc.TAO`
-        argument. Used for detailed manual configuration. Called after all
-        other configuration options are set.
+    :arg pre_callback: A callable accepting a single
+        :class:`petsc4py.PETSc.TAO` argument. Used for detailed manual
+        configuration. Called after all other configuration options are set.
+    :arg post_callback: A callable accepting a single
+        :class:`petsc4py.PETSc.TAO` argument. Called after the
+        :meth:`TAO.solve` method has been called.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
     """
@@ -1079,12 +1082,18 @@ def minimize_tao(forward, m0, *,
         M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
         tao.setGradientNorm(M_inv_matrix)
 
-    if configure is not None:
-        configure(tao)
-
     x = H_matrix.getVecRight()
     to_petsc(x, m0)
+
+    if pre_callback is not None:
+        pre_callback(tao)
     tao.solve(x)
+    if post_callback is not None:
+        post_callback(tao)
+
+    if tao.getConvergedReason() <= 0:
+        raise RuntimeError("Convergence failure")
+
     from_petsc(x, m)
 
     tao.destroy()

@@ -188,7 +188,7 @@ class HessianSystem(System):
 
 def hessian_eigendecompose(
         H, m, B_inv_action, B_action, *,
-        nullspace=None, problem_type=None, configure=None,
+        nullspace=None, problem_type=None, pre_callback=None,
         correct_eigenvectors=True, **kwargs):
     r"""Interface with SLEPc via slepc4py, for the matrix free solution of
     generalized eigenproblems
@@ -218,10 +218,10 @@ def hessian_eigendecompose(
         :class:`slepc4py.SLEPc.EPS.ProblemType`. Defaults to
         `slepc4py.SLEPc.EPS.ProblemType.GHEP` in the real case and
         `slepc4py.SLEPc.EPS.ProblemType.GNHEP` in the complex case.
-    :arg configure: A callable accepting a single :class:`slepc4py.SLEPc.EPS`
-        argument. Used for detailed manual configuration. Called after all
-        other configuration options are set, but before the :meth:`EPS.setUp`
-        method is called.
+    :arg pre_callback: A callable accepting a single
+        :class:`slepc4py.SLEPc.EPS` argument. Used for detailed manual
+        configuration. Called after all other configuration options are set,
+        but before the :meth:`EPS.setUp` method is called.
     :arg correct_eigenvectors: Whether to apply a nullspace correction to the
         eigenvectors.
 
@@ -272,9 +272,9 @@ def hessian_eigendecompose(
         # Nullspace corrections applied by the Preconditioner class
         function_assign(x, B_action_arg(y))
 
-    configure_arg = configure
+    pre_callback_arg = pre_callback
 
-    def configure(eps):
+    def pre_callback(eps):
         _, B_inv = eps.getOperators()
         ksp_solver = eps.getST().getKSP()
 
@@ -297,8 +297,8 @@ def hessian_eigendecompose(
             warnings.warn("slepc4py.SLEPc.EPS.setPurify not available",
                           RuntimeWarning)
 
-        if configure_arg is not None:
-            configure_arg(eps)
+        if pre_callback_arg is not None:
+            pre_callback_arg(eps)
 
     if problem_type is None:
         import slepc4py.SLEPc as SLEPc
@@ -310,7 +310,7 @@ def hessian_eigendecompose(
     Lam, V = eigendecompose(
         space, H_action, B_action=B_inv_action, arg_space_type=arg_space_type,
         action_space_type=action_space_type, problem_type=problem_type,
-        configure=configure, **kwargs)
+        pre_callback=pre_callback, **kwargs)
 
     if correct_eigenvectors:
         if len(V) > 0 and isinstance(V[0], Sequence):
