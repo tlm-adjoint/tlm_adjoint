@@ -66,12 +66,12 @@ class Hessian(ABC):
     def action(self, M, dM, M0=None):
         r"""Compute (the conjugate of) a Hessian matrix action on some
         :math:`\zeta` using an adjoint of a tangent-linear model. i.e.
-        considering derivatives to be column vectors, compute
+        considering derivatives to be row vectors, compute
 
         .. math::
 
             \left( \frac{d}{dm} \left[
-                \frac{d \mathcal{J}}{d m}^T \zeta \right] \right)^{*,T}.
+                \frac{d \mathcal{J}}{d m} \zeta \right] \right)^{*,T}.
 
         :arg M: A function or a :class:`Sequence` of functions defining the
             control variable.
@@ -81,7 +81,7 @@ class Hessian(ABC):
         :arg M0: A function or a :class:`Sequence` of functions defining the
             control value. `M` is used if not supplied.
         :returns: A tuple `(J, dJ, ddJ)`. `J` is the value of the functional.
-            `dJ` is the value of :math:`\left( d \mathcal{J} / d m \right)^T
+            `dJ` is the value of :math:`\left( d \mathcal{J} / d m \right)
             \zeta`. `ddJ` stores the (conjugate of the) result of the Hessian
             matrix action on :math:`\zeta`, and is a function or a
             :class:`Sequence` of functions depending on the type of `M`.
