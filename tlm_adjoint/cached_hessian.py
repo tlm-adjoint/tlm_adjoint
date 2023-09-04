@@ -138,7 +138,7 @@ class HessianOptimization:
             if tlm_eq is not None:
                 self._add_tangent_linear_equation(
                     manager, n, i, eq, M, dM, tlm_eq,
-                    solve=solve_tlm)
+                    annotate=annotate_tlm, solve=solve_tlm)
 
         return manager, M, dM
 
