@@ -530,14 +530,6 @@ class EquationManager:
             tau = self._tlm_map[key][tau]
         return tau
 
-    def tlm(self, M, dM, x, max_depth=1, *, _warning=True):
-        if _warning:
-            warnings.warn("EquationManager.tlm method is deprecated -- "
-                          "use EquationManager.function_tlm instead",
-                          DeprecationWarning, stacklevel=2)
-
-        return self.function_tlm(x, *[(M, dM) for depth in range(max_depth)])
-
     def annotation_enabled(self):
         """
         :returns: Whether processing of equations is enabled.
