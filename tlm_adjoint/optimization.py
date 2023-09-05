@@ -1053,7 +1053,6 @@ def minimize_tao(forward, m0, *,
             self._m = function_new(m0, static=function_is_static(m0),
                                    cache=function_is_cached(m0),
                                    checkpoint=function_is_checkpointed(m0))
-            self._dm = function_new(m0)
             self._shift = 0.0
 
         def set_m(self, x):
@@ -1063,8 +1062,9 @@ def minimize_tao(forward, m0, *,
             self._shift += alpha
 
         def mult(self, A, x, y):
-            from_petsc(x, self._dm)
-            ddJ = J_hat.hessian_action(self._m, self._dm)
+            dm = function_new(self._m)
+            from_petsc(x, dm)
+            ddJ = J_hat.hessian_action(self._m, dm)
             y_a = function_get_values(ddJ)
             if self._shift != 0.0:
                 with x as x_a:
