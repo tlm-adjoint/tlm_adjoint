@@ -11,7 +11,6 @@ from ..caches import Caches
 from ..overloaded_float import SymbolicFloat
 
 import numpy as np
-import warnings
 
 __all__ = \
     [
@@ -19,9 +18,7 @@ __all__ = \
         "set_default_dtype",
 
         "Function",
-        "FunctionSpace",
-
-        "new_scalar_function"
+        "FunctionSpace"
     ]
 
 
@@ -345,12 +342,3 @@ register_subtract_adjoint_derivative_action(
     Function, object,
     subtract_adjoint_derivative_action_base,
     replace=True)
-
-
-def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
-                        checkpoint=None):
-    warnings.warn("new_scalar_function is deprecated -- "
-                  "use Float instead",
-                  DeprecationWarning, stacklevel=2)
-    return Function(FunctionSpace(1), name=name, static=static, cache=cache,
-                    checkpoint=checkpoint)
