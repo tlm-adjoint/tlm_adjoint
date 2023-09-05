@@ -25,7 +25,6 @@ from ..overloaded_float import SymbolicFloat
 import numpy as np
 import ufl
 import weakref
-import warnings
 
 __all__ = \
     [
@@ -628,14 +627,13 @@ class DirichletBC(backend_DirichletBC):
         :class:`DirichletBC` will not change, and which determines whether
         calculations involving this :class:`DirichletBC` can be cached. If
         `None` then autodetected from the value.
-    :arg homogeneous: Deprecated.
 
     Remaining arguments are passed to the backend `DirichletBC` constructor.
     """
 
     # Based on FEniCS 2019.1.0 DirichletBC API
     def __init__(self, V, g, sub_domain, *args,
-                 static=None, homogeneous=None, _homogeneous=None, **kwargs):
+                 static=None, _homogeneous=False, **kwargs):
         super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
@@ -650,21 +648,10 @@ class DirichletBC(backend_DirichletBC):
                     break
             else:
                 static = True
-        if homogeneous is not None:
-            warnings.warn("homogeneous argument is deprecated -- "
-                          "use HomogeneousDirichletBC instead",
-                          DeprecationWarning, stacklevel=2)
-            if _homogeneous is not None:
-                raise TypeError("Cannot supply both homogeneous and "
-                                "_homogeneous arguments")
-        elif _homogeneous is None:
-            homogeneous = False
-        else:
-            homogeneous = _homogeneous
 
         self._tlm_adjoint__static = static
         self._tlm_adjoint__cache = static
-        self._tlm_adjoint__homogeneous = homogeneous
+        self._tlm_adjoint__homogeneous = _homogeneous
 
     def homogenize(self):
         """Homogenize the :class:`DirichletBC`, setting its value to zero.
