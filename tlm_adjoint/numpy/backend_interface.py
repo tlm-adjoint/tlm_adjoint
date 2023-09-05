@@ -4,13 +4,12 @@
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_dup_cached,
     new_function_id, new_space_id, register_subtract_adjoint_derivative_action,
-    space_id, space_new, subtract_adjoint_derivative_action_base)
+    subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
 from ..overloaded_float import SymbolicFloat
 
-import copy
 import numpy as np
 import warnings
 
@@ -22,14 +21,7 @@ __all__ = \
         "Function",
         "FunctionSpace",
 
-        "RealFunctionSpace",
-        "copy_parameters_dict",
-        "default_comm",
-        "function_space_id",
-        "function_space_new",
-        "new_scalar_function",
-        "info",
-        "warning"
+        "new_scalar_function"
     ]
 
 
@@ -355,19 +347,6 @@ register_subtract_adjoint_derivative_action(
     replace=True)
 
 
-def default_comm():
-    warnings.warn("default_comm is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    return DEFAULT_COMM
-
-
-def RealFunctionSpace(comm=None):
-    warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use Float instead",
-                  DeprecationWarning, stacklevel=2)
-    return FunctionSpace(1)
-
-
 def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     warnings.warn("new_scalar_function is deprecated -- "
@@ -375,34 +354,3 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                   DeprecationWarning, stacklevel=2)
     return Function(FunctionSpace(1), name=name, static=static, cache=cache,
                     checkpoint=checkpoint)
-
-
-def function_space_id(*args, **kwargs):
-    warnings.warn("function_space_id is deprecated -- use space_id instead",
-                  DeprecationWarning, stacklevel=2)
-    return space_id(*args, **kwargs)
-
-
-def function_space_new(*args, **kwargs):
-    warnings.warn("function_space_new is deprecated -- use space_new instead",
-                  DeprecationWarning, stacklevel=2)
-    return space_new(*args, **kwargs)
-
-
-def info(message):
-    warnings.warn("info is deprecated -- use print instead",
-                  DeprecationWarning, stacklevel=2)
-    print(message)
-
-
-def warning(message):
-    warnings.warn("warning is deprecated -- use logging.warning instead",
-                  DeprecationWarning, stacklevel=2)
-    warnings.warn(message, RuntimeWarning)
-
-
-def copy_parameters_dict(parameters):
-    warnings.warn("copy_parameters_dict is deprecated -- "
-                  "use copy.deepcopy instead",
-                  DeprecationWarning, stacklevel=2)
-    return copy.deepcopy(parameters)

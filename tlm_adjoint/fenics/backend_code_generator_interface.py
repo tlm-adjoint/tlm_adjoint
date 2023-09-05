@@ -20,7 +20,6 @@ from collections.abc import Sequence
 import ffc
 import numpy as np
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -324,12 +323,6 @@ def r0_space(x):
         assert is_valid_r0_space(space)
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
-
-
-def function_vector(x):
-    warnings.warn("function_vector is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    return x.vector()
 
 
 def rhs_copy(x):

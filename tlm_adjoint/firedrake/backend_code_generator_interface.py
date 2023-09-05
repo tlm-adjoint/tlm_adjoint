@@ -20,7 +20,6 @@ import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -356,12 +355,6 @@ def is_valid_r0_space(space):
 
 def r0_space(x):
     raise NotImplementedError("r0_space not implemented")
-
-
-def function_vector(x):
-    warnings.warn("function_vector is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    return x
 
 
 def rhs_copy(x):
