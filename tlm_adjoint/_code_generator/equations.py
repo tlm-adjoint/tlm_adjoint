@@ -13,8 +13,7 @@ from .backend import (
 from ..interface import (
     check_space_type, function_assign, function_id, function_is_scalar,
     function_new, function_new_conjugate_dual, function_replacement,
-    function_scalar_value, function_space, function_update_caches,
-    function_zero, is_function)
+    function_scalar_value, function_space, function_zero, is_function)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_form_compiler_parameters, homogenize, interpolate_expression,
@@ -328,7 +327,6 @@ class EquationSolver(ExprEquation):
         adjoint solve.
     :arg tlm_solver_parameters: Linear solver parameters to use when solving
         tangent-linear problems.
-    :arg initial_guess: Deprecated.
     :arg cache_jacobian: Whether to cache the forward Jacobian matrix and
         linear solver data. Defaults to
         `parameters['tlm_adjoint']['EquationSolver]['cache_jacobian']`. If
@@ -357,10 +355,9 @@ class EquationSolver(ExprEquation):
     def __init__(self, eq, x, bcs=None, *,
                  J=None, form_compiler_parameters=None, solver_parameters=None,
                  adjoint_solver_parameters=None, tlm_solver_parameters=None,
-                 initial_guess=None, cache_jacobian=None,
-                 cache_adjoint_jacobian=None, cache_tlm_jacobian=None,
-                 cache_rhs_assembly=None, match_quadrature=None,
-                 defer_adjoint_assembly=None):
+                 cache_jacobian=None, cache_adjoint_jacobian=None,
+                 cache_tlm_jacobian=None, cache_rhs_assembly=None,
+                 match_quadrature=None, defer_adjoint_assembly=None):
         if bcs is None:
             bcs = []
         if form_compiler_parameters is None:
@@ -429,16 +426,6 @@ class EquationSolver(ExprEquation):
                     if dep_id not in deps:
                         deps[dep_id] = dep
 
-        if initial_guess is not None:
-            warnings.warn("initial_guess argument is deprecated",
-                          DeprecationWarning, stacklevel=2)
-            if initial_guess == x:
-                initial_guess = None
-            else:
-                initial_guess_id = function_id(initial_guess)
-                if initial_guess_id not in deps:
-                    deps[initial_guess_id] = initial_guess
-
         deps = list(deps.values())
         if x in deps:
             deps.remove(x)
@@ -478,8 +465,7 @@ class EquationSolver(ExprEquation):
                 form_form_compiler_parameters(F, form_compiler_parameters))
 
         super().__init__(x, deps, nl_deps=nl_deps,
-                         ic=initial_guess is None and ic,
-                         adj_ic=adj_ic, adj_type="primal")
+                         ic=ic, adj_ic=adj_ic, adj_type="primal")
         self._F = F
         self._lhs, self._rhs = lhs, rhs
         self._bcs = bcs
@@ -491,10 +477,6 @@ class EquationSolver(ExprEquation):
         self._linear_solver_parameters = linear_solver_parameters
         self._adjoint_solver_parameters = adjoint_solver_parameters
         self._tlm_solver_parameters = tlm_solver_parameters
-        if initial_guess is None:
-            self._initial_guess_index = None
-        else:
-            self._initial_guess_index = deps.index(initial_guess)
         self._linear = linear
 
         self._cache_jacobian = cache_jacobian
@@ -612,14 +594,6 @@ class EquationSolver(ExprEquation):
 
     def forward_solve(self, x, deps=None):
         eq_deps = self.dependencies()
-
-        if self._initial_guess_index is not None:
-            if deps is None:
-                initial_guess = eq_deps[self._initial_guess_index]
-            else:
-                initial_guess = deps[self._initial_guess_index]
-            function_assign(x, initial_guess)
-            function_update_caches(self.x(), value=x)
 
         if self._linear:
             if self._cache_jacobian:
@@ -857,18 +831,12 @@ class EquationSolver(ExprEquation):
                 tlm_solver_parameters = self._linear_solver_parameters
             else:
                 tlm_solver_parameters = self._tlm_solver_parameters
-            if self._initial_guess_index is None:
-                tlm_initial_guess = None
-            else:
-                initial_guess = self.dependencies()[self._initial_guess_index]
-                tlm_initial_guess = tlm_map[initial_guess]
             return EquationSolver(
                 self._J == tlm_rhs, tlm_map[x], self._hbcs,
                 form_compiler_parameters=self._form_compiler_parameters,
                 solver_parameters=tlm_solver_parameters,
                 adjoint_solver_parameters=self._adjoint_solver_parameters,
                 tlm_solver_parameters=tlm_solver_parameters,
-                initial_guess=tlm_initial_guess,
                 cache_jacobian=self._cache_tlm_jacobian,
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,
