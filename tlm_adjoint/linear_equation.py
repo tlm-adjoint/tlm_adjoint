@@ -285,21 +285,11 @@ class Matrix(Referrer):
         \lambda = b` for :math:`\lambda` uses an initial guess.
     """
 
-    def __init__(self, nl_deps=None, *, has_ic_dep=None, ic=None, adj_ic=True):
+    def __init__(self, nl_deps=None, *, ic=True, adj_ic=True):
         if nl_deps is None:
             nl_deps = []
         if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
-
-        if has_ic_dep is not None:
-            warnings.warn("has_ic_dep argument is deprecated -- use ic "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
-            if ic is not None:
-                raise TypeError("Cannot pass both has_ic_dep and ic arguments")
-            ic = has_ic_dep
-        elif ic is None:
-            ic = True
 
         super().__init__()
         self._nl_deps = tuple(nl_deps)
@@ -332,12 +322,6 @@ class Matrix(Referrer):
         """
 
         return self._nl_deps
-
-    def has_initial_condition_dependency(self):
-        warnings.warn("Matrix.has_initial_condition_dependency method is "
-                      "deprecated -- use Matrix.has_initial_condition instead",
-                      DeprecationWarning, stacklevel=2)
-        return self._ic
 
     def has_initial_condition(self):
         """Return whether solution of a linear equation :math:`A x = b` for
