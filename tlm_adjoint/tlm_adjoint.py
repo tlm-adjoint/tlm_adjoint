@@ -126,15 +126,6 @@ class EquationManager:
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
-    def __getattr__(self, key):
-        if key == "_cp_manager":
-            warnings.warn("EquationManager._cp_manager is deprecated --"
-                          "use EquationManager._cp_schedule instead",
-                          DeprecationWarning, stacklevel=2)
-            return self._cp_schedule
-        else:
-            return super().__getattr__(key)
-
     def comm(self):
         """
         :returns: The communicator associated with the manager.
@@ -349,15 +340,7 @@ class EquationManager:
         cp_parameters = dict(cp_parameters)
 
         if not callable(cp_method) and cp_method in ["none", "memory"]:
-            if "replace" in cp_parameters:
-                warnings.warn("replace cp_parameters key is deprecated",
-                              DeprecationWarning, stacklevel=2)
-                if "drop_references" in cp_parameters:
-                    if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
-                        raise ValueError("Conflicting cp_parameters values")
-                alias_eqs = cp_parameters["replace"]
-            else:
-                alias_eqs = cp_parameters.get("drop_references", False)
+            alias_eqs = cp_parameters.get("drop_references", False)
         else:
             alias_eqs = True
 
