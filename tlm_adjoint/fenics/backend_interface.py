@@ -18,7 +18,7 @@ from .backend_code_generator_interface import (
 
 from .equations import Assembly
 from .functions import (
-    Caches, Constant, ConstantInterface, ConstantSpaceInterface, Function,
+    Caches, ConstantInterface, ConstantSpaceInterface, Function,
     ReplacementFunction, Zero, define_function_alias)
 from ..override import override_method
 
@@ -28,11 +28,9 @@ from ..overloaded_float import SymbolicFloat
 import functools
 import numpy as np
 import ufl
-import warnings
 
 __all__ = \
     [
-        "new_scalar_function"
     ]
 
 
@@ -416,12 +414,3 @@ def functional_term_eq_form(x, term):
 register_functional_term_eq(
     (SymbolicFloat, backend_Constant, backend_Function), ufl.classes.Form,
     functional_term_eq_form)
-
-
-def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
-                        checkpoint=None):
-    warnings.warn("new_scalar_function is deprecated -- "
-                  "use Float instead",
-                  DeprecationWarning, stacklevel=2)
-    return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
-                    checkpoint=checkpoint)
