@@ -168,18 +168,6 @@ class FixedPointSolver(Equation, CustomNormSq):
                 X_ids.add(x_id)
 
         solver_parameters = dict(solver_parameters)
-        if "nonzero_adjoint_initial_guess" in solver_parameters:
-            warnings.warn("nonzero_adjoint_initial_guess parameter is "
-                          "deprecated -- use adjoint_nonzero_initial_guess "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
-            if "adjoint_nonzero_initial_guess" in solver_parameters:
-                raise ValueError("Cannot supply both "
-                                 "nonzero_adjoint_initial_guess and "
-                                 "adjoint_nonzero_initial_guess "
-                                 "parameters")
-            solver_parameters["adjoint_nonzero_initial_guess"] = \
-                solver_parameters.pop("nonzero_adjoint_initial_guess")
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         for key, default_value in [("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
