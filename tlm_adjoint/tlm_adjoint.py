@@ -245,7 +245,6 @@ class EquationManager:
 
         self._annotation_state = AnnotationState.STOPPED
         self._tlm_state = TangentLinearState.STOPPED
-        self._eqs = {}
         self._blocks = []
         self._block = []
 
@@ -673,14 +672,8 @@ class EquationManager:
             if self._alias_eqs:
                 self._add_equation_finalizes(eq)
                 eq_alias = WeakAlias(eq)
-                eq_id = eq.id()
-                if eq_id not in self._eqs:
-                    self._eqs[eq_id] = eq_alias
                 self._block.append(eq_alias)
             else:
-                eq_id = eq.id()
-                if eq_id not in self._eqs:
-                    self._eqs[eq_id] = eq
                 self._block.append(eq)
             self._cp.add_equation(
                 len(self._blocks), len(self._block) - 1, eq)
@@ -1101,14 +1094,6 @@ class EquationManager:
                 self._blocks.append([])
         self._checkpoint(final=True)
 
-    def reset_adjoint(self, *, _warning=True):
-        if _warning:
-            warnings.warn("EquationManager.reset_adjoint method is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-        for eq in self._eqs.values():
-            eq.reset_adjoint()
-
     @restore_manager
     def compute_gradient(self, Js, M, *, callback=None, prune_forward=True,
                          prune_adjoint=True, prune_replay=True,
@@ -1223,7 +1208,6 @@ class EquationManager:
 
         set_manager(self)
         self.finalize()
-        self.reset_adjoint(_warning=False)
 
         if self._cp_schedule.is_exhausted():
             raise RuntimeError("Invalid checkpointing state")

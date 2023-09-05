@@ -190,24 +190,6 @@ class LinearEquation(Equation):
                                   [deps[j] for j in self._A_dep_indices],
                                   B[0] if len(B) == 1 else B)
 
-    _reset_adjoint_warning = False
-
-    def reset_adjoint(self):
-        if self._A is not None:
-            self._A.reset_adjoint()
-
-    _initialize_adjoint_warning = False
-
-    def initialize_adjoint(self, J, nl_deps):
-        if self._A is not None:
-            self._A.initialize_adjoint(J, nl_deps)
-
-    _finalize_adjoint_warning = False
-
-    def finalize_adjoint(self, J):
-        if self._A is not None:
-            self._A.finalize_adjoint(J)
-
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if self._A is None:
             return B
@@ -324,37 +306,8 @@ class Matrix(Referrer):
         self._ic = ic
         self._adj_ic = adj_ic
 
-    _reset_adjoint_warning = True
-    _initialize_adjoint_warning = True
-    _finalize_adjoint_warning = True
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-
-        if hasattr(cls, "reset_adjoint"):
-            if cls._reset_adjoint_warning:
-                warnings.warn("Matrix.reset_adjoint method is deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._reset_adjoint_warning = False
-            cls.reset_adjoint = lambda self: None
-
-        if hasattr(cls, "initialize_adjoint"):
-            if cls._initialize_adjoint_warning:
-                warnings.warn("Matrix.initialize_adjoint method is "
-                              "deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._initialize_adjoint_warning = False
-            cls.initialize_adjoint = lambda self, J, nl_deps: None
-
-        if hasattr(cls, "finalize_adjoint"):
-            if cls._finalize_adjoint_warning:
-                warnings.warn("Matrix.finalize_adjoint method is deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._finalize_adjoint_warning = False
-            cls.finalize_adjoint = lambda self, J: None
 
         adj_solve_sig = inspect.signature(cls.adjoint_solve)
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),

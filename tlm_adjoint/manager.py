@@ -35,7 +35,6 @@ __all__ = \
         "add_tlm",
         "tlm",
         "reset",
-        "reset_adjoint",
         "start_annotating",
         "start_tlm",
         "stop_annotating",
@@ -234,12 +233,6 @@ def tlm(M, dM, x, max_depth=1):
                   "use function_tlm instead",
                   DeprecationWarning, stacklevel=2)
     return manager().tlm(M, dM, x, max_depth=max_depth, _warning=False)
-
-
-def reset_adjoint():
-    warnings.warn("reset_adjoint is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    manager().reset_adjoint(_warning=False)
 
 
 def compute_gradient(Js, M, *, callback=None, prune_forward=True,
