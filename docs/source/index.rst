@@ -50,6 +50,8 @@ tlm_adjoint.
   element discretized function using the adjoint method.
 - `Functional minimization <examples/5_optimization.ipynb>`__: The solution of
   partial differential equation constrained optimization problems.
+- `Defining custom operations <examples/6_custom_operations.ipynb>`__: An
+  example using the tlm_adjoint 'escape-hatch' to define a custom operation.
 
 Source and license
 ------------------
