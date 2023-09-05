@@ -32,14 +32,7 @@ __all__ = \
         "stop_manager",
         "tlm_enabled",
 
-        "add_tlm",
-        "tlm",
-        "reset",
-        "reset_adjoint",
-        "start_annotating",
-        "start_tlm",
-        "stop_annotating",
-        "stop_tlm"
+        "add_tlm"
     ]
 
 _manager = None
@@ -115,12 +108,6 @@ def reset_manager(cp_method=None, cp_parameters=None):
     manager().reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
 
-def reset(cp_method=None, cp_parameters=None):
-    warnings.warn("reset is deprecated -- use reset_manager instead",
-                  DeprecationWarning, stacklevel=2)
-    manager().reset(cp_method=cp_method, cp_parameters=cp_parameters)
-
-
 def annotation_enabled():
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.annotation_enabled`.
     """
@@ -135,43 +122,11 @@ def start_manager(*, annotate=True, tlm=True):
     manager().start(annotate=annotate, tlm=tlm)
 
 
-def start_annotating():
-    warnings.warn("start_annotating is deprecated -- "
-                  "use start_manager instead",
-                  DeprecationWarning, stacklevel=2)
-
-    manager().start(annotate=True, tlm=False)
-
-
-def start_tlm():
-    warnings.warn("start_tlm is deprecated -- "
-                  "use start_manager instead",
-                  DeprecationWarning, stacklevel=2)
-
-    manager().start(annotate=False, tlm=True)
-
-
 def stop_manager(*, annotate=True, tlm=True):
     """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.stop`.
     """
 
     return manager().stop(annotate=annotate, tlm=tlm)
-
-
-def stop_annotating():
-    warnings.warn("stop_annotating is deprecated -- "
-                  "use stop_manager instead",
-                  DeprecationWarning, stacklevel=2)
-
-    return manager().stop(annotate=True, tlm=False)
-
-
-def stop_tlm():
-    warnings.warn("stop_tlm is deprecated -- "
-                  "use stop_manager instead",
-                  DeprecationWarning, stacklevel=2)
-
-    return manager().stop(annotate=False, tlm=True)
 
 
 def paused_manager(*, annotate=True, tlm=True):
@@ -227,19 +182,6 @@ def function_tlm(x, *args):
     """
 
     return manager().function_tlm(x, *args)
-
-
-def tlm(M, dM, x, max_depth=1):
-    warnings.warn("tlm is deprecated -- "
-                  "use function_tlm instead",
-                  DeprecationWarning, stacklevel=2)
-    return manager().tlm(M, dM, x, max_depth=max_depth, _warning=False)
-
-
-def reset_adjoint():
-    warnings.warn("reset_adjoint is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    manager().reset_adjoint(_warning=False)
 
 
 def compute_gradient(Js, M, *, callback=None, prune_forward=True,

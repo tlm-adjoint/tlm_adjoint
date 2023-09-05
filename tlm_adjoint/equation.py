@@ -208,37 +208,8 @@ class Equation(Referrer):
         self._adj_ic_deps = tuple(adj_ic_deps)
         self._adj_X_type = tuple(adj_type)
 
-    _reset_adjoint_warning = True
-    _initialize_adjoint_warning = True
-    _finalize_adjoint_warning = True
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-
-        if hasattr(cls, "reset_adjoint"):
-            if cls._reset_adjoint_warning:
-                warnings.warn("Equation.reset_adjoint method is deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._reset_adjoint_warning = False
-            cls.reset_adjoint = lambda self: None
-
-        if hasattr(cls, "initialize_adjoint"):
-            if cls._initialize_adjoint_warning:
-                warnings.warn("Equation.initialize_adjoint method is "
-                              "deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._initialize_adjoint_warning = False
-            cls.initialize_adjoint = lambda self, J, nl_deps: None
-
-        if hasattr(cls, "finalize_adjoint"):
-            if cls._finalize_adjoint_warning:
-                warnings.warn("Equation.finalize_adjoint method is deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._finalize_adjoint_warning = False
-            cls.finalize_adjoint = lambda self, J: None
 
         adj_solve_sig = inspect.signature(cls.adjoint_jacobian_solve)
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
@@ -456,7 +427,6 @@ class Equation(Referrer):
         """
 
         function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
-        self.initialize_adjoint(J, nl_deps)
 
         if adj_X is not None and len(adj_X) == 1:
             adj_X = adj_X[0]
@@ -471,8 +441,6 @@ class Equation(Referrer):
             for m, adj_x in enumerate(adj_X):
                 check_space_types(adj_x, self.X(m),
                                   rel_space_type=self.adj_X_type(m))
-
-        self.finalize_adjoint(J)
 
         if adj_X is None:
             return None
@@ -495,13 +463,10 @@ class Equation(Referrer):
         """
 
         function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
-        self.initialize_adjoint(J, nl_deps)
 
         if len(adj_X) == 1:
             adj_X = adj_X[0]
         self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
-
-        self.finalize_adjoint(J)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """Return the action of the adjoint of a derivative of the forward

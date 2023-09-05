@@ -20,7 +20,6 @@ from collections.abc import Sequence
 import ffc
 import numpy as np
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -63,11 +62,6 @@ if "jacobian_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("jacobian_tolerance", np.inf)
 if "rhs_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
-# For deprecated AssembleSolver
-if "AssembleSolver" not in _parameters:
-    _parameters.add(Parameters("AssembleSolver"))
-if "match_quadrature" not in _parameters["AssembleSolver"]:
-    _parameters["AssembleSolver"].add("match_quadrature", False)
 del _parameters
 
 
@@ -324,12 +318,6 @@ def r0_space(x):
         assert is_valid_r0_space(space)
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
-
-
-def function_vector(x):
-    warnings.warn("function_vector is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    return x.vector()
 
 
 def rhs_copy(x):

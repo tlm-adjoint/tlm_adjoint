@@ -20,7 +20,6 @@ import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -51,9 +50,6 @@ _parameters["EquationSolver"].setdefault("defer_adjoint_assembly", False)
 _parameters.setdefault("assembly_verification", {})
 _parameters["assembly_verification"].setdefault("jacobian_tolerance", np.inf)
 _parameters["assembly_verification"].setdefault("rhs_tolerance", np.inf)
-# For deprecated AssembleSolver
-_parameters.setdefault("AssembleSolver", {})
-_parameters["AssembleSolver"].setdefault("match_quadrature", False)
 del _parameters
 
 
@@ -356,12 +352,6 @@ def is_valid_r0_space(space):
 
 def r0_space(x):
     raise NotImplementedError("r0_space not implemented")
-
-
-def function_vector(x):
-    warnings.warn("function_vector is deprecated",
-                  DeprecationWarning, stacklevel=2)
-    return x
 
 
 def rhs_copy(x):

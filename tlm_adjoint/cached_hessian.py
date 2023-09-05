@@ -11,14 +11,11 @@ from .manager import compute_gradient, set_manager, restore_manager
 from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
-import warnings
 
 __all__ = \
     [
         "CachedGaussNewton",
-        "CachedHessian",
-
-        "SingleBlockHessian"
+        "CachedHessian"
     ]
 
 
@@ -64,9 +61,6 @@ class HessianOptimization:
     def _add_forward_equations(self, manager):
         for n, block in enumerate(self._blocks):
             for i, eq in enumerate(block):
-                eq_id = eq.id()
-                if eq_id not in manager._eqs:
-                    manager._eqs[eq_id] = eq
                 manager._block.append(eq)
                 assert ((0, len(manager._blocks), len(manager._block) - 1)
                         not in manager._adj_cache)
@@ -107,9 +101,6 @@ class HessianOptimization:
             tlm_eq.forward(tlm_eq.X(), deps=tlm_deps)
 
         if annotate:
-            tlm_eq_id = tlm_eq.id()
-            if tlm_eq_id not in manager._eqs:
-                manager._eqs[tlm_eq_id] = tlm_eq
             manager._block.append(tlm_eq)
             manager._cp.add_equation(
                 len(manager._blocks), len(manager._block) - 1, tlm_eq,
@@ -214,16 +205,6 @@ class CachedHessian(Hessian, HessianOptimization):
             store_adjoint=self._cache_adjoint)
 
         return J_val, dJ_val, ddJ
-
-
-class SingleBlockHessian(CachedHessian):
-    ""
-
-    def __init__(self, *args, **kwargs):
-        warnings.warn("SingleBlockHessian class is deprecated -- "
-                      "use CachedHessian instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(*args, **kwargs)
 
 
 class CachedGaussNewton(GaussNewton, HessianOptimization):

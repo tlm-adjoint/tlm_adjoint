@@ -8,7 +8,6 @@ from .interface import conjugate_dual_space_type, function_id, \
 from .alias import WeakAlias
 from .equation import Equation, Referrer, ZeroAssignment
 
-from collections.abc import Sequence
 import inspect
 import warnings
 
@@ -49,16 +48,6 @@ class LinearEquation(Equation):
     """
 
     def __init__(self, X, B, *, A=None, adj_type=None):
-        if isinstance(X, RHS) \
-                or (isinstance(X, Sequence) and len(X) > 0
-                    and isinstance(X[0], RHS)):
-            warnings.warn("LinearEquation(B, X, *, A=None, adj_type=None) "
-                          "signature is deprecated -- use "
-                          "LinearEquation(X, B, *, A=None, adj_type=None) "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
-            X, B = B, X
-
         if is_function(X):
             X = (X,)
         if isinstance(B, RHS):
@@ -190,24 +179,6 @@ class LinearEquation(Equation):
                                   [deps[j] for j in self._A_dep_indices],
                                   B[0] if len(B) == 1 else B)
 
-    _reset_adjoint_warning = False
-
-    def reset_adjoint(self):
-        if self._A is not None:
-            self._A.reset_adjoint()
-
-    _initialize_adjoint_warning = False
-
-    def initialize_adjoint(self, J, nl_deps):
-        if self._A is not None:
-            self._A.initialize_adjoint(J, nl_deps)
-
-    _finalize_adjoint_warning = False
-
-    def finalize_adjoint(self, J):
-        if self._A is not None:
-            self._A.finalize_adjoint(J)
-
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if self._A is None:
             return B
@@ -303,58 +274,19 @@ class Matrix(Referrer):
         \lambda = b` for :math:`\lambda` uses an initial guess.
     """
 
-    def __init__(self, nl_deps=None, *, has_ic_dep=None, ic=None, adj_ic=True):
+    def __init__(self, nl_deps=None, *, ic=True, adj_ic=True):
         if nl_deps is None:
             nl_deps = []
         if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
-
-        if has_ic_dep is not None:
-            warnings.warn("has_ic_dep argument is deprecated -- use ic "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
-            if ic is not None:
-                raise TypeError("Cannot pass both has_ic_dep and ic arguments")
-            ic = has_ic_dep
-        elif ic is None:
-            ic = True
 
         super().__init__()
         self._nl_deps = tuple(nl_deps)
         self._ic = ic
         self._adj_ic = adj_ic
 
-    _reset_adjoint_warning = True
-    _initialize_adjoint_warning = True
-    _finalize_adjoint_warning = True
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-
-        if hasattr(cls, "reset_adjoint"):
-            if cls._reset_adjoint_warning:
-                warnings.warn("Matrix.reset_adjoint method is deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._reset_adjoint_warning = False
-            cls.reset_adjoint = lambda self: None
-
-        if hasattr(cls, "initialize_adjoint"):
-            if cls._initialize_adjoint_warning:
-                warnings.warn("Matrix.initialize_adjoint method is "
-                              "deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._initialize_adjoint_warning = False
-            cls.initialize_adjoint = lambda self, J, nl_deps: None
-
-        if hasattr(cls, "finalize_adjoint"):
-            if cls._finalize_adjoint_warning:
-                warnings.warn("Matrix.finalize_adjoint method is deprecated",
-                              DeprecationWarning, stacklevel=2)
-        else:
-            cls._finalize_adjoint_warning = False
-            cls.finalize_adjoint = lambda self, J: None
 
         adj_solve_sig = inspect.signature(cls.adjoint_solve)
         if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
@@ -379,12 +311,6 @@ class Matrix(Referrer):
         """
 
         return self._nl_deps
-
-    def has_initial_condition_dependency(self):
-        warnings.warn("Matrix.has_initial_condition_dependency method is "
-                      "deprecated -- use Matrix.has_initial_condition instead",
-                      DeprecationWarning, stacklevel=2)
-        return self._ic
 
     def has_initial_condition(self):
         """Return whether solution of a linear equation :math:`A x = b` for

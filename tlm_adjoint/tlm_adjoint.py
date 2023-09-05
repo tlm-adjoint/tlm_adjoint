@@ -126,15 +126,6 @@ class EquationManager:
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
-    def __getattr__(self, key):
-        if key == "_cp_manager":
-            warnings.warn("EquationManager._cp_manager is deprecated --"
-                          "use EquationManager._cp_schedule instead",
-                          DeprecationWarning, stacklevel=2)
-            return self._cp_schedule
-        else:
-            return super().__getattr__(key)
-
     def comm(self):
         """
         :returns: The communicator associated with the manager.
@@ -245,7 +236,6 @@ class EquationManager:
 
         self._annotation_state = AnnotationState.STOPPED
         self._tlm_state = TangentLinearState.STOPPED
-        self._eqs = {}
         self._blocks = []
         self._block = []
 
@@ -350,15 +340,7 @@ class EquationManager:
         cp_parameters = dict(cp_parameters)
 
         if not callable(cp_method) and cp_method in ["none", "memory"]:
-            if "replace" in cp_parameters:
-                warnings.warn("replace cp_parameters key is deprecated",
-                              DeprecationWarning, stacklevel=2)
-                if "drop_references" in cp_parameters:
-                    if cp_parameters["replace"] != cp_parameters["drop_references"]:  # noqa: E501
-                        raise ValueError("Conflicting cp_parameters values")
-                alias_eqs = cp_parameters["replace"]
-            else:
-                alias_eqs = cp_parameters.get("drop_references", False)
+            alias_eqs = cp_parameters.get("drop_references", False)
         else:
             alias_eqs = True
 
@@ -548,14 +530,6 @@ class EquationManager:
             tau = self._tlm_map[key][tau]
         return tau
 
-    def tlm(self, M, dM, x, max_depth=1, *, _warning=True):
-        if _warning:
-            warnings.warn("EquationManager.tlm method is deprecated -- "
-                          "use EquationManager.function_tlm instead",
-                          DeprecationWarning, stacklevel=2)
-
-        return self.function_tlm(x, *[(M, dM) for depth in range(max_depth)])
-
     def annotation_enabled(self):
         """
         :returns: Whether processing of equations is enabled.
@@ -673,14 +647,8 @@ class EquationManager:
             if self._alias_eqs:
                 self._add_equation_finalizes(eq)
                 eq_alias = WeakAlias(eq)
-                eq_id = eq.id()
-                if eq_id not in self._eqs:
-                    self._eqs[eq_id] = eq_alias
                 self._block.append(eq_alias)
             else:
-                eq_id = eq.id()
-                if eq_id not in self._eqs:
-                    self._eqs[eq_id] = eq
                 self._block.append(eq)
             self._cp.add_equation(
                 len(self._blocks), len(self._block) - 1, eq)
@@ -1101,14 +1069,6 @@ class EquationManager:
                 self._blocks.append([])
         self._checkpoint(final=True)
 
-    def reset_adjoint(self, *, _warning=True):
-        if _warning:
-            warnings.warn("EquationManager.reset_adjoint method is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-        for eq in self._eqs.values():
-            eq.reset_adjoint()
-
     @restore_manager
     def compute_gradient(self, Js, M, *, callback=None, prune_forward=True,
                          prune_adjoint=True, prune_replay=True,
@@ -1223,7 +1183,6 @@ class EquationManager:
 
         set_manager(self)
         self.finalize()
-        self.reset_adjoint(_warning=False)
 
         if self._cp_schedule.is_exhausted():
             raise RuntimeError("Invalid checkpointing state")

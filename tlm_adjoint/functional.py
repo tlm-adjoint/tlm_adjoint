@@ -145,13 +145,6 @@ class Functional:
 
         return self._fn
 
-    def fn(self):
-        warnings.warn("Functional.fn method is deprecated -- "
-                      "use Functional.function instead",
-                      DeprecationWarning, stacklevel=2)
-
-        return self._fn
-
     def space(self):
         """Return the space for the functional.
 

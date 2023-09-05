@@ -30,7 +30,6 @@ import itertools
 import numpy as np
 import pyop2
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -40,10 +39,7 @@ __all__ = \
 
         "ExprAssignment",
         "LocalProjection",
-        "PointInterpolation",
-
-        "LocalProjectionSolver",
-        "PointInterpolationSolver"
+        "PointInterpolation"
     ]
 
 
@@ -241,23 +237,6 @@ class LocalProjection(EquationSolver):
                 defer_adjoint_assembly=self._defer_adjoint_assembly)
 
 
-class LocalProjectionSolver(LocalProjection):
-    ""
-
-    def __init__(self, rhs, x, form_compiler_parameters=None,
-                 cache_jacobian=None, cache_rhs_assembly=None,
-                 match_quadrature=None, defer_adjoint_assembly=None):
-        warnings.warn("LocalProjectionSolver is deprecated -- "
-                      "use LocalProjection instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(
-            x, rhs, form_compiler_parameters=form_compiler_parameters,
-            cache_jacobian=cache_jacobian,
-            cache_rhs_assembly=cache_rhs_assembly,
-            match_quadrature=match_quadrature,
-            defer_adjoint_assembly=defer_adjoint_assembly)
-
-
 def vmesh_coords_map(vmesh, X_coords):
     comm = comm_dup_cached(vmesh.comm)
     N, _ = X_coords.shape
@@ -380,25 +359,6 @@ class PointInterpolation(Equation):
         else:
             return PointInterpolation([tlm_map[x] for x in X], tlm_y,
                                       _interp=self._interp)
-
-
-class PointInterpolationSolver(PointInterpolation):
-    ""
-
-    def __init__(self, y, X, X_coords=None, P=None, P_T=None, tolerance=None):
-        if P is not None:
-            warnings.warn("P argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
-        if P_T is not None:
-            warnings.warn("P_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
-        if tolerance is not None:
-            warnings.warn("tolerance argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
-        warnings.warn("PointInterpolationSolver is deprecated -- "
-                      "use PointInterpolation instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(X, y, X_coords)
 
 
 class ExprAssignment(ExprEquation):

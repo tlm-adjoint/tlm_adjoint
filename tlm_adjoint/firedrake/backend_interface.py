@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FunctionSpace, UnitIntervalMesh, backend_Constant, backend_Function,
-    backend_FunctionSpace, backend_ScalarType, info)
+    backend_Constant, backend_Function, backend_FunctionSpace,
+    backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
     comm_dup_cached, function_comm, function_dtype, function_is_alias,
     function_space, new_function_id, new_space_id, register_garbage_cleanup,
     register_finalize_adjoint_derivative_action, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, space_id, space_new,
+    register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
@@ -34,13 +34,7 @@ import warnings
 
 __all__ = \
     [
-        "RealFunctionSpace",
-        "default_comm",
-        "function_space_id",
-        "function_space_new",
-        "new_scalar_function",
-        "info",
-        "warning"
+        "new_scalar_function"
     ]
 
 
@@ -399,22 +393,6 @@ register_functional_term_eq(
     functional_term_eq_form)
 
 
-def default_comm():
-    warnings.warn("default_comm is deprecated -- "
-                  "use DEFAULT_COMM instead",
-                  DeprecationWarning, stacklevel=2)
-    return DEFAULT_COMM
-
-
-def RealFunctionSpace(comm=None):
-    warnings.warn("RealFunctionSpace is deprecated -- "
-                  "use Float instead",
-                  DeprecationWarning, stacklevel=2)
-    if comm is None:
-        comm = DEFAULT_COMM
-    return FunctionSpace(UnitIntervalMesh(comm.size, comm=comm), "R", 0)
-
-
 def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                         checkpoint=None):
     warnings.warn("new_scalar_function is deprecated -- "
@@ -422,24 +400,3 @@ def new_scalar_function(*, name=None, comm=None, static=False, cache=None,
                   DeprecationWarning, stacklevel=2)
     return Constant(0.0, name=name, comm=comm, static=static, cache=cache,
                     checkpoint=checkpoint)
-
-
-def function_space_id(*args, **kwargs):
-    warnings.warn("function_space_id is deprecated -- use space_id instead",
-                  DeprecationWarning, stacklevel=2)
-    return space_id(*args, **kwargs)
-
-
-def function_space_new(*args, **kwargs):
-    warnings.warn("function_space_new is deprecated -- use space_new instead",
-                  DeprecationWarning, stacklevel=2)
-    return space_new(*args, **kwargs)
-
-
-# def info(message):
-
-
-def warning(message):
-    warnings.warn("warning is deprecated -- use logging.warning instead",
-                  DeprecationWarning, stacklevel=2)
-    warnings.warn(message, RuntimeWarning)

@@ -168,18 +168,6 @@ class FixedPointSolver(Equation, CustomNormSq):
                 X_ids.add(x_id)
 
         solver_parameters = dict(solver_parameters)
-        if "nonzero_adjoint_initial_guess" in solver_parameters:
-            warnings.warn("nonzero_adjoint_initial_guess parameter is "
-                          "deprecated -- use adjoint_nonzero_initial_guess "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
-            if "adjoint_nonzero_initial_guess" in solver_parameters:
-                raise ValueError("Cannot supply both "
-                                 "nonzero_adjoint_initial_guess and "
-                                 "adjoint_nonzero_initial_guess "
-                                 "parameters")
-            solver_parameters["adjoint_nonzero_initial_guess"] = \
-                solver_parameters.pop("nonzero_adjoint_initial_guess")
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
         for key, default_value in [("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
@@ -405,25 +393,6 @@ class FixedPointSolver(Equation, CustomNormSq):
                 assert len(X_0[i]) == len(eq_X[i])
                 for x_0, x in zip(X_0[i], eq_X[i]):
                     function_assign(x_0, x)
-
-    _reset_adjoint_warning = False
-
-    def reset_adjoint(self):
-        for eq in self._eqs:
-            eq.reset_adjoint()
-
-    _initialize_adjoint_warning = False
-
-    def initialize_adjoint(self, J, nl_deps):
-        for i, eq in enumerate(self._eqs):
-            eq_nl_deps = tuple(nl_deps[j] for j in self._eq_nl_dep_indices[i])
-            eq.initialize_adjoint(J, eq_nl_deps)
-
-    _finalize_adjoint_warning = False
-
-    def finalize_adjoint(self, J):
-        for eq in self._eqs:
-            eq.finalize_adjoint(J)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         if is_function(B):

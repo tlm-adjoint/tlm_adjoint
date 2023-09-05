@@ -11,13 +11,11 @@ from collections import defaultdict
 from collections.abc import Sequence
 import itertools
 from operator import itemgetter
-import warnings
 import weakref
 
 __all__ = \
     [
-        "TangentLinearMap",
-        "get_tangent_linear"
+        "TangentLinearMap"
     ]
 
 
@@ -214,13 +212,6 @@ class TangentLinearMap:
             x._tlm_adjoint__tangent_linears[self] = tau_x
 
         return x._tlm_adjoint__tangent_linears[self]
-
-
-def get_tangent_linear(x, M, dM, tlm_map):
-    warnings.warn("get_tangent_linear is deprecated -- "
-                  "use a TangentLinearMap instead",
-                  DeprecationWarning, stacklevel=2)
-    return tlm_map[x]
 
 
 def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
