@@ -22,6 +22,14 @@ def scipy_l_bfgs_b_minimization(forward, M0):
     return M
 
 
+def scipy_trust_ncg_minimization(forward, M0):
+    M, result = minimize_scipy(
+        forward, M0, method="trust-ncg",
+        options={"gtol": 1.0e-11})
+    assert result.success
+    return M
+
+
 def l_bfgs_minimization(forward, M0):
     M, _ = minimize_l_bfgs(
         forward, M0, s_atol=0.0, g_atol=1.0e-11)
@@ -42,6 +50,7 @@ def tao_nls_minimization(forward, m0):
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("minimize", [scipy_l_bfgs_b_minimization,
+                                      scipy_trust_ncg_minimization,
                                       l_bfgs_minimization,
                                       tao_lmvm_minimization,
                                       tao_nls_minimization])
@@ -86,6 +95,7 @@ def test_minimize_project(setup_test, test_leaks,
 
 @pytest.mark.firedrake
 @pytest.mark.parametrize("minimize", [scipy_l_bfgs_b_minimization,
+                                      scipy_trust_ncg_minimization,
                                       l_bfgs_minimization])
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test

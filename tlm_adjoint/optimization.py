@@ -234,10 +234,23 @@ def minimize_scipy(forward, M0, *,
             comm.bcast(("jac", None), root=0)
         return jac(x)
 
+    def hessp(x, p):
+        set(M, x)
+        P = tuple(map(function_new, M))
+        set(P, p)
+        ddJ = J_hat.hessian_action(M, P)
+        return get(ddJ)
+
+    def hessp_bcast(x, p):
+        if comm.rank == 0:
+            comm.bcast(("hessp", None), root=0)
+        return hessp(x, p)
+
     from scipy.optimize import minimize
     if comm.rank == 0:
         x0 = get(M0)
-        return_value = minimize(fun_bcast, x0, jac=jac_bcast, **kwargs)
+        return_value = minimize(fun_bcast, x0,
+                                jac=jac_bcast, hessp=hessp_bcast, **kwargs)
         comm.bcast(("return", return_value), root=0)
         set(M, return_value.x)
     else:
@@ -250,6 +263,9 @@ def minimize_scipy(forward, M0, *,
             elif action == "jac":
                 assert data is None
                 jac(None)
+            elif action == "hessp":
+                assert data is None
+                hessp(None, None)
             elif action == "return":
                 assert data is not None
                 return_value = data
@@ -1037,7 +1053,6 @@ def minimize_tao(forward, m0, *,
             self._m = function_new(m0, static=function_is_static(m0),
                                    cache=function_is_cached(m0),
                                    checkpoint=function_is_checkpointed(m0))
-            self._dm = function_new(m0)
             self._shift = 0.0
 
         def set_m(self, x):
@@ -1047,8 +1062,9 @@ def minimize_tao(forward, m0, *,
             self._shift += alpha
 
         def mult(self, A, x, y):
-            from_petsc(x, self._dm)
-            ddJ = J_hat.hessian_action(self._m, self._dm)
+            dm = function_new(self._m)
+            from_petsc(x, dm)
+            ddJ = J_hat.hessian_action(self._m, dm)
             y_a = function_get_values(ddJ)
             if self._shift != 0.0:
                 with x as x_a:
