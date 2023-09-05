@@ -20,7 +20,6 @@ from .functions import (
 
 from collections import defaultdict
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -307,15 +306,13 @@ class AssemblyCache(Cache):
 
     def assemble(self, form, *,
                  bcs=None, form_compiler_parameters=None,
-                 solver_parameters=None, linear_solver_parameters=None,
-                 replace_map=None):
+                 linear_solver_parameters=None, replace_map=None):
         """Perform finite element assembly and cache the result, or return a
         previously cached result.
 
         :arg form: The UFL :class:`Form` to assemble.
         :arg bcs: Dirichlet boundary conditions.
         :arg form_compiler_parameters: Form compiler parameters.
-        :arg solver_parameters: Deprecated.
         :arg linear_solver_parameters: Linear solver parameters. Required for
             assembly parameters which appear in the linear solver parameters
             -- in particular the Firedrake `'mat_type'` parameter.
@@ -341,16 +338,7 @@ class AssemblyCache(Cache):
             bcs = (bcs,)
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
-
-        if solver_parameters is not None:
-            warnings.warn("solver_parameters argument is deprecated -- use "
-                          "linear_solver_parameters instead",
-                          DeprecationWarning, stacklevel=2)
-            if linear_solver_parameters is not None:
-                raise TypeError("Cannot pass both solver_parameters and "
-                                "linear_solver_parameters arguments")
-            linear_solver_parameters = solver_parameters
-        elif linear_solver_parameters is None:
+        if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
@@ -395,14 +383,13 @@ class LinearSolverCache(Cache):
     """
 
     def linear_solver(self, form, *,
-                      A=None, bcs=None, form_compiler_parameters=None,
+                      bcs=None, form_compiler_parameters=None,
                       linear_solver_parameters=None, replace_map=None,
                       assembly_cache=None):
         """Construct a linear solver and cache the result, or return a
         previously cached result.
 
         :arg form: An arity two UFL :class:`Form`, defining the matrix.
-        :arg A: Deprecated.
         :arg bcs: Dirichlet boundary conditions.
         :arg form_compiler_parameters: Form compiler parameters.
         :arg linear_solver_parameters: Linear solver parameters.
@@ -433,27 +420,18 @@ class LinearSolverCache(Cache):
         key = linear_solver_key(form, bcs, linear_solver_parameters,
                                 form_compiler_parameters)
 
-        if A is None:
-            if assembly_cache is None:
-                assembly_cache = globals()["assembly_cache"]()
+        if assembly_cache is None:
+            assembly_cache = globals()["assembly_cache"]()
 
-            def value():
-                _, (A, b_bc) = assembly_cache.assemble(
-                    form, bcs=bcs,
-                    form_compiler_parameters=form_compiler_parameters,
-                    linear_solver_parameters=linear_solver_parameters,
-                    replace_map=replace_map)
-                solver = linear_solver(matrix_copy(A),
-                                       linear_solver_parameters)
-                return solver, A, b_bc
-        else:
-            warnings.warn("A argument is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-            # A = matrix_copy(A)  # Caller's responsibility
-
-            def value():
-                return linear_solver(A, linear_solver_parameters)
+        def value():
+            _, (A, b_bc) = assembly_cache.assemble(
+                form, bcs=bcs,
+                form_compiler_parameters=form_compiler_parameters,
+                linear_solver_parameters=linear_solver_parameters,
+                replace_map=replace_map)
+            solver = linear_solver(matrix_copy(A),
+                                   linear_solver_parameters)
+            return solver, A, b_bc
 
         return self.add(key, value,
                         deps=tuple(form_dependencies(form).values()))
