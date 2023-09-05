@@ -11,7 +11,6 @@ from ..interface import function_get_values, function_new_conjugate, \
 from ..linear_equation import LinearEquation, Matrix, RHS
 
 import numpy as np
-import warnings
 
 __all__ = \
     [
@@ -25,7 +24,6 @@ class ConstantMatrix(Matrix):
     r"""A matrix :math:`A` with no dependencies.
 
     :arg A: An ndim 2 :class:`numpy.ndarray` defining :math:`A`.
-    :arg A_T: Deprecated.
     :arg ic: Whether solution of a linear equation :math:`A x = b` for
         :math:`x` uses an initial guess.
     :arg adj_ic: Whether solution of an adjoint linear equation :math:`A^*
@@ -33,11 +31,7 @@ class ConstantMatrix(Matrix):
     """
 
     def __init__(self, A, *,
-                 A_T=None, ic=False, adj_ic=False):
-        if A_T is not None:
-            warnings.warn("A_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
-
+                 ic=False, adj_ic=False):
         super().__init__(nl_deps=[], ic=ic, adj_ic=adj_ic)
         self._A = A.copy()
         self._A_H = A.conjugate().T
@@ -92,11 +86,7 @@ class ConstantMatrix(Matrix):
 
 class ContractionArray:
     def __init__(self, A, I, *,  # noqa: E741
-                 A_T=None, alpha=1.0):
-        if A_T is not None:
-            warnings.warn("A_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
-
+                 alpha=1.0):
         for i in range(len(I) - 1):
             if I[i + 1] <= I[i]:
                 raise ValueError("Axes must be in ascending order")
@@ -165,11 +155,7 @@ class ContractionRHS(RHS):
     """
 
     def __init__(self, A, I, X, *,  # noqa: E741
-                 A_T=None, alpha=1.0):
-        if A_T is not None:
-            warnings.warn("A_T argument is deprecated and has no effect",
-                          DeprecationWarning, stacklevel=2)
-
+                 alpha=1.0):
         if len(X) != len(A.shape) - 1:
             raise ValueError("Contraction does not result in a vector")
         j = set(range(len(A.shape)))
