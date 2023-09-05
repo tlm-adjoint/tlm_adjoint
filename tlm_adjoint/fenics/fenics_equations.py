@@ -437,6 +437,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
             y_cell_colors = y_colors[y_cell_nodes].tolist()
             if color in y_cell_colors:
+                assert y_cell_colors.count(color) == 1
                 i = y_cell_colors.index(color)
             else:
                 continue
