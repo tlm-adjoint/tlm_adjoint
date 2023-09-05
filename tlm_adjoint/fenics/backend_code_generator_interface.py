@@ -62,11 +62,6 @@ if "jacobian_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("jacobian_tolerance", np.inf)
 if "rhs_tolerance" not in _parameters["assembly_verification"]:
     _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
-# For deprecated AssembleSolver
-if "AssembleSolver" not in _parameters:
-    _parameters.add(Parameters("AssembleSolver"))
-if "match_quadrature" not in _parameters["AssembleSolver"]:
-    _parameters["AssembleSolver"].add("match_quadrature", False)
 del _parameters
 
 

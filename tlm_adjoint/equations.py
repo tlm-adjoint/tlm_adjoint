@@ -12,7 +12,6 @@ from .equation import Equation, ZeroAssignment
 from .linear_equation import LinearEquation, RHS
 
 import numpy as np
-import warnings
 
 __all__ = \
     [
@@ -26,15 +25,7 @@ __all__ = \
         "DotProduct",
         "InnerProductRHS",
         "InnerProduct",
-        "MatrixActionRHS",
-
-        "AssignmentSolver",
-        "AxpySolver",
-        "DotProductSolver",
-        "InnerProductSolver",
-        "LinearCombinationSolver",
-        "MatrixActionSolver",
-        "ScaleSolver"
+        "MatrixActionRHS"
     ]
 
 
@@ -92,16 +83,6 @@ class Assignment(Equation):
             return ZeroAssignment(tlm_map[x])
         else:
             return Assignment(tlm_map[x], tau_y)
-
-
-class AssignmentSolver(Assignment):
-    ""
-
-    def __init__(self, y, x):
-        warnings.warn("AssignmentSolver is deprecated -- "
-                      "use Assignment instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, y)
 
 
 class LinearCombination(Equation):
@@ -169,26 +150,6 @@ class LinearCombination(Equation):
         return LinearCombination(tlm_map[x], *args)
 
 
-class LinearCombinationSolver(LinearCombination):
-    ""
-
-    def __init__(self, x, *args):
-        warnings.warn("LinearCombinationSolver is deprecated -- "
-                      "use LinearCombination instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, *args)
-
-
-class ScaleSolver(LinearCombination):
-    ""
-
-    def __init__(self, alpha, y, x):
-        warnings.warn("ScaleSolver is deprecated -- "
-                      "use LinearCombination instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, (alpha, y))
-
-
 class Axpy(LinearCombination):
     r"""Represents an assignment
 
@@ -211,25 +172,6 @@ class Axpy(LinearCombination):
 
     def __init__(self, y_new, y_old, alpha, x):
         super().__init__(y_new, (1.0, y_old), (alpha, x))
-
-
-class AxpySolver(Axpy):
-    ""
-
-    def __init__(self, y_old, alpha, x, y_new, /):
-        warnings.warn("AxpySolver is deprecated -- "
-                      "use Axpy instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(y_new, y_old, alpha, x)
-
-
-class MatrixActionSolver(LinearEquation):
-    ""
-
-    def __init__(self, Y, A, X):
-        warnings.warn("MatrixActionSolver is deprecated",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(X, MatrixActionRHS(A, Y))
 
 
 class DotProduct(LinearEquation):
@@ -257,16 +199,6 @@ class DotProduct(LinearEquation):
         super().__init__(x, DotProductRHS(y, z, alpha=alpha))
 
 
-class DotProductSolver(DotProduct):
-    ""
-
-    def __init__(self, y, z, x, alpha=1.0):
-        warnings.warn("DotProductSolver is deprecated -- "
-                      "use DotProduct instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, y, z, alpha=alpha)
-
-
 class InnerProduct(LinearEquation):
     r"""Represents an assignment
 
@@ -292,16 +224,6 @@ class InnerProduct(LinearEquation):
 
     def __init__(self, x, y, z, *, alpha=1.0, M=None):
         super().__init__(x, InnerProductRHS(y, z, alpha=alpha, M=M))
-
-
-class InnerProductSolver(InnerProduct):
-    ""
-
-    def __init__(self, y, z, x, alpha=1.0, M=None):
-        warnings.warn("InnerProductSolver is deprecated -- "
-                      "use InnerProduct instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, y, z, alpha=alpha, M=M)
 
 
 class MatrixActionRHS(RHS):

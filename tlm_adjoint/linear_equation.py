@@ -8,7 +8,6 @@ from .interface import conjugate_dual_space_type, function_id, \
 from .alias import WeakAlias
 from .equation import Equation, Referrer, ZeroAssignment
 
-from collections.abc import Sequence
 import inspect
 import warnings
 
@@ -49,16 +48,6 @@ class LinearEquation(Equation):
     """
 
     def __init__(self, X, B, *, A=None, adj_type=None):
-        if isinstance(X, RHS) \
-                or (isinstance(X, Sequence) and len(X) > 0
-                    and isinstance(X[0], RHS)):
-            warnings.warn("LinearEquation(B, X, *, A=None, adj_type=None) "
-                          "signature is deprecated -- use "
-                          "LinearEquation(X, B, *, A=None, adj_type=None) "
-                          "instead",
-                          DeprecationWarning, stacklevel=2)
-            X, B = B, X
-
         if is_function(X):
             X = (X,)
         if isinstance(B, RHS):

@@ -33,7 +33,6 @@ from .functions import (
 
 import numpy as np
 import ufl
-import warnings
 
 __all__ = \
     [
@@ -43,13 +42,7 @@ __all__ = \
         "ExprInterpolation",
         "Projection",
         "expr_new_x",
-        "linear_equation_new_x",
-
-        "AssembleSolver",
-        "DirichletBCSolver",
-        "ExprEvaluation",
-        "ExprEvaluationSolver",
-        "ProjectionSolver"
+        "linear_equation_new_x"
     ]
 
 
@@ -253,23 +246,6 @@ class Assembly(ExprEquation):
             return Assembly(
                 tlm_map[x], tlm_rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
-
-
-class AssembleSolver(Assembly):
-    ""
-
-    def __init__(self, rhs, x, form_compiler_parameters=None,
-                 match_quadrature=None):
-        warnings.warn("AssembleSolver is deprecated -- "
-                      "use Assembly instead, and transfer AssembleSolver "
-                      "global parameters",
-                      DeprecationWarning, stacklevel=2)
-        if match_quadrature is None:
-            match_quadrature = parameters["tlm_adjoint"]["AssembleSolver"]["match_quadrature"]  # noqa: E501
-        super().__init__(
-            x, rhs,
-            form_compiler_parameters=form_compiler_parameters,
-            match_quadrature=match_quadrature)
 
 
 def unbound_form(form, deps):
@@ -923,16 +899,6 @@ class Projection(EquationSolver):
                          *args, **kwargs)
 
 
-class ProjectionSolver(Projection):
-    ""
-
-    def __init__(self, rhs, x, *args, **kwargs):
-        warnings.warn("ProjectionSolver is deprecated -- "
-                      "use Projection instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, rhs, *args, **kwargs)
-
-
 class DirichletBCApplication(Equation):
     r"""Represents the application of a Dirichlet boundary condition to a zero
     valued function. Specifically, with the Firedrake backend this represents:
@@ -992,16 +958,6 @@ class DirichletBCApplication(Equation):
             return DirichletBCApplication(
                 tlm_map[x], tau_y,
                 *self._bc_args, **self._bc_kwargs)
-
-
-class DirichletBCSolver(DirichletBCApplication):
-    ""
-
-    def __init__(self, y, x, *args, **kwargs):
-        warnings.warn("DirichletBCSolver is deprecated -- "
-                      "use DirichletBCApplication instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, y, *args, **kwargs)
 
 
 class ExprInterpolation(ExprEquation):
@@ -1083,23 +1039,3 @@ class ExprInterpolation(ExprEquation):
             return ZeroAssignment(tlm_map[x])
         else:
             return ExprInterpolation(tlm_map[x], tlm_rhs)
-
-
-class ExprEvaluation(ExprInterpolation):
-    ""
-
-    def __init__(self, x, rhs):
-        warnings.warn("ExprEvaluation is deprecated -- "
-                      "use ExprInterpolation instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, rhs)
-
-
-class ExprEvaluationSolver(ExprInterpolation):
-    ""
-
-    def __init__(self, rhs, x):
-        warnings.warn("ExprEvaluationSolver is deprecated -- "
-                      "use ExprInterpolation instead",
-                      DeprecationWarning, stacklevel=2)
-        super().__init__(x, rhs)

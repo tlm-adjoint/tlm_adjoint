@@ -50,9 +50,6 @@ _parameters["EquationSolver"].setdefault("defer_adjoint_assembly", False)
 _parameters.setdefault("assembly_verification", {})
 _parameters["assembly_verification"].setdefault("jacobian_tolerance", np.inf)
 _parameters["assembly_verification"].setdefault("rhs_tolerance", np.inf)
-# For deprecated AssembleSolver
-_parameters.setdefault("AssembleSolver", {})
-_parameters["AssembleSolver"].setdefault("match_quadrature", False)
 del _parameters
 
 
