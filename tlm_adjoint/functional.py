@@ -156,8 +156,8 @@ class Functional:
     def value(self):
         """Return the current value of the functional.
 
-        The value may also be accessed by casting using :func:`float` or
-        :func:`complex`.
+        The value may also be accessed by casting using :class:`float` or
+        :class:`complex`.
 
         :returns: The scalar value.
         """

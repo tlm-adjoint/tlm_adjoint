@@ -446,8 +446,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         complex part, then this method will return the real part with real
         type.
 
-        The value may also be accessed by casting using :func:`float` or
-        :func:`complex`.
+        The value may also be accessed by casting using :class:`float` or
+        :class:`complex`.
 
         :returns: The value.
         """
