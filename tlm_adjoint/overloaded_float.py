@@ -68,7 +68,7 @@ def new_symbol_name():
     return f"_tlm_adjoint_symbol__{count:d}"
 
 
-_default_dtype = np.complex128
+_default_dtype = np.cdouble
 
 
 class FloatSpaceInterface(SpaceInterface):
@@ -97,8 +97,8 @@ class FloatSpace:
         instantiate new functions in :func:`tlm_adjoint.interface.space_new`.
         Defaults to :class:`SymbolicFloat`.
     :arg dtype: The data type associated with the space. Typically
-        :class:`numpy.float64` or :class:`numpy.complex128`. Defaults to
-        :class:`numpy.complex128`.
+        :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
+        :class:`numpy.cdouble`.
     :arg comm: The communicator associated with the space.
     """
 
@@ -310,8 +310,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :class:`SymbolicFloat` by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
     :arg dtype: The data type associated with the :class:`SymbolicFloat`.
-        Typically :class:`numpy.float64` or :class:`numpy.complex128`. Defaults
-        to :class:`numpy.complex128`.
+        Typically :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
+        :class:`numpy.cdouble`.
     :arg comm: The communicator associated with the :class:`SymbolicFloat`.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.

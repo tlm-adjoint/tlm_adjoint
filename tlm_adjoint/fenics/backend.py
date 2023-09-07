@@ -8,6 +8,7 @@ import petsc4py.PETSc as PETSc
 
 backend = "FEniCS"
 
+backend_RealType = PETSc.RealType
 backend_ScalarType = PETSc.ScalarType
 
 if not issubclass(backend_ScalarType, (float, np.floating)):

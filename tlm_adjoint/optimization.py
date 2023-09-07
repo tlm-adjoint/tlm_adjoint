@@ -174,15 +174,15 @@ def minimize_scipy(forward, M0, *,
     for m0 in M0:
         N.append(N[-1] + function_local_size(m0))
     if comm.rank == 0:
-        size_global = comm.gather(np.array(N[-1], dtype=np.int64), root=0)
+        size_global = comm.gather(np.array(N[-1], dtype=np.int_), root=0)
         N_global = [0]
         for size in size_global:
             N_global.append(N_global[-1] + size)
     else:
-        comm.gather(np.array(N[-1], dtype=np.int64), root=0)
+        comm.gather(np.array(N[-1], dtype=np.int_), root=0)
 
     def get(F):
-        x = np.full(N[-1], np.NAN, dtype=np.float64)
+        x = np.full(N[-1], np.NAN, dtype=np.double)
         for i, f in enumerate(F):
             f_vals = function_get_values(f)
             if not np.can_cast(f_vals, x.dtype):
@@ -191,7 +191,7 @@ def minimize_scipy(forward, M0, *,
 
         if comm.rank == 0:
             x_global = comm.gather(x, root=0)
-            X = np.full(N_global[-1], np.NAN, dtype=np.float64)
+            X = np.full(N_global[-1], np.NAN, dtype=np.double)
             for i, x_p in enumerate(x_global):
                 X[N_global[i]:N_global[i + 1]] = x_p
             return X

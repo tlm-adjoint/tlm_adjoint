@@ -39,7 +39,7 @@ __all__ = \
 
 @pytest.fixture
 def setup_test():
-    set_default_dtype(np.float64)
+    set_default_dtype(np.double)
 
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
@@ -52,8 +52,8 @@ def setup_test():
     clear_caches()
 
 
-@pytest.fixture(params=[{"default_dtype": np.float64},
-                        {"default_dtype": np.complex128}])
+@pytest.fixture(params=[{"default_dtype": np.double},
+                        {"default_dtype": np.cdouble}])
 def test_default_dtypes(request):
     set_default_dtype(request.param["default_dtype"])
 

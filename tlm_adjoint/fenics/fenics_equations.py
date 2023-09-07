@@ -112,7 +112,7 @@ def local_mesh(mesh):
 
 
 def point_cells(coords, mesh):
-    full_cells = np.full(coords.shape[0], -1, dtype=np.int64)
+    full_cells = np.full(coords.shape[0], -1, dtype=np.int_)
     distances = np.full(coords.shape[0], np.NAN, dtype=backend_ScalarType)
 
     if mesh.mpi_comm().size == 1 or not has_ghost_cells(mesh):
@@ -161,7 +161,7 @@ def greedy_coloring(space):
     # using an advancing front
 
     seen = np.full(N, False, dtype=bool)
-    colors = np.full(N, -1, dtype=np.int64)
+    colors = np.full(N, -1, dtype=np.int_)
     i = 0
     while True:
         # Initialize the advancing front
@@ -374,14 +374,14 @@ def point_owners(x_coords, y_space, *,
     distances = np.full(x_coords.shape[0], np.NAN, dtype=distances_local.dtype)
     comm.Allreduce(distances_local, distances, op=MPI.MIN)
 
-    owner_local = np.full(x_coords.shape[0], rank, dtype=np.int64)
+    owner_local = np.full(x_coords.shape[0], rank, dtype=np.int_)
     assert len(distances_local) == len(distances)
     for i, (distance_local, distance) in enumerate(zip(distances_local,
                                                        distances)):
         if distance_local != distance:
             y_cells[i] = -1
             owner_local[i] = -1
-    owner = np.full(x_coords.shape[0], -1, dtype=np.int64)
+    owner = np.full(x_coords.shape[0], -1, dtype=owner_local.dtype)
     comm.Allreduce(owner_local, owner, op=MPI.MAX)
 
     for i in range(x_coords.shape[0]):
@@ -496,7 +496,7 @@ class Interpolation(LinearEquation):
         solution.
     :arg y: A scalar-valued DOLFIN :class:`Function` to interpolate onto the
         space for `x`.
-    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+    :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         process local degrees of freedom for `x` and `d` is the geometric
         dimension. Defaults to the process local degree of freedom locations
@@ -555,7 +555,7 @@ class PointInterpolation(Equation):
     :arg X: A scalar function, or a :class:`Sequence` of scalar functions,
         defining the forward solution.
     :arg y: A scalar-valued DOLFIN :class:`Function` to interpolate.
-    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+    :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
@@ -611,7 +611,7 @@ class PointInterpolation(Equation):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
         comm = function_comm(y)
-        x_v = np.full(len(X), np.NAN, dtype=backend_ScalarType)
+        x_v = np.full(len(X), np.NAN, dtype=x_v_local.dtype)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):

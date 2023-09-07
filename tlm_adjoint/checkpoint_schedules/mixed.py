@@ -113,7 +113,7 @@ _WRITE_ICS = int(StepType.WRITE_ICS)
 
 @njit
 def mixed_steps_tabulation(n, s):
-    schedule = np.zeros((n + 1, s + 1, 3), dtype=np.int64)
+    schedule = np.zeros((n + 1, s + 1, 3), dtype=np.int_)
     schedule[:, :, 0] = _NONE
     schedule[:, :, 1] = 0
     schedule[:, :, 2] = -1
@@ -185,7 +185,7 @@ def mixed_step_memoization_0(n, s):
 
 @njit
 def mixed_steps_tabulation_0(n, s, schedule):
-    schedule_0 = np.zeros((n + 1, s + 1, 3), dtype=np.int64)
+    schedule_0 = np.zeros((n + 1, s + 1, 3), dtype=np.int_)
     schedule_0[:, :, 0] = _NONE
     schedule_0[:, :, 1] = 0
     schedule_0[:, :, 2] = -1

@@ -444,7 +444,7 @@ def space_dtype(space):
     """
     :arg space: A space.
     :returns: The data type associated with the space. Typically
-        :class:`numpy.float64` or :class:`numpy.complex128`.
+        :class:`numpy.double` or :class:`numpy.cdouble`.
     """
 
     return space._tlm_adjoint__space_interface_dtype()
@@ -849,7 +849,7 @@ def function_dtype(x):
     """
     :arg x: A function.
     :returns: The data type associated with the function. Typically
-        :class:`numpy.float64` or :class:`numpy.complex128`.
+        :class:`numpy.double` or :class:`numpy.cdouble`.
     """
 
     return x._tlm_adjoint__function_interface_dtype()

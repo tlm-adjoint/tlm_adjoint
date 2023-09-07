@@ -223,7 +223,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return norm
 
     # This combination seems to reproduce dolfin-adjoint behaviour
-    eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
+    eps = np.array([2 ** -p for p in range(size)], dtype=float)
     eps = seed * eps * max(1.0, functions_linf_norm(M0))
     if dM is None:
         dM = tuple(function_new(m1, static=True) for m1 in M1)
@@ -236,7 +236,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             function_set_values(dm, dm_arr)
             del dm_arr
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
+    J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
         assert len(M0) == len(M1)
         assert len(M0) == len(dM)
@@ -343,7 +343,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
             norm = max(norm, function_linf_norm(x))
         return norm
 
-    eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
+    eps = np.array([2 ** -p for p in range(size)], dtype=float)
     eps = seed * eps * max(1.0, functions_linf_norm(M))
     if dMs is None:
         dMs = tuple(tuple(function_new(m, static=True) for m in M)
@@ -376,7 +376,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     J_val = forward_tlm(dMs[:-1], *M).value()
     dJ = forward_tlm(dMs, *M).value()
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
+    J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
         assert len(M) == len(M1)
         assert len(M) == len(dMs[-1])

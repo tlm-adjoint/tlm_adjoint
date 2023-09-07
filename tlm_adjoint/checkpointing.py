@@ -865,7 +865,7 @@ class HDF5Checkpoints(Checkpoints):
 
             d = g.create_dataset(
                 "keys", shape=(len(cp), 4, self._comm.size),
-                dtype=np.int64)
+                dtype=np.int_)
             for j, (x_id, x_indices) in enumerate(cp):
                 d[j, 0, self._comm.rank] = x_id
                 if x_indices is None:
@@ -882,7 +882,7 @@ class HDF5Checkpoints(Checkpoints):
 
                 d = g.create_dataset(
                     "keys", shape=(len(eq_data), 4, self._comm.size),
-                    dtype=np.int64)
+                    dtype=np.int_)
                 for k, (x_id, x_indices) in enumerate(eq_data):
                     d[k, 0, self._comm.rank] = x_id
                     if x_indices is None:
@@ -900,7 +900,7 @@ class HDF5Checkpoints(Checkpoints):
 
                 d = g.create_dataset(
                     "key", shape=(4, self._comm.size),
-                    dtype=np.int64)
+                    dtype=np.int_)
                 d[0, self._comm.rank] = x_id
                 if x_indices is None:
                     d[1:, self._comm.rank] = -1
@@ -911,7 +911,7 @@ class HDF5Checkpoints(Checkpoints):
 
                 d = g.create_dataset(
                     "space_id", shape=(self._comm.size,),
-                    dtype=np.int64)
+                    dtype=np.int_)
                 d[self._comm.rank] = F_space_id
 
                 if function_is_scalar(F):

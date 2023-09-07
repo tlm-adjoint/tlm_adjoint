@@ -245,7 +245,7 @@ def vmesh_coords_map(vmesh, X_coords):
     Nm, _ = vmesh_coords.shape
 
     vmesh_coords_indices = {tuple(vmesh_coords[i, :]): i for i in range(Nm)}
-    vmesh_coords_map = np.full(Nm, -1, dtype=np.int64)
+    vmesh_coords_map = np.full(Nm, -1, dtype=np.int_)
     for i in range(N):
         key = tuple(X_coords[i, :])
         if key in vmesh_coords_indices:
@@ -269,7 +269,7 @@ class PointInterpolation(Equation):
     :arg X: A scalar-function, or a :class:`Sequence` of scalar-valued
         functions, defining the forward solution.
     :arg y: A scalar-valued Firedrake :class:`Function` to interpolate.
-    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+    :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.

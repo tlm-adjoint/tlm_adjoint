@@ -2,6 +2,7 @@ project = "tlm_adjoint"
 
 extensions = ["autoapi.extension",
               "nbsphinx",
+              "sphinx.ext.intersphinx",
               "sphinx_rtd_theme"]
 
 autoapi_type = "python"
@@ -34,3 +35,5 @@ html_static_path = ["static"]
 templates_path = []
 
 html_css_files = ["custom.css"]
+
+intersphinx_mapping = {"numpy": ("https://numpy.org/doc/stable", None)}
