@@ -36,4 +36,5 @@ templates_path = []
 
 html_css_files = ["custom.css"]
 
-intersphinx_mapping = {"numpy": ("https://numpy.org/doc/stable", None)}
+intersphinx_mapping = {"h5py": ("https://docs.h5py.org/en/stable", None),
+                       "numpy": ("https://numpy.org/doc/stable", None)}

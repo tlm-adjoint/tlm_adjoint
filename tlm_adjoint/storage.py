@@ -134,7 +134,7 @@ class HDF5Storage(Storage):
 
     :arg x: A function defining the forward solution, whose value is saved or
         loaded.
-    :arg h: An h5py :class:`File`.
+    :arg h: An h5py :class:`h5py.File`.
     :arg key: A :class:`str` key for the saved or loaded data.
     :arg save: If `True` then the first forward solve saves the value of `x`.
         If `False` then the first forward solve loads the value of `x`
