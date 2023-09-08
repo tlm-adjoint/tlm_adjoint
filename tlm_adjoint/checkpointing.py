@@ -36,13 +36,13 @@ class CheckpointStorage:
     """A buffer for forward restart data, and a cache for non-linear dependency
     data. Contains three types of data:
 
-      1. References: Dependencies which are stored by reference. Functions `x`
-         for which `function_is_checkpointed(x)` is `False` are stored by
-         reference.
-      2. Forward restart / initial condition data: Dependencies which are used
-         to restart and advance the forward calculation.
-      3. Non-linear dependency data: Non-linear dependencies of the forward
-         which are used to advance the adjoint.
+        1. References: Dependencies which are stored by reference. Functions
+           `x` for which `function_is_checkpointed(x)` is `False` are stored by
+           reference.
+        2. Forward restart / initial condition data: Dependencies which are
+           used to restart and advance the forward calculation.
+        3. Non-linear dependency data: Non-linear dependencies of the forward
+           which are used to advance the adjoint.
 
     These may overlap -- for example non-linear dependency data may be stored
     by reference.
@@ -663,7 +663,7 @@ class Checkpoints(ABC):
         :arg ics: Whether forward restart data should be included.
         :arg data: Whether non-linear dependency data should be included.
         :arg ic_ids: A :class:`Container`. If provided then only functions with
-           ID in `ic_ids` are included.
+            ID in `ic_ids` are included.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
             :meth:`CheckpointStorage.update` method.

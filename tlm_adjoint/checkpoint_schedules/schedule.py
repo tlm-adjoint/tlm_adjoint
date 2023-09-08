@@ -201,8 +201,8 @@ class EndReverse(CheckpointAction):
     calculation.
 
     :arg exhausted: Indicates whether the schedule has concluded. If `True`
-       then this action should be the last action in the schedule. Accessed via
-       the `exhausted` attribute.
+        then this action should be the last action in the schedule. Accessed
+        via the `exhausted` attribute.
     """
 
     def __init__(self, exhausted):
@@ -241,9 +241,9 @@ class CheckpointSchedule(ABC):
     dependency data either for storage in checkpointing units or for immediate
     use by the adjoint. For details see
 
-      - James R. Maddison, 'On the implementation of checkpointing with
-        high-level algorithmic differentiation',
-        https://arxiv.org/abs/2305.09568v1, 2023
+        - James R. Maddison, 'On the implementation of checkpointing with
+          high-level algorithmic differentiation',
+          https://arxiv.org/abs/2305.09568v1, 2023
 
     In 'offline' schedules, where the number of steps in the forward
     calculation is initially known, this should be provided using the `max_n`

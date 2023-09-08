@@ -42,17 +42,17 @@ defined
 
 This has two primary use cases:
 
-  1. Where a matrix :math:`A` and right-hand-side :math:`b` are constructed via
-     finite element assembly on superspaces of the test space and trial space.
-     The typical example is in the application of homogeneous essential
-     Dirichlet boundary conditions.
+    1. Where a matrix :math:`A` and right-hand-side :math:`b` are constructed
+       via finite element assembly on superspaces of the test space and trial
+       space. The typical example is in the application of homogeneous
+       essential Dirichlet boundary conditions.
 
-  2. Where the matrix :math:`A` is singular and :math:`b` is orthogonal to the
-     left nullspace of :math:`A`. Typically one would then choose :math:`U` and
-     :math:`V` so that their columns respectively span the left nullspace and
-     nullspace of :math:`A`, and the :class:`System` then seeks a solution to
-     the original problem subject to the linear constraints :math:`V^* C u =
-     0`.
+    2. Where the matrix :math:`A` is singular and :math:`b` is orthogonal to
+       the left nullspace of :math:`A`. Typically one would then choose
+       :math:`U` and :math:`V` so that their columns respectively span the left
+       nullspace and nullspace of :math:`A`, and the :class:`System` then seeks
+       a solution to the original problem subject to the linear constraints
+       :math:`V^* C u = 0`.
 
 Function spaces are defined via backend function spaces, and :class:`Sequence`
 objects containing backend function spaces or similar :class:`Sequence`

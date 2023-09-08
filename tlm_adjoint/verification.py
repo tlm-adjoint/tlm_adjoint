@@ -4,10 +4,10 @@
 r"""This module implements Taylor remainder convergence testing using the
 approach described in
 
-  - P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
-    derivation of the adjoint of high-level transient finite element programs',
-    SIAM Journal on Scientific Computing 35(4), pp. C369--C393, 2013, doi:
-    10.1137/120873558
+    - P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
+      derivation of the adjoint of high-level transient finite element
+      programs', SIAM Journal on Scientific Computing 35(4), pp. C369--C393,
+      2013, doi: 10.1137/120873558
 
 Specifically for a sufficiently regular functional :math:`J`, via Taylor's
 theorem we have, for some direction :math:`\zeta` and with perturbation
@@ -42,17 +42,17 @@ magnitude is observed to converge to zero at second order.
 There are a number of ways that a Taylor remainder convergence test can fail,
 including:
 
-  - The computed derivative is incorrect. This is the case that the test is
-    designed to find, and indicates an error in the tangent-linear or adjoint
-    calculation.
-  - The considered values of :math:`\varepsilon` are too large, and the
-    asymptotic convergence orders are not observable.
-  - The considered values of :math:`\varepsilon` are too small, and iterative
-    solver tolerances or floating point roundoff prevent the converge orders
-    being observable.
-  - The convergence order is higher than expected. For example if the
-    directional derivative is zero then the uncorrected Taylor remainder
-    magnitude can converge at higher than first order.
+    - The computed derivative is incorrect. This is the case that the test is
+      designed to find, and indicates an error in the tangent-linear or adjoint
+      calculation.
+    - The considered values of :math:`\varepsilon` are too large, and the
+      asymptotic convergence orders are not observable.
+    - The considered values of :math:`\varepsilon` are too small, and iterative
+      solver tolerances or floating point roundoff prevent the converge orders
+      being observable.
+    - The convergence order is higher than expected. For example if the
+      directional derivative is zero then the uncorrected Taylor remainder
+      magnitude can converge at higher than first order.
 
 In principle higher order derivative calculations can be tested by considering
 more terms in the Taylor expansion of the functional. In practice the
@@ -290,7 +290,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m` and its value.
     :arg tlm_order: An :class:`int` defining the tangent-linear order to
-       test.
+        test.
     :arg seed: Controls the perturbation magnitude. See :func:`taylor_test`.
     :arg dMs: A :class:`Sequence` of length `tlm_order` whose elements are each
         a function or a :class:`Sequence` of functions. The functional

@@ -502,7 +502,7 @@ def relative_space_type(space_type, rel_space_type):
     :arg space_type: An input space type. One of `'primal'`, `'conjugate'`,
         `'dual'`, or `'conjugate_dual'`.
     :arg rel_space_type: The relative space type to return. One of `'primal'`,
-         `'conjugate'`, `'dual'`, or `'conjugate_dual'`.
+        `'conjugate'`, `'dual'`, or `'conjugate_dual'`.
     :returns: A space type relative to `space_type`.
     """
 
