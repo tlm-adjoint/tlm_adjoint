@@ -104,7 +104,7 @@ class Storage(Equation):
 
 
 class MemoryStorage(Storage):
-    """A :class:`Storage` which stores the value in memory.
+    """A :class:`tlm_adjoint.storage.Storage` which stores the value in memory.
 
     :arg x: A function defining the forward solution, whose value is saved or
         loaded.
@@ -129,8 +129,8 @@ class MemoryStorage(Storage):
 
 
 class HDF5Storage(Storage):
-    """A :class:`Storage` which stores the value on disk using the h5py
-    library.
+    """A :class:`tlm_adjoint.storage.Storage` which stores the value on disk
+    using the h5py library.
 
     :arg x: A function defining the forward solution, whose value is saved or
         loaded.
