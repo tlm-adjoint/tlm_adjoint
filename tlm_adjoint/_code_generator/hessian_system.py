@@ -313,12 +313,16 @@ def hessian_eigendecompose(
         pre_callback=pre_callback, **kwargs)
 
     if correct_eigenvectors:
-        if len(V) > 0 and isinstance(V[0], Sequence):
+        if len(V) == 2 \
+                and isinstance(V[0], Sequence) \
+                and isinstance(V[1], Sequence):
             assert len(V[0]) == len(V[1])
+            assert len(V[0]) == len(Lam)
             for V_r, V_i in zip(*V):
                 nullspace.correct_soln(V_r)
                 nullspace.correct_soln(V_i)
         else:
+            assert len(V) == len(Lam)
             for V_r in V:
                 nullspace.correct_soln(V_r)
 
@@ -344,7 +348,9 @@ def B_inv_orthonormality_test(V, B_inv_action):
               orthogonality error magnitude.
     """
 
-    if len(V) > 0 and isinstance(V[0], Sequence):
+    if len(V) == 2 \
+            and isinstance(V[0], Sequence) \
+            and isinstance(V[1], Sequence):
         raise ValueError("Cannot supply separate real/complex eigenvector "
                          "components")
 
@@ -426,7 +432,9 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
         :meth:`HessianSystem.solve`.
     """
 
-    if len(V) > 0 and isinstance(V[0], Sequence):
+    if len(V) == 2 \
+            and isinstance(V[0], Sequence) \
+            and isinstance(V[1], Sequence):
         raise ValueError("Cannot supply separate real/complex eigenvector "
                          "components")
 
