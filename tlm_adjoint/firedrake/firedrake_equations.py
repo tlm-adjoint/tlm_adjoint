@@ -372,9 +372,9 @@ class ExprAssignment(ExprEquation):
     :arg x: A Firedrake :class:`Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
         evaluate. Should not depend on `x`.
-    :arg subset: A PyOP2 :class:`Subset`. If provided then defines a subset of
-        degrees of freedom at which to evaluate `rhs`. Other degrees of freedom
-        are set to zero.
+    :arg subset: A :class:`pyop2.types.set.Subset`. If provided then defines a
+        subset of degrees of freedom at which to evaluate `rhs`. Other degrees
+        of freedom are set to zero.
     """
 
     def __init__(self, x, rhs, *,
