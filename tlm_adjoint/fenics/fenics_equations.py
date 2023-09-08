@@ -502,7 +502,7 @@ class Interpolation(LinearEquation):
         process local degrees of freedom for `x` and `d` is the geometric
         dimension. Defaults to the process local degree of freedom locations
         for `x`. Ignored if `P` is supplied.
-    :arg P: The interpolation matrix. A SciPy :class:`spmatrix`.
+    :arg P: The interpolation matrix. A :class:`scipy.sparse.spmatrix`.
     :arg tolerance: Maximum permitted distance of an interpolation point from
         a cell in the mesh for `y`. Ignored if `P` is supplied.
     """
@@ -560,7 +560,7 @@ class PointInterpolation(Equation):
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
-    :arg P: The interpolation matrix. A SciPy :class:`spmatrix`.
+    :arg P: The interpolation matrix. A :class:`scipy.sparse.spmatrix`.
     :arg tolerance: Maximum permitted distance of an interpolation point from
         a cell in the mesh for `y`. Ignored if `P` is supplied.
     """
