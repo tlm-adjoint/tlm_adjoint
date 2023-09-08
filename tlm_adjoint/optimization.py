@@ -980,7 +980,7 @@ def minimize_tao(forward, m0, *,
         configuration. Called after all other configuration options are set.
     :arg post_callback: A callable accepting a single
         :class:`petsc4py.PETSc.TAO` argument. Called after the
-        :meth:`TAO.solve` method has been called.
+        :meth:`petsc4py.PETSc.TAO.solve` method has been called.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
     """

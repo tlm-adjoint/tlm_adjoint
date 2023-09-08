@@ -1149,10 +1149,11 @@ class System:
         :arg pre_callback: A callable accepting a single
             :class:`petsc4py.PETSc.KSP` argument. Used for detailed manual
             configuration. Called after all other configuration options are
-            set, but before the :meth:`KSP.setUp` method is called.
+            set, but before the :meth:`petsc4py.PETSc.KSP.setUp` method is
+            called.
         :arg post_callback: A callable accepting a single
             :class:`petsc4py.PETSc.KSP` argument. Called after the
-            :meth:`KSP.solve` method has been called.
+            :meth:`petsc4py.PETSc.KSP.solve` method has been called.
         :arg correct_initial_guess: Whether to apply a nullspace correction to
             the initial guess.
         :arg correct_solution: Whether to apply a nullspace correction to
