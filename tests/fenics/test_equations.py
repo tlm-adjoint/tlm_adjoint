@@ -356,7 +356,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
     X_coords = np.array([[0.1, 0.1, 0.1],
                          [0.2, 0.3, 0.4],
                          [0.9, 0.8, 0.7],
-                         [0.4, 0.2, 0.3]], dtype=backend_ScalarType)
+                         [0.4, 0.2, 0.3]], dtype=backend_RealType)
 
     # Test optimization: Use to cache the interpolation matrix
     P = [None]

@@ -36,13 +36,13 @@ class CheckpointStorage:
     """A buffer for forward restart data, and a cache for non-linear dependency
     data. Contains three types of data:
 
-      1. References: Dependencies which are stored by reference. Functions `x`
-         for which `function_is_checkpointed(x)` is `False` are stored by
-         reference.
-      2. Forward restart / initial condition data: Dependencies which are used
-         to restart and advance the forward calculation.
-      3. Non-linear dependency data: Non-linear dependencies of the forward
-         which are used to advance the adjoint.
+        1. References: Dependencies which are stored by reference. Functions
+           `x` for which `function_is_checkpointed(x)` is `False` are stored by
+           reference.
+        2. Forward restart / initial condition data: Dependencies which are
+           used to restart and advance the forward calculation.
+        3. Non-linear dependency data: Non-linear dependencies of the forward
+           which are used to advance the adjoint.
 
     These may overlap -- for example non-linear dependency data may be stored
     by reference.
@@ -663,7 +663,7 @@ class Checkpoints(ABC):
         :arg ics: Whether forward restart data should be included.
         :arg data: Whether non-linear dependency data should be included.
         :arg ic_ids: A :class:`Container`. If provided then only functions with
-           ID in `ic_ids` are included.
+            ID in `ic_ids` are included.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
             :meth:`CheckpointStorage.update` method.
@@ -865,7 +865,7 @@ class HDF5Checkpoints(Checkpoints):
 
             d = g.create_dataset(
                 "keys", shape=(len(cp), 4, self._comm.size),
-                dtype=np.int64)
+                dtype=np.int_)
             for j, (x_id, x_indices) in enumerate(cp):
                 d[j, 0, self._comm.rank] = x_id
                 if x_indices is None:
@@ -882,7 +882,7 @@ class HDF5Checkpoints(Checkpoints):
 
                 d = g.create_dataset(
                     "keys", shape=(len(eq_data), 4, self._comm.size),
-                    dtype=np.int64)
+                    dtype=np.int_)
                 for k, (x_id, x_indices) in enumerate(eq_data):
                     d[k, 0, self._comm.rank] = x_id
                     if x_indices is None:
@@ -900,7 +900,7 @@ class HDF5Checkpoints(Checkpoints):
 
                 d = g.create_dataset(
                     "key", shape=(4, self._comm.size),
-                    dtype=np.int64)
+                    dtype=np.int_)
                 d[0, self._comm.rank] = x_id
                 if x_indices is None:
                     d[1:, self._comm.rank] = -1
@@ -911,7 +911,7 @@ class HDF5Checkpoints(Checkpoints):
 
                 d = g.create_dataset(
                     "space_id", shape=(self._comm.size,),
-                    dtype=np.int64)
+                    dtype=np.int_)
                 d[self._comm.rank] = F_space_id
 
                 if function_is_scalar(F):

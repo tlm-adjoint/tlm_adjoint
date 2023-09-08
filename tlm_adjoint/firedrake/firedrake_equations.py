@@ -78,7 +78,7 @@ class LocalSolverCache(Cache):
         """Compute data for an element-wise local block diagonal linear
         solver and cache the result, or return a previously cached result.
 
-        :arg form: An arity two UFL :class:`Form`, defining the element-wise
+        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
             local block diagonal matrix.
         :arg form_compiler_parameters: Form compiler parameters.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
@@ -135,9 +135,10 @@ class LocalProjection(EquationSolver):
     matrix is element-wise local block diagonal.
 
     :arg x: A function defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
-        space for `x`, or a UFL :class:`Form` defining the right-hand-side
-        of the finite element variational problem. Should not depend on `x`.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
+        onto the space for `x`, or a :class:`ufl.Form` defining the
+        right-hand-side of the finite element variational problem. Should not
+        depend on `x`.
 
     Remaining arguments are passed to the :class:`EquationSolver` constructor.
     """
@@ -245,7 +246,7 @@ def vmesh_coords_map(vmesh, X_coords):
     Nm, _ = vmesh_coords.shape
 
     vmesh_coords_indices = {tuple(vmesh_coords[i, :]): i for i in range(Nm)}
-    vmesh_coords_map = np.full(Nm, -1, dtype=np.int64)
+    vmesh_coords_map = np.full(Nm, -1, dtype=np.int_)
     for i in range(N):
         key = tuple(X_coords[i, :])
         if key in vmesh_coords_indices:
@@ -269,7 +270,7 @@ class PointInterpolation(Equation):
     :arg X: A scalar-function, or a :class:`Sequence` of scalar-valued
         functions, defining the forward solution.
     :arg y: A scalar-valued Firedrake :class:`Function` to interpolate.
-    :arg X_coords: A NumPy :class:`ndarray` defining the coordinates at which
+    :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
@@ -369,11 +370,11 @@ class ExprAssignment(ExprEquation):
     \mathcal{F} / \partial x` is the identity.
 
     :arg x: A Firedrake :class:`Function` defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to evaluate. Should
-        not depend on `x`.
-    :arg subset: A PyOP2 :class:`Subset`. If provided then defines a subset of
-        degrees of freedom at which to evaluate `rhs`. Other degrees of freedom
-        are set to zero.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
+        evaluate. Should not depend on `x`.
+    :arg subset: A :class:`pyop2.types.set.Subset`. If provided then defines a
+        subset of degrees of freedom at which to evaluate `rhs`. Other degrees
+        of freedom are set to zero.
     """
 
     def __init__(self, x, rhs, *,

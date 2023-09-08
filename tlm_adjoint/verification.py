@@ -4,10 +4,10 @@
 r"""This module implements Taylor remainder convergence testing using the
 approach described in
 
-  - P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
-    derivation of the adjoint of high-level transient finite element programs',
-    SIAM Journal on Scientific Computing 35(4), pp. C369--C393, 2013, doi:
-    10.1137/120873558
+    - P. E. Farrell, D. A. Ham, S. W. Funke, and M. E. Rognes, 'Automated
+      derivation of the adjoint of high-level transient finite element
+      programs', SIAM Journal on Scientific Computing 35(4), pp. C369--C393,
+      2013, doi: 10.1137/120873558
 
 Specifically for a sufficiently regular functional :math:`J`, via Taylor's
 theorem we have, for some direction :math:`\zeta` and with perturbation
@@ -42,17 +42,17 @@ magnitude is observed to converge to zero at second order.
 There are a number of ways that a Taylor remainder convergence test can fail,
 including:
 
-  - The computed derivative is incorrect. This is the case that the test is
-    designed to find, and indicates an error in the tangent-linear or adjoint
-    calculation.
-  - The considered values of :math:`\varepsilon` are too large, and the
-    asymptotic convergence orders are not observable.
-  - The considered values of :math:`\varepsilon` are too small, and iterative
-    solver tolerances or floating point roundoff prevent the converge orders
-    being observable.
-  - The convergence order is higher than expected. For example if the
-    directional derivative is zero then the uncorrected Taylor remainder
-    magnitude can converge at higher than first order.
+    - The computed derivative is incorrect. This is the case that the test is
+      designed to find, and indicates an error in the tangent-linear or adjoint
+      calculation.
+    - The considered values of :math:`\varepsilon` are too large, and the
+      asymptotic convergence orders are not observable.
+    - The considered values of :math:`\varepsilon` are too small, and iterative
+      solver tolerances or floating point roundoff prevent the converge orders
+      being observable.
+    - The convergence order is higher than expected. For example if the
+      directional derivative is zero then the uncorrected Taylor remainder
+      magnitude can converge at higher than first order.
 
 In principle higher order derivative calculations can be tested by considering
 more terms in the Taylor expansion of the functional. In practice the
@@ -223,7 +223,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         return norm
 
     # This combination seems to reproduce dolfin-adjoint behaviour
-    eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
+    eps = np.array([2 ** -p for p in range(size)], dtype=float)
     eps = seed * eps * max(1.0, functions_linf_norm(M0))
     if dM is None:
         dM = tuple(function_new(m1, static=True) for m1 in M1)
@@ -236,7 +236,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             function_set_values(dm, dm_arr)
             del dm_arr
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
+    J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
         assert len(M0) == len(M1)
         assert len(M0) == len(dM)
@@ -290,7 +290,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     :arg M: A function or a :class:`Sequence` of functions defining the control
         variable :math:`m` and its value.
     :arg tlm_order: An :class:`int` defining the tangent-linear order to
-       test.
+        test.
     :arg seed: Controls the perturbation magnitude. See :func:`taylor_test`.
     :arg dMs: A :class:`Sequence` of length `tlm_order` whose elements are each
         a function or a :class:`Sequence` of functions. The functional
@@ -343,7 +343,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
             norm = max(norm, function_linf_norm(x))
         return norm
 
-    eps = np.array([2 ** -p for p in range(size)], dtype=np.float64)
+    eps = np.array([2 ** -p for p in range(size)], dtype=float)
     eps = seed * eps * max(1.0, functions_linf_norm(M))
     if dMs is None:
         dMs = tuple(tuple(function_new(m, static=True) for m in M)
@@ -376,7 +376,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     J_val = forward_tlm(dMs[:-1], *M).value()
     dJ = forward_tlm(dMs, *M).value()
 
-    J_vals = np.full(eps.shape, np.NAN, dtype=np.complex128)
+    J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
         assert len(M) == len(M1)
         assert len(M) == len(dMs[-1])

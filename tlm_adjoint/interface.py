@@ -444,7 +444,7 @@ def space_dtype(space):
     """
     :arg space: A space.
     :returns: The data type associated with the space. Typically
-        :class:`numpy.float64` or :class:`numpy.complex128`.
+        :class:`numpy.double` or :class:`numpy.cdouble`.
     """
 
     return space._tlm_adjoint__space_interface_dtype()
@@ -502,7 +502,7 @@ def relative_space_type(space_type, rel_space_type):
     :arg space_type: An input space type. One of `'primal'`, `'conjugate'`,
         `'dual'`, or `'conjugate_dual'`.
     :arg rel_space_type: The relative space type to return. One of `'primal'`,
-         `'conjugate'`, `'dual'`, or `'conjugate_dual'`.
+        `'conjugate'`, `'dual'`, or `'conjugate_dual'`.
     :returns: A space type relative to `space_type`.
     """
 
@@ -825,7 +825,7 @@ def function_space(x):
 def function_form_derivative_space(x):
     """
     :returns: The space in which a derivative is defined when differentiating a
-        UFL :class:`Form` with respect to the function.
+        :class:`ufl.Form` with respect to the function.
     """
 
     return x._tlm_adjoint__function_interface_form_derivative_space()
@@ -849,7 +849,7 @@ def function_dtype(x):
     """
     :arg x: A function.
     :returns: The data type associated with the function. Typically
-        :class:`numpy.float64` or :class:`numpy.complex128`.
+        :class:`numpy.double` or :class:`numpy.cdouble`.
     """
 
     return x._tlm_adjoint__function_interface_dtype()

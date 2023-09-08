@@ -310,7 +310,7 @@ class AssemblyCache(Cache):
         """Perform finite element assembly and cache the result, or return a
         previously cached result.
 
-        :arg form: The UFL :class:`Form` to assemble.
+        :arg form: The :class:`ufl.Form` to assemble.
         :arg bcs: Dirichlet boundary conditions.
         :arg form_compiler_parameters: Form compiler parameters.
         :arg linear_solver_parameters: Linear solver parameters. Required for
@@ -389,7 +389,7 @@ class LinearSolverCache(Cache):
         """Construct a linear solver and cache the result, or return a
         previously cached result.
 
-        :arg form: An arity two UFL :class:`Form`, defining the matrix.
+        :arg form: An arity two :class:`ufl.Form`, defining the matrix.
         :arg bcs: Dirichlet boundary conditions.
         :arg form_compiler_parameters: Form compiler parameters.
         :arg linear_solver_parameters: Linear solver parameters.

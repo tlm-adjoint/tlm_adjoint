@@ -68,7 +68,7 @@ def new_symbol_name():
     return f"_tlm_adjoint_symbol__{count:d}"
 
 
-_default_dtype = np.complex128
+_default_dtype = np.cdouble
 
 
 class FloatSpaceInterface(SpaceInterface):
@@ -97,8 +97,8 @@ class FloatSpace:
         instantiate new functions in :func:`tlm_adjoint.interface.space_new`.
         Defaults to :class:`SymbolicFloat`.
     :arg dtype: The data type associated with the space. Typically
-        :class:`numpy.float64` or :class:`numpy.complex128`. Defaults to
-        :class:`numpy.complex128`.
+        :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
+        :class:`numpy.cdouble`.
     :arg comm: The communicator associated with the space.
     """
 
@@ -288,16 +288,17 @@ def expr_dependencies(expr):
 
 # Float class name already used by SymPy
 class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
-    """A SymPy :class:`Symbol` which is also a 'function', defining a scalar
-    variable.
+    """A :class:`sympy.core.symbol.Symbol` which is also a 'function', defining
+    a scalar variable.
 
     If constructing SymPy expressions then the :class:`SymbolicFloat` class
     should be used instead of the :class:`OverloadedFloat` subclass, or else
     :class:`OverloadedFloat` operator overloading should be disabled.
 
-    :arg value: A scalar or SymPy :class:`Expr` defining the initial value. If
-        a SymPy :class:`Expr` then, if annotation or derivation and solution of
-        tangent-linear equations is enabled, an assignment is processed by the
+    :arg value: A scalar or :class:`sympy.core.expr.Expr` defining the initial
+        value. If a :class:`sympy.core.expr.Expr` then, if annotation or
+        derivation and solution of tangent-linear equations is enabled, an
+        assignment is processed by the
         :class:`tlm_adjoint.tlm_adjoint.EquationManager` `manager`.
     :arg name: A :class:`str` name for the :class:`SymbolicFloat`.
     :arg space_type: The space type for the :class:`SymbolicFloat`. `'primal'`,
@@ -310,8 +311,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :class:`SymbolicFloat` by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
     :arg dtype: The data type associated with the :class:`SymbolicFloat`.
-        Typically :class:`numpy.float64` or :class:`numpy.complex128`. Defaults
-        to :class:`numpy.complex128`.
+        Typically :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
+        :class:`numpy.cdouble`.
     :arg comm: The communicator associated with the :class:`SymbolicFloat`.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
@@ -389,7 +390,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def assign(self, y, *, annotate=None, tlm=None):
         """:class:`SymbolicFloat` assignment.
 
-        :arg y: A scalar or SymPy :class:`Expr` defining the value.
+        :arg y: A scalar or :class:`sympy.core.expr.Expr` defining the value.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
@@ -428,7 +429,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def addto(self, y, *, annotate=None, tlm=None):
         """:class:`SymbolicFloat` in-place addition.
 
-        :arg y: A scalar or SymPy :class:`Expr` defining the value to add.
+        :arg y: A scalar or :class:`sympy.core.expr.Expr` defining the value to
+            add.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
@@ -446,8 +448,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         complex part, then this method will return the real part with real
         type.
 
-        The value may also be accessed by casting using :func:`float` or
-        :func:`complex`.
+        The value may also be accessed by casting using :class:`float` or
+        :class:`complex`.
 
         :returns: The value.
         """
@@ -687,8 +689,8 @@ class FloatEquation(Equation):
 
         x = \mathcal{G} \left( y_1, y_2, \ldots \right),
 
-    for some :math:`\mathcal{G}` defined by a SymPy :class:`Expr`. The forward
-    residual is defined
+    for some :math:`\mathcal{G}` defined by a :class:`sympy.core.expr.Expr`.
+    The forward residual is defined
 
     .. math::
 
@@ -696,7 +698,7 @@ class FloatEquation(Equation):
             = x - \mathcal{G} \left( y_1, y_2, \ldots \right).
 
     :arg x: A :class:`SymbolicFloat` defining the forward solution :math:`x`
-    :arg expr: A SymPy :class:`Expr` defining the right-hand-side.
+    :arg expr: A :class:`sympy.core.expr.Expr` defining the right-hand-side.
     """
 
     @no_float_overloading

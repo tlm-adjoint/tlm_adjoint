@@ -9,6 +9,7 @@ import firedrake
 
 backend = "Firedrake"
 
+backend_RealType = firedrake.utils.RealType.type
 backend_ScalarType = firedrake.utils.ScalarType.type
 
 extract_args = firedrake.solving._extract_args

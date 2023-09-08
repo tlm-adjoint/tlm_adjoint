@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """This module is used by both the FEniCS and Firedrake backends, and includes
-functionality for handling UFL :class:`Coefficient` objects and boundary
+functionality for handling :class:`ufl.Coefficient` objects and boundary
 conditions.
 """
 
@@ -507,8 +507,8 @@ def with_coefficients(expr):
 
 def extract_coefficients(expr):
     """
-    :returns: Functions on which the supplied UFL :class:`Expr` or
-        :class:`Form` depends.
+    :returns: Functions on which the supplied :class:`ufl.core.expr.Expr` or
+        :class:`ufl.Form` depends.
     """
 
     if isinstance(expr, ufl.classes.Form) \
@@ -565,15 +565,16 @@ def derivative(expr, x, argument=None, *,
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):
-    """Apply zero elimination for :class:`Zero` objects in the supplied UFL
-    :class:`Expr` or :class:`Form`.
+    """Apply zero elimination for
+    :class:`tlm_adjoint._code_generator.functions.Zero` objects in the supplied
+    :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
 
-    :arg expr: A UFL :class:`Expr` or :class:`Form`.
-    :arg force_non_empty_form: If `True` and if `expr` is a UFL :class:`Form`,
+    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
+    :arg force_non_empty_form: If `True` and if `expr` is a :class:`ufl.Form`,
         then the returned form is guaranteed to be non-empty, and may be
         assembled.
-    :returns: A UFL :class:`Expr` or :class:`Form` with zero elimination
-        applied. May return `expr`.
+    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form` with zero
+        elimination applied. May return `expr`.
     """
 
     if isinstance(expr, ufl.classes.Form) \
@@ -761,7 +762,7 @@ class ReplacementInterface(_FunctionInterface):
 
 
 class Replacement(ufl.classes.Coefficient):
-    """A UFL :class:`Coefficient` representing a symbolic variable but with no
+    """A :class:`ufl.Coefficient` representing a symbolic variable but with no
     value.
     """
 

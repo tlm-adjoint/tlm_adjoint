@@ -212,10 +212,10 @@ def allocate_snapshots(max_n, snapshots_in_ram, snapshots_on_disk, *,
 class MultistageCheckpointSchedule(CheckpointSchedule):
     """A binomial checkpointing schedule using the approach described in
 
-      - Andreas Griewank and Andrea Walther, 'Algorithm 799: revolve: an
-        implementation of checkpointing for the reverse or adjoint mode of
-        computational differentiation', ACM Transactions on Mathematical
-        Software, 26(1), pp. 19--45, 2000, doi: 10.1145/347837.347846
+        - Andreas Griewank and Andrea Walther, 'Algorithm 799: revolve: an
+          implementation of checkpointing for the reverse or adjoint mode of
+          computational differentiation', ACM Transactions on Mathematical
+          Software, 26(1), pp. 19--45, 2000, doi: 10.1145/347837.347846
 
     hereafter referred to as GW2000.
 

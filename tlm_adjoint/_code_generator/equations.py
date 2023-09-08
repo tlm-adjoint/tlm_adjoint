@@ -116,7 +116,7 @@ class Assembly(ExprEquation):
     \mathcal{F} / \partial x` is the identity.
 
     :arg x: A function defining the forward solution.
-    :arg rhs: A UFL :class:`Form` to assemble. Should have arity 0 or 1, and
+    :arg rhs: A :class:`ufl.Form` to assemble. Should have arity 0 or 1, and
         should not depend on the forward solution.
     :arg form_compiler_parameters: Form compiler parameters.
     :arg match_quadrature: Whether to set quadrature parameters consistently in
@@ -291,11 +291,11 @@ class EquationSolver(ExprEquation):
     `solver_parameters` are based on the interface for the FEniCS :func:`solve`
     function (see e.g. FEniCS 2017.1.0).
 
-    :arg eq: A UFL :class:`Equation` defining the finite element variational
-        problem.
+    :arg eq: A :class:`ufl.equation.Equation` defining the finite element
+        variational problem.
     :arg x: A function defining the forward solution.
     :arg bcs: Dirichlet boundary conditions.
-    :arg J: A UFL :class:`Form` defining a Jacobian matrix approximation to use
+    :arg J: A :class:`ufl.Form` defining a Jacobian matrix approximation to use
         in a non-linear forward solve.
     :arg form_compiler_parameters: Form compiler parameters.
     :arg solver_parameters: Linear or non-linear solver parameters.
@@ -825,13 +825,13 @@ def expr_new_x(expr, x, *,
     """If an expression depends on `x`, then record the assignment `x_old =
     x`, and replace `x` with `x_old` in the expression.
 
-    :arg expr: A UFL :class:`Expr`.
+    :arg expr: A :class:`ufl.core.expr.Expr`.
     :arg x: Defines `x`.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
-    :returns: A UFL :class:`Expr` with `x` replaced with `x_old`, or `expr` if
-        the expression does not depend on `x`.
+    :returns: A :class:`ufl.core.expr.Expr` with `x` replaced with `x_old`, or
+        `expr` if the expression does not depend on `x`.
     """
 
     if x in extract_coefficients(expr):
@@ -852,15 +852,15 @@ def linear_equation_new_x(eq, x, *,
     Required for the case where a 'new' value is computed by solving a linear
     finite element variational problem depending on the 'old' value.
 
-    :arg eq: A UFL :class:`Equation` defining the finite element variational
-        problem.
+    :arg eq: A :class:`ufl.equation.Equation` defining the finite element
+        variational problem.
     :arg x: A function defining the solution to the finite element variational
         problem.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
-    :returns: A UFL :class:`Equation` with `x` replaced with `x_old`, or `eq`
-        if the symbolic expression does not depend on `x`.
+    :returns: A :class:`ufl.equation.Equation` with `x` replaced with `x_old`,
+        or `eq` if the symbolic expression does not depend on `x`.
     """
 
     lhs, rhs = eq.lhs, eq.rhs
@@ -883,9 +883,10 @@ class Projection(EquationSolver):
     performing a projection onto the space for `x`.
 
     :arg x: A function defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
-        space for `x`, or a UFL :class:`Form` defining the right-hand-side
-        of the finite element variational problem. Should not depend on `x`.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
+        onto the space for `x`, or a :class:`ufl.Form` defining the
+        right-hand-side of the finite element variational problem. Should not
+        depend on `x`.
 
     Remaining arguments are passed to the :class:`EquationSolver` constructor.
     """
@@ -967,8 +968,8 @@ class ExprInterpolation(ExprEquation):
     \mathcal{F} / \partial x` is the identity.
 
     :arg x: A function defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to interpolate onto
-        the space for `x`. Should not depend on `x`.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
+        interpolate onto the space for `x`. Should not depend on `x`.
     """
 
     def __init__(self, x, rhs):

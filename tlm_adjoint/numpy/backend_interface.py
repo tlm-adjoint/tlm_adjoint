@@ -22,7 +22,7 @@ __all__ = \
     ]
 
 
-_default_dtype = np.float64
+_default_dtype = np.double
 
 
 def default_dtype():
