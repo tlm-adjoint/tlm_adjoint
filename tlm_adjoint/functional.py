@@ -78,8 +78,8 @@ class Functional:
 
         :arg term: The value. Defines the value of :math:`b`. Valid types
             depend upon the backend. :math:`b` may be a function, and with the
-            FEniCS or Firedrake backends may be an arity zero UFL
-            :class:`Form`.
+            FEniCS or Firedrake backends may be an arity zero
+            :class:`ufl.Form`.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
@@ -113,9 +113,9 @@ class Functional:
         Note that this method allocates a new internal function.
 
         :arg term: The value. Defines the value of :math:`b`. Valid types
-            depend upon the backend. :math:`b` may be a function, and with
-            the FEniCS or Firedrake backends may be an arity zero UFL
-            :class:`Form`.
+            depend upon the backend. :math:`b` may be a function, and with the
+            FEniCS or Firedrake backends may be an arity zero
+            :class:`ufl.Form`.
         :arg annotate: Whether the
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.

@@ -205,7 +205,7 @@ class LocalSolverCache(Cache):
         """Construct an element-wise local block diagonal linear solver and
         cache the result, or return a previously cached result.
 
-        :arg form: An arity two UFL :class:`Form`, defining the element-wise
+        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
             local block diagonal matrix.
         :arg local_solver: DOLFIN :class:`LocalSolver.SolverType`. Defaults
             to `dolfin.LocalSolver.SolverType.LU`.
@@ -263,9 +263,10 @@ class LocalProjection(EquationSolver):
     matrix is element-wise local block diagonal.
 
     :arg x: A DOLFIN :class:`Function` defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
-        space for `x`, or a UFL :class:`Form` defining the right-hand-side
-        of the finite element variational problem. Should not depend on `x`.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
+        onto the space for `x`, or a :class:`ufl.Form` defining the
+        right-hand-side of the finite element variational problem. Should not
+        depend on `x`.
 
     Remaining arguments are passed to the :class:`EquationSolver` constructor.
     """

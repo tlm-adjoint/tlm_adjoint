@@ -78,7 +78,7 @@ class LocalSolverCache(Cache):
         """Compute data for an element-wise local block diagonal linear
         solver and cache the result, or return a previously cached result.
 
-        :arg form: An arity two UFL :class:`Form`, defining the element-wise
+        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
             local block diagonal matrix.
         :arg form_compiler_parameters: Form compiler parameters.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
@@ -135,9 +135,10 @@ class LocalProjection(EquationSolver):
     matrix is element-wise local block diagonal.
 
     :arg x: A function defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to project onto the
-        space for `x`, or a UFL :class:`Form` defining the right-hand-side
-        of the finite element variational problem. Should not depend on `x`.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
+        onto the space for `x`, or a :class:`ufl.Form` defining the
+        right-hand-side of the finite element variational problem. Should not
+        depend on `x`.
 
     Remaining arguments are passed to the :class:`EquationSolver` constructor.
     """
@@ -369,8 +370,8 @@ class ExprAssignment(ExprEquation):
     \mathcal{F} / \partial x` is the identity.
 
     :arg x: A Firedrake :class:`Function` defining the forward solution.
-    :arg rhs: A UFL :class:`Expr` defining the expression to evaluate. Should
-        not depend on `x`.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
+        evaluate. Should not depend on `x`.
     :arg subset: A PyOP2 :class:`Subset`. If provided then defines a subset of
         degrees of freedom at which to evaluate `rhs`. Other degrees of freedom
         are set to zero.

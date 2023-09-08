@@ -186,8 +186,8 @@ class MixedSpace(ABC):
 
     This class defines three representations for the space:
 
-        1. As a 'mixed space': A single function space defined using a UFL
-           :class:`MixedElement`.
+        1. As a 'mixed space': A single function space defined using a
+           :class:`ufl.MixedElement`.
         2. As a 'split space': A tree defining the mixed space. Stored using
            backend function space and :class:`tuple` objects, each
            corresponding to a node in the tree. Function spaces correspond to
@@ -881,7 +881,7 @@ def form_matrix(a, *args, **kwargs):
     """Construct a :class:`PETScMatrix` associated with a given sesquilinear
     form.
 
-    :arg a: A UFL :class:`Form` defining the sesquilinear form.
+    :arg a: A :class:`ufl.Form` defining the sesquilinear form.
     :returns: The :class:`PETScMatrix`.
 
     Remaining arguments are passed to the backend :func:`assemble`.
@@ -902,7 +902,7 @@ class BlockMatrix(Matrix):
     :arg arg_spaces: Defines the space `V`.
     :arg action_spaces: Defines the space `W`.
     :arg block: A :class:`Mapping` defining the blocks of the matrix. Items are
-        `((i, j), block)` defining a UFL :class:`Form` or :class:`Matrix` for
+        `((i, j), block)` defining a :class:`ufl.Form` or :class:`Matrix` for
         the block in row `i` and column `j`. A value for `block` of `None`
         indicates a zero block.
     """
@@ -1071,10 +1071,10 @@ class System:
     :arg action_spaces: Defines the space for `b`.
     :arg blocks: One of
 
-        - A :class:`Matrix` or UFL :class:`Form` defining :math:`A`.
+        - A :class:`Matrix` or :class:`ufl.Form` defining :math:`A`.
         - A :class:`Mapping` with items `((i, j), block)` where the matrix
           associated with the block in the `i` th and `j` th column is defined
-          by `block`. Each `block` is a :class:`Matrix` or UFL :class:`Form`,
+          by `block`. Each `block` is a :class:`Matrix` or :class:`ufl.Form`,
           or `None` to indicate a zero block.
 
     :arg nullspaces: A :class:`Nullspace` or a :class:`Sequence` of

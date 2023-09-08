@@ -38,4 +38,5 @@ html_css_files = ["custom.css"]
 
 intersphinx_mapping = {"h5py": ("https://docs.h5py.org/en/stable", None),
                        "numpy": ("https://numpy.org/doc/stable", None),
-                       "python": ("https://docs.python.org/3", None)}
+                       "python": ("https://docs.python.org/3", None),
+                       "ufl": ("https://fenics.readthedocs.io/projects/ufl/en/latest", None)}  # noqa: E501

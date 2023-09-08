@@ -825,7 +825,7 @@ def function_space(x):
 def function_form_derivative_space(x):
     """
     :returns: The space in which a derivative is defined when differentiating a
-        UFL :class:`Form` with respect to the function.
+        :class:`ufl.Form` with respect to the function.
     """
 
     return x._tlm_adjoint__function_interface_form_derivative_space()
