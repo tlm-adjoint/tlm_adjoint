@@ -36,6 +36,7 @@ def test_HEP(setup_test, test_leaks):
         space, M_action, action_space_type="conjugate_dual",
         problem_type=SLEPc.EPS.ProblemType.HEP)
 
+    assert issubclass(lam.dtype.type, (float, np.floating))
     assert (lam > 0.0).all()
 
     diff = Function(space)
@@ -64,6 +65,7 @@ def test_NHEP(setup_test, test_leaks):
     lam, V = eigendecompose(
         space, N_action, action_space_type="conjugate_dual")
 
+    assert issubclass(lam.dtype.type, (complex, np.complexfloating))
     assert abs(lam.real).max() < 1.0e-15
 
     diff = Function(space)
@@ -89,8 +91,11 @@ def test_NHEP(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_CachedHessian(setup_test):
+    import slepc4py.SLEPc as SLEPc
+
     configure_checkpointing("memory", {"drop_references": False})
 
     mesh = UnitIntervalMesh(5)
@@ -141,25 +146,41 @@ def test_CachedHessian(setup_test):
         function_axpy(error, -1.0, ddJ_opt)
         assert function_linf_norm(error) == 0.0
 
-    # Test consistency of eigenvalues
+    with paused_space_type_checking():
+        lam, V = eigendecompose(space, H.action_fn(F),
+                                problem_type=SLEPc.EPS.ProblemType.HEP)
+
+    assert issubclass(lam.dtype.type, (float, np.floating))
+
+    assert len(lam) == len(V)
+    for lam_i, v in zip(lam, V):
+        _, _, v_error = H.action(F, v)
+        with paused_space_type_checking():
+            function_axpy(v_error, -lam_i, v)
+        assert function_linf_norm(v_error) < 1.0e-19
+
+        _, _, v_error = H_opt.action(F, v)
+        with paused_space_type_checking():
+            function_axpy(v_error, -lam_i, v)
+        assert function_linf_norm(v_error) < 1.0e-19
 
     with paused_space_type_checking():
-        lam, _ = eigendecompose(space, H.action_fn(F))
-    if not issubclass(space_dtype(space), (complex, np.complexfloating)):
-        assert max(abs(lam.imag)) == 0.0
+        lam_opt, V_opt = eigendecompose(space, H_opt.action_fn(F),
+                                        problem_type=SLEPc.EPS.ProblemType.HEP)
 
-    with paused_space_type_checking():
-        lam_opt, _ = eigendecompose(space, H_opt.action_fn(F))
-    if not issubclass(space_dtype(space), (complex, np.complexfloating)):
-        assert max(abs(lam_opt.imag)) == 0.0
-
+    assert issubclass(lam.dtype.type, (float, np.floating))
     error = (np.array(sorted(lam.real), dtype=float)
              - np.array(sorted(lam_opt.real), dtype=float))
     assert abs(error).max() == 0.0
 
-    if issubclass(space_dtype(space), (complex, np.complexfloating)):
-        # Minor gap in test, as could use a different order from the real
-        # components
-        error = (np.array(sorted(lam.imag), dtype=float)
-                 - np.array(sorted(lam_opt.imag), dtype=float))
-        assert abs(error).max() == 0.0
+    assert len(lam) == len(V)
+    for lam_i, v in zip(lam_opt, V_opt):
+        _, _, v_error = H.action(F, v)
+        with paused_space_type_checking():
+            function_axpy(v_error, -lam_i, v)
+        assert function_linf_norm(v_error) < 1.0e-19
+
+        _, _, v_error = H_opt.action(F, v)
+        with paused_space_type_checking():
+            function_axpy(v_error, -lam_i, v)
+        assert function_linf_norm(v_error) < 1.0e-19

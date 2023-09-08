@@ -111,6 +111,15 @@ def test_hessian_solve(setup_test,
             which=SLEPc.EPS.Which.LARGEST_MAGNITUDE,
             tolerance=1.0e-14)
 
+        assert issubclass(Lam.dtype.type, (float, np.floating))
+
+        assert len(Lam) == len(V)
+        for lam, v in zip(Lam, V):
+            _, _, v_error = H_mismatch.action(m, v)
+            function_axpy(v_error, -lam, B_inv(v))
+            bc.apply(v_error)
+            assert function_linf_norm(v_error) < 1.0e-16
+
         diag_error_norm, off_diag_error_norm = B_inv_orthonormality_test(V, B_inv)  # noqa: E501
         assert diag_error_norm < 1.0e-14
         assert off_diag_error_norm < 1.0e-14

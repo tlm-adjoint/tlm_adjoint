@@ -247,7 +247,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
             lam[i] = lam_i.real
             if v_i is not None:
                 with v_i as v_i_a:
-                    assert abs(v_i_a).max() == 0.0
+                    assert len(v_i_a) == 0 or abs(v_i_a).max() == 0.0
             # else:
             #     # Complex note: If v_i is None then v_r may be non-real
             #     pass
