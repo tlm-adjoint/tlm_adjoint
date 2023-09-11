@@ -154,15 +154,15 @@ def test_CachedHessian(setup_test):
     assert issubclass(lam.dtype.type, (float, np.floating))
 
     assert len(lam) == len(V)
-    for lam_i, v in zip(lam, V):
-        _, _, v_error = H.action(F, v)
+    for lam_i, v_i in zip(lam, V):
+        _, _, v_error = H.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v)
+            function_axpy(v_error, -lam_i, v_i)
         assert function_linf_norm(v_error) < 1.0e-19
 
-        _, _, v_error = H_opt.action(F, v)
+        _, _, v_error = H_opt.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v)
+            function_axpy(v_error, -lam_i, v_i)
         assert function_linf_norm(v_error) < 1.0e-19
 
     with paused_space_type_checking():
@@ -175,13 +175,13 @@ def test_CachedHessian(setup_test):
     assert abs(error).max() == 0.0
 
     assert len(lam) == len(V)
-    for lam_i, v in zip(lam_opt, V_opt):
-        _, _, v_error = H.action(F, v)
+    for lam_i, v_i in zip(lam_opt, V_opt):
+        _, _, v_error = H.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v)
+            function_axpy(v_error, -lam_i, v_i)
         assert function_linf_norm(v_error) < 1.0e-19
 
-        _, _, v_error = H_opt.action(F, v)
+        _, _, v_error = H_opt.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v)
+            function_axpy(v_error, -lam_i, v_i)
         assert function_linf_norm(v_error) < 1.0e-19
