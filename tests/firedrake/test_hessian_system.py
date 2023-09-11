@@ -114,9 +114,9 @@ def test_hessian_solve(setup_test,
         assert issubclass(Lam.dtype.type, (float, np.floating))
 
         assert len(Lam) == len(V)
-        for lam, v in zip(Lam, V):
-            _, _, v_error = H_mismatch.action(m, v)
-            function_axpy(v_error, -lam, B_inv(v))
+        for lam_i, v_i in zip(Lam, V):
+            _, _, v_error = H_mismatch.action(m, v_i)
+            function_axpy(v_error, -lam_i, B_inv(v_i))
             bc.apply(v_error)
             assert function_linf_norm(v_error) < 1.0e-16
 
@@ -141,6 +141,7 @@ def test_hessian_solve(setup_test,
 
     H = Hessian(forward_J)
     _, _, b = H.action(m, v)
+    assert function_linf_norm(b) > 0.0
     b_error = function_copy(b, name="b_error")
     function_axpy(b_error, -1.0, b_ref)
     assert function_linf_norm(b_error) < 1.0e-13
