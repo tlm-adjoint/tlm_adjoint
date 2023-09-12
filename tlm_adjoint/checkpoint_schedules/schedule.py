@@ -3,6 +3,7 @@
 
 from abc import ABC, abstractmethod
 import functools
+import warnings
 
 __all__ = \
     [
@@ -277,6 +278,27 @@ class CheckpointSchedule(ABC):
 
         cls.iter = iter
 
+        class CallableBool:
+            def __init__(self, value):
+                self._value = value
+
+            def __bool__(self):
+                return bool(self._value)
+
+            def __call__(self):
+                warnings.warn("is_exhausted is a property and should not "
+                              "be called",
+                              DeprecationWarning, stacklevel=2)
+                return bool(self)
+
+        @property
+        def is_exhausted(self):
+            value = orig_is_exhausted.__get__(self, type(self))
+            return CallableBool(value)
+
+        orig_is_exhausted = getattr(cls, "is_exhausted")
+        cls.is_exhausted = is_exhausted
+
     def __iter__(self):
         return self
 
@@ -291,47 +313,52 @@ class CheckpointSchedule(ABC):
 
         raise NotImplementedError
 
+    @property
     @abstractmethod
     def is_exhausted(self):
-        """Return whether the schedule has concluded. Note that some schedules
-        permit multiple adjoint calculation, and may never conclude.
+        """Whether the schedule has concluded. Note that some schedules permit
+        multiple adjoint calculation, and may never conclude.
         """
 
         raise NotImplementedError
 
+    @property
     @abstractmethod
     def uses_disk_storage(self):
-        """Return whether the schedule may use disk storage. If `False` then no
-        disk storage is required.
+        """Whether the schedule may use disk storage. If `False` then no disk
+        storage is required.
         """
 
         raise NotImplementedError
 
+    @property
     def n(self):
-        """Return the forward location. After executing all actions defined so
-        far in the schedule the forward is at the start of this step.
+        """The forward location. After executing all actions defined so far in
+        the schedule the forward is at the start of this step.
         """
 
         return self._n
 
+    @property
     def r(self):
-        """Return the number of adjoint steps advanced in the current adjoint
+        """The number of adjoint steps advanced in the current adjoint
         calculation after executing all actions defined so far in the schedule.
         """
 
         return self._r
 
+    @property
     def max_n(self):
-        """Return the number of forward steps in the initial forward
-        calculation. May return `None` if this has not yet been provided to the
-        scheduler.
+        """The number of forward steps in the initial forward calculation. May
+        return `None` if this has not yet been provided to the scheduler.
         """
 
         return self._max_n
 
+    @property
     def is_running(self):
-        """Return whether the schedule is 'running' -- i.e. at least one action
-        has been defined so far in the schedule.
+        """Whether the schedule is 'running' -- i.e. at least one action has
+        been defined so far in the schedule.
         """
 
         return hasattr(self, "_iter")

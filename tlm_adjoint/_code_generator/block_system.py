@@ -300,11 +300,12 @@ class MixedSpace(ABC):
 
         return Function(self._mixed_space, *args, **kwargs)
 
+    @property
     def sizes(self):
         """
-        :returns: A :class:`tuple`, `(n, N)`, where `n` is the number of
-            process local degrees of freedom and `N` is the number of global
-            degrees of freedom, each for the mixed space.
+        A :class:`tuple`, `(n, N)`, where `n` is the number of process local
+        degrees of freedom and `N` is the number of global degrees of freedom,
+        each for the mixed space.
         """
 
         return self._sizes
@@ -1208,7 +1209,7 @@ class System:
                          self._matrix, self._nullspace)
 
         mat_A = PETSc.Mat().createPython(
-            (self._action_space.sizes(), self._arg_space.sizes()), A,
+            (self._action_space.sizes, self._arg_space.sizes), A,
             comm=self._comm)
         mat_A.setUp()
 

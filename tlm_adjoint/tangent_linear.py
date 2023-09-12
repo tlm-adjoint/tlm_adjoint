@@ -53,6 +53,7 @@ def distinct_combinations_indices(iterable, r):
         def __hash__(self):
             return hash(self._key)
 
+        @property
         def value(self):
             return self._value
 
@@ -66,11 +67,11 @@ def distinct_combinations_indices(iterable, r):
         for combination in itertools.combinations(t, r):
             if combination not in seen:
                 seen.add(combination)
-                yield tuple(e.value() for e in combination)
+                yield tuple(e.value for e in combination)
         return
 
     for combination in more_itertools.distinct_combinations(t, r):
-        yield tuple(e.value() for e in combination)
+        yield tuple(e.value for e in combination)
 
 
 def tlm_keys(*args):

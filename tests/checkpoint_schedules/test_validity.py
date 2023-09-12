@@ -114,9 +114,9 @@ def test_validity(schedule, schedule_kwargs,
         assert model_n is not None and cp_action.n0 == model_n
         # If the schedule has been finalized, end at or before the end of the
         # forward
-        assert cp_schedule.max_n() is None or cp_action.n1 <= n
+        assert cp_schedule.max_n is None or cp_action.n1 <= n
 
-        if cp_schedule.max_n() is not None:
+        if cp_schedule.max_n is not None:
             # Do not advance further than the current location of the adjoint
             assert cp_action.n1 <= n - model_r
         n1 = min(cp_action.n1, n)
@@ -230,9 +230,9 @@ def test_validity(schedule, schedule_kwargs,
         cp_schedule, storage_limits, data_limit = schedule(n, s, **schedule_kwargs)  # noqa: E501
         if cp_schedule is None:
             pytest.skip("Incompatible with schedule type")
-        assert cp_schedule.n() == 0
-        assert cp_schedule.r() == 0
-        assert cp_schedule.max_n() is None or cp_schedule.max_n() == n
+        assert cp_schedule.n == 0
+        assert cp_schedule.r == 0
+        assert cp_schedule.max_n is None or cp_schedule.max_n == n
 
         while True:
             cp_action = next(cp_schedule)
@@ -240,8 +240,8 @@ def test_validity(schedule, schedule_kwargs,
 
             # The schedule state is consistent with both the forward and
             # adjoint
-            assert model_n is None or model_n == cp_schedule.n()
-            assert model_r == cp_schedule.r()
+            assert model_n is None or model_n == cp_schedule.n
+            assert model_r == cp_schedule.r
 
             # Checkpoint storage limits are not exceeded
             for storage_type, storage_limit in storage_limits.items():

@@ -368,7 +368,7 @@ class EquationManager:
             raise ValueError(f"Unrecognized checkpointing method: "
                              f"{cp_method:s}")
 
-        if cp_schedule.uses_disk_storage():
+        if cp_schedule.uses_disk_storage:
             cp_path = cp_parameters.get("path", "checkpoints~")
             cp_format = cp_parameters.get("format", "hdf5")
 
@@ -802,7 +802,7 @@ class EquationManager:
         n = len(self._blocks)
         if final:
             self._cp_schedule.finalize(n)
-        if n < self._cp_schedule.n():
+        if n < self._cp_schedule.n:
             return
 
         logger = logging.getLogger("tlm_adjoint.checkpointing")
@@ -847,8 +847,8 @@ class EquationManager:
 
         @action.register(EndForward)
         def action_end_forward(cp_action):
-            if self._cp_schedule.max_n() is None \
-                    or n != self._cp_schedule.max_n():
+            if self._cp_schedule.max_n is None \
+                    or n != self._cp_schedule.max_n:
                 raise RuntimeError("Invalid checkpointing state")
 
         while True:
@@ -864,11 +864,11 @@ class EquationManager:
         del action
 
     def _restore_checkpoint(self, n, *, transpose_deps=None):
-        if self._cp_schedule.max_n() is None:
+        if self._cp_schedule.max_n is None:
             raise RuntimeError("Invalid checkpointing state")
-        if n > self._cp_schedule.max_n() - self._cp_schedule.r() - 1:
+        if n > self._cp_schedule.max_n - self._cp_schedule.r - 1:
             return
-        elif n != self._cp_schedule.max_n() - self._cp_schedule.r() - 1:
+        elif n != self._cp_schedule.max_n - self._cp_schedule.r - 1:
             raise RuntimeError("Invalid checkpointing state")
 
         logger = logging.getLogger("tlm_adjoint.checkpointing")
@@ -1027,8 +1027,8 @@ class EquationManager:
                                       AnnotationState.FINAL]:
             return
 
-        if self._cp_schedule.max_n() is not None \
-                and len(self._blocks) == self._cp_schedule.max_n() - 1:
+        if self._cp_schedule.max_n is not None \
+                and len(self._blocks) == self._cp_schedule.max_n - 1:
             # Wait for the finalize
             warnings.warn(
                 "Attempting to end the final block without finalizing -- "
@@ -1059,12 +1059,12 @@ class EquationManager:
 
         self._blocks.append(self._block)
         self._block = []
-        if self._cp_schedule.max_n() is not None \
-                and len(self._blocks) < self._cp_schedule.max_n():
+        if self._cp_schedule.max_n is not None \
+                and len(self._blocks) < self._cp_schedule.max_n:
             warnings.warn(
                 "Insufficient number of blocks -- empty blocks added",
                 RuntimeWarning, stacklevel=2)
-            while len(self._blocks) < self._cp_schedule.max_n():
+            while len(self._blocks) < self._cp_schedule.max_n:
                 self._checkpoint(final=False)
                 self._blocks.append([])
         self._checkpoint(final=True)
@@ -1184,7 +1184,7 @@ class EquationManager:
         set_manager(self)
         self.finalize()
 
-        if self._cp_schedule.is_exhausted():
+        if self._cp_schedule.is_exhausted:
             raise RuntimeError("Invalid checkpointing state")
 
         # Functionals
@@ -1359,8 +1359,8 @@ class EquationManager:
         if not store_adjoint:
             assert len(self._adj_cache) == 0
 
-        if self._cp_schedule.max_n() is None \
-                or self._cp_schedule.r() != self._cp_schedule.max_n():
+        if self._cp_schedule.max_n is None \
+                or self._cp_schedule.r != self._cp_schedule.max_n:
             raise RuntimeError("Invalid checkpointing state")
 
         @functools.singledispatch
