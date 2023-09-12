@@ -304,7 +304,7 @@ def test_LUSolver(setup_test, test_leaks):
     stop_manager()
 
     u_error_norm = np.sqrt(abs(assemble(inner(u - u_ref, u - u_ref) * dx)))
-    print(f"{u_error_norm=}")
+    info(f"{u_error_norm=}")
     assert u_error_norm < 1.0e-17
 
     def forward_J(m):
