@@ -391,7 +391,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
             if value != 0.0:
-                function_assign(self, value)
+                function_assign(x, value)
         else:
             x.assign(
                 value,
