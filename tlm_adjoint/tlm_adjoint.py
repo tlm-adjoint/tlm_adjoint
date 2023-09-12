@@ -5,7 +5,7 @@ from .interface import (
     DEFAULT_COMM, comm_dup_cached, function_assign, function_copy, function_id,
     function_is_replacement, function_name, garbage_cleanup, is_function)
 
-from .adjoint import AdjointCache, AdjointModelRHS, DependencyGraphTranspose
+from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
 from .alias import WeakAlias, gc_disabled
 from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
     Write, EndForward, EndReverse
@@ -1212,8 +1212,8 @@ class EquationManager:
         for J_i in range(len(Js)):
             function_assign(Bs[J_i][blocks_N][J_i].b(), 1.0)
 
-        # Transpose dependency graph
-        transpose_deps = DependencyGraphTranspose(
+        # Transpose computational graph
+        transpose_deps = TransposeComputationalGraph(
             J_markers, M, blocks,
             prune_forward=prune_forward, prune_adjoint=prune_adjoint)
 
