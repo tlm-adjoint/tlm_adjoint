@@ -35,4 +35,4 @@ jobs:
       - name: Run tests
         run: |
           cd tlm_adjoint
-          pytest-3 -v tests/fenics -n 2 --timeout=300 --timeout-method=thread
+          pytest-3 -v tests/base tests/checkpoint_schedules tests/fenics -n 2 --timeout=300 --timeout-method=thread
