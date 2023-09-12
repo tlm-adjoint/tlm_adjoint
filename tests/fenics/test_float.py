@@ -15,6 +15,19 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.fenics
+@pytest.mark.parametrize("value", [2, 3.0, 4.0 + 5.0j])
+@seed_test
+def test_Float_new(setup_test, test_leaks,
+                   value):
+    x = Float(name="x")
+    assert x.value() == 0.0
+
+    y = x.new(value)
+    assert x.value() == 0.0
+    assert y.value() == value
+
+
+@pytest.mark.fenics
 @seed_test
 def test_L2_norm(setup_test, test_leaks):
     mesh = UnitIntervalMesh(20)
