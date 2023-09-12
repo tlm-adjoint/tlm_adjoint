@@ -39,8 +39,10 @@ class NoneCheckpointSchedule(CheckpointSchedule):
         self._exhausted = True
         yield EndForward()
 
+    @property
     def is_exhausted(self):
         return self._exhausted
 
+    @property
     def uses_disk_storage(self):
         return False

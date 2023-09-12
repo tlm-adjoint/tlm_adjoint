@@ -104,7 +104,7 @@ class ReducedFunctional:
 
         set_manager(self._manager)
 
-        _ = self.objective(M, force=self._manager._cp_schedule.is_exhausted())
+        _ = self.objective(M, force=self._manager._cp_schedule.is_exhausted)
         dJ = compute_gradient(self._J, self._M)
 
         for dJ_i in dJ:

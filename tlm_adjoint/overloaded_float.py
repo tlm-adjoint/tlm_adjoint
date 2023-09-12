@@ -73,18 +73,17 @@ _default_dtype = np.cdouble
 
 class FloatSpaceInterface(SpaceInterface):
     def _comm(self):
-        return self._tlm_adjoint__space_interface_attrs["comm"]
+        return self.comm
 
     def _dtype(self):
-        return self._tlm_adjoint__space_interface_attrs["dtype"]
+        return self.dtype
 
     def _id(self):
-        return self._tlm_adjoint__space_interface_attrs["id"]
+        return self.id
 
     def _new(self, *, name=None, space_type="primal", static=False, cache=None,
              checkpoint=None):
-        float_cls = self._tlm_adjoint__space_interface_attrs["float_cls"]
-        return float_cls(
+        return self.float_cls(
             name=name, space_type=space_type,
             static=static, cache=cache, checkpoint=checkpoint,
             dtype=space_dtype(self), comm=space_comm(self))
@@ -110,10 +109,28 @@ class FloatSpace:
         if comm is None:
             comm = DEFAULT_COMM
 
-        add_interface(self, FloatSpaceInterface,
-                      {"comm": comm_dup_cached(comm),
-                       "dtype": dtype, "float_cls": float_cls,
-                       "id": new_space_id()})
+        self._comm = comm_dup_cached(comm)
+        self._dtype = dtype
+        self._float_cls = float_cls
+        self._id = new_space_id()
+
+        add_interface(self, FloatSpaceInterface)
+
+    @property
+    def comm(self):
+        return self._comm
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def float_cls(self):
+        return self._float_cls
+
+    @property
+    def id(self):
+        return self._id
 
 
 _overload = 0
@@ -327,7 +344,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
             name = f"f_{id:d}"
-        if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
         if cache is None:
             cache = static

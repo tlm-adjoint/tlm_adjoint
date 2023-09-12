@@ -49,8 +49,10 @@ class MemoryCheckpointSchedule(CheckpointSchedule):
             else:
                 raise RuntimeError("Invalid checkpointing state")
 
+    @property
     def is_exhausted(self):
         return False
 
+    @property
     def uses_disk_storage(self):
         return False

@@ -80,8 +80,10 @@ class PeriodicDiskCheckpointSchedule(CheckpointSchedule):
             self._r = 0
             yield EndReverse(False)
 
+    @property
     def is_exhausted(self):
         return False
 
+    @property
     def uses_disk_storage(self):
         return True

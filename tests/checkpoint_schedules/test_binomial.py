@@ -127,7 +127,7 @@ def test_MultistageCheckpointSchedule(trajectory,
     @action.register(Write)
     def action_write(cp_action):
         assert cp_action.storage == "disk"
-        assert cp_schedule.uses_disk_storage()
+        assert cp_schedule.uses_disk_storage
 
         # Written data consists of forward restart data
         assert len(ics) > 0
@@ -167,10 +167,10 @@ def test_MultistageCheckpointSchedule(trajectory,
 
         cp_schedule = MultistageCheckpointSchedule(n, 0, s,
                                                    trajectory=trajectory)
-        assert n == 1 or cp_schedule.uses_disk_storage()
-        assert cp_schedule.n() == 0
-        assert cp_schedule.r() == 0
-        assert cp_schedule.max_n() == n
+        assert n == 1 or cp_schedule.uses_disk_storage
+        assert cp_schedule.n == 0
+        assert cp_schedule.r == 0
+        assert cp_schedule.max_n == n
 
         while True:
             cp_action = next(cp_schedule)
@@ -178,8 +178,8 @@ def test_MultistageCheckpointSchedule(trajectory,
 
             # The schedule state is consistent with both the forward and
             # adjoint
-            assert model_n == cp_schedule.n()
-            assert model_r == cp_schedule.r()
+            assert model_n == cp_schedule.n
+            assert model_r == cp_schedule.r
 
             # Either no data is being stored, or exactly one of forward restart
             # or non-linear dependency data is being stored
@@ -201,7 +201,7 @@ def test_MultistageCheckpointSchedule(trajectory,
         assert len(snapshots) == 0
 
         # The schedule has concluded
-        assert cp_schedule.is_exhausted()
+        assert cp_schedule.is_exhausted
         try:
             next(cp_schedule)
         except StopIteration:

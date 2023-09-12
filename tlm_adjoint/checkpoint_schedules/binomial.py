@@ -386,9 +386,11 @@ class MultistageCheckpointSchedule(CheckpointSchedule):
         self._exhausted = True
         yield EndReverse(True)
 
+    @property
     def is_exhausted(self):
         return self._exhausted
 
+    @property
     def uses_disk_storage(self):
         return self._snapshots_on_disk > 0
 
@@ -545,8 +547,10 @@ class TwoLevelCheckpointSchedule(CheckpointSchedule):
             self._r = 0
             yield EndReverse(False)
 
+    @property
     def is_exhausted(self):
         return False
 
+    @property
     def uses_disk_storage(self):
         return True
