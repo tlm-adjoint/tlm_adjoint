@@ -2,14 +2,17 @@
 # -*- coding: utf-8 -*-
 
 from tlm_adjoint import (
-    DEFAULT_COMM, EmptyEquation, Float, Functional, Hessian, Instruction,
-    compute_gradient, configure_checkpointing, configure_tlm, manager, manager
-    as _manager, new_block, reset_manager, start_manager, stop_manager,
-    taylor_test, taylor_test_tlm, taylor_test_tlm_adjoint)
+    CachedHessian, DEFAULT_COMM, EmptyEquation, Float, Functional, Hessian,
+    Instruction, compute_gradient, configure_checkpointing, configure_tlm,
+    manager, manager as _manager, new_block, paused_float_overloading,
+    reset_manager, start_manager, stop_manager, taylor_test, taylor_test_tlm,
+    taylor_test_tlm_adjoint)
 from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
+import itertools
+import numpy as np
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -200,3 +203,128 @@ def test_tlm_annotation(setup_test):  # noqa: F811
     stop_manager()
 
     assert len(manager()._blocks) == 0 and len(manager()._block) == 2
+
+
+@pytest.mark.base
+@pytest.mark.parametrize("cp_method", ["memory", "multistage"])
+@seed_test
+def test_random_computational_graph(setup_test,  # noqa: F811
+                                    tmp_path, cp_method):
+    N = 20
+
+    if cp_method == "memory":
+        configure_checkpointing("memory", {"drop_references": False})
+    else:
+        assert cp_method == "multistage"
+        configure_checkpointing("multistage",
+                                {"blocks": N, "snaps_on_disk": 0,
+                                 "snaps_in_ram": 5,
+                                 "path": str(tmp_path / "checkpoints~")})
+
+    for max_N_terms in [5, 8, 11] * {"memory": 2, "multistage": 1}[cp_method]:
+        state = None
+        Cs = []
+
+        def forward(m):
+            nonlocal state
+
+            if state is None:
+                state = np.random.get_state()
+            else:
+                np.random.set_state(state)
+
+            X = [Float().assign(m)]
+
+            for n in range(N):
+                for _ in range(np.random.randint(5)):
+                    Y = [X[np.random.randint(len(X))]
+                         for _ in range(np.random.randint(max_N_terms))]
+                    C = [cls(0.1 + np.random.random())
+                         for cls in (np.random.choice([float, Float]) for _ in Y)]  # noqa: E501
+                    Cs.extend(C)
+                    with paused_float_overloading():
+                        X.append(Float().assign(sum(c * y for c, y in zip(C, Y))))  # noqa: E501
+                if n < N - 1:
+                    new_block()
+            if X[-1].value() == 0.0:
+                return X[-1] ** 4 + (X[0] + 0.5) ** 4
+            else:
+                return X[-1] ** 4
+
+        m = Float(-1.0)
+        dm = Float(-1.0, name="dm")
+        J = None
+
+        for prune_forward, prune_adjoint, prune_replay in itertools.product(
+                [False, True], [False, True],
+                {"memory": [True], "multistage": [False, True]}[cp_method]):
+            if J is None or manager()._cp_schedule.is_exhausted:
+                reset_manager()
+                start_manager()
+                J = forward(m)
+                stop_manager()
+
+            for c in Cs:
+                if isinstance(c, Float):
+                    # Tests that CachedHessian uses stored values
+                    c.assign(np.NAN)
+
+            J_val = J.value()
+
+            N_eq = sum(len(block) for block in (list(manager()._blocks)
+                                                + [manager()._block]))
+            N_adj = 0
+
+            def callback(J_i, n, i, eq, adj_X):
+                nonlocal N_adj
+
+                if n >= 0 and n < N and adj_X is not None:
+                    N_adj += 1
+
+            dJ = compute_gradient(J, m, callback=callback,
+                                  prune_forward=prune_forward,
+                                  prune_adjoint=prune_adjoint,
+                                  prune_replay=prune_replay)
+
+            print(f"{N_eq} forward variables computed")
+            # Excludes control and functional blocks
+            print(f"{N_adj} adjoint variables computed")
+            if prune_forward or prune_adjoint:
+                assert N_adj <= N_eq
+            else:
+                assert N_adj == N_eq
+
+            min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, dM=dm,
+                                    size=3)
+            assert min_order > 2.00
+
+        ddJ = Hessian(forward)
+        min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
+                                size=3)
+        assert min_order > 3.00
+
+        if cp_method == "memory":
+            ddJ = CachedHessian(J, cache_adjoint=False)
+            min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
+                                    size=3)
+            assert min_order > 3.00
+
+            ddJ = CachedHessian(J, cache_adjoint=True)
+            min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
+                                    size=3)
+            assert min_order > 3.00
+            min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
+                                    size=3)
+            assert min_order > 3.00
+
+        min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(dm,),
+                                    size=3)
+        assert min_order > 2.00
+
+        min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
+                                            dMs=(dm,), size=3)
+        assert min_order > 2.00
+
+        min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
+                                            dMs=(dm, dm), size=3)
+        assert min_order > 2.00

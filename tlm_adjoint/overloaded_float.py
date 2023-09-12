@@ -412,6 +412,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
+        :returns: The :class:`SymbolicFloat`.
         """
 
         if annotate is None or annotate:
@@ -441,6 +442,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                     lambdify(y, deps)(*(dep.value() for dep in deps)))
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
+        return self
 
     @no_float_overloading
     def addto(self, y, *, annotate=None, tlm=None):
