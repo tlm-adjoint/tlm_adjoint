@@ -36,7 +36,7 @@ class EmptyEquation(Equation):
     def __init__(self):
         super().__init__([], [], nl_deps=[], ic=False, adj_ic=False)
 
-    def forward_solve(self, x, deps=None):
+    def forward_solve(self, X, deps=None):
         pass
 
 
