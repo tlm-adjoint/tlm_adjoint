@@ -400,7 +400,7 @@ class ZeroConstant(Constant, Zero):
     """A :class:`Constant` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Constant` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`
+    `static=True`, `cache=True`, and `checkpoint=False`.
     """
 
     def __init__(self, *, name=None, domain=None, space_type="primal",
@@ -422,7 +422,7 @@ class ZeroFunction(Function, Zero):
     """A :class:`Function` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Function` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`
+    `static=True`, `cache=True`, and `checkpoint=False`.
     """
 
     def __init__(self, *args, space_type="primal", **kwargs):
@@ -640,11 +640,11 @@ class DirichletBC(backend_DirichletBC):
         if static is None:
             for dep in extract_coefficients(
                     g if isinstance(g, ufl.classes.Expr)
-                    else backend_Constant(g)):
+                    else Constant(g, static=True)):
                 # The 'static' flag for functions is only a hint. 'not
                 # checkpointed' is a guarantee that the function will never
                 # appear as the solution to an Equation.
-                if not is_function(dep) or not function_is_checkpointed(dep):
+                if not is_function(dep) or function_is_checkpointed(dep):
                     static = False
                     break
             else:

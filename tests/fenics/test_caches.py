@@ -4,6 +4,7 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.caches import split_form
+from tlm_adjoint.fenics.functions import bcs_is_static
 
 from .test_base import *
 
@@ -69,6 +70,19 @@ def test_clear_caches(setup_test, test_leaks):
     test_not_cleared(F, cached_form)
     function_update_caches(function_replacement(F), value=Function(space))
     test_cleared(F, cached_form)
+
+
+@pytest.mark.fenics
+@seed_test
+def test_static_DirichletBC(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    assert bcs_is_static([DirichletBC(space, 0.0,
+                                      "on_boundary")])
+    assert bcs_is_static([DirichletBC(space, Function(space, static=True),
+                                      "on_boundary")])
+    assert not bcs_is_static([DirichletBC(space, Function(space, static=False),
+                                          "on_boundary")])
 
 
 @pytest.mark.fenics
