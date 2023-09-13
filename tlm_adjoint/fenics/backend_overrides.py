@@ -426,6 +426,13 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     return F
 
 
+@override_method(backend_Function, "interpolate")
+def Function_interpolate(self, orig, orig_args, *args, **kwargs):
+    return_value = orig_args()
+    function_update_state(self)
+    return return_value
+
+
 @override_method(backend_Function, "vector")
 def Function_vector(self, orig, orig_args):
     vector = orig_args()

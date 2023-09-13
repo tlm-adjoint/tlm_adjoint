@@ -23,7 +23,8 @@ pytestmark = pytest.mark.skipif(
      lambda name: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1),
                            name=name)])
 @seed_test
-def test_name(setup_test, cls):
+def test_name(setup_test,
+              cls):
     name = "_tlm_adjoint__test_name"
     F = cls(name=name)
     assert function_name(F) == name

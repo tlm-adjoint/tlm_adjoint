@@ -20,7 +20,7 @@ class Instruction(EmptyEquation):
     forward or adjoint calculations.
     """
 
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         pass
 
 
@@ -49,10 +49,10 @@ class GarbageCollection(Instruction):
         if self._garbage_cleanup:
             garbage_cleanup(self._comm)
 
-    def forward_solve(self, x, deps=None):
+    def forward_solve(self, X, deps=None):
         self._gc()
 
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         self._gc()
 
     def tangent_linear(self, M, dM, tlm_map):

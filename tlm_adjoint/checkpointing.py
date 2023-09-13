@@ -461,8 +461,8 @@ class ReplayStorage:
     :arg N1: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
         forward equations which will be solved.
     :arg transpose_deps: A
-        :class:`tlm_adjoint.adjoint.DependencyGraphTranspose`. If supplied then
-        an activity analysis is applied.
+        :class:`tlm_adjoint.adjoint.TransposeComputationalGraph`. If supplied
+        then an activity analysis is applied.
     """
 
     def __init__(self, blocks, N0, N1, *, transpose_deps=None):

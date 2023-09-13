@@ -309,7 +309,7 @@ class AdjointModelRHS:
         return len(self._B) == 0
 
 
-class DependencyGraphTranspose:
+class TransposeComputationalGraph:
     def __init__(self, Js, M, blocks, *,
                  prune_forward=True, prune_adjoint=True):
         if isinstance(blocks, Sequence):
@@ -319,7 +319,7 @@ class DependencyGraphTranspose:
             # Mapping
             blocks_n = tuple(sorted(blocks.keys()))
 
-        # Transpose dependency graph
+        # Transpose computational graph
         last_eq = {}
         transpose_deps = {n: tuple([None for dep in eq.dependencies()]
                                    for eq in blocks[n])
