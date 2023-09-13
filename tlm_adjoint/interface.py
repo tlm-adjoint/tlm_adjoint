@@ -479,8 +479,8 @@ def space_new(space, *, name=None, space_type="primal", static=False,
     :arg space_type: The space type for the new function. `'primal'`, `'dual'`,
         `'conjugate'`, or `'conjugate_dual'`.
     :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this function may be cached.
-        Default `static`.
+    :arg cache: Defines whether results involving the new function may be
+        cached. Default `static`.
     :arg checkpoint: Defines whether a
         :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
         function by value (`checkpoint=True`) or reference

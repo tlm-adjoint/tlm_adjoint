@@ -400,7 +400,7 @@ class ZeroConstant(Constant, Zero):
     """A :class:`Constant` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Constant` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`
+    `static=True`, `cache=True`, and `checkpoint=False`.
     """
 
     def __init__(self, *, name=None, domain=None, space_type="primal",
@@ -422,7 +422,7 @@ class ZeroFunction(Function, Zero):
     """A :class:`Function` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Function` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`
+    `static=True`, `cache=True`, and `checkpoint=False`.
     """
 
     def __init__(self, *args, space_type="primal", **kwargs):
