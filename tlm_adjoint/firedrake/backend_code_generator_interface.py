@@ -7,8 +7,8 @@ from .backend import (
     backend_solve, complex_mode, extract_args, homogenize, parameters)
 from ..interface import (
     check_space_type, check_space_types, function_assign, function_axpy,
-    function_comm, function_copy, function_inner, function_new_conjugate_dual,
-    function_space, function_space_type, space_new)
+    function_copy, function_inner, function_new_conjugate_dual, function_space,
+    function_space_type, space_new)
 
 from ..manager import manager_disabled
 from ..override import override_method
@@ -16,7 +16,6 @@ from ..override import override_method
 from .functions import eliminate_zeros, extract_coefficients
 
 from collections.abc import Sequence
-import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
 import ufl
@@ -329,25 +328,6 @@ def matrix_multiply(A, x, *,
             A.petscmat.mult(x_v, tensor_v)
 
     return tensor
-
-
-@manager_disabled()
-def is_valid_r0_space(space):
-    if not hasattr(space, "_tlm_adjoint__is_valid_r0_space"):
-        e = space.ufl_element()
-        if e.family() != "Real" or e.degree() != 0:
-            valid = False
-        elif len(e.value_shape()) == 0:
-            r = backend_Function(space)
-            r.assign(backend_Constant(1.0))
-            valid = 1 if (r.dat.data_ro == 1.0).all() else 0
-            valid = function_comm(r).allreduce(valid, op=MPI.MIN)
-            valid = valid == 1
-        else:
-            # See Firedrake issue #1456
-            valid = False
-        space._tlm_adjoint__is_valid_r0_space = valid
-    return space._tlm_adjoint__is_valid_r0_space
 
 
 def r0_space(x):

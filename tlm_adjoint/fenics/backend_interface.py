@@ -13,8 +13,7 @@ from ..interface import (
     space_id, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
-from .backend_code_generator_interface import (
-    assemble, is_valid_r0_space, r0_space)
+from .backend_code_generator_interface import assemble, r0_space
 
 from .equations import Assembly
 from .functions import (
@@ -289,13 +288,7 @@ class FunctionInterface(_FunctionInterface):
         return False
 
     def _is_scalar(self):
-        return (is_valid_r0_space(self.function_space())
-                and len(self.ufl_shape) == 0)
-
-    @check_vector_size
-    def _scalar_value(self):
-        # assert function_is_scalar(self)
-        return self.vector().max()
+        False
 
     def _is_alias(self):
         return "alias" in self._tlm_adjoint__function_interface_attrs
