@@ -88,9 +88,9 @@ e.g. to verify Hessian matrix calculations
 
 from .interface import (
     function_assign, function_axpy, function_copy, function_dtype,
-    function_inner, function_is_cached, function_is_checkpointed,
-    function_is_static, function_linf_norm, function_local_size, function_name,
-    function_new, function_set_values, garbage_cleanup, is_function,
+    function_is_cached, function_is_checkpointed, function_is_static,
+    function_local_size, function_name, function_new, function_set_values,
+    functions_inner, functions_linf_norm, garbage_cleanup, is_function,
     space_comm)
 
 from .caches import clear_caches, local_caches
@@ -209,19 +209,6 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                             checkpoint=function_is_checkpointed(m))
                for m in M)
 
-    def functions_inner(X, Y):
-        inner = 0.0
-        assert len(X) == len(Y)
-        for x, y in zip(X, Y):
-            inner += function_inner(x, y)
-        return inner
-
-    def functions_linf_norm(X):
-        norm = 0.0
-        for x in X:
-            norm = max(norm, function_linf_norm(x))
-        return norm
-
     # This combination seems to reproduce dolfin-adjoint behaviour
     eps = np.array([2 ** -p for p in range(size)], dtype=float)
     eps = seed * eps * max(1.0, functions_linf_norm(M0))
@@ -245,8 +232,6 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             function_axpy(m1, eps[i], dm)
         clear_caches()
         J_vals[i] = forward(*M1).value()
-    if abs(J_vals.imag).max() == 0.0:
-        J_vals = J_vals.real
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
@@ -337,17 +322,11 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                             checkpoint=function_is_checkpointed(m))
                for m in M)
 
-    def functions_linf_norm(X):
-        norm = 0.0
-        for x in X:
-            norm = max(norm, function_linf_norm(x))
-        return norm
-
     eps = np.array([2 ** -p for p in range(size)], dtype=float)
     eps = seed * eps * max(1.0, functions_linf_norm(M))
     if dMs is None:
         dMs = tuple(tuple(function_new(m, static=True) for m in M)
-                    for i in range(tlm_order))
+                    for _ in range(tlm_order))
         for dM in dMs:
             for dm in dM:
                 dm_arr = np.random.random(function_local_size(dm))
@@ -364,12 +343,12 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         reset_manager()
         clear_caches()
 
-        configure_tlm(*[(M, dM) for dM in dMs])
+        configure_tlm(*((M, dM) for dM in dMs))
         start_manager(annotate=False, tlm=True)
         J = forward(*M)
+        stop_manager()
         for dM in dMs:
             J = J.tlm_functional((M, dM))
-        stop_manager()
 
         return J
 
@@ -384,8 +363,6 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
             function_assign(m1, m0)
             function_axpy(m1, eps[i], dm)
         J_vals[i] = forward_tlm(dMs[:-1], *M1).value()
-    if abs(J_vals.imag).max() == 0.0:
-        J_vals = J_vals.real
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
@@ -459,7 +436,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     if dMs is None:
         dM_test = None
         dMs = tuple(tuple(function_new(m, static=True) for m in M)
-                    for i in range(adjoint_order - 1))
+                    for _ in range(adjoint_order - 1))
         for dM in dMs:
             for dm in dM:
                 dm_arr = np.random.random(function_local_size(dm))
@@ -479,13 +456,13 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         reset_manager()
         clear_caches()
 
-        configure_tlm(*[(M, dM) for dM in dMs],
+        configure_tlm(*((M, dM) for dM in dMs),
                       annotate=annotate)
         start_manager(annotate=annotate, tlm=True)
         J = forward(*M)
+        stop_manager()
         for dM in dMs:
             J = J.tlm_functional((M, dM))
-        stop_manager()
 
         return J
 

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import conjugate_dual_space_type, function_id, \
-    function_new_conjugate_dual, function_replacement, function_space, \
-    function_space_type, function_zero, is_function, space_new
+from .interface import (
+    conjugate_dual_space_type, function_id, function_new_conjugate_dual,
+    function_replacement, function_space, function_space_type, function_zero,
+    is_function, space_new)
 
 from .alias import WeakAlias
 from .equation import Equation, Referrer, ZeroAssignment
-
-import inspect
-import warnings
 
 __all__ = \
     [
@@ -72,14 +70,14 @@ class LinearEquation(Equation):
             deps.append(x)
             dep_ids[x_id] = len(deps) - 1
 
-        b_dep_indices = tuple([] for b in B)
-        b_nl_dep_indices = tuple([] for b in B)
+        b_dep_indices = tuple([] for _ in B)
+        b_nl_dep_indices = tuple([] for _ in B)
 
         for i, b in enumerate(B):
             for dep in b.dependencies():
                 dep_id = function_id(dep)
                 if dep_id in x_ids:
-                    raise ValueError("Invalid dependency in linear Equation")
+                    raise ValueError("Invalid dependency")
                 if dep_id not in dep_ids:
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
@@ -147,7 +145,7 @@ class LinearEquation(Equation):
 
     def drop_references(self):
         super().drop_references()
-        self._B = tuple(WeakAlias(b) for b in self._B)
+        self._B = tuple(map(WeakAlias, self._B))
         if self._A is not None:
             self._A = WeakAlias(self._A)
 
@@ -285,24 +283,8 @@ class Matrix(Referrer):
         self._ic = ic
         self._adj_ic = adj_ic
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-
-        adj_solve_sig = inspect.signature(cls.adjoint_solve)
-        if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
-                                                      ("self", "nl_deps", "B")]:  # noqa: E501
-            warnings.warn("Matrix.adjoint_solve(self, nl_deps, b/B) method "
-                          "signature is deprecated",
-                          DeprecationWarning, stacklevel=2)
-
-            def adjoint_solve(self, adj_X, nl_deps, B):
-                return adjoint_solve_orig(self, nl_deps, B)
-            adjoint_solve_orig = cls.adjoint_solve
-            cls.adjoint_solve = adjoint_solve
-
     def drop_references(self):
-        self._nl_deps = tuple(function_replacement(dep)
-                              for dep in self._nl_deps)
+        self._nl_deps = tuple(map(function_replacement, self._nl_deps))
 
     def nonlinear_dependencies(self):
         """Return dependencies of the :class:`Matrix`.
@@ -511,9 +493,8 @@ class RHS(Referrer):
         self._nl_deps = tuple(nl_deps)
 
     def drop_references(self):
-        self._deps = tuple(function_replacement(dep) for dep in self._deps)
-        self._nl_deps = tuple(function_replacement(dep)
-                              for dep in self._nl_deps)
+        self._deps = tuple(map(function_replacement, self._deps))
+        self._nl_deps = tuple(map(function_replacement, self._nl_deps))
 
     def dependencies(self):
         """Return dependencies of the :class:`tlm_adjoint.linear_equation.RHS`.

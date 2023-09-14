@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import check_space_types, function_id, function_name, \
-    function_new_tangent_linear, is_function
+from .interface import (
+    check_space_types, function_id, function_name, function_new_tangent_linear,
+    is_function)
 
-from .alias import gc_disabled
 from .markers import ControlsMarker, FunctionalMarker
 
 from collections import defaultdict
@@ -36,9 +36,7 @@ def tlm_key(M, dM):
     for m, dm in zip(M, dM):
         check_space_types(m, dm)
 
-    return ((M, dM),
-            (tuple(function_id(m) for m in M),
-             tuple(function_id(dm) for dm in dM)))
+    return ((M, dM), (tuple(map(function_id, M)), tuple(map(function_id, dM))))
 
 
 def distinct_combinations_indices(iterable, r):
@@ -190,14 +188,12 @@ class TangentLinearMap:
             # solution to an Equation
             m._tlm_adjoint__tangent_linears[self] = dm
 
-    @gc_disabled
     def __contains__(self, x):
         if hasattr(x, "_tlm_adjoint__tangent_linears"):
             return self in x._tlm_adjoint__tangent_linears
         else:
             return False
 
-    @gc_disabled
     def __getitem__(self, x):
         if not is_function(x):
             raise TypeError("x must be a function")
@@ -237,6 +233,10 @@ def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
             if isinstance(eq, ControlsMarker):
                 continue
             elif isinstance(eq, FunctionalMarker):
+                # When we run the adjoint we compute the derivative of a
+                # 'marker' variable, which appears as a solution in the
+                # functional block. Here we need to find the original 'root'
+                # variable which actually stores the value of the functional.
                 J, J_root = eq.dependencies()
                 J_id = function_id(J)
                 if J_id in J_root_ids:
@@ -250,6 +250,12 @@ def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
             eq_X_ids = set(map(function_id, eq.X()))
             eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
 
+            # For an operation computing a forward or tangent-linear variable,
+            # computing derivatives defined by 'tlm_key' (which may be empty),
+            # here we identify the (conjugate) derivatives stored by all
+            # associated adjoint variables. These are (conjugate) derivatives
+            # of the functional with index J_i and with directions defined by
+            # adj_tlm_key.
             found_Js = []
             for J_i, J in remaining_Js.items():
                 if J_root_ids[function_id(J)] in eq_X_ids:

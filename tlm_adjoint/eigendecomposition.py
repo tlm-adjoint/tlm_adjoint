@@ -8,10 +8,10 @@
 from .interface import (
     check_space_type, comm_dup_cached, function_get_values,
     function_global_size, function_local_size, function_set_values,
-    is_function, relative_space_type, space_comm, space_new)
+    relative_space_type, space_comm, space_new)
 
+import functools
 import numpy as np
-import warnings
 
 __all__ = \
     [
@@ -40,21 +40,15 @@ class PythonMatrix:
 def wrapped_action(space, arg_space_type, action_space_type, action):
     action_arg = action
 
+    @functools.wraps(action_arg)
     def action(x):
         x_a = x
         x = space_new(space, space_type=arg_space_type)
         function_set_values(x, x_a)
 
         y = action_arg(x)
-        if is_function(y):
-            check_space_type(y, action_space_type)
-            y_a = function_get_values(y)
-        else:
-            warnings.warn("Action callable should return a function",
-                          DeprecationWarning, stacklevel=2)
-            y_a = y
-
-        return y_a
+        check_space_type(y, action_space_type)
+        return function_get_values(y)
 
     return action
 
@@ -229,7 +223,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
                   else PETSc.ComplexType)
     v_r = A_matrix.getVecRight()
     V_r = tuple(space_new(space, space_type=arg_space_type)
-                for n in range(N_ev))
+                for _ in range(N_ev))
     if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
         v_i = None
         V_i = None
@@ -239,7 +233,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
             V_i = None
         else:
             V_i = tuple(space_new(space, space_type=arg_space_type)
-                        for n in range(N_ev))
+                        for _ in range(N_ev))
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)
         if esolver.isHermitian():

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import function_get_values, function_global_size, \
-    function_local_indices, function_set_values
+from .interface import (
+    function_get_values, function_global_size, function_local_indices,
+    function_set_values)
 
 from .equation import Equation, ZeroAssignment
 

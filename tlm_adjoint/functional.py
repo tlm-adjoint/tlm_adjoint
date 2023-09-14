@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import check_space_type, function_is_scalar, function_name, \
-    function_new, function_scalar_value, function_space, functional_term_eq, \
-    is_function, space_id, space_new
+from .interface import (
+    check_space_type, function_is_scalar, function_name, function_new,
+    function_scalar_value, function_space, functional_term_eq, is_function,
+    space_id, space_new)
 
 from .equations import Assignment, Axpy
 from .manager import function_tlm
@@ -40,7 +41,7 @@ class Functional:
             del _fn
             if space is not None \
                     and space_id(space) != space_id(function_space(fn)):
-                raise ValueError("Invalid function space")
+                raise ValueError("Invalid space")
         if not function_is_scalar(fn):
             raise ValueError("Functional must be a scalar")
         check_space_type(fn, "primal")
@@ -190,6 +191,6 @@ class Functional:
                       DeprecationWarning, stacklevel=2)
 
         J_fn = function_tlm(
-            self.function(), *[(M, dM) for depth in range(max_depth)])
+            self.function(), *((M, dM) for _ in range(max_depth)))
 
         return Functional(_fn=J_fn)

@@ -32,7 +32,7 @@ __all__ = \
 def conjugate(X):
     if is_function(X):
         X = (X,)
-    X_conj = tuple(function_new_conjugate(x) for x in X)
+    X_conj = tuple(map(function_new_conjugate, X))
     assert len(X) == len(X_conj)
     for x, x_conj in zip(X, X_conj):
         function_set_values(x_conj, function_get_values(x).conjugate())
@@ -140,8 +140,7 @@ class GeneralHessian(Hessian):
     def compute_gradient(self, M, M0=None):
         if not isinstance(M, Sequence):
             J, (dJ,) = self.compute_gradient(
-                (M,),
-                M0=None if M0 is None else (M0,))
+                (M,), M0=None if M0 is None else (M0,))
             return J, dJ
 
         set_manager(self._manager)
@@ -171,8 +170,7 @@ class GeneralHessian(Hessian):
     def action(self, M, dM, M0=None):
         if not isinstance(M, Sequence):
             J_val, dJ_val, (ddJ,) = self.action(
-                (M,), (dM,),
-                M0=None if M0 is None else (M0,))
+                (M,), (dM,), M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
         set_manager(self._manager)
@@ -215,7 +213,7 @@ class GaussNewton(ABC):
 
     .. math::
 
-        H = J^* R_\text{obs}^{-1} J + B^{-1},
+        H = J^T R_\text{obs}^{-1} J + B^{-1},
 
     where :math:`J` is the forward Jacobian. In a variational assimilation
     approach :math:`R_\text{obs}^{-1}` corresponds to the observational inverse
@@ -271,8 +269,7 @@ class GaussNewton(ABC):
 
         if not isinstance(M, Sequence):
             ddJ, = self.action(
-                (M,), (dM,),
-                M0=None if M0 is None else (M0,))
+                (M,), (dM,), M0=None if M0 is None else (M0,))
             return ddJ
 
         manager, M, dM, X = self._setup_manager(M, dM, M0=M0)
@@ -280,9 +277,8 @@ class GaussNewton(ABC):
 
         # J dM
         tau_X = tuple(function_tlm(x, (M, dM)) for x in X)
-        # R^{-1} conj(J dM)
-        R_inv_tau_X = self._R_inv_action(
-            *tuple(function_copy(tau_x) for tau_x in tau_X))
+        # conj[ R^{-1} J dM ]
+        R_inv_tau_X = self._R_inv_action(*tuple(map(function_copy, tau_X)))
         if not isinstance(R_inv_tau_X, Sequence):
             R_inv_tau_X = (R_inv_tau_X,)
         assert len(tau_X) == len(R_inv_tau_X)
@@ -290,7 +286,7 @@ class GaussNewton(ABC):
             check_space_types_conjugate_dual(tau_x, R_inv_tau_x)
 
         # This defines the adjoint right-hand-side appropriately to compute a
-        # J^* action
+        # J^T action
         start_manager()
         J = Functional(space=self._J_space)
         assert len(X) == len(R_inv_tau_X)
@@ -301,13 +297,12 @@ class GaussNewton(ABC):
                 J.addto(J_term)
         stop_manager()
 
-        # Likelihood term: J^* R^{-1} conj(J dM)
+        # Likelihood term: conj[ J^T R^{-1} J dM ]
         ddJ = compute_gradient(J, M)
 
-        # Prior term: B^{-1} conj(dM)
+        # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(
-                *tuple(function_copy(dm) for dm in dM))
+            B_inv_dM = self._B_inv_action(*tuple(map(function_copy, dM)))
             if not isinstance(B_inv_dM, Sequence):
                 B_inv_dM = (B_inv_dM,)
             assert len(dM) == len(B_inv_dM)
