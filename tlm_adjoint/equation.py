@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import check_space_types, function_id, function_is_alias, \
-    function_is_checkpointed, function_new, function_replacement, \
-    function_update_caches, function_update_state, function_zero, is_function
+from .interface import (
+    check_space_types, function_id, function_is_alias,
+    function_is_checkpointed, function_new, function_replacement,
+    function_update_caches, function_update_state, function_zero, is_function)
 
 from .alias import gc_disabled
 from .manager import manager as _manager
@@ -29,7 +30,7 @@ class Referrer:
 
     def __init__(self, referrers=None):
         if referrers is None:
-            referrers = []
+            referrers = ()
 
         self._id = self._id_counter[0]
         self._id_counter[0] += 1
@@ -65,7 +66,7 @@ class Referrer:
                         child_id = child.id()
                         if child_id not in referrers and child_id not in remaining_referrers:  # noqa: E501
                             remaining_referrers[child_id] = child
-        return tuple(e[1] for e in sorted(tuple(referrers.items()),
+        return tuple(e for _, e in sorted(tuple(referrers.items()),
                                           key=itemgetter(0)))
 
     def _drop_references(self):
@@ -190,14 +191,14 @@ class Equation(Referrer):
             adj_ic_deps = list(X)
 
         if adj_type in ["primal", "conjugate_dual"]:
-            adj_type = tuple(adj_type for x in X)
+            adj_type = tuple(adj_type for _ in X)
         elif isinstance(adj_type, Sequence):
             if len(adj_type) != len(X):
                 raise ValueError("Invalid adjoint type")
         else:
             raise ValueError("Invalid adjoint type")
         for adj_x_type in adj_type:
-            if adj_x_type not in ["primal", "conjugate_dual"]:
+            if adj_x_type not in {"primal", "conjugate_dual"}:
                 raise ValueError("Invalid adjoint type")
 
         super().__init__()
@@ -212,8 +213,8 @@ class Equation(Referrer):
         super().__init_subclass__(**kwargs)
 
         adj_solve_sig = inspect.signature(cls.adjoint_jacobian_solve)
-        if tuple(adj_solve_sig.parameters.keys()) in [("self", "nl_deps", "b"),
-                                                      ("self", "nl_deps", "B")]:  # noqa: E501
+        if tuple(adj_solve_sig.parameters.keys()) in {("self", "nl_deps", "b"),
+                                                      ("self", "nl_deps", "B")}:  # noqa: E501
             warnings.warn("Equation.adjoint_jacobian_solve(self, nl_deps, b/B) "  # noqa: E501
                           "method signature is deprecated",
                           DeprecationWarning, stacklevel=2)
@@ -224,14 +225,11 @@ class Equation(Referrer):
             cls.adjoint_jacobian_solve = adjoint_jacobian_solve
 
     def drop_references(self):
-        self._X = tuple(function_replacement(x) for x in self._X)
-        self._deps = tuple(function_replacement(dep) for dep in self._deps)
-        self._nl_deps = tuple(function_replacement(dep)
-                              for dep in self._nl_deps)
-        self._ic_deps = tuple(function_replacement(dep)
-                              for dep in self._ic_deps)
-        self._adj_ic_deps = tuple(function_replacement(dep)
-                                  for dep in self._adj_ic_deps)
+        self._X = tuple(map(function_replacement, self._X))
+        self._deps = tuple(map(function_replacement, self._deps))
+        self._nl_deps = tuple(map(function_replacement, self._nl_deps))
+        self._ic_deps = tuple(map(function_replacement, self._ic_deps))
+        self._adj_ic_deps = tuple(map(function_replacement, self._adj_ic_deps))
 
     def x(self):
         """Return the forward solution variable, assuming the forward solution

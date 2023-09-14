@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import check_space_types, check_space_types_conjugate_dual, \
-    check_space_types_dual, function_assign, function_axpy, function_comm, \
-    function_dtype, function_get_values, function_id, function_inner, \
-    function_local_size, function_new_conjugate_dual, function_replacement, \
-    function_set_values, function_sum, function_zero, is_function
+from .interface import (
+    check_space_types, check_space_types_conjugate_dual,
+    check_space_types_dual, function_assign, function_axpy, function_comm,
+    function_dtype, function_get_values, function_id, function_inner,
+    function_local_size, function_new_conjugate_dual, function_replacement,
+    function_set_values, function_sum, function_zero, is_function)
 
 from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
@@ -240,7 +241,7 @@ class MatrixActionRHS(RHS):
     def __init__(self, A, X):
         if is_function(X):
             X = (X,)
-        if len({function_id(x) for x in X}) != len(X):
+        if len(set(map(function_id, X))) != len(X):
             raise ValueError("Invalid dependency")
 
         A_nl_deps = A.nonlinear_dependencies()
@@ -271,7 +272,7 @@ class MatrixActionRHS(RHS):
     def add_forward(self, B, deps):
         if is_function(B):
             B = (B,)
-        X = [deps[j] for j in self._x_indices]
+        X = tuple(deps[j] for j in self._x_indices)
         self._A.forward_action(deps[:len(self._A.nonlinear_dependencies())],
                                X[0] if len(X) == 1 else X,
                                B[0] if len(B) == 1 else B,
@@ -300,7 +301,7 @@ class MatrixActionRHS(RHS):
         deps = self.dependencies()
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
 
-        X = [deps[j] for j in self._x_indices]
+        X = tuple(deps[j] for j in self._x_indices)
         tlm_X = tuple(tlm_map[x] for x in X)
         tlm_B = [MatrixActionRHS(self._A, tlm_X)]
 

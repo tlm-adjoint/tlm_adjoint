@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import finalize_adjoint_derivative_action, function_copy, \
-    function_id, function_space, function_space_type, space_new, \
-    subtract_adjoint_derivative_action
+from .interface import (
+    finalize_adjoint_derivative_action, function_copy, function_id,
+    function_space, function_space_type, space_new,
+    subtract_adjoint_derivative_action)
 
 from .instructions import Instruction
 from .markers import ControlsMarker, FunctionalMarker
@@ -523,13 +524,13 @@ class AdjointCache:
     def get(self, J_i, n, i, *, copy=True):
         adj_X = self._cache[(J_i, n, i)]
         if copy:
-            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+            adj_X = tuple(map(function_copy, adj_X))
         return adj_X
 
     def pop(self, J_i, n, i, *, copy=True):
         adj_X = self._cache.pop((J_i, n, i))
         if copy:
-            adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+            adj_X = tuple(map(function_copy, adj_X))
         return adj_X
 
     def remove(self, J_i, n, i):
@@ -541,7 +542,7 @@ class AdjointCache:
             if (J_i, n, i) in self._cache:
                 adj_X = self._cache[(J_i, n, i)]
             elif copy:
-                adj_X = tuple(function_copy(adj_x) for adj_x in adj_X)
+                adj_X = tuple(map(function_copy, adj_X))
             else:
                 adj_X = tuple(adj_X)
 
@@ -557,6 +558,10 @@ class AdjointCache:
         J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
                            for J in J_roots)
 
+        # Clear the cache if we are computing different (conjugate) derivatives
+        #   J_root_ids[J_i]  The id of a functional being differentiated
+        #   adj_tlm_key      Defines a (conjugate) derivative of the functional
+        #                    computed by the adjoint
         cache_key = tuple((J_root_ids[J_i], adj_tlm_key)
                           for J_i, adj_tlm_key
                           in sorted(itertools.chain.from_iterable(tlm_adj.values())))  # noqa: E501
@@ -590,25 +595,34 @@ class AdjointCache:
                     eq_tlm_root_id = getattr(eq, "_tlm_adjoint__tlm_root_id", eq_id)  # noqa: E501
                     eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
 
+                    # The root (forward) equation eqs[eq_tlm_root_id] always
+                    # appears first on the tape. We go through equations in
+                    # reverse order and build a list of the (conjugate)
+                    # derivatives stored by adjoint variables.
                     for J_i, adj_tlm_key in tlm_adj.get(eq_tlm_key, ()):
                         if transpose_deps.is_solved(J_i, n, i) \
                                 or (J_i, n, i) in self._cache:
-                            if cache_degree is not None:
-                                assert len(adj_tlm_key) < cache_degree
+                            assert cache_degree is None or len(adj_tlm_key) < cache_degree  # noqa: E501
                             eqs[eq_tlm_root_id].append(
                                 ((J_i, n, i),
                                  (J_root_ids[J_i], adj_tlm_key)))
 
+                    # When we reach the root (forward) equation we can now
+                    # build a map between adjoint variables which store the
+                    # same (conjugate) derivatives
                     eq_root = {}
                     for (J_j, p, k), adj_key in eqs.pop(eq_id, []):
-                        assert transpose_deps.is_solved(J_j, p, k) \
-                            or (J_j, p, k) in self._cache
+                        assert transpose_deps.is_solved(J_j, p, k) or (J_j, p, k) in self._cache  # noqa: E501
                         if adj_key in eq_root:
                             self._keys[eq_root[adj_key]].append((J_j, p, k))
                             if (J_j, p, k) in self._cache \
                                     and eq_root[adj_key] not in self._cache:
+                                # Corner case: A value is already cached in a
+                                # non-root adjoint variable
                                 self._cache[eq_root[adj_key]] = self._cache[(J_j, p, k)]  # noqa: E501
                         else:
+                            # Now one of the adjoint variables is marked as the
+                            # 'root', and all others reuse its value
                             eq_root[adj_key] = (J_j, p, k)
                             self._keys[eq_root[adj_key]] = []
             assert len(eqs) == 0

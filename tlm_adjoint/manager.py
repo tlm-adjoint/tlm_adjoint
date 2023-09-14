@@ -89,8 +89,6 @@ def configure_checkpointing(cp_method, cp_parameters):
     :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_checkpointing`.
     """
 
-    if cp_parameters is None:
-        cp_parameters = {}
     manager().configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
 

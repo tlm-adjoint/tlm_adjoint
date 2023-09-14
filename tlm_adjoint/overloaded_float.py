@@ -163,10 +163,8 @@ def paused_float_overloading():
 
     global _overload
     _overload += 1
-    try:
-        yield
-    finally:
-        _overload -= 1
+    yield
+    _overload -= 1
 
 
 class FloatInterface(FunctionInterface):
@@ -738,9 +736,8 @@ class FloatEquation(Equation):
                 nl_deps.setdefault(function_id(dep), dep)
                 nl_deps.setdefault(function_id(dep2), dep2)
         nl_deps = sorted(nl_deps.values(), key=lambda dep: function_id(dep))
-        dF = {}
-        for dep_index, expr_diff in dF_expr.items():
-            dF[dep_index] = lambdify(expr_diff, nl_deps)
+        dF = {dep_index: lambdify(expr_diff, nl_deps)
+              for dep_index, expr_diff in dF_expr.items()}
 
         super().__init__(x, deps, nl_deps=nl_deps,
                          ic=False, adj_ic=False)
@@ -778,7 +775,7 @@ class FloatEquation(Equation):
         for dep_index, dF_expr in self._dF_expr.items():
             tau_dep = tlm_map[deps[dep_index]]
             if tau_dep is not None:
-                expr += dF_expr * tau_dep
+                expr = expr + dF_expr * tau_dep
         if isinstance(expr, int) and expr == 0:
             return ZeroAssignment(tlm_map[x])
         else:

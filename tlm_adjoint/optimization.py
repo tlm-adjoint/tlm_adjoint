@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    comm_dup_cached, function_assign, function_axpy, function_comm,
-    function_copy, function_dtype, function_get_values, function_global_size,
-    function_inner, function_is_cached, function_is_checkpointed,
-    function_is_static, function_linf_norm, function_local_size, function_new,
-    function_new_conjugate_dual, function_set_values, garbage_cleanup,
-    is_function, paused_space_type_checking)
+    comm_dup_cached, function_axpy, function_comm, function_copy,
+    function_dtype, function_get_values, function_global_size,
+    function_is_cached, function_is_checkpointed, function_is_static,
+    function_linf_norm, function_local_size, function_new,
+    function_new_conjugate_dual, function_set_values, functions_assign,
+    functions_axpy, functions_copy, functions_inner, functions_new,
+    functions_new_conjugate_dual, garbage_cleanup, is_function,
+    paused_space_type_checking)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
@@ -19,6 +21,7 @@ from .manager import (
 
 from collections import deque
 from collections.abc import Sequence
+import functools
 import logging
 import numpy as np
 
@@ -144,9 +147,6 @@ def minimize_scipy(forward, M0, *,
 
     All keyword arguments except for `manager` are passed to
     :func:`scipy.optimize.minimize`.
-
-    **Important note:** No exception is raised if `return_value.success` is
-    `False`. Calling code should check this attribute.
 
     :arg forward: A callable which accepts one or more function arguments, and
         which returns a function or :class:`tlm_adjoint.functional.Functional`
@@ -274,39 +274,10 @@ def minimize_scipy(forward, M0, *,
                 raise ValueError(f"Unexpected action '{action:s}'")
         set(M, None)
 
+    if not return_value.success:
+        raise RuntimeError("Convergence failure")
+
     return M, return_value
-
-
-def functions_assign(X, Y):
-    assert len(X) == len(Y)
-    for x, y in zip(X, Y):
-        function_assign(x, y)
-
-
-def functions_axpy(Y, alpha, X, /):
-    assert len(Y) == len(X)
-    for y, x in zip(Y, X):
-        function_axpy(y, alpha, x)
-
-
-def functions_copy(X):
-    return tuple(map(function_copy, X))
-
-
-def functions_inner(X, Y):
-    assert len(X) == len(Y)
-    inner = 0.0
-    for x, y in zip(X, Y):
-        inner += function_inner(x, y)
-    return inner
-
-
-def functions_new(X):
-    return tuple(map(function_new, X))
-
-
-def functions_new_conjugate_dual(X):
-    return tuple(map(function_new_conjugate_dual, X))
 
 
 def conjugate_dual_identity_action(*X):
@@ -316,12 +287,12 @@ def conjugate_dual_identity_action(*X):
     return M_X
 
 
-def wrapped_action(M, *,
-                   copy=True):
+def wrapped_action(M, *, copy=True):
     M_arg = M
 
+    @functools.wraps(M_arg)
     def M(*X):
-        M_X = M_arg(*X)
+        M_X = M_arg(*functions_copy(X))
         if is_function(M_X):
             M_X = (M_X,)
         if len(M_X) != len(X):
@@ -437,19 +408,22 @@ def line_search_rank0_scipy_line_search(
         c1, c2, old_F_val=None, old_Fp_val=None, **kwargs):
 
     def f(x):
-        return F(x[0])
+        x, = x
+        return F(x)
 
     def myfprime(x):
-        return np.array([Fp(x[0])])
+        x, = x
+        return np.array([Fp(x)], dtype=np.double)
 
     if old_Fp_val is not None:
-        old_Fp_val = np.array([old_Fp_val])
+        old_Fp_val = np.array([old_Fp_val], dtype=np.double)
 
     from scipy.optimize import line_search
-    alpha, fc, gc, new_fval, old_fval, new_slope = line_search(
-        f, myfprime, xk=np.array([0.0]), pk=np.array([1.0]),
-        gfk=old_Fp_val, old_fval=old_F_val, c1=c1, c2=c2,
-        **kwargs)
+    alpha, _, _, new_fval, _, new_slope = line_search(
+        f, myfprime,
+        xk=np.array([0.0], dtype=np.double), pk=np.array([1.0], dtype=np.double),  # noqa: E501
+        gfk=old_Fp_val, old_fval=old_F_val,
+        c1=c1, c2=c2, **kwargs)
     if new_slope is None:
         alpha = None
     if alpha is None:
@@ -461,10 +435,10 @@ def line_search_rank0_scipy_scalar_search_wolfe1(
         F, Fp, *,
         c1, c2, old_F_val=None, old_Fp_val=None, **kwargs):
     from scipy.optimize.linesearch import scalar_search_wolfe1 as line_search
-    alpha, phi, phi0 = line_search(
+    alpha, phi, _ = line_search(
         F, Fp,
-        phi0=old_F_val, derphi0=old_Fp_val, c1=c1, c2=c2,
-        **kwargs)
+        phi0=old_F_val, derphi0=old_Fp_val,
+        c1=c1, c2=c2, **kwargs)
     if alpha is None:
         phi = None
     return alpha, phi
@@ -499,32 +473,37 @@ def line_search(F, Fp, X, minus_P, *,
         comm = function_comm(X_rank1[0])
     comm = comm_dup_cached(comm)
 
-    last_F = [None, None]
+    F_last_X_rank0 = None
+    F_last_F = None
 
     def F_rank0(x):
-        X_rank0 = x
-        if not isinstance(X_rank0, (float, np.floating)):
-            raise TypeError("Invalid type")
+        nonlocal F_last_X_rank0, F_last_F
+
+        X_rank0 = F_last_X_rank0 = float(x)
         del x
+
         X = functions_copy(X_rank1)
         functions_axpy(X, -X_rank0, minus_P)
-        last_F[0] = float(X_rank0)
-        last_F[1] = F(*X)
-        return last_F[1]
 
-    last_Fp = [None, None, None]
+        F_last_F = F(*X)
+        return F_last_F
+
+    Fp_last_X_rank0 = None
+    Fp_last_Fp_rank1 = None
+    Fp_last_Fp_rank0 = None
 
     def Fp_rank0(x):
-        X_rank0 = x
-        if not isinstance(X_rank0, (float, np.floating)):
-            raise TypeError("Invalid type")
+        nonlocal Fp_last_X_rank0, Fp_last_Fp_rank1, Fp_last_Fp_rank0
+
+        X_rank0 = Fp_last_X_rank0 = float(x)
         del x
+
         X = functions_copy(X_rank1)
         functions_axpy(X, -X_rank0, minus_P)
-        last_Fp[0] = float(X_rank0)
-        last_Fp[1] = functions_copy(Fp(*X))
-        last_Fp[2] = -functions_inner(minus_P, last_Fp[1])
-        return last_Fp[2]
+
+        Fp_last_Fp_rank1 = functions_copy(Fp(*X))
+        Fp_last_Fp_rank0 = -functions_inner(minus_P, Fp_last_Fp_rank1)
+        return Fp_last_Fp_rank0
 
     if old_F_val is None:
         old_F_val = F_rank0(0.0)
@@ -572,19 +551,14 @@ def line_search(F, Fp, X, minus_P, *,
         return None, old_Fp_val_rank0, None, None, None
     else:
         if new_F_val is None:
-            if last_F[0] is not None and last_F[0] == alpha:
-                new_F_val = last_F[1]
-            else:
-                new_F_val = F_rank0(alpha)
+            if F_last_X_rank0 is None or F_last_X_rank0 != alpha:
+                F_rank0(alpha)
+            new_F_val = F_last_F
 
-        if last_Fp[0] is not None and last_Fp[0] == alpha:
-            new_Fp_val_rank1 = last_Fp[1]
-            new_Fp_val_rank0 = last_Fp[2]
-        else:
-            new_Fp_val_rank0 = Fp_rank0(alpha)
-            assert last_Fp[0] == alpha
-            new_Fp_val_rank1 = last_Fp[1]
-            assert last_Fp[2] == new_Fp_val_rank0
+        if Fp_last_X_rank0 is None or Fp_last_X_rank0 != alpha:
+            Fp_rank0(alpha)
+        new_Fp_val_rank1 = Fp_last_Fp_rank1
+        new_Fp_val_rank0 = Fp_last_Fp_rank0
 
         return (alpha, old_Fp_val_rank0, new_F_val,
                 new_Fp_val_rank1[0] if len(new_Fp_val_rank1) == 1 else new_Fp_val_rank1,  # noqa: E501
@@ -741,20 +715,24 @@ def l_bfgs(F, Fp, X0, *,
     logger = logging.getLogger("tlm_adjoint.l_bfgs")
 
     F_arg = F
-    F_calls = [0]
+    F_calls = 0
 
     def F(*X):
-        F_calls[0] += 1
+        nonlocal F_calls
+
+        F_calls += 1
         F_val = F_arg(*X)
         if not isinstance(F_val, (float, np.floating)):
             raise TypeError("Invalid type")
         return F_val
 
     Fp_arg = Fp
-    Fp_calls = [0]
+    Fp_calls = 0
 
     def Fp(*X):
-        Fp_calls[0] += 1
+        nonlocal Fp_calls
+
+        Fp_calls += 1
         Fp_val = Fp_arg(*X)
         if is_function(Fp_val):
             Fp_val = (Fp_val,)
@@ -771,6 +749,7 @@ def l_bfgs(F, Fp, X0, *,
     else:
         converged_arg = converged
 
+        @functools.wraps(converged_arg)
         def converged(it, F_old, F_new, X_new, G_new, S, Y):
             return converged_arg(it, F_old, F_new,
                                  X_new[0] if len(X_new) == 1 else X_new,
@@ -832,13 +811,16 @@ def l_bfgs(F, Fp, X0, *,
 
     it = 0
     logger.debug(f"L-BFGS: Iteration {it:d}, "
-                 f"F calls {F_calls[0]:d}, "
-                 f"Fp calls {Fp_calls[0]:d}, "
+                 f"F calls {F_calls:d}, "
+                 f"Fp calls {Fp_calls:d}, "
                  f"functional value {old_F_val:.6e}")
     while True:
         logger.debug(f"  Gradient norm = {np.sqrt(old_Fp_norm_sq):.6e}")
         if g_atol is not None and old_Fp_norm_sq <= g_atol * g_atol:
             break
+
+        if it >= max_its:
+            raise RuntimeError("L-BFGS: Maximum number of iterations exceeded")
 
         minus_P = hessian_approx.inverse_action(
             old_Fp_val,
@@ -883,8 +865,8 @@ def l_bfgs(F, Fp, X0, *,
         garbage_cleanup(comm)
         it += 1
         logger.debug(f"L-BFGS: Iteration {it:d}, "
-                     f"F calls {F_calls[0]:d}, "
-                     f"Fp calls {Fp_calls[0]:d}, "
+                     f"F calls {F_calls:d}, "
+                     f"Fp calls {Fp_calls:d}, "
                      f"functional value {new_F_val:.6e}")
         if converged(it, old_F_val, new_F_val, X, new_Fp_val, S, Y):
             break
@@ -894,15 +876,12 @@ def l_bfgs(F, Fp, X0, *,
             if s_norm_sq <= s_atol * s_atol:
                 break
 
-        if it >= max_its:
-            raise RuntimeError("L-BFGS: Maximum number of iterations exceeded")
-
         old_F_val = new_F_val
         old_Fp_val = new_Fp_val
         del new_F_val, new_Fp_val, new_Fp_val_rank0
         old_Fp_norm_sq = M_inv_norm_sq(old_Fp_val)
 
-    return X[0] if len(X) == 1 else X, (it, F_calls[0], Fp_calls[0], hessian_approx)  # noqa: E501
+    return X[0] if len(X) == 1 else X, (it, F_calls, Fp_calls, hessian_approx)
 
 
 @local_caches
@@ -1096,6 +1075,7 @@ def minimize_tao(forward, m0, *,
         M_inv_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                                 GradientNorm(m0), comm=comm)
         M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
+        M_inv_matrix.setUp()
         tao.setGradientNorm(M_inv_matrix)
 
     x = H_matrix.getVecRight()

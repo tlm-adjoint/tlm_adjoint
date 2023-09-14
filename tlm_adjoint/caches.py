@@ -200,7 +200,7 @@ class Cache:
         """
 
         if deps is None:
-            deps = []
+            deps = ()
 
         if key in self._cache:
             value_ref = self._cache[key]
@@ -229,18 +229,25 @@ class Cache:
 
         return value_ref, value
 
-    def get(self, key, default=None):
-        """Return the cache entry associated with a given key, or `default` if
-        there is no cache entry associated with the key.
+    def get(self, key, *args):
+        """Return the cache entry associated with a given key.
 
         :arg key: The key.
-        :arg default: The value to return if there is no cache entry associated
-            with the key.
         :returns: The cache entry, or `default` if there is no cache entry
             associated with the key.
+
+        `args` should contain zero or one elements and defines the default
+        value. If there is no entry associated with the key then:
+
+            - If `args` has no elements an exception is raised.
+            - If `args` has one element then this is returned.
         """
 
-        return self._cache.get(key, default)
+        if len(args) == 0:
+            return self._cache[key]
+        else:
+            default, = args
+            return self._cache.get(key, default)
 
 
 class Caches:
@@ -287,9 +294,7 @@ class Caches:
         :arg cache: The :class:`Cache` to add to the :class:`Caches`.
         """
 
-        cache_id = cache.id()
-        if cache_id not in self._caches:
-            self._caches[cache_id] = cache
+        self._caches.setdefault(cache.id(), cache)
 
     def remove(self, cache):
         """Remove a :class:`Cache` from the :class:`Caches`.

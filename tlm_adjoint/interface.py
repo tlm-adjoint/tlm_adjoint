@@ -193,16 +193,12 @@ if MPI is None:
 
     DEFAULT_COMM = SerialComm()
 
-    f2py = DEFAULT_COMM.f2py
-
     def comm_finalize(comm, finalize_callback,
                       *args, **kwargs):
         weakref.finalize(comm, finalize_callback,
                          *args, **kwargs)
 else:
     DEFAULT_COMM = MPI.COMM_WORLD
-
-    f2py = MPI.Comm.f2py
 
     _comm_finalize_key = MPI.Comm.Create_keyval(
         delete_fn=lambda comm, key, finalizes:
@@ -244,7 +240,7 @@ def comm_dup_cached(comm, *, key=None):
         return comm
 
     if key is None:
-        key = comm.py2f()
+        key = (comm.py2f(),)
     else:
         key = (comm.py2f(), key)
 
@@ -488,7 +484,7 @@ def space_new(space, *, name=None, space_type="primal", static=False,
     :returns: The new function.
     """
 
-    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+    if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
         name=name, space_type=space_type, static=static, cache=cache,
@@ -586,10 +582,8 @@ def paused_space_type_checking():
 
     global _check_space_types
     _check_space_types += 1
-    try:
-        yield
-    finally:
-        _check_space_types -= 1
+    yield
+    _check_space_types -= 1
 
 
 def space_type_warning(msg, *, stacklevel=1):
@@ -607,7 +601,7 @@ def check_space_type(x, space_type):
         `'dual'`, or `'conjugate_dual'`.
     """
 
-    if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+    if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
     if function_space_type(x) != space_type:
         space_type_warning("Unexpected space type", stacklevel=2)
@@ -1136,7 +1130,7 @@ def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
     :returns: The new function.
     """
 
-    if rel_space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
+    if rel_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid relative space type")
     return x._tlm_adjoint__function_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
@@ -1257,6 +1251,42 @@ def function_is_alias(x):
     """
 
     return x._tlm_adjoint__function_interface_is_alias()
+
+
+def functions_assign(X, Y):
+    if len(X) != len(Y):
+        raise ValueError("Incompatible lengths")
+    for x, y in zip(X, Y):
+        function_assign(x, y)
+
+
+def functions_axpy(Y, alpha, X, /):
+    if len(X) != len(Y):
+        raise ValueError("Incompatible lengths")
+    for y, x in zip(Y, X):
+        function_axpy(y, alpha, x)
+
+
+def functions_inner(X, Y):
+    if len(X) != len(Y):
+        raise ValueError("Incompatible lengths")
+    return sum((function_inner(x, y) for x, y in zip(X, Y)), start=0.0)
+
+
+def functions_linf_norm(X):
+    return max(map(function_linf_norm, X), default=0.0)
+
+
+def functions_new(X):
+    return tuple(map(function_new, X))
+
+
+def functions_new_conjugate_dual(X):
+    return tuple(map(function_new_conjugate_dual, X))
+
+
+def functions_copy(X):
+    return tuple(map(function_copy, X))
 
 
 @functools.singledispatch

@@ -7,13 +7,13 @@ from .interface import (
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
 from .alias import WeakAlias, gc_disabled
-from .checkpoint_schedules import Clear, Configure, Forward, Reverse, Read, \
-    Write, EndForward, EndReverse
-from .checkpoint_schedules import MemoryCheckpointSchedule, \
-    MultistageCheckpointSchedule, NoneCheckpointSchedule, \
-    PeriodicDiskCheckpointSchedule
-from .checkpointing import CheckpointStorage, HDF5Checkpoints, \
-    PickleCheckpoints, ReplayStorage
+from .checkpoint_schedules import (
+    Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse)
+from .checkpoint_schedules import (
+    MemoryCheckpointSchedule, MultistageCheckpointSchedule,
+    NoneCheckpointSchedule, PeriodicDiskCheckpointSchedule)
+from .checkpointing import (
+    CheckpointStorage, HDF5Checkpoints, PickleCheckpoints, ReplayStorage)
 from .equation import Equation, ZeroAssignment
 from .functional import Functional
 from .markers import ControlsMarker, FunctionalMarker
@@ -154,8 +154,7 @@ class EquationManager:
                     X_name = function_name(eq_X[0])
                     X_ids = f"id {function_id(eq_X[0]):d}"
                 else:
-                    X_name = "(%s)" % (",".join(function_name(eq_x)
-                                                for eq_x in eq_X))
+                    X_name = "(%s)" % (",".join(map(function_name, eq_X)))
                     X_ids = "ids (%s)" % (",".join(f"{function_id(eq_x):d}"
                                                    for eq_x in eq_X))
                 info("    Equation %i, %s solving for %s (%s)" %
@@ -339,17 +338,15 @@ class EquationManager:
 
         cp_parameters = dict(cp_parameters)
 
-        if not callable(cp_method) and cp_method in ["none", "memory"]:
+        if not callable(cp_method) and cp_method in {"none", "memory"}:
             alias_eqs = cp_parameters.get("drop_references", False)
         else:
             alias_eqs = True
 
         if callable(cp_method):
             cp_schedule_kwargs = dict(cp_parameters)
-            if "path" in cp_schedule_kwargs:
-                del cp_schedule_kwargs["path"]
-            if "format" in cp_schedule_kwargs:
-                del cp_schedule_kwargs["format"]
+            cp_schedule_kwargs.pop("path", None)
+            cp_schedule_kwargs.pop("format", None)
             cp_schedule = cp_method(**cp_schedule_kwargs)
         elif cp_method == "none":
             cp_schedule = NoneCheckpointSchedule()
@@ -403,7 +400,7 @@ class EquationManager:
 
         self._cp = CheckpointStorage(store_ics=False,
                                      store_data=False)
-        assert len(self._blocks) == 0
+        assert len(self._blocks) == 0 and len(self._block) == 0
         self._checkpoint()
 
     def configure_tlm(self, *args, annotate=None, tlm=True):
@@ -603,10 +600,8 @@ class EquationManager:
         """
 
         annotate, tlm = self.stop(annotate=annotate, tlm=tlm)
-        try:
-            yield
-        finally:
-            self.start(annotate=annotate, tlm=tlm)
+        yield
+        self.start(annotate=annotate, tlm=tlm)
 
     def add_initial_condition(self, x, *, annotate=None):
         """Process an 'initial condition' -- a variable whose associated value
@@ -686,16 +681,13 @@ class EquationManager:
             raise ValueError("Invalid tangent-linear direction")
 
         eq_id = eq.id()
-        eq_tlm_eqs = self._tlm_eqs.get(eq_id, None)
-        if eq_tlm_eqs is None:
-            eq_tlm_eqs = {}
-            self._tlm_eqs[eq_id] = eq_tlm_eqs
+        eq_tlm_eqs = self._tlm_eqs.setdefault(eq_id, {})
 
         tlm_map = self._tlm_map[key]
         tlm_eq = eq_tlm_eqs.get(key, None)
         if tlm_eq is None:
             for dep in eq.dependencies():
-                if dep in M or dep in tlm_map:
+                if dep in tlm_map:
                     tlm_eq = eq.tangent_linear(M, dM, tlm_map)
                     if tlm_eq is None:
                         warnings.warn("Equation.tangent_linear should return "
@@ -703,7 +695,7 @@ class EquationManager:
                                       DeprecationWarning)
                         tlm_eq = ZeroAssignment([tlm_map[x] for x in X])
                     tlm_eq._tlm_adjoint__tlm_root_id = getattr(
-                        eq, "_tlm_adjoint__tlm_root_id", eq.id())
+                        eq, "_tlm_adjoint__tlm_root_id", eq_id)
                     tlm_eq._tlm_adjoint__tlm_key = tuple(
                         list(getattr(eq, "_tlm_adjoint__tlm_key", ()))
                         + [key])
@@ -944,8 +936,8 @@ class EquationManager:
                     assert storage_state == (n1, i)
                 garbage_cleanup(self._comm)
             cp_n = cp_action.n1
-            if cp_n == n + 1:
-                assert len(storage) == 0
+            assert cp_n <= n + 1
+            assert cp_n < n + 1 or len(storage) == 0
 
         @action.register(Reverse)
         def action_reverse(cp_action):
@@ -1023,8 +1015,8 @@ class EquationManager:
         self.drop_references()
         garbage_cleanup(self._comm)
 
-        if self._annotation_state in [AnnotationState.STOPPED,
-                                      AnnotationState.FINAL]:
+        if self._annotation_state in {AnnotationState.STOPPED,
+                                      AnnotationState.FINAL}:
             return
 
         if self._cp_schedule.max_n is not None \
@@ -1062,7 +1054,7 @@ class EquationManager:
         if self._cp_schedule.max_n is not None \
                 and len(self._blocks) < self._cp_schedule.max_n:
             warnings.warn(
-                "Insufficient number of blocks -- empty blocks added",
+                "Insufficient number of blocks -- empty block(s) added",
                 RuntimeWarning, stacklevel=2)
             while len(self._blocks) < self._cp_schedule.max_n:
                 self._checkpoint(final=False)
@@ -1170,7 +1162,7 @@ class EquationManager:
                     cache_adjoint_degree=cache_adjoint_degree,
                     store_adjoint=store_adjoint,
                     adj_ics=adj_ics)
-                return tuple(dJ for (dJ,) in dJs)
+                return tuple(dJ for dJ, in dJs)
         elif not isinstance(Js, Sequence):
             dJ, = self.compute_gradient(
                 (Js,), M, callback=callback,
@@ -1202,12 +1194,12 @@ class EquationManager:
         #   Functional block:  Represents the equations "outputs = functionals"
         blocks_N = len(self._blocks)
         blocks = {-1: [ControlsMarker(M)]}
-        blocks.update({n: block for n, block in enumerate(self._blocks)})
-        blocks[blocks_N] = [FunctionalMarker(J) for J in Js]
+        blocks.update(enumerate(self._blocks))
+        blocks[blocks_N] = list(map(FunctionalMarker, Js))
         J_markers = tuple(eq.x() for eq in blocks[blocks_N])
 
         # Adjoint equation right-hand-sides
-        Bs = tuple(AdjointModelRHS(blocks) for J in Js)
+        Bs = tuple(AdjointModelRHS(blocks) for _ in Js)
         # Adjoint initial condition
         for J_i in range(len(Js)):
             function_assign(Bs[J_i][blocks_N][J_i].b(), 1.0)
@@ -1222,7 +1214,7 @@ class EquationManager:
                                    cache_degree=cache_adjoint_degree)
 
         # Adjoint variables
-        adj_Xs = tuple({} for J in Js)
+        adj_Xs = tuple({} for _ in Js)
         if adj_ics is not None:
             for J_i in range(len(Js)):
                 for x_id, adj_x in adj_ics[J_i].items():
@@ -1334,8 +1326,7 @@ class EquationManager:
                                      function_copy(adj_X[0]))
                         else:
                             callback(J_i, n, i, eq,
-                                     tuple(function_copy(adj_x)
-                                           for adj_x in adj_X))
+                                     tuple(map(function_copy, adj_X)))
 
                     if n == -1:
                         assert i == 0
@@ -1343,8 +1334,7 @@ class EquationManager:
                         if adj_X is None:
                             dJ[J_i] = eq.new_adj_X()
                         else:
-                            dJ[J_i] = tuple(function_copy(adj_x)
-                                            for adj_x in adj_X)
+                            dJ[J_i] = tuple(map(function_copy, adj_X))
                     else:
                         # Finalize right-hand-sides in the control block
                         Bs[J_i][-1].finalize()

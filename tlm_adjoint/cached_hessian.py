@@ -78,8 +78,8 @@ class HessianOptimization:
     def _tangent_linear(self, manager, eq, M, dM):
         return manager._tangent_linear(eq, M, dM)
 
-    def _add_tangent_linear_equation(self, manager, n, i, eq, M, dM, tlm_eq,
-                                     *, annotate=True, solve=True):
+    def _add_tangent_linear_equation(self, manager, n, i, eq, M, dM, tlm_eq, *,
+                                     annotate=True, solve=True):
         for tlm_dep in tlm_eq.initial_condition_dependencies():
             manager._cp.add_initial_condition(tlm_dep)
 
@@ -167,7 +167,7 @@ class CachedHessian(Hessian, HessianOptimization):
         if function_state(self._J.function()) != self._J_state:
             raise RuntimeError("State has changed")
 
-        dM = tuple(function_new(m) for m in M)
+        dM = tuple(map(function_new, M))
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
         set_manager(manager)
 
@@ -222,8 +222,8 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         if not supplied.
     """
 
-    def __init__(self, X, R_inv_action, B_inv_action=None,
-                 *, J_space=None, manager=None):
+    def __init__(self, X, R_inv_action, B_inv_action=None, *,
+                 J_space=None, manager=None):
         if not isinstance(X, Sequence):
             X = (X,)
 
@@ -233,7 +233,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
             self, R_inv_action, B_inv_action=B_inv_action,
             J_space=J_space)
         self._X = tuple(X)
-        self._X_state = tuple(function_state(x) for x in X)
+        self._X_state = tuple(map(function_state, X))
 
     def _setup_manager(self, M, dM, M0=None, *,
                        annotate_tlm=False, solve_tlm=True):
@@ -243,7 +243,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):
-        if tuple(function_state(x) for x in self._X) != self._X_state:
+        if tuple(map(function_state, self._X)) != self._X_state:
             raise RuntimeError("State has changed")
 
         return GaussNewton.action(self, M, dM, M0=M0)
