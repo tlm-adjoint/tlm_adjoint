@@ -22,8 +22,7 @@ from ..equation import Equation, ZeroAssignment
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
-    EquationSolver, ExprEquation, bind_form, derivative, extract_dependencies,
-    unbind_form, unbound_form)
+    EquationSolver, ExprEquation, derivative, extract_dependencies)
 from .functions import diff, eliminate_zeros
 
 import itertools
@@ -173,17 +172,9 @@ class LocalProjection(EquationSolver):
                 self._rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
         else:
-            if self._forward_eq is None:
-                self._forward_eq = \
-                    (None,
-                     None,
-                     unbound_form(self._rhs, self.dependencies()))
-            _, _, rhs = self._forward_eq
-            bind_form(rhs, deps)
             b = assemble(
-                rhs,
+                self._replace(self._rhs, deps),
                 form_compiler_parameters=self._form_compiler_parameters)
-            unbind_form(rhs)
 
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
@@ -274,9 +265,10 @@ class PointInterpolation(Equation):
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
+    :arg tolerance: :class:`VertexOnlyMesh` tolerance.
     """
 
-    def __init__(self, X, y, X_coords=None, *,
+    def __init__(self, X, y, X_coords=None, *, tolerance=None,
                  _interp=None):
         if is_function(X):
             X = (X,)
@@ -302,7 +294,8 @@ class PointInterpolation(Equation):
         interp = _interp
         if interp is None:
             y_space = function_space(y)
-            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
+            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords,
+                                   tolerance=tolerance)
             vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
             interp = Interpolator(TestFunction(y_space), vspace)
             if not hasattr(interp, "_tlm_adjoint__vmesh_coords_map"):
@@ -402,9 +395,7 @@ class ExprAssignment(ExprEquation):
         self._rhs = ufl.replace(self._rhs, replace_map)
 
     def forward_solve(self, x, deps=None):
-        rhs = self._rhs
-        if deps is not None:
-            rhs = self._replace(rhs, deps)
+        rhs = self._replace(self._rhs, deps)
         if self._subset is not None:
             function_zero(x)
         x.assign(rhs, subset=self._subset)

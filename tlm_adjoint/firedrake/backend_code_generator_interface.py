@@ -116,12 +116,6 @@ def assemble_arguments(arity, form_compiler_parameters, solver_parameters):
     return kwargs
 
 
-def bind_form(form):
-    bindings = form._cache.get("_tlm_adjoint__bindings", {})
-    form = eliminate_zeros(form, force_non_empty_form=True)
-    return ufl.replace(form, bindings)
-
-
 def _assemble(form, tensor=None, bcs=None, *,
               form_compiler_parameters=None, mat_type=None):
     if bcs is None:
@@ -153,10 +147,6 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
         bcs = (bcs,)
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
-
-    A_form = bind_form(A_form)
-    if b_form is not None:
-        b_form = bind_form(b_form)
 
     A = _assemble(
         A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
@@ -225,7 +215,6 @@ def assemble(form, tensor=None, *,
     if tensor is not None and isinstance(tensor, backend_Function):
         check_space_type(tensor, "conjugate_dual")
 
-    form = bind_form(form)
     b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         mat_type=mat_type)
@@ -279,7 +268,7 @@ def linear_solver(A, linear_solver_parameters):
                         near_nullspace=near_nullspace)
 
 
-def form_form_compiler_parameters(form, form_compiler_parameters):
+def form_compiler_quadrature_parameters(form, form_compiler_parameters):
     qd = form_compiler_parameters.get("quadrature_degree", "auto")
     if qd in [None, "auto", -1]:
         qd = ufl.algorithms.estimate_total_polynomial_degree(form)

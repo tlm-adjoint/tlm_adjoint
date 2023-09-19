@@ -1204,7 +1204,10 @@ def function_replacement(x):
         `x`, but which may not store a value. May return `x` itself.
     """
 
-    return x._tlm_adjoint__function_interface_replacement()
+    if function_is_replacement(x):
+        return x
+    else:
+        return x._tlm_adjoint__function_interface_replacement()
 
 
 def function_is_replacement(x):
@@ -1251,6 +1254,23 @@ def function_is_alias(x):
     """
 
     return x._tlm_adjoint__function_interface_is_alias()
+
+
+def function_copy_conjugate(x):
+    y = function_new_conjugate(x)
+    function_set_values(y, function_get_values(x).conjugate())
+    return y
+
+
+def function_assign_conjugate(x, y):
+    check_space_types_conjugate(x, y)
+    function_set_values(x, function_get_values(y).conjugate())
+
+
+def function_axpy_conjugate(y, alpha, x, /):
+    check_space_types_conjugate(y, x)
+    function_set_values(
+        y, function_get_values(y) + alpha * function_get_values(x).conjugate())
 
 
 def functions_assign(X, Y):

@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    Form, FunctionSpace, LUSolver, KrylovSolver, Parameters,
-    TensorFunctionSpace, TestFunction, UserExpression, VectorFunctionSpace,
-    as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
+    FunctionSpace, LUSolver, KrylovSolver, Parameters, TensorFunctionSpace,
+    TestFunction, UserExpression, VectorFunctionSpace, as_backend_type,
+    backend_Constant, backend_DirichletBC, backend_Function,
     backend_ScalarType, backend_assemble, backend_assemble_system,
     backend_solve as solve, has_lu_solver_method, parameters)
 from ..interface import (
@@ -222,7 +222,7 @@ def linear_solver(A, linear_solver_parameters):
     return solver
 
 
-def form_form_compiler_parameters(form, form_compiler_parameters):
+def form_compiler_quadrature_parameters(form, form_compiler_parameters):
     (form_data,), _, _, _ \
         = ffc.analysis.analyze_forms((form,), form_compiler_parameters)
     integral_metadata = tuple(integral_data.metadata
@@ -421,29 +421,17 @@ def interpolate_expression(x, expr, *, adj_x=None):
             raise TypeError(f"Unexpected type: {type(x)}")
 
 
-def bind_form(form):
-    bindings = form._cache.get("_tlm_adjoint__bindings", {})
-    form = eliminate_zeros(form, force_non_empty_form=True)
-    return ufl.replace(form, bindings)
-
-
 def assemble(form, tensor=None, *,
              form_compiler_parameters=None):
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
 
-    if not isinstance(form, Form):
-        form = bind_form(form)
     return backend_assemble(form, tensor,
                             form_compiler_parameters=form_compiler_parameters)
 
 
 def assemble_system(A_form, b_form, bcs=None, *,
                     form_compiler_parameters=None):
-    if not isinstance(A_form, Form):
-        A_form = bind_form(A_form)
-    if not isinstance(b_form, Form):
-        b_form = bind_form(b_form)
     return backend_assemble_system(
         A_form, b_form, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters)

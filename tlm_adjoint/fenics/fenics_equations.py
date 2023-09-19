@@ -5,13 +5,14 @@
 backend.
 """
 
-from .backend import Cell, LocalSolver, Mesh, MeshEditor, Point, \
-    TestFunction, TrialFunction, backend_Function, backend_ScalarType, \
-    parameters
-from ..interface import check_space_type, function_assign, function_comm, \
-    function_get_values, function_is_scalar, function_local_size, \
-    function_new, function_new_conjugate_dual, function_scalar_value, \
-    function_set_values, function_space, is_function, space_comm
+from .backend import (
+    Cell, LocalSolver, Mesh, MeshEditor, Point, TestFunction, TrialFunction,
+    backend_Function, backend_ScalarType, parameters)
+from ..interface import (
+    check_space_type, function_assign, function_comm, function_get_values,
+    function_is_scalar, function_local_size, function_new,
+    function_new_conjugate_dual, function_scalar_value, function_set_values,
+    function_space, is_function, space_comm)
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -20,8 +21,7 @@ from ..equations import MatrixActionRHS
 from ..linear_equation import LinearEquation, Matrix
 
 from .caches import form_dependencies, form_key
-from .equations import EquationSolver, bind_form, derivative, unbind_form, \
-    unbound_form
+from .equations import EquationSolver, derivative
 from .functions import eliminate_zeros
 
 import functools
@@ -304,17 +304,9 @@ class LocalProjection(EquationSolver):
                 self._rhs,
                 form_compiler_parameters=self._form_compiler_parameters)
         else:
-            if self._forward_eq is None:
-                self._forward_eq = \
-                    (None,
-                     None,
-                     unbound_form(self._rhs, self.dependencies()))
-            _, _, rhs = self._forward_eq
-            bind_form(rhs, deps)
             b = assemble(
-                rhs,
+                self._replace(self._rhs, deps),
                 form_compiler_parameters=self._form_compiler_parameters)
-            unbind_form(rhs)
 
         if self._cache_jacobian:
             local_solver = self._forward_J_solver()
