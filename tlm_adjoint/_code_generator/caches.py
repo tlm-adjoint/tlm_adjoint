@@ -241,7 +241,7 @@ def split_terms(terms, base_integral,
                     mat_terms[function_id(mat_dep)].extend(mat_sub)
                 non_cached_terms.extend(non_cached_sub)
 
-    return cached_terms, mat_terms, non_cached_terms
+    return cached_terms, dict(mat_terms), non_cached_terms
 
 
 def split_form(form):
@@ -280,9 +280,7 @@ def form_dependencies(form):
     deps = {}
     for dep in extract_coefficients(form):
         if is_function(dep):
-            dep_id = function_id(dep)
-            if dep_id not in deps:
-                deps[dep_id] = dep
+            deps.setdefault(function_id(dep), dep)
     return deps
 
 

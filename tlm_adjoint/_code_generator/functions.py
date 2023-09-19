@@ -12,10 +12,10 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, function_caches,
     function_comm, function_dtype, function_form_derivative_space, function_id,
-    function_is_cached, function_is_checkpointed, function_is_static,
-    function_linf_norm, function_name, function_replacement,
-    function_scalar_value, function_space, function_space_type, is_function,
-    space_comm)
+    function_is_cached, function_is_checkpointed, function_is_replacement,
+    function_is_static, function_linf_norm, function_local_size, function_name,
+    function_replacement, function_scalar_value, function_space,
+    function_space_type, is_function, space_comm)
 from ..interface import FunctionInterface as _FunctionInterface
 
 from ..caches import Caches
@@ -124,7 +124,7 @@ class ConstantInterface(_FunctionInterface):
             if len(self.ufl_shape) == 0:
                 value = y
             else:
-                value = np.full(self.ufl_shape, y)
+                value = np.full(self.ufl_shape, y, dtype=function_dtype(self))
                 value = backend_Constant(value)
         elif isinstance(y, backend_Constant):
             value = y
@@ -210,6 +210,8 @@ class ConstantInterface(_FunctionInterface):
     def _set_values(self, values):
         if not np.can_cast(values, function_dtype(self)):
             raise ValueError("Invalid dtype")
+        if values.shape != (function_local_size(self),):
+            raise ValueError("Invalid shape")
         comm = function_comm(self)
         if comm.rank != 0:
             values = None
@@ -295,6 +297,7 @@ class Constant(backend_Constant):
             domains = space.ufl_domains()
             if len(domains) > 0:
                 domain, = domains
+            del domains
 
         # Shape initialization / checking
         if space is not None:
@@ -403,15 +406,17 @@ class ZeroConstant(Constant, Zero):
     `static=True`, `cache=True`, and `checkpoint=False`.
     """
 
-    def __init__(self, *, name=None, domain=None, space_type="primal",
-                 shape=None, comm=None):
+    def __init__(self, *, name=None, domain=None, space=None,
+                 space_type="primal", shape=None, comm=None):
         Constant.__init__(
-            self, name=name, domain=domain, space_type=space_type, shape=shape,
-            comm=comm, static=True, cache=True, checkpoint=False)
+            self, name=name, domain=domain, space=space, space_type=space_type,
+            shape=shape, comm=comm, static=True, cache=True, checkpoint=False)
+        if function_linf_norm(self) != 0.0:
+            raise RuntimeError("ZeroConstant is not zero-valued")
 
-    def __new__(cls, *args, domain=None, shape=None, **kwargs):
+    def __new__(cls, *args, shape=None, **kwargs):
         return Constant.__new__(
-            cls, constant_value(shape=shape), *args, domain=domain,
+            cls, constant_value(shape=shape), *args,
             shape=shape, static=True, cache=True, checkpoint=False, **kwargs)
 
     def assign(self, *args, **kwargs):
@@ -425,10 +430,10 @@ class ZeroFunction(Function, Zero):
     `static=True`, `cache=True`, and `checkpoint=False`.
     """
 
-    def __init__(self, *args, space_type="primal", **kwargs):
+    def __init__(self, *args, **kwargs):
         Function.__init__(
             self, *args, **kwargs,
-            space_type=space_type, static=True, cache=True, checkpoint=False)
+            static=True, cache=True, checkpoint=False)
         # Firedrake requires the ability to pass a value to the constructor, so
         # we check that we have a zero-valued function here
         if function_linf_norm(self) != 0.0:
@@ -816,8 +821,10 @@ class ReplacementFunction(Replacement):
 def replaced_form(form):
     replace_map = {}
     for c in extract_coefficients(form):
-        if is_function(c):
-            replace_map[c] = function_replacement(c)
+        if is_function(c) and not function_is_replacement(c):
+            c_rep = function_replacement(c)
+            if c_rep is not c:
+                replace_map[c] = c_rep
     return ufl.replace(form, replace_map)
 
 

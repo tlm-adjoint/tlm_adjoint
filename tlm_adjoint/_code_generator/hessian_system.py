@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from ..interface import (
-    check_space_types, check_space_types_conjugate, comm_dup_cached,
-    function_assign, function_axpy, function_copy, function_dtype,
-    function_get_values, function_inner, function_new_conjugate,
-    function_set_values, function_space, function_space_type, is_function,
-    space_comm, space_dtype)
+    check_space_types, comm_dup_cached, function_assign, function_axpy,
+    function_axpy_conjugate, function_copy, function_copy_conjugate,
+    function_dtype, function_inner, function_space, function_space_type,
+    is_function, space_comm, space_dtype)
 
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
@@ -68,25 +67,7 @@ class MixedSpace(BackendMixedSpace):
 # returned by reverse-over-forward AD. However complex conjugation is then
 # needed in a number of places (e.g. one cannot define an eigenproblem directly
 # in terms of the conjugate of an action, as this is antilinear, rather than
-# linear). The following functions are used to apply complex conjugation where
-# needed. In the real case these are used to avoid space type warnings.
-
-
-def function_copy_conjugate(x):
-    y = function_new_conjugate(x)
-    function_set_values(y, function_get_values(x).conjugate())
-    return y
-
-
-def function_assign_conjugate(x, y):
-    check_space_types_conjugate(x, y)
-    function_set_values(x, function_get_values(y).conjugate())
-
-
-def function_axpy_conjugate(y, alpha, x, /):
-    check_space_types_conjugate(y, x)
-    function_set_values(
-        y, function_get_values(y) + alpha * function_get_values(x).conjugate())
+# linear).
 
 
 class HessianMatrix(Matrix):

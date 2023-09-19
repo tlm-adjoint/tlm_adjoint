@@ -958,8 +958,7 @@ class BlockMatrix(Matrix):
             yield self[(i, j)]
 
     def items(self):
-        for (i, j) in self:
-            yield ((i, j), self[(i, j)])
+        yield from zip(self.keys(), self.values())
 
     def update(self, other):
         for (i, j), block in other.items():
