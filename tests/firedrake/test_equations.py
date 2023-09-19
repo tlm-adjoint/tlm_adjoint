@@ -313,7 +313,7 @@ def test_PointInterpolation(setup_test, test_leaks,
     def forward(y):
         X_vals = [Constant(name=f"x_{i:d}")
                   for i in range(X_coords.shape[0])]
-        eq = PointInterpolation(X_vals, y, X_coords)
+        eq = PointInterpolation(X_vals, y, X_coords, tolerance=1.0e-14)
         eq.solve()
 
         J = Functional(name="J")

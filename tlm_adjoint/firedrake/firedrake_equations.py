@@ -265,9 +265,10 @@ class PointInterpolation(Equation):
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
+    :arg tolerance: :class:`VertexOnlyMesh` tolerance.
     """
 
-    def __init__(self, X, y, X_coords=None, *,
+    def __init__(self, X, y, X_coords=None, *, tolerance=None,
                  _interp=None):
         if is_function(X):
             X = (X,)
@@ -293,7 +294,8 @@ class PointInterpolation(Equation):
         interp = _interp
         if interp is None:
             y_space = function_space(y)
-            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords)
+            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords,
+                                   tolerance=tolerance)
             vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
             interp = Interpolator(TestFunction(y_space), vspace)
             if not hasattr(interp, "_tlm_adjoint__vmesh_coords_map"):
