@@ -379,5 +379,5 @@ def functional_term_eq_form(x, term):
 
 
 register_functional_term_eq(
-    (SymbolicFloat, backend_Constant, backend_Function), ufl.classes.Form,
+    (SymbolicFloat, backend_Constant), ufl.classes.Form,
     functional_term_eq_form)

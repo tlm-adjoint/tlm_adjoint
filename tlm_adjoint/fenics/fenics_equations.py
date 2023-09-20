@@ -123,7 +123,7 @@ def point_cells(coords, mesh):
             full_cells[i] = full_cell
             distances[i] = distance
     else:
-        l_mesh, full_vertex_map, full_cell_map = local_mesh(mesh)
+        l_mesh, _, full_cell_map = local_mesh(mesh)
         local_tree = l_mesh.bounding_box_tree()
         for i in range(coords.shape[0]):
             point = Point(*coords[i, :])
@@ -144,7 +144,7 @@ def greedy_coloring(space):
     ownership_range = dofmap.ownership_range()
     N = ownership_range[1] - ownership_range[0]
 
-    node_node_graph = tuple(set() for i in range(N))
+    node_node_graph = tuple(set() for _ in range(N))
     for i in range(mesh.num_cells()):
         if Cell(mesh, i).is_ghost():
             continue
@@ -175,7 +175,7 @@ def greedy_coloring(space):
             # Consider a new node, and the smallest non-negative available
             # color
             j = front.pop()
-            neighbouring_colors = set(colors[node_node_graph[j]])
+            neighbouring_colors = set(colors[k] for k in node_node_graph[j])
             color = 0
             while color in neighbouring_colors:
                 color += 1
@@ -187,6 +187,8 @@ def greedy_coloring(space):
                     seen[k] = True
         # If the graph is not connected then we need to restart the front with
         # a new starting node
+    if (colors < 0).any():
+        raise RuntimeError("Invalid graph coloring")
 
     return colors
 
@@ -299,10 +301,6 @@ class LocalProjection(EquationSolver):
     def forward_solve(self, x, deps=None):
         if self._cache_rhs_assembly:
             b = self._cached_rhs(deps)
-        elif deps is None:
-            b = assemble(
-                self._rhs,
-                form_compiler_parameters=self._form_compiler_parameters)
         else:
             b = assemble(
                 self._replace(self._rhs, deps),
@@ -344,7 +342,8 @@ class LocalProjection(EquationSolver):
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
+                    tlm_rhs = (tlm_rhs
+                               + derivative(self._rhs, dep, argument=tau_dep))
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
@@ -409,7 +408,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
     y_colors_N = y_colors.max() + 1
     y_colors_N = comm.allreduce(y_colors_N, op=MPI.MAX)
     assert y_colors_N >= 0
-    y_nodes = tuple([] for i in range(y_colors_N))
+    y_nodes = tuple([] for _ in range(y_colors_N))
     for y_node, color in enumerate(y_colors):
         y_nodes[color].append(y_node)
 
@@ -428,7 +427,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
                 raise RuntimeError("Cannot interpolate within a ghost cell")
 
             y_cell_nodes = y_dofmap.cell_dofs(y_cell)
-            y_cell_colors = y_colors[y_cell_nodes].tolist()
+            y_cell_colors = [y_colors[j] for j in y_cell_nodes]
             if color in y_cell_colors:
                 assert y_cell_colors.count(color) == 1
                 i = y_cell_colors.index(color)

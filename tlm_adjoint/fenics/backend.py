@@ -13,6 +13,7 @@ backend_ScalarType = PETSc.ScalarType
 
 if not issubclass(backend_ScalarType, (float, np.floating)):
     raise ImportError(f"Invalid backend scalar type: {backend_ScalarType}")
+complex_mode = False
 
 extract_args = fenics.fem.solving._extract_args
 

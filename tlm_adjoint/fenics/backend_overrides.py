@@ -99,11 +99,12 @@ def _setattr(self, key, value):
 @override_method(Form, "__init__")
 def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
                  **kwargs):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
     orig_args()
 
     self._tlm_adjoint__form = form
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
     self._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
 
@@ -130,7 +131,8 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
                     form_compiler_parameters):
                 warnings.warn("Unexpected form compiler parameters",
                               RuntimeWarning)
-            tensor._tlm_adjoint__form += form._tlm_adjoint__form
+            tensor._tlm_adjoint__form = (tensor._tlm_adjoint__form
+                                         + form._tlm_adjoint__form)
         else:
             tensor._tlm_adjoint__form = form._tlm_adjoint__form
             tensor._tlm_adjoint__bcs = []
@@ -141,16 +143,17 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
 
 @override_method(cpp_SystemAssembler, "__init__")
 def SystemAssembler__init__(self, orig, orig_args, A_form, b_form, bcs=None):
-    orig_args()
-
-    _setattr(self, "A_form", A_form)
-    _setattr(self, "b_form", b_form)
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
     else:
         bcs = tuple(bcs)
+
+    orig_args()
+
+    _setattr(self, "A_form", A_form)
+    _setattr(self, "b_form", b_form)
     _setattr(self, "bcs", bcs)
 
 
@@ -196,7 +199,8 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
                         form_compiler_parameters):
                     warnings.warn("Unexpected form compiler parameters",
                                   RuntimeWarning)
-                tensor._tlm_adjoint__form += form._tlm_adjoint__form
+                tensor._tlm_adjoint__form = (tensor._tlm_adjoint__form
+                                             + form._tlm_adjoint__form)
             else:
                 tensor._tlm_adjoint__form = form._tlm_adjoint__form
                 tensor._tlm_adjoint__bcs = []
@@ -221,12 +225,12 @@ def solve_linear(orig, orig_args, A, x, b,
             form_compiler_parameters):
         raise ValueError("Non-matching form compiler parameters")
 
-    A = A._tlm_adjoint__form
+    A_form = A._tlm_adjoint__form
     x = x._tlm_adjoint__function
-    b = b._tlm_adjoint__form
+    b_form = b._tlm_adjoint__form
 
     eq = EquationSolver(
-        linear_equation_new_x(A == b, x,
+        linear_equation_new_x(A_form == b_form, x,
                               annotate=annotate, tlm=tlm),
         x, bcs, solver_parameters=solver_parameters,
         form_compiler_parameters=form_compiler_parameters,
@@ -278,6 +282,7 @@ def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
         if solver_parameters is not None:
             solver_parameters_.update(solver_parameters)
         solver_parameters = solver_parameters_
+        del solver_parameters_
 
         eq = Projection(
             x, expr_new_x(v, x, annotate=annotate, tlm=tlm), bcs,
@@ -682,14 +687,15 @@ def LinearVariationalSolver_solve(self, orig, orig_args, *,
 def NonlinearVariationalProblem__init__(
         self, orig, orig_args, F, u, bcs=None, J=None,
         form_compiler_parameters=None):
-    orig_args()
-
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
         bcs = (bcs,)
     else:
         bcs = tuple(bcs)
+
+    orig_args()
+
     self._tlm_adjoint__bcs = bcs
     self._tlm_adjoint__has_bounds = False
 
