@@ -5,8 +5,9 @@ from .backend import (
     FunctionSpace, LUSolver, KrylovSolver, Parameters, TensorFunctionSpace,
     TestFunction, UserExpression, VectorFunctionSpace, as_backend_type,
     backend_Constant, backend_DirichletBC, backend_Function,
-    backend_ScalarType, backend_assemble, backend_assemble_system,
-    backend_solve as solve, has_lu_solver_method, parameters)
+    backend_ScalarType, backend_Vector, backend_assemble,
+    backend_assemble_system, backend_solve as solve, complex_mode,
+    has_lu_solver_method, parameters)
 from ..interface import (
     check_space_type, check_space_types, function_assign, function_get_values,
     function_inner, function_new_conjugate_dual, function_set_values,
@@ -65,9 +66,6 @@ if "rhs_tolerance" not in _parameters["assembly_verification"]:
 del _parameters
 
 
-complex_mode = False
-
-
 def copy_parameters_dict(parameters):
     if isinstance(parameters, Parameters):
         parameters = dict(parameters)
@@ -102,37 +100,23 @@ def process_solver_parameters(solver_parameters, linear):
     if linear:
         linear_solver_parameters = solver_parameters
     else:
-        if "nonlinear_solver" not in solver_parameters:
-            solver_parameters["nonlinear_solver"] = "newton"
-        nl_solver = solver_parameters["nonlinear_solver"]
+        nl_solver = solver_parameters.setdefault("nonlinear_solver", "newton")
         if nl_solver == "newton":
-            if "newton_solver" not in solver_parameters:
-                solver_parameters["newton_solver"] = {}
-            linear_solver_parameters = solver_parameters["newton_solver"]
+            linear_solver_parameters = solver_parameters.setdefault("newton_solver", {})  # noqa: E501
         elif nl_solver == "snes":
-            if "snes_solver" not in solver_parameters:
-                solver_parameters["snes_solver"] = {}
-            linear_solver_parameters = solver_parameters["snes_solver"]
+            linear_solver_parameters = solver_parameters.setdefault("snes_solver", {})  # noqa: E501
         else:
             raise ValueError(f"Unsupported non-linear solver: {nl_solver}")
 
-    if "linear_solver" not in linear_solver_parameters:
-        linear_solver_parameters["linear_solver"] = "default"
-    linear_solver = linear_solver_parameters["linear_solver"]
-    is_lu_linear_solver = linear_solver in ["default", "direct", "lu"] \
+    linear_solver = linear_solver_parameters.setdefault("linear_solver", "default")  # noqa: E501
+    is_lu_linear_solver = linear_solver in {"default", "direct", "lu"} \
         or has_lu_solver_method(linear_solver)
     if is_lu_linear_solver:
-        if "lu_solver" not in linear_solver_parameters:
-            linear_solver_parameters["lu_solver"] = {}
+        linear_solver_parameters.setdefault("lu_solver", {})
         linear_solver_ic = False
     else:
-        if "krylov_solver" not in linear_solver_parameters:
-            linear_solver_parameters["krylov_solver"] = {}
-        ks_parameters = linear_solver_parameters["krylov_solver"]
-        if "nonzero_initial_guess" not in ks_parameters:
-            ks_parameters["nonzero_initial_guess"] = False
-        nonzero_initial_guess = ks_parameters["nonzero_initial_guess"]
-        linear_solver_ic = nonzero_initial_guess
+        ks_parameters = linear_solver_parameters.setdefault("krylov_solver", {})  # noqa: E501
+        linear_solver_ic = ks_parameters.setdefault("nonzero_initial_guess", False)  # noqa: E501
 
     return (solver_parameters, linear_solver_parameters,
             not linear or linear_solver_ic, linear_solver_ic)
@@ -204,7 +188,7 @@ def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
 
 def linear_solver(A, linear_solver_parameters):
     linear_solver = linear_solver_parameters.get("linear_solver", "default")
-    if linear_solver in ["direct", "lu"]:
+    if linear_solver in {"direct", "lu"}:
         linear_solver = "default"
     elif linear_solver == "iterative":
         linear_solver = "gmres"
@@ -305,7 +289,7 @@ def is_valid_r0_space(space):
 
 def r0_space(x):
     if not hasattr(x, "_tlm_adjoint__r0_space"):
-        domain, = x.ufl_domains()
+        domain = function_space(x)._tlm_adjoint__space_interface_attrs["domain"]  # noqa: E501
         domain = domain.ufl_cargo()
         if len(x.ufl_shape) == 0:
             space = FunctionSpace(domain, "R", 0)
@@ -315,18 +299,25 @@ def r0_space(x):
         else:
             space = TensorFunctionSpace(domain, "R", degree=0,
                                         shape=x.ufl_shape)
-        assert is_valid_r0_space(space)
+        if not is_valid_r0_space(space):
+            raise RuntimeError("Invalid space")
         x._tlm_adjoint__r0_space = space
     return x._tlm_adjoint__r0_space
 
 
 def rhs_copy(x):
+    if not isinstance(x, backend_Vector):
+        raise TypeError("Invalid RHS")
     if hasattr(x, "_tlm_adjoint__function"):
         check_space_type(x._tlm_adjoint__function, "conjugate_dual")
     return x.copy()
 
 
 def rhs_addto(x, y):
+    if not isinstance(x, backend_Vector):
+        raise TypeError("Invalid RHS")
+    if not isinstance(y, backend_Vector):
+        raise TypeError("Invalid RHS")
     if hasattr(x, "_tlm_adjoint__function"):
         check_space_type(x._tlm_adjoint__function, "conjugate_dual")
     if hasattr(y, "_tlm_adjoint__function"):

@@ -6,8 +6,8 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    check_space_types, comm_dup_cached, function_copy, function_dtype,
-    function_new, function_scalar_value, function_space, function_space_type,
+    check_space_types, comm_dup_cached, function_copy, function_new,
+    function_scalar_value, function_space, function_space_type,
     new_function_id, new_space_id, register_finalize_adjoint_derivative_action,
     register_functional_term_eq, register_subtract_adjoint_derivative_action,
     space_id, subtract_adjoint_derivative_action,
@@ -42,12 +42,6 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
         comm = DEFAULT_COMM
 
     orig(self, *args, **kwargs)
-
-    self.ufl_domain = lambda: domain
-    if domain is None:
-        self.ufl_domains = lambda: ()
-    else:
-        self.ufl_domains = lambda: (domain,)
 
     if space is None:
         space = self.ufl_function_space()
@@ -146,8 +140,7 @@ class FunctionInterface(_FunctionInterface):
 
     def _caches(self):
         if "caches" not in self._tlm_adjoint__function_interface_attrs:
-            self._tlm_adjoint__function_interface_attrs["caches"] \
-                = Caches(self)
+            self._tlm_adjoint__function_interface_attrs["caches"] = Caches(self)  # noqa: E501
         return self._tlm_adjoint__function_interface_attrs["caches"]
 
     @check_vector_size
@@ -168,7 +161,7 @@ class FunctionInterface(_FunctionInterface):
             if len(self.ufl_shape) == 0:
                 self.assign(backend_Constant(y))
             else:
-                y_arr = np.full(self.ufl_shape, y)
+                y_arr = np.full(self.ufl_shape, y, dtype=backend_ScalarType)
                 self.assign(backend_Constant(y_arr))
         elif isinstance(y, Zero):
             self.vector().zero()
@@ -191,7 +184,7 @@ class FunctionInterface(_FunctionInterface):
             if len(self.ufl_shape) == 0:
                 x_.assign(backend_Constant(x))
             else:
-                x_arr = np.full(self.ufl_shape, x)
+                x_arr = np.full(self.ufl_shape, x, dtype=backend_ScalarType)
                 x_.assign(backend_Constant(x_arr))
             self.vector().axpy(alpha, x_.vector())
         elif isinstance(x, Zero):
@@ -246,7 +239,7 @@ class FunctionInterface(_FunctionInterface):
 
     @check_vector_size
     def _set_values(self, values):
-        if not np.can_cast(values, function_dtype(self)):
+        if not np.can_cast(values, backend_ScalarType):
             raise ValueError("Invalid dtype")
         if values.shape != (self.vector().local_size(),):
             raise ValueError("Invalid shape")
@@ -294,10 +287,15 @@ class FunctionInterface(_FunctionInterface):
         return "alias" in self._tlm_adjoint__function_interface_attrs
 
 
+# Aim for compatibility with FEniCS 2019.1.0 API
+
+
 @override_method(backend_Function, "__init__")
 @FunctionSpace_add_interface_disabled
 def Function__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
+    # Creates a reference to the vector so that unexpected changes can be
+    # detected
     self.vector()
 
     if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
@@ -308,8 +306,7 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
                    "static": False, "cache": False, "checkpoint": True})
 
     space = self.function_space()
-    if isinstance(args[0], backend_FunctionSpace) \
-            and args[0].id() == space.id():
+    if isinstance(args[0], backend_FunctionSpace) and args[0].id() == space.id():  # noqa: E501
         id = space_id(args[0])
     else:
         id = new_space_id()
@@ -318,7 +315,6 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
     self._tlm_adjoint__function_interface_attrs["space"] = space
 
 
-# Aim for compatibility with FEniCS 2019.1.0 API
 @override_method(backend_Function, "function_space")
 def Function_function_space(self, orig, orig_args):
     if hasattr(self, "_tlm_adjoint__function_interface_attrs") \
@@ -328,7 +324,6 @@ def Function_function_space(self, orig, orig_args):
         return orig_args()
 
 
-# Aim for compatibility with FEniCS 2019.1.0 API
 @override_method(backend_Function, "split")
 def Function_split(self, orig, orig_args, deepcopy=False):
     Y = orig_args()
@@ -405,5 +400,5 @@ def functional_term_eq_form(x, term):
 
 
 register_functional_term_eq(
-    (SymbolicFloat, backend_Constant, backend_Function), ufl.classes.Form,
+    (SymbolicFloat, backend_Constant), ufl.classes.Form,
     functional_term_eq_form)
