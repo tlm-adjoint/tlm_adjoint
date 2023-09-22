@@ -1379,6 +1379,7 @@ _finalize_adjoint_derivative_action = []
 def finalize_adjoint_derivative_action(x):
     for fn in _finalize_adjoint_derivative_action:
         fn(x)
+        function_update_state(x)
 
 
 def register_finalize_adjoint_derivative_action(fn):
