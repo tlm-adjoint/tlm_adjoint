@@ -87,11 +87,13 @@ with other tlm_adjoint code, space type warnings may be encountered.
 from .backend import backend
 
 if backend == "Firedrake":
-    from firedrake import (Constant, DirichletBC, Function, FunctionSpace,
-                           TestFunction, assemble)
+    from firedrake import (
+        Cofunction, Constant, DirichletBC, Function, FunctionSpace,
+        TestFunction, assemble)
+    from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 elif backend == "FEniCS":
-    from fenics import (Constant, DirichletBC, Function, FunctionSpace,
-                        TestFunction, assemble)
+    from fenics import (
+        Constant, DirichletBC, Function, FunctionSpace, TestFunction, assemble)
     from fenics import FunctionAssigner, as_backend_type
     from dolfin.cpp.function import Constant as cpp_Constant
 else:
@@ -280,25 +282,19 @@ class MixedSpace(ABC):
 
         return self._mixed_space
 
-    def new_split(self, *args, **kwargs):
+    def new_split(self):
         """
         :returns: A new function in the split space.
-
-        Arguments are passed to the backend :class:`Function` constructor.
         """
 
-        return tuple_sub((Function(space, *args, **kwargs)
-                          for space in self._flattened_spaces),
-                         self._spaces)
+        return tuple_sub(map(Function, self._flattened_spaces), self._spaces)
 
-    def new_mixed(self, *args, **kwargs):
+    def new_mixed(self):
         """
         :returns: A new function in the mixed space.
-
-        Arguments are passed to the backend :class:`Function` constructor.
         """
 
-        return Function(self._mixed_space, *args, **kwargs)
+        return Function(self._mixed_space)
 
     @property
     def sizes(self):
@@ -336,10 +332,32 @@ if backend == "Firedrake":
         return mesh.comm
 
     class BackendMixedSpace(MixedSpace):
+        def __init__(self, spaces):
+            if isinstance(spaces, Sequence):
+                spaces = tuple(spaces)
+            else:
+                spaces = (spaces,)
+            spaces = tuple_sub(spaces, spaces)
+            super().__init__(
+                tuple_sub((space if isinstance(space, FunctionSpaceBase)
+                           else space.dual() for space in iter_sub(spaces)),
+                          spaces))
+            self._primal_dual_spaces = tuple(iter_sub(spaces))
+            assert len(self._primal_dual_spaces) == len(self._flattened_spaces)
+
+        def new_split(self):
+            u = []
+            for space in self._primal_dual_spaces:
+                if isinstance(space, FunctionSpaceBase):
+                    u.append(Function(space))
+                else:
+                    u.append(Cofunction(space))
+            return tuple_sub(u, self._spaces)
+
         @staticmethod
         def _iter_sub_fn(iterable):
             def expand(e):
-                if isinstance(e, Function):
+                if isinstance(e, (Cofunction, Function)):
                     space = e.function_space()
                     if hasattr(space, "num_sub_spaces"):
                         return tuple(e.sub(i)
@@ -351,18 +369,22 @@ if backend == "Firedrake":
         def mixed_to_split(self, u, u_fn):
             if len(self._flattened_spaces) == 1:
                 u, = tuple(iter_sub(u))
-                u.assign(u_fn)
+                with u_fn.dat.vec_ro as u_fn_v, u.dat.vec_wo as u_v:
+                    u_fn_v.copy(result=u_v)
             else:
                 for i, u_i in enumerate(self._iter_sub_fn(u)):
-                    u_i.assign(u_fn.sub(i))
+                    with u_fn.sub(i).dat.vec_ro as u_fn_i_v, u_i.dat.vec_wo as u_i_v:  # noqa: E501
+                        u_fn_i_v.copy(result=u_i_v)
 
         def split_to_mixed(self, u_fn, u):
             if len(self._flattened_spaces) == 1:
                 u, = tuple(iter_sub(u))
-                u_fn.assign(u)
+                with u_fn.dat.vec_wo as u_fn_v, u.dat.vec_ro as u_v:
+                    u_v.copy(result=u_fn_v)
             else:
                 for i, u_i in enumerate(self._iter_sub_fn(u)):
-                    u_fn.sub(i).assign(u_i)
+                    with u_fn.sub(i).dat.vec_wo as u_fn_i_v, u_i.dat.vec_ro as u_i_v:  # noqa: E501
+                        u_i_v.copy(result=u_fn_i_v)
 
     def mat(a):
         return a.petscmat
@@ -387,8 +409,12 @@ if backend == "Firedrake":
     def apply_bcs(u, bcs):
         if not isinstance(bcs, Sequence):
             bcs = (bcs,)
+        if len(bcs) > 0 and not isinstance(u.function_space(), type(bcs[0].function_space())):  # noqa: E501
+            u_bc = u.riesz_representation("l2")
+        else:
+            u_bc = u
         for bc in bcs:
-            bc.apply(u)
+            bc.apply(u_bc)
 elif backend == "FEniCS":
     def mesh_comm(mesh):
         return mesh.mpi_comm()
@@ -1005,7 +1031,8 @@ class PETScInterface:
 
         if not isinstance(self._nullspace, NoneNullspace):
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
-                x_c_i.assign(x_i)
+                with vec(x_c_i, Access.WRITE) as x_c_i_v, vec(x_i, Access.READ) as x_i_v:  # noqa: E501
+                    x_i_v.copy(result=x_c_i_v)
 
         for y_i in iter_sub(self._y):
             with vec(y_i, Access.WRITE) as y_i_v:
@@ -1202,7 +1229,8 @@ class System:
         b_c = self._action_space.new_split()
         for b_c_i, b_i in zip_sub(b_c, b):
             if b_i is not None:
-                b_c_i.assign(b_i)
+                with vec(b_c_i, Access.WRITE) as b_c_i_v, vec(b_i, Access.READ) as b_i_v:  # noqa: E501
+                    b_i_v.copy(result=b_c_i_v)
 
         A = SystemMatrix(self._arg_space, self._action_space,
                          self._matrix, self._nullspace)

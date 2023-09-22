@@ -4,7 +4,8 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
-from tlm_adjoint.firedrake.backend import backend_Constant, backend_Function
+from tlm_adjoint.firedrake.backend import (
+    backend_Cofunction, backend_Constant, backend_Function)
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
     complex_mode, interpolate_expression)
 from tlm_adjoint.alias import gc_disabled
@@ -116,6 +117,12 @@ def Constant__init__(self, orig, orig_args, *args, **kwargs):
 
 @override_method(backend_Function, "__init__")
 def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    _function_ids[function_id(self)] = self
+
+
+@override_method(backend_Cofunction, "__init__")
+def Cofunction__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     _function_ids[function_id(self)] = self
 

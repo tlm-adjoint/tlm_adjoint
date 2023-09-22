@@ -159,7 +159,7 @@ def test_l_bfgs_single(setup_test, test_leaks):
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test = TestFunction(space)
-    M_l = Function(space, name="M_l", space_type="conjugate_dual")
+    M_l = Cofunction(space.dual(), name="M_l")
     assemble(test * dx, tensor=M_l)
 
     x_star = Function(space, name="x_star")
@@ -171,7 +171,7 @@ def test_l_bfgs_single(setup_test, test_leaks):
 
     def Fp(x):
         check_space_type(x, "primal")
-        Fp = Function(space, name="Fp", space_type="conjugate_dual")
+        Fp = Cofunction(space.dual(), name="Fp")
         assemble(inner(x - x_star, test) * dx, tensor=Fp)
         return Fp
 
@@ -185,8 +185,7 @@ def test_l_bfgs_single(setup_test, test_leaks):
 
     def B_0_action(x):
         check_space_type(x, "primal")
-        B_0_action = Function(space, name="B_0_action",
-                              space_type="conjugate_dual")
+        B_0_action = Cofunction(space.dual(), name="B_0_action")
         function_set_values(B_0_action,
                             function_get_values(x)
                             * function_get_values(M_l))
@@ -221,8 +220,8 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
     space_y = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
     test_x = TestFunction(space_x)
     test_y = TestFunction(space_y)
-    M_l_x = Function(space_x, name="M_l_x", space_type="conjugate_dual")
-    M_l_y = Function(space_y, name="M_l_y", space_type="conjugate_dual")
+    M_l_x = Cofunction(space_x.dual(), name="M_l_x")
+    M_l_y = Cofunction(space_y.dual(), name="M_l_y")
     assemble(test_x * dx, tensor=M_l_x)
     assemble(test_y * dx, tensor=M_l_y)
 
@@ -241,8 +240,8 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
     def Fp(x, y):
         check_space_type(x, "primal")
         check_space_type(y, "primal")
-        Fp = (Function(space_x, name="Fp_0", space_type="conjugate_dual"),
-              Function(space_y, name="Fp_1", space_type="conjugate_dual"))
+        Fp = (Cofunction(space_x.dual(), name="Fp_0"),
+              Cofunction(space_y.dual(), name="Fp_1"))
         assemble(inner(x - x_star, test_x) * dx, tensor=Fp[0])
         assemble(inner(alpha_y * (y - y_star), test_y) * dx, tensor=Fp[1])
         return Fp
@@ -263,10 +262,8 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
     def B_0_action(x, y):
         check_space_type(x, "primal")
         check_space_type(y, "primal")
-        B_0_action = (Function(space_x, name="B_0_action_0",
-                               space_type="conjugate_dual"),
-                      Function(space_y, name="B_0_action_1",
-                               space_type="conjugate_dual"))
+        B_0_action = (Cofunction(space_x.dual(), name="B_0_action_0"),
+                      Cofunction(space_y.dual(), name="B_0_action_1"))
         function_set_values(B_0_action[0],
                             function_get_values(x)
                             * function_get_values(M_l_x))

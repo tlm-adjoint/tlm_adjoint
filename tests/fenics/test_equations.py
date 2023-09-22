@@ -119,7 +119,10 @@ def test_Axpy(setup_test, test_leaks,
 
     y_error = function_copy(y)
     function_axpy(y_error, -1.0, x)
-    function_axpy(y_error, -c, 2.0)
+    y_1 = Function(space)
+    y_1.assign(Constant(2.0))
+    function_axpy(y_error, -c, y_1)
+    del y_1
     assert function_linf_norm(y_error) == 0.0
 
     J_val = J.value()
@@ -745,33 +748,39 @@ def test_Storage(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @pytest.mark.skipif(complex_mode, reason="real only")
-@no_space_type_checking
 @seed_test
 def test_InnerProduct(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Discontinuous Lagrange", 0)
+    test = TestFunction(space)
 
     def forward(F):
-        G = Function(space, name="G")
-        Assignment(G, F).solve()
+        G = Function(space, name="G", space_type="conjugate_dual")
+        assemble(inner(F, test) * dx, tensor=G)
 
-        J = Functional(name="J")
-        InnerProduct(J.function(), F, G).solve()
+        J = Float(name="J")
+        InnerProduct(J, F, G).solve()
         return J
 
-    F = Function(space, name="F", static=True)
-    F_arr = np.random.random(function_local_size(F))
-    if issubclass(function_dtype(F), (complex, np.complexfloating)):
-        F_arr = F_arr + 1.0j * np.random.random(function_local_size(F))
-    function_set_values(F, F_arr)
-    del F_arr
+    F = Function(space, name="F")
+    interpolate_expression(F, X[0] * sin(pi * X[0]))
 
     start_manager()
     J = forward(F)
     stop_manager()
 
+    J_val = float(J)
+    assert abs(J_val - assemble(inner(F, F) * dx)) == 0.0
+
     dJ = compute_gradient(J, F)
-    min_order = taylor_test(forward, F, J_val=J.value(), dJ=dJ)
+    min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm(forward, F, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
     assert min_order > 1.99
 
 
@@ -829,8 +838,9 @@ def test_initial_guess(setup_test, test_leaks,
 
         adj_x_0 = Function(space_1, space_type="conjugate_dual",
                            name="adj_x_0", static=True)
-        assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
-                 tensor=adj_x_0)
+        with paused_manager():
+            assemble(4 * dot(ufl.conj(dot(x, x) * x), ufl.conj(test_1)) * dx,
+                     tensor=adj_x_0)
         Projection(x, zero,
                    solver_parameters=ls_parameters_cg).solve()
         if not test_adj_ic:

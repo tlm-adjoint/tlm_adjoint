@@ -8,7 +8,7 @@ conditions.
 
 from .backend import (
     TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
-    backend_Function, backend_ScalarType)
+    backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, function_caches,
     function_comm, function_dtype, function_form_derivative_space, function_id,
@@ -29,12 +29,10 @@ import weakref
 __all__ = \
     [
         "Constant",
-        "Function",
         "extract_coefficients",
 
         "Zero",
         "ZeroConstant",
-        "ZeroFunction",
         "eliminate_zeros",
 
         "Replacement",
@@ -352,38 +350,6 @@ class Constant(backend_Constant):
             return F
 
 
-class Function(backend_Function):
-    """Extends the backend `Function` class.
-
-    :arg space_type: The space type for the :class:`Function`. `'primal'`,
-        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this :class:`Function` may be
-        cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        :class:`Function` by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
-
-    Remaining arguments are passed to the backend `Function` constructor.
-    """
-
-    def __init__(self, *args, space_type="primal", static=False, cache=None,
-                 checkpoint=None, **kwargs):
-        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
-            raise ValueError("Invalid space type")
-        if cache is None:
-            cache = static
-        if checkpoint is None:
-            checkpoint = not static
-
-        super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
-
-
 class Zero:
     """Mixin for defining a zero-valued function. Used for zero-valued
     functions for which UFL zero elimination should not be applied.
@@ -421,32 +387,6 @@ class ZeroConstant(Constant, Zero):
 
     def assign(self, *args, **kwargs):
         raise RuntimeError("Cannot call assign method of ZeroConstant")
-
-
-class ZeroFunction(Function, Zero):
-    """A :class:`Function` which is flagged as having a value of zero.
-
-    Arguments are passed to the :class:`Function` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`.
-    """
-
-    def __init__(self, *args, **kwargs):
-        Function.__init__(
-            self, *args, **kwargs,
-            static=True, cache=True, checkpoint=False)
-        # Firedrake requires the ability to pass a value to the constructor, so
-        # we check that we have a zero-valued function here
-        if function_linf_norm(self) != 0.0:
-            raise RuntimeError("ZeroFunction is not zero-valued")
-
-    def assign(self, *args, **kwargs):
-        raise RuntimeError("Cannot call assign method of ZeroFunction")
-
-    def interpolate(self, *args, **kwargs):
-        raise RuntimeError("Cannot call interpolate method of ZeroFunction")
-
-    def project(self, *args, **kwargs):
-        raise RuntimeError("Cannot call project method of ZeroFunction")
 
 
 def as_coefficient(x):

@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    LinearSolver, Interpolator, Parameters, TestFunction, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_Matrix, backend_assemble,
-    backend_solve, complex_mode, extract_args, homogenize, parameters)
+    LinearSolver, Interpolator, Parameters, TestFunction, backend_Cofunction,
+    backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
+    backend_assemble, backend_solve, complex_mode, extract_args, homogenize,
+    parameters)
 from ..interface import (
     check_space_type, check_space_types, function_assign, function_axpy,
     function_copy, function_inner, function_new_conjugate_dual, function_space,
@@ -125,16 +126,10 @@ def _assemble(form, tensor=None, bcs=None, *,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    if tensor is not None and isinstance(tensor, backend_Function):
-        check_space_type(tensor, "conjugate_dual")
-
     form = eliminate_zeros(form, force_non_empty_form=True)
     b = backend_assemble(
         form, tensor=tensor, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters, mat_type=mat_type)
-
-    if tensor is None and isinstance(b, backend_Function):
-        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
     return b
 
@@ -212,15 +207,9 @@ def assemble(form, tensor=None, *,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    if tensor is not None and isinstance(tensor, backend_Function):
-        check_space_type(tensor, "conjugate_dual")
-
     b = _assemble(
         form, tensor=tensor, form_compiler_parameters=form_compiler_parameters,
         mat_type=mat_type)
-
-    if tensor is None and isinstance(b, backend_Function):
-        b._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
 
     return b
 
@@ -402,10 +391,10 @@ def interpolate_expression(x, expr, *, adj_x=None):
         expr_val = function_new_conjugate_dual(adj_x)
         interpolate_expression(expr_val, expr)
         function_assign(x, function_inner(adj_x, expr_val))
-    elif isinstance(x, backend_Function):
+    elif isinstance(x, backend_Cofunction):
         x_space = function_space(x)
         adj_x_space = function_space(adj_x)
-        interp = Interpolator(ufl.conj(expr) * TestFunction(x_space), adj_x_space)  # noqa: E501
+        interp = Interpolator(ufl.conj(expr) * TestFunction(x_space.dual()), adj_x_space)  # noqa: E501
         interp.interpolate(adj_x, transpose=True, output=x)
     else:
         raise TypeError(f"Unexpected type: {type(x)}")

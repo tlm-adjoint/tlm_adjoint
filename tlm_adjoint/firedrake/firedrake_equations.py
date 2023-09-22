@@ -7,11 +7,11 @@ backend.
 
 from .backend import (
     FunctionSpace, Interpolator, Tensor, TestFunction, TrialFunction,
-    VertexOnlyMesh, backend_Constant, backend_Function, backend_assemble,
-    complex_mode)
+    VertexOnlyMesh, backend_Cofunction, backend_Constant, backend_Function,
+    backend_assemble, complex_mode)
 from ..interface import (
     check_space_type, comm_dup_cached, function_assign, function_comm,
-    function_id, function_inner, function_is_scalar,
+    function_id, function_inner, function_is_scalar, function_new,
     function_new_conjugate_dual, function_replacement, function_scalar_value,
     function_space, function_space_type, function_zero, is_function, space_new,
     weakref_method)
@@ -325,7 +325,7 @@ class PointInterpolation(Equation):
         if dep_index < len(adj_X):
             return adj_X[dep_index]
         elif dep_index == len(adj_X):
-            adj_Xm = space_new(self._interp.V)
+            adj_Xm = space_new(self._interp.V, space_type="conjugate_dual")
 
             vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
             rank = function_comm(adj_Xm).rank
@@ -411,19 +411,20 @@ class ExprAssignment(ExprEquation):
         if len(dep.ufl_shape) > 0:
             if complex_mode:
                 raise NotImplementedError("Case not implemented")
-            F = function_new_conjugate_dual(dep)
+            F = function_new(dep)
             if isinstance(F, backend_Constant):
                 raise NotImplementedError("Case not implemented")
 
             # This works so long as the assignment is defined in terms of a
             # linear combination but is subtly the wrong thing to do, since dep
             # and adj_x are in spaces which are relatively antidual
-            dF = derivative(self._rhs, dep, adj_x)
+            dF = derivative(self._rhs, dep, adj_x.riesz_representation("l2"))
             dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = self._nonlinear_replace(dF, nl_deps)
 
             F.assign(dF, subset=self._subset)
+            F = F.riesz_representation("l2")
         else:
             F = function_new_conjugate_dual(dep)
 
@@ -436,7 +437,7 @@ class ExprAssignment(ExprEquation):
                 dF = function_new_conjugate_dual(adj_x).assign(
                     dF, subset=self._subset)
                 F.assign(function_inner(adj_x, dF))
-            elif isinstance(F, backend_Function):
+            elif isinstance(F, (backend_Cofunction, backend_Function)):
                 dF = dF(()).conjugate()
                 F.assign(dF * adj_x, subset=self._subset)
             else:

@@ -6,7 +6,7 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    check_space_types, comm_dup_cached, function_copy, function_new,
+    check_space_types, comm_dup_cached, function_copy, function_linf_norm,
     function_scalar_value, function_space, function_space_type,
     new_function_id, new_space_id, register_finalize_adjoint_derivative_action,
     register_functional_term_eq, register_subtract_adjoint_derivative_action,
@@ -17,8 +17,8 @@ from .backend_code_generator_interface import assemble, r0_space
 
 from .equations import Assembly
 from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, Function,
-    ReplacementFunction, Zero, define_function_alias)
+    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
+    Zero, define_function_alias)
 from ..override import override_method
 
 from ..manager import manager_disabled
@@ -30,6 +30,9 @@ import ufl
 
 __all__ = \
     [
+        "Function",
+
+        "ZeroFunction"
     ]
 
 
@@ -163,8 +166,6 @@ class FunctionInterface(_FunctionInterface):
             else:
                 y_arr = np.full(self.ufl_shape, y, dtype=backend_ScalarType)
                 self.assign(backend_Constant(y_arr))
-        elif isinstance(y, Zero):
-            self.vector().zero()
         elif isinstance(y, backend_Constant):
             self.assign(y)
         else:
@@ -173,26 +174,10 @@ class FunctionInterface(_FunctionInterface):
     @manager_disabled()
     @check_vector_size
     def _axpy(self, alpha, x, /):
-        if isinstance(x, SymbolicFloat):
-            x = x.value()
         if isinstance(x, backend_Function):
             if self.vector().local_size() != x.vector().local_size():
                 raise ValueError("Invalid function space")
             self.vector().axpy(alpha, x.vector())
-        elif isinstance(x, (int, np.integer, float, np.floating)):
-            x_ = function_new(self)
-            if len(self.ufl_shape) == 0:
-                x_.assign(backend_Constant(x))
-            else:
-                x_arr = np.full(self.ufl_shape, x, dtype=backend_ScalarType)
-                x_.assign(backend_Constant(x_arr))
-            self.vector().axpy(alpha, x_.vector())
-        elif isinstance(x, Zero):
-            pass
-        elif isinstance(x, backend_Constant):
-            x_ = backend_Function(self.function_space())
-            x_.assign(x)
-            self.vector().axpy(alpha, x_.vector())
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -203,12 +188,6 @@ class FunctionInterface(_FunctionInterface):
             if self.vector().local_size() != y.vector().local_size():
                 raise ValueError("Invalid function space")
             inner = y.vector().inner(self.vector())
-        elif isinstance(y, Zero):
-            inner = 0.0
-        elif isinstance(y, backend_Constant):
-            y_ = backend_Function(self.function_space())
-            y_.assign(y)
-            inner = y_.vector().inner(self.vector())
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
         return inner
@@ -285,6 +264,62 @@ class FunctionInterface(_FunctionInterface):
 
     def _is_alias(self):
         return "alias" in self._tlm_adjoint__function_interface_attrs
+
+
+class Function(backend_Function):
+    """Extends the backend `Function` class.
+
+    :arg space_type: The space type for the :class:`Function`. `'primal'`,
+        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving this :class:`Function` may be
+        cached. Default `static`.
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        :class:`Function` by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+
+    Remaining arguments are passed to the backend `Function` constructor.
+    """
+
+    def __init__(self, *args, space_type="primal", static=False, cache=None,
+                 checkpoint=None, **kwargs):
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
+            raise ValueError("Invalid space type")
+        if cache is None:
+            cache = static
+        if checkpoint is None:
+            checkpoint = not static
+
+        super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+
+
+class ZeroFunction(Function, Zero):
+    """A :class:`Function` which is flagged as having a value of zero.
+
+    Arguments are passed to the :class:`Function` constructor, together with
+    `static=True`, `cache=True`, and `checkpoint=False`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        Function.__init__(
+            self, *args, **kwargs,
+            static=True, cache=True, checkpoint=False)
+        if function_linf_norm(self) != 0.0:
+            raise RuntimeError("ZeroFunction is not zero-valued")
+
+    def assign(self, *args, **kwargs):
+        raise RuntimeError("Cannot call assign method of ZeroFunction")
+
+    def interpolate(self, *args, **kwargs):
+        raise RuntimeError("Cannot call interpolate method of ZeroFunction")
+
+    def project(self, *args, **kwargs):
+        raise RuntimeError("Cannot call project method of ZeroFunction")
 
 
 # Aim for compatibility with FEniCS 2019.1.0 API

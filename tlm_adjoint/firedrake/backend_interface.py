@@ -2,14 +2,17 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    backend_Constant, backend_Function, backend_FunctionSpace,
-    backend_ScalarType)
+    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
+    backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    comm_dup_cached, function_comm, function_dtype, function_is_alias,
-    function_space, new_function_id, new_space_id, register_garbage_cleanup,
-    register_finalize_adjoint_derivative_action, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action,
+    comm_dup_cached, function_caches, function_comm, function_id,
+    function_is_alias, function_is_cached, function_is_checkpointed,
+    function_is_static, function_linf_norm, function_name, function_space,
+    function_space_type, new_function_id, new_space_id,
+    register_garbage_cleanup, register_finalize_adjoint_derivative_action,
+    register_functional_term_eq, register_subtract_adjoint_derivative_action,
+    relative_space_type, space_type_warning,
     subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
@@ -21,9 +24,10 @@ from ..overloaded_float import SymbolicFloat
 
 from .equations import Assembly
 from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, Function,
-    ReplacementFunction, Zero, define_function_alias)
+    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
+    ReplacementInterface, Zero, define_function_alias)
 
+import functools
 import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
@@ -32,6 +36,12 @@ import ufl
 
 __all__ = \
     [
+        "Cofunction",
+        "Function",
+
+        "ZeroFunction",
+
+        "ReplacementCofunction"
     ]
 
 
@@ -95,26 +105,58 @@ class FunctionSpaceInterface(SpaceInterface):
 
     def _new(self, *, name=None, space_type="primal", static=False, cache=None,
              checkpoint=None):
-        return Function(self, name=name, space_type=space_type, static=static,
-                        cache=cache, checkpoint=checkpoint)
+        space = self._tlm_adjoint__space_interface_attrs["space"]
+        if space_type in {"primal", "conjugate"}:
+            return Function(space, name=name, space_type=space_type,
+                            static=static, cache=cache, checkpoint=checkpoint)
+        elif space_type in {"dual", "conjugate_dual"}:
+            return Cofunction(space.dual(), name=name, space_type=space_type,
+                              static=static, cache=cache,
+                              checkpoint=checkpoint)
+        else:
+            raise ValueError("Invalid space type")
 
 
 @override_method(backend_FunctionSpace, "__init__")
 def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
-                  {"comm": comm_dup_cached(self.comm), "id": new_space_id()})
+                  {"space": self, "comm": comm_dup_cached(self.comm),
+                   "id": new_space_id()})
 
 
-class FunctionInterface(_FunctionInterface):
+@override_method(backend_CofunctionSpace, "__init__")
+def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    add_interface(self, FunctionSpaceInterface,
+                  {"space": self.dual(), "comm": comm_dup_cached(self.comm),
+                   "id": new_space_id()})
+
+
+def r0_bugfix(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(self, *args, **kwargs):
+        return_value = fn(self, *args, **kwargs)
+        e = self.ufl_element()
+        if e.family() == "Real" and e.degree() == 0:
+            # Work around Firedrake issue #1459
+            values = self.dat.data_ro.copy()
+            comm = function_comm(self)
+            if comm.rank != 0:
+                values = None
+            values = comm.bcast(values, root=0)
+            self.dat.data[:] = values
+        return return_value
+
+    return wrapped_fn
+
+
+class FunctionInterfaceBase(_FunctionInterface):
     def _comm(self):
         return self._tlm_adjoint__function_interface_attrs["comm"]
 
     def _space(self):
         return self.function_space()
-
-    def _form_derivative_space(self):
-        return function_space(self)
 
     def _space_type(self):
         return self._tlm_adjoint__function_interface_attrs["space_type"]
@@ -155,83 +197,22 @@ class FunctionInterface(_FunctionInterface):
             x_v.zeroEntries()
 
     @manager_disabled()
-    def _assign(self, y):
-        if isinstance(y, SymbolicFloat):
-            y = y.value()
-        if isinstance(y, backend_Function):
-            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise ValueError("Invalid function space")
-                y_v.copy(result=x_v)
-        elif isinstance(y, (int, np.integer,
-                            float, np.floating,
-                            complex, np.complexfloating)):
-            if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(y))
-            else:
-                y_arr = np.full(self.ufl_shape, y)
-                self.assign(backend_Constant(y_arr))
-        elif isinstance(y, Zero):
-            with self.dat.vec_wo as x_v:
-                x_v.zeroEntries()
-        elif isinstance(y, backend_Constant):
-            self.assign(y)
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-        e = self.ufl_element()
-        if e.family() == "Real" and e.degree() == 0:
-            # Work around Firedrake issue #1459
-            values = self.dat.data_ro.copy()
-            comm = function_comm(self)
-            if comm.rank != 0:
-                values = None
-            values = comm.bcast(values, root=0)
-            self.dat.data[:] = values
-
-    @manager_disabled()
+    @r0_bugfix
     def _axpy(self, alpha, x, /):
-        if isinstance(x, SymbolicFloat):
-            x = x.value()
-        if isinstance(x, backend_Function):
+        if isinstance(x, (backend_Cofunction, backend_Function)):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
                 if y_v.getLocalSize() != x_v.getLocalSize():
                     raise ValueError("Invalid function space")
                 y_v.axpy(alpha, x_v)
-        elif isinstance(x, (int, np.integer,
-                            float, np.floating,
-                            complex, np.complexfloating)):
-            self.assign(self + alpha * x)
-        elif isinstance(x, Zero):
-            pass
-        elif isinstance(x, backend_Constant):
-            self.assign(self + alpha * x)
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
-        e = self.ufl_element()
-        if e.family() == "Real" and e.degree() == 0:
-            # Work around Firedrake issue #1459
-            values = self.dat.data_ro.copy()
-            comm = function_comm(self)
-            if comm.rank != 0:
-                values = None
-            values = comm.bcast(values, root=0)
-            self.dat.data[:] = values
-
     @manager_disabled()
     def _inner(self, y):
-        if isinstance(y, backend_Function):
+        if isinstance(y, (backend_Cofunction, backend_Function)):
             with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
                 if x_v.getLocalSize() != y_v.getLocalSize():
                     raise ValueError("Invalid function space")
-                inner = x_v.dot(y_v)
-        elif isinstance(y, Zero):
-            inner = 0.0
-        elif isinstance(y, backend_Constant):
-            y_ = backend_Function(self.function_space())
-            y_.assign(y)
-            with self.dat.vec_ro as x_v, y_.dat.vec_ro as y_v:
                 inner = x_v.dot(y_v)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
@@ -269,17 +250,12 @@ class FunctionInterface(_FunctionInterface):
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, function_dtype(self)):
+        if not np.can_cast(values, self.dat.dtype.type):
             raise ValueError("Invalid dtype")
         with self.dat.vec as x_v:
             if values.shape != (x_v.getLocalSize(),):
                 raise ValueError("Invalid shape")
             x_v.setArray(values)
-
-    def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementFunction(self)
-        return self._tlm_adjoint__replacement
 
     def _is_replacement(self):
         return False
@@ -291,8 +267,100 @@ class FunctionInterface(_FunctionInterface):
         return "alias" in self._tlm_adjoint__function_interface_attrs
 
 
+class FunctionInterface(FunctionInterfaceBase):
+    def _form_derivative_space(self):
+        return self.function_space()
+
+    @manager_disabled()
+    @r0_bugfix
+    def _assign(self, y):
+        if isinstance(y, SymbolicFloat):
+            y = y.value()
+        if isinstance(y, (backend_Cofunction, backend_Function)):
+            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise ValueError("Invalid function space")
+                y_v.copy(result=x_v)
+        elif isinstance(y, (int, np.integer,
+                            float, np.floating,
+                            complex, np.complexfloating)):
+            if len(self.ufl_shape) == 0:
+                self.assign(backend_Constant(y))
+            else:
+                y_arr = np.full(self.ufl_shape, y, dtype=self.dat.dtype.type)
+                self.assign(backend_Constant(y_arr))
+        elif isinstance(y, backend_Constant):
+            self.assign(y)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
+
+    def _replacement(self):
+        if not hasattr(self, "_tlm_adjoint__replacement"):
+            self._tlm_adjoint__replacement = ReplacementFunction(self)
+        return self._tlm_adjoint__replacement
+
+
+class Function(backend_Function):
+    """Extends the backend `Function` class.
+
+    :arg space_type: The space type for the :class:`Function`. `'primal'` or
+        `'conjugate'`.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving this :class:`Function` may be
+        cached. Default `static`.
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        :class:`Function` by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+
+    Remaining arguments are passed to the backend `Function` constructor.
+    """
+
+    def __init__(self, *args, space_type="primal", static=False, cache=None,
+                 checkpoint=None, **kwargs):
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
+            raise ValueError("Invalid space type")
+        if space_type not in {"primal", "conjugate"}:
+            space_type_warning("Unexpected space type")
+        if cache is None:
+            cache = static
+        if checkpoint is None:
+            checkpoint = not static
+
+        super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+
+
+class ZeroFunction(Function, Zero):
+    """A :class:`Function` which is flagged as having a value of zero.
+
+    Arguments are passed to the :class:`Function` constructor, together with
+    `static=True`, `cache=True`, and `checkpoint=False`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        Function.__init__(
+            self, *args, **kwargs,
+            static=True, cache=True, checkpoint=False)
+        if function_linf_norm(self) != 0.0:
+            raise RuntimeError("ZeroFunction is not zero-valued")
+
+    def assign(self, *args, **kwargs):
+        raise RuntimeError("Cannot call assign method of ZeroFunction")
+
+    def interpolate(self, *args, **kwargs):
+        raise RuntimeError("Cannot call interpolate method of ZeroFunction")
+
+    def project(self, *args, **kwargs):
+        raise RuntimeError("Cannot call project method of ZeroFunction")
+
+
 @override_method(backend_Function, "__init__")
-def Function__init__(self, orig, orig_args, *args, **kwargs):
+def Function__init__(self, orig, orig_args, function_space, val=None,
+                     *args, **kwargs):
     orig_args()
     comm = self.comm
     if pyop2.mpi.is_pyop2_comm(comm):
@@ -302,6 +370,8 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
                   {"comm": comm_dup_cached(comm), "id": new_function_id(),
                    "state": 0, "space_type": "primal", "static": False,
                    "cache": False, "checkpoint": True})
+    if isinstance(val, backend_Function):
+        define_function_alias(self, val, key=("Function__init__",))
 
 
 @override_method(backend_Function, "__getattr__")
@@ -309,6 +379,22 @@ def Function__getattr__(self, orig, orig_args, key):
     if "_data" not in self.__dict__:
         raise AttributeError(f"No attribute '{key:s}'")
     return orig_args()
+
+
+@override_method(backend_Function, "riesz_representation")
+def Function_riesz_representation(self, orig, orig_args,
+                                  riesz_map="L2", *args, **kwargs):
+    if riesz_map != "l2":
+        check_space_type(self, "primal")
+    return_value = orig_args()
+    if riesz_map == "l2":
+        define_function_alias(return_value, self,
+                              key=("riesz_representation", "l2"))
+    # define_function_alias sets the space_type, so this has to appear after
+    return_value._tlm_adjoint__function_interface_attrs.d_setitem(
+        "space_type",
+        relative_space_type(self._tlm_adjoint__function_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
+    return return_value
 
 
 @override_property(backend_Function, "subfunctions", cached=True)
@@ -328,6 +414,107 @@ def Function_sub(self, orig, orig_args, i):
     return y
 
 
+class CofunctionInterface(FunctionInterfaceBase):
+    @manager_disabled()
+    @r0_bugfix
+    def _assign(self, y):
+        if isinstance(y, (backend_Cofunction, backend_Function)):
+            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
+                if x_v.getLocalSize() != y_v.getLocalSize():
+                    raise ValueError("Invalid function space")
+                y_v.copy(result=x_v)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
+
+    def _replacement(self):
+        if not hasattr(self, "_tlm_adjoint__replacement"):
+            self._tlm_adjoint__replacement = ReplacementCofunction(self)
+        return self._tlm_adjoint__replacement
+
+
+class Cofunction(backend_Cofunction):
+    """Extends the backend `Cofunction` class.
+
+    :arg space_type: The space type for the :class:`Cofunction`. `'conjugate'`
+        or `'conjugate_dual'`.
+    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg cache: Defines whether results involving this :class:`Cofunction` may
+        be cached. Default `static`.
+    :arg checkpoint: Defines whether a
+        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
+        :class:`Cofunction` by value (`checkpoint=True`) or reference
+        (`checkpoint=False`). Default `not static`.
+
+    Remaining arguments are passed to the backend `Cofunction` constructor.
+    """
+
+    def __init__(self, *args, space_type="conjugate_dual", static=False,
+                 cache=None, checkpoint=None, **kwargs):
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
+            raise ValueError("Invalid space type")
+        if space_type not in {"dual", "conjugate_dual"}:
+            space_type_warning("Unexpected space type")
+        if cache is None:
+            cache = static
+        if checkpoint is None:
+            checkpoint = not static
+
+        super().__init__(*args, **kwargs)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+
+
+@override_method(backend_Cofunction, "__init__")
+def Cofunction__init__(self, orig, orig_args, function_space, val=None,
+                       *args, **kwargs):
+    orig_args()
+    add_interface(self, CofunctionInterface,
+                  {"comm": comm_dup_cached(self.comm), "id": new_function_id(),
+                   "state": 0, "space_type": "conjugate_dual", "static": False,
+                   "cache": False, "checkpoint": True})
+    if isinstance(val, backend_Cofunction):
+        define_function_alias(self, val, key=("Cofunction__init__",))
+
+
+@override_method(backend_Cofunction, "riesz_representation")
+def Cofunction_riesz_representation(self, orig, orig_args,
+                                    riesz_map="L2", *args, **kwargs):
+    if riesz_map != "l2":
+        check_space_type(self, "conjugate_dual")
+    return_value = orig_args()
+    if riesz_map == "l2":
+        define_function_alias(return_value, self,
+                              key=("riesz_representation", "l2"))
+    # define_function_alias sets the space_type, so this has to appear after
+    return_value._tlm_adjoint__function_interface_attrs.d_setitem(
+        "space_type",
+        relative_space_type(self._tlm_adjoint__function_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
+    return return_value
+
+
+class ReplacementCofunction(ufl.classes.Cofunction):
+    """Represents a symbolic cofunction, but has no value.
+    """
+
+    def __init__(self, x):
+        space = function_space(x)
+
+        super().__init__(space, count=x.count())
+        add_interface(self, ReplacementInterface,
+                      {"id": function_id(x), "name": function_name(x),
+                       "space": space,
+                       "space_type": function_space_type(x),
+                       "static": function_is_static(x),
+                       "cache": function_is_cached(x),
+                       "checkpoint": function_is_checkpointed(x),
+                       "caches": function_caches(x)})
+
+    def __new__(cls, x, *args, **kwargs):
+        return super().__new__(cls, function_space(x), *args, **kwargs)
+
+
 def garbage_cleanup_internal_comm(comm):
     if not MPI.Is_finalized() and not PETSc.Sys.isFinalized() \
             and not pyop2.mpi.PYOP2_FINALIZED \
@@ -343,7 +530,7 @@ def garbage_cleanup_internal_comm(comm):
 register_garbage_cleanup(garbage_cleanup_internal_comm)
 
 
-def subtract_adjoint_derivative_action_function_form(x, alpha, y):
+def subtract_adjoint_derivative_action_cofunction_form(x, alpha, y):
     check_space_type(x, "conjugate_dual")
     if alpha != 1.0:
         y = backend_Constant(alpha) * y
@@ -354,12 +541,12 @@ def subtract_adjoint_derivative_action_function_form(x, alpha, y):
 
 
 register_subtract_adjoint_derivative_action(
-    (backend_Constant, backend_Function), object,
+    (backend_Constant, backend_Cofunction, backend_Function), object,
     subtract_adjoint_derivative_action_base,
     replace=True)
 register_subtract_adjoint_derivative_action(
-    (backend_Constant, backend_Function), ufl.classes.Form,
-    subtract_adjoint_derivative_action_function_form)
+    (backend_Constant, backend_Cofunction), ufl.classes.Form,
+    subtract_adjoint_derivative_action_cofunction_form)
 
 
 def finalize_adjoint_derivative_action(x):

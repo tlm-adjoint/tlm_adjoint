@@ -3,20 +3,19 @@
 
 from .backend import (
     FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
-    Projector, ProjectorBase, SameMeshInterpolator, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
-    backend_interpolate, backend_project, backend_solve, parameters)
+    Projector, SameMeshInterpolator, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_Vector, backend_assemble, backend_interpolate,
+    backend_project, backend_solve, parameters)
 from ..interface import (
     function_comm, function_new, function_space, function_update_state,
-    is_function, space_id, space_new)
+    is_function, space_id)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment
 from ..override import (
-    add_manager_controls, manager_method, override_function, override_method,
-    override_property)
+    add_manager_controls, manager_method, override_method)
 
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
@@ -240,7 +239,7 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
         F.assign(self, annotate=annotate, tlm=tlm)
     else:
         F = orig_args()
-        define_function_alias(F, self, key="copy")
+        define_function_alias(F, self, key=("copy",))
     return F
 
 
@@ -363,13 +362,6 @@ def NonlinearVariationalSolver_solve(
     return return_value
 
 
-@override_property(ProjectorBase, "residual", cached=True)
-def ProjectorBase_residual(self, orig):
-    residual = orig()
-    residual._tlm_adjoint__function_interface_attrs.d_setitem("space_type", "conjugate_dual")  # noqa: E501
-    return residual
-
-
 def SameMeshInterpolator_interpolate_post_call(
         self, return_value, *args, **kwargs):
     function_update_state(return_value)
@@ -400,22 +392,7 @@ def SameMeshInterpolator_interpolate(
     return return_value
 
 
-@add_manager_controls
-@override_function(backend_assemble)
-def assemble(orig, orig_args, expr, *args, **kwargs):
-    if isinstance(expr, ufl.classes.Form):
-        def assemble_form(form, tensor=None, *args, **kwargs):
-            if len(form.arguments()) == 1 and tensor is None:
-                test, = form.arguments()
-                tensor = space_new(test.function_space(),
-                                   space_type="conjugate_dual")
-            return orig(form, tensor, *args, **kwargs)
-
-        return assemble_form(expr, *args, **kwargs)
-    else:
-        return orig_args()
-
-
+assemble = add_manager_controls(backend_assemble)
 solve = add_manager_controls(backend_solve)
 project = add_manager_controls(backend_project)
 interpolate = add_manager_controls(backend_interpolate)
