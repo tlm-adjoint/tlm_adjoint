@@ -5,7 +5,7 @@ from ..interface import (
     check_space_types, comm_dup_cached, function_assign, function_axpy,
     function_axpy_conjugate, function_copy, function_copy_conjugate,
     function_dtype, function_inner, function_space, function_space_type,
-    is_function, space_comm, space_dtype)
+    is_function, space_comm, space_dtype, space_new)
 
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
@@ -13,7 +13,6 @@ from ..manager import manager_disabled
 from .block_system import (
     BackendMixedSpace, BlockNullspace, Matrix, NoneNullspace, Preconditioner,
     System, iter_sub, tuple_sub)
-from .functions import Function
 
 from collections.abc import Sequence
 import numpy as np
@@ -49,17 +48,16 @@ class MixedSpace(BackendMixedSpace):
             raise ValueError("Invalid space types")
         self._space_types = space_types
 
-    def new_split(self, *args, **kwargs):
+    def new_split(self):
         flattened_space = self.flattened_space()
         assert len(flattened_space) == len(self._space_types)
-        return tuple_sub((Function(space, *args, space_type=space_type, **kwargs)  # noqa: E501
+        return tuple_sub((space_new(space, space_type=space_type)
                           for space, space_type in zip(flattened_space, self._space_types)),  # noqa: E501
                          self.split_space())
 
-    def new_mixed(self, *args, **kwargs):
+    def new_mixed(self):
         space_type = self._space_types[0]
-        return Function(self.mixed_space(), *args, space_type=space_type,
-                        **kwargs)
+        return space_new(self.mixed_space(), space_type=space_type)
 
 
 # Complex note: It is convenient to define a Hessian matrix action in terms of

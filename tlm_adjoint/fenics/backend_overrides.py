@@ -19,7 +19,7 @@ from ..override import (
     add_manager_controls, manager_method, override_function, override_method)
 
 from .equations import (
-    EquationSolver, ExprInterpolation, Projection, expr_new_x,
+    Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import Constant, define_function_alias
 
@@ -108,8 +108,8 @@ def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
     self._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
 
-@override_method(cpp_Assembler, "assemble")
-def Assembler_assemble(self, orig, orig_args, tensor, form):
+@manager_method(cpp_Assembler, "assemble", override_without_manager=True)
+def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
     if isinstance(tensor, backend_Function):
         tensor = tensor.vector()
     return_value = orig(self, tensor, form)
@@ -137,6 +137,15 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
             tensor._tlm_adjoint__form = form._tlm_adjoint__form
             tensor._tlm_adjoint__bcs = []
             tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+
+        if (annotate or tlm) \
+                and hasattr(tensor, "_tlm_adjoint__function") \
+                and len(tensor._tlm_adjoint__form.arguments()) == 1:
+            # Inefficient when self.add_values=True
+            eq = Assembly(tensor._tlm_adjoint__function,
+                          tensor._tlm_adjoint__form)
+            assert len(eq.initial_condition_dependencies()) == 0
+            eq._post_process(annotate=annotate, tlm=tlm)
 
     return return_value
 
@@ -427,7 +436,7 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
             assert len(eq.initial_condition_dependencies()) == 0
             eq._post_process(annotate=annotate, tlm=tlm)
     else:
-        define_function_alias(F, self, key="copy")
+        define_function_alias(F, self, key=("copy",))
     return F
 
 

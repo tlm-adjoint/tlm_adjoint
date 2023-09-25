@@ -244,7 +244,7 @@ def test_mat_terms(setup_test, test_leaks,
 
     form = inner(ufl.conj(x) if x_conjugate else x, test) * dx
 
-    b_ref = Function(space, name="b_ref", space_type="conjugate_dual")
+    b_ref = Cofunction(space.dual(), name="b_ref")
     assemble(form, tensor=b_ref)
 
     cached_terms, mat_terms, non_cached_terms = split_form(form)
@@ -257,14 +257,14 @@ def test_mat_terms(setup_test, test_leaks,
         assert tuple(mat_terms.keys()) == (function_id(x),)
         A, = tuple(mat_terms.values())
         A, b_bc = assemble_matrix(A)
-        b = Function(space, name="b", space_type="conjugate_dual")
+        b = Cofunction(space.dual(), name="b")
         matrix_multiply(A, x, tensor=b)
         assert b_bc is None
     else:
         assert len(mat_terms) == 0
         assert not non_cached_terms.empty()
 
-        b = Function(space, name="b", space_type="conjugate_dual")
+        b = Cofunction(space.dual(), name="b")
         assemble(non_cached_terms, tensor=b)
 
     b_error = function_copy(b_ref)

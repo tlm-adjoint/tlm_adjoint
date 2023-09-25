@@ -14,6 +14,8 @@ backend_ScalarType = firedrake.utils.ScalarType.type
 
 extract_args = firedrake.solving._extract_args
 
+backend_Cofunction = Cofunction
+backend_CofunctionSpace = firedrake.functionspaceimpl.FiredrakeDualSpace
 backend_Constant = Constant
 backend_DirichletBC = DirichletBC
 backend_Function = Function

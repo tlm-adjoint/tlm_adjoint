@@ -34,7 +34,7 @@ def test_hessian_solve(setup_test,
     beta = Constant(1.0 / np.sqrt(5.0))
 
     def B_inv(u):
-        b = Function(space, space_type="conjugate_dual")
+        b = Cofunction(space.dual())
         assemble(ufl.conj(beta) * inner(ufl.conj(u), test) * dx, tensor=b)
         return b
 
@@ -84,7 +84,7 @@ def test_hessian_solve(setup_test,
         s_atol=0.0, g_atol=1.0e-10,
         H_0_action=B, M_action=B_inv, M_inv_action=B)
 
-    b_ref = Function(space, name="b_ref", space_type="conjugate_dual")
+    b_ref = Cofunction(space.dual(), name="b_ref")
     assemble(inner((sin(5.0 * pi * X[0]) * sin(7.0 * pi * X[1])) ** 2, test) * dx,  # noqa: E501
              tensor=b_ref)
     bc.apply(b_ref)
