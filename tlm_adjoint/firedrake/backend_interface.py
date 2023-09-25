@@ -6,14 +6,13 @@ from .backend import (
     backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    comm_dup_cached, function_caches, function_comm, function_id,
-    function_is_alias, function_is_cached, function_is_checkpointed,
-    function_is_static, function_linf_norm, function_name, function_space,
-    function_space_type, new_function_id, new_space_id,
-    register_garbage_cleanup, register_finalize_adjoint_derivative_action,
-    register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    relative_space_type, space_type_warning,
-    subtract_adjoint_derivative_action,
+    comm_dup_cached, function_caches, function_id, function_is_alias,
+    function_is_cached, function_is_checkpointed, function_is_static,
+    function_linf_norm, function_name, function_space, function_space_type,
+    new_function_id, new_space_id, register_garbage_cleanup,
+    register_finalize_adjoint_derivative_action, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, relative_space_type,
+    space_type_warning, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
 from ..interface import FunctionInterface as _FunctionInterface
 from .backend_code_generator_interface import assemble, r0_space
@@ -27,7 +26,6 @@ from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
     ReplacementInterface, Zero, define_function_alias)
 
-import functools
 import mpi4py.MPI as MPI
 import numpy as np
 import petsc4py.PETSc as PETSc
@@ -133,24 +131,6 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
-def r0_bugfix(fn):
-    @functools.wraps(fn)
-    def wrapped_fn(self, *args, **kwargs):
-        return_value = fn(self, *args, **kwargs)
-        e = self.ufl_element()
-        if e.family() == "Real" and e.degree() == 0:
-            # Work around Firedrake issue #1459
-            values = self.dat.data_ro.copy()
-            comm = function_comm(self)
-            if comm.rank != 0:
-                values = None
-            values = comm.bcast(values, root=0)
-            self.dat.data[:] = values
-        return return_value
-
-    return wrapped_fn
-
-
 class FunctionInterfaceBase(_FunctionInterface):
     def _comm(self):
         return self._tlm_adjoint__function_interface_attrs["comm"]
@@ -197,7 +177,6 @@ class FunctionInterfaceBase(_FunctionInterface):
             x_v.zeroEntries()
 
     @manager_disabled()
-    @r0_bugfix
     def _axpy(self, alpha, x, /):
         if isinstance(x, (backend_Cofunction, backend_Function)):
             with self.dat.vec as y_v, x.dat.vec_ro as x_v:
@@ -272,7 +251,6 @@ class FunctionInterface(FunctionInterfaceBase):
         return self.function_space()
 
     @manager_disabled()
-    @r0_bugfix
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
             y = y.value()
@@ -416,7 +394,6 @@ def Function_sub(self, orig, orig_args, i):
 
 class CofunctionInterface(FunctionInterfaceBase):
     @manager_disabled()
-    @r0_bugfix
     def _assign(self, y):
         if isinstance(y, (backend_Cofunction, backend_Function)):
             with self.dat.vec as x_v, y.dat.vec_ro as y_v:
