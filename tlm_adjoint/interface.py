@@ -1358,7 +1358,9 @@ def register_subtract_adjoint_derivative_action(x_cls, y_cls, fn, *,
 
         @_x_fn.register(y_cls)
         def wrapped_fn(y, alpha, x):
-            return fn(x, alpha, y)
+            return_value = fn(x, alpha, y)
+            function_update_state(x)
+            return return_value
 
 
 def subtract_adjoint_derivative_action_base(x, alpha, y):
@@ -1377,6 +1379,7 @@ _finalize_adjoint_derivative_action = []
 def finalize_adjoint_derivative_action(x):
     for fn in _finalize_adjoint_derivative_action:
         fn(x)
+        function_update_state(x)
 
 
 def register_finalize_adjoint_derivative_action(fn):
