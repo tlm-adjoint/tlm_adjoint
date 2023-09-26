@@ -81,19 +81,36 @@ def test_function_alias(setup_test, test_leaks,
     space = FunctionSpace(mesh, ufl.classes.MixedElement(
         *[space.ufl_element() for _ in range(dim)]))
 
+    def test_state(F, F_i):
+        state = function_state(F_i)
+        assert function_state(F_i) == function_state(F)
+        function_update_state(F)
+        assert function_state(F_i) == state + 1
+        assert function_state(F_i) == function_state(F)
+
+        state = function_state(F_i)
+        assert function_state(F_i) == function_state(F)
+        function_update_state(F_i)
+        assert function_state(F_i) == state + 1
+        assert function_state(F_i) == function_state(F)
+
     F = Function(space, name="F")
     for F_i in F.subfunctions:
         assert function_is_alias(F_i)
+        test_state(F, F_i)
     for i in range(dim):
         F_i = F.sub(i)
         assert dim == 1 or function_is_alias(F_i)
+        test_state(F, F_i)
 
     F = Function(space, name="F")
     for i in range(dim):
         F_i = F.sub(i)
         assert dim == 1 or function_is_alias(F_i)
+        test_state(F, F_i)
     for F_i in F.subfunctions:
         assert function_is_alias(F_i)
+        test_state(F, F_i)
 
 
 @pytest.mark.firedrake

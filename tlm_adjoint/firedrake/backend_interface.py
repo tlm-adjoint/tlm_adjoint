@@ -85,7 +85,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": lambda x: name,
-                   "state": 0, "space": space,
+                   "state": [0], "space": space,
                    "form_derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
@@ -151,11 +151,10 @@ class FunctionInterfaceBase(_FunctionInterface):
         return self.name()
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"]
+        return self._tlm_adjoint__function_interface_attrs["state"][0]
 
     def _update_state(self):
-        state = self._tlm_adjoint__function_interface_attrs["state"]
-        self._tlm_adjoint__function_interface_attrs.d_setitem("state", state + 1)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -346,7 +345,7 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
         comm = self.function_space().comm
     add_interface(self, FunctionInterface,
                   {"comm": comm_dup_cached(comm), "id": new_function_id(),
-                   "state": 0, "space_type": "primal", "static": False,
+                   "state": [0], "space_type": "primal", "static": False,
                    "cache": False, "checkpoint": True})
     if isinstance(val, backend_Function):
         define_function_alias(self, val, key=("Function__init__",))
@@ -449,8 +448,8 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
     orig_args()
     add_interface(self, CofunctionInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_function_id(),
-                   "state": 0, "space_type": "conjugate_dual", "static": False,
-                   "cache": False, "checkpoint": True})
+                   "state": [0], "space_type": "conjugate_dual",
+                   "static": False, "cache": False, "checkpoint": True})
     if isinstance(val, backend_Cofunction):
         define_function_alias(self, val, key=("Cofunction__init__",))
 

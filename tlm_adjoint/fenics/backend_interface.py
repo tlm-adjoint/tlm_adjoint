@@ -53,7 +53,7 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_function_id(), "name": lambda x: x.name(),
-                   "state": 0, "space": space,
+                   "state": [0], "space": space,
                    "form_derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.values().dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
@@ -126,11 +126,10 @@ class FunctionInterface(_FunctionInterface):
         return self.name()
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"]
+        return self._tlm_adjoint__function_interface_attrs["state"][0]
 
     def _update_state(self):
-        state = self._tlm_adjoint__function_interface_attrs["state"]
-        self._tlm_adjoint__function_interface_attrs.d_setitem("state", state + 1)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -337,8 +336,9 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
         raise RuntimeError("PETSc backend required")
 
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(), "state": 0, "space_type": "primal",
-                   "static": False, "cache": False, "checkpoint": True})
+                  {"id": new_function_id(), "state": [0],
+                   "space_type": "primal", "static": False, "cache": False,
+                   "checkpoint": True})
 
     space = self.function_space()
     if isinstance(args[0], backend_FunctionSpace) and args[0].id() == space.id():  # noqa: E501

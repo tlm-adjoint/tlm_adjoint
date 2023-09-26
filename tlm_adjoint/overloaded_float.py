@@ -181,11 +181,10 @@ class FloatInterface(FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["name"]
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"]
+        return self._tlm_adjoint__function_interface_attrs["state"][0]
 
     def _update_state(self):
-        state = self._tlm_adjoint__function_interface_attrs["state"]
-        self._tlm_adjoint__function_interface_attrs.d_setitem("state", state + 1)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -353,7 +352,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         self._value = 0.0
         add_interface(self, FloatInterface,
                       {"cache": cache, "checkpoint": checkpoint, "id": id,
-                       "name": name, "state": 0,
+                       "name": name, "state": [0],
                        "space": FloatSpace(type(self), dtype=dtype, comm=comm),
                        "space_type": space_type, "static": static})
         self._tlm_adjoint__function_interface_attrs["caches"] = Caches(self)
