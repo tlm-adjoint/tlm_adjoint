@@ -287,7 +287,7 @@ def form_dependencies(form):
 def form_key(form):
     form = replaced_form(form)
     form = ufl.algorithms.expand_derivatives(form)
-    form = ufl.algorithms.expand_compounds(form)
+    form = ufl.algorithms.apply_algebra_lowering.apply_algebra_lowering(form)
     form = ufl.algorithms.expand_indices(form)
     form = form_simplify_conj(form)
     form = form_simplify_sign(form)
