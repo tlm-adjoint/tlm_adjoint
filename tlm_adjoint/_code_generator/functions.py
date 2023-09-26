@@ -363,6 +363,9 @@ class Zero:
     def _tlm_adjoint__function_interface_set_values(self, values):
         raise RuntimeError("Cannot call _set_values interface of Zero")
 
+    def _tlm_adjoint__function_interface_update_state(self):
+        raise RuntimeError("Cannot call _update_state interface of Zero")
+
 
 class ZeroConstant(Constant, Zero):
     """A :class:`Constant` which is flagged as having a value of zero.
