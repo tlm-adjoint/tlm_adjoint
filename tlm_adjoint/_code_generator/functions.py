@@ -82,11 +82,10 @@ class ConstantInterface(_FunctionInterface):
         return self._tlm_adjoint__function_interface_attrs["name"](self)
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"]
+        return self._tlm_adjoint__function_interface_attrs["state"][0]
 
     def _update_state(self):
-        state = self._tlm_adjoint__function_interface_attrs["state"]
-        self._tlm_adjoint__function_interface_attrs.d_setitem("state", state + 1)  # noqa: E501
+        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
 
     def _is_static(self):
         return self._tlm_adjoint__function_interface_attrs["static"]
@@ -787,3 +786,5 @@ def define_function_alias(x, parent, *, key):
                 "cache", function_is_cached(parent))
             x._tlm_adjoint__function_interface_attrs.d_setitem(
                 "checkpoint", function_is_checkpointed(parent))
+            x._tlm_adjoint__function_interface_attrs.d_setitem(
+                "state", parent._tlm_adjoint__function_interface_attrs["state"])  # noqa: E501
