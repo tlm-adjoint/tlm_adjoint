@@ -20,7 +20,7 @@ calculations.
 """
 
 from .interface import (
-    DEFAULT_COMM, FunctionInterface, SpaceInterface, add_interface,
+    DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, function_assign, function_comm,
     function_dtype, function_id, function_name, function_new,
     function_new_conjugate_dual, function_scalar_value, is_function,
@@ -167,7 +167,7 @@ def paused_float_overloading():
     _overload -= 1
 
 
-class FloatInterface(FunctionInterface):
+class FloatInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 

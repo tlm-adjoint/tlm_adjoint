@@ -3,7 +3,7 @@
 
 r"""This module defines an interface for interaction with backend data types.
 This is implemented via runtime binding of mixins. The
-:class:`FunctionInterface` adds methods to 'functions' which can be used to
+:class:`VariableInterface` adds methods to 'functions' which can be used to
 interact with backend variables. The :class:`SpaceInterface` adds methods to
 'spaces' which define the vector spaces in which those 'functions' are defined.
 
@@ -97,7 +97,7 @@ __all__ = \
         "paused_space_type_checking",
         "relative_space_type",
 
-        "FunctionInterface",
+        "VariableInterface",
         "is_function",
         "function_assign",
         "function_axpy",
@@ -364,11 +364,11 @@ def add_interface(obj, interface_cls, attrs=None):
 
     :arg obj: An object to which the mixin should be attached.
     :arg interface_cls: A subclass of :class:`SpaceInterface` or
-        :class:`FunctionInterface` defining the interface.
+        :class:`VariableInterface` defining the interface.
     :arg attrs: A :class:`Mapping` defining any attributes. Used to set an
         attribute `_tlm_adjoint__space_interface_attrs` (for a
         :class:`SpaceInterface`) or `_tlm_adjoint__function_interface_attrs`
-        (for a :class:`FunctionInterface`).
+        (for a :class:`VariableInterface`).
     """
 
     if attrs is None:
@@ -667,10 +667,10 @@ def check_space_types_conjugate_dual(x, y):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
-class FunctionInterface:
+class VariableInterface:
     """A mixin defining an interface for functions. Functions types do not
     inherit from this class -- instead an interface is defined by a
-    :class:`FunctionInterface` subclass, and methods are bound dynamically at
+    :class:`VariableInterface` subclass, and methods are bound dynamically at
     runtime using :func:`add_interface`.
     """
 
@@ -684,7 +684,7 @@ class FunctionInterface:
              "_scalar_value", "_is_alias")
 
     def __init__(self):
-        raise RuntimeError("Cannot instantiate FunctionInterface object")
+        raise RuntimeError("Cannot instantiate VariableInterface object")
 
     def _comm(self):
         return space_comm(function_space(self))
@@ -789,7 +789,7 @@ class FunctionInterface:
 
 def is_function(x):
     """Return whether `x` is a function -- i.e. has had a
-    :class:`FunctionInterface` added.
+    :class:`VariableInterface` added.
 
     :arg x: An arbitrary :class:`object`.
     :returns: `True` if `x` is a function, and `False` otherwise.

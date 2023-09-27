@@ -5,7 +5,7 @@ from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_dup_cached,
     new_function_id, new_space_id, register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
 from ..overloaded_float import SymbolicFloat
@@ -80,7 +80,7 @@ class FunctionSpace:
         return self._dtype
 
 
-class FunctionInterface(_FunctionInterface):
+class FunctionInterface(_VariableInterface):
     def _space(self):
         return self.space()
 
@@ -266,7 +266,7 @@ class Function:
         return self._data
 
 
-class ReplacementInterface(_FunctionInterface):
+class ReplacementInterface(_VariableInterface):
     def _space(self):
         return self.space()
 

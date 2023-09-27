@@ -12,7 +12,7 @@ from ..interface import (
     register_functional_term_eq, register_subtract_adjoint_derivative_action,
     space_id, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from .equations import Assembly
@@ -109,7 +109,7 @@ def check_vector_size(fn):
     return wrapped_fn
 
 
-class FunctionInterface(_FunctionInterface):
+class FunctionInterface(_VariableInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 

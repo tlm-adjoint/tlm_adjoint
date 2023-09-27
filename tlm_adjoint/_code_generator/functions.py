@@ -16,7 +16,7 @@ from ..interface import (
     function_is_static, function_linf_norm, function_local_size, function_name,
     function_replacement, function_scalar_value, function_space,
     function_space_type, is_function, space_comm)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
 from ..manager import manager_disabled
@@ -62,7 +62,7 @@ class ConstantSpaceInterface(SpaceInterface):
                         checkpoint=checkpoint)
 
 
-class ConstantInterface(_FunctionInterface):
+class ConstantInterface(_VariableInterface):
     def _space(self):
         return self._tlm_adjoint__function_interface_attrs["space"]
 
@@ -669,7 +669,7 @@ def bcs_is_homogeneous(bcs):
     return True
 
 
-class ReplacementInterface(_FunctionInterface):
+class ReplacementInterface(_VariableInterface):
     def _space(self):
         return self.ufl_function_space()
 

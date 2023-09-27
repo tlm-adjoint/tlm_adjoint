@@ -14,7 +14,7 @@ from ..interface import (
     register_subtract_adjoint_derivative_action, relative_space_type,
     space_type_warning, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from ..manager import manager_disabled
@@ -131,7 +131,7 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
-class FunctionInterfaceBase(_FunctionInterface):
+class FunctionInterfaceBase(_VariableInterface):
     def _comm(self):
         return self._tlm_adjoint__function_interface_attrs["comm"]
 
