@@ -6,19 +6,19 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    check_space_types, comm_dup_cached, function_copy, function_linf_norm,
-    function_scalar_value, function_space, function_space_type, new_space_id,
-    new_var_id, register_finalize_adjoint_derivative_action,
-    register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    space_id, subtract_adjoint_derivative_action,
-    subtract_adjoint_derivative_action_base)
+    check_space_types, comm_dup_cached, new_space_id, new_var_id,
+    register_finalize_adjoint_derivative_action, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, space_id,
+    subtract_adjoint_derivative_action,
+    subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
+    var_scalar_value, var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    Zero, define_function_alias)
+    Zero, define_var_alias)
 from ..override import override_method
 
 from ..manager import manager_disabled
@@ -114,7 +114,7 @@ class FunctionInterface(_VariableInterface):
         return self._tlm_adjoint__var_interface_attrs["space"]
 
     def _form_derivative_space(self):
-        return function_space(self)
+        return var_space(self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -227,10 +227,10 @@ class FunctionInterface(_VariableInterface):
     @check_vector_size
     def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
              rel_space_type="primal"):
-        y = function_copy(self, name=name, static=static, cache=cache,
-                          checkpoint=checkpoint)
+        y = var_copy(self, name=name, static=static, cache=cache,
+                     checkpoint=checkpoint)
         y.vector().zero()
-        space_type = function_space_type(self, rel_space_type=rel_space_type)
+        space_type = var_space_type(self, rel_space_type=rel_space_type)
         y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
@@ -244,7 +244,7 @@ class FunctionInterface(_VariableInterface):
             cache = static
         if checkpoint is None:
             checkpoint = not static
-        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", function_space_type(self))  # noqa: E501
+        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", var_space_type(self))  # noqa: E501
         y._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         y._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
         y._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
@@ -308,7 +308,7 @@ class ZeroFunction(Function, Zero):
         Function.__init__(
             self, *args, **kwargs,
             static=True, cache=True, checkpoint=False)
-        if function_linf_norm(self) != 0.0:
+        if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroFunction is not zero-valued")
 
     def assign(self, *args, **kwargs):
@@ -364,7 +364,7 @@ def Function_split(self, orig, orig_args, deepcopy=False):
     Y = orig_args()
     if not deepcopy:
         for i, y in enumerate(Y):
-            define_function_alias(y, self, key=("split", i))
+            define_var_alias(y, self, key=("split", i))
     return Y
 
 
@@ -373,7 +373,7 @@ def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
         check_space_types(x, y._tlm_adjoint__function)
 
     if len(x.ufl_shape) == 0:
-        x.assign(function_scalar_value(x) - alpha * y.max())
+        x.assign(var_scalar_value(x) - alpha * y.max())
     else:
         value = x.values()
         y_fn = backend_Function(r0_space(x))

@@ -43,7 +43,7 @@ def test_hessian_solve(setup_test,
         solver, _, _ = assemble_linear_solver(
             ufl.conj(beta) * inner(ufl.conj(trial), test) * dx, bcs=bc,
             linear_solver_parameters=ls_parameters_cg)
-        solver.solve(u, function_copy(b))
+        solver.solve(u, var_copy(b))
         return u
 
     def forward(u_ref, m):
@@ -64,7 +64,7 @@ def test_hessian_solve(setup_test,
         J_mismatch.assign(0.5 * alpha * dot(u - u_ref, u - u_ref) * dx)
 
         J = Functional(name="J")
-        J.assign(J_mismatch.function())
+        J.assign(J_mismatch.var())
         J.addto(0.5 * beta * dot(m, m) * dx)
 
         return u, J, J_mismatch
@@ -116,9 +116,9 @@ def test_hessian_solve(setup_test,
         assert len(Lam) == len(V)
         for lam_i, v_i in zip(Lam, V):
             _, _, v_error = H_mismatch.action(m, v_i)
-            function_axpy(v_error, -lam_i, B_inv(v_i))
+            var_axpy(v_error, -lam_i, B_inv(v_i))
             bc.apply(v_error)
-            assert function_linf_norm(v_error) < 1.0e-14
+            assert var_linf_norm(v_error) < 1.0e-14
 
         diag_error_norm, off_diag_error_norm = B_inv_orthonormality_test(V, B_inv)  # noqa: E501
         assert diag_error_norm < 1.0e-15
@@ -141,7 +141,7 @@ def test_hessian_solve(setup_test,
 
     H = Hessian(forward_J)
     _, _, b = H.action(m, v)
-    assert function_linf_norm(b) > 0.0
-    b_error = function_copy(b, name="b_error")
-    function_axpy(b_error, -1.0, b_ref)
-    assert function_linf_norm(b_error) < 1.0e-13
+    assert var_linf_norm(b) > 0.0
+    b_error = var_copy(b, name="b_error")
+    var_axpy(b_error, -1.0, b_ref)
+    assert var_linf_norm(b_error) < 1.0e-13

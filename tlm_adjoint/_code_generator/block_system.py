@@ -56,10 +56,10 @@ This has two primary use cases:
 
 Function spaces are defined via backend function spaces, and :class:`Sequence`
 objects containing backend function spaces or similar :class:`Sequence`
-objects. Similarly functions are defined via backend :class:`Function` objects,
-or :class:`Sequence` objects containing backend :class:`Function` objects or
-similar :class:`Sequence` objects. This defines a basic tree structure which is
-useful e.g. when defining block matrices in terms of sub-block matrices.
+objects. Similarly functions are defined via backend `Function` objects, or
+:class:`Sequence` objects containing backend `Function` objects or similar
+:class:`Sequence` objects. This defines a basic tree structure which is useful
+e.g. when defining block matrices in terms of sub-block matrices.
 
 Elements of the tree are accessed in a consistent order using a depth first
 search. Hence e.g.
@@ -74,8 +74,8 @@ and
 
     (u_0, u_1, u_2)
 
-where `u_0`, `u_1`, and `u_2` are backend :class:`Function` objects, are both
-valid representations of a mixed space solution.
+where `u_0`, `u_1`, and `u_2` are backend `Function` objects, are both valid
+representations of a mixed space solution.
 
 Code in this module is written to use only backend functionality, and does not
 use tlm_adjoint interfaces. Consequently if used directly, and in combination

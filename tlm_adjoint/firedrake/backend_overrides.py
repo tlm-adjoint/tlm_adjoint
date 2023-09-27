@@ -7,8 +7,7 @@ from .backend import (
     backend_Function, backend_Vector, backend_assemble, backend_interpolate,
     backend_project, backend_solve, parameters)
 from ..interface import (
-    function_comm, function_new, function_space, function_update_state,
-    is_function, space_id)
+    is_var, space_id, var_comm, var_new, var_space, var_update_state)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
@@ -20,7 +19,7 @@ from ..override import (
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
-from .functions import Constant, define_function_alias
+from .functions import Constant, define_var_alias
 from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numpy as np
@@ -76,8 +75,8 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
 
 
 def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
-    if is_function(return_value):
-        function_update_state(return_value)
+    if is_var(return_value):
+        var_update_state(return_value)
 
     if len(self._form.arguments()) > 0:
         form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
@@ -105,18 +104,18 @@ def FormAssembler_assemble(self, orig, orig_args, *args,
     return return_value
 
 
-def function_update_state_post_call(self, return_value, *args, **kwargs):
-    function_update_state(self)
+def var_update_state_post_call(self, return_value, *args, **kwargs):
+    var_update_state(self)
     return return_value
 
 
 @manager_method(backend_Constant, "assign",
-                post_call=function_update_state_post_call)
+                post_call=var_update_state_post_call)
 def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
     if isinstance(value, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
-        eq = Assignment(self, Constant(value, comm=function_comm(self)))
+        eq = Assignment(self, Constant(value, comm=var_comm(self)))
     elif isinstance(value, backend_Constant):
         if value is not self:
             eq = Assignment(self, value)
@@ -137,24 +136,24 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
 
 
 @manager_method(backend_Function, "assign",
-                post_call=function_update_state_post_call)
+                post_call=var_update_state_post_call)
 def Function_assign(self, orig, orig_args, expr, subset=None, *,
                     annotate, tlm):
     if isinstance(expr, (int, np.integer,
                          float, np.floating,
                          complex, np.complexfloating)):
-        expr = Constant(expr, comm=function_comm(self))
+        expr = Constant(expr, comm=var_comm(self))
 
     def assign(x, y, *,
                subset=None):
         if x is None:
-            x = function_new(y)
+            x = var_new(y)
         if subset is None \
                 and isinstance(y, ufl.classes.Zero):
             ZeroAssignment(x).solve(annotate=annotate, tlm=tlm)
         elif subset is None \
                 and isinstance(y, backend_Function) \
-                and space_id(function_space(y)) == space_id(function_space(x)):
+                and space_id(var_space(y)) == space_id(var_space(x)):
             Assignment(x, y).solve(annotate=annotate, tlm=tlm)
         else:
             ExprAssignment(x, y, subset=subset).solve(annotate=annotate, tlm=tlm)  # noqa: E501
@@ -162,7 +161,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
 
     if subset is None:
         if isinstance(expr, backend_Function) \
-                and space_id(function_space(expr)) == space_id(function_space(self)):  # noqa: E501
+                and space_id(var_space(expr)) == space_id(var_space(self)):
             if expr is not self:
                 eq = Assignment(self, expr)
             else:
@@ -196,7 +195,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
 
 
 @manager_method(backend_Function, "project",
-                post_call=function_update_state_post_call)
+                post_call=var_update_state_post_call)
 def Function_project(self, orig, orig_args, b, bcs=None,
                      solver_parameters=None, form_compiler_parameters=None,
                      use_slate_for_inverse=True, name=None, ad_block_tag=None,
@@ -204,7 +203,7 @@ def Function_project(self, orig, orig_args, b, bcs=None,
     if use_slate_for_inverse:
         # Is a local solver actually used?
         projector = Projector(
-            b, function_space(self), bcs=bcs,
+            b, var_space(self), bcs=bcs,
             solver_parameters=solver_parameters,
             form_compiler_parameters=form_compiler_parameters,
             use_slate_for_inverse=True)
@@ -235,11 +234,11 @@ def Function_project(self, orig, orig_args, b, bcs=None,
 @manager_method(backend_Function, "copy", override_without_manager=True)
 def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     if deepcopy:
-        F = function_new(self)
+        F = var_new(self)
         F.assign(self, annotate=annotate, tlm=tlm)
     else:
         F = orig_args()
-        define_function_alias(F, self, key=("copy",))
+        define_var_alias(F, self, key=("copy",))
     return F
 
 
@@ -256,8 +255,8 @@ def LinearSolver_solve_post_call(self, return_value, x, b):
         x = x.function
     if isinstance(b, backend_Vector):
         b = b.function
-    function_update_state(x)
-    function_update_state(b)
+    var_update_state(x)
+    var_update_state(b)
     return return_value
 
 
@@ -320,7 +319,7 @@ def NonlinearVariationalSolver_set_transfer_manager(
 
 def NonlinearVariationalSolver_solve_post_call(
         self, return_value, *args, **kwargs):
-    function_update_state(self._problem.u)
+    var_update_state(self._problem.u)
     return return_value
 
 
@@ -364,7 +363,7 @@ def NonlinearVariationalSolver_solve(
 
 def SameMeshInterpolator_interpolate_post_call(
         self, return_value, *args, **kwargs):
-    function_update_state(return_value)
+    var_update_state(return_value)
     return return_value
 
 

@@ -130,8 +130,8 @@ def test_overrides(setup_test, test_leaks):
         error = Function(space, name="error")
         solve(inner(trial, test) * dx == inner(F, test) * dx,
               error, bc, solver_parameters=ls_parameters_cg)
-        function_axpy(error, -1.0, G)
-        assert function_linf_norm(error) < 1.0e-13
+        var_axpy(error, -1.0, G)
+        assert var_linf_norm(error) < 1.0e-13
 
         J_val = J.value()
 

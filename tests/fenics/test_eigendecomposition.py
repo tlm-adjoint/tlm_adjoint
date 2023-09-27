@@ -27,7 +27,7 @@ def test_HEP(setup_test, test_leaks):
     M = assemble(inner(trial, test) * dx)
 
     def M_action(x):
-        y = function_new_conjugate_dual(x)
+        y = var_new_conjugate_dual(x)
         assemble(inner(x, test) * dx, tensor=y)
         return y
 
@@ -43,8 +43,8 @@ def test_HEP(setup_test, test_leaks):
     assert len(lam) == len(V)
     for lam_val, v in zip(lam, V):
         matrix_multiply(M, v, tensor=diff)
-        function_axpy(diff, -lam_val, v)
-        assert function_linf_norm(diff) < 1.0e-16
+        var_axpy(diff, -lam_val, v)
+        assert var_linf_norm(diff) < 1.0e-16
 
 
 @pytest.mark.fenics
@@ -58,7 +58,7 @@ def test_NHEP(setup_test, test_leaks):
     N = assemble(inner(trial.dx(0), test) * dx)
 
     def N_action(x):
-        y = function_new_conjugate_dual(x)
+        y = var_new_conjugate_dual(x)
         assemble(inner(x.dx(0), test) * dx, tensor=y)
         return y
 
@@ -73,21 +73,21 @@ def test_NHEP(setup_test, test_leaks):
         assert len(lam) == len(V)
         for lam_val, v in zip(lam, V):
             matrix_multiply(N, v, tensor=diff)
-            function_axpy(diff, -lam_val, v)
-            assert function_linf_norm(diff) == 0.0
+            var_axpy(diff, -lam_val, v)
+            assert var_linf_norm(diff) == 0.0
     else:
         V_r, V_i = V
         assert len(lam) == len(V_r)
         assert len(lam) == len(V_i)
         for lam_val, v_r, v_i in zip(lam, V_r, V_i):
             matrix_multiply(N, v_r, tensor=diff)
-            function_axpy(diff, -lam_val.real, v_r)
-            function_axpy(diff, +lam_val.imag, v_i)
-            assert function_linf_norm(diff) < 1.0e-15
+            var_axpy(diff, -lam_val.real, v_r)
+            var_axpy(diff, +lam_val.imag, v_i)
+            assert var_linf_norm(diff) < 1.0e-15
             matrix_multiply(N, v_i, tensor=diff)
-            function_axpy(diff, -lam_val.real, v_i)
-            function_axpy(diff, -lam_val.imag, v_r)
-            assert function_linf_norm(diff) < 1.0e-15
+            var_axpy(diff, -lam_val.real, v_i)
+            var_axpy(diff, -lam_val.imag, v_r)
+            assert var_linf_norm(diff) < 1.0e-15
 
 
 @pytest.mark.fenics
@@ -116,7 +116,7 @@ def test_CachedHessian(setup_test):
         return J
 
     F = Function(space, name="F", static=True)
-    function_assign(F, 1.0)
+    var_assign(F, 1.0)
 
     start_manager()
     J = forward(F)
@@ -129,11 +129,11 @@ def test_CachedHessian(setup_test):
 
     zeta = Function(space, name="zeta", static=True)
     for i in range(5):
-        zeta_arr = np.random.random(function_local_size(zeta))
-        if issubclass(function_dtype(zeta), (complex, np.complexfloating)):
+        zeta_arr = np.random.random(var_local_size(zeta))
+        if issubclass(var_dtype(zeta), (complex, np.complexfloating)):
             zeta_arr = zeta_arr \
-                + 1.0j * np.random.random(function_local_size(zeta))
-        function_set_values(zeta, zeta_arr)
+                + 1.0j * np.random.random(var_local_size(zeta))
+        var_set_values(zeta, zeta_arr)
         del zeta_arr
 
         # Leads to an inconsistency if the stored value is not used
@@ -142,9 +142,9 @@ def test_CachedHessian(setup_test):
         zero.assign(0.0)
         _, _, ddJ = H.action(F, zeta)
 
-        error = function_copy(ddJ)
-        function_axpy(error, -1.0, ddJ_opt)
-        assert function_linf_norm(error) == 0.0
+        error = var_copy(ddJ)
+        var_axpy(error, -1.0, ddJ_opt)
+        assert var_linf_norm(error) == 0.0
 
     with paused_space_type_checking():
         lam, V = eigendecompose(space, H.action_fn(F),
@@ -156,13 +156,13 @@ def test_CachedHessian(setup_test):
     for lam_i, v_i in zip(lam, V):
         _, _, v_error = H.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v_i)
-        assert function_linf_norm(v_error) < 1.0e-19
+            var_axpy(v_error, -lam_i, v_i)
+        assert var_linf_norm(v_error) < 1.0e-19
 
         _, _, v_error = H_opt.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v_i)
-        assert function_linf_norm(v_error) < 1.0e-19
+            var_axpy(v_error, -lam_i, v_i)
+        assert var_linf_norm(v_error) < 1.0e-19
 
     with paused_space_type_checking():
         lam_opt, V_opt = eigendecompose(space, H_opt.action_fn(F),
@@ -177,10 +177,10 @@ def test_CachedHessian(setup_test):
     for lam_i, v_i in zip(lam_opt, V_opt):
         _, _, v_error = H.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v_i)
-        assert function_linf_norm(v_error) < 1.0e-19
+            var_axpy(v_error, -lam_i, v_i)
+        assert var_linf_norm(v_error) < 1.0e-19
 
         _, _, v_error = H_opt.action(F, v_i)
         with paused_space_type_checking():
-            function_axpy(v_error, -lam_i, v_i)
-        assert function_linf_norm(v_error) < 1.0e-19
+            var_axpy(v_error, -lam_i, v_i)
+        assert var_linf_norm(v_error) < 1.0e-19

@@ -48,11 +48,11 @@ def test_Assignment(setup_test, test_leaks):
     start_manager()
     y, J = forward(x)
     stop_manager()
-    assert function_state(x) == 1
+    assert var_state(x) == 1
 
-    y_error = function_copy(y)
-    function_axpy(y_error, -1.0, x)
-    assert function_linf_norm(y_error) == 0.0
+    y_error = var_copy(y)
+    var_axpy(y_error, -1.0, x)
+    assert var_linf_norm(y_error) == 0.0
 
     J_val = J.value()
 
@@ -116,15 +116,15 @@ def test_Axpy(setup_test, test_leaks,
     start_manager()
     y, J = forward(x)
     stop_manager()
-    assert function_state(x) == 1
+    assert var_state(x) == 1
 
-    y_error = function_copy(y)
-    function_axpy(y_error, -1.0, x)
+    y_error = var_copy(y)
+    var_axpy(y_error, -1.0, x)
     y_1 = Function(space)
     y_1.assign(Constant(2.0))
-    function_axpy(y_error, -c, y_1)
+    var_axpy(y_error, -c, y_1)
     del y_1
-    assert function_linf_norm(y_error) == 0.0
+    assert var_linf_norm(y_error) == 0.0
 
     J_val = J.value()
 
@@ -182,7 +182,7 @@ def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
         return x, J
 
     bc = Function(space, name="bc", static=True)
-    function_assign(bc, 1.0)
+    var_assign(bc, 1.0)
 
     start_manager()
     x, J = forward(bc)
@@ -194,9 +194,9 @@ def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
           DirichletBC(space, 1.0, "on_boundary"),
           solver_parameters=ls_parameters_cg)
     error = Function(space, name="error")
-    function_assign(error, x_ref)
-    function_axpy(error, -1.0, x)
-    assert function_linf_norm(error) < 1.0e-14
+    var_assign(error, x_ref)
+    var_axpy(error, -1.0, x)
+    assert var_linf_norm(error) < 1.0e-14
 
     J_val = J.value()
 
@@ -250,9 +250,9 @@ def test_FixedPointSolver(setup_test, test_leaks):
     J = forward(a, b)
     stop_manager()
 
-    x_val = function_scalar_value(x)
-    a_val = function_scalar_value(a)
-    b_val = function_scalar_value(b)
+    x_val = var_scalar_value(x)
+    a_val = var_scalar_value(a)
+    b_val = var_scalar_value(b)
     assert abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14
 
     J_val = J.value()
@@ -347,7 +347,7 @@ def test_PointInterpolation(setup_test, test_leaks,
     assert len(X_vals) == len(X_coords)
     for x, x_coord in zip(X_vals, X_coords):
         x_error_norm = max(x_error_norm,
-                           abs(function_scalar_value(x) - x_ref(x_coord)))
+                           abs(var_scalar_value(x) - x_ref(x_coord)))
     info(f"Error norm = {x_error_norm:.16e}")
     assert x_error_norm < 1.0e-13
 
@@ -417,10 +417,10 @@ def test_ExprAssignment(setup_test, test_leaks,
     x, J = forward(c, y, z)
     stop_manager()
 
-    error_norm = abs(function_get_values(x)
-                     - test_expression(function_scalar_value(c),
-                                       function_get_values(y),
-                                       function_get_values(z))).max()
+    error_norm = abs(var_get_values(x)
+                     - test_expression(var_scalar_value(c),
+                                       var_get_values(y),
+                                       var_get_values(z))).max()
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-14
 
@@ -514,7 +514,7 @@ def test_ExprInterpolation(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def test_expression(y, y_int):
-        return (y_int * y * (sin if is_function(y) else np.sin)(y)
+        return (y_int * y * (sin if is_var(y) else np.sin)(y)
                 + 2.0 + (y ** 2) + y / (1.0 + (y ** 2)))
 
     def forward(y):
@@ -533,8 +533,8 @@ def test_ExprInterpolation(setup_test, test_leaks):
     x, J = forward(y)
     stop_manager()
 
-    error_norm = abs(function_get_values(x)
-                     - test_expression(function_get_values(y),
+    error_norm = abs(var_get_values(x)
+                     - test_expression(var_get_values(y),
                                        assemble(y * dx))).max()
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-15
@@ -597,9 +597,9 @@ def test_ExprInterpolation_transpose(setup_test, test_leaks,
     y_1, J = forward(y_2)
     stop_manager()
 
-    y_1_error = function_copy(y_1)
-    function_axpy(y_1_error, -1.0, y_1_ref)
-    assert function_linf_norm(y_1_error) == 0.0
+    y_1_error = var_copy(y_1)
+    var_axpy(y_1_error, -1.0, y_1_ref)
+    assert var_linf_norm(y_1_error) == 0.0
 
     J_val = J.value()
 
@@ -655,10 +655,10 @@ def test_LocalProjection(setup_test, test_leaks):
     solve(inner(trial_1, test_1) * dx == inner(G, test_1) * dx, F_ref,
           solver_parameters=ls_parameters_cg)
     F_error = Function(space_1, name="F_error")
-    function_assign(F_error, F_ref)
-    function_axpy(F_error, -1.0, F)
+    var_assign(F_error, F_ref)
+    var_axpy(F_error, -1.0, F)
 
-    F_error_norm = function_linf_norm(F_error)
+    F_error_norm = var_linf_norm(F_error)
     info(f"Error norm = {F_error_norm:.16e}")
     assert F_error_norm < 1.0e-14
 
@@ -745,7 +745,7 @@ def test_Assembly_arity_1(setup_test, test_leaks):
         Assembly(x, inner(ufl.conj(F ** 3), test) * dx).solve()
 
         J = Functional(name="J")
-        InnerProduct(J.function(), F, x).solve()
+        InnerProduct(J.var(), F, x).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -793,15 +793,15 @@ def test_Storage(setup_test, test_leaks,
         y_s = Function(space, name="y_s")
 
         if d is None:
-            function_assign(x_s, x)
+            var_assign(x_s, x)
             d = {}
-        MemoryStorage(x_s, d, function_name(x_s), save=True).solve()
+        MemoryStorage(x_s, d, var_name(x_s), save=True).solve()
 
         Projection(y, x * x * x * x_s,
                    solver_parameters=ls_parameters_cg).solve()
 
         if h is None:
-            function_assign(y_s, y)
+            var_assign(y_s, y)
 
             if comm.rank == 0:
                 pid = os.getpid()
@@ -817,7 +817,7 @@ def test_Storage(setup_test, test_leaks,
             else:
                 h = h5py.File(str(tmp_path / filename),
                               "w")
-        HDF5Storage(y_s, h, function_name(y_s), save=True).solve()
+        HDF5Storage(y_s, h, var_name(y_s), save=True).solve()
 
         J = Functional(name="J")
         J.assign(((dot(y, y_s) + 1.0) ** 2) * dx)
@@ -831,7 +831,7 @@ def test_Storage(setup_test, test_leaks,
     stop_manager()
 
     assert len(manager()._cp._refs) == 1
-    assert tuple(manager()._cp._refs.keys()) == (function_id(x),)
+    assert tuple(manager()._cp._refs.keys()) == (var_id(x),)
     assert len(manager()._cp._cp) == 0
     assert len(manager()._cp._data) == 4
     assert tuple(len(nl_deps) for nl_deps in manager()._cp._data.values()) \
@@ -967,14 +967,14 @@ def test_initial_guess(setup_test, test_leaks,
                    solver_parameters=ls_parameters_cg).solve()
         if not test_adj_ic:
             ZeroAssignment(x).solve()
-        J_term = function_new(J.function())
+        J_term = var_new(J.var())
         InnerProduct(J_term, x, adj_x_0).solve()
         J.addto(J_term)
 
         return x_0, x, adj_x_0, J
 
     y = Function(space_2, name="y", static=True)
-    if issubclass(function_dtype(y), (complex, np.complexfloating)):
+    if issubclass(var_dtype(y), (complex, np.complexfloating)):
         interpolate_expression(y, exp(X[0]) * (1.0 + 1.0j + X[1] * X[1]))
     else:
         interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
@@ -984,9 +984,9 @@ def test_initial_guess(setup_test, test_leaks,
     stop_manager()
 
     assert len(manager()._cp._refs) == 3
-    assert tuple(manager()._cp._refs.keys()) == (function_id(y),
-                                                 function_id(zero),
-                                                 function_id(adj_x_0))
+    assert tuple(manager()._cp._refs.keys()) == (var_id(y),
+                                                 var_id(zero),
+                                                 var_id(adj_x_0))
     assert len(manager()._cp._cp) == 0
     if test_adj_ic:
         assert len(manager()._cp._data) == 8
@@ -999,7 +999,7 @@ def test_initial_guess(setup_test, test_leaks,
     assert len(manager()._cp._storage) == 5
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
-    assert function_linf_norm(dJdx_0) == 0.0
+    assert var_linf_norm(dJdx_0) == 0.0
 
     J_val = J.value()
 
@@ -1040,7 +1040,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
     # m should not be static for this test
     m = Function(space, name="m")
-    function_assign(m, 1.0)
+    var_assign(m, 1.0)
 
     start_manager()
     J = forward(m)
@@ -1086,7 +1086,7 @@ def test_eliminate_zeros(setup_test, test_leaks):
         assert not L_z.empty()
         b = Cofunction(space.dual())
         assemble(L_z, tensor=b)
-        assert function_linf_norm(b) == 0.0
+        assert var_linf_norm(b) == 0.0
 
 
 @pytest.mark.firedrake
@@ -1123,7 +1123,7 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
     assert F not in extract_coefficients(zero_form)
     b = Cofunction(space.dual())
     assemble(zero_form, tensor=b)
-    assert function_linf_norm(b) == 0.0
+    assert var_linf_norm(b) == 0.0
 
 
 @pytest.mark.firedrake
@@ -1148,7 +1148,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
 
     m = ZeroFunction(space, name="m")
     for m_i in m.subfunctions:
-        assert function_linf_norm(m_i) == 0.0
+        assert var_linf_norm(m_i) == 0.0
 
     start_manager()
     J = forward(m)

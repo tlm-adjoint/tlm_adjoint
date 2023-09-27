@@ -10,12 +10,11 @@ from .backend import (
     TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
     backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, function_caches,
-    function_comm, function_dtype, function_form_derivative_space, function_id,
-    function_is_cached, function_is_checkpointed, function_is_replacement,
-    function_is_static, function_linf_norm, function_local_size, function_name,
-    function_replacement, function_scalar_value, function_space,
-    function_space_type, is_function, space_comm)
+    DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
+    space_comm, var_caches, var_comm, var_dtype, var_form_derivative_space,
+    var_id, var_is_cached, var_is_checkpointed, var_is_replacement,
+    var_is_static, var_linf_norm, var_local_size, var_name, var_replacement,
+    var_scalar_value, var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -107,7 +106,7 @@ class ConstantInterface(_VariableInterface):
         if len(self.ufl_shape) == 0:
             value = 0.0
         else:
-            value = np.zeros(self.ufl_shape, dtype=function_dtype(self))
+            value = np.zeros(self.ufl_shape, dtype=var_dtype(self))
             value = backend_Constant(value)
         self.assign(value)
 
@@ -121,7 +120,7 @@ class ConstantInterface(_VariableInterface):
             if len(self.ufl_shape) == 0:
                 value = y
             else:
-                value = np.full(self.ufl_shape, y, dtype=function_dtype(self))
+                value = np.full(self.ufl_shape, y, dtype=var_dtype(self))
                 value = backend_Constant(value)
         elif isinstance(y, backend_Constant):
             value = y
@@ -137,22 +136,22 @@ class ConstantInterface(_VariableInterface):
                           float, np.floating,
                           complex, np.complexfloating)):
             if len(self.ufl_shape) == 0:
-                value = (function_scalar_value(self) + alpha * x)
+                value = (var_scalar_value(self) + alpha * x)
             else:
                 value = self.values() + alpha * x
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
         elif isinstance(x, backend_Constant):
             if len(self.ufl_shape) == 0:
-                value = (function_scalar_value(self)
-                         + alpha * function_scalar_value(x))
+                value = (var_scalar_value(self)
+                         + alpha * var_scalar_value(x))
             else:
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
-        elif is_function(x):
-            value = (function_scalar_value(self)
-                     + alpha * function_scalar_value(x))
+        elif is_var(x):
+            value = (var_scalar_value(self)
+                     + alpha * var_scalar_value(x))
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
         self.assign(value)
@@ -170,7 +169,7 @@ class ConstantInterface(_VariableInterface):
         return abs(self.values()).max()
 
     def _local_size(self):
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank == 0:
             if len(self.ufl_shape) == 0:
                 return 1
@@ -186,7 +185,7 @@ class ConstantInterface(_VariableInterface):
             return np.prod(self.ufl_shape)
 
     def _local_indices(self):
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank == 0:
             if len(self.ufl_shape) == 0:
                 return slice(0, 1)
@@ -196,20 +195,20 @@ class ConstantInterface(_VariableInterface):
             return slice(0, 0)
 
     def _get_values(self):
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank == 0:
             values = self.values().copy()
         else:
-            values = np.array([], dtype=function_dtype(self))
+            values = np.array([], dtype=var_dtype(self))
         return values
 
     @manager_disabled()
     def _set_values(self, values):
-        if not np.can_cast(values, function_dtype(self)):
+        if not np.can_cast(values, var_dtype(self)):
             raise ValueError("Invalid dtype")
-        if values.shape != (function_local_size(self),):
+        if values.shape != (var_local_size(self),):
             raise ValueError("Invalid shape")
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank != 0:
             values = None
         values = comm.bcast(values, root=0)
@@ -232,8 +231,8 @@ class ConstantInterface(_VariableInterface):
         return len(self.ufl_shape) == 0
 
     def _scalar_value(self):
-        # assert function_is_scalar(self)
-        return function_dtype(self)(self)
+        # assert var_is_scalar(self)
+        return var_dtype(self)(self)
 
     def _is_alias(self):
         return "alias" in self._tlm_adjoint__var_interface_attrs
@@ -350,8 +349,8 @@ class Constant(backend_Constant):
 
 
 class Zero:
-    """Mixin for defining a zero-valued function. Used for zero-valued
-    functions for which UFL zero elimination should not be applied.
+    """Mixin for defining a zero-valued variable. Used for zero-valued
+    variables for which UFL zero elimination should not be applied.
     """
 
     def _tlm_adjoint__var_interface_assign(self, y):
@@ -379,7 +378,7 @@ class ZeroConstant(Constant, Zero):
         Constant.__init__(
             self, name=name, domain=domain, space=space, space_type=space_type,
             shape=shape, comm=comm, static=True, cache=True, checkpoint=False)
-        if function_linf_norm(self) != 0.0:
+        if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroConstant is not zero-valued")
 
     def __new__(cls, *args, shape=None, **kwargs):
@@ -401,8 +400,8 @@ def as_coefficient(x):
         raise TypeError("Unexpected type")
 
     if not hasattr(x, "_tlm_adjoint__Coefficient"):
-        if is_function(x):
-            space = function_space(x)
+        if is_var(x):
+            space = var_space(x)
         else:
             if len(x.ufl_shape) == 0:
                 element = ufl.classes.FiniteElement("R", None, 0)
@@ -454,7 +453,7 @@ def with_coefficients(expr):
 
 def extract_coefficients(expr):
     """
-    :returns: Functions on which the supplied :class:`ufl.core.expr.Expr` or
+    :returns: Variables on which the supplied :class:`ufl.core.expr.Expr` or
         :class:`ufl.Form` depends.
     """
 
@@ -496,7 +495,7 @@ def derivative(expr, x, argument=None, *,
 
         if argument is None and enable_automatic_argument:
             Argument = {0: TestFunction, 1: TrialFunction}[arity]
-            argument = Argument(function_form_derivative_space(x))
+            argument = Argument(var_form_derivative_space(x))
 
         if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
             raise ValueError("Invalid argument")
@@ -588,10 +587,10 @@ class DirichletBC(backend_DirichletBC):
             for dep in extract_coefficients(
                     g if isinstance(g, ufl.classes.Expr)
                     else Constant(g, static=True)):
-                # The 'static' flag for functions is only a hint. 'not
-                # checkpointed' is a guarantee that the function will never
+                # The 'static' flag for variables is only a hint. 'not
+                # checkpointed' is a guarantee that the variable will never
                 # appear as the solution to an Equation.
-                if not is_function(dep) or function_is_checkpointed(dep):
+                if not is_var(dep) or var_is_checkpointed(dep):
                     static = False
                     break
             else:
@@ -675,7 +674,7 @@ class ReplacementInterface(_VariableInterface):
 
     def _form_derivative_space(self):
         return self._tlm_adjoint__var_interface_attrs.get(
-            "form_derivative_space", lambda x: function_space(x))(self)
+            "form_derivative_space", lambda x: var_space(x))(self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -714,7 +713,7 @@ class Replacement(ufl.classes.Coefficient):
     """
 
     def __init__(self, x):
-        space = function_space(x)
+        space = var_space(x)
 
         x_domains = x.ufl_domains()
         if len(x_domains) == 0:
@@ -725,13 +724,13 @@ class Replacement(ufl.classes.Coefficient):
         super().__init__(space, count=x.count())
         self._tlm_adjoint__domain = domain
         add_interface(self, ReplacementInterface,
-                      {"id": function_id(x), "name": function_name(x),
+                      {"id": var_id(x), "name": var_name(x),
                        "space": space,
-                       "space_type": function_space_type(x),
-                       "static": function_is_static(x),
-                       "cache": function_is_cached(x),
-                       "checkpoint": function_is_checkpointed(x),
-                       "caches": function_caches(x)})
+                       "space_type": var_space_type(x),
+                       "static": var_is_static(x),
+                       "cache": var_is_cached(x),
+                       "checkpoint": var_is_checkpointed(x),
+                       "caches": var_caches(x)})
 
     def ufl_domain(self):
         return self._tlm_adjoint__domain
@@ -754,23 +753,24 @@ class ReplacementConstant(Replacement):
 
 
 class ReplacementFunction(Replacement):
-    """Represents a symbolic function, but has no value.
+    """Represents a symbolic backend `Function`, but has no value.
     """
 
-    pass
+    def function_space(self):
+        return var_space(self)
 
 
 def replaced_form(form):
     replace_map = {}
     for c in extract_coefficients(form):
-        if is_function(c) and not function_is_replacement(c):
-            c_rep = function_replacement(c)
+        if is_var(c) and not var_is_replacement(c):
+            c_rep = var_replacement(c)
             if c_rep is not c:
                 replace_map[c] = c_rep
     return ufl.replace(form, replace_map)
 
 
-def define_function_alias(x, parent, *, key):
+def define_var_alias(x, parent, *, key):
     if x is not parent:
         if "alias" in x._tlm_adjoint__var_interface_attrs:
             alias_parent, alias_key = x._tlm_adjoint__var_interface_attrs["alias"]  # noqa: E501
@@ -782,12 +782,12 @@ def define_function_alias(x, parent, *, key):
             x._tlm_adjoint__var_interface_attrs["alias"] \
                 = (weakref.ref(parent), key)
             x._tlm_adjoint__var_interface_attrs.d_setitem(
-                "space_type", function_space_type(parent))
+                "space_type", var_space_type(parent))
             x._tlm_adjoint__var_interface_attrs.d_setitem(
-                "static", function_is_static(parent))
+                "static", var_is_static(parent))
             x._tlm_adjoint__var_interface_attrs.d_setitem(
-                "cache", function_is_cached(parent))
+                "cache", var_is_cached(parent))
             x._tlm_adjoint__var_interface_attrs.d_setitem(
-                "checkpoint", function_is_checkpointed(parent))
+                "checkpoint", var_is_checkpointed(parent))
             x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "state", parent._tlm_adjoint__var_interface_attrs["state"])

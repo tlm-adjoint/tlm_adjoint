@@ -36,10 +36,10 @@ def test_Assignment(setup_test, test_leaks, test_default_dtypes):
         DotProduct(z_dot_z, z, z).solve()
 
         J = Functional(name="J")
-        Axpy(J.function(), z_dot_z, 2.0, x_dot_x).solve()
+        Axpy(J.var(), z_dot_z, 2.0, x_dot_x).solve()
 
         K = Functional(name="K")
-        Assignment(K.function(), z_dot_z).solve()
+        Assignment(K.var(), z_dot_z).solve()
 
         return J, K
 
@@ -92,7 +92,7 @@ def test_Axpy(setup_test, test_leaks, test_default_dtypes):
         DotProduct(z[1], y[-1], y[-1]).solve()
 
         J = Functional(name="J")
-        DotProduct(J.function(), z[1], z[1]).solve()
+        DotProduct(J.var(), z[1], z[1]).solve()
         return J
 
     start_manager()
@@ -136,14 +136,14 @@ def test_InnerProduct(setup_test, test_leaks):
         Assignment(G, F).solve()
 
         J = Functional(name="J")
-        InnerProduct(J.function(), F, G).solve()
+        InnerProduct(J.var(), F, G).solve()
         return J
 
     F = Function(space, name="F", static=True)
-    F_arr = np.random.random(function_local_size(F))
-    if issubclass(function_dtype(F), (complex, np.complexfloating)):
-        F_arr = F_arr + 1.0j * np.random.random(function_local_size(F))
-    function_set_values(F, F_arr)
+    F_arr = np.random.random(var_local_size(F))
+    if issubclass(var_dtype(F), (complex, np.complexfloating)):
+        F_arr = F_arr + 1.0j * np.random.random(var_local_size(F))
+    var_set_values(F, F_arr)
     del F_arr
 
     start_manager()
@@ -179,15 +179,15 @@ def test_Contraction(setup_test, test_leaks, test_default_dtypes):
         DotProduct(x_dot_x, x, x).solve()
 
         J = Functional(name="J")
-        DotProduct(J.function(), x_dot_x, x_dot_x).solve()
+        DotProduct(J.var(), x_dot_x, x_dot_x).solve()
         return x, J
 
     m = Function(space, name="m", static=True)
     if issubclass(dtype, (complex, np.complexfloating)):
-        function_set_values(
+        var_set_values(
             m, np.array([7.0 + 16.0j, 8.0 + 17.0j, 9.0 + 18.0j], dtype=dtype))
     else:
-        function_set_values(
+        var_set_values(
             m, np.array([7.0, 8.0, 9.0], dtype=dtype))
 
     start_manager()

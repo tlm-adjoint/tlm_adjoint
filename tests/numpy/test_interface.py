@@ -21,4 +21,4 @@ def test_name(setup_test,
               cls):
     name = "_tlm_adjoint__test_name"
     F = cls(name=name)
-    assert function_name(F) == name
+    assert var_name(F) == name

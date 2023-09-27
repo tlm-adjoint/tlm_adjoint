@@ -43,12 +43,12 @@ def test_GaussNewton(setup_test, test_leaks):
         return J
 
     def R_inv_action(x):
-        y = function_new_conjugate_dual(x)
+        y = var_new_conjugate_dual(x)
         assemble(inner(grad(ufl.conj(x)), grad(test)) * dx, tensor=y)
         return y
 
     def B_inv_action(x):
-        y = function_new_conjugate_dual(x)
+        y = var_new_conjugate_dual(x)
         assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx, tensor=y)
         return y
 
@@ -60,18 +60,18 @@ def test_GaussNewton(setup_test, test_leaks):
 
     for i in range(20):
         dm = Function(space, static=True)
-        dm_arr = np.random.random(function_local_size(dm))
-        if issubclass(function_dtype(dm), (complex, np.complexfloating)):
-            dm_arr = dm_arr + 1.0j * np.random.random(function_local_size(dm))
-        function_set_values(dm, dm_arr)
+        dm_arr = np.random.random(var_local_size(dm))
+        if issubclass(var_dtype(dm), (complex, np.complexfloating)):
+            dm_arr = dm_arr + 1.0j * np.random.random(var_local_size(dm))
+        var_set_values(dm, dm_arr)
         del dm_arr
 
-        _, _, H_action = H.action(F, function_copy(dm, static=True))
+        _, _, H_action = H.action(F, var_copy(dm, static=True))
         H_action_GN = H_GN.action(F, dm)
 
-        H_action_error = function_copy(H_action)
-        function_axpy(H_action_error, -1.0, H_action_GN)
-        assert function_linf_norm(H_action_error) < 1.0e-18
+        H_action_error = var_copy(H_action)
+        var_axpy(H_action_error, -1.0, H_action_GN)
+        assert var_linf_norm(H_action_error) < 1.0e-18
 
 
 @pytest.mark.fenics
@@ -104,12 +104,12 @@ def test_CachedGaussNewton(setup_test):
         return J
 
     def R_inv_action(x):
-        y = function_new_conjugate_dual(x)
+        y = var_new_conjugate_dual(x)
         assemble(inner(grad(ufl.conj(x)), grad(test)) * dx, tensor=y)
         return y
 
     def B_inv_action(x):
-        y = function_new_conjugate_dual(x)
+        y = var_new_conjugate_dual(x)
         assemble(ufl.conj(eps) * inner(ufl.conj(x), test) * dx, tensor=y)
         return y
 
@@ -124,15 +124,15 @@ def test_CachedGaussNewton(setup_test):
 
     for i in range(20):
         dm = Function(space, static=True)
-        dm_arr = np.random.random(function_local_size(dm))
-        if issubclass(function_dtype(dm), (complex, np.complexfloating)):
-            dm_arr = dm_arr + 1.0j * np.random.random(function_local_size(dm))
-        function_set_values(dm, dm_arr)
+        dm_arr = np.random.random(var_local_size(dm))
+        if issubclass(var_dtype(dm), (complex, np.complexfloating)):
+            dm_arr = dm_arr + 1.0j * np.random.random(var_local_size(dm))
+        var_set_values(dm, dm_arr)
         del dm_arr
 
-        _, _, H_action = H.action(F, function_copy(dm, static=True))
+        _, _, H_action = H.action(F, var_copy(dm, static=True))
         H_action_GN = H_GN.action(F, dm)
 
-        H_action_error = function_copy(H_action)
-        function_axpy(H_action_error, -1.0, H_action_GN)
-        assert function_linf_norm(H_action_error) < 1.0e-18
+        H_action_error = var_copy(H_action)
+        var_axpy(H_action_error, -1.0, H_action_GN)
+        assert var_linf_norm(H_action_error) < 1.0e-18

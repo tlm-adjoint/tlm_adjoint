@@ -6,8 +6,7 @@ implements finite element assembly and linear solver data caching.
 """
 
 from .backend import TrialFunction, backend_DirichletBC, backend_Function
-from ..interface import (
-    function_id, function_is_cached, function_space, is_function)
+from ..interface import is_var, var_id, var_is_cached, var_space
 from .backend_code_generator_interface import (
     assemble, assemble_arguments, assemble_matrix, complex_mode, linear_solver,
     matrix_copy, parameters_key)
@@ -35,7 +34,7 @@ __all__ = \
 
 def is_cached(expr):
     for c in extract_coefficients(expr):
-        if not is_function(c) or not function_is_cached(c):
+        if not is_var(c) or not var_is_cached(c):
             return False
     return True
 
@@ -232,13 +231,13 @@ def split_terms(terms, base_integral,
                     [base_integral.reconstruct(integrand=term)])
                 mat_sub, non_cached_sub = split_arity(
                     term_form, mat_dep,
-                    argument=TrialFunction(function_space(mat_dep)))
+                    argument=TrialFunction(var_space(mat_dep)))
                 mat_sub = [integral.integrand()
                            for integral in mat_sub.integrals()]
                 non_cached_sub = [integral.integrand()
                                   for integral in non_cached_sub.integrals()]
                 if len(mat_sub) > 0:
-                    mat_terms[function_id(mat_dep)].extend(mat_sub)
+                    mat_terms[var_id(mat_dep)].extend(mat_sub)
                 non_cached_terms.extend(non_cached_sub)
 
     return cached_terms, dict(mat_terms), non_cached_terms
@@ -279,8 +278,8 @@ def split_form(form):
 def form_dependencies(form):
     deps = {}
     for dep in extract_coefficients(form):
-        if is_function(dep):
-            deps.setdefault(function_id(dep), dep)
+        if is_var(dep):
+            deps.setdefault(var_id(dep), dep)
     return deps
 
 

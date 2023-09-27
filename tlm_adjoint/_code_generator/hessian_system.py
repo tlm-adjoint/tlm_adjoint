@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from ..interface import (
-    check_space_types, comm_dup_cached, function_assign, function_axpy,
-    function_copy, function_dtype, function_inner, function_space,
-    function_space_type, is_function, space_comm, space_dtype, space_new,
-    var_axpy_conjugate, var_copy_conjugate)
+    check_space_types, comm_dup_cached, is_var, space_comm, space_dtype,
+    space_new, var_assign, var_axpy, var_axpy_conjugate, var_copy,
+    var_copy_conjugate, var_dtype, var_inner, var_space, var_space_type)
 
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
@@ -70,20 +69,20 @@ class MixedSpace(BackendMixedSpace):
 
 class HessianMatrix(Matrix):
     def __init__(self, H, M):
-        if is_function(M):
+        if is_var(M):
             M = (M,)
         else:
             M = tuple(M)
-        space = tuple(map(function_space, M))
+        space = tuple(map(var_space, M))
 
         super().__init__(space, space)
         self._H = H
         self._M = M
 
     def mult_add(self, x, y):
-        if is_function(x):
+        if is_var(x):
             x = (x,)
-        if is_function(y):
+        if is_var(y):
             y = (y,)
 
         if len(x) != len(self._M):
@@ -107,8 +106,8 @@ class HessianSystem(System):
         H u = b.
 
     :arg H: A :class:`tlm_adjoint.hessian.Hessian` defining :math:`H`.
-    :arg M: A function or a :class:`Sequence` of functions defining the
-        control.
+    :arg M: A backend `Function`, or a :class:`Sequence` of backend `Function`
+        objects, defining the control.
     :arg nullspace: A
         :class:`tlm_adjoint._code_generator.block_system.Nullspace` or a
         :class:`Sequence` of
@@ -121,15 +120,15 @@ class HessianSystem(System):
 
     def __init__(self, H, M, *,
                  nullspace=None, comm=None):
-        if is_function(M):
+        if is_var(M):
             M = (M,)
 
         arg_spaces = MixedSpace(
-            (tuple(map(function_space, M)),),
-            space_types=tuple(map(function_space_type, M)))
+            (tuple(map(var_space, M)),),
+            space_types=tuple(map(var_space_type, M)))
         action_spaces = MixedSpace(
-            (tuple(map(function_space, M)),),
-            space_types=tuple(function_space_type(m, rel_space_type="dual")
+            (tuple(map(var_space, M)),),
+            space_types=tuple(var_space_type(m, rel_space_type="dual")
                               for m in M))
 
         matrix = HessianMatrix(H, M)
@@ -150,15 +149,16 @@ class HessianSystem(System):
 
             H u = b.
 
-        :arg u: A function or a :class:`Sequence` of functions defining the
-            solution :math:`u`.
-        :arg b: A function or a :class:`Sequence` of functions defining the
-            conjugate of the right-hand-side :math:`b`.
+        :arg u: A backend `Function`, or a :class:`Sequence` of backend
+            `Function` objects, defining the solution :math:`u`.
+        :arg b: A backend `Function`, or a :class:`Sequence` of backend
+            `Function` objects, defining the conjugate of the right-hand-side
+            :math:`b`.
 
         Remaining arguments are handed to the base class :meth:`solve` method.
         """
 
-        if is_function(b):
+        if is_var(b):
             b = var_copy_conjugate(b)
         else:
             b = tuple_sub(map(var_copy_conjugate, iter_sub(b)), b)
@@ -182,14 +182,13 @@ def hessian_eigendecompose(
     operator only on an appropriate subspace.
 
     :arg H: A :class:`tlm_adjoint.hessian.Hessian`.
-    :arg m: A backend :class:`Function` defining the control.
-    :arg B_inv_action: A callable accepting a backend :class:`Function`
-        defining `v` and computing the conjugate of the action of
-        :math:`B^{-1}` on :math:`v`, returning the result as a backend
-        :class:`Function`.
-    :arg B_action: A callable accepting a backend :class:`Function` defining
-        :math:`v` and computing the action of :math:`B` on the conjugate of
-        :math:`v`, returning the result as a backend :class:`Function`.
+    :arg m: A backend `Function` defining the control.
+    :arg B_inv_action: A callable accepting a backend `Function` defining `v`
+        and computing the conjugate of the action of :math:`B^{-1}` on
+        :math:`v`, returning the result as a backend `Function`.
+    :arg B_action: A callable accepting a backend `Function` defining :math:`v`
+        and computing the action of :math:`B` on the conjugate of :math:`v`,
+        returning the result as a backend `Function`.
     :arg nullspace: A
         :class:`tlm_adjoint._code_generator.block_system.Nullspace` defining
         the nullspace and left nullspace of :math:`H` and :math:`B^{-1}`.
@@ -208,15 +207,15 @@ def hessian_eigendecompose(
     :func:`tlm_adjoint.eigendecomposition.eigendecompose`.
     """
 
-    space = function_space(m)
+    space = var_space(m)
 
-    arg_space_type = function_space_type(m)
+    arg_space_type = var_space_type(m)
     arg_space = MixedSpace(space, space_types=arg_space_type)
     assert arg_space.split_space() == (space,)
     assert arg_space.flattened_space() == (space,)
     assert arg_space.mixed_space() == space
 
-    action_space_type = function_space_type(m, rel_space_type="dual")
+    action_space_type = var_space_type(m, rel_space_type="dual")
     action_space = MixedSpace(space, space_types=action_space_type)
     assert action_space.split_space() == (space,)
     assert action_space.flattened_space() == (space,)
@@ -226,7 +225,7 @@ def hessian_eigendecompose(
         nullspace = NoneNullspace()
 
     def H_action(x):
-        x = function_copy(x)
+        x = var_copy(x)
         nullspace.pre_mult_correct_lhs(x)
         _, _, y = H.action(m, x)
         y = var_copy_conjugate(y)
@@ -236,9 +235,9 @@ def hessian_eigendecompose(
     B_inv_action_arg = B_inv_action
 
     def B_inv_action(x):
-        x = function_copy(x)
+        x = var_copy(x)
         nullspace.pre_mult_correct_lhs(x)
-        y = B_inv_action_arg(function_copy(x))
+        y = B_inv_action_arg(var_copy(x))
         y = var_copy_conjugate(y)
         nullspace.post_mult_correct_lhs(x, y)
         return y
@@ -249,7 +248,7 @@ def hessian_eigendecompose(
         x, = x
         y, = tuple(map(var_copy_conjugate, y))
         # Nullspace corrections applied by the Preconditioner class
-        function_assign(x, B_action_arg(y))
+        var_assign(x, B_action_arg(y))
 
     pre_callback_arg = pre_callback
 
@@ -313,10 +312,10 @@ def B_inv_orthonormality_test(V, B_inv_action):
 
     Requires real spaces.
 
-    :arg B_inv_action: A callable accepting a backend :class:`Function`
-        defining `v` and computing the action of :math:`B^{-1}` on :math:`v`,
-        returning the result as a backend :class:`Function`.
-    :arg V: A :class:`Sequence` of functions to test for
+    :arg B_inv_action: A callable accepting a backend `Function` defining `v`
+        and computing the action of :math:`B^{-1}` on :math:`v`, returning the
+        result as a backend `Function`.
+    :arg V: A :class:`Sequence` of backend `Function` objects to test for
         :math:`B^{-1}`-orthonormality.
     :returns: A :class:`tuple` `(max_diagonal_error_norm,
         max_off_diagonal_error_norm)` with
@@ -335,10 +334,10 @@ def B_inv_orthonormality_test(V, B_inv_action):
 
     B_inv_V = []
     for v in V:
-        if not issubclass(function_dtype(v), (float, np.floating)):
+        if not issubclass(var_dtype(v), (float, np.floating)):
             raise ValueError("Real dtype required")
-        B_inv_V.append(B_inv_action(function_copy(v)))
-        if not issubclass(function_dtype(B_inv_V[-1]), (float, np.floating)):
+        B_inv_V.append(B_inv_action(var_copy(v)))
+        if not issubclass(var_dtype(B_inv_V[-1]), (float, np.floating)):
             raise ValueError("Real dtype required")
 
     max_diagonal_error_norm = 0.0
@@ -349,11 +348,11 @@ def B_inv_orthonormality_test(V, B_inv_action):
             if i == j:
                 max_diagonal_error_norm = max(
                     max_diagonal_error_norm,
-                    abs(function_inner(v, B_inv_v) - 1.0))
+                    abs(var_inner(v, B_inv_v) - 1.0))
             else:
                 max_off_diagonal_error_norm = max(
                     max_off_diagonal_error_norm,
-                    abs(function_inner(v, B_inv_v)))
+                    abs(var_inner(v, B_inv_v)))
 
     return max_diagonal_error_norm, max_off_diagonal_error_norm
 
@@ -401,12 +400,12 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
 
     See in particular their equation (20).
 
-    :arg B_action: A callable accepting a backend :class:`Function` defining
-        :math:`v` and computing the action of :math:`B` on :math:`v`, returning
-        the result as a backend :class:`Function`.
+    :arg B_action: A callable accepting a backend `Function` defining :math:`v`
+        and computing the action of :math:`B` on :math:`v`, returning the
+        result as a backend `Function`.
     :arg Lam: A :class:`Sequence` defining the diagonal of :math:`\Lambda`.
-    :arg V: A :class:`Sequence` of backend :class:`Function` objects defining
-        the columns of :math:`V`.
+    :arg V: A :class:`Sequence` of backend `Function` objects defining the
+        columns of :math:`V`.
     :returns: A callable suitable for use as the `pc_fn` argument to
         :meth:`HessianSystem.solve`.
     """
@@ -424,11 +423,11 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
 
     def pc_fn(u, b):
         b = var_copy_conjugate(b)
-        function_assign(u, B_action(function_copy(b)))
+        var_assign(u, B_action(var_copy(b)))
 
         assert len(Lam) == len(V)
         for lam, v in zip(Lam, V):
-            alpha = -(lam / (1.0 + lam)) * function_inner(b, v)
-            function_axpy(u, alpha, v)
+            alpha = -(lam / (1.0 + lam)) * var_inner(b, v)
+            var_axpy(u, alpha, v)
 
     return pc_fn

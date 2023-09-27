@@ -46,7 +46,7 @@ def test_long_range(setup_test, test_leaks,
             LinearCombination(x, *terms).solve()
             if n % 17 == 0:
                 if gather_ref:
-                    x_ref[n] = function_copy(x, name=f"x_ref_{n:d}")
+                    x_ref[n] = var_copy(x, name=f"x_ref_{n:d}")
                 J.addto(dot(x * x * x, x_ref[n]) * dx)
             Assignment(x_old, x).solve()
             if n < n_steps - 1:
@@ -107,7 +107,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
 
         J_0_val = J_0.value()
         ZeroAssignment(x).solve()
-        assert function_linf_norm(x) == 0.0
+        assert var_linf_norm(x) == 0.0
         J_0.addto(dot(x, y) * dx)
         assert J_0.value() == J_0_val
 
@@ -165,7 +165,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             @no_space_type_checking
             def forward_action(self, nl_deps, x, b, *, method="assign"):
                 if method == "assign":
-                    function_assign(b, x)
+                    var_assign(b, x)
                 else:
                     raise ValueError(f"Unexpected method '{method:s}'")
 
@@ -175,19 +175,19 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 if b_index != 0:
                     raise IndexError("Invalid index")
                 if method == "assign":
-                    function_assign(b, adj_x)
+                    var_assign(b, adj_x)
                 else:
                     raise ValueError(f"Unexpected method '{method:s}'")
 
             @no_space_type_checking
             def forward_solve(self, x, nl_deps, b):
-                function_assign(x, b)
+                var_assign(x, b)
 
             @no_space_type_checking
             def adjoint_solve(self, adj_x, nl_deps, b):
                 assert adj_x is None
-                adj_x = function_new_conjugate_dual(b)
-                function_assign(adj_x, b)
+                adj_x = var_new_conjugate_dual(b)
+                var_assign(adj_x, b)
                 return adj_x
 
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
@@ -208,9 +208,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             linear_eq = WeakAlias(linear_eq)
 
@@ -219,9 +219,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             manager.drop_references()
 
@@ -230,9 +230,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert function_is_replacement(dep)
+                assert var_is_replacement(dep)
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
         y = Constant(0.0, name="y")
         LinearEquation(y, b, A=M).solve()
@@ -247,7 +247,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             M = WeakAlias(M)
             b = WeakAlias(b)
@@ -256,7 +256,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             manager.drop_references()
 
@@ -264,12 +264,12 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert b._references_dropped
             assert M._references_dropped
             for dep in b.dependencies():
-                assert function_is_replacement(dep)
+                assert var_is_replacement(dep)
 
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        InnerProduct(J.function(), z, z, M=M).solve()
+        InnerProduct(J.var(), z, z, M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -322,11 +322,11 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
 
             def forward_solve(self, x, deps=None):
                 _, x0, m = self.dependencies() if deps is None else deps
-                function_assign(
+                var_assign(
                     x,
-                    0.5 * (function_scalar_value(x0) ** 2
-                           + function_scalar_value(m))
-                    / function_scalar_value(x0))
+                    0.5 * (var_scalar_value(x0) ** 2
+                           + var_scalar_value(m))
+                    / var_scalar_value(x0))
 
             def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
                 return b
@@ -334,20 +334,20 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
                 if dep_index == 1:
                     x0, m = nl_deps
-                    F = function_new_conjugate_dual(x0)
-                    function_assign(
+                    F = var_new_conjugate_dual(x0)
+                    var_assign(
                         F,
-                        (0.5 * function_scalar_value(adj_x)
-                         * (function_scalar_value(m)
-                            / (function_scalar_value(x0) ** 2) - 1.0)).conjugate())  # noqa: E501
+                        (0.5 * var_scalar_value(adj_x)
+                         * (var_scalar_value(m)
+                            / (var_scalar_value(x0) ** 2) - 1.0)).conjugate())
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
-                    F = function_new_conjugate_dual(x0)
-                    function_assign(
+                    F = var_new_conjugate_dual(x0)
+                    var_assign(
                         F,
-                        (-0.5 * function_scalar_value(adj_x)
-                         / function_scalar_value(x0)).conjugate())
+                        (-0.5 * var_scalar_value(adj_x)
+                         / var_scalar_value(x0)).conjugate())
                     return F
                 else:
                     raise IndexError("Unexpected dep_index")
@@ -371,7 +371,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [fp_eq, eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             fp_eq = WeakAlias(fp_eq)
@@ -380,7 +380,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [fp_eq, eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             manager.drop_references()
@@ -388,11 +388,11 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             assert len(manager._to_drop_references) == 0
             assert fp_eq._references_dropped
             for dep in fp_eq.dependencies():
-                assert function_is_replacement(dep)
+                assert var_is_replacement(dep)
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
         eq0.solve()
@@ -403,7 +403,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             eq0 = WeakAlias(eq0)
@@ -413,7 +413,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             manager.drop_references()
@@ -422,7 +422,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             for eq in [eq0, eq1]:
                 assert eq._references_dropped
                 for dep in eq.dependencies():
-                    assert function_is_replacement(dep)
+                    assert var_is_replacement(dep)
             del eq
 
         J = Functional(name="J")
@@ -479,7 +479,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
                 new_block()
 
         J = Functional(name="J")
-        DotProduct(J.function(), m, m).solve()
+        DotProduct(J.var(), m, m).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -528,11 +528,11 @@ def test_adjoint_caching(setup_test, test_leaks):
     interpolate_expression(m, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
     dm_0 = Function(space, name="dm_0")
-    if issubclass(function_dtype(dm_0), (complex, np.complexfloating)):
+    if issubclass(var_dtype(dm_0), (complex, np.complexfloating)):
         dm_0.assign(Constant(1.0 + 1.0j))
     else:
         dm_0.assign(Constant(1.0))
-    dm_1 = function_copy(dm_0, name="dm_1")
+    dm_1 = var_copy(dm_0, name="dm_1")
 
     start_manager()
     J, K = forward(m)
@@ -561,7 +561,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     ddJ = Hessian(forward_J)
     J_val_0b, dJ_0b, ddJ_0 = ddJ.action(m, dm_0)
     assert abs(J_val - J_val_0b) == 0.0
-    assert abs(dJ_0b - function_inner(dm_0, dJ_0)) < 1.0e-15
+    assert abs(dJ_0b - var_inner(dm_0, dJ_0)) < 1.0e-15
 
     min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm_0)
     assert min_order > 2.99
@@ -596,17 +596,17 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert tuple(adj_cache._keys[(1, 0, 1)]) == ((0, 0, 0),)
     assert tuple(adj_cache._keys[(2, 0, 0)]) == ()
 
-    dJ_error = function_copy(dJ_0)
-    function_axpy(dJ_error, -1.0, dJ_1)
-    assert function_linf_norm(dJ_error) == 0.0
+    dJ_error = var_copy(dJ_0)
+    var_axpy(dJ_error, -1.0, dJ_1)
+    assert var_linf_norm(dJ_error) == 0.0
 
-    dK_error = function_copy(dK_0)
-    function_axpy(dK_error, -1.0, dK_1)
-    assert function_linf_norm(dK_error) == 0.0
+    dK_error = var_copy(dK_0)
+    var_axpy(dK_error, -1.0, dK_1)
+    assert var_linf_norm(dK_error) == 0.0
 
-    ddJ_error = function_copy(ddJ_0)
-    function_axpy(ddJ_error, -1.0, ddJ_1)
-    assert function_linf_norm(ddJ_error) == 0.0
+    ddJ_error = var_copy(ddJ_0)
+    var_axpy(ddJ_error, -1.0, ddJ_1)
+    assert var_linf_norm(ddJ_error) == 0.0
 
     reset_manager()
 
@@ -635,25 +635,25 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert tuple(adj_cache._keys[(2, 0, 3)]) == ((1, 0, 2), (0, 0, 1), (3, 0, 0))  # noqa: E501
     assert tuple(adj_cache._keys[(4, 0, 0)]) == ()
 
-    dJ_error = function_copy(dJ_0)
-    function_axpy(dJ_error, -1.0, dJ_2)
-    assert function_linf_norm(dJ_error) == 0.0
+    dJ_error = var_copy(dJ_0)
+    var_axpy(dJ_error, -1.0, dJ_2)
+    assert var_linf_norm(dJ_error) == 0.0
 
-    dK_error = function_copy(dK_0)
-    function_axpy(dK_error, -1.0, dK_2)
-    assert function_linf_norm(dK_error) == 0.0
+    dK_error = var_copy(dK_0)
+    var_axpy(dK_error, -1.0, dK_2)
+    assert var_linf_norm(dK_error) == 0.0
 
-    ddJ_error = function_copy(ddJ_0)
-    function_axpy(ddJ_error, -1.0, ddJ_2a)
-    assert function_linf_norm(ddJ_error) == 0.0
+    ddJ_error = var_copy(ddJ_0)
+    var_axpy(ddJ_error, -1.0, ddJ_2a)
+    assert var_linf_norm(ddJ_error) == 0.0
 
-    ddJ_error = function_copy(ddJ_0)
-    function_axpy(ddJ_error, -1.0, ddJ_2b)
-    assert function_linf_norm(ddJ_error) == 0.0
+    ddJ_error = var_copy(ddJ_0)
+    var_axpy(ddJ_error, -1.0, ddJ_2b)
+    assert var_linf_norm(ddJ_error) == 0.0
 
-    dddJ_error = function_copy(dddJ_2)
-    function_axpy(dddJ_error, -1.0, dddJ_2b)
-    assert function_linf_norm(dddJ_error) == 0.0
+    dddJ_error = var_copy(dddJ_2)
+    var_axpy(dddJ_error, -1.0, dddJ_2b)
+    assert var_linf_norm(dddJ_error) == 0.0
 
     reset_manager()
 
@@ -677,21 +677,21 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert tuple(adj_cache._keys[(1, 0, 2)]) == ((0, 0, 1), (2, 0, 0))
     assert tuple(adj_cache._keys[(3, 0, 0)]) == ()
 
-    dJ_error = function_copy(dJ_0)
-    function_axpy(dJ_error, -1.0, dJ_3)
-    assert function_linf_norm(dJ_error) == 0.0
+    dJ_error = var_copy(dJ_0)
+    var_axpy(dJ_error, -1.0, dJ_3)
+    assert var_linf_norm(dJ_error) == 0.0
 
-    dK_error = function_copy(dK_0)
-    function_axpy(dK_error, -1.0, dK_3)
-    assert function_linf_norm(dK_error) == 0.0
+    dK_error = var_copy(dK_0)
+    var_axpy(dK_error, -1.0, dK_3)
+    assert var_linf_norm(dK_error) == 0.0
 
-    ddJ_error = function_copy(ddJ_0)
-    function_axpy(ddJ_error, -1.0, ddJ_3)
-    assert function_linf_norm(ddJ_error) == 0.0
+    ddJ_error = var_copy(ddJ_0)
+    var_axpy(ddJ_error, -1.0, ddJ_3)
+    assert var_linf_norm(ddJ_error) == 0.0
 
-    dddJ_error = function_copy(dddJ_2)
-    function_axpy(dddJ_error, -1.0, dddJ_3)
-    assert function_linf_norm(dddJ_error) < 1.0e-18
+    dddJ_error = var_copy(dddJ_2)
+    var_axpy(dddJ_error, -1.0, dddJ_3)
+    assert var_linf_norm(dddJ_error) < 1.0e-18
 
     reset_manager()
 
@@ -745,18 +745,18 @@ def test_adjoint_caching(setup_test, test_leaks):
     assert tuple(adj_cache._keys[(1, 0, 3)]) == ((0, 0, 2),)
     assert tuple(adj_cache._keys[(3, 0, 3)]) == ((2, 0, 2),)
 
-    dddJ_error = function_copy(dddJ_02_0)
-    function_axpy(dddJ_error, -1.0, dddJ_02_1)
-    assert function_linf_norm(dddJ_error) == 0.0
+    dddJ_error = var_copy(dddJ_02_0)
+    var_axpy(dddJ_error, -1.0, dddJ_02_1)
+    assert var_linf_norm(dddJ_error) == 0.0
 
-    dddJ_error = function_copy(dddJ_03_0)
-    function_axpy(dddJ_error, -1.0, dddJ_03_1)
-    assert function_linf_norm(dddJ_error) == 0.0
+    dddJ_error = var_copy(dddJ_03_0)
+    var_axpy(dddJ_error, -1.0, dddJ_03_1)
+    assert var_linf_norm(dddJ_error) == 0.0
 
-    dddJ_error = function_copy(dddJ_12_0)
-    function_axpy(dddJ_error, -1.0, dddJ_12_1)
-    assert function_linf_norm(dddJ_error) == 0.0
+    dddJ_error = var_copy(dddJ_12_0)
+    var_axpy(dddJ_error, -1.0, dddJ_12_1)
+    assert var_linf_norm(dddJ_error) == 0.0
 
-    dddJ_error = function_copy(dddJ_13_0)
-    function_axpy(dddJ_error, -1.0, dddJ_13_1)
-    assert function_linf_norm(dddJ_error) == 0.0
+    dddJ_error = var_copy(dddJ_13_0)
+    var_axpy(dddJ_error, -1.0, dddJ_13_1)
+    assert var_linf_norm(dddJ_error) == 0.0

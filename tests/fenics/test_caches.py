@@ -32,12 +32,12 @@ def test_clear_caches(setup_test, test_leaks):
     def test_not_cleared(F, cached_form):
         assert len(assembly_cache()) == 1
         assert cached_form() is not None
-        assert len(function_caches(F)) == 1
+        assert len(var_caches(F)) == 1
 
     def test_cleared(F, cached_form):
         assert len(assembly_cache()) == 0
         assert cached_form() is None
-        assert len(function_caches(F)) == 0
+        assert len(var_caches(F)) == 0
 
     assert len(assembly_cache()) == 0
 
@@ -56,19 +56,19 @@ def test_clear_caches(setup_test, test_leaks):
     # Clear on state update
     cached_form = cache_item(F)
     test_not_cleared(F, cached_form)
-    function_update_state(F)
+    var_update_state(F)
     test_cleared(F, cached_form)
 
     # Clear on cache update, new Function
     cached_form = cache_item(F)
     test_not_cleared(F, cached_form)
-    function_update_caches(F, value=Function(space))
+    var_update_caches(F, value=Function(space))
     test_cleared(F, cached_form)
 
     # Clear on cache update, replacement with new Function
     cached_form = cache_item(F)
     test_not_cleared(F, cached_form)
-    function_update_caches(function_replacement(F), value=Function(space))
+    var_update_caches(var_replacement(F), value=Function(space))
     test_cleared(F, cached_form)
 
 
@@ -157,9 +157,9 @@ def test_cached_rhs(setup_test, test_leaks,
     solve(inner(trial_1, test_1) * dx == b, F_ref, bc,
           solver_parameters=ls_parameters_cg)
 
-    function_assign(error, F_ref)
-    function_axpy(error, -1.0, F)
-    error_norm = function_linf_norm(error)
+    var_assign(error, F_ref)
+    var_axpy(error, -1.0, F)
+    error_norm = var_linf_norm(error)
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-12
 
@@ -178,7 +178,7 @@ def test_cached_adjoint(setup_test, test_leaks,
 
     alpha = Constant(1.0, name="alpha", static=True)
     beta = Function(space_2, name="beta", static=True)
-    function_assign(beta, 1.0)
+    var_assign(beta, 1.0)
     bc = DirichletBC(space_1, 1.0, "on_boundary")
 
     def forward(G):
@@ -238,7 +238,7 @@ def test_mat_terms(setup_test, test_leaks,
 
     x = Function(space, name="x")
     x_expr = exp(X[0]) * X[1]
-    if issubclass(function_dtype(x), (complex, np.complexfloating)):
+    if issubclass(var_dtype(x), (complex, np.complexfloating)):
         x_expr = x_expr + X[0] * sin(X[1]) * 1.0j
     interpolate_expression(x, x_expr)
 
@@ -254,7 +254,7 @@ def test_mat_terms(setup_test, test_leaks,
         assert len(mat_terms) == 1
         assert non_cached_terms.empty()
 
-        assert tuple(mat_terms.keys()) == (function_id(x),)
+        assert tuple(mat_terms.keys()) == (var_id(x),)
         A, = tuple(mat_terms.values())
         A, b_bc = assemble_matrix(A)
         b = Function(space, name="b", space_type="conjugate_dual")
@@ -267,9 +267,9 @@ def test_mat_terms(setup_test, test_leaks,
         b = Function(space, name="b", space_type="conjugate_dual")
         assemble(non_cached_terms, tensor=b)
 
-    b_error = function_copy(b_ref)
-    function_axpy(b_error, -1.0, b)
-    assert function_linf_norm(b_error) < 1.0e-16
+    b_error = var_copy(b_ref)
+    var_axpy(b_error, -1.0, b)
+    assert var_linf_norm(b_error) < 1.0e-16
 
 
 @pytest.mark.fenics

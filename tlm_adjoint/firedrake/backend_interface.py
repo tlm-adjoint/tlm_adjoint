@@ -6,14 +6,13 @@ from .backend import (
     backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    comm_dup_cached, function_caches, function_id, function_is_alias,
-    function_is_cached, function_is_checkpointed, function_is_static,
-    function_linf_norm, function_name, function_space, function_space_type,
-    new_space_id, new_var_id, register_garbage_cleanup,
+    comm_dup_cached, new_space_id, new_var_id, register_garbage_cleanup,
     register_finalize_adjoint_derivative_action, register_functional_term_eq,
     register_subtract_adjoint_derivative_action, relative_space_type,
     space_type_warning, subtract_adjoint_derivative_action,
-    subtract_adjoint_derivative_action_base)
+    subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
+    var_is_cached, var_is_checkpointed, var_is_static, var_linf_norm, var_name,
+    var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
@@ -24,7 +23,7 @@ from ..overloaded_float import SymbolicFloat
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    ReplacementInterface, Zero, define_function_alias)
+    ReplacementInterface, Zero, define_var_alias)
 
 import mpi4py.MPI as MPI
 import numpy as np
@@ -313,7 +312,7 @@ class ZeroFunction(Function, Zero):
         Function.__init__(
             self, *args, **kwargs,
             static=True, cache=True, checkpoint=False)
-        if function_linf_norm(self) != 0.0:
+        if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroFunction is not zero-valued")
 
     def assign(self, *args, **kwargs):
@@ -339,7 +338,7 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
                    "state": [0], "space_type": "primal", "static": False,
                    "cache": False, "checkpoint": True})
     if isinstance(val, backend_Function):
-        define_function_alias(self, val, key=("Function__init__",))
+        define_var_alias(self, val, key=("Function__init__",))
 
 
 @override_method(backend_Function, "__getattr__")
@@ -356,9 +355,9 @@ def Function_riesz_representation(self, orig, orig_args,
         check_space_type(self, "primal")
     return_value = orig_args()
     if riesz_map == "l2":
-        define_function_alias(return_value, self,
-                              key=("riesz_representation", "l2"))
-    # define_function_alias sets the space_type, so this has to appear after
+        define_var_alias(return_value, self,
+                         key=("riesz_representation", "l2"))
+    # define_var_alias sets the space_type, so this has to appear after
     return_value._tlm_adjoint__var_interface_attrs.d_setitem(
         "space_type",
         relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
@@ -369,7 +368,7 @@ def Function_riesz_representation(self, orig, orig_args,
 def Function_subfunctions(self, orig):
     Y = orig()
     for i, y in enumerate(Y):
-        define_function_alias(y, self, key=("subfunctions", i))
+        define_var_alias(y, self, key=("subfunctions", i))
     return Y
 
 
@@ -377,8 +376,8 @@ def Function_subfunctions(self, orig):
 def Function_sub(self, orig, orig_args, i):
     self.subfunctions
     y = orig_args()
-    if not function_is_alias(y):
-        define_function_alias(y, self, key=("sub", i))
+    if not var_is_alias(y):
+        define_var_alias(y, self, key=("sub", i))
     return y
 
 
@@ -442,7 +441,7 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
                    "state": [0], "space_type": "conjugate_dual",
                    "static": False, "cache": False, "checkpoint": True})
     if isinstance(val, backend_Cofunction):
-        define_function_alias(self, val, key=("Cofunction__init__",))
+        define_var_alias(self, val, key=("Cofunction__init__",))
 
 
 @override_method(backend_Cofunction, "riesz_representation")
@@ -452,9 +451,9 @@ def Cofunction_riesz_representation(self, orig, orig_args,
         check_space_type(self, "conjugate_dual")
     return_value = orig_args()
     if riesz_map == "l2":
-        define_function_alias(return_value, self,
-                              key=("riesz_representation", "l2"))
-    # define_function_alias sets the space_type, so this has to appear after
+        define_var_alias(return_value, self,
+                         key=("riesz_representation", "l2"))
+    # define_var_alias sets the space_type, so this has to appear after
     return_value._tlm_adjoint__var_interface_attrs.d_setitem(
         "space_type",
         relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
@@ -462,24 +461,27 @@ def Cofunction_riesz_representation(self, orig, orig_args,
 
 
 class ReplacementCofunction(ufl.classes.Cofunction):
-    """Represents a symbolic cofunction, but has no value.
+    """Represents a symbolic Firedrake `Cofunction`, but has no value.
     """
 
     def __init__(self, x):
-        space = function_space(x)
+        space = var_space(x)
 
         super().__init__(space, count=x.count())
         add_interface(self, ReplacementInterface,
-                      {"id": function_id(x), "name": function_name(x),
+                      {"id": var_id(x), "name": var_name(x),
                        "space": space,
-                       "space_type": function_space_type(x),
-                       "static": function_is_static(x),
-                       "cache": function_is_cached(x),
-                       "checkpoint": function_is_checkpointed(x),
-                       "caches": function_caches(x)})
+                       "space_type": var_space_type(x),
+                       "static": var_is_static(x),
+                       "cache": var_is_cached(x),
+                       "checkpoint": var_is_checkpointed(x),
+                       "caches": var_caches(x)})
 
     def __new__(cls, x, *args, **kwargs):
-        return super().__new__(cls, function_space(x), *args, **kwargs)
+        return super().__new__(cls, var_space(x), *args, **kwargs)
+
+    def function_space(self):
+        return var_space(self)
 
 
 def garbage_cleanup_internal_comm(comm):

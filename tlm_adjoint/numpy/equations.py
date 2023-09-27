@@ -5,8 +5,7 @@
 backend.
 """
 
-from ..interface import function_get_values, function_new_conjugate, \
-    function_set_values
+from ..interface import var_get_values, var_new_conjugate, var_set_values
 
 from ..linear_equation import LinearEquation, Matrix, RHS
 
@@ -150,7 +149,7 @@ class ContractionRHS(RHS):
     :arg A: An ndim :math:`(N - 1)` :class:`numpy.ndarray`.
     :arg I: A :class:`Sequence` of length :math:`(N - 1)` defining the
         :math:`i_0,\ldots,i_{N - 1}`.
-    :arg X: A :class:`Sequence` of functions defining the
+    :arg X: A :class:`Sequence` of variables defining the
         :math:`x_0,\ldots,x_{N - 1}`.
     """
 
@@ -185,9 +184,9 @@ class ContractionRHS(RHS):
                 assert len(I) == len(nl_deps)
                 for j, (i, nl_dep) in enumerate(zip(I, nl_deps)):
                     if j != dep_index:
-                        X[i] = function_new_conjugate(nl_dep)
-                        function_set_values(
-                            X[i], function_get_values(nl_dep).conjugate())
+                        X[i] = var_new_conjugate(nl_dep)
+                        var_set_values(
+                            X[i], var_get_values(nl_dep).conjugate())
             X[self._j] = adj_x
 
             A_c = ContractionArray(A,
@@ -245,11 +244,11 @@ class Contraction(LinearEquation):
             A_{i_0,i_1,\ldots,j,\ldots,i_{N - 1}}
             y_{i_0} y_{i_1} \ldots y_{i_{N - 1}}.
 
-    :arg x: A function corresponding to `x`.
+    :arg x: A variable corresponding to `x`.
     :arg A: An ndim :math:`(N - 1)` :class:`numpy.ndarray`.
     :arg I: A :class:`Sequence` of length :math:`(N - 1)` defining the
         :math:`i_0,\ldots,i_{N - 1}`.
-    :arg Y: A :class:`Sequence` of functions defining the
+    :arg Y: A :class:`Sequence` of variables defining the
         :math:`y_0,\ldots,y_{N - 1}`.
     :arg alpha: A scalar defining :math:`\alpha`.
     """
