@@ -50,16 +50,7 @@ __all__ = \
 def Constant__init__(self, orig, orig_args, value, domain=None, *,
                      name=None, space=None, comm=None,
                      **kwargs):
-    const_name = name
-    if const_name is not None:
-        # Work around Firedrake issue #3079
-        chars = []
-        for char in const_name:
-            if char.isascii() and (char.isalnum() or char == "_"):
-                chars.append(char)
-        const_name = "".join(chars)
-
-    orig(self, value, domain=domain, name=const_name, **kwargs)
+    orig(self, value, domain=domain, name=name, **kwargs)
 
     if name is None:
         name = self.name
