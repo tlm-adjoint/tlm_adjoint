@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           . /home/firedrake/firedrake/bin/activate
-          python3 -m pip install pytest-timeout pytest-xdist
+          python3 -m pip install jax jaxlib pytest-timeout pytest-xdist
       - name: Lint
         run: |
           . /home/firedrake/firedrake/bin/activate
@@ -58,7 +58,7 @@ jobs:
       - name: Install dependencies
         run: |
           . /home/firedrake/firedrake/bin/activate
-          python3 -m pip install pytest-timeout pytest-xdist
+          python3 -m pip install jax jaxlib pytest-timeout pytest-xdist
       - name: Lint
         run: |
           . /home/firedrake/firedrake/bin/activate

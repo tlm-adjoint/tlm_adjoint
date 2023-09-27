@@ -19,6 +19,7 @@ __all__ = \
 
         "Assignment",
         "Axpy",
+        "Conversion",
         "LinearCombination",
 
         "DotProductRHS",
@@ -83,6 +84,60 @@ class Assignment(Equation):
             return ZeroAssignment(tlm_map[x])
         else:
             return Assignment(tlm_map[x], tau_y)
+
+
+class Conversion(Equation):
+    r"""Represents degree of freedom assignment
+
+    .. math::
+
+        \tilde{x} = \tilde{y}
+
+    where :math:`\tilde{x}` and :math:`\tilde{y}` are vectors of degrees of
+    freedom for :math:`x` and :math:`y` respectively. Can be used to convert
+    between different backends.
+
+    The forward residual is defined
+
+    .. math::
+
+        \mathcal{F} \left( x, y \right) = \tilde{x} - \tilde{y}.
+
+    :arg x: A variable defining the forward solution :math:`x`.
+    :arg y: A variable defining :math:`y`.
+    """
+
+    def __init__(self, x, y):
+        if var_local_size(x) != var_local_size(y):
+            raise ValueError("Invalid shape")
+        check_space_types(x, y)
+        super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
+
+    def forward_solve(self, x, deps=None):
+        _, y = self.dependencies() if deps is None else deps
+        var_set_values(x, var_get_values(y))
+
+    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+        if dep_index == 0:
+            return adj_x
+        elif dep_index == 1:
+            _, y = self.dependencies()
+            F = var_new_conjugate_dual(y)
+            var_set_values(F, var_get_values(adj_x))
+            return (-1.0, F)
+        else:
+            raise IndexError("dep_index out of bounds")
+
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        return b
+
+    def tangent_linear(self, M, dM, tlm_map):
+        x, y = self.dependencies()
+        tau_y = tlm_map[y]
+        if tau_y is None:
+            return ZeroAssignment(tlm_map[x])
+        else:
+            return Conversion(tlm_map[x], tau_y)
 
 
 class LinearCombination(Equation):

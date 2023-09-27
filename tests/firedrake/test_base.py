@@ -67,6 +67,8 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
+    set_default_jax_dtype(backend_ScalarType)
+
     logging.getLogger("firedrake").setLevel(logging.INFO)
     logging.getLogger("tlm_adjoint").setLevel(logging.DEBUG)
 
@@ -107,6 +109,12 @@ def clear_var_references():
 def referenced_vars():
     return tuple(F_ref for F_ref in map(call, _var_ids.valuerefs())
                  if F_ref is not None)
+
+
+@override_method(Vector, "__init__")
+def Vector__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    _var_ids[var_id(self)] = self
 
 
 @override_method(backend_Constant, "__init__")

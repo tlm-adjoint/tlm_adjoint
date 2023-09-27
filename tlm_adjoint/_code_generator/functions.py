@@ -13,8 +13,8 @@ from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
     space_comm, var_caches, var_comm, var_dtype, var_form_derivative_space,
     var_id, var_is_cached, var_is_checkpointed, var_is_replacement,
-    var_is_static, var_linf_norm, var_local_size, var_name, var_replacement,
-    var_scalar_value, var_space, var_space_type)
+    var_is_static, var_linf_norm, var_name, var_replacement, var_scalar_value,
+    var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -204,10 +204,6 @@ class ConstantInterface(_VariableInterface):
 
     @manager_disabled()
     def _set_values(self, values):
-        if not np.can_cast(values, var_dtype(self)):
-            raise ValueError("Invalid dtype")
-        if values.shape != (var_local_size(self),):
-            raise ValueError("Invalid shape")
         comm = var_comm(self)
         if comm.rank != 0:
             values = None

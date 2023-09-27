@@ -71,6 +71,12 @@ def referenced_vars():
                  if F_ref is not None)
 
 
+@override_method(Vector, "__init__")
+def Vector__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    _var_ids[var_id(self)] = self
+
+
 @override_method(Function, "__init__")
 def Function__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()

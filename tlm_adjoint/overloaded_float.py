@@ -24,11 +24,12 @@ from .interface import (
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
     subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
-    var_id, var_name, var_new, var_new_conjugate_dual, var_scalar_value)
+    var_id, var_is_scalar, var_name, var_new, var_new_conjugate_dual,
+    var_scalar_value, var_space_type)
 
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
-from .equations import Assignment
+from .equations import Assignment, Conversion
 from .manager import annotation_enabled, tlm_enabled
 
 import contextlib
@@ -51,6 +52,8 @@ __all__ = \
 
         "Float",
         "FloatEquation",
+
+        "to_float",
 
         "no_float_overloading",
         "paused_float_overloading"
@@ -775,6 +778,25 @@ class FloatEquation(Equation):
             return ZeroAssignment(tlm_map[x])
         else:
             return FloatEquation(tlm_map[x], expr)
+
+
+def to_float(y, *, name=None, cls=None):
+    """Convert a variable to a :class:`Float`.
+
+    :arg y: A scalar-valued variable.
+    :arg name: A :class:`str` name.
+    :arg cls: Float class. Default :class:`Float`.
+    :returns: The :class:`Float`.
+    """
+
+    if cls is None:
+        cls = Float
+
+    if not var_is_scalar(y):
+        raise ValueError("Invalid variable")
+    x = cls(name=name, space_type=var_space_type(y))
+    Conversion(x, y).solve()
+    return x
 
 
 register_subtract_adjoint_derivative_action(
