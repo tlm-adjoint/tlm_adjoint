@@ -6,9 +6,8 @@
 # the 'eigendecompose' docstring.
 
 from .interface import (
-    check_space_type, comm_dup_cached, function_get_values,
-    function_global_size, function_local_size, function_set_values,
-    relative_space_type, space_comm, space_new)
+    check_space_type, comm_dup_cached, relative_space_type, space_comm,
+    space_new, var_get_values, var_global_size, var_local_size, var_set_values)
 
 import functools
 import numpy as np
@@ -44,11 +43,11 @@ def wrapped_action(space, arg_space_type, action_space_type, action):
     def action(x):
         x_a = x
         x = space_new(space, space_type=arg_space_type)
-        function_set_values(x, x_a)
+        var_set_values(x, x_a)
 
         y = action_arg(x)
         check_space_type(y, action_space_type)
-        return function_get_values(y)
+        return var_get_values(y)
 
     return action
 
@@ -111,11 +110,11 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     :arg space: The space for each eigenvector.
-    :arg A_action: A callable. Accepts a single function argument, and returns
-        a function containing the result after left multiplication of the input
+    :arg A_action: A callable. Accepts a single variable argument, and returns
+        a variable containing the result after left multiplication of the input
         by :math:`A`.
-    :arg B_action: A callable. Accepts a single function argument, and returns
-        a function containing the result after left multiplication of the input
+    :arg B_action: A callable. Accepts a single variable argument, and returns
+        a variable containing the result after left multiplication of the input
         by :math:`B`.
     :arg arg_space_type: The space type of eigenvectors. `'primal'`, `'dual'`,
         `'conjugate'`, or `'conjugate_dual'`.
@@ -144,9 +143,9 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
     :returns: A :class:`tuple` `(lam, V)`. `lam` is a :class:`numpy.ndarray`
         containing eigenvalues. For non-Hermitian algorithms and a real build
         of PETSc, `V` is a :class:`tuple` `(V_r, V_i)`, where `V_r` and `V_i`
-        are each a :class:`tuple` of functions containing respectively the real
+        are each a :class:`tuple` of variables containing respectively the real
         and complex parts of corresponding eigenvectors. Otherwise `V` is a
-        :class:`tuple` of functions containing corresponding eigenvectors.
+        :class:`tuple` of variables containing corresponding eigenvectors.
     """
 
     import petsc4py.PETSc as PETSc
@@ -172,7 +171,7 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
         which = SLEPc.EPS.Which.LARGEST_MAGNITUDE
 
     X = space_new(space, space_type=arg_space_type)
-    n, N = function_local_size(X), function_global_size(X)
+    n, N = var_local_size(X), var_global_size(X)
     del X
     N_ev = N if N_eigenvalues is None else N_eigenvalues
 
@@ -246,14 +245,14 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
             #     # Complex note: If v_i is None then v_r may be non-real
             #     pass
             with v_r as v_r_a:
-                function_set_values(V_r[i], v_r_a)
+                var_set_values(V_r[i], v_r_a)
         else:
             lam[i] = lam_i
             with v_r as v_r_a:
-                function_set_values(V_r[i], v_r_a)
+                var_set_values(V_r[i], v_r_a)
             if v_i is not None:
                 with v_i as v_i_a:
-                    function_set_values(V_i[i], v_i_a)
+                    var_set_values(V_i[i], v_i_a)
 
     esolver.destroy()
     A_matrix.destroy()

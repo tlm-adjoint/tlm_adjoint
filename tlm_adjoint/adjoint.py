@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    finalize_adjoint_derivative_action, function_copy, function_id,
-    function_space, function_space_type, space_new,
-    subtract_adjoint_derivative_action)
+    finalize_adjoint_derivative_action, space_new,
+    subtract_adjoint_derivative_action, var_copy, var_id, var_space,
+    var_space_type)
 
 from .instructions import Instruction
 from .markers import ControlsMarker, FunctionalMarker
@@ -29,33 +29,33 @@ class AdjointRHS:
     """The right-hand-side of an adjoint equation, for an adjoint variable
     associated with an equation solving for a forward variable `x`.
 
-    :arg x: A function defining the forward variable.
+    :arg x: The forward variable.
     """
 
     def __init__(self, x):
-        self._space = function_space(x)
-        self._space_type = function_space_type(x, rel_space_type="conjugate_dual")  # noqa: E501
+        self._space = var_space(x)
+        self._space_type = var_space_type(x, rel_space_type="conjugate_dual")
         self._b = None
 
     def b(self, *, copy=False):
-        """Return the right-hand-side, as a function. Note that any deferred
-        contributions *are* added to the function before it is returned -- see
+        """Return the right-hand-side, as a variable. Note that any deferred
+        contributions *are* added to the variable before it is returned -- see
         :meth:`finalize`.
 
-        :arg copy: If `True` then a copy of the internal function storing the
-            right-hand-side value is returned. If `False` the internal function
+        :arg copy: If `True` then a copy of the internal variable storing the
+            right-hand-side value is returned. If `False` the internal variable
             itself is returned.
-        :returns: A function storing the right-hand-side value.
+        :returns: A variable storing the right-hand-side value.
         """
 
         self.finalize()
         if copy:
-            return function_copy(self._b)
+            return var_copy(self._b)
         else:
             return self._b
 
     def initialize(self):
-        """Allocate an internal function to store the right-hand-side. Called
+        """Allocate an internal variable to store the right-hand-side. Called
         by the :meth:`finalize` and :meth:`sub` methods, and typically need not
         be called manually.
         """
@@ -64,11 +64,11 @@ class AdjointRHS:
             self._b = space_new(self._space, space_type=self._space_type)
 
     def finalize(self):
-        """Subtracting of terms from the internal function storing the
+        """Subtracting of terms from the internal variable storing the
         right-hand-side may be deferred. In particular finite element assembly
         may be deferred until a more complete expression, consisting of
         multiple terms, has been constructed. This method updates the internal
-        function so that all deferred contributions are subtracted.
+        variable so that all deferred contributions are subtracted.
         """
 
         self.initialize()
@@ -121,24 +121,24 @@ class AdjointEquationRHS:
 
     def b(self, *, copy=False):
         """For the case where there is a single forward variable, return a
-        function associated with the right-hand-side.
+        variable associated with the right-hand-side.
 
-        :arg copy: If `True` then a copy of the internal function storing the
-            right-hand-side value is returned. If `False` the internal function
+        :arg copy: If `True` then a copy of the internal variable storing the
+            right-hand-side value is returned. If `False` the internal variable
             itself is returned.
-        :returns: A function storing the right-hand-side value.
+        :returns: A variable storing the right-hand-side value.
         """
 
         b, = self._B
         return b.b(copy=copy)
 
     def B(self, *, copy=False):
-        """Return functions associated with the right-hand-sides.
+        """Return variables associated with the right-hand-sides.
 
-        :arg copy: If `True` then copies of the internal functions storing the
+        :arg copy: If `True` then copies of the internal variables storing the
             right-hand-side values are returned. If `False` the internal
-            functions themselves are returned.
-        :returns: A :class:`tuple` of functions storing the right-hand-side
+            variables themselves are returned.
+        :returns: A :class:`tuple` of variables storing the right-hand-side
             values.
         """
 
@@ -329,9 +329,9 @@ class TransposeComputationalGraph:
             block = blocks[n]
             for i, eq in enumerate(block):
                 for m, x in enumerate(eq.X()):
-                    last_eq[function_id(x)] = (n, i, m)
+                    last_eq[var_id(x)] = (n, i, m)
                 for j, dep in enumerate(eq.dependencies()):
-                    dep_id = function_id(dep)
+                    dep_id = var_id(dep)
                     if dep_id in last_eq:
                         p, k, m = last_eq[dep_id]
                         if p < n or k < i:
@@ -347,13 +347,13 @@ class TransposeComputationalGraph:
                 block = blocks[p]
                 for k in range(len(block) - 1, -1, -1):
                     eq = block[k]
-                    dep_map = {function_id(dep): j
+                    dep_map = {var_id(dep): j
                                for j, dep in enumerate(eq.dependencies())}
-                    adj_ic_ids = set(map(function_id,
+                    adj_ic_ids = set(map(var_id,
                                          eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                     for m, x in enumerate(eq.X()):
-                        adj_x_type = function_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
-                        x_id = function_id(x)
+                        adj_x_type = var_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
+                        x_id = var_id(x)
                         if x_id in adj_ic_ids and x_id in last_eq:
                             adj_x_n_i_j_type, (n, i, j) = last_eq[x_id]
                             if adj_x_type == adj_x_n_i_j_type:
@@ -363,7 +363,7 @@ class TransposeComputationalGraph:
             del last_eq
 
             # Pruning, forward traversal
-            active_M = set(map(function_id, M))
+            active_M = set(map(var_id, M))
             active_forward = {n: np.full(len(blocks[n]), False, dtype=bool)
                               for n in blocks_n}
             for n in blocks_n:
@@ -372,7 +372,7 @@ class TransposeComputationalGraph:
                     if isinstance(eq, Instruction):
                         active_forward[n][i] = True
                     if len(active_M) > 0:
-                        X_ids = set(map(function_id, eq.X()))
+                        X_ids = set(map(var_id, eq.X()))
                         if not X_ids.isdisjoint(active_M):
                             active_M.difference_update(X_ids)
                             active_forward[n][i] = True
@@ -392,7 +392,7 @@ class TransposeComputationalGraph:
         if prune_adjoint:
             # Pruning, reverse traversal
             for J_i, J in enumerate(Js):
-                J_id = function_id(J)
+                J_id = var_id(J)
                 active_J = True
                 active_adjoint = {n: np.full(len(blocks[n]), False, dtype=bool)
                                   for n in blocks_n}
@@ -402,7 +402,7 @@ class TransposeComputationalGraph:
                         eq = block[i]
                         if active_J:
                             for x in eq.X():
-                                if function_id(x) == J_id:
+                                if var_id(x) == J_id:
                                     active_J = False
                                     active_adjoint[n][i] = True
                                     break
@@ -425,11 +425,11 @@ class TransposeComputationalGraph:
             for n in blocks_n:
                 block = blocks[n]
                 for i, eq in enumerate(block):
-                    adj_ic_ids = set(map(function_id,
+                    adj_ic_ids = set(map(var_id,
                                          eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                     for m, x in enumerate(eq.X()):
-                        adj_x_type = function_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
-                        x_id = function_id(x)
+                        adj_x_type = var_space_type(x, rel_space_type=eq.adj_X_type(m))  # noqa: E501
+                        x_id = var_id(x)
                         if x_id in last_eq:
                             adj_x_p_k_m_type, (p, k) = last_eq[x_id]
                             if adj_x_type == adj_x_p_k_m_type:
@@ -476,7 +476,7 @@ class TransposeComputationalGraph:
         if isinstance(x, int):
             x_id = x
         else:
-            x_id = function_id(x)
+            x_id = var_id(x)
 
         if x_id in self._adj_ics[J_i]:
             n, i = self._adj_ics[J_i][x_id]
@@ -524,13 +524,13 @@ class AdjointCache:
     def get(self, J_i, n, i, *, copy=True):
         adj_X = self._cache[(J_i, n, i)]
         if copy:
-            adj_X = tuple(map(function_copy, adj_X))
+            adj_X = tuple(map(var_copy, adj_X))
         return adj_X
 
     def pop(self, J_i, n, i, *, copy=True):
         adj_X = self._cache.pop((J_i, n, i))
         if copy:
-            adj_X = tuple(map(function_copy, adj_X))
+            adj_X = tuple(map(var_copy, adj_X))
         return adj_X
 
     def remove(self, J_i, n, i):
@@ -542,7 +542,7 @@ class AdjointCache:
             if (J_i, n, i) in self._cache:
                 adj_X = self._cache[(J_i, n, i)]
             elif copy:
-                adj_X = tuple(map(function_copy, adj_X))
+                adj_X = tuple(map(var_copy, adj_X))
             else:
                 adj_X = tuple(adj_X)
 
@@ -555,7 +555,7 @@ class AdjointCache:
                    cache_degree=None):
         J_roots, tlm_adj = J_tangent_linears(Js, blocks,
                                              max_adjoint_degree=cache_degree)
-        J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", function_id(J))  # noqa: E501
+        J_root_ids = tuple(getattr(J, "_tlm_adjoint__tlm_root_id", var_id(J))
                            for J in J_roots)
 
         # Clear the cache if we are computing different (conjugate) derivatives

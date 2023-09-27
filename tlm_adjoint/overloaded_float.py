@@ -20,12 +20,11 @@ calculations.
 """
 
 from .interface import (
-    DEFAULT_COMM, FunctionInterface, SpaceInterface, add_interface,
-    check_space_type, comm_dup_cached, function_assign, function_comm,
-    function_dtype, function_id, function_name, function_new,
-    function_new_conjugate_dual, function_scalar_value, is_function,
-    new_function_id, new_space_id, register_subtract_adjoint_derivative_action,
-    space_comm, space_dtype, subtract_adjoint_derivative_action_base)
+    DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
+    check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
+    register_subtract_adjoint_derivative_action, space_comm, space_dtype,
+    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
+    var_id, var_name, var_new, var_new_conjugate_dual, var_scalar_value)
 
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
@@ -93,7 +92,7 @@ class FloatSpace:
     """Defines the real or complex space.
 
     :arg float_cls: The :class:`SymbolicFloat` class, in particular used to
-        instantiate new functions in :func:`tlm_adjoint.interface.space_new`.
+        instantiate new variables in :func:`tlm_adjoint.interface.space_new`.
         Defaults to :class:`SymbolicFloat`.
     :arg dtype: The data type associated with the space. Typically
         :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
@@ -167,42 +166,42 @@ def paused_float_overloading():
     _overload -= 1
 
 
-class FloatInterface(FunctionInterface):
+class FloatInterface(VariableInterface):
     def _space(self):
-        return self._tlm_adjoint__function_interface_attrs["space"]
+        return self._tlm_adjoint__var_interface_attrs["space"]
 
     def _space_type(self):
-        return self._tlm_adjoint__function_interface_attrs["space_type"]
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
 
     def _id(self):
-        return self._tlm_adjoint__function_interface_attrs["id"]
+        return self._tlm_adjoint__var_interface_attrs["id"]
 
     def _name(self):
-        return self._tlm_adjoint__function_interface_attrs["name"]
+        return self._tlm_adjoint__var_interface_attrs["name"]
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"][0]
+        return self._tlm_adjoint__var_interface_attrs["state"][0]
 
     def _update_state(self):
-        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
+        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
 
     def _is_static(self):
-        return self._tlm_adjoint__function_interface_attrs["static"]
+        return self._tlm_adjoint__var_interface_attrs["static"]
 
     def _is_cached(self):
-        return self._tlm_adjoint__function_interface_attrs["cache"]
+        return self._tlm_adjoint__var_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
+        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
-        return self._tlm_adjoint__function_interface_attrs["caches"]
+        return self._tlm_adjoint__var_interface_attrs["caches"]
 
     def _zero(self):
-        function_assign(self, 0.0)
+        var_assign(self, 0.0)
 
     def _assign(self, y):
-        dtype = function_dtype(self)
+        dtype = var_dtype(self)
         rdtype = type(dtype().real)
 
         if isinstance(y, SymbolicFloat):
@@ -224,13 +223,13 @@ class FloatInterface(FunctionInterface):
                     raise ValueError("Invalid dtype")
                 self._value = dtype(y)
         else:
-            function_assign(self, function_scalar_value(y))
+            var_assign(self, var_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
-        function_assign(self, self.value() + alpha * function_scalar_value(x))
+        var_assign(self, self.value() + alpha * var_scalar_value(x))
 
     def _inner(self, y):
-        return function_scalar_value(y).conjugate() * self.value()
+        return var_scalar_value(y).conjugate() * self.value()
 
     def _sum(self):
         return self.value()
@@ -239,7 +238,7 @@ class FloatInterface(FunctionInterface):
         return abs(self.value())
 
     def _local_size(self):
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank == 0:
             return 1
         else:
@@ -249,21 +248,21 @@ class FloatInterface(FunctionInterface):
         return 1
 
     def _local_indices(self):
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank == 0:
             return slice(0, 1)
         else:
             return slice(0, 0)
 
     def _get_values(self):
-        comm = function_comm(self)
-        dtype = function_dtype(self)
+        comm = var_comm(self)
+        dtype = var_dtype(self)
         value = dtype(self.value())
         values = np.array([value] if comm.rank == 0 else [], dtype=dtype)
         return values
 
     def _set_values(self, values):
-        comm = function_comm(self)
+        comm = var_comm(self)
         if comm.rank == 0:
             if values.shape != (1,):
                 raise ValueError("Invalid shape")
@@ -273,7 +272,7 @@ class FloatInterface(FunctionInterface):
                 raise ValueError("Invalid shape")
             value = None
         value = comm.bcast(value, root=0)
-        function_assign(self, value)
+        var_assign(self, value)
 
     def _replacement(self):
         return self
@@ -285,7 +284,7 @@ class FloatInterface(FunctionInterface):
         return True
 
     def _scalar_value(self):
-        # assert function_is_scalar(self)
+        # assert var_is_scalar(self)
         return self.value()
 
 
@@ -295,14 +294,14 @@ def expr_dependencies(expr):
     for dep in expr.free_symbols:
         if isinstance(dep, SymbolicFloat):
             deps.append(dep)
-        elif is_function(dep):
+        elif is_var(dep):
             raise ValueError("Invalid dependency")
-    return sorted(deps, key=lambda dep: function_id(dep))
+    return sorted(deps, key=lambda dep: var_id(dep))
 
 
 # Float class name already used by SymPy
 class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
-    """A :class:`sympy.core.symbol.Symbol` which is also a 'function', defining
+    """A :class:`sympy.core.symbol.Symbol` which is also a 'variable', defining
     a scalar variable.
 
     If constructing SymPy expressions then the :class:`SymbolicFloat` class
@@ -337,7 +336,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                  static=False, cache=None, checkpoint=None,
                  dtype=None, comm=None,
                  annotate=None, tlm=None):
-        id = new_function_id()
+        id = new_var_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
             name = f"f_{id:d}"
@@ -355,13 +354,13 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                        "name": name, "state": [0],
                        "space": FloatSpace(type(self), dtype=dtype, comm=comm),
                        "space_type": space_type, "static": static})
-        self._tlm_adjoint__function_interface_attrs["caches"] = Caches(self)
+        self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
 
         if isinstance(value, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
             if value != 0.0:
-                function_assign(self, value)
+                var_assign(self, value)
         else:
             self.assign(value, annotate=annotate, tlm=tlm)
 
@@ -378,14 +377,14 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :returns: The new :class:`SymbolicFloat`.
         """
 
-        x = function_new(
+        x = var_new(
             self, name=name,
             static=static, cache=cache, checkpoint=checkpoint)
         if isinstance(value, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
             if value != 0.0:
-                function_assign(x, value)
+                var_assign(x, value)
         else:
             x.assign(
                 value,
@@ -428,10 +427,10 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             if isinstance(y, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
-                function_assign(self, y)
+                var_assign(self, y)
             elif isinstance(y, sp.Expr):
                 deps = expr_dependencies(y)
-                function_assign(
+                var_assign(
                     self,
                     lambdify(y, deps)(*(dep.value() for dep in deps)))
             else:
@@ -450,7 +449,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        x = self.new(value=self, name=f"{function_name(self):s}_old",
+        x = self.new(value=self, name=f"{var_name(self):s}_old",
                      annotate=annotate, tlm=tlm)
         self.assign(x + y, annotate=annotate, tlm=tlm)
 
@@ -720,7 +719,7 @@ class FloatEquation(Equation):
         deps = expr_dependencies(expr)
         for dep in deps:
             check_space_type(dep, "primal")
-        if function_id(x) in {function_id(dep) for dep in deps}:
+        if var_id(x) in {var_id(dep) for dep in deps}:
             raise ValueError("Invalid dependency")
         deps.insert(0, x)
 
@@ -729,9 +728,9 @@ class FloatEquation(Equation):
         for dep_index, dep in enumerate(deps[1:], start=1):
             expr_diff = dF_expr[dep_index] = expr.diff(dep)
             for dep2 in expr_dependencies(expr_diff):
-                nl_deps.setdefault(function_id(dep), dep)
-                nl_deps.setdefault(function_id(dep2), dep2)
-        nl_deps = sorted(nl_deps.values(), key=lambda dep: function_id(dep))
+                nl_deps.setdefault(var_id(dep), dep)
+                nl_deps.setdefault(var_id(dep2), dep2)
+        nl_deps = sorted(nl_deps.values(), key=lambda dep: var_id(dep))
         dF = {dep_index: lambdify(expr_diff, nl_deps)
               for dep_index, expr_diff in dF_expr.items()}
 
@@ -747,7 +746,7 @@ class FloatEquation(Equation):
             deps = self.dependencies()
         dep_vals = tuple(dep.value() for dep in deps)
         x_val = self._F(*dep_vals)
-        function_assign(x, x_val)
+        var_assign(x, x_val)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -757,10 +756,10 @@ class FloatEquation(Equation):
         nl_dep_vals = tuple(nl_dep.value() for nl_dep in nl_deps)
         for dep_index, dep_B in dep_Bs.items():
             dep = deps[dep_index]
-            F = function_new_conjugate_dual(dep)
+            F = var_new_conjugate_dual(dep)
             F_val = (-self._dF[dep_index](*nl_dep_vals).conjugate()
                      * adj_x.value())
-            function_assign(F, F_val)
+            var_assign(F, F_val)
             dep_B.sub(F)
 
     @no_float_overloading

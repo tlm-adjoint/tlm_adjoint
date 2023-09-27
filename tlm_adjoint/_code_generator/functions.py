@@ -16,7 +16,7 @@ from ..interface import (
     function_is_static, function_linf_norm, function_local_size, function_name,
     function_replacement, function_scalar_value, function_space,
     function_space_type, is_function, space_comm)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
 from ..manager import manager_disabled
@@ -62,45 +62,45 @@ class ConstantSpaceInterface(SpaceInterface):
                         checkpoint=checkpoint)
 
 
-class ConstantInterface(_FunctionInterface):
+class ConstantInterface(_VariableInterface):
     def _space(self):
-        return self._tlm_adjoint__function_interface_attrs["space"]
+        return self._tlm_adjoint__var_interface_attrs["space"]
 
     def _form_derivative_space(self):
-        return self._tlm_adjoint__function_interface_attrs["form_derivative_space"](self)  # noqa: E501
+        return self._tlm_adjoint__var_interface_attrs["form_derivative_space"](self)  # noqa: E501
 
     def _space_type(self):
-        return self._tlm_adjoint__function_interface_attrs["space_type"]
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
 
     def _dtype(self):
-        return self._tlm_adjoint__function_interface_attrs["dtype"]
+        return self._tlm_adjoint__var_interface_attrs["dtype"]
 
     def _id(self):
-        return self._tlm_adjoint__function_interface_attrs["id"]
+        return self._tlm_adjoint__var_interface_attrs["id"]
 
     def _name(self):
-        return self._tlm_adjoint__function_interface_attrs["name"](self)
+        return self._tlm_adjoint__var_interface_attrs["name"](self)
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"][0]
+        return self._tlm_adjoint__var_interface_attrs["state"][0]
 
     def _update_state(self):
-        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
+        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
 
     def _is_static(self):
-        return self._tlm_adjoint__function_interface_attrs["static"]
+        return self._tlm_adjoint__var_interface_attrs["static"]
 
     def _is_cached(self):
-        return self._tlm_adjoint__function_interface_attrs["cache"]
+        return self._tlm_adjoint__var_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
+        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
-        if "caches" not in self._tlm_adjoint__function_interface_attrs:
-            self._tlm_adjoint__function_interface_attrs["caches"] \
+        if "caches" not in self._tlm_adjoint__var_interface_attrs:
+            self._tlm_adjoint__var_interface_attrs["caches"] \
                 = Caches(self)
-        return self._tlm_adjoint__function_interface_attrs["caches"]
+        return self._tlm_adjoint__var_interface_attrs["caches"]
 
     @manager_disabled()
     def _zero(self):
@@ -236,7 +236,7 @@ class ConstantInterface(_FunctionInterface):
         return function_dtype(self)(self)
 
     def _is_alias(self):
-        return "alias" in self._tlm_adjoint__function_interface_attrs
+        return "alias" in self._tlm_adjoint__var_interface_attrs
 
 
 def constant_value(value=None, shape=None):
@@ -320,10 +320,10 @@ class Constant(backend_Constant):
         super().__init__(
             value, *args, name=name, domain=domain, space=space,
             comm=comm, **kwargs)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
     def __new__(cls, value=None, *args, name=None, domain=None,
                 space_type="primal", shape=None, static=False, cache=None,
@@ -342,10 +342,10 @@ class Constant(backend_Constant):
                 checkpoint = not static
             F = super().__new__(cls, value, domain=domain)
             F.rename(name=name)
-            F._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-            F._tlm_adjoint__function_interface_attrs.d_setitem("static", static)  # noqa: E501
-            F._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-            F._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+            F._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+            F._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+            F._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+            F._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
             return F
 
 
@@ -354,16 +354,16 @@ class Zero:
     functions for which UFL zero elimination should not be applied.
     """
 
-    def _tlm_adjoint__function_interface_assign(self, y):
+    def _tlm_adjoint__var_interface_assign(self, y):
         raise RuntimeError("Cannot call _assign interface of Zero")
 
-    def _tlm_adjoint__function_interface_axpy(self, alpha, x, /):
+    def _tlm_adjoint__var_interface_axpy(self, alpha, x, /):
         raise RuntimeError("Cannot call _axpy interface of Zero")
 
-    def _tlm_adjoint__function_interface_set_values(self, values):
+    def _tlm_adjoint__var_interface_set_values(self, values):
         raise RuntimeError("Cannot call _set_values interface of Zero")
 
-    def _tlm_adjoint__function_interface_update_state(self):
+    def _tlm_adjoint__var_interface_update_state(self):
         raise RuntimeError("Cannot call _update_state interface of Zero")
 
 
@@ -669,37 +669,37 @@ def bcs_is_homogeneous(bcs):
     return True
 
 
-class ReplacementInterface(_FunctionInterface):
+class ReplacementInterface(_VariableInterface):
     def _space(self):
         return self.ufl_function_space()
 
     def _form_derivative_space(self):
-        return self._tlm_adjoint__function_interface_attrs.get(
+        return self._tlm_adjoint__var_interface_attrs.get(
             "form_derivative_space", lambda x: function_space(x))(self)
 
     def _space_type(self):
-        return self._tlm_adjoint__function_interface_attrs["space_type"]
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
 
     def _id(self):
-        return self._tlm_adjoint__function_interface_attrs["id"]
+        return self._tlm_adjoint__var_interface_attrs["id"]
 
     def _name(self):
-        return self._tlm_adjoint__function_interface_attrs["name"]
+        return self._tlm_adjoint__var_interface_attrs["name"]
 
     def _state(self):
         return -1
 
     def _is_static(self):
-        return self._tlm_adjoint__function_interface_attrs["static"]
+        return self._tlm_adjoint__var_interface_attrs["static"]
 
     def _is_cached(self):
-        return self._tlm_adjoint__function_interface_attrs["cache"]
+        return self._tlm_adjoint__var_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
+        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
-        return self._tlm_adjoint__function_interface_attrs["caches"]
+        return self._tlm_adjoint__var_interface_attrs["caches"]
 
     def _replacement(self):
         return self
@@ -749,8 +749,8 @@ class ReplacementConstant(Replacement):
 
     def __init__(self, x):
         super().__init__(x)
-        self._tlm_adjoint__function_interface_attrs["form_derivative_space"] \
-            = x._tlm_adjoint__function_interface_attrs["form_derivative_space"]
+        self._tlm_adjoint__var_interface_attrs["form_derivative_space"] \
+            = x._tlm_adjoint__var_interface_attrs["form_derivative_space"]
 
 
 class ReplacementFunction(Replacement):
@@ -772,22 +772,22 @@ def replaced_form(form):
 
 def define_function_alias(x, parent, *, key):
     if x is not parent:
-        if "alias" in x._tlm_adjoint__function_interface_attrs:
-            alias_parent, alias_key = x._tlm_adjoint__function_interface_attrs["alias"]  # noqa: E501
+        if "alias" in x._tlm_adjoint__var_interface_attrs:
+            alias_parent, alias_key = x._tlm_adjoint__var_interface_attrs["alias"]  # noqa: E501
             alias_parent = alias_parent()
             if alias_parent is None or alias_parent is not parent \
                     or alias_key != key:
                 raise ValueError("Invalid alias data")
         else:
-            x._tlm_adjoint__function_interface_attrs["alias"] \
+            x._tlm_adjoint__var_interface_attrs["alias"] \
                 = (weakref.ref(parent), key)
-            x._tlm_adjoint__function_interface_attrs.d_setitem(
+            x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "space_type", function_space_type(parent))
-            x._tlm_adjoint__function_interface_attrs.d_setitem(
+            x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "static", function_is_static(parent))
-            x._tlm_adjoint__function_interface_attrs.d_setitem(
+            x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "cache", function_is_cached(parent))
-            x._tlm_adjoint__function_interface_attrs.d_setitem(
+            x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "checkpoint", function_is_checkpointed(parent))
-            x._tlm_adjoint__function_interface_attrs.d_setitem(
-                "state", parent._tlm_adjoint__function_interface_attrs["state"])  # noqa: E501
+            x._tlm_adjoint__var_interface_attrs.d_setitem(
+                "state", parent._tlm_adjoint__var_interface_attrs["state"])

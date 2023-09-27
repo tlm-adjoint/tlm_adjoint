@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    conjugate_dual_space_type, function_id, function_new_conjugate_dual,
-    function_replacement, function_space, function_space_type, function_zero,
-    is_function, space_new)
+    conjugate_dual_space_type, is_var, space_new, var_id,
+    var_new_conjugate_dual, var_replacement, var_space, var_space_type,
+    var_zero)
 
 from .alias import WeakAlias
 from .equation import Equation, Referrer, ZeroAssignment
@@ -34,7 +34,7 @@ class LinearEquation(Equation):
 
         \mathcal{F} \left( x, y_1, y_2, \ldots \right) = A x - b.
 
-    :arg X: A function or a :class:`Sequence` of functions defining the forward
+    :arg X: A variable or a :class:`Sequence` of variables defining the forward
         solution `x`.
     :arg B: A :class:`tlm_adjoint.linear_equation.RHS` or a :class:`Sequence`
         of :class:`tlm_adjoint.linear_equation.RHS` objects defining the
@@ -46,7 +46,7 @@ class LinearEquation(Equation):
     """
 
     def __init__(self, X, B, *, A=None, adj_type=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         if isinstance(B, RHS):
             B = (B,)
@@ -63,7 +63,7 @@ class LinearEquation(Equation):
 
         x_ids = set()
         for x in X:
-            x_id = function_id(x)
+            x_id = var_id(x)
             if x_id in x_ids:
                 raise ValueError("Duplicate solve")
             x_ids.add(x_id)
@@ -75,7 +75,7 @@ class LinearEquation(Equation):
 
         for i, b in enumerate(B):
             for dep in b.dependencies():
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id in x_ids:
                     raise ValueError("Invalid dependency")
                 if dep_id not in dep_ids:
@@ -83,13 +83,13 @@ class LinearEquation(Equation):
                     dep_ids[dep_id] = len(deps) - 1
                 b_dep_indices[i].append(dep_ids[dep_id])
             for dep in b.nonlinear_dependencies():
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id not in nl_dep_ids:
                     nl_deps.append(dep)
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 b_nl_dep_indices[i].append(nl_dep_ids[dep_id])
 
-        b_dep_ids = tuple({function_id(b_dep): i
+        b_dep_ids = tuple({var_id(b_dep): i
                            for i, b_dep in enumerate(b.dependencies())}
                           for b in B)
 
@@ -97,7 +97,7 @@ class LinearEquation(Equation):
             A_dep_indices = []
             A_nl_dep_indices = []
             for dep in A.nonlinear_dependencies():
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id not in dep_ids:
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
@@ -107,14 +107,14 @@ class LinearEquation(Equation):
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
                 A_nl_dep_indices.append(nl_dep_ids[dep_id])
 
-            A_nl_dep_ids = {function_id(A_nl_dep): i
+            A_nl_dep_ids = {var_id(A_nl_dep): i
                             for i, A_nl_dep
                             in enumerate(A.nonlinear_dependencies())}
 
             if len(A.nonlinear_dependencies()) > 0:
                 A_x_indices = []
                 for x in X:
-                    x_id = function_id(x)
+                    x_id = var_id(x)
                     if x_id not in nl_dep_ids:
                         nl_deps.append(x)
                         nl_dep_ids[x_id] = len(nl_deps) - 1
@@ -150,22 +150,22 @@ class LinearEquation(Equation):
             self._A = WeakAlias(self._A)
 
     def forward_solve(self, X, deps=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         if deps is None:
             deps = self.dependencies()
 
         if self._A is None:
             for x in X:
-                function_zero(x)
+                var_zero(x)
             B = X
         else:
             def b_space_type(m):
-                space_type = function_space_type(
+                space_type = var_space_type(
                     self.X(m), rel_space_type=self.adj_X_type(m))
                 return conjugate_dual_space_type(space_type)
 
-            B = tuple(space_new(function_space(x), space_type=b_space_type(m))
+            B = tuple(space_new(var_space(x), space_type=b_space_type(m))
                       for m, x in enumerate(X))
 
         for i, b in enumerate(self._B):
@@ -185,7 +185,7 @@ class LinearEquation(Equation):
                 adj_X, [nl_deps[j] for j in self._A_nl_dep_indices], B)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_function(adj_X):
+        if is_var(adj_X):
             adj_X = (adj_X,)
 
         eq_deps = self.dependencies()
@@ -196,7 +196,7 @@ class LinearEquation(Equation):
                 return adj_X[dep_index]
             else:
                 dep = eq_deps[dep_index]
-                F = function_new_conjugate_dual(dep)
+                F = var_new_conjugate_dual(dep)
                 self._A.adjoint_action([nl_deps[j]
                                         for j in self._A_nl_dep_indices],
                                        adj_X[0] if len(adj_X) == 1 else adj_X,
@@ -204,8 +204,8 @@ class LinearEquation(Equation):
                 return F
         else:
             dep = eq_deps[dep_index]
-            dep_id = function_id(dep)
-            F = function_new_conjugate_dual(dep)
+            dep_id = var_id(dep)
+            F = var_new_conjugate_dual(dep)
             assert len(self._B) == len(self._b_dep_ids)
             for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
                 if dep_id in b_dep_ids:
@@ -264,7 +264,7 @@ class Matrix(Referrer):
     methods. This class does *not* inherit from :class:`abc.ABC`, so that
     methods may be implemented as needed.
 
-    :arg nl_deps: A :class:`Sequence` of functions, defining dependencies of
+    :arg nl_deps: A :class:`Sequence` of variables, defining dependencies of
         the matrix :math:`A`.
     :arg ic: Whether solution of a linear equation :math:`A x = b` for
         :math:`x` uses an initial guess. Defaults to `True`.
@@ -275,7 +275,7 @@ class Matrix(Referrer):
     def __init__(self, nl_deps=None, *, ic=True, adj_ic=True):
         if nl_deps is None:
             nl_deps = []
-        if len({function_id(dep) for dep in nl_deps}) != len(nl_deps):
+        if len({var_id(dep) for dep in nl_deps}) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
 
         super().__init__()
@@ -284,12 +284,12 @@ class Matrix(Referrer):
         self._adj_ic = adj_ic
 
     def drop_references(self):
-        self._nl_deps = tuple(map(function_replacement, self._nl_deps))
+        self._nl_deps = tuple(map(var_replacement, self._nl_deps))
 
     def nonlinear_dependencies(self):
         """Return dependencies of the :class:`Matrix`.
 
-        :returns: A :class:`Sequence` of functions defining dependencies.
+        :returns: A :class:`Sequence` of variables defining dependencies.
         """
 
         return self._nl_deps
@@ -317,14 +317,14 @@ class Matrix(Referrer):
         the result to `B`, or adds the result to or subtracts the result from
         `B`.
 
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
-        :arg X: Defines :math:`x`. A function if it has a single component, and
-            a :class:`Sequence` of functions otherwise. Should not be modified.
+        :arg X: Defines :math:`x`. A variable if it has a single component, and
+            a :class:`Sequence` of variables otherwise. Should not be modified.
             Subclasses may replace this argument with `x` if there is a single
             component.
-        :arg B: Stores the result. A function if it has a single component, and
-            a :class:`Sequence` of functions otherwise. Subclasses may replace
+        :arg B: Stores the result. A variable if it has a single component, and
+            a :class:`Sequence` of variables otherwise. Subclasses may replace
             this argument with `b` if there is a single component.
         :arg method: If equal to `'assign'` then this method should set `B`
             equal to the result. If equal to `'add'` then this method should
@@ -340,13 +340,13 @@ class Matrix(Referrer):
         component to `b`, or adds the `b_index` th component to or subtracts
         the `b_index` th component from `b`.
 
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
-        :arg adj_X: Defines :math:`\lambda`. A function if it has a single
-            component, and a :class:`Sequence` of functions otherwise. Should
+        :arg adj_X: Defines :math:`\lambda`. A variable if it has a single
+            component, and a :class:`Sequence` of variables otherwise. Should
             not be modified. Subclasses may replace this argument with `adj_x`
             if there is a single component.
-        :arg b: A function storing the result. Should be updated by this
+        :arg b: A variable storing the result. Should be updated by this
             method.
         :arg b_index: The component of the result which should be used to
             update `b`.
@@ -362,14 +362,14 @@ class Matrix(Referrer):
     def forward_solve(self, X, nl_deps, B):
         """Solve the linear system :math:`A x = b` for :math:`x`.
 
-        :arg X: The solution :math:`x`. A function if it has a single
-            component, and a :class:`Sequence` of functions otherwise. May
+        :arg X: The solution :math:`x`. A variable if it has a single
+            component, and a :class:`Sequence` of variables otherwise. May
             define an initial guess. Subclasses may replace this argument with
             `x` if there is a single component.
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
-        :arg B: The right-hand-side :math:`b`. A function if it has a single
-            component, and a :class:`Sequence` of functions otherwise. Should
+        :arg B: The right-hand-side :math:`b`. A variable if it has a single
+            component, and a :class:`Sequence` of variables otherwise. Should
             not be modified. Subclasses may replace this argument with `b` if
             there is a single component.
         """
@@ -382,21 +382,20 @@ class Matrix(Referrer):
         an adjoint variable. Assigns the result to `b`, or adds the result to
         or subtracts the result from `b`.
 
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg nl_deps_index: An :class:`int`. The derivative is defined by
             differentiation of :math:`A x` with respect to
             `self.nonlinear_dependencies()[nl_dep_index]`.
-        :arg X: Defines :math:`x`. A function if it has a single component, and
-            a :class:`Sequence` of functions otherwise. Should not be modified.
+        :arg X: Defines :math:`x`. A variable if it has a single component, and
+            a :class:`Sequence` of variables otherwise. Should not be modified.
             Subclasses may replace this argument with `x` if there is a single
             component.
-        :arg adj_X: The adjoint variable. A function if the adjoint variable
-            has a single component, and :class:`Sequence` of functions
-            otherwise. Should not be modified. Subclasses may replace this
-            argument with `adj_x` if the adjoint variable has a single
-            component.
-        :arg b: A function storing the result. Should be updated by this
+        :arg adj_X: The adjoint variable. A variable if it has a single
+            component, and :class:`Sequence` of variables otherwise. Should not
+            be modified. Subclasses may replace this argument with `adj_x` if
+            the adjoint variable has a single component.
+        :arg b: A variable storing the result. Should be updated by this
             method.
         :arg method: If equal to `'assign'` then this method should set `b`
             equal to the result. If equal to `'add'` then this method should
@@ -410,14 +409,14 @@ class Matrix(Referrer):
         r"""Solve the linear system :math:`A^* \lambda = b` for
         :math:`\lambda`.
 
-        :arg adj_X: The solution :math:`\lambda`. A function if it has a single
-            component, and a :class:`Sequence` of functions otherwise. May
+        :arg adj_X: The solution :math:`\lambda`. A variable if it has a single
+            component, and a :class:`Sequence` of variables otherwise. May
             define an initial guess. Subclasses may replace this argument with
             `adj_x` if there is a single component.
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
-        :arg B: The right-hand-side :math:`b`. A function if it has a single
-            component, and a :class:`Sequence` of functions otherwise. Should
+        :arg B: The right-hand-side :math:`b`. A variable if it has a single
+            component, and a :class:`Sequence` of variables otherwise. Should
             not be modified. Subclasses may replace this argument with `b` if
             there is a single component.
         """
@@ -443,15 +442,15 @@ class Matrix(Referrer):
         include the term :math:`-A \tau_x` where :math:`\tau_x` is the
         tangent-linear variable associated with :math:`x`.
 
-        :arg M: A :class:`Sequence` of functions defining the control.
-        :arg dM: A :class:`Sequence` of functions defining the derivative
+        :arg M: A :class:`Sequence` of variables defining the control.
+        :arg dM: A :class:`Sequence` of variables defining the derivative
             direction. The tangent-linear model computes directional
             derivatives with respect to the control defined by `M` and with
             direction defined by `dM`.
         :arg tlm_map: A :class:`tlm_adjoint.tangent_linear.TangentLinearMap`
             storing values for tangent-linear variables.
-        :arg X: Defines :math:`x`. A function if it has a single component, and
-            a :class:`Sequence` of functions otherwise. Subclasses may replace
+        :arg X: Defines :math:`x`. A variable if it has a single component, and
+            a :class:`Sequence` of variables otherwise. Subclasses may replace
             this argument with `x` if there is a single component.
         :returns: A :class:`tlm_adjoint.linear_equation.RHS`, or a
             :class:`Sequence` of :class:`tlm_adjoint.linear_equation.RHS`
@@ -470,19 +469,19 @@ class RHS(Referrer):
     methods. This class does *not* inherit from :class:`abc.ABC`, so that
     methods may be implemented as needed.
 
-    :arg deps: A :class:`Sequence` of functions defining dependencies.
-    :arg nl_deps: A :class:`Sequence` of functions defining non-linear
+    :arg deps: A :class:`Sequence` of variables defining dependencies.
+    :arg nl_deps: A :class:`Sequence` of variables defining non-linear
         dependencies.
     """
 
     def __init__(self, deps, nl_deps=None):
-        dep_ids = set(map(function_id, deps))
+        dep_ids = set(map(var_id, deps))
         if len(dep_ids) != len(deps):
             raise ValueError("Duplicate dependency")
 
         if nl_deps is None:
             nl_deps = tuple(deps)
-        nl_dep_ids = set(map(function_id, nl_deps))
+        nl_dep_ids = set(map(var_id, nl_deps))
         if len(nl_dep_ids) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
         if len(dep_ids.intersection(nl_dep_ids)) != len(nl_deps):
@@ -493,13 +492,13 @@ class RHS(Referrer):
         self._nl_deps = tuple(nl_deps)
 
     def drop_references(self):
-        self._deps = tuple(map(function_replacement, self._deps))
-        self._nl_deps = tuple(map(function_replacement, self._nl_deps))
+        self._deps = tuple(map(var_replacement, self._deps))
+        self._nl_deps = tuple(map(var_replacement, self._nl_deps))
 
     def dependencies(self):
         """Return dependencies of the :class:`tlm_adjoint.linear_equation.RHS`.
 
-        :returns: A :class:`Sequence` of functions defining dependencies.
+        :returns: A :class:`Sequence` of variables defining dependencies.
         """
 
         return self._deps
@@ -508,7 +507,7 @@ class RHS(Referrer):
         """Return non-linear dependencies of the
         :class:`tlm_adjoint.linear_equation.RHS`.
 
-        :returns: A :class:`Sequence` of functions defining non-linear
+        :returns: A :class:`Sequence` of variables defining non-linear
             dependencies.
         """
 
@@ -517,12 +516,12 @@ class RHS(Referrer):
     def add_forward(self, B, deps):
         """Add the right-hand-side term to `B`.
 
-        :arg B: A function if it has a single component, and a
-            :class:`Sequence` of functions otherwise. Should be updated by the
+        :arg B: A variable if it has a single component, and a
+            :class:`Sequence` of variables otherwise. Should be updated by the
             addition of this :class:`tlm_adjoint.linear_equation.RHS`.
             Subclasses may replace this argument with `b` if there is a single
             component.
-        :arg deps: A :class:`Sequence` of functions defining values of
+        :arg deps: A :class:`Sequence` of variables defining values of
             dependencies. Should not be modified.
         """
 
@@ -532,17 +531,16 @@ class RHS(Referrer):
         """Subtract the action of the adjoint of a derivative of the
         right-hand-side term, on an adjoint variable, from `b`.
 
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg deps_index: An :class:`int`. The derivative is defined by
             differentiation of the right-hand-side term with respect to
             `self.dependencies()[dep_index]`.
-        :arg adj_X: The adjoint variable. A function if the adjoint variable
-            has a single component, and a :class:`Sequence` of functions
-            otherwise. Should not be modified. Subclasses may replace this
-            argument with `adj_x` if the adjoint variable has a single
-            component.
-        :arg b: A function storing the result. Should be updated by subtracting
+        :arg adj_X: The adjoint variable. A variable if it has a single
+            component, and a :class:`Sequence` of variables otherwise. Should
+            not be modified. Subclasses may replace this argument with `adj_x`
+            if the adjoint variable has a single component.
+        :arg b: A variable storing the result. Should be updated by subtracting
             the action of the adjoint of the right-hand-side term on the
             adjoint variable.
         """
@@ -560,8 +558,8 @@ class RHS(Referrer):
         where :math:`b` is this right-hand-side term, and :math:`\tau_{y_i}` is
         the tangent-linear variable associated with a dependency :math:`y_i`.
 
-        :arg M: A :class:`Sequence` of functions defining the control.
-        :arg dM: A :class:`Sequence` of functions defining the derivative
+        :arg M: A :class:`Sequence` of variables defining the control.
+        :arg dM: A :class:`Sequence` of variables defining the derivative
             direction. The tangent-linear model computes directional
             derivatives with respect to the control defined by `M` and with
             direction defined by `dM`.

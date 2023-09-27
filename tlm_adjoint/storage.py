@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    function_get_values, function_global_size, function_local_indices,
-    function_set_values)
+    var_get_values, var_global_size, var_local_indices, var_set_values)
 
 from .equation import Equation, ZeroAssignment
 
@@ -41,7 +40,7 @@ class Storage(Equation):
     is provided by overloading abstract methods. This class does *not* inherit
     from :class:`abc.ABC`, so that methods may be implemented as needed.
 
-    :arg x: A function defining the forward solution, whose value is saved or
+    :arg x: A variable defining the forward solution, whose value is saved or
         loaded.
     :arg key: A :class:`str` key for the saved or loaded data.
     :arg save: If `True` then the first forward solve saves the value of `x`.
@@ -72,7 +71,7 @@ class Storage(Equation):
     def load(self, x):
         """Load data, storing the result in `x`.
 
-        :arg x: A function in which the loaded data is stored.
+        :arg x: A variable in which the loaded data is stored.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -80,7 +79,7 @@ class Storage(Equation):
     def save(self, x):
         """Save the value of `x`.
 
-        :arg x: A function whose value should be saved.
+        :arg x: A variable whose value should be saved.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -107,7 +106,7 @@ class Storage(Equation):
 class MemoryStorage(Storage):
     """A :class:`tlm_adjoint.storage.Storage` which stores the value in memory.
 
-    :arg x: A function defining the forward solution, whose value is saved or
+    :arg x: A variable defining the forward solution, whose value is saved or
         loaded.
     :arg d: A :class:`dict` in which data is stored with key `key`.
     :arg key: A :class:`str` key for the saved or loaded data.
@@ -123,17 +122,17 @@ class MemoryStorage(Storage):
         return self.key() in self._d
 
     def load(self, x):
-        function_set_values(x, self._d[self.key()])
+        var_set_values(x, self._d[self.key()])
 
     def save(self, x):
-        self._d[self.key()] = function_get_values(x)
+        self._d[self.key()] = var_get_values(x)
 
 
 class HDF5Storage(Storage):
     """A :class:`tlm_adjoint.storage.Storage` which stores the value on disk
     using the h5py library.
 
-    :arg x: A function defining the forward solution, whose value is saved or
+    :arg x: A variable defining the forward solution, whose value is saved or
         loaded.
     :arg h: An h5py :class:`h5py.File`.
     :arg key: A :class:`str` key for the saved or loaded data.
@@ -150,13 +149,13 @@ class HDF5Storage(Storage):
 
     def load(self, x):
         d = self._h[self.key()]["value"]
-        function_set_values(x, d[function_local_indices(x)])
+        var_set_values(x, d[var_local_indices(x)])
 
     def save(self, x):
         key = self.key()
         self._h.create_group(key)
-        values = function_get_values(x)
+        values = var_get_values(x)
         d = self._h[key].create_dataset("value",
-                                        shape=(function_global_size(x),),
+                                        shape=(var_global_size(x),),
                                         dtype=values.dtype)
-        d[function_local_indices(x)] = values
+        d[var_local_indices(x)] = values

@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types, function_id, function_is_alias,
-    function_is_checkpointed, function_new, function_replacement,
-    function_update_caches, function_update_state, function_zero, is_function)
+    check_space_types, is_var, var_id, var_is_alias, var_is_checkpointed,
+    var_new, var_replacement, var_update_caches, var_update_state, var_zero)
 
 from .alias import gc_disabled
 from .manager import manager as _manager
@@ -75,7 +74,7 @@ class Referrer:
             self._references_dropped = True
 
     def drop_references(self):
-        """Drop references to functions which store values.
+        """Drop references to variables which store values.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -101,22 +100,22 @@ class Equation(Referrer):
     *not* inherit from :class:`abc.ABC`, so that methods may be implemented as
     needed.
 
-    :arg X: A function, or a :class:`Sequence` of functions, defining the
-        forward solution variable.
-    :arg deps: A :class:`Sequence` of functions defining dependencies. Must
+    :arg X: A variable, or a :class:`Sequence` of variables, defining the
+        forward solution.
+    :arg deps: A :class:`Sequence` of variables defining dependencies. Must
         define a superset of `X`.
-    :arg nl_deps: A :class:`Sequence` of functions defining non-linear
+    :arg nl_deps: A :class:`Sequence` of variables defining non-linear
         dependencies. Must define a subset of `deps`. Defaults to `deps`.
-    :arg ic_deps: A :class:`Sequence` of functions defining those variables
-        whose value must be available prior to computing the forward solution.
-        Intended for iterative methods with non-zero initial guesses. Must
-        define a subset of `X`. Can be overridden by `ic`.
+    :arg ic_deps: A :class:`Sequence` of variables whose value must be
+        available prior to computing the forward solution. Intended for
+        iterative methods with non-zero initial guesses. Must define a subset
+        of `X`. Can be overridden by `ic`.
     :arg ic: Whether `ic_deps` should be set equal to `X`. Defaults to `True`
         if `ic_deps` is not supplied, and to `False` otherwise.
-    :arg adj_ic_deps: A :class:`Sequence` of functions defining those variables
-        whose value must be available prior to computing the adjoint solution.
-        Intended for iterative methods with non-zero initial guesses. Must
-        define a subset of `X`. Can be overridden by `adj_ic`.
+    :arg adj_ic_deps: A :class:`Sequence` of variables whose value must be
+        available prior to computing the adjoint solution. Intended for
+        iterative methods with non-zero initial guesses. Must define a subset
+        of `X`. Can be overridden by `adj_ic`.
     :arg adj_ic: Whether `adj_ic_deps` should be set equal to `X`. Defaults to
         `True` if `adj_ic_deps` is not supplied, and to `False` otherwise.
     :arg adj_type: The space type relative to `X` of adjoint variables.
@@ -127,33 +126,33 @@ class Equation(Referrer):
                  ic_deps=None, ic=None,
                  adj_ic_deps=None, adj_ic=None,
                  adj_type="conjugate_dual"):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
-        X_ids = set(map(function_id, X))
-        dep_ids = {function_id(dep): i for i, dep in enumerate(deps)}
+        X_ids = set(map(var_id, X))
+        dep_ids = {var_id(dep): i for i, dep in enumerate(deps)}
         for x in X:
-            if not is_function(x):
-                raise ValueError("Solution must be a function")
-            if not function_is_checkpointed(x):
+            if not is_var(x):
+                raise ValueError("Solution must be a variable")
+            if not var_is_checkpointed(x):
                 raise ValueError("Solution must be checkpointed")
-            if function_is_alias(x):
+            if var_is_alias(x):
                 raise ValueError("Solution cannot be an alias")
-            if function_id(x) not in dep_ids:
+            if var_id(x) not in dep_ids:
                 raise ValueError("Solution must be a dependency")
 
         if len(dep_ids) != len(deps):
             raise ValueError("Duplicate dependency")
         for dep in deps:
-            if function_is_alias(dep):
+            if var_is_alias(dep):
                 raise ValueError("Dependency cannot be an alias")
 
         if nl_deps is None:
             nl_deps = tuple(deps)
-        nl_dep_ids = set(map(function_id, nl_deps))
+        nl_dep_ids = set(map(var_id, nl_deps))
         if len(nl_dep_ids) != len(nl_deps):
             raise ValueError("Duplicate non-linear dependency")
         for dep in nl_deps:
-            if function_id(dep) not in dep_ids:
+            if var_id(dep) not in dep_ids:
                 raise ValueError("Non-linear dependency is not a dependency")
 
         if ic_deps is None:
@@ -163,11 +162,11 @@ class Equation(Referrer):
         else:
             if ic is None:
                 ic = False
-        ic_dep_ids = set(map(function_id, ic_deps))
+        ic_dep_ids = set(map(var_id, ic_deps))
         if len(ic_dep_ids) != len(ic_deps):
             raise ValueError("Duplicate initial condition dependency")
         for dep in ic_deps:
-            if function_id(dep) not in X_ids:
+            if var_id(dep) not in X_ids:
                 raise ValueError("Initial condition dependency is not a "
                                  "solution")
         if ic:
@@ -180,11 +179,11 @@ class Equation(Referrer):
         else:
             if adj_ic is None:
                 adj_ic = False
-        adj_ic_dep_ids = set(map(function_id, adj_ic_deps))
+        adj_ic_dep_ids = set(map(var_id, adj_ic_deps))
         if len(adj_ic_dep_ids) != len(adj_ic_deps):
             raise ValueError("Duplicate adjoint initial condition dependency")
         for dep in adj_ic_deps:
-            if function_id(dep) not in X_ids:
+            if var_id(dep) not in X_ids:
                 raise ValueError("Adjoint initial condition dependency is not "
                                  "a solution")
         if adj_ic:
@@ -225,17 +224,17 @@ class Equation(Referrer):
             cls.adjoint_jacobian_solve = adjoint_jacobian_solve
 
     def drop_references(self):
-        self._X = tuple(map(function_replacement, self._X))
-        self._deps = tuple(map(function_replacement, self._deps))
-        self._nl_deps = tuple(map(function_replacement, self._nl_deps))
-        self._ic_deps = tuple(map(function_replacement, self._ic_deps))
-        self._adj_ic_deps = tuple(map(function_replacement, self._adj_ic_deps))
+        self._X = tuple(map(var_replacement, self._X))
+        self._deps = tuple(map(var_replacement, self._deps))
+        self._nl_deps = tuple(map(var_replacement, self._nl_deps))
+        self._ic_deps = tuple(map(var_replacement, self._ic_deps))
+        self._adj_ic_deps = tuple(map(var_replacement, self._adj_ic_deps))
 
     def x(self):
         """Return the forward solution variable, assuming the forward solution
         has one component.
 
-        :returns: A function defining the forward solution.
+        :returns: A variable defining the forward solution.
         """
 
         x, = self._X
@@ -244,9 +243,9 @@ class Equation(Referrer):
     def X(self, m=None):
         """Return forward solution variables.
 
-        :returns: If `m` is supplied, a function defining the `m` th component
+        :returns: If `m` is supplied, a variable defining the `m` th component
             of the forward solution. If `m` is not supplied, a :class:`tuple`
-            of functions defining the forward solution.
+            of variables defining the forward solution.
         """
 
         if m is None:
@@ -257,7 +256,7 @@ class Equation(Referrer):
     def dependencies(self):
         """Return dependencies.
 
-        :returns: A :class:`tuple` of functions defining dependencies.
+        :returns: A :class:`tuple` of variables defining dependencies.
         """
 
         return self._deps
@@ -265,7 +264,7 @@ class Equation(Referrer):
     def nonlinear_dependencies(self):
         """Return non-linear dependencies.
 
-        :returns: A :class:`tuple` of functions defining non-linear
+        :returns: A :class:`tuple` of variables defining non-linear
             dependencies.
         """
 
@@ -275,7 +274,7 @@ class Equation(Referrer):
         """Return 'initial condition' dependencies -- dependencies whose value
         is needed prior to computing the forward solution.
 
-        :returns: A :class:`tuple` of functions defining initial condition
+        :returns: A :class:`tuple` of variables defining initial condition
             dependencies.
         """
 
@@ -285,7 +284,7 @@ class Equation(Referrer):
         """Return adjoint 'initial condition' dependencies -- dependencies
         whose value is needed prior to computing the adjoint solution.
 
-        :returns: A :class:`tuple` of functions defining adjoint initial
+        :returns: A :class:`tuple` of variables defining adjoint initial
             condition dependencies.
         """
 
@@ -319,28 +318,28 @@ class Equation(Referrer):
             return self._adj_X_type[m]
 
     def new_adj_x(self):
-        """Return a new function suitable for storing the adjoint solution,
+        """Return a new variable suitable for storing the adjoint solution,
         assuming the forward solution has exactly one component.
 
-        :returns: A function suitable for storing the adjoint solution.
+        :returns: A variable suitable for storing the adjoint solution.
         """
 
         adj_x, = self.new_adj_X()
         return adj_x
 
     def new_adj_X(self, m=None):
-        """Return new functions suitable for storing the adjoint solution.
+        """Return new variables suitable for storing the adjoint solution.
 
-        :returns: If `m` is supplied, a function suitable for storing the `m`
+        :returns: If `m` is supplied, a variable suitable for storing the `m`
             th component of the adjoint solution. If `m` is not supplied, a
-            :class:`tuple` of functions suitable for storing the adjoint
+            :class:`tuple` of variables suitable for storing the adjoint
             solution.
         """
 
         if m is None:
             return tuple(self.new_adj_X(m) for m in range(len(self.X())))
         else:
-            return function_new(self.X(m), rel_space_type=self.adj_X_type(m))
+            return var_new(self.X(m), rel_space_type=self.adj_X_type(m))
 
     def _pre_process(self, manager=None, annotate=None):
         if manager is None:
@@ -379,10 +378,10 @@ class Equation(Referrer):
         """Wraps :meth:`forward_solve` to handle cache invalidation.
         """
 
-        function_update_caches(*self.dependencies(), value=deps)
+        var_update_caches(*self.dependencies(), value=deps)
         self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
-        function_update_state(*X)
-        function_update_caches(*self.X(), value=X)
+        var_update_state(*X)
+        var_update_caches(*self.X(), value=X)
 
     def forward_solve(self, X, deps=None):
         """Compute the forward solution.
@@ -390,12 +389,12 @@ class Equation(Referrer):
         Can assume that the currently active
         :class:`tlm_adjoint.tlm_adjoint.EquationManager` is paused.
 
-        :arg X: A function if the forward solution has a single component,
-            otherwise a :class:`Sequence` of functions. May define an initial
+        :arg X: A variable if the forward solution has a single component,
+            otherwise a :class:`Sequence` of variables. May define an initial
             guess, and should be set by this method. Subclasses may replace
             this argument with `x` if the forward solution has a single
             component.
-        :arg deps: A :class:`tuple` of functions, defining values of
+        :arg deps: A :class:`tuple` of variables, defining values of
             dependencies. Only the elements corresponding to `X` may be
             modified. `self.dependencies()` should be used if not supplied.
         """
@@ -408,23 +407,23 @@ class Equation(Referrer):
 
         :arg J: The :class:`tlm_adjoint.functional.Functional` defining the
             adjoint.
-        :arg adj_X: Either `None`, or a :class:`Sequence` of functions defining
+        :arg adj_X: Either `None`, or a :class:`Sequence` of variables defining
             the initial guess for an iterative solve. May be modified or
             returned.
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
-        :arg B: A sequence of functions defining the right-hand-side of the
+        :arg B: A sequence of variables defining the right-hand-side of the
             adjoint equation. May be modified or returned.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is a :class:`tlm_adjoint.adjoint.AdjointRHS` which
             should be updated by subtracting derivative information computed by
             differentiating with respect to `self.dependencies()[dep_index]`.
 
-        :returns: A :class:`tuple` of functions defining the adjoint solution,
+        :returns: A :class:`tuple` of variables defining the adjoint solution,
             or `None` to indicate that the solution is zero.
         """
 
-        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
+        var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         if adj_X is not None and len(adj_X) == 1:
             adj_X = adj_X[0]
@@ -433,7 +432,7 @@ class Equation(Referrer):
         if adj_X is not None:
             self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
 
-            if is_function(adj_X):
+            if is_var(adj_X):
                 adj_X = (adj_X,)
 
             for m, adj_x in enumerate(adj_X):
@@ -450,9 +449,9 @@ class Equation(Referrer):
 
         :arg J: The :class:`tlm_adjoint.functional.Functional` defining the
             adjoint.
-        :arg adj_X: A :class:`Sequence` of functions defining the adjoint
+        :arg adj_X: A :class:`Sequence` of variables defining the adjoint
             solution.
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is a :class:`tlm_adjoint.adjoint.AdjointRHS` which
@@ -460,7 +459,7 @@ class Equation(Referrer):
             differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
-        function_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
+        var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         if len(adj_X) == 1:
             adj_X = adj_X[0]
@@ -471,21 +470,21 @@ class Equation(Referrer):
         residual on the adjoint solution. This is the *negative* of an adjoint
         right-hand-side term.
 
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg dep_index: An :class:`int`. The derivative is defined by
             differentiation of the forward residual with respect to
             `self.dependencies()[dep_index]`.
-        :arg adj_X: The adjoint solution. A function if the adjoint solution
-            has a single component, otherwise a :class:`Sequence` of functions.
+        :arg adj_X: The adjoint solution. A variable if the adjoint solution
+            has a single component, otherwise a :class:`Sequence` of variables.
             Should not be modified. Subclasses may replace this argument with
             `adj_x` if the adjoint solution has a single component.
         :returns: The action of the adjoint of a derivative on the adjoint
             solution. Will be passed to
             :func:`tlm_adjoint.interface.subtract_adjoint_derivative_action`,
             and valid types depend upon the backend used. Typically this will
-            be a function, or a two element :class:`tuple` `(alpha, F)`, where
-            `alpha` is a scalar and `F` a function, with the value defined by
+            be a variable, or a two element :class:`tuple` `(alpha, F)`, where
+            `alpha` is a scalar and `F` a variable, with the value defined by
             the product of `alpha` and `F`.
         """
 
@@ -497,11 +496,11 @@ class Equation(Referrer):
         Can be overridden for an optimized implementation, but otherwise uses
         :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action`.
 
-        :arg adj_X: The adjoint solution. A function if the adjoint solution
-            has a single component, otherwise a :class:`Sequence` of functions.
+        :arg adj_X: The adjoint solution. A variable if the adjoint solution
+            has a single component, otherwise a :class:`Sequence` of variables.
             Should not be modified. Subclasses may replace this argument with
             `adj_x` if the adjoint solution has a single component.
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is a :class:`tlm_adjoint.adjoint.AdjointRHS` which
@@ -516,19 +515,19 @@ class Equation(Referrer):
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         """Compute an adjoint solution.
 
-        :arg adj_X: Either `None`, or a function (if the adjoint solution has a
-            single component) or :class:`Sequence` of functions (otherwise)
+        :arg adj_X: Either `None`, or a variable (if the adjoint solution has a
+            single component) or :class:`Sequence` of variables (otherwise)
             defining the initial guess for an iterative solve. May be modified
             or returned. Subclasses may replace this argument with `adj_x` if
             the adjoint solution has a single component.
-        :arg nl_deps: A :class:`Sequence` of functions defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
-        :arg B: The right-hand-side. A function (if the adjoint solution has a
-            single component) or :class:`Sequence` of functions (otherwise)
+        :arg B: The right-hand-side. A variable (if the adjoint solution has a
+            single component) or :class:`Sequence` of variables (otherwise)
             storing the value of the right-hand-side. May be modified or
             returned. Subclasses may replace this argument with `b` if the
             adjoint solution has a single component.
-        :returns: A function or :class:`Sequence` of functions storing the
+        :returns: A variable or :class:`Sequence` of variables storing the
             value of the adjoint solution. May return `None` to indicate a
             value of zero.
         """
@@ -539,8 +538,8 @@ class Equation(Referrer):
         """Derive an :class:`Equation` corresponding to a associated equation
         in a tangent-linear model.
 
-        :arg M: A :class:`Sequence` of functions defining the control.
-        :arg dM: A :class:`Sequence` of functions defining the derivative
+        :arg M: A :class:`Sequence` of variables defining the control.
+        :arg dM: A :class:`Sequence` of variables defining the derivative
             direction. The tangent-linear model computes directional
             derivatives with respect to the control defined by `M` and with
             direction defined by `dM`.
@@ -566,23 +565,23 @@ class ZeroAssignment(Equation):
 
         \mathcal{F} \left( x \right) = x.
 
-    :arg X: A function or a :class:`Sequence` of functions defining the forward
+    :arg X: A variable or a :class:`Sequence` of variables defining the forward
         solution :math:`x`.
     """
 
     def __init__(self, X):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         super().__init__(X, X, nl_deps=[], ic=False, adj_ic=False)
 
     def forward_solve(self, X, deps=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         for x in X:
-            function_zero(x)
+            var_zero(x)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_function(adj_X):
+        if is_var(adj_X):
             adj_X = (adj_X,)
         if dep_index < len(adj_X):
             return adj_X[dep_index]

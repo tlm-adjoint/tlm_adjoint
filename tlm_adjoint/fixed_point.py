@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    function_assign, function_axpy, function_copy, function_id, function_inner,
-    function_update_caches, function_zero, is_function, no_space_type_checking)
+    is_var, no_space_type_checking, var_assign, var_axpy, var_copy, var_id,
+    var_inner, var_update_caches, var_zero)
 
 from .adjoint import AdjointModelRHS
 from .alias import WeakAlias
@@ -23,7 +23,7 @@ __all__ = \
 
 @no_space_type_checking
 def l2_norm_sq(x):
-    return function_inner(x, x)
+    return var_inner(x, x)
 
 
 class CustomNormSq:
@@ -39,14 +39,14 @@ class CustomNormSq:
         :class:`Sequence` of callables. The callables define the squared norm
         associated with the corresponding components of the forward solution
         for the corresponding :class:`tlm_adjoint.equation.Equation` in `eqs`.
-        Each callable accepts a single function and returns a :class:`float`.
+        Each callable accepts a single variable and returns a :class:`float`.
         Defaults to the square of the :math:`l_2` norm of the degrees of
         freedom vector.
     :arg adj_norm_sqs: A :class:`Sequence`. Each element is either a callable,
         or a :class:`Sequence` of callables. The callables define the squared
         norm associated with the corresponding components of the adjoint
         solution for the corresponding :class:`tlm_adjoint.equation.Equation`
-        in `eqs`. Each callable accepts a single function and returns a
+        in `eqs`. Each callable accepts a single variable and returns a
         :class:`float`. Defaults to the square of the :math:`l_2` norm of the
         degrees of freedom vector.
     """
@@ -153,7 +153,7 @@ class FixedPointSolver(Equation, CustomNormSq):
 
     def __init__(self, eqs, solver_parameters, *,
                  norm_sqs=None, adj_norm_sqs=None):
-        X_ids = list(itertools.chain.from_iterable(map(function_id, eq.X()) for eq in eqs))  # noqa: E501
+        X_ids = list(itertools.chain.from_iterable(map(var_id, eq.X()) for eq in eqs))  # noqa: E501
         X_ids_ = set(X_ids)
         if len(X_ids_) != len(X_ids):
             raise ValueError("Duplicate solve")
@@ -193,14 +193,14 @@ class FixedPointSolver(Equation, CustomNormSq):
             del eq_X, eq_adj_X_type
 
             for dep in eq.dependencies():
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id not in dep_ids:
                     deps.append(dep)
                     dep_ids[dep_id] = len(deps) - 1
                 eq_dep_indices[i].append(dep_ids[dep_id])
 
             for dep in eq.nonlinear_dependencies():
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id not in nl_dep_ids:
                     nl_deps.append(dep)
                     nl_dep_ids[dep_id] = len(nl_deps) - 1
@@ -214,19 +214,19 @@ class FixedPointSolver(Equation, CustomNormSq):
             remaining_x_ids = set(X_ids)
 
             for i, eq in enumerate(eqs):
-                remaining_x_ids.difference_update(map(function_id, eq.X()))
+                remaining_x_ids.difference_update(map(var_id, eq.X()))
 
                 for dep in eq.dependencies():
-                    dep_id = function_id(dep)
+                    dep_id = var_id(dep)
                     if dep_id in remaining_x_ids:
                         ic_deps.setdefault(dep_id, dep)
 
                 for dep in eq.initial_condition_dependencies():
-                    dep_id = function_id(dep)
+                    dep_id = var_id(dep)
                     assert dep_id not in previous_x_ids
                     ic_deps.setdefault(dep_id, dep)
 
-                previous_x_ids.update(map(function_id, eq.X()))
+                previous_x_ids.update(map(var_id, eq.X()))
 
             ic_deps = list(ic_deps.values())
             del previous_x_ids, remaining_x_ids
@@ -241,19 +241,19 @@ class FixedPointSolver(Equation, CustomNormSq):
             for i in range(len(eqs) - 1, -1, -1):
                 eq = eqs[i]
 
-                remaining_x_ids.difference_update(map(function_id, eq.X()))
+                remaining_x_ids.difference_update(map(var_id, eq.X()))
 
                 for dep in eq.dependencies():
-                    dep_id = function_id(dep)
+                    dep_id = var_id(dep)
                     if dep_id in remaining_x_ids:
                         adj_ic_deps.setdefault(dep_id, dep)
 
                 for dep in eq.adjoint_initial_condition_dependencies():
-                    dep_id = function_id(dep)
+                    dep_id = var_id(dep)
                     assert dep_id not in previous_x_ids
                     adj_ic_deps.setdefault(dep_id, dep)
 
-                previous_x_ids.update(map(function_id, eq.X()))
+                previous_x_ids.update(map(var_id, eq.X()))
 
             adj_ic_deps = list(adj_ic_deps.values())
             del previous_x_ids, remaining_x_ids
@@ -261,13 +261,13 @@ class FixedPointSolver(Equation, CustomNormSq):
             adj_ic_deps = []
 
         eq_dep_index_map = tuple(
-            {function_id(dep): i for i, dep in enumerate(eq.dependencies())}
+            {var_id(dep): i for i, dep in enumerate(eq.dependencies())}
             for eq in eqs)
 
         dep_eq_index_map = {}
         for i, eq in enumerate(eqs):
             for dep in eq.dependencies():
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id in dep_eq_index_map:
                     dep_eq_index_map[dep_id].append(i)
                 else:
@@ -276,11 +276,11 @@ class FixedPointSolver(Equation, CustomNormSq):
         dep_map = {}
         for k, eq in enumerate(eqs):
             for m, x in enumerate(eq.X()):
-                dep_map[function_id(x)] = (k, m)
+                dep_map[var_id(x)] = (k, m)
         dep_B_indices = tuple({} for _ in eqs)
         for i, eq in enumerate(eqs):
             for j, dep in enumerate(eq.dependencies()):
-                dep_id = function_id(dep)
+                dep_id = var_id(dep)
                 if dep_id in dep_map:
                     k, m = dep_map[dep_id]
                     if k != i:
@@ -308,7 +308,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         self._eqs = tuple(map(WeakAlias, self._eqs))
 
     def forward_solve(self, X, deps=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
 
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
@@ -329,11 +329,11 @@ class FixedPointSolver(Equation, CustomNormSq):
 
         if not nonzero_initial_guess:
             for x in X:
-                function_zero(x)
-            function_update_caches(*self.X(), value=X)
+                var_zero(x)
+            var_update_caches(*self.X(), value=X)
 
         it = 0
-        X_0 = tuple(tuple(map(function_copy, eq_X[i]))
+        X_0 = tuple(tuple(map(var_copy, eq_X[i]))
                     for i in range(len(self._eqs)))
         while True:
             it += 1
@@ -346,7 +346,7 @@ class FixedPointSolver(Equation, CustomNormSq):
             for i in range(len(self._eqs)):
                 assert len(R[i]) == len(eq_X[i])
                 for r, x in zip(R[i], eq_X[i]):
-                    function_axpy(r, -1.0, x)
+                    var_axpy(r, -1.0, x)
             R_norm_sq = self._forward_norm_sq(R)
             if relative_tolerance == 0.0:
                 tolerance_sq = absolute_tolerance ** 2
@@ -374,14 +374,14 @@ class FixedPointSolver(Equation, CustomNormSq):
             for i in range(len(self._eqs)):
                 assert len(X_0[i]) == len(eq_X[i])
                 for x_0, x in zip(X_0[i], eq_X[i]):
-                    function_assign(x_0, x)
+                    var_assign(x_0, x)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
-        if is_function(B):
+        if is_var(B):
             B = (B,)
         if adj_X is None:
             adj_X = list(self.new_adj_X())
-        elif is_function(adj_X):
+        elif is_var(adj_X):
             adj_X = [adj_X]
         else:
             adj_X = list(adj_X)
@@ -404,7 +404,7 @@ class FixedPointSolver(Equation, CustomNormSq):
         for i, eq in enumerate(self._eqs):
             eq_B = adj_B[0][i].B()
             for j, k in enumerate(self._eq_X_indices[i]):
-                function_assign(eq_B[j], B[k])
+                var_assign(eq_B[j], B[k])
             for j, (k, m) in self._dep_B_indices[i].items():
                 dep_Bs[i][j] = adj_B[0][k][m]
 
@@ -415,17 +415,17 @@ class FixedPointSolver(Equation, CustomNormSq):
                     eq_nl_deps[i], dep_Bs[i])
         else:
             for adj_x in adj_X:
-                function_zero(adj_x)
+                var_zero(adj_x)
 
         it = 0
-        X_0 = tuple(tuple(map(function_copy, eq_adj_X[i]))
+        X_0 = tuple(tuple(map(var_copy, eq_adj_X[i]))
                     for i in range(len(self._eqs)))
         while True:
             it += 1
 
             for i in range(len(self._eqs) - 1, - 1, -1):
                 # Copy required here, as adjoint_jacobian_solve may return the
-                # RHS function itself
+                # RHS variable itself
                 eq_B = adj_B[0][i].B(copy=True)
 
                 eq_adj_X[i] = self._eqs[i].adjoint_jacobian_solve(
@@ -436,7 +436,7 @@ class FixedPointSolver(Equation, CustomNormSq):
                 if eq_adj_X[i] is None:
                     eq_adj_X[i] = self._eqs[i].new_adj_X()
                 else:
-                    if is_function(eq_adj_X[i]):
+                    if is_var(eq_adj_X[i]):
                         eq_adj_X[i] = (eq_adj_X[i],)
                     self._eqs[i].subtract_adjoint_derivative_actions(
                         eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],  # noqa: E501
@@ -448,14 +448,14 @@ class FixedPointSolver(Equation, CustomNormSq):
 
                 eq_B = adj_B[0][i].B()
                 for j, k in enumerate(self._eq_X_indices[i]):
-                    function_assign(eq_B[j], B[k])
+                    var_assign(eq_B[j], B[k])
 
             R = X_0
             del X_0
             for i in range(len(self._eqs)):
                 assert len(R[i]) == len(eq_adj_X[i])
                 for r, x in zip(R[i], eq_adj_X[i]):
-                    function_axpy(r, -1.0, x)
+                    var_axpy(r, -1.0, x)
             R_norm_sq = self._adjoint_norm_sq(R)
             if relative_tolerance == 0.0:
                 tolerance_sq = absolute_tolerance ** 2
@@ -483,18 +483,18 @@ class FixedPointSolver(Equation, CustomNormSq):
             for i in range(len(self._eqs)):
                 assert len(X_0[i]) == len(eq_adj_X[i])
                 for x_0, x in zip(X_0[i], eq_adj_X[i]):
-                    function_assign(x_0, x)
+                    var_assign(x_0, x)
 
         return adj_X
 
     def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
-        if is_function(adj_X):
+        if is_var(adj_X):
             adj_X = (adj_X,)
 
         eq_dep_Bs = tuple({} for _ in self._eqs)
         for dep_index, B in dep_Bs.items():
             dep = self.dependencies()[dep_index]
-            dep_id = function_id(dep)
+            dep_id = var_id(dep)
             for i in self._dep_eq_index_map[dep_id]:
                 eq_dep_Bs[i][self._eq_dep_index_map[i][dep_id]] = B
 

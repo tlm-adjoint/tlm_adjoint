@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_type, function_is_scalar, function_name, function_new,
-    function_scalar_value, function_space, functional_term_eq, is_function,
-    space_id, space_new)
+    check_space_type, functional_term_eq, is_var, space_id, space_new,
+    var_is_scalar, var_name, var_new, var_scalar_value, var_space)
 
 from .equations import Assignment, Axpy
-from .manager import function_tlm
+from .manager import var_tlm
 from .overloaded_float import Float, FloatSpace
 
 import warnings
@@ -21,10 +20,10 @@ __all__ = \
 class Functional:
     """A convenience class for defining functionals.
 
-    This allocates and stores an internal function, but note that this function
+    This allocates and stores an internal variable, but note that this variable
     can change e.g. after adding terms.
 
-    :arg space: The space for the :class:`Functional`. Internal functions are
+    :arg space: The space for the :class:`Functional`. Internal variables are
         in this space. Defaults to `FloatSpace(Float)`.
     :arg name: A :class:`str` name for the functional.
     """
@@ -40,13 +39,13 @@ class Functional:
             fn = _fn
             del _fn
             if space is not None \
-                    and space_id(space) != space_id(function_space(fn)):
+                    and space_id(space) != space_id(var_space(fn)):
                 raise ValueError("Invalid space")
-        if not function_is_scalar(fn):
+        if not var_is_scalar(fn):
             raise ValueError("Functional must be a scalar")
         check_space_type(fn, "primal")
 
-        name = function_name(fn)
+        name = var_name(fn)
 
         self._name = name
         self._fn = fn
@@ -75,10 +74,10 @@ class Functional:
 
             \mathcal{J} = b.
 
-        Note that this method allocates a new internal function.
+        Note that this method allocates a new internal variable.
 
         :arg term: The value. Defines the value of :math:`b`. Valid types
-            depend upon the backend. :math:`b` may be a function, and with the
+            depend upon the backend. :math:`b` may be a variable, and with the
             FEniCS or Firedrake backends may be an arity zero
             :class:`ufl.Form`.
         :arg annotate: Whether the
@@ -87,8 +86,8 @@ class Functional:
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        new_fn = function_new(self._fn, name=self._name)
-        if is_function(term) and function_is_scalar(term):
+        new_fn = var_new(self._fn, name=self._name)
+        if is_var(term) and var_is_scalar(term):
             new_fn_eq = Assignment(new_fn, term)
         else:
             new_fn_eq = functional_term_eq(new_fn, term)
@@ -111,10 +110,10 @@ class Functional:
         are, respectively, the old and new values for the functional, and
         :math:`b` is the term to add.
 
-        Note that this method allocates a new internal function.
+        Note that this method allocates a new internal variable.
 
         :arg term: The value. Defines the value of :math:`b`. Valid types
-            depend upon the backend. :math:`b` may be a function, and with the
+            depend upon the backend. :math:`b` may be a variable, and with the
             FEniCS or Firedrake backends may be an arity zero
             :class:`ufl.Form`.
         :arg annotate: Whether the
@@ -123,15 +122,15 @@ class Functional:
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        new_fn = function_new(self._fn, name=self._name)
+        new_fn = var_new(self._fn, name=self._name)
         if term is None:
             new_fn_eq = Assignment(new_fn, self._fn)
             new_fn_eq.solve(annotate=annotate, tlm=tlm)
         else:
-            if is_function(term) and function_is_scalar(term):
+            if is_var(term) and var_is_scalar(term):
                 term_fn = term
             else:
-                term_fn = function_new(self._fn, name=f"{self._name:s}_term")
+                term_fn = var_new(self._fn, name=f"{self._name:s}_term")
                 term_eq = functional_term_eq(term_fn, term)
                 term_eq.solve(annotate=annotate, tlm=tlm)
             new_fn_eq = Axpy(new_fn, self._fn, 1.0, term_fn)
@@ -139,9 +138,19 @@ class Functional:
         self._fn = new_fn
 
     def function(self):
-        """Return the internal function currently storing the value.
+        """
+        """
 
-        :returns: The internal function.
+        # warnings.warn("function method is deprecated -- "
+        #               "use var instead",
+        #               DeprecationWarning, stacklevel=2)
+
+        return self.var()
+
+    def var(self):
+        """Return the internal variable currently storing the value.
+
+        :returns: The internal variable.
         """
 
         return self._fn
@@ -152,7 +161,7 @@ class Functional:
         :returns: The space
         """
 
-        return function_space(self._fn)
+        return var_space(self._fn)
 
     def value(self):
         """Return the current value of the functional.
@@ -163,14 +172,14 @@ class Functional:
         :returns: The scalar value.
         """
 
-        return function_scalar_value(self._fn)
+        return var_scalar_value(self._fn)
 
     def tlm_functional(self, *args):
         """Return a :class:`Functional` associated with a tangent-linear
         variable associated with the functional.
 
         :arg args: A :class:`Sequence` of `(M, dM)` pairs. Here `M` and `dM`
-            are each a function or a sequence of functions defining a
+            are each a variable or a sequence of variables defining a
             derivative and derivative direction. The tangent-linear variable is
             the derivative of the functional with respect to each `M` and with
             direction defined by each `dM`. Supplying a single pair requests a
@@ -183,14 +192,14 @@ class Functional:
             variable.
         """
 
-        return Functional(_fn=function_tlm(self.function(), *args))
+        return Functional(_fn=var_tlm(self.var(), *args))
 
     def tlm(self, M, dM, *, max_depth=1):
         warnings.warn("Functional.tlm method is deprecated -- "
                       "use Functional.tlm_functional instead",
                       DeprecationWarning, stacklevel=2)
 
-        J_fn = function_tlm(
-            self.function(), *((M, dM) for _ in range(max_depth)))
+        J_fn = var_tlm(
+            self.var(), *((M, dM) for _ in range(max_depth)))
 
         return Functional(_fn=J_fn)

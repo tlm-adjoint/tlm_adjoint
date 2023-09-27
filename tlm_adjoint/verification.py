@@ -87,11 +87,10 @@ e.g. to verify Hessian matrix calculations
 """
 
 from .interface import (
-    function_assign, function_axpy, function_copy, function_dtype,
-    function_is_cached, function_is_checkpointed, function_is_static,
-    function_local_size, function_name, function_new, function_set_values,
-    functions_inner, functions_linf_norm, garbage_cleanup, is_function,
-    space_comm)
+    garbage_cleanup, is_var, space_comm, var_assign, var_axpy, var_copy,
+    var_dtype, var_is_cached, var_is_checkpointed, var_is_static,
+    var_local_size, var_name, var_new, var_set_values, vars_inner,
+    vars_linf_norm)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
@@ -117,7 +116,7 @@ def wrapped_forward(forward):
     @functools.wraps(forward)
     def wrapped_forward(*M):
         J = forward(*M)
-        if is_function(J):
+        if is_var(J):
             J = Functional(_fn=J)
         garbage_cleanup(space_comm(J.space()))
         return J
@@ -147,17 +146,17 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     the control value degree of freedom vector. The argument `seed` sets the
     value of :math:`\eta`, and the argument `size` sets the value of :math:`P`.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional :math:`J`. Corresponds to the `J`
         argument in the dolfin-adjoint :func:`taylor_test` function.
-    :arg M: A function or a :class:`Sequence` of functions defining the control
-        variable :math:`m`. Corresponds to the `m` argument in the
-        dolfin-adjoint :func:`taylor_test` function.
+    :arg M: A variable or a :class:`Sequence` of variables defining the control
+        :math:`m`. Corresponds to the `m` argument in the dolfin-adjoint
+        :func:`taylor_test` function.
     :arg J_val: A scalar defining the value of the functional :math:`J` for
         control value defined by `M0`. Corresponds to the `Jm` argument in the
         dolfin-adjoint :func:`taylor_test` function.
-    :arg dJ: A function or a :class:`Sequence` of functions defining a value
+    :arg dJ: A variable or a :class:`Sequence` of variables defining a value
         for the derivative of the functional with respect to the control.
         Required if `ddJ` is not supplied. Corresponds to the `dJdm` argument
         in the dolfin-adjoint :func:`taylor_test` function.
@@ -203,24 +202,24 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     forward = wrapped_forward(forward)
 
     if M0 is None:
-        M0 = tuple(map(function_copy, M))
-    M1 = tuple(function_new(m, static=function_is_static(m),
-                            cache=function_is_cached(m),
-                            checkpoint=function_is_checkpointed(m))
+        M0 = tuple(map(var_copy, M))
+    M1 = tuple(var_new(m, static=var_is_static(m),
+                       cache=var_is_cached(m),
+                       checkpoint=var_is_checkpointed(m))
                for m in M)
 
     # This combination seems to reproduce dolfin-adjoint behaviour
     eps = np.array([2 ** -p for p in range(size)], dtype=float)
-    eps = seed * eps * max(1.0, functions_linf_norm(M0))
+    eps = seed * eps * max(1.0, vars_linf_norm(M0))
     if dM is None:
-        dM = tuple(function_new(m1, static=True) for m1 in M1)
+        dM = tuple(var_new(m1, static=True) for m1 in M1)
         for dm in dM:
-            dm_arr = np.random.random(function_local_size(dm))
-            if issubclass(function_dtype(dm),
+            dm_arr = np.random.random(var_local_size(dm))
+            if issubclass(var_dtype(dm),
                           (complex, np.complexfloating)):
                 dm_arr = dm_arr \
-                    + 1.0j * np.random.random(function_local_size(dm))
-            function_set_values(dm, dm_arr)
+                    + 1.0j * np.random.random(var_local_size(dm))
+            var_set_values(dm, dm_arr)
             del dm_arr
 
     J_vals = np.full(eps.shape, np.NAN, dtype=complex)
@@ -228,8 +227,8 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         assert len(M0) == len(M1)
         assert len(M0) == len(dM)
         for m0, m1, dm in zip(M0, M1, dM):
-            function_assign(m1, m0)
-            function_axpy(m1, eps[i], dm)
+            var_assign(m1, m0)
+            var_axpy(m1, eps[i], dm)
         clear_caches()
         J_vals[i] = forward(*M1).value()
 
@@ -240,7 +239,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     if ddJ is None:
         error_norms_1 = abs(J_vals - J_val
-                            - eps * functions_inner(dM, dJ))
+                            - eps * vars_inner(dM, dJ))
         orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
         logger.info(f"Error norms, with adjoint = {error_norms_1}")
         logger.info(f"Orders,      with adjoint = {orders_1}")
@@ -249,11 +248,11 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         if dJ is None:
             _, dJ, ddJ = ddJ.action(M, dM, M0=M0)
         else:
-            dJ = functions_inner(dM, dJ)
+            dJ = vars_inner(dM, dJ)
             _, _, ddJ = ddJ.action(M, dM, M0=M0)
         error_norms_2 = abs(J_vals - J_val
                             - eps * dJ
-                            - 0.5 * eps * eps * functions_inner(dM, ddJ))
+                            - 0.5 * eps * eps * vars_inner(dM, ddJ))
         orders_2 = np.log(error_norms_2[1:] / error_norms_2[:-1]) / np.log(0.5)
         logger.info(f"Error norms, with adjoint = {error_norms_2}")
         logger.info(f"Orders,      with adjoint = {orders_2}")
@@ -269,16 +268,16 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     corrected Taylor remainder magnitude, is computed using a `tlm_order` th
     order tangent-linear.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional :math:`K`.
-    :arg M: A function or a :class:`Sequence` of functions defining the control
-        variable :math:`m` and its value.
+    :arg M: A variable or a :class:`Sequence` of variables defining the control
+        :math:`m` and its value.
     :arg tlm_order: An :class:`int` defining the tangent-linear order to
         test.
     :arg seed: Controls the perturbation magnitude. See :func:`taylor_test`.
     :arg dMs: A :class:`Sequence` of length `tlm_order` whose elements are each
-        a function or a :class:`Sequence` of functions. The functional
+        a variable or a :class:`Sequence` of variables. The functional
         :math:`J` appearing in the definition of the Taylor remainder
         magnitudes is defined to be a `(tlm_adjoint - 1)` th derivative,
         defined by successively taking the derivative of :math:`K` with respect
@@ -313,28 +312,28 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     tlm_manager = manager.new("memory", {})
     tlm_manager.stop()
 
-    M = tuple(function_copy(m, name=function_name(m),
-                            static=function_is_static(m),
-                            cache=function_is_cached(m),
-                            checkpoint=function_is_checkpointed(m)) for m in M)
-    M1 = tuple(function_new(m, static=function_is_static(m),
-                            cache=function_is_cached(m),
-                            checkpoint=function_is_checkpointed(m))
+    M = tuple(var_copy(m, name=var_name(m),
+                       static=var_is_static(m),
+                       cache=var_is_cached(m),
+                       checkpoint=var_is_checkpointed(m)) for m in M)
+    M1 = tuple(var_new(m, static=var_is_static(m),
+                       cache=var_is_cached(m),
+                       checkpoint=var_is_checkpointed(m))
                for m in M)
 
     eps = np.array([2 ** -p for p in range(size)], dtype=float)
-    eps = seed * eps * max(1.0, functions_linf_norm(M))
+    eps = seed * eps * max(1.0, vars_linf_norm(M))
     if dMs is None:
-        dMs = tuple(tuple(function_new(m, static=True) for m in M)
+        dMs = tuple(tuple(var_new(m, static=True) for m in M)
                     for _ in range(tlm_order))
         for dM in dMs:
             for dm in dM:
-                dm_arr = np.random.random(function_local_size(dm))
-                if issubclass(function_dtype(dm),
+                dm_arr = np.random.random(var_local_size(dm))
+                if issubclass(var_dtype(dm),
                               (complex, np.complexfloating)):
                     dm_arr = dm_arr \
-                        + 1.0j * np.random.random(function_local_size(dm))
-                function_set_values(dm, dm_arr)
+                        + 1.0j * np.random.random(var_local_size(dm))
+                var_set_values(dm, dm_arr)
                 del dm_arr
 
     @restore_manager
@@ -360,8 +359,8 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         assert len(M) == len(M1)
         assert len(M) == len(dMs[-1])
         for m0, m1, dm in zip(M, M1, dMs[-1]):
-            function_assign(m1, m0)
-            function_axpy(m1, eps[i], dm)
+            var_assign(m1, m0)
+            var_axpy(m1, eps[i], dm)
         J_vals[i] = forward_tlm(dMs[:-1], *M1).value()
 
     error_norms_0 = abs(J_vals - J_val)
@@ -385,15 +384,15 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     corrected Taylor remainder magnitude, is computed using an adjoint
     associated with an `(adjoint_order - 1)` th order tangent-linear.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional :math:`K`.
-    :arg M: A function or a :class:`Sequence` of functions defining the control
-        variable :math:`m` and its value.
+    :arg M: A variable or a :class:`Sequence` of variables defining the control
+        :math:`m` and its value.
     :arg adjoint_order: An :class:`int` defining the adjoint order to test.
     :arg seed: Controls the perturbation magnitude. See :func:`taylor_test`.
     :arg dMs: A :class:`Sequence` of length `adjoint_order` whose elements are
-        each a function or a :class:`Sequence` of functions. The functional
+        each a variable or a :class:`Sequence` of variables. The functional
         :math:`J` appearing in the definition of the Taylor remainder
         magnitudes is defined to be a `(adjoint_order - 1)` th derivative,
         defined by successively taking the derivative of :math:`K` with respect
@@ -428,23 +427,23 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     tlm_manager = manager.new()
     tlm_manager.stop()
 
-    M = tuple(function_copy(m, name=function_name(m),
-                            static=function_is_static(m),
-                            cache=function_is_cached(m),
-                            checkpoint=function_is_checkpointed(m)) for m in M)
+    M = tuple(var_copy(m, name=var_name(m),
+                       static=var_is_static(m),
+                       cache=var_is_cached(m),
+                       checkpoint=var_is_checkpointed(m)) for m in M)
 
     if dMs is None:
         dM_test = None
-        dMs = tuple(tuple(function_new(m, static=True) for m in M)
+        dMs = tuple(tuple(var_new(m, static=True) for m in M)
                     for _ in range(adjoint_order - 1))
         for dM in dMs:
             for dm in dM:
-                dm_arr = np.random.random(function_local_size(dm))
-                if issubclass(function_dtype(dm),
+                dm_arr = np.random.random(var_local_size(dm))
+                if issubclass(var_dtype(dm),
                               (complex, np.complexfloating)):
                     dm_arr = dm_arr \
-                        + 1.0j * np.random.random(function_local_size(dm))
-                function_set_values(dm, dm_arr)
+                        + 1.0j * np.random.random(var_local_size(dm))
+                var_set_values(dm, dm_arr)
                 del dm_arr
     else:
         dM_test = dMs[-1]

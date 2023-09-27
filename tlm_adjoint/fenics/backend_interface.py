@@ -7,12 +7,12 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
     check_space_types, comm_dup_cached, function_copy, function_linf_norm,
-    function_scalar_value, function_space, function_space_type,
-    new_function_id, new_space_id, register_finalize_adjoint_derivative_action,
+    function_scalar_value, function_space, function_space_type, new_space_id,
+    new_var_id, register_finalize_adjoint_derivative_action,
     register_functional_term_eq, register_subtract_adjoint_derivative_action,
     space_id, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from .equations import Assembly
@@ -52,7 +52,7 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "name": lambda x: x.name(),
+                  {"id": new_var_id(), "name": lambda x: x.name(),
                    "state": [0], "space": space,
                    "form_derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.values().dtype.type,
@@ -109,41 +109,41 @@ def check_vector_size(fn):
     return wrapped_fn
 
 
-class FunctionInterface(_FunctionInterface):
+class FunctionInterface(_VariableInterface):
     def _space(self):
-        return self._tlm_adjoint__function_interface_attrs["space"]
+        return self._tlm_adjoint__var_interface_attrs["space"]
 
     def _form_derivative_space(self):
         return function_space(self)
 
     def _space_type(self):
-        return self._tlm_adjoint__function_interface_attrs["space_type"]
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
 
     def _id(self):
-        return self._tlm_adjoint__function_interface_attrs["id"]
+        return self._tlm_adjoint__var_interface_attrs["id"]
 
     def _name(self):
         return self.name()
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"][0]
+        return self._tlm_adjoint__var_interface_attrs["state"][0]
 
     def _update_state(self):
-        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
+        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
 
     def _is_static(self):
-        return self._tlm_adjoint__function_interface_attrs["static"]
+        return self._tlm_adjoint__var_interface_attrs["static"]
 
     def _is_cached(self):
-        return self._tlm_adjoint__function_interface_attrs["cache"]
+        return self._tlm_adjoint__var_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
+        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
-        if "caches" not in self._tlm_adjoint__function_interface_attrs:
-            self._tlm_adjoint__function_interface_attrs["caches"] = Caches(self)  # noqa: E501
-        return self._tlm_adjoint__function_interface_attrs["caches"]
+        if "caches" not in self._tlm_adjoint__var_interface_attrs:
+            self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
+        return self._tlm_adjoint__var_interface_attrs["caches"]
 
     @check_vector_size
     def _zero(self):
@@ -231,7 +231,7 @@ class FunctionInterface(_FunctionInterface):
                           checkpoint=checkpoint)
         y.vector().zero()
         space_type = function_space_type(self, rel_space_type=rel_space_type)
-        y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
     @manager_disabled()
@@ -244,10 +244,10 @@ class FunctionInterface(_FunctionInterface):
             cache = static
         if checkpoint is None:
             checkpoint = not static
-        y._tlm_adjoint__function_interface_attrs.d_setitem("space_type", function_space_type(self))  # noqa: E501
-        y._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        y._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        y._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", function_space_type(self))  # noqa: E501
+        y._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        y._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+        y._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
         return y
 
     def _replacement(self):
@@ -262,7 +262,7 @@ class FunctionInterface(_FunctionInterface):
         False
 
     def _is_alias(self):
-        return "alias" in self._tlm_adjoint__function_interface_attrs
+        return "alias" in self._tlm_adjoint__var_interface_attrs
 
 
 class Function(backend_Function):
@@ -291,10 +291,10 @@ class Function(backend_Function):
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 class ZeroFunction(Function, Zero):
@@ -336,7 +336,7 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
         raise RuntimeError("PETSc backend required")
 
     add_interface(self, FunctionInterface,
-                  {"id": new_function_id(), "state": [0],
+                  {"id": new_var_id(), "state": [0],
                    "space_type": "primal", "static": False, "cache": False,
                    "checkpoint": True})
 
@@ -347,14 +347,14 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
         id = new_space_id()
     add_interface(space, FunctionSpaceInterface,
                   {"comm": comm_dup_cached(space.mesh().mpi_comm()), "id": id})
-    self._tlm_adjoint__function_interface_attrs["space"] = space
+    self._tlm_adjoint__var_interface_attrs["space"] = space
 
 
 @override_method(backend_Function, "function_space")
 def Function_function_space(self, orig, orig_args):
-    if hasattr(self, "_tlm_adjoint__function_interface_attrs") \
-            and "space" in self._tlm_adjoint__function_interface_attrs:
-        return self._tlm_adjoint__function_interface_attrs["space"]
+    if hasattr(self, "_tlm_adjoint__var_interface_attrs") \
+            and "space" in self._tlm_adjoint__var_interface_attrs:
+        return self._tlm_adjoint__var_interface_attrs["space"]
     else:
         return orig_args()
 

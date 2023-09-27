@@ -19,7 +19,6 @@ __all__ = \
         "compute_gradient",
         "configure_checkpointing",
         "configure_tlm",
-        "function_tlm",
         "manager",
         "manager_disabled",
         "manager_info",
@@ -31,8 +30,10 @@ __all__ = \
         "start_manager",
         "stop_manager",
         "tlm_enabled",
+        "var_tlm",
 
-        "add_tlm"
+        "add_tlm",
+        "function_tlm"
     ]
 
 _manager = None
@@ -175,11 +176,21 @@ def tlm_enabled():
     return manager().tlm_enabled()
 
 
-def function_tlm(x, *args):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.function_tlm`.
+def var_tlm(x, *args):
+    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.var_tlm`.
     """
 
-    return manager().function_tlm(x, *args)
+    return manager().var_tlm(x, *args)
+
+
+def function_tlm(x, *args):
+    """
+    """
+
+    # warnings.warn("function_tlm is deprecated -- "
+    #               "use var_tlm instead",
+    #               DeprecationWarning, stacklevel=2)
+    return manager().var_tlm(x, *args)
 
 
 def compute_gradient(Js, M, *, callback=None, prune_forward=True,

@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types, function_id, function_name, function_new_tangent_linear,
-    is_function)
+    check_space_types, is_var, var_id, var_name, var_new_tangent_linear)
 
 from .markers import ControlsMarker, FunctionalMarker
 
@@ -20,11 +19,11 @@ __all__ = \
 
 
 def tlm_key(M, dM):
-    if is_function(M):
+    if is_var(M):
         M = (M,)
     else:
         M = tuple(M)
-    if is_function(dM):
+    if is_var(dM):
         dM = (dM,)
     else:
         dM = tuple(dM)
@@ -36,7 +35,7 @@ def tlm_key(M, dM):
     for m, dm in zip(M, dM):
         check_space_types(m, dm)
 
-    return ((M, dM), (tuple(map(function_id, M)), tuple(map(function_id, dM))))
+    return ((M, dM), (tuple(map(var_id, M)), tuple(map(var_id, dM))))
 
 
 def distinct_combinations_indices(iterable, r):
@@ -139,15 +138,14 @@ class TangentLinearMap:
 
         tau_x = tlm_map[x]
 
-    where `x` is a function associated with the forward variable.
+    where `x` is a forward variable.
 
         - If `x` is defines a component of the control, then `tau_x` is a
-          function defining the associated component of the direction.
+          variable defining the associated component of the direction.
         - If `x` does not define a component of the control but is
           'checkpointed', meaning that it is stored by value by a
           :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is
-          a function associated with the tangent-linear variable. A new
-          function is instantiated if needed.
+          a tangent-linear variable. A new variable is instantiated if needed.
         - Otherwise `tau_x` is `None`, indicating that the tangent-linear
           variable is zero.
 
@@ -159,10 +157,10 @@ class TangentLinearMap:
             [...]
 
     and returns `True` if `x` defines a component or control, or a
-    tangent-linear function associated with `x` has been instantiated.
+    tangent-linear variable associated with `x` has been instantiated.
 
-    :arg M: A function or :class:`Sequence` of functions defining the control.
-    :arg dM: A function or :class:`Sequence` of functions defining the
+    :arg M: A variable or :class:`Sequence` of variables defining the control.
+    :arg dM: A variable or :class:`Sequence` of variables defining the
         derivative direction. The tangent-linear model computes directional
         derivatives with respect to the control defined by `M` and with
         direction defined by `dM`.
@@ -173,12 +171,12 @@ class TangentLinearMap:
 
         if len(M) == 1:
             self._name_suffix = \
-                "_tlm(%s,%s)" % (function_name(M[0]),
-                                 function_name(dM[0]))
+                "_tlm(%s,%s)" % (var_name(M[0]),
+                                 var_name(dM[0]))
         else:
             self._name_suffix = \
-                "_tlm((%s),(%s))" % (",".join(map(function_name, M)),
-                                     ",".join(map(function_name, dM)))
+                "_tlm((%s),(%s))" % (",".join(map(var_name, M)),
+                                     ",".join(map(var_name, dM)))
 
         assert len(M) == len(dM)
         for m, dm in zip(M, dM):
@@ -195,17 +193,17 @@ class TangentLinearMap:
             return False
 
     def __getitem__(self, x):
-        if not is_function(x):
-            raise TypeError("x must be a function")
+        if not is_var(x):
+            raise TypeError("x must be a variable")
 
         if not hasattr(x, "_tlm_adjoint__tangent_linears"):
             x._tlm_adjoint__tangent_linears = weakref.WeakKeyDictionary()
         if self not in x._tlm_adjoint__tangent_linears:
-            tau_x = function_new_tangent_linear(
-                x, name=f"{function_name(x):s}{self._name_suffix:s}")
+            tau_x = var_new_tangent_linear(
+                x, name=f"{var_name(x):s}{self._name_suffix:s}")
             if tau_x is not None:
                 tau_x._tlm_adjoint__tlm_root_id = getattr(
-                    x, "_tlm_adjoint__tlm_root_id", function_id(x))
+                    x, "_tlm_adjoint__tlm_root_id", var_id(x))
             x._tlm_adjoint__tangent_linears[self] = tau_x
 
         return x._tlm_adjoint__tangent_linears[self]
@@ -219,9 +217,9 @@ def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
         # Mapping
         blocks_n = tuple(sorted(blocks.keys()))
 
-    J_is = {function_id(J): J_i for J_i, J in enumerate(Js)}
+    J_is = {var_id(J): J_i for J_i, J in enumerate(Js)}
     J_roots = list(Js)
-    J_root_ids = {J_id: J_id for J_id in map(function_id, Js)}
+    J_root_ids = {J_id: J_id for J_id in map(var_id, Js)}
     remaining_Js = dict(enumerate(Js))
     tlm_adj = defaultdict(lambda: [])
 
@@ -238,16 +236,16 @@ def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
                 # functional block. Here we need to find the original 'root'
                 # variable which actually stores the value of the functional.
                 J, J_root = eq.dependencies()
-                J_id = function_id(J)
+                J_id = var_id(J)
                 if J_id in J_root_ids:
                     assert J_root_ids[J_id] == J_id
                     J_roots[J_is[J_id]] = J_root
-                    J_root_ids[J_id] = function_id(J_root)
+                    J_root_ids[J_id] = var_id(J_root)
                     assert J_root_ids[J_id] != J_id
                 del J, J_root, J_id
                 continue
 
-            eq_X_ids = set(map(function_id, eq.X()))
+            eq_X_ids = set(map(var_id, eq.X()))
             eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
 
             # For an operation computing a forward or tangent-linear variable,
@@ -258,7 +256,7 @@ def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
             # adj_tlm_key.
             found_Js = []
             for J_i, J in remaining_Js.items():
-                if J_root_ids[function_id(J)] in eq_X_ids:
+                if J_root_ids[var_id(J)] in eq_X_ids:
                     found_Js.append(J_i)
                     J_max_adjoint_degree = len(eq_tlm_key) + 1
                     if max_adjoint_degree is not None:

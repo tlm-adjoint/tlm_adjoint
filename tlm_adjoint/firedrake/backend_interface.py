@@ -9,12 +9,12 @@ from ..interface import (
     comm_dup_cached, function_caches, function_id, function_is_alias,
     function_is_cached, function_is_checkpointed, function_is_static,
     function_linf_norm, function_name, function_space, function_space_type,
-    new_function_id, new_space_id, register_garbage_cleanup,
+    new_space_id, new_var_id, register_garbage_cleanup,
     register_finalize_adjoint_derivative_action, register_functional_term_eq,
     register_subtract_adjoint_derivative_action, relative_space_type,
     space_type_warning, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
-from ..interface import FunctionInterface as _FunctionInterface
+from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from ..manager import manager_disabled
@@ -84,7 +84,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
-                  {"id": new_function_id(), "name": lambda x: name,
+                  {"id": new_var_id(), "name": lambda x: name,
                    "state": [0], "space": space,
                    "form_derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
@@ -131,45 +131,45 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
-class FunctionInterfaceBase(_FunctionInterface):
+class FunctionInterfaceBase(_VariableInterface):
     def _comm(self):
-        return self._tlm_adjoint__function_interface_attrs["comm"]
+        return self._tlm_adjoint__var_interface_attrs["comm"]
 
     def _space(self):
         return self.function_space()
 
     def _space_type(self):
-        return self._tlm_adjoint__function_interface_attrs["space_type"]
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
 
     def _dtype(self):
         return self.dat.dtype.type
 
     def _id(self):
-        return self._tlm_adjoint__function_interface_attrs["id"]
+        return self._tlm_adjoint__var_interface_attrs["id"]
 
     def _name(self):
         return self.name()
 
     def _state(self):
-        return self._tlm_adjoint__function_interface_attrs["state"][0]
+        return self._tlm_adjoint__var_interface_attrs["state"][0]
 
     def _update_state(self):
-        self._tlm_adjoint__function_interface_attrs["state"][0] += 1
+        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
 
     def _is_static(self):
-        return self._tlm_adjoint__function_interface_attrs["static"]
+        return self._tlm_adjoint__var_interface_attrs["static"]
 
     def _is_cached(self):
-        return self._tlm_adjoint__function_interface_attrs["cache"]
+        return self._tlm_adjoint__var_interface_attrs["cache"]
 
     def _is_checkpointed(self):
-        return self._tlm_adjoint__function_interface_attrs["checkpoint"]
+        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
-        if "caches" not in self._tlm_adjoint__function_interface_attrs:
-            self._tlm_adjoint__function_interface_attrs["caches"] \
+        if "caches" not in self._tlm_adjoint__var_interface_attrs:
+            self._tlm_adjoint__var_interface_attrs["caches"] \
                 = Caches(self)
-        return self._tlm_adjoint__function_interface_attrs["caches"]
+        return self._tlm_adjoint__var_interface_attrs["caches"]
 
     def _zero(self):
         with self.dat.vec_wo as x_v:
@@ -242,7 +242,7 @@ class FunctionInterfaceBase(_FunctionInterface):
         False
 
     def _is_alias(self):
-        return "alias" in self._tlm_adjoint__function_interface_attrs
+        return "alias" in self._tlm_adjoint__var_interface_attrs
 
 
 class FunctionInterface(FunctionInterfaceBase):
@@ -305,10 +305,10 @@ class Function(backend_Function):
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 class ZeroFunction(Function, Zero):
@@ -344,7 +344,7 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
         # Work around Firedrake issue #3043
         comm = self.function_space().comm
     add_interface(self, FunctionInterface,
-                  {"comm": comm_dup_cached(comm), "id": new_function_id(),
+                  {"comm": comm_dup_cached(comm), "id": new_var_id(),
                    "state": [0], "space_type": "primal", "static": False,
                    "cache": False, "checkpoint": True})
     if isinstance(val, backend_Function):
@@ -368,9 +368,9 @@ def Function_riesz_representation(self, orig, orig_args,
         define_function_alias(return_value, self,
                               key=("riesz_representation", "l2"))
     # define_function_alias sets the space_type, so this has to appear after
-    return_value._tlm_adjoint__function_interface_attrs.d_setitem(
+    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
         "space_type",
-        relative_space_type(self._tlm_adjoint__function_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
+        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
     return return_value
 
 
@@ -436,10 +436,10 @@ class Cofunction(backend_Cofunction):
             checkpoint = not static
 
         super().__init__(*args, **kwargs)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__function_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__function_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 @override_method(backend_Cofunction, "__init__")
@@ -447,7 +447,7 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
                        *args, **kwargs):
     orig_args()
     add_interface(self, CofunctionInterface,
-                  {"comm": comm_dup_cached(self.comm), "id": new_function_id(),
+                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
                    "state": [0], "space_type": "conjugate_dual",
                    "static": False, "cache": False, "checkpoint": True})
     if isinstance(val, backend_Cofunction):
@@ -464,9 +464,9 @@ def Cofunction_riesz_representation(self, orig, orig_args,
         define_function_alias(return_value, self,
                               key=("riesz_representation", "l2"))
     # define_function_alias sets the space_type, so this has to appear after
-    return_value._tlm_adjoint__function_interface_attrs.d_setitem(
+    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
         "space_type",
-        relative_space_type(self._tlm_adjoint__function_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
+        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
     return return_value
 
 

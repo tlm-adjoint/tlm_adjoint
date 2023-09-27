@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, function_assign, function_copy, function_id,
-    function_is_replacement, function_name, garbage_cleanup, is_function)
+    DEFAULT_COMM, comm_dup_cached, garbage_cleanup, is_var, var_assign,
+    var_copy, var_id, var_is_replacement, var_name)
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
 from .alias import WeakAlias, gc_disabled
@@ -62,8 +62,8 @@ class EquationManager:
         - Derives and manages tangent-linear equations. Tangent-linear
           equations are processed as new forward equations, allowing higher
           order adjoint calculations.
-        - Handles function reference dropping, e.g. handles the dropping of
-          references to functions which store values, and their replacement
+        - Handles variable reference dropping, e.g. handles the dropping of
+          references to variables which store values, and their replacement
           with symbolic equivalents, after
           :class:`tlm_adjoint.equation.Equation` objects holding those
           references have been destroyed. Internally the manager retains a
@@ -151,21 +151,21 @@ class EquationManager:
             for i, eq in enumerate(block):
                 eq_X = eq.X()
                 if len(eq_X) == 1:
-                    X_name = function_name(eq_X[0])
-                    X_ids = f"id {function_id(eq_X[0]):d}"
+                    X_name = var_name(eq_X[0])
+                    X_ids = f"id {var_id(eq_X[0]):d}"
                 else:
-                    X_name = "(%s)" % (",".join(map(function_name, eq_X)))
-                    X_ids = "ids (%s)" % (",".join(f"{function_id(eq_x):d}"
+                    X_name = "(%s)" % (",".join(map(var_name, eq_X)))
+                    X_ids = "ids (%s)" % (",".join(f"{var_id(eq_x):d}"
                                                    for eq_x in eq_X))
                 info("    Equation %i, %s solving for %s (%s)" %
                      (i, type(eq).__name__, X_name, X_ids))
-                nl_dep_ids = set(map(function_id,
+                nl_dep_ids = set(map(var_id,
                                      eq.nonlinear_dependencies()))
                 for j, dep in enumerate(eq.dependencies()):
                     info("      Dependency %i, %s (id %i)%s, %s" %
-                         (j, function_name(dep), function_id(dep),
-                          ", replaced" if function_is_replacement(dep) else "",
-                          "non-linear" if function_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
+                         (j, var_name(dep), var_id(dep),
+                          ", replaced" if var_is_replacement(dep) else "",
+                          "non-linear" if var_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
         info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
         info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
@@ -259,14 +259,14 @@ class EquationManager:
               calculations. Options defined by `cp_parameters`:
 
                 - `'drop_references'`: Whether to automatically drop references
-                  to functions which store values. :class:`bool`, optional,
+                  to variables which store values. :class:`bool`, optional,
                   default `False`.
 
             - `'memory'`: Store all forward restart data and non-linear
               dependency data in memory. Options defined by `cp_parameters`:
 
                 - `'drop_references'`: Whether to automatically drop references
-                  to functions which store values. :class:`bool`, optional,
+                  to variables which store values. :class:`bool`, optional,
                   default `False`.
 
             - `'periodic_disk`: Periodically store forward restart data on
@@ -406,9 +406,9 @@ class EquationManager:
     def configure_tlm(self, *args, annotate=None, tlm=True):
         """Configure the tangent-linear tree.
 
-        :arg args: A :class:`tuple` of `(M_i, dM_i)` pairs. `M_i` is a function
-            or a :class:`Sequence` of functions defining a control. `dM_i` is a
-            function or a :class:`Sequence` of functions defining a derivative
+        :arg args: A :class:`tuple` of `(M_i, dM_i)` pairs. `M_i` is a variable
+            or a :class:`Sequence` of variables defining a control. `dM_i` is a
+            variable or a :class:`Sequence` of variables defining a derivative
             direction. Identifies a node in the tree (and hence identifies a
             tangent-linear model) corresponding to differentation, in order,
             with respect to the each control defined by `M_i` and with each
@@ -511,21 +511,28 @@ class EquationManager:
 
         return self._tlm_state == TangentLinearState.DERIVING
 
-    def function_tlm(self, x, *args):
-        """Return a function associated with a tangent-linear variable, and
+    def var_tlm(self, x, *args):
+        """Return a variable associated with a tangent-linear variable, and
         storing its current value.
 
-        :arg x: A function defining the variable whose tangent-linear variable
-            should be returned.
+        :arg x: A variable whose tangent-linear variable should be returned.
         :arg args: Identifies the tangent-linear model. See
             :meth:`configure_tlm`.
-        :returns: A function associated with a tangent-linear variable.
+        :returns: The tangent-linear variable.
         """
 
         tau = x
         for _, key in map(lambda arg: tlm_key(*arg), args):
             tau = self._tlm_map[key][tau]
         return tau
+
+    def function_tlm(self, x, *args):
+        """
+        """
+        # warnings.warn("function_tlm method is deprecated -- "
+        #               "use var_tlm instead",
+        #               DeprecationWarning, stacklevel=2)
+        return self.var_tlm(x, *args)
 
     def annotation_enabled(self):
         """
@@ -607,7 +614,7 @@ class EquationManager:
         """Process an 'initial condition' -- a variable whose associated value
         is needed prior to solving an equation.
 
-        :arg x: A function defining the variable and storing the value.
+        :arg x: A variable defining the initial condition.
         :arg annotate: Whether the initial condition should be processed.
         """
 
@@ -674,7 +681,7 @@ class EquationManager:
         (M, dM), key = tlm_key(M, dM)
 
         X = eq.X()
-        X_ids = set(map(function_id, X))
+        X_ids = set(map(var_id, X))
         if not X_ids.isdisjoint(set(key[0])):
             raise ValueError("Invalid tangent-linear parameter")
         if not X_ids.isdisjoint(set(key[1])):
@@ -725,7 +732,7 @@ class EquationManager:
 
     @gc_disabled
     def drop_references(self):
-        """Drop references to functions which store values, referenced by
+        """Drop references to variables which store values, referenced by
         objects which have been destroyed, and replace them symbolic
         equivalents.
         """
@@ -1071,10 +1078,10 @@ class EquationManager:
         Compute the derivative of one or more functionals with respect to
         one or model controls, using an adjoint approach.
 
-        :arg Js: A function, :class:`tlm_adjoint.functional.Functional`, or a
+        :arg Js: A variable, :class:`tlm_adjoint.functional.Functional`, or a
             :class:`Sequence` of these, defining the functionals to
             differentiate.
-        :arg M: A function or a :class:`Sequence` of functions defining the
+        :arg M: A variable or a :class:`Sequence` of variables defining the
             controls. Derivatives with respect to the controls are computed.
         :arg callback: Diagnostic callback. A callable of the form
 
@@ -1094,8 +1101,8 @@ class EquationManager:
                 - `adj_X`: The adjoint solution associated with equation `i` in
                   block `n` for the `J_i` th functional. `None` indicates that
                   the solution is zero or is not computed (due to an activity
-                  analysis). Otherwise a function if `eq` has a single solution
-                  component, and a :class:`Sequence` of functions otherwise.
+                  analysis). Otherwise a variable if `eq` has a single solution
+                  component, and a :class:`Sequence` of variables otherwise.
 
         :arg prune_forward: Controls the activity analysis. Whether a forward
             traversal of the computational graph, tracing variables which
@@ -1118,28 +1125,28 @@ class EquationManager:
             after the call to this method. Can be used to cache and reuse first
             order adjoint solutions in multiple calls to this method.
         :arg adj_ics: A :class:`Mapping`. Items are `(x, value)` where `x` is a
-            function or function ID identifying a forward variable. The adjoint
+            variable or variable ID identifying a forward variable. The adjoint
             variable associated with the final equation solving for `x` should
-            be initialized to the value stored by the function `value`.
+            be initialized to the value stored by the variable `value`.
         :returns: The conjugate of the derivatives. The return type depends on
             the type of `Js` and `M`.
 
-              - If `Js` is a function or
+              - If `Js` is a variable or
                 :class:`tlm_adjoint.functional.Functional`, and `M` is a
-                function, returns a function storing the conjugate of the
+                variable, returns a variable storing the conjugate of the
                 derivative.
-              - If `Js` is a :class:`Sequence`, and `M` is a function, returns
-                a function whose :math:`i` th component stores the conjugate of
+              - If `Js` is a :class:`Sequence`, and `M` is a variable, returns
+                a variable whose :math:`i` th component stores the conjugate of
                 the derivative of the :math:`i` th functional.
-              - If `Js` is a function or
+              - If `Js` is a variable or
                 :class:`tlm_adjoint.functional.Functional`, and `M` is a
-                :class:`Sequence`, returns a :class:`Sequence` of functions
+                :class:`Sequence`, returns a :class:`Sequence` of variables
                 whose :math:`j` th component stores the conjugate of the
                 derivative with respect to the :math:`j` th control.
               - If both `Js` and `M` are :class:`Sequence` objects, returns a
                 :class:`Sequence` whose :math:`i` th component stores the
                 conjugate of the derivatives of the :math:`i` th functional.
-                Each of these is a :class:`Sequence` of functions whose
+                Each of these is a :class:`Sequence` of variables whose
                 :math:`j` th component stores the conjugate of the derivative
                 with respect to the :math:`j` th control.
         """
@@ -1180,7 +1187,7 @@ class EquationManager:
             raise RuntimeError("Invalid checkpointing state")
 
         # Functionals
-        Js = tuple(Functional(_fn=J) if is_function(J) else J for J in Js)
+        Js = tuple(Functional(_fn=J) if is_var(J) else J for J in Js)
 
         # Controls
         M = tuple(M)
@@ -1202,7 +1209,7 @@ class EquationManager:
         Bs = tuple(AdjointModelRHS(blocks) for _ in Js)
         # Adjoint initial condition
         for J_i in range(len(Js)):
-            function_assign(Bs[J_i][blocks_N][J_i].b(), 1.0)
+            var_assign(Bs[J_i][blocks_N][J_i].b(), 1.0)
 
         # Transpose computational graph
         transpose_deps = TransposeComputationalGraph(
@@ -1219,9 +1226,9 @@ class EquationManager:
             for J_i in range(len(Js)):
                 for x_id, adj_x in adj_ics[J_i].items():
                     if not isinstance(x_id, int):
-                        x_id = function_id(x_id)
+                        x_id = var_id(x_id)
                     if transpose_deps.has_adj_ic(J_i, x_id):
-                        adj_Xs[J_i][x_id] = function_copy(adj_x)
+                        adj_Xs[J_i][x_id] = var_copy(adj_x)
 
         # Reverse (blocks)
         for n in range(blocks_N, -2, -1):
@@ -1244,14 +1251,14 @@ class EquationManager:
                     assert B_state == (n, i)
 
                     # Extract adjoint initial condition
-                    adj_X_ic = tuple(adj_Xs[J_i].pop(function_id(x), None)
+                    adj_X_ic = tuple(adj_Xs[J_i].pop(var_id(x), None)
                                      for x in eq_X)
                     if transpose_deps.is_solved(J_i, n, i):
-                        adj_X_ic_ids = set(map(function_id,
+                        adj_X_ic_ids = set(map(var_id,
                                                eq.adjoint_initial_condition_dependencies()))  # noqa: E501
                         assert len(eq_X) == len(adj_X_ic)
                         for x, adj_x_ic in zip(eq_X, adj_X_ic):
-                            if function_id(x) not in adj_X_ic_ids:
+                            if var_id(x) not in adj_X_ic_ids:
                                 assert adj_x_ic is None
                         del adj_X_ic_ids
                     else:
@@ -1310,7 +1317,7 @@ class EquationManager:
                         assert len(eq_X) == len(adj_X)
                         for m, (x, adj_x) in enumerate(zip(eq_X, adj_X)):
                             if transpose_deps.is_stored_adj_ic(J_i, n, i, m):
-                                adj_Xs[J_i][function_id(x)] = function_copy(adj_x)  # noqa: E501
+                                adj_Xs[J_i][var_id(x)] = var_copy(adj_x)
 
                         # Store adjoint solution in the cache
                         self._adj_cache.cache(J_i, n, i, adj_X,
@@ -1323,10 +1330,10 @@ class EquationManager:
                                      None)
                         elif len(adj_X) == 1:
                             callback(J_i, n, i, eq,
-                                     function_copy(adj_X[0]))
+                                     var_copy(adj_X[0]))
                         else:
                             callback(J_i, n, i, eq,
-                                     tuple(map(function_copy, adj_X)))
+                                     tuple(map(var_copy, adj_X)))
 
                     if n == -1:
                         assert i == 0
@@ -1334,7 +1341,7 @@ class EquationManager:
                         if adj_X is None:
                             dJ[J_i] = eq.new_adj_X()
                         else:
-                            dJ[J_i] = tuple(map(function_copy, adj_X))
+                            dJ[J_i] = tuple(map(var_copy, adj_X))
                     else:
                         # Finalize right-hand-sides in the control block
                         Bs[J_i][-1].finalize()
