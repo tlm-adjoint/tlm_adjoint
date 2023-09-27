@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint import DEFAULT_COMM, Float, function_name
+from tlm_adjoint import DEFAULT_COMM, Float, var_name
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
@@ -20,4 +20,4 @@ def test_name(setup_test,  # noqa: F811
               cls):
     name = "_tlm_adjoint__test_name"
     F = cls(name=name)
-    assert function_name(F) == name
+    assert var_name(F) == name

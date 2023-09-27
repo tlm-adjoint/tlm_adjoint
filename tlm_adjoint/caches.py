@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import function_caches, function_id, function_state
+from .interface import var_caches, var_id, var_state
 
 from .alias import gc_disabled
 
@@ -47,9 +47,9 @@ class CacheRef:
 def clear_caches(*deps):
     """Clear caches entries.
 
-    :arg deps: A :class:`Sequence` of functions. If non-empty then clear only
-        cache entries which depend on the variables defined by the supplied
-        functions. Otherwise clear all cache entries.
+    :arg deps: A :class:`Sequence` of variables. If non-empty then clear only
+        cache entries which depend on the supplied variables. Otherwise clear
+        all cache entries.
     """
 
     if len(deps) == 0:
@@ -59,7 +59,7 @@ def clear_caches(*deps):
                 cache.clear()
     else:
         for dep in deps:
-            function_caches(dep).clear()
+            var_caches(dep).clear()
 
 
 def local_caches(fn):
@@ -119,9 +119,9 @@ class Cache:
     def clear(self, *deps):
         """Clear cache entries.
 
-        :arg deps: A :class:`Sequence` of functions. If non-empty then only
-            clear cache entries which depend on the variables defined by the
-            supplied functions. Otherwise clear all cache entries.
+        :arg deps: A :class:`Sequence` of variables. If non-empty then only
+            clear cache entries which depend on the supplied variables.
+            Otherwise clear all cache entries.
         """
 
         if len(deps) == 0:
@@ -136,7 +136,7 @@ class Cache:
             self._dep_caches.clear()
         else:
             for dep in deps:
-                dep_id = dep if isinstance(dep, int) else function_id(dep)
+                dep_id = dep if isinstance(dep, int) else var_id(dep)
                 del dep
                 if dep_id in self._deps_map:
                     # We keep a record of:
@@ -192,7 +192,7 @@ class Cache:
         :arg value: A callable, taking no arguments, returning the value
             associated with the cache entry. Only called to if no entry
             associated with `key` exists.
-        :arg deps: A :class:`Sequence` of functions, defining dependencies of
+        :arg deps: A :class:`Sequence` of variables, defining dependencies of
             the cache entry.
         :returns: A :class:`tuple` `(value_ref, value)`, where `value` is the
             cache entry value and `value_ref` is a :class:`CacheRef` storing a
@@ -211,13 +211,13 @@ class Cache:
 
         value = value()
         value_ref = CacheRef(value)
-        dep_ids = tuple(map(function_id, deps))
+        dep_ids = tuple(map(var_id, deps))
 
         self._cache[key] = value_ref
 
         assert len(deps) == len(dep_ids)
         for dep, dep_id in zip(deps, dep_ids):
-            dep_caches = function_caches(dep)
+            dep_caches = var_caches(dep)
             dep_caches.add(self)
 
             if dep_id in self._deps_map:
@@ -251,35 +251,34 @@ class Cache:
 
 
 class Caches:
-    """Multiple :class:`Cache` objects, associated with a function.
+    """Multiple :class:`Cache` objects, associated with a variable.
 
-    The function defines a variable on which cache entries may depend. It also
-    initially defines a value for that variable, and the value is indicated by
-    the function ID and function state value. The value may be changed either
-    by supplying a new function (changing the ID), or by changing the value of
-    the current function defining the value (which should be indicated by a
-    change to the function state value). Either change invalidates cache
-    entries, in the :class:`Cache` objects, which depend on the original
-    variable.
+    Cache entries may depend on the variable. The variable also defines an
+    initial value, and the value is indicated by the variable ID and variable
+    state value. The value may be changed either by supplying a new variable
+    (changing the ID), or by changing the value of the current variable
+    defining the value (which should be indicated by a change to the variable
+    state value). Either change invalidates cache entries, in the
+    :class:`Cache` objects, which depend on the original variable.
 
     The :meth:`update` method can be used to check for cache entry
     invalidation, and to clear invalid cache entries.
 
-    :arg x: The function defining a possible cache entry dependency, and an
+    :arg x: The variable defining a possible cache entry dependency, and an
         initial value for that dependency.
     """
 
     def __init__(self, x):
         self._caches = weakref.WeakValueDictionary()
-        self._id = function_id(x)
-        self._state = (self._id, function_state(x))
+        self._id = var_id(x)
+        self._state = (self._id, var_state(x))
 
     def __len__(self):
         return len(self._caches)
 
     @gc_disabled
     def clear(self):
-        """Clear cache entries which depend on the associated function.
+        """Clear cache entries which depend on the associated variable.
         """
 
         for cache in tuple(self._caches.valuerefs()):
@@ -308,10 +307,10 @@ class Caches:
         """Check for cache invalidation associated with a possible change in
         value, and clear invalid cache entries.
 
-        :arg x: A function which defines a potentially new value.
+        :arg x: A variable which defines a potentially new value.
         """
 
-        state = (function_id(x), function_state(x))
+        state = (var_id(x), var_state(x))
         if state != self._state:
             self.clear()
             self._state = state

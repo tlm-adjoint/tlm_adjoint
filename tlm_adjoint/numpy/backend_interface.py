@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_interface, comm_dup_cached,
-    new_function_id, new_space_id, register_subtract_adjoint_derivative_action,
+    DEFAULT_COMM, SpaceInterface, add_interface, comm_dup_cached, new_space_id,
+    new_var_id, register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base)
 from ..interface import VariableInterface as _VariableInterface
 
@@ -195,7 +195,7 @@ class Function:
                  checkpoint=None, _data=None):
         if space_type not in ["primal", "conjugate", "dual", "conjugate_dual"]:
             raise ValueError("Invalid space type")
-        id = new_function_id()
+        id = new_var_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
             name = f"f_{id:d}"

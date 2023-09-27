@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import function_id, function_new, function_state, is_function
+from .interface import is_var, var_id, var_new, var_state
 
 from .caches import clear_caches
 from .functional import Functional
@@ -86,13 +86,13 @@ class HessianOptimization:
         eq_nl_deps = eq.nonlinear_dependencies()
         cp_deps = self._nl_deps[(n, i)]
         assert len(eq_nl_deps) == len(cp_deps)
-        eq_deps = {function_id(eq_dep): cp_dep
+        eq_deps = {var_id(eq_dep): cp_dep
                    for eq_dep, cp_dep in zip(eq_nl_deps, cp_deps)}
         del eq_nl_deps, cp_deps
 
         tlm_deps = list(tlm_eq.dependencies())
         for j, tlm_dep in enumerate(tlm_deps):
-            tlm_dep_id = function_id(tlm_dep)
+            tlm_dep_id = var_id(tlm_dep)
             if tlm_dep_id in eq_deps:
                 tlm_deps[j] = eq_deps[tlm_dep_id]
         del eq_deps
@@ -118,7 +118,7 @@ class HessianOptimization:
         manager.configure_tlm((M, dM), annotate=annotate_tlm)
 
         if self._cache_adjoint:
-            cache_key = (set(map(function_id, M)), annotate_tlm)
+            cache_key = (set(map(var_id, M)), annotate_tlm)
             if self._cache_key is None or self._cache_key != cache_key:
                 self._adj_cache.clear()
                 self._cache_key = cache_key
@@ -138,23 +138,23 @@ class CachedHessian(Hessian, HessianOptimization):
     """Represents a Hessian matrix associated with a given forward model. Uses
     a cached forward calculation.
 
-    :arg J: A function or :class:`tlm_adjoint.functional.Functional` defining
+    :arg J: A variable or :class:`tlm_adjoint.functional.Functional` defining
         the Hessian matrix.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
-        automatic dropping of function references disabled. `manager()` is used
+        automatic dropping of variable references disabled. `manager()` is used
         if not supplied.
     :arg cache_adjoint: Whether to cache the first order adjoint calculation.
     """
 
     def __init__(self, J, *, manager=None, cache_adjoint=True):
-        if is_function(J):
+        if is_var(J):
             J = Functional(_fn=J)
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
-        self._J_state = function_state(J.function())
-        self._J = Functional(_fn=J.function())
+        self._J_state = var_state(J.var())
+        self._J = Functional(_fn=J.var())
 
     @restore_manager
     def compute_gradient(self, M, M0=None):
@@ -164,10 +164,10 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ
 
-        if function_state(self._J.function()) != self._J_state:
+        if var_state(self._J.var()) != self._J_state:
             raise RuntimeError("State has changed")
 
-        dM = tuple(map(function_new, M))
+        dM = tuple(map(var_new, M))
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
         set_manager(manager)
 
@@ -189,7 +189,7 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
-        if function_state(self._J.function()) != self._J_state:
+        if var_state(self._J.var()) != self._J_state:
             raise RuntimeError("State has changed")
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
@@ -211,14 +211,14 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     """Represents a Gauss-Newton approximation to a Hessian matrix associated
     with a given forward model. Uses a cached forward calculation.
 
-    :arg X: A function or a :class:`Sequence` of functions defining the state.
+    :arg X: A variable or a :class:`Sequence` of variables defining the state.
     :arg R_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
     :arg B_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
     :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
         not supplied.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
-        automatic dropping of function references disabled. `manager()` is used
+        automatic dropping of variable references disabled. `manager()` is used
         if not supplied.
     """
 
@@ -233,7 +233,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
             self, R_inv_action, B_inv_action=B_inv_action,
             J_space=J_space)
         self._X = tuple(X)
-        self._X_state = tuple(map(function_state, X))
+        self._X_state = tuple(map(var_state, X))
 
     def _setup_manager(self, M, dM, M0=None, *,
                        annotate_tlm=False, solve_tlm=True):
@@ -243,7 +243,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):
-        if tuple(map(function_state, self._X)) != self._X_state:
+        if tuple(map(var_state, self._X)) != self._X_state:
             raise RuntimeError("State has changed")
 
         return GaussNewton.action(self, M, dM, M0=M0)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import function_new, is_function
+from .interface import is_var, var_new
 
 from .equation import Equation
 
@@ -26,12 +26,12 @@ class ControlsMarker(Equation):
 
         \mathcal{F} \left( m \right) = m - m_\text{input}.
 
-    :arg M: A function or a :class:`Sequence` of functions defining the
+    :arg M: A variable or a :class:`Sequence` of variables defining the
         control :math:`m`. May be non-checkpointed.
     """
 
     def __init__(self, M):
-        if is_function(M):
+        if is_var(M):
             M = (M,)
 
         super(Equation, self).__init__()
@@ -60,15 +60,15 @@ class FunctionalMarker(Equation):
 
         \mathcal{F} \left( J_\text{output}, J \right) = J_\text{output} - J.
 
-    :arg J: A function or :class:`tlm_adjoint.functional.Functional` defining
+    :arg J: A variable or :class:`tlm_adjoint.functional.Functional` defining
         the functional :math:`J`.
     """
 
     def __init__(self, J):
-        if not is_function(J):
-            J = J.function()
-        # Extra function allocation could be avoided
-        J_ = function_new(J)
+        if not is_var(J):
+            J = J.var()
+        # Extra variable allocation could be avoided
+        J_ = var_new(J)
         super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):

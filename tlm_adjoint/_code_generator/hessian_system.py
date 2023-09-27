@@ -3,9 +3,9 @@
 
 from ..interface import (
     check_space_types, comm_dup_cached, function_assign, function_axpy,
-    function_axpy_conjugate, function_copy, function_copy_conjugate,
-    function_dtype, function_inner, function_space, function_space_type,
-    is_function, space_comm, space_dtype, space_new)
+    function_copy, function_dtype, function_inner, function_space,
+    function_space_type, is_function, space_comm, space_dtype, space_new,
+    var_axpy_conjugate, var_copy_conjugate)
 
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
@@ -96,7 +96,7 @@ class HessianMatrix(Matrix):
         if len(y) != len(ddJ):
             raise ValueError("Invalid Hessian action")
         for y_i, ddJ_i in zip(y, ddJ):
-            function_axpy_conjugate(y_i, 1.0, ddJ_i)
+            var_axpy_conjugate(y_i, 1.0, ddJ_i)
 
 
 class HessianSystem(System):
@@ -159,9 +159,9 @@ class HessianSystem(System):
         """
 
         if is_function(b):
-            b = function_copy_conjugate(b)
+            b = var_copy_conjugate(b)
         else:
-            b = tuple_sub(map(function_copy_conjugate, iter_sub(b)), b)
+            b = tuple_sub(map(var_copy_conjugate, iter_sub(b)), b)
         return super().solve(u, b, **kwargs)
 
 
@@ -229,7 +229,7 @@ def hessian_eigendecompose(
         x = function_copy(x)
         nullspace.pre_mult_correct_lhs(x)
         _, _, y = H.action(m, x)
-        y = function_copy_conjugate(y)
+        y = var_copy_conjugate(y)
         nullspace.post_mult_correct_lhs(None, y)
         return y
 
@@ -239,7 +239,7 @@ def hessian_eigendecompose(
         x = function_copy(x)
         nullspace.pre_mult_correct_lhs(x)
         y = B_inv_action_arg(function_copy(x))
-        y = function_copy_conjugate(y)
+        y = var_copy_conjugate(y)
         nullspace.post_mult_correct_lhs(x, y)
         return y
 
@@ -247,7 +247,7 @@ def hessian_eigendecompose(
 
     def B_action(x, y):
         x, = x
-        y, = tuple(map(function_copy_conjugate, y))
+        y, = tuple(map(var_copy_conjugate, y))
         # Nullspace corrections applied by the Preconditioner class
         function_assign(x, B_action_arg(y))
 
@@ -423,7 +423,7 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
         raise ValueError("Invalid eigenpairs")
 
     def pc_fn(u, b):
-        b = function_copy_conjugate(b)
+        b = var_copy_conjugate(b)
         function_assign(u, B_action(function_copy(b)))
 
         assert len(Lam) == len(V)

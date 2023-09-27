@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, function_assign, function_copy,
-    function_get_values, function_global_size, function_id,
-    function_is_checkpointed, function_is_scalar, function_local_indices,
-    function_new, function_scalar_value, function_set_values, function_space,
-    function_space_type, space_id, space_new)
+    DEFAULT_COMM, comm_dup_cached, space_id, space_new, var_assign, var_copy,
+    var_get_values, var_global_size, var_id, var_is_checkpointed,
+    var_is_scalar, var_local_indices, var_new, var_scalar_value,
+    var_set_values, var_space, var_space_type)
 
 from .instructions import Instruction
 
@@ -36,8 +35,8 @@ class CheckpointStorage:
     """A buffer for forward restart data, and a cache for non-linear dependency
     data. Contains three types of data:
 
-        1. References: Dependencies which are stored by reference. Functions
-           `x` for which `function_is_checkpointed(x)` is `False` are stored by
+        1. References: Dependencies which are stored by reference. Variables
+           `x` for which `var_is_checkpointed(x)` is `False` are stored by
            reference.
         2. Forward restart / initial condition data: Dependencies which are
            used to restart and advance the forward calculation.
@@ -57,7 +56,7 @@ class CheckpointStorage:
         nl_deps = cp[(n, i)]
 
     where `cp` is a :class:`CheckpointStorage`. Here `nl_deps` is a
-    :class:`tuple` of functions storing values associated with
+    :class:`tuple` of variables storing values associated with
     `eq.nonlinear_dependencies()`, for :class:`tlm_adjoint.equation.Equation`
     `i` in block `n`.
 
@@ -150,25 +149,25 @@ class CheckpointStorage:
         return tuple(self._storage[dep_key] for dep_key in self._data[key])
 
     def initial_condition(self, x, *, copy=True):
-        """Return the forward restart value associated with a function `x`.
+        """Return the forward restart value associated with a variable `x`.
 
-        :arg x: The function, or the :class:`int` function ID, for which the
+        :arg x: The variable, or the :class:`int` variable ID, for which the
             forward restart value should be returned.
         :arg copy: If `True` then a copy of the stored value is returned. If
-            `False` then an internal function storing the value is returned.
-        :returns: A function containing the forward restart value for `x`.
+            `False` then an internal variable storing the value is returned.
+        :returns: A variable containing the forward restart value for `x`.
         """
 
         if isinstance(x, int):
             x_id = x
         else:
-            x_id = function_id(x)
+            x_id = var_id(x)
 
         if x_id in self._cp:
             ic = self._storage[self._cp[x_id]]
         else:
             ic = self._storage[self._refs[x_id]]
-        return function_copy(ic) if copy else ic
+        return var_copy(ic) if copy else ic
 
     def initial_conditions(self, *, cp=True, refs=False, copy=True):
         """Access stored forward restart data.
@@ -178,9 +177,9 @@ class CheckpointStorage:
         :arg refs: Whether to include forward restart data that is stored by
             reference.
         :arg copy: If `True` then a copy of the stored data is returned. If
-            `False` then internal functions storing the data are returned.
+            `False` then internal variables storing the data are returned.
         :returns: A :class:`dict`, with items `(x_id: x_value)`, where `x_id`
-            is the :class:`int` function ID and `x_value` is a function storing
+            is the :class:`int` variable ID and `x_value` is a variable storing
             the data.
         """
 
@@ -188,18 +187,18 @@ class CheckpointStorage:
         if cp:
             for x_id, x_key in self._cp.items():
                 x = self._storage[x_key]
-                cp_d[x_id] = function_copy(x) if copy else x
+                cp_d[x_id] = var_copy(x) if copy else x
         if refs:
             for x_id, x_key in self._refs.items():
                 x = self._storage[x_key]
-                cp_d[x_id] = function_copy(x) if copy else x
+                cp_d[x_id] = var_copy(x) if copy else x
         return cp_d
 
     def add_initial_condition(self, x, value=None):
         """Store forward restart data / an initial condition dependency.
 
-        :arg x: A function defining the initial condition dependency variable.
-        :arg value: A function defining the initial condition dependency value.
+        :arg x: The initial condition dependency variable.
+        :arg value: A variable defining the initial condition dependency value.
             `x` is used if not supplied.
         """
 
@@ -207,8 +206,8 @@ class CheckpointStorage:
             value = x
 
         self._add_initial_condition(
-            x_id=function_id(x), value=value,
-            copy=function_is_checkpointed(x))
+            x_id=var_id(x), value=value,
+            copy=var_is_checkpointed(x))
 
     def update_keys(self, n, i, eq):
         """The :class:`CheckpointStorage` keeps an internal map from forward
@@ -223,7 +222,7 @@ class CheckpointStorage:
         """
 
         for m, x in enumerate(eq.X()):
-            x_id = function_id(x)
+            x_id = var_id(x)
             self._keys[x_id] = (x_id, (n, i, m))
 
     def _store(self, *, x_id=None, key=None, value, refs=True, copy):
@@ -238,7 +237,7 @@ class CheckpointStorage:
 
         if key not in self._storage:
             if copy:
-                self._storage[key] = function_copy(value)
+                self._storage[key] = var_copy(value)
             else:
                 self._storage[key] = value
                 if refs:
@@ -277,13 +276,13 @@ class CheckpointStorage:
 
         if self._store_ics:
             for eq_x in eq.X():
-                self._seen_ics.add(function_id(eq_x))
+                self._seen_ics.add(var_id(eq_x))
 
             assert len(eq_deps) == len(deps)
             for eq_dep, dep in zip(eq_deps, deps):
                 self._add_initial_condition(
-                    x_id=function_id(eq_dep), value=dep,
-                    copy=function_is_checkpointed(eq_dep))
+                    x_id=var_id(eq_dep), value=dep,
+                    copy=var_is_checkpointed(eq_dep))
 
         self._add_equation_data(
             n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps)
@@ -309,8 +308,8 @@ class CheckpointStorage:
         if self._store_ics:
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 self._add_initial_condition(
-                    x_id=function_id(eq_dep), value=dep,
-                    copy=function_is_checkpointed(eq_dep))
+                    x_id=var_id(eq_dep), value=dep,
+                    copy=var_is_checkpointed(eq_dep))
 
         self._add_equation_data(n, i, eq_nl_deps, nl_deps, eq_nl_deps, nl_deps)
 
@@ -318,7 +317,7 @@ class CheckpointStorage:
                            *, refs=True, copy=None):
         if copy is None:
             def copy(x):
-                return function_is_checkpointed(x)
+                return var_is_checkpointed(x)
         else:
             _copy = copy
 
@@ -331,15 +330,15 @@ class CheckpointStorage:
 
             if nl_deps is None:
                 assert len(eq_deps) == len(deps)
-                deps_map = {function_id(eq_dep): dep
+                deps_map = {var_id(eq_dep): dep
                             for eq_dep, dep in zip(eq_deps, deps)}
-                nl_deps = tuple(deps_map[function_id(eq_dep)]
+                nl_deps = tuple(deps_map[var_id(eq_dep)]
                                 for eq_dep in eq_nl_deps)
 
             eq_data = []
             assert len(eq_nl_deps) == len(nl_deps)
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
-                key, value = self._store(x_id=function_id(eq_dep), value=dep,
+                key, value = self._store(x_id=var_id(eq_dep), value=dep,
                                          refs=refs, copy=copy(eq_dep))
                 self._data_keys[key] = None  # self._data_keys.add(key)
                 eq_data.append(key)
@@ -351,7 +350,7 @@ class CheckpointStorage:
         :arg ics: Whether to extract forward restart data.
         :arg data: Whether to extract non-linear dependency data.
         :arg copy: If `True` then a copy of the stored data is returned. If
-            `False` then internal functions storing the data are returned.
+            `False` then internal variables storing the data are returned.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
             :meth:`update` method.
@@ -370,12 +369,12 @@ class CheckpointStorage:
         if ics:
             for key in cp_cp:
                 value = self._storage[key]
-                cp_storage[key] = function_copy(value) if copy else value
+                cp_storage[key] = var_copy(value) if copy else value
         if data:
             for key in self._data_keys:
                 if key not in self._refs_keys and key not in cp_storage:
                     value = self._storage[key]
-                    cp_storage[key] = function_copy(value) if copy else value
+                    cp_storage[key] = var_copy(value) if copy else value
 
         return (cp_cp, cp_data, cp_storage)
 
@@ -391,11 +390,11 @@ class CheckpointStorage:
             that non-linear dependency data for equation `i` in block `n` is
             `(storage[key] for key in keys)`.
         :arg storage: The stored data. A :class:`dict` with items `((x_id,
-            x_indices), x_value)`. `x_id` is the :class:`int` ID for a function
+            x_indices), x_value)`. `x_id` is the :class:`int` ID for a variable
             whose value `x_value` is stored. `x_indices` is either `None`, if
-            the function value has not been computed by solving equations with
+            the variable value has not been computed by solving equations with
             forward restart data storage enabled, or a tuple `(n, i, m)`
-            indicating that the function value was computed as component `m` of
+            indicating that the variable value was computed as component `m` of
             the solution to equation `i` in block `n`.
         :arg copy: Whether the values in `storage` should be copied when being
             stored in the :class:`CheckpointStorage`.
@@ -445,7 +444,7 @@ class ReplayStorage:
 
         replay_storage[x] = x_value
 
-    where here `x` is either a function of an :class:`int` function ID.
+    where here `x` is either a variable of an :class:`int` variable ID.
     Containment can also be tested,
 
     .. code-block:: python
@@ -475,7 +474,7 @@ class ReplayStorage:
                 block = blocks[n]
                 for i, eq in enumerate(block):
                     for x in eq.X():
-                        x_id = function_id(x)
+                        x_id = var_id(x)
                         if x_id in last_eq:
                             last_eq[x_id].append((n, i))
                         else:
@@ -495,14 +494,14 @@ class ReplayStorage:
                         # Adjoint equation is active, mark forward equations
                         # solving for non-linear dependencies as active
                         for dep in eq.nonlinear_dependencies():
-                            dep_id = function_id(dep)
+                            dep_id = var_id(dep)
                             if dep_id in last_eq:
                                 p, k = last_eq[dep_id][-1]
                                 assert n > p or (n == p and i >= k)
                                 active[p][k] = True
 
                     for x in eq.X():
-                        x_id = function_id(x)
+                        x_id = var_id(x)
                         last_eq[x_id].pop()
                         if len(last_eq[x_id]) == 0:
                             del last_eq[x_id]
@@ -510,11 +509,11 @@ class ReplayStorage:
                     if active[n][i]:
                         # Forward equation is active, mark forward equations
                         # solving for dependencies as active
-                        X_ids = set(map(function_id, eq.X()))
-                        ic_ids = set(map(function_id,
+                        X_ids = set(map(var_id, eq.X()))
+                        ic_ids = set(map(var_id,
                                          eq.initial_condition_dependencies()))
                         for dep in eq.dependencies():
-                            dep_id = function_id(dep)
+                            dep_id = var_id(dep)
                             if dep_id in X_ids:
                                 if dep_id in ic_ids and dep_id in last_eq:
                                     p, k = last_eq[dep_id][-1]
@@ -535,11 +534,11 @@ class ReplayStorage:
             for i, eq in enumerate(block):
                 if active[n][i]:
                     for dep in eq.dependencies():
-                        last_eq[function_id(dep)] = (n, i)
+                        last_eq[var_id(dep)] = (n, i)
                 # transpose_deps cannot be None here
                 elif transpose_deps.any_is_active(n, i):
                     for dep in eq.nonlinear_dependencies():
-                        last_eq[function_id(dep)] = (n, i)
+                        last_eq[var_id(dep)] = (n, i)
 
         # Ordered container, with each element containing a set of dep ids for
         # which the corresponding equation is the last equation where dep is
@@ -570,26 +569,26 @@ class ReplayStorage:
         if isinstance(x, int):
             x_id = x
         else:
-            x_id = function_id(x)
+            x_id = var_id(x)
         return x_id in self._map
 
     def __getitem__(self, x):
         if isinstance(x, int):
             y = self._map[x]
             if y is None:
-                raise RuntimeError("Unable to create new function")
+                raise RuntimeError("Unable to create new variable")
         else:
-            x_id = function_id(x)
+            x_id = var_id(x)
             y = self._map[x_id]
             if y is None:
-                y = self._map[x_id] = function_new(x)
+                y = self._map[x_id] = var_new(x)
         return y
 
     def __setitem__(self, x, y):
         if isinstance(x, int):
             x_id = x
         else:
-            x_id = function_id(x)
+            x_id = var_id(x)
         if self._map[x_id] is not None:  # KeyError if unexpected id
             raise KeyError(f"Key '{x_id:d}' already set")
         self._map[x_id] = y
@@ -616,7 +615,7 @@ class ReplayStorage:
 
         for key, value in d.items():
             if key in self:
-                self[key] = function_copy(value) if copy else value
+                self[key] = var_copy(value) if copy else value
 
     def popleft(self):
         """Remove the first equation from consideration. Used to deallocate
@@ -662,7 +661,7 @@ class Checkpoints(ABC):
             data to be read is associated.
         :arg ics: Whether forward restart data should be included.
         :arg data: Whether non-linear dependency data should be included.
-        :arg ic_ids: A :class:`Container`. If provided then only functions with
+        :arg ic_ids: A :class:`Container`. If provided then only variables with
             ID in `ic_ids` are included.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
@@ -745,17 +744,17 @@ class PickleCheckpoints(Checkpoints):
 
         write_storage = {}
         for key, F in storage.items():
-            F_space = function_space(F)
+            F_space = var_space(F)
             F_space_id = space_id(F_space)
             spaces.setdefault(F_space_id, F_space)
 
-            if function_is_scalar(F):
-                F_values = function_scalar_value(F)
+            if var_is_scalar(F):
+                F_values = var_scalar_value(F)
             else:
-                F_values = function_get_values(F)
+                F_values = var_get_values(F)
 
             write_storage[key] = (F_space_id,
-                                  function_space_type(F),
+                                  var_space_type(F),
                                   F_values)
 
         with open(filename, "wb") as h:
@@ -789,10 +788,10 @@ class PickleCheckpoints(Checkpoints):
         for key in read_storage:
             F_space_id, F_space_type, F_values = read_storage[key]
             F = space_new(spaces[F_space_id], space_type=F_space_type)
-            if function_is_scalar(F):
-                function_assign(F, F_values)
+            if var_is_scalar(F):
+                var_assign(F, F_values)
             else:
-                function_set_values(F, F_values)
+                var_set_values(F, F_values)
             read_storage[key] = F
 
         return read_cp, read_data, read_storage
@@ -892,7 +891,7 @@ class HDF5Checkpoints(Checkpoints):
 
             h.create_group("/storage")
             for j, ((x_id, x_indices), F) in enumerate(storage.items()):
-                F_space = function_space(F)
+                F_space = var_space(F)
                 F_space_id = space_id(F_space)
                 spaces.setdefault(F_space_id, F_space)
 
@@ -907,21 +906,21 @@ class HDF5Checkpoints(Checkpoints):
                 else:
                     d[1:, self._comm.rank] = x_indices
 
-                g.attrs["space_type"] = function_space_type(F)
+                g.attrs["space_type"] = var_space_type(F)
 
                 d = g.create_dataset(
                     "space_id", shape=(self._comm.size,),
                     dtype=np.int_)
                 d[self._comm.rank] = F_space_id
 
-                if function_is_scalar(F):
-                    F_values = function_scalar_value(F)
+                if var_is_scalar(F):
+                    F_values = var_scalar_value(F)
                 else:
-                    F_values = function_get_values(F)
+                    F_values = var_get_values(F)
                 d = g.create_dataset(
-                    "value", shape=(function_global_size(F),),
+                    "value", shape=(var_global_size(F),),
                     dtype=F_values.dtype)
-                d[function_local_indices(F)] = F_values
+                d[var_local_indices(F)] = F_values
 
         self._cp_filenames[n] = filename
         self._cp_spaces[n] = spaces
@@ -991,11 +990,11 @@ class HDF5Checkpoints(Checkpoints):
                                   space_type=F_space_type)
 
                     d = g["value"]
-                    if function_is_scalar(F):
+                    if var_is_scalar(F):
                         d, = d
-                        function_assign(F, d)
+                        var_assign(F, d)
                     else:
-                        function_set_values(F, d[function_local_indices(F)])
+                        var_set_values(F, d[var_local_indices(F)])
 
                     read_storage[key] = F
 

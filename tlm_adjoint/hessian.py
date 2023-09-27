@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types_conjugate_dual, function_axpy, function_copy,
-    function_copy_conjugate, function_is_cached, function_is_checkpointed,
-    function_is_static, function_name, function_new, is_function)
+    check_space_types_conjugate_dual, is_var, var_axpy, var_copy,
+    var_is_cached, var_is_checkpointed, var_is_static, var_name, var_new,
+    var_copy_conjugate)
 
 from .caches import local_caches
 from .equations import InnerProduct
 from .functional import Functional
 from .manager import manager as _manager
 from .manager import (
-    compute_gradient, configure_tlm, function_tlm, paused_manager,
+    compute_gradient, configure_tlm, var_tlm, paused_manager,
     reset_manager, restore_manager, set_manager, start_manager, stop_manager)
 from .overloaded_float import Float, FloatSpace
 
@@ -41,11 +41,11 @@ class Hessian(ABC):
         r"""Compute the (conjugate of the) derivative of a functional with
         respect to a control using an adjoint model.
 
-        :arg M: A function or a :class:`Sequence` of functions defining the
-            control variable.
-        :arg M0: A function or a :class:`Sequence` of functions defining the
+        :arg M: A variable or a :class:`Sequence` of variables defining the
+            control.
+        :arg M0: A variable or a :class:`Sequence` of variables defining the
             control value. `M` is used if not supplied.
-        :returns: The derivative. A function or :class:`Sequence` of functions,
+        :returns: The derivative. A variable or :class:`Sequence` of variables,
             depending on the type of `M`.
         """
 
@@ -62,18 +62,18 @@ class Hessian(ABC):
             \left( \frac{d}{dm} \left[
                 \frac{d \mathcal{J}}{d m} \zeta \right] \right)^{*,T}.
 
-        :arg M: A function or a :class:`Sequence` of functions defining the
-            control variable.
-        :arg dM: A function or a :class:`Sequence` of functions defining
+        :arg M: A variable or a :class:`Sequence` of variables defining the
+            control.
+        :arg dM: A variable or a :class:`Sequence` of variables defining
             :math:`\zeta`. The (conjugate of the) Hessian matrix action on
             :math:`\zeta` is computed.
-        :arg M0: A function or a :class:`Sequence` of functions defining the
+        :arg M0: A variable or a :class:`Sequence` of variables defining the
             control value. `M` is used if not supplied.
         :returns: A tuple `(J, dJ, ddJ)`. `J` is the value of the functional.
             `dJ` is the value of :math:`\left( d \mathcal{J} / d m \right)
             \zeta`. `ddJ` stores the (conjugate of the) result of the Hessian
-            matrix action on :math:`\zeta`, and is a function or a
-            :class:`Sequence` of functions depending on the type of `M`.
+            matrix action on :math:`\zeta`, and is a variable or a
+            :class:`Sequence` of variables depending on the type of `M`.
         """
 
         raise NotImplementedError
@@ -82,18 +82,18 @@ class Hessian(ABC):
         """Return a callable which can be used to compute Hessian matrix
         actions.
 
-        :arg m: A function defining the control variable.
-        :arg m0: A function defining the control value. `m` is used if not
+        :arg m: A variable defining the control.
+        :arg m0: A variable defining the control value. `m` is used if not
             supplied.
-        :returns: A callable which accepts a single function argument, and
+        :returns: A callable which accepts a single variable argument, and
             returns the result of the Hessian matrix action on that argument as
-            a function. Note that the result is *not* the conjugate of the
+            a variable. Note that the result is *not* the conjugate of the
             Hessian matrix action on the input argument.
         """
 
         def action(dm):
             _, _, ddJ = self.action(m, dm, M0=m0)
-            return function_copy_conjugate(ddJ)
+            return var_copy_conjugate(ddJ)
 
         return action
 
@@ -102,8 +102,8 @@ class GeneralHessian(Hessian):
     """Represents a Hessian matrix associated with a given forward model. Calls
     to :meth:`compute_gradient` or :meth:`action` re-run the forward.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
@@ -116,7 +116,7 @@ class GeneralHessian(Hessian):
         @functools.wraps(forward)
         def wrapped_forward(*M):
             J = forward(*M)
-            if is_function(J):
+            if is_var(J):
                 J = Functional(_fn=J)
             return J
 
@@ -138,10 +138,10 @@ class GeneralHessian(Hessian):
         if M0 is None:
             M0 = M
         assert len(M0) == len(M)
-        M = tuple(function_copy(m0, name=function_name(m),
-                                static=function_is_static(m),
-                                cache=function_is_cached(m),
-                                checkpoint=function_is_checkpointed(m))
+        M = tuple(var_copy(m0, name=var_name(m),
+                           static=var_is_static(m),
+                           cache=var_is_cached(m),
+                           checkpoint=var_is_checkpointed(m))
                   for m0, m in zip(M0, M))
         del M0
 
@@ -168,17 +168,17 @@ class GeneralHessian(Hessian):
         if M0 is None:
             M0 = M
         assert len(M0) == len(M)
-        M = tuple(function_copy(m0, name=function_name(m),
-                                static=function_is_static(m),
-                                cache=function_is_cached(m),
-                                checkpoint=function_is_checkpointed(m))
+        M = tuple(var_copy(m0, name=var_name(m),
+                           static=var_is_static(m),
+                           cache=var_is_cached(m),
+                           checkpoint=var_is_checkpointed(m))
                   for m0, m in zip(M0, M))
         del M0
 
-        dM = tuple(function_copy(dm, name=function_name(dm),
-                                 static=function_is_static(dm),
-                                 cache=function_is_cached(dm),
-                                 checkpoint=function_is_checkpointed(dm))
+        dM = tuple(var_copy(dm, name=var_name(dm),
+                            static=var_is_static(dm),
+                            cache=var_is_cached(dm),
+                            checkpoint=var_is_checkpointed(dm))
                    for dm in dM)
 
         configure_tlm((M, dM))
@@ -209,14 +209,14 @@ class GaussNewton(ABC):
     covariance and :math:`B^{-1}` corresponds to the background inverse
     covariance.
 
-    :arg R_inv_action: A callable which accepts one or more functions, and
+    :arg R_inv_action: A callable which accepts one or more variables, and
         returns the conjugate of the action of the operator corresponding to
-        :math:`R_\text{obs}^{-1}` on those functions, returning the result as a
-        function or a :class:`Sequence` of functions.
-    :arg B_inv_action: A callable which accepts one or more functions, and
+        :math:`R_\text{obs}^{-1}` on those variables, returning the result as a
+        variable or a :class:`Sequence` of variables.
+    :arg B_inv_action: A callable which accepts one or more variables, and
         returns the conjugate of the action of the operator corresponding to
-        :math:`B^{-1}` on those functions, returning the result as a function
-        or a :class:`Sequence` of functions.
+        :math:`B^{-1}` on those variables, returning the result as a variable
+        or a :class:`Sequence` of variables.
     :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
         not supplied.
     """
@@ -244,16 +244,16 @@ class GaussNewton(ABC):
 
             \left( H \zeta \right)^{*,T}.
 
-        :arg M: A function or a :class:`Sequence` of functions defining the
-            control variable.
-        :arg dM: A function or a :class:`Sequence` of functions defining
+        :arg M: A variable or a :class:`Sequence` of variables defining the
+            control.
+        :arg dM: A variable or a :class:`Sequence` of variables defining
             :math:`\zeta`. The (conjugate of the) approximated Hessian matrix
             action on :math:`\zeta` is computed.
-        :arg M0: A function or a :class:`Sequence` of functions defining the
+        :arg M0: A variable or a :class:`Sequence` of variables defining the
             control value. `M` is used if not supplied.
         :returns: The (conjugate of the) result of the approximated Hessian
-            matrix action on :math:`\zeta`. A function or a :class:`Sequence`
-            of functions depending on the type of `M`.
+            matrix action on :math:`\zeta`. A variable or a :class:`Sequence`
+            of variables depending on the type of `M`.
         """
 
         if not isinstance(M, Sequence):
@@ -265,9 +265,9 @@ class GaussNewton(ABC):
         set_manager(manager)
 
         # J dM
-        tau_X = tuple(function_tlm(x, (M, dM)) for x in X)
+        tau_X = tuple(var_tlm(x, (M, dM)) for x in X)
         # conj[ R^{-1} J dM ]
-        R_inv_tau_X = self._R_inv_action(*tuple(map(function_copy, tau_X)))
+        R_inv_tau_X = self._R_inv_action(*tuple(map(var_copy, tau_X)))
         if not isinstance(R_inv_tau_X, Sequence):
             R_inv_tau_X = (R_inv_tau_X,)
         assert len(tau_X) == len(R_inv_tau_X)
@@ -280,9 +280,9 @@ class GaussNewton(ABC):
         J = Functional(space=self._J_space)
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
-            J_term = function_new(J.function())
+            J_term = var_new(J.var())
             with paused_manager(annotate=False, tlm=True):
-                InnerProduct(J_term, x, function_copy(R_inv_tau_x)).solve()
+                InnerProduct(J_term, x, var_copy(R_inv_tau_x)).solve()
                 J.addto(J_term)
         stop_manager()
 
@@ -291,7 +291,7 @@ class GaussNewton(ABC):
 
         # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(*tuple(map(function_copy, dM)))
+            B_inv_dM = self._B_inv_action(*tuple(map(var_copy, dM)))
             if not isinstance(B_inv_dM, Sequence):
                 B_inv_dM = (B_inv_dM,)
             assert len(dM) == len(B_inv_dM)
@@ -299,7 +299,7 @@ class GaussNewton(ABC):
                 check_space_types_conjugate_dual(dm, B_inv_dm)
             assert len(ddJ) == len(B_inv_dM)
             for i, B_inv_dm in enumerate(B_inv_dM):
-                function_axpy(ddJ[i], 1.0, B_inv_dm)
+                var_axpy(ddJ[i], 1.0, B_inv_dm)
 
         return ddJ
 
@@ -307,18 +307,18 @@ class GaussNewton(ABC):
         """Return a callable which can be used to compute Hessian matrix
         actions using the Gauss-Newton approximation.
 
-        :arg m: A function defining the control variable.
-        :arg m0: A function defining the control value. `m` is used if not
+        :arg m: A variable defining the control.
+        :arg m0: A variable defining the control value. `m` is used if not
             supplied.
-        :returns: A callable which accepts a single function argument, and
+        :returns: A callable which accepts a single variable argument, and
             returns the result of the approximated Hessian matrix action on
-            that argument as a function. Note that the result is *not* the
+            that argument as a variable. Note that the result is *not* the
             conjugate of the approximated Hessian matrix action on the input
             argument.
         """
 
         def action(dm):
-            return function_copy_conjugate(self.action(m, dm, M0=m0))
+            return var_copy_conjugate(self.action(m, dm, M0=m0))
 
         return action
 
@@ -328,8 +328,8 @@ class GeneralGaussNewton(GaussNewton):
     with a given forward model. Calls to :meth:`GaussNewton.action` re-run the
     forward.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`Sequence` of functions defining the
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`Sequence` of variables defining the
         state.
     :arg R_inv_action: See :class:`GaussNewton`.
     :arg B_inv_action: See :class:`GaussNewton`.
@@ -358,17 +358,17 @@ class GeneralGaussNewton(GaussNewton):
         if M0 is None:
             M0 = M
         assert len(M0) == len(M)
-        M = tuple(function_copy(m0, name=function_name(m),
-                                static=function_is_static(m),
-                                cache=function_is_cached(m),
-                                checkpoint=function_is_checkpointed(m))
+        M = tuple(var_copy(m0, name=var_name(m),
+                           static=var_is_static(m),
+                           cache=var_is_cached(m),
+                           checkpoint=var_is_checkpointed(m))
                   for m0, m in zip(M0, M))
         del M0
 
-        dM = tuple(function_copy(dm, name=function_name(dm),
-                                 static=function_is_static(dm),
-                                 cache=function_is_cached(dm),
-                                 checkpoint=function_is_checkpointed(dm))
+        dM = tuple(var_copy(dm, name=var_name(dm),
+                            static=var_is_static(dm),
+                            cache=var_is_cached(dm),
+                            checkpoint=var_is_checkpointed(dm))
                    for dm in dM)
 
         configure_tlm((M, dM), annotate=False)

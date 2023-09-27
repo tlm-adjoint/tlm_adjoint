@@ -3,35 +3,30 @@
 
 r"""This module defines an interface for interaction with backend data types.
 This is implemented via runtime binding of mixins. The
-:class:`VariableInterface` adds methods to 'functions' which can be used to
+:class:`VariableInterface` adds methods to 'variables' which can be used to
 interact with backend variables. The :class:`SpaceInterface` adds methods to
-'spaces' which define the vector spaces in which those 'functions' are defined.
+'spaces' which define the vector spaces in which those 'variables' are defined.
 
 The extra methods are accessed using the callables defined in this module
 (which also handle some extra details, e.g. related to cache invalidation and
 space type checking). Typically these are prefixed with `space_` for spaces and
-`function_` for functions.
+`var_` for variables.
 
-The term 'function' originates from finite element discrete functions, but
-there is no assumption that these correspond to actual functions defined on any
-particular computational domain. For example the :class:`SymbolicFloat` class
-represents a scalar variable.
-
-The interface distinguishes between original backend 'functions', which both
-define symbolic variables and store values, and replacement 'functions', which
+The interface distinguishes between original backend 'variables', which both
+define symbolic variables and store values, and replacement 'variables', which
 define the same variables but which need not store values.
 
-Functions have an associated 'space type', which indicates e.g. if the variable
+Variables have an associated 'space type', which indicates e.g. if the variable
 is 'primal', meaning a member on an originating vector space, or 'conjugate
 dual', meaning a member of the corresponding antidual space of antilinear
-functionals from the originating vector space. Functions can also be 'dual',
+functionals from the originating vector space. Variables can also be 'dual',
 meaning a member of the dual space of linear functionals, or 'conjugate',
 meaning a member of a space defined by a conjugate operator from the primal
 space. This conjugate operator is defined by complex conjugation of the vector
 of degrees of freedom, and could e.g. correspond to complex conjugation of a
 finite element discretized function.
 
-The space type associated with a function is defined relative to an originating
+The space type associated with a variable is defined relative to an originating
 vector space (e.g. a finite element discrete function space). A 'relative space
 type' is defined relative to one of the 'primal', 'conjugate', 'dual', or
 'conjugate dual' spaces. For example the primal space associated with the dual
@@ -98,6 +93,47 @@ __all__ = \
         "relative_space_type",
 
         "VariableInterface",
+        "is_var",
+        "var_assign",
+        "var_axpy",
+        "var_caches",
+        "var_comm",
+        "var_copy",
+        "var_dtype",
+        "var_form_derivative_space",
+        "var_get_values",
+        "var_global_size",
+        "var_id",
+        "var_inner",
+        "var_is_cached",
+        "var_is_checkpointed",
+        "var_is_replacement",
+        "var_is_static",
+        "var_linf_norm",
+        "var_local_indices",
+        "var_local_size",
+        "var_name",
+        "var_new",
+        "var_new_conjugate",
+        "var_new_conjugate_dual",
+        "var_new_dual",
+        "var_replacement",
+        "var_set_values",
+        "var_space",
+        "var_space_type",
+        "var_state",
+        "var_sum",
+        "var_update_caches",
+        "var_update_state",
+        "var_zero",
+
+        "var_is_scalar",
+        "var_scalar_value",
+
+        "subtract_adjoint_derivative_action",
+
+        "var_is_alias",
+
         "is_function",
         "function_assign",
         "function_axpy",
@@ -131,12 +167,8 @@ __all__ = \
         "function_update_caches",
         "function_update_state",
         "function_zero",
-
         "function_is_scalar",
         "function_scalar_value",
-
-        "subtract_adjoint_derivative_action",
-
         "function_is_alias"
     ]
 
@@ -367,7 +399,7 @@ def add_interface(obj, interface_cls, attrs=None):
         :class:`VariableInterface` defining the interface.
     :arg attrs: A :class:`Mapping` defining any attributes. Used to set an
         attribute `_tlm_adjoint__space_interface_attrs` (for a
-        :class:`SpaceInterface`) or `_tlm_adjoint__function_interface_attrs`
+        :class:`SpaceInterface`) or `_tlm_adjoint__var_interface_attrs`
         (for a :class:`VariableInterface`).
     """
 
@@ -468,20 +500,20 @@ def space_id(space):
 
 def space_new(space, *, name=None, space_type="primal", static=False,
               cache=None, checkpoint=None):
-    """Return a new function.
+    """Return a new variable.
 
     :arg space: The space.
-    :arg name: A :class:`str` name for the function.
-    :arg space_type: The space type for the new function. `'primal'`, `'dual'`,
+    :arg name: A :class:`str` name for the variable.
+    :arg space_type: The space type for the new variable. `'primal'`, `'dual'`,
         `'conjugate'`, or `'conjugate_dual'`.
     :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving the new function may be
+    :arg cache: Defines whether results involving the new variable may be
         cached. Default `static`.
     :arg checkpoint: Defines whether a
         :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        function by value (`checkpoint=True`) or reference
+        variable by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
-    :returns: The new function.
+    :returns: The new variable.
     """
 
     if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
@@ -592,18 +624,18 @@ def space_type_warning(msg, *, stacklevel=1):
 
 
 def check_space_type(x, space_type):
-    """Check that a function has a given space type.
+    """Check that a variable has a given space type.
 
     Emits a warning if the check fails and space type checking is enabled.
 
-    :arg x: A function, whose space type should be checked.
+    :arg x: A variable, whose space type should be checked.
     :arg space_type: The space type. One of `'primal'`, `'conjugate'`,
         `'dual'`, or `'conjugate_dual'`.
     """
 
     if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
-    if function_space_type(x) != space_type:
+    if var_space_type(x) != space_type:
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
@@ -612,16 +644,16 @@ def check_space_types(x, y, *, rel_space_type="primal"):
 
     Emits a warning if the check fails and space type checking is enabled.
 
-    :arg x: A function.
-    :arg y: A function.
+    :arg x: A variable.
+    :arg y: A variable.
     :arg rel_space_type: Check that the space type of `x` is `rel_space_type`
         relative to `y`. For example if `rel_space_type='dual'`, and the
         space type of `y` is `'conjuguate_dual'`, checks that the space type of
         `x` is `'conjugate'`.
     """
 
-    if function_space_type(x) != \
-            function_space_type(y, rel_space_type=rel_space_type):
+    if var_space_type(x) != \
+            var_space_type(y, rel_space_type=rel_space_type):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
@@ -630,12 +662,12 @@ def check_space_types_conjugate(x, y):
 
     Emits a warning if the check fails and space type checking is enabled.
 
-    :arg x: A function.
-    :arg y: A function.
+    :arg x: A variable.
+    :arg y: A variable.
     """
 
-    if function_space_type(x) != \
-            function_space_type(y, rel_space_type="conjugate"):
+    if var_space_type(x) != \
+            var_space_type(y, rel_space_type="conjugate"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
@@ -644,12 +676,12 @@ def check_space_types_dual(x, y):
 
     Emits a warning if the check fails and space type checking is enabled.
 
-    :arg x: A function.
-    :arg y: A function.
+    :arg x: A variable.
+    :arg y: A variable.
     """
 
-    if function_space_type(x) != \
-            function_space_type(y, rel_space_type="dual"):
+    if var_space_type(x) != \
+            var_space_type(y, rel_space_type="dual"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
@@ -658,23 +690,23 @@ def check_space_types_conjugate_dual(x, y):
 
     Emits a warning if the check fails and space type checking is enabled.
 
-    :arg x: A function.
-    :arg y: A function.
+    :arg x: A variable.
+    :arg y: A variable.
     """
 
-    if function_space_type(x) != \
-            function_space_type(y, rel_space_type="conjugate_dual"):
+    if var_space_type(x) != \
+            var_space_type(y, rel_space_type="conjugate_dual"):
         space_type_warning("Unexpected space type", stacklevel=2)
 
 
 class VariableInterface:
-    """A mixin defining an interface for functions. Functions types do not
+    """A mixin defining an interface for variables. Variables types do not
     inherit from this class -- instead an interface is defined by a
     :class:`VariableInterface` subclass, and methods are bound dynamically at
     runtime using :func:`add_interface`.
     """
 
-    prefix = "_tlm_adjoint__function_interface"
+    prefix = "_tlm_adjoint__var_interface"
     names = ("_comm", "_space", "_form_derivative_space", "_space_type",
              "_dtype", "_id", "_name", "_state", "_update_state", "_is_static",
              "_is_cached", "_is_checkpointed", "_caches", "_zero", "_assign",
@@ -687,7 +719,7 @@ class VariableInterface:
         raise RuntimeError("Cannot instantiate VariableInterface object")
 
     def _comm(self):
-        return space_comm(function_space(self))
+        return space_comm(var_space(self))
 
     def _space(self):
         raise NotImplementedError("Method not overridden")
@@ -699,7 +731,7 @@ class VariableInterface:
         raise NotImplementedError("Method not overridden")
 
     def _dtype(self):
-        return space_dtype(function_space(self))
+        return space_dtype(var_space(self))
 
     def _id(self):
         raise NotImplementedError("Method not overridden")
@@ -760,15 +792,15 @@ class VariableInterface:
 
     def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
              rel_space_type="primal"):
-        space_type = function_space_type(self, rel_space_type=rel_space_type)
-        return space_new(function_space(self), name=name,
+        space_type = var_space_type(self, rel_space_type=rel_space_type)
+        return space_new(var_space(self), name=name,
                          space_type=space_type, static=static, cache=cache,
                          checkpoint=checkpoint)
 
     def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        y = function_new(self, name=name, static=static, cache=cache,
-                         checkpoint=checkpoint)
-        function_assign(y, self)
+        y = var_new(self, name=name, static=static, cache=cache,
+                    checkpoint=checkpoint)
+        var_assign(y, self)
         return y
 
     def _replacement(self):
@@ -787,526 +819,526 @@ class VariableInterface:
         return False
 
 
-def is_function(x):
-    """Return whether `x` is a function -- i.e. has had a
+def is_var(x):
+    """Return whether `x` is a variable -- i.e. has had a
     :class:`VariableInterface` added.
 
     :arg x: An arbitrary :class:`object`.
-    :returns: `True` if `x` is a function, and `False` otherwise.
+    :returns: `True` if `x` is a variable, and `False` otherwise.
     """
 
-    return hasattr(x, "_tlm_adjoint__function_interface")
+    return hasattr(x, "_tlm_adjoint__var_interface")
 
 
-def function_comm(x):
+def var_comm(x):
     """
-    :arg x: A function.
-    :returns: The communicator associated with the function.
-    """
-
-    return x._tlm_adjoint__function_interface_comm()
-
-
-def function_space(x):
-    """
-    :arg x: A function.
-    :returns: The space associated with the function.
+    :arg x: A variable.
+    :returns: The communicator associated with the variable.
     """
 
-    return x._tlm_adjoint__function_interface_space()
+    return x._tlm_adjoint__var_interface_comm()
 
 
-def function_form_derivative_space(x):
+def var_space(x):
+    """
+    :arg x: A variable.
+    :returns: The space associated with the variable.
+    """
+
+    return x._tlm_adjoint__var_interface_space()
+
+
+def var_form_derivative_space(x):
     """
     :returns: The space in which a derivative is defined when differentiating a
-        :class:`ufl.Form` with respect to the function.
+        :class:`ufl.Form` with respect to the variable.
     """
 
-    return x._tlm_adjoint__function_interface_form_derivative_space()
+    return x._tlm_adjoint__var_interface_form_derivative_space()
 
 
-def function_space_type(x, *, rel_space_type="primal"):
-    """Return the space type of a function.
+def var_space_type(x, *, rel_space_type="primal"):
+    """Return the space type of a variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :arg rel_space_type: If supplied then return a space type relative to the
-        function space type. One of `'primal'`, `'conjugate'`, `'dual'`, or
+        variable space type. One of `'primal'`, `'conjugate'`, `'dual'`, or
         `'conjugate_dual'`.
     :returns: The space type.
     """
 
-    space_type = x._tlm_adjoint__function_interface_space_type()
+    space_type = x._tlm_adjoint__var_interface_space_type()
     return relative_space_type(space_type, rel_space_type)
 
 
-def function_dtype(x):
+def var_dtype(x):
     """
-    :arg x: A function.
-    :returns: The data type associated with the function. Typically
+    :arg x: A variable.
+    :returns: The data type associated with the variable. Typically
         :class:`numpy.double` or :class:`numpy.cdouble`.
     """
 
-    return x._tlm_adjoint__function_interface_dtype()
+    return x._tlm_adjoint__var_interface_dtype()
 
 
-_function_id_counter = 0
+_var_id_counter = 0
 
 
-def new_function_id():
-    global _function_id_counter
-    function_id = _function_id_counter
-    _function_id_counter += 1
-    return function_id
+def new_var_id():
+    global _var_id_counter
+    var_id = _var_id_counter
+    _var_id_counter += 1
+    return var_id
 
 
-def function_id(x):
-    """Return the :class:`int` ID associated with a function.
+def var_id(x):
+    """Return the :class:`int` ID associated with a variable.
 
-    Note that two functions share the same ID if they represent the same
-    variable -- for example if one function represents both a variable and
-    stores a value, and a second the same variable with no value (i.e. is a
-    'replacement'), then the two functions share the same ID.
+    Note that two variables share the same ID if they represent the same
+    symbolic variable -- for example if one variable represents both a variable
+    and stores a value, and a second the same variable with no value (i.e. is a
+    'replacement'), then the two variables share the same ID.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: The :class:`int` ID.
     """
 
-    return x._tlm_adjoint__function_interface_id()
+    return x._tlm_adjoint__var_interface_id()
 
 
-def function_name(x):
+def var_name(x):
     """
-    :arg x: A function.
-    :returns: The :class:`str` name of the function.
+    :arg x: A variable.
+    :returns: The :class:`str` name of the variable.
     """
 
-    return x._tlm_adjoint__function_interface_name()
+    return x._tlm_adjoint__var_interface_name()
 
 
-def function_state(x):
-    """Return the value of the state counter for a function. Updated when the
-    value of the function changes.
+def var_state(x):
+    """Return the value of the state counter for a variable. Updated when the
+    value of the variable changes.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: The :class:`int` state value.
     """
 
-    return x._tlm_adjoint__function_interface_state()
+    return x._tlm_adjoint__var_interface_state()
 
 
-def function_update_state(*X):
-    """Update the state counter for zero of more functions. Invalidates cache
+def var_update_state(*X):
+    """Update the state counter for zero of more variables. Invalidates cache
     entries.
 
-    :arg X: A :class:`tuple` of functions whose state value should be updated.
+    :arg X: A :class:`tuple` of variables whose state value should be updated.
     """
 
     for x in X:
-        x._tlm_adjoint__function_interface_update_state()
-    function_update_caches(*X)
+        x._tlm_adjoint__var_interface_update_state()
+    var_update_caches(*X)
 
 
-def function_is_static(x):
-    """Return whether a function is flagged as 'static'.
+def var_is_static(x):
+    """Return whether a variable is flagged as 'static'.
 
-    The 'static' flag is used when instantiating functions to set the default
+    The 'static' flag is used when instantiating variables to set the default
     caching and checkpointing behaviour, but plays no other role.
 
-    :arg x: The function.
-    :returns: Whether the function is flagged as static.
+    :arg x: The variable.
+    :returns: Whether the variable is flagged as static.
     """
 
-    return x._tlm_adjoint__function_interface_is_static()
+    return x._tlm_adjoint__var_interface_is_static()
 
 
-def function_is_cached(x):
-    """Return whether results involving this function may be cached.
+def var_is_cached(x):
+    """Return whether results involving this variable may be cached.
 
-    :arg x: The function.
-    :returns: Whether results involving the function may be cached.
+    :arg x: The variable.
+    :returns: Whether results involving the variable may be cached.
     """
 
-    return x._tlm_adjoint__function_interface_is_cached()
+    return x._tlm_adjoint__var_interface_is_cached()
 
 
-def function_is_checkpointed(x):
-    """Return whether the function is 'checkpointed', meaning that a
-    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this function
+def var_is_checkpointed(x):
+    """Return whether the variable is 'checkpointed', meaning that a
+    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this variable
     by value. If not 'checkpointed' then a
-    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this function
+    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this variable
     by reference.
 
-    Only functions which are 'checkpointed' may appear as the solution of
+    Only variables which are 'checkpointed' may appear as the solution of
     equations.
 
-    :arg x: The function.
-    :returns: Whether the function is 'checkpointed'.
+    :arg x: The variable.
+    :returns: Whether the variable is 'checkpointed'.
     """
 
-    return x._tlm_adjoint__function_interface_is_checkpointed()
+    return x._tlm_adjoint__var_interface_is_checkpointed()
 
 
-def function_caches(x):
+def var_caches(x):
     """Return the :class:`tlm_adjoint.caches.Caches` associated with a
-    function.
+    variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: The :class:`tlm_adjoint.caches.Caches` associated with the
-        function.
+        variable.
     """
 
-    return x._tlm_adjoint__function_interface_caches()
+    return x._tlm_adjoint__var_interface_caches()
 
 
-def function_update_caches(*X, value=None):
+def var_update_caches(*X, value=None):
     """Check for cache invalidation associated with a possible change in value.
 
-    :arg X: A :class:`tuple` of functions whose value may have changed.
-    :arg value: A function or a :class:`Sequence` of functions defining the
+    :arg X: A :class:`tuple` of variables whose value may have changed.
+    :arg value: A variable or a :class:`Sequence` of variables defining the
         possible new values. `X` is used if not supplied.
     """
 
     if value is None:
         for x in X:
-            if function_is_replacement(x):
+            if var_is_replacement(x):
                 raise TypeError("value required")
-            function_caches(x).update(x)
+            var_caches(x).update(x)
     else:
-        if is_function(value):
+        if is_var(value):
             value = (value,)
         assert len(X) == len(value)
         for x, x_value in zip(X, value):
-            function_caches(x).update(x_value)
+            var_caches(x).update(x_value)
 
 
-def function_zero(x):
-    """Zero a function.
+def var_zero(x):
+    """Zero a variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     """
 
-    x._tlm_adjoint__function_interface_zero()
-    function_update_state(x)
+    x._tlm_adjoint__var_interface_zero()
+    var_update_state(x)
 
 
-def function_assign(x, y):
+def var_assign(x, y):
     """Perform an assignment `x = y`.
 
-    :arg x: A function.
-    :arg y: A function.
+    :arg x: A variable.
+    :arg y: A variable.
     """
 
-    if is_function(y):
+    if is_var(y):
         check_space_types(x, y)
-    x._tlm_adjoint__function_interface_assign(y)
-    function_update_state(x)
+    x._tlm_adjoint__var_interface_assign(y)
+    var_update_state(x)
 
 
-def function_axpy(y, alpha, x, /):
+def var_axpy(y, alpha, x, /):
     """Perform an in-place addition `y += alpha * x`.
 
-    :arg y: A function.
+    :arg y: A variable.
     :arg alpha: A scalar.
-    :arg x: A function.
+    :arg x: A variable.
     """
 
-    if is_function(x):
+    if is_var(x):
         check_space_types(y, x)
-    y._tlm_adjoint__function_interface_axpy(alpha, x)
-    function_update_state(y)
+    y._tlm_adjoint__var_interface_axpy(alpha, x)
+    var_update_state(y)
 
 
-def function_inner(x, y):
+def var_inner(x, y):
     """Compute the :math:`l_2` inner product of the degrees of freedom vectors
     associated with `x` and `y`. By convention if `y` is in the conjugate dual
     space associated with `x`, this returns the complex conjugate of the
     functional associated with `y` evaluated at `x`.
 
-    :arg x: A function.
-    :arg y: A function.
+    :arg x: A variable.
+    :arg y: A variable.
     :returns: The result of the inner product.
     """
 
-    if is_function(y):
+    if is_var(y):
         check_space_types_conjugate_dual(x, y)
-    return x._tlm_adjoint__function_interface_inner(y)
+    return x._tlm_adjoint__var_interface_inner(y)
 
 
-def function_sum(x):
-    """Compute the sum of all degrees of freedom associated with a function.
+def var_sum(x):
+    """Compute the sum of all degrees of freedom associated with a variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: The sum of the degrees of freedom associated with `x`.
     """
 
-    return x._tlm_adjoint__function_interface_sum()
+    return x._tlm_adjoint__var_interface_sum()
 
 
-def function_linf_norm(x):
+def var_linf_norm(x):
     r"""Compute the :math:`l_\infty` norm of the degrees of freedom vector
-    associated with a function.
+    associated with a variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: The :math:`l_\infty` norm of the degrees of freedom vector.
     """
 
-    return x._tlm_adjoint__function_interface_linf_norm()
+    return x._tlm_adjoint__var_interface_linf_norm()
 
 
-def function_local_size(x):
+def var_local_size(x):
     """Return the process local number of degrees of freedom associated with
-    a function. This is the number of 'owned' degrees of freedom.
+    a variable. This is the number of 'owned' degrees of freedom.
 
-    :arg x: The function.
-    :returns: The process local number of degrees of freedom for the function.
+    :arg x: The variable.
+    :returns: The process local number of degrees of freedom for the variable.
     """
 
-    return x._tlm_adjoint__function_interface_local_size()
+    return x._tlm_adjoint__var_interface_local_size()
 
 
-def function_global_size(x):
+def var_global_size(x):
     """Return the global number of degrees of freedom associated with a
-    function. This is the total number of 'owned' degrees of freedom, summed
+    variable. This is the total number of 'owned' degrees of freedom, summed
     across all processes.
 
-    :arg x: The function.
-    :returns: The global number of degrees of freedom for the function.
+    :arg x: The variable.
+    :returns: The global number of degrees of freedom for the variable.
     """
 
-    return x._tlm_adjoint__function_interface_global_size()
+    return x._tlm_adjoint__var_interface_global_size()
 
 
-def function_local_indices(x):
+def var_local_indices(x):
     """Return the indices of process local degrees of freedom associated with
-    a function.
+    a variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: An :class:`Iterable`, yielding the indices of the process local
         elements.
     """
 
-    return x._tlm_adjoint__function_interface_local_indices()
+    return x._tlm_adjoint__var_interface_local_indices()
 
 
-def function_get_values(x):
+def var_get_values(x):
     """Return a copy of the process local degrees of freedom vector associated
-    with a function.
+    with a variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: A :class:`numpy.ndarray` containing the degrees of freedom.
     """
 
-    return x._tlm_adjoint__function_interface_get_values()
+    return x._tlm_adjoint__var_interface_get_values()
 
 
-def function_set_values(x, values):
+def var_set_values(x, values):
     """Set the process local degrees of freedom vector associated with a
-    function.
+    variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :arg values: A :class:`numpy.ndarray` containing the degrees of freedom
         values.
     """
 
-    x._tlm_adjoint__function_interface_set_values(values)
-    function_update_state(x)
+    x._tlm_adjoint__var_interface_set_values(values)
+    var_update_state(x)
 
 
-def function_new(x, *, name=None, static=False, cache=None, checkpoint=None,
-                 rel_space_type="primal"):
-    """Return a new function defined using the same space as `x`.
+def var_new(x, *, name=None, static=False, cache=None, checkpoint=None,
+            rel_space_type="primal"):
+    """Return a new variable defined using the same space as `x`.
 
-    :arg x: A function.
-    :arg name: A :class:`str` name for the new function.
+    :arg x: A variable.
+    :arg name: A :class:`str` name for the new variable.
     :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving the new function may be
+    :arg cache: Defines whether results involving the new variable may be
         cached. Default `static`.
     :arg checkpoint: Defines whether a
         :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store the
-        new function by value (`checkpoint=True`) or reference
+        new variable by value (`checkpoint=True`) or reference
         (`checkpoint=False`). Default `not static`.
-    :arg rel_space_type: Defines the space type of the new function, relative
+    :arg rel_space_type: Defines the space type of the new variable, relative
         to the space type of `x`.
-    :returns: The new function.
+    :returns: The new variable.
     """
 
     if rel_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid relative space type")
-    return x._tlm_adjoint__function_interface_new(
+    return x._tlm_adjoint__var_interface_new(
         name=name, static=static, cache=cache, checkpoint=checkpoint,
         rel_space_type=rel_space_type)
 
 
-def function_new_conjugate(x, *, name=None, static=False, cache=None,
-                           checkpoint=None):
-    """Return a new conjugate function. See :func:`function_new`.
+def var_new_conjugate(x, *, name=None, static=False, cache=None,
+                      checkpoint=None):
+    """Return a new conjugate variable. See :func:`var_new`.
 
-    :returns: A new function defined using the same space as `x`, with space
+    :returns: A new variable defined using the same space as `x`, with space
         type conjugate to the space type for `x`.
     """
 
-    return function_new(x, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint,
-                        rel_space_type="conjugate")
+    return var_new(x, name=name, static=static, cache=cache,
+                   checkpoint=checkpoint,
+                   rel_space_type="conjugate")
 
 
-def function_new_dual(x, *, name=None, static=False, cache=None,
-                      checkpoint=None):
-    """Return a new dual function. See :func:`function_new`.
+def var_new_dual(x, *, name=None, static=False, cache=None,
+                 checkpoint=None):
+    """Return a new dual variable. See :func:`var_new`.
 
-    :returns: A new function defined using the same space as `x`, with space
+    :returns: A new variable defined using the same space as `x`, with space
         type dual to the space type for `x`.
     """
 
-    return function_new(x, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint,
-                        rel_space_type="dual")
+    return var_new(x, name=name, static=static, cache=cache,
+                   checkpoint=checkpoint,
+                   rel_space_type="dual")
 
 
-def function_new_conjugate_dual(x, *, name=None, static=False, cache=None,
-                                checkpoint=None):
-    """Return a new conjugate dual function. See :func:`function_new`.
+def var_new_conjugate_dual(x, *, name=None, static=False, cache=None,
+                           checkpoint=None):
+    """Return a new conjugate dual variable. See :func:`var_new`.
 
-    :returns: A new function defined using the same space as `x`, with space
+    :returns: A new variable defined using the same space as `x`, with space
         type conjugate dual to the space type for `x`.
     """
 
-    return function_new(x, name=name, static=static, cache=cache,
-                        checkpoint=checkpoint,
-                        rel_space_type="conjugate_dual")
+    return var_new(x, name=name, static=static, cache=cache,
+                   checkpoint=checkpoint,
+                   rel_space_type="conjugate_dual")
 
 
-def function_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
-    """Copy a function. See :func:`function_new`.
+def var_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
+    """Copy a variable. See :func:`var_new`.
 
-    :returns: The copied function.
+    :returns: The copied variable.
     """
 
-    return x._tlm_adjoint__function_interface_copy(
+    return x._tlm_adjoint__var_interface_copy(
         name=name, static=static, cache=cache, checkpoint=checkpoint)
 
 
-def function_new_tangent_linear(x, *, name=None):
-    if function_is_checkpointed(x):
-        return function_new(x, name=name, static=function_is_static(x),
-                            cache=function_is_cached(x),
-                            checkpoint=True)
+def var_new_tangent_linear(x, *, name=None):
+    if var_is_checkpointed(x):
+        return var_new(x, name=name, static=var_is_static(x),
+                       cache=var_is_cached(x),
+                       checkpoint=True)
     else:
         return None
 
 
-def function_replacement(x):
-    """Return a function, associated with the same variable as `x`, but
+def var_replacement(x):
+    """Return a variable, associated with the same variable as `x`, but
     possibly without a value.
 
-    :arg x: The function.
-    :returns: A function which symbolically represents the same variable as
+    :arg x: The variable.
+    :returns: A variable which symbolically represents the same variable as
         `x`, but which may not store a value. May return `x` itself.
     """
 
-    if function_is_replacement(x):
+    if var_is_replacement(x):
         return x
     else:
-        return x._tlm_adjoint__function_interface_replacement()
+        return x._tlm_adjoint__var_interface_replacement()
 
 
-def function_is_replacement(x):
-    """Return whether a function is a 'replacement', meaning that it has no
+def var_is_replacement(x):
+    """Return whether a variable is a 'replacement', meaning that it has no
     associated value.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: Whether `x` is a replacement.
     """
 
-    return x._tlm_adjoint__function_interface_is_replacement()
+    return x._tlm_adjoint__var_interface_is_replacement()
 
 
-def function_is_scalar(x):
-    """Return whether a function defines a scalar variable.
+def var_is_scalar(x):
+    """Return whether a variable defines a scalar variable.
 
-    :arg x: The function.
+    :arg x: The variable.
     :returns: Whether `x` defines a scalar variable.
     """
 
-    return x._tlm_adjoint__function_interface_is_scalar()
+    return x._tlm_adjoint__var_interface_is_scalar()
 
 
-def function_scalar_value(x):
+def var_scalar_value(x):
     """If `x` defines a scalar variable, returns its value.
 
-    :arg x: The function, defining a scalar variable.
+    :arg x: The variable, defining a scalar variable.
     :returns: The scalar value.
     """
 
-    if not function_is_scalar(x):
-        raise ValueError("Invalid function")
-    return x._tlm_adjoint__function_interface_scalar_value()
+    if not var_is_scalar(x):
+        raise ValueError("Invalid variable")
+    return x._tlm_adjoint__var_interface_scalar_value()
 
 
-def function_is_alias(x):
-    """Return whether a function is an 'alias', meaning part or all of the
-    degree of freedom vector associated with the function is shared with some
-    different aliased function. A function may not appear as an equation
+def var_is_alias(x):
+    """Return whether a variable is an 'alias', meaning part or all of the
+    degree of freedom vector associated with the variable is shared with some
+    different aliased variable. A variable may not appear as an equation
     dependency if it is an alias.
 
-    :arg x: The function.
-    :returns: Whether the function is an alias.
+    :arg x: The variable.
+    :returns: Whether the variable is an alias.
     """
 
-    return x._tlm_adjoint__function_interface_is_alias()
+    return x._tlm_adjoint__var_interface_is_alias()
 
 
-def function_copy_conjugate(x):
-    y = function_new_conjugate(x)
-    function_set_values(y, function_get_values(x).conjugate())
+def var_copy_conjugate(x):
+    y = var_new_conjugate(x)
+    var_set_values(y, var_get_values(x).conjugate())
     return y
 
 
-def function_assign_conjugate(x, y):
+def var_assign_conjugate(x, y):
     check_space_types_conjugate(x, y)
-    function_set_values(x, function_get_values(y).conjugate())
+    var_set_values(x, var_get_values(y).conjugate())
 
 
-def function_axpy_conjugate(y, alpha, x, /):
+def var_axpy_conjugate(y, alpha, x, /):
     check_space_types_conjugate(y, x)
-    function_set_values(
-        y, function_get_values(y) + alpha * function_get_values(x).conjugate())
+    var_set_values(
+        y, var_get_values(y) + alpha * var_get_values(x).conjugate())
 
 
-def functions_assign(X, Y):
+def vars_assign(X, Y):
     if len(X) != len(Y):
         raise ValueError("Incompatible lengths")
     for x, y in zip(X, Y):
-        function_assign(x, y)
+        var_assign(x, y)
 
 
-def functions_axpy(Y, alpha, X, /):
+def vars_axpy(Y, alpha, X, /):
     if len(X) != len(Y):
         raise ValueError("Incompatible lengths")
     for y, x in zip(Y, X):
-        function_axpy(y, alpha, x)
+        var_axpy(y, alpha, x)
 
 
-def functions_inner(X, Y):
+def vars_inner(X, Y):
     if len(X) != len(Y):
         raise ValueError("Incompatible lengths")
-    return sum((function_inner(x, y) for x, y in zip(X, Y)), start=0.0)
+    return sum((var_inner(x, y) for x, y in zip(X, Y)), start=0.0)
 
 
-def functions_linf_norm(X):
-    return max(map(function_linf_norm, X), default=0.0)
+def vars_linf_norm(X):
+    return max(map(var_linf_norm, X), default=0.0)
 
 
-def functions_new(X):
-    return tuple(map(function_new, X))
+def vars_new(X):
+    return tuple(map(var_new, X))
 
 
-def functions_new_conjugate_dual(X):
-    return tuple(map(function_new_conjugate_dual, X))
+def vars_new_conjugate_dual(X):
+    return tuple(map(var_new_conjugate_dual, X))
 
 
-def functions_copy(X):
-    return tuple(map(function_copy, X))
+def vars_copy(X):
+    return tuple(map(var_copy, X))
 
 
 @functools.singledispatch
@@ -1314,12 +1346,12 @@ def subtract_adjoint_derivative_action(x, y):
     """Subtract an adjoint right-hand-side contribution defined by `y` from
     the right-hand-side defined by `x`.
 
-    :arg x: A function storing the adjoint right-hand-side.
+    :arg x: A variable storing the adjoint right-hand-side.
     :arg y: A contribution to subtract from the adjoint right-hand-side. An
         :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action` return
         value. Valid types depend upon the backend used. Typically this will be
-        a function, or a two element :class:`tuple` `(alpha, F)`, where `alpha`
-        is a scalar and `F` a function, with the value to subtract defined by
+        a variable, or a two element :class:`tuple` `(alpha, F)`, where `alpha`
+        is a scalar and `F` a variable, with the value to subtract defined by
         the product of `alpha` and `F`.
     """
 
@@ -1359,16 +1391,16 @@ def register_subtract_adjoint_derivative_action(x_cls, y_cls, fn, *,
         @_x_fn.register(y_cls)
         def wrapped_fn(y, alpha, x):
             return_value = fn(x, alpha, y)
-            function_update_state(x)
+            var_update_state(x)
             return return_value
 
 
 def subtract_adjoint_derivative_action_base(x, alpha, y):
     if y is None:
         pass
-    elif is_function(y):
+    elif is_var(y):
         check_space_types(x, y)
-        function_axpy(x, -alpha, y)
+        var_axpy(x, -alpha, y)
     else:
         raise NotImplementedError("Unexpected case encountered")
 
@@ -1379,7 +1411,7 @@ _finalize_adjoint_derivative_action = []
 def finalize_adjoint_derivative_action(x):
     for fn in _finalize_adjoint_derivative_action:
         fn(x)
-        function_update_state(x)
+        var_update_state(x)
 
 
 def register_finalize_adjoint_derivative_action(fn):
@@ -1423,3 +1455,63 @@ _handler = logging.StreamHandler(stream=sys.stdout)
 _handler.setFormatter(logging.Formatter(fmt="%(message)s"))
 _logger.addHandler(_handler)
 _logger.setLevel(logging.INFO)
+
+
+def is_function(x):
+    """
+    """
+
+    # warnings.warn("is_function is deprecated -- "
+    #               "use is_var instead",
+    #               DeprecationWarning, stacklevel=2)
+    return is_var(x)
+
+
+def _function_warning(fn):
+    def wrapped_fn(*args, **kwargs):
+        """
+        """
+
+        # warnings.warn("function_ prefixed functions are deprecated -- "
+        #               "use var_ prefixed functions instead",
+        #               DeprecationWarning, stacklevel=2)
+        return fn(*args, **kwargs)
+
+    return wrapped_fn
+
+
+function_assign = _function_warning(var_assign)
+function_axpy = _function_warning(var_axpy)
+function_caches = _function_warning(var_caches)
+function_comm = _function_warning(var_comm)
+function_copy = _function_warning(var_copy)
+function_dtype = _function_warning(var_dtype)
+function_form_derivative_space = _function_warning(var_form_derivative_space)
+function_get_values = _function_warning(var_get_values)
+function_global_size = _function_warning(var_global_size)
+function_id = _function_warning(var_id)
+function_inner = _function_warning(var_inner)
+function_is_cached = _function_warning(var_is_cached)
+function_is_checkpointed = _function_warning(var_is_checkpointed)
+function_is_replacement = _function_warning(var_is_replacement)
+function_is_static = _function_warning(var_is_static)
+function_linf_norm = _function_warning(var_linf_norm)
+function_local_indices = _function_warning(var_local_indices)
+function_local_size = _function_warning(var_local_size)
+function_name = _function_warning(var_name)
+function_new = _function_warning(var_new)
+function_new_conjugate = _function_warning(var_new_conjugate)
+function_new_conjugate_dual = _function_warning(var_new_conjugate_dual)
+function_new_dual = _function_warning(var_new_dual)
+function_replacement = _function_warning(var_replacement)
+function_set_values = _function_warning(var_set_values)
+function_space = _function_warning(var_space)
+function_space_type = _function_warning(var_space_type)
+function_state = _function_warning(var_state)
+function_sum = _function_warning(var_sum)
+function_update_caches = _function_warning(var_update_caches)
+function_update_state = _function_warning(var_update_state)
+function_zero = _function_warning(var_zero)
+function_is_scalar = _function_warning(var_is_scalar)
+function_scalar_value = _function_warning(var_scalar_value)
+function_is_alias = _function_warning(var_is_alias)

@@ -2,14 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    comm_dup_cached, function_axpy, function_comm, function_copy,
-    function_dtype, function_get_values, function_global_size,
-    function_is_cached, function_is_checkpointed, function_is_static,
-    function_linf_norm, function_local_size, function_new,
-    function_new_conjugate_dual, function_set_values, functions_assign,
-    functions_axpy, functions_copy, functions_inner, functions_new,
-    functions_new_conjugate_dual, garbage_cleanup, is_function,
-    paused_space_type_checking)
+    comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
+    var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_global_size,
+    var_is_cached, var_is_checkpointed, var_is_static, var_linf_norm,
+    var_local_size, var_new, var_new_conjugate_dual, var_set_values,
+    vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
+    vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .functional import Functional
@@ -55,7 +53,7 @@ class ReducedFunctional:
         if self._M is not None and len(M) != len(self._M):
             raise ValueError("Invalid control")
         for m in M:
-            if not issubclass(function_dtype(m), (float, np.floating)):
+            if not issubclass(var_dtype(m), (float, np.floating)):
                 raise ValueError("Invalid dtype")
 
         set_manager(self._manager)
@@ -66,17 +64,17 @@ class ReducedFunctional:
         else:
             assert len(M) == len(self._M)
             for m, m_val in zip(M, self._M):
-                m_error = function_copy(m)
-                function_axpy(m_error, -1.0, m_val)
-                if function_linf_norm(m_error) != 0.0:
+                m_error = var_copy(m)
+                var_axpy(m_error, -1.0, m_val)
+                if var_linf_norm(m_error) != 0.0:
                     self._M = None
                     self._J = None
                     break
 
         if self._J is None:
-            M = tuple(function_copy(m, static=function_is_static(m),
-                                    cache=function_is_cached(m),
-                                    checkpoint=function_is_checkpointed(m))
+            M = tuple(var_copy(m, static=var_is_static(m),
+                               cache=var_is_cached(m),
+                               checkpoint=var_is_checkpointed(m))
                       for m in M)
 
             reset_manager()
@@ -84,7 +82,7 @@ class ReducedFunctional:
 
             start_manager()
             J = self._forward(*M)
-            if is_function(J):
+            if is_var(J):
                 J = Functional(_fn=J)
             stop_manager()
 
@@ -111,7 +109,7 @@ class ReducedFunctional:
         dJ = compute_gradient(self._J, self._M)
 
         for dJ_i in dJ:
-            if not issubclass(function_dtype(dJ_i), (float, np.floating)):
+            if not issubclass(var_dtype(dJ_i), (float, np.floating)):
                 raise ValueError("Invalid dtype")
         return dJ
 
@@ -121,17 +119,17 @@ class ReducedFunctional:
             return ddJ
 
         for m in M:
-            if not issubclass(function_dtype(m), (float, np.floating)):
+            if not issubclass(var_dtype(m), (float, np.floating)):
                 raise ValueError("Invalid dtype")
         for dm in dM:
-            if not issubclass(function_dtype(dm), (float, np.floating)):
+            if not issubclass(var_dtype(dm), (float, np.floating)):
                 raise ValueError("Invalid dtype")
 
         ddJ = Hessian(self._forward, manager=self._manager.new())
         _, _, ddJ = ddJ.action(M, dM)
 
         for ddJ_i in ddJ:
-            if not issubclass(function_dtype(ddJ_i), (float, np.floating)):
+            if not issubclass(var_dtype(ddJ_i), (float, np.floating)):
                 raise ValueError("Invalid dtype")
         return ddJ
 
@@ -142,21 +140,21 @@ def minimize_scipy(forward, M0, *,
     """Provides an interface with :func:`scipy.optimize.minimize` for
     gradient-based optimization.
 
-    Note that the control variable is gathered onto the root process so that
-    the serial :func:`scipy.optimize.minimize` function may be used.
+    Note that the control is gathered onto the root process so that the serial
+    :func:`scipy.optimize.minimize` function may be used.
 
     All keyword arguments except for `manager` are passed to
     :func:`scipy.optimize.minimize`.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional.
-    :arg M0: A function or :class:`Sequence` of functions defining the control
-        variable, and the initial guess for the optimization.
+    :arg M0: A variable or :class:`Sequence` of variables defining the control,
+        and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
-    :returns: A :class:`tuple` `(M, return_value)`. `M` is function or a
-        :class:`Sequence` of functions depending on the type of `M0`, and
+    :returns: A :class:`tuple` `(M, return_value)`. `M` is variable or a
+        :class:`Sequence` of variables depending on the type of `M0`, and
         stores the result. `return_value` is the return value of
         :func:`scipy.optimize.minimize`.
     """
@@ -172,7 +170,7 @@ def minimize_scipy(forward, M0, *,
 
     N = [0]
     for m0 in M0:
-        N.append(N[-1] + function_local_size(m0))
+        N.append(N[-1] + var_local_size(m0))
     if comm.rank == 0:
         size_global = comm.gather(np.array(N[-1], dtype=np.int_), root=0)
         N_global = [0]
@@ -184,7 +182,7 @@ def minimize_scipy(forward, M0, *,
     def get(F):
         x = np.full(N[-1], np.NAN, dtype=np.double)
         for i, f in enumerate(F):
-            f_vals = function_get_values(f)
+            f_vals = var_get_values(f)
             if not np.can_cast(f_vals, x.dtype):
                 raise ValueError("Invalid dtype")
             x[N[i]:N[i + 1]] = f_vals
@@ -207,11 +205,11 @@ def minimize_scipy(forward, M0, *,
             assert x is None
             x = comm.scatter(None, root=0)
         for i, f in enumerate(F):
-            function_set_values(f, x[N[i]:N[i + 1]])
+            var_set_values(f, x[N[i]:N[i + 1]])
 
-    M = tuple(function_new(m0, static=function_is_static(m0),
-                           cache=function_is_cached(m0),
-                           checkpoint=function_is_checkpointed(m0))
+    M = tuple(var_new(m0, static=var_is_static(m0),
+                      cache=var_is_cached(m0),
+                      checkpoint=var_is_checkpointed(m0))
               for m0 in M0)
     J_hat = ReducedFunctional(forward, manager=manager)
 
@@ -236,7 +234,7 @@ def minimize_scipy(forward, M0, *,
 
     def hessp(x, p):
         set(M, x)
-        P = tuple(map(function_new, M))
+        P = tuple(map(var_new, M))
         set(P, p)
         ddJ = J_hat.hessian_action(M, P)
         return get(ddJ)
@@ -281,9 +279,9 @@ def minimize_scipy(forward, M0, *,
 
 
 def conjugate_dual_identity_action(*X):
-    M_X = functions_new_conjugate_dual(X)
+    M_X = vars_new_conjugate_dual(X)
     with paused_space_type_checking():
-        functions_assign(M_X, X)
+        vars_assign(M_X, X)
     return M_X
 
 
@@ -292,12 +290,12 @@ def wrapped_action(M, *, copy=True):
 
     @functools.wraps(M_arg)
     def M(*X):
-        M_X = M_arg(*functions_copy(X))
-        if is_function(M_X):
+        M_X = M_arg(*vars_copy(X))
+        if is_var(M_X):
             M_X = (M_X,)
         if len(M_X) != len(X):
             raise ValueError("Incompatible shape")
-        return functions_copy(M_X) if copy else M_X
+        return vars_copy(M_X) if copy else M_X
 
     return M
 
@@ -315,32 +313,32 @@ class LBFGSHessianApproximation:
     def append(self, S, Y, S_inner_Y):
         """Add a step + gradient change pair.
 
-        :arg S: A function or a :class:`Sequence` of functions defining the
+        :arg S: A variable or a :class:`Sequence` of variables defining the
             step.
-        :arg Y: A function or a :class:`Sequence` of functions defining the
+        :arg Y: A variable or a :class:`Sequence` of variables defining the
             gradient change.
         :arg S_inner_Y: The projection of the gradient change onto the step.
             A separate argument so that a value consistent with
             that used in the line search can be supplied.
         """
 
-        if is_function(S):
+        if is_var(S):
             S = (S,)
-        if is_function(Y):
+        if is_var(Y):
             Y = (Y,)
         if len(S) != len(Y):
             raise ValueError("Incompatible shape")
         for s in S:
-            if not issubclass(function_dtype(s), (float, np.floating)):
+            if not issubclass(var_dtype(s), (float, np.floating)):
                 raise ValueError("Invalid dtype")
         for y in Y:
-            if not issubclass(function_dtype(y), (float, np.floating)):
+            if not issubclass(var_dtype(y), (float, np.floating)):
                 raise ValueError("Invalid dtype")
         if S_inner_Y <= 0.0:
             raise ValueError("Invalid S_inner_Y")
 
         rho = 1.0 / S_inner_Y
-        self._iterates.append((rho, functions_copy(S), functions_copy(Y)))
+        self._iterates.append((rho, vars_copy(S), vars_copy(Y)))
 
     def inverse_action(self, X, *,
                        H_0_action=None, theta=1.0):
@@ -361,22 +359,22 @@ class LBFGSHessianApproximation:
               SIAM Journal on Scientific Computing, 16(5), 1190--1208, 1995,
               doi: 10.1137/0916069
 
-        :arg X: A function or a :class:`Sequence` of functions defining the
+        :arg X: A variable or a :class:`Sequence` of variables defining the
             direction on which to compute the approximate Hessian matrix
             inverse action.
         :arg H_0_action: A callable defining the action of the non-updated
             Hessian matrix inverse approximation on some direction. Accepts one
-            or more functions as arguments, defining the direction, and returns
-            a function or a :class:`Sequence` of functions defining the action
+            or more variables as arguments, defining the direction, and returns
+            a variable or a :class:`Sequence` of variables defining the action
             on this direction. Should correspond to a positive definite
             operator. An identity is used if not supplied.
-        :returns: A function or a :class:`Sequence` of functions storing the
+        :returns: A variable or a :class:`Sequence` of variables storing the
             result.
         """
 
-        if is_function(X):
+        if is_var(X):
             X = (X,)
-        X = functions_copy(X)
+        X = vars_copy(X)
 
         if H_0_action is None:
             H_0_action = wrapped_action(conjugate_dual_identity_action, copy=False)  # noqa: E501
@@ -385,20 +383,20 @@ class LBFGSHessianApproximation:
 
         alphas = []
         for rho, S, Y in reversed(self._iterates):
-            alpha = rho * functions_inner(S, X)
-            functions_axpy(X, -alpha, Y)
+            alpha = rho * vars_inner(S, X)
+            vars_axpy(X, -alpha, Y)
             alphas.append(alpha)
         alphas.reverse()
 
         R = H_0_action(*X)
         if theta != 1.0:
             for r in R:
-                function_set_values(r, function_get_values(r) / theta)
+                var_set_values(r, var_get_values(r) / theta)
 
         assert len(self._iterates) == len(alphas)
         for (rho, S, Y), alpha in zip(self._iterates, alphas):
-            beta = rho * functions_inner(R, Y)
-            functions_axpy(R, alpha - beta, S)
+            beta = rho * vars_inner(R, Y)
+            vars_axpy(R, alpha - beta, S)
 
         return R[0] if len(R) == 1 else R
 
@@ -458,19 +456,19 @@ def line_search(F, Fp, X, minus_P, *,
 
     Fp = wrapped_action(Fp, copy=False)
 
-    if is_function(X):
+    if is_var(X):
         X_rank1 = (X,)
     else:
         X_rank1 = X
     del X
 
-    if is_function(minus_P):
+    if is_var(minus_P):
         minus_P = (minus_P,)
     if len(minus_P) != len(X_rank1):
         raise ValueError("Incompatible shape")
 
     if comm is None:
-        comm = function_comm(X_rank1[0])
+        comm = var_comm(X_rank1[0])
     comm = comm_dup_cached(comm)
 
     F_last_X_rank0 = None
@@ -482,8 +480,8 @@ def line_search(F, Fp, X, minus_P, *,
         X_rank0 = F_last_X_rank0 = float(x)
         del x
 
-        X = functions_copy(X_rank1)
-        functions_axpy(X, -X_rank0, minus_P)
+        X = vars_copy(X_rank1)
+        vars_axpy(X, -X_rank0, minus_P)
 
         F_last_F = F(*X)
         return F_last_F
@@ -498,11 +496,11 @@ def line_search(F, Fp, X, minus_P, *,
         X_rank0 = Fp_last_X_rank0 = float(x)
         del x
 
-        X = functions_copy(X_rank1)
-        functions_axpy(X, -X_rank0, minus_P)
+        X = vars_copy(X_rank1)
+        vars_axpy(X, -X_rank0, minus_P)
 
-        Fp_last_Fp_rank1 = functions_copy(Fp(*X))
-        Fp_last_Fp_rank0 = -functions_inner(minus_P, Fp_last_Fp_rank1)
+        Fp_last_Fp_rank1 = vars_copy(Fp(*X))
+        Fp_last_Fp_rank0 = -vars_inner(minus_P, Fp_last_Fp_rank1)
         return Fp_last_Fp_rank0
 
     if old_F_val is None:
@@ -511,11 +509,11 @@ def line_search(F, Fp, X, minus_P, *,
     if old_Fp_val is None:
         old_Fp_val_rank0 = Fp_rank0(0.0)
     else:
-        if is_function(old_Fp_val):
+        if is_var(old_Fp_val):
             old_Fp_val = (old_Fp_val,)
         if len(old_Fp_val) != len(X_rank1):
             raise ValueError("Incompatible shape")
-        old_Fp_val_rank0 = -functions_inner(minus_P, old_Fp_val)
+        old_Fp_val_rank0 = -vars_inner(minus_P, old_Fp_val)
     del old_Fp_val
 
     if comm.rank == 0:
@@ -614,14 +612,14 @@ def l_bfgs(F, Fp, X0, *,
     gradient, gradient change, and step, and where :math:`M^{-1}` and
     :math:`H_0` are defined by `M_inv_action` and `H_0_action` respectively.
 
-    :arg F: A callable defining the functional. Accepts one or more functions
+    :arg F: A callable defining the functional. Accepts one or more variables
         as arguments, and returns the value of the functional. Input arguments
         should not be modified.
     :arg Fp: A callable defining the functional gradient. Accepts one or more
-        functions as inputs, and returns a function or :class:`Sequence` of
-        functions storing the value of the gradient. Input arguments should not
+        variables as inputs, and returns a variable or :class:`Sequence` of
+        variables storing the value of the gradient. Input arguments should not
         be modified.
-    :arg X0: A function or a :class:`Sequence` of functions defining the
+    :arg X0: A variable or a :class:`Sequence` of variables defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
         Hessian matrix inverse approximation.
@@ -641,22 +639,22 @@ def l_bfgs(F, Fp, X0, *,
             - `it`: The iteration number.
             - `F_old`: The previous value of the functional.
             - `F_new`: The new value of the functional.
-            - `X_new`: A function or a :class:`Sequence` of functions defining
+            - `X_new`: A variable or a :class:`Sequence` of variables defining
               the new value of the parameters.
-            - `G_new`: A function or a :class:`Sequence` of functions defining
+            - `G_new`: A variable or a :class:`Sequence` of variables defining
               the new value of the gradient.
-            - `S`: A function or a :class:`Sequence` of functions defining the
+            - `S`: A variable or a :class:`Sequence` of variables defining the
               step.
-            - `Y`: A function or a sequence of functions defining the gradient
+            - `Y`: A variable or a sequence of variables defining the gradient
               change.
 
-        Input functions should not be modified. Returns a :class:`bool`
+        Input variables should not be modified. Returns a :class:`bool`
         indicating whether the optimization has converged.
     :arg max_its: The maximum number of iterations.
     :arg H_0_action: A callable defining the action of the non-updated Hessian
         matrix inverse approximation on some direction. Accepts one or more
-        functions as arguments, defining the direction, and returns a function
-        or a :class:`Sequence` of functions defining the action on this
+        variables as arguments, defining the direction, and returns a variable
+        or a :class:`Sequence` of variables defining the action on this
         direction. Should correspond to a positive definite operator. An
         identity is used if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
@@ -671,8 +669,8 @@ def l_bfgs(F, Fp, X0, *,
 
         where :math:`x` and :math:`y` are degree of freedom vectors for primal
         space elements and :math:`M` is a Hermitian and positive definite
-        matrix. Accepts one or more functions as arguments, defining the
-        direction, and returns a function or a :class:`Sequence` of functions
+        matrix. Accepts one or more variables as arguments, defining the
+        direction, and returns a variable or a :class:`Sequence` of variables
         defining the action of :math:`M` on this direction. An identity is used
         if not supplied. Required if `H_0_action` or `M_inv_action` are
         supplied.
@@ -685,8 +683,8 @@ def l_bfgs(F, Fp, X0, *,
 
         where :math:`x` and :math:`y` are degree of freedom vectors for
         (conjugate) dual space elements and :math:`M` is as for `M_action`.
-        Accepts one or more functions as arguments, defining the direction, and
-        returns a function or a :class:`Sequence` of functions defining the
+        Accepts one or more variables as arguments, defining the direction, and
+        returns a variable or a :class:`Sequence` of variables defining the
         action of :math:`M^{-1}` on this direction. `H_0_action` is used if not
         supplied.
     :arg c1: Armijo condition parameter. :math:`c_1` in equation (3.6a) of
@@ -705,7 +703,7 @@ def l_bfgs(F, Fp, X0, *,
     :returns: A :class:`tuple` `(X, (it, F_calls, Fp_calls, hessian_approx))`
         with
 
-        - `X`: The solution. A function or a :class:`tuple` of functions.
+        - `X`: The solution. A variable or a :class:`tuple` of variables.
         - `it`: The number of iterations.
         - `F_calls`: The number of functional evaluations.
         - `Fp_calls`: The number of gradient evaluations.
@@ -734,13 +732,13 @@ def l_bfgs(F, Fp, X0, *,
 
         Fp_calls += 1
         Fp_val = Fp_arg(*X)
-        if is_function(Fp_val):
+        if is_var(Fp_val):
             Fp_val = (Fp_val,)
         if len(Fp_val) != len(X):
             raise ValueError("Incompatible shape")
         return Fp_val
 
-    if is_function(X0):
+    if is_var(X0):
         X0 = (X0,)
 
     if converged is None:
@@ -767,22 +765,22 @@ def l_bfgs(F, Fp, X0, *,
     if H_0_action is None:
         def H_0_norm_sq(X):
             with paused_space_type_checking():
-                return abs(functions_inner(X, X))
+                return abs(vars_inner(X, X))
     else:
         H_0_norm_sq_H_0_action = wrapped_action(H_0_action, copy=True)
 
         def H_0_norm_sq(X):
-            return abs(functions_inner(H_0_norm_sq_H_0_action(*X), X))
+            return abs(vars_inner(H_0_norm_sq_H_0_action(*X), X))
 
     if M_action is None:
         def M_norm_sq(X):
             with paused_space_type_checking():
-                return abs(functions_inner(X, X))
+                return abs(vars_inner(X, X))
     else:
         M_norm_sq_M_action = wrapped_action(M_action, copy=True)
 
         def M_norm_sq(X):
-            return abs(functions_inner(X, M_norm_sq_M_action(*X)))
+            return abs(vars_inner(X, M_norm_sq_M_action(*X)))
     del M_action
 
     if M_inv_action is None:
@@ -791,16 +789,16 @@ def l_bfgs(F, Fp, X0, *,
         M_inv_norm_sq_M_inv_action = wrapped_action(M_inv_action, copy=True)
 
         def M_inv_norm_sq(X):
-            return abs(functions_inner(M_inv_norm_sq_M_inv_action(*X), X))
+            return abs(vars_inner(M_inv_norm_sq_M_inv_action(*X), X))
     del M_inv_action
 
     if comm is None:
-        comm = function_comm(X0[0])
+        comm = var_comm(X0[0])
 
-    X = functions_copy(X0)
+    X = vars_copy(X0)
     del X0
     old_F_val = F(*X)
-    old_Fp_val = functions_copy(Fp(*X))
+    old_Fp_val = vars_copy(Fp(*X))
     old_Fp_norm_sq = M_inv_norm_sq(old_Fp_val)
 
     hessian_approx = LBFGSHessianApproximation(m)
@@ -825,14 +823,14 @@ def l_bfgs(F, Fp, X0, *,
         minus_P = hessian_approx.inverse_action(
             old_Fp_val,
             H_0_action=H_0_action, theta=theta)
-        if is_function(minus_P):
+        if is_var(minus_P):
             minus_P = (minus_P,)
         alpha, old_Fp_val_rank0, new_F_val, new_Fp_val, new_Fp_val_rank0 = line_search(  # noqa: E501
             F, Fp, X, minus_P, c1=c1, c2=c2,
             old_F_val=old_F_val, old_Fp_val=old_Fp_val,
             line_search_rank0=_default_line_search_rank0,
             comm=comm)
-        if is_function(new_Fp_val):
+        if is_var(new_Fp_val):
             new_Fp_val = (new_Fp_val,)
 
         if alpha is None or alpha * old_Fp_val_rank0 >= 0.0:
@@ -844,12 +842,12 @@ def l_bfgs(F, Fp, X0, *,
         if abs(new_Fp_val_rank0) > c2 * abs(old_Fp_val_rank0):
             logger.warning("L-BFGS: Strong curvature condition not satisfied")
 
-        S = functions_new(minus_P)
-        functions_axpy(S, -alpha, minus_P)
-        functions_axpy(X, 1.0, S)
+        S = vars_new(minus_P)
+        vars_axpy(S, -alpha, minus_P)
+        vars_axpy(X, 1.0, S)
 
-        Y = functions_copy(new_Fp_val)
-        functions_axpy(Y, -1.0, old_Fp_val)
+        Y = vars_copy(new_Fp_val)
+        vars_axpy(Y, -1.0, old_Fp_val)
 
         # >=0 by curvature condition
         S_inner_Y = alpha * (new_Fp_val_rank0 - c2 * old_Fp_val_rank0)
@@ -889,11 +887,11 @@ def minimize_l_bfgs(forward, M0, *,
                     m=30, manager=None, **kwargs):
     """Functional minimization using the L-BFGS algorithm.
 
-    :arg forward: A callable which accepts one or more function arguments, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one or more variable arguments, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional.
-    :arg M0: A function or :class:`Sequence` of functions defining the control
-        variable, and the initial guess for the optimization.
+    :arg M0: A variable or :class:`Sequence` of variables defining the control,
+        and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
 
@@ -908,7 +906,7 @@ def minimize_l_bfgs(forward, M0, *,
         return x, optimization_data
 
     for m0 in M0:
-        if not issubclass(function_dtype(m0), (float, np.floating)):
+        if not issubclass(var_dtype(m0), (float, np.floating)):
             raise ValueError("Invalid dtype")
 
     if manager is None:
@@ -921,7 +919,7 @@ def minimize_l_bfgs(forward, M0, *,
         lambda *M: J_hat.objective(M), lambda *M: J_hat.gradient(M), M0,
         m=m, comm=comm, **kwargs)
 
-    if is_function(X):
+    if is_var(X):
         X = (X,)
     return X, optimization_data
 
@@ -933,11 +931,11 @@ def minimize_tao(forward, m0, *,
                  pre_callback=None, post_callback=None, manager=None):
     r"""Functional minimization using TAO.
 
-    :arg forward: A callable which accepts one function argument, and
-        which returns a function or :class:`tlm_adjoint.functional.Functional`
+    :arg forward: A callable which accepts one variable argument, and
+        which returns a variable or :class:`tlm_adjoint.functional.Functional`
         defining the forward functional.
-    :arg m0: A function defining the control variable, and the initial guess
-        for the optimization.
+    :arg m0: A variable defining the control, and the initial guess for the
+        optimization.
     :arg method: TAO type. Defaults to `PETSc.TAO.Type.LMVM`.
     :arg gatol: TAO gradient absolute tolerance.
     :arg grtol: TAO gradient relative tolerance.
@@ -951,8 +949,8 @@ def minimize_tao(forward, m0, *,
 
         where :math:`x` and :math:`y` are degree of freedom vectors for
         (conjugate) dual space elements and :math:`M` is a Hermitian and
-        positive definite matrix. Accepts one function argument, defining the
-        direction, and returns a function defining the action of :math:`M^{-1}`
+        positive definite matrix. Accepts one variable argument, defining the
+        direction, and returns a variable defining the action of :math:`M^{-1}`
         on this direction.
     :arg pre_callback: A callable accepting a single
         :class:`petsc4py.PETSc.TAO` argument. Used for detailed manual
@@ -968,7 +966,7 @@ def minimize_tao(forward, m0, *,
 
     if method is None:
         method = PETSc.TAO.Type.LMVM
-    if not issubclass(function_dtype(m0), (float, np.floating)):
+    if not issubclass(var_dtype(m0), (float, np.floating)):
         raise ValueError("Invalid dtype")
 
     def from_petsc(y, x):
@@ -976,11 +974,11 @@ def minimize_tao(forward, m0, *,
             if not issubclass(y_a.dtype.type, (float, np.floating)):
                 raise ValueError("Invalid dtype")
 
-            function_set_values(x, y_a)
+            var_set_values(x, y_a)
 
     def to_petsc(x, y):
-        if is_function(y):
-            y_a = function_get_values(y)
+        if is_var(y):
+            y_a = var_get_values(y)
         else:
             y_a = y
 
@@ -1002,9 +1000,9 @@ def minimize_tao(forward, m0, *,
     tao.setType(method)
     tao.setTolerances(gatol=gatol, grtol=grtol, gttol=gttol)
 
-    m = function_new(m0, static=function_is_static(m0),
-                     cache=function_is_cached(m0),
-                     checkpoint=function_is_checkpointed(m0))
+    m = var_new(m0, static=var_is_static(m0),
+                cache=var_is_cached(m0),
+                checkpoint=var_is_checkpointed(m0))
     J_hat = ReducedFunctional(forward, manager=manager)
 
     def objective(tao, x):
@@ -1029,9 +1027,9 @@ def minimize_tao(forward, m0, *,
 
     class Hessian:
         def __init__(self, m0):
-            self._m = function_new(m0, static=function_is_static(m0),
-                                   cache=function_is_cached(m0),
-                                   checkpoint=function_is_checkpointed(m0))
+            self._m = var_new(m0, static=var_is_static(m0),
+                              cache=var_is_cached(m0),
+                              checkpoint=var_is_checkpointed(m0))
             self._shift = 0.0
 
         def set_m(self, x):
@@ -1041,17 +1039,17 @@ def minimize_tao(forward, m0, *,
             self._shift += alpha
 
         def mult(self, A, x, y):
-            dm = function_new(self._m)
+            dm = var_new(self._m)
             from_petsc(x, dm)
             ddJ = J_hat.hessian_action(self._m, dm)
-            y_a = function_get_values(ddJ)
+            y_a = var_get_values(ddJ)
             if self._shift != 0.0:
                 with x as x_a:
                     y_a += self._shift * x_a
             to_petsc(y, y_a)
 
-    n = function_local_size(m0)
-    N = function_global_size(m0)
+    n = var_local_size(m0)
+    N = var_global_size(m0)
     H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         Hessian(m0), comm=comm)
     H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
@@ -1065,7 +1063,7 @@ def minimize_tao(forward, m0, *,
     if M_inv_action is not None:
         class GradientNorm:
             def __init__(self, m0):
-                self._g = function_new_conjugate_dual(m0)
+                self._g = var_new_conjugate_dual(m0)
 
             def mult(self, A, x, y):
                 from_petsc(x, self._g)
