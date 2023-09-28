@@ -34,9 +34,9 @@ def test_L2_norm(setup_test, test_leaks):
     stop_manager()
 
     norm_ref = np.sqrt(assemble(u * u * dx))
-    assert abs(function_scalar_value(norm) - norm_ref) == 0.0
+    assert abs(var_scalar_value(norm) - norm_ref) == 0.0
 
-    J_val = function_scalar_value(norm)
+    J_val = var_scalar_value(norm)
     dJ = compute_gradient(norm, u)
 
     min_order = taylor_test(forward, u, J_val=J_val, dJ=dJ)

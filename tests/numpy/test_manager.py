@@ -26,7 +26,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             @no_space_type_checking
             def forward_action(self, nl_deps, x, b, *, method="assign"):
                 if method == "assign":
-                    function_assign(b, x)
+                    var_assign(b, x)
                 else:
                     raise ValueError(f"Unexpected method '{method:s}'")
 
@@ -36,19 +36,19 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 if b_index != 0:
                     raise IndexError("Invalid index")
                 if method == "assign":
-                    function_assign(b, adj_x)
+                    var_assign(b, adj_x)
                 else:
                     raise ValueError(f"Unexpected method '{method:s}'")
 
             @no_space_type_checking
             def forward_solve(self, x, nl_deps, b):
-                function_assign(x, b)
+                var_assign(x, b)
 
             @no_space_type_checking
             def adjoint_solve(self, adj_x, nl_deps, b):
                 assert adj_x is None
-                adj_x = function_new_conjugate_dual(b)
-                function_assign(adj_x, b)
+                adj_x = var_new_conjugate_dual(b)
+                var_assign(adj_x, b)
                 return adj_x
 
             def tangent_linear_rhs(self, M, dM, tlm_map, x):
@@ -69,9 +69,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             linear_eq = WeakAlias(linear_eq)
 
@@ -80,9 +80,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             manager.drop_references()
 
@@ -91,9 +91,9 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in linear_eq.dependencies():
-                assert function_is_replacement(dep)
+                assert var_is_replacement(dep)
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
         y = Constant(0.0, name="y")
         LinearEquation(y, b, A=M).solve()
@@ -108,7 +108,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             M = WeakAlias(M)
             b = WeakAlias(b)
@@ -117,7 +117,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert not b._references_dropped
             assert not M._references_dropped
             for dep in b.dependencies():
-                assert not function_is_replacement(dep)
+                assert not var_is_replacement(dep)
 
             manager.drop_references()
 
@@ -125,12 +125,12 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             assert b._references_dropped
             assert M._references_dropped
             for dep in b.dependencies():
-                assert function_is_replacement(dep)
+                assert var_is_replacement(dep)
 
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        InnerProduct(J.function(), z, z, M=M).solve()
+        InnerProduct(J.var(), z, z, M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -183,11 +183,11 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
 
             def forward_solve(self, x, deps=None):
                 _, x0, m = self.dependencies() if deps is None else deps
-                function_assign(
+                var_assign(
                     x,
-                    0.5 * (function_scalar_value(x0) ** 2
-                           + function_scalar_value(m))
-                    / function_scalar_value(x0))
+                    0.5 * (var_scalar_value(x0) ** 2
+                           + var_scalar_value(m))
+                    / var_scalar_value(x0))
 
             def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
                 return b
@@ -195,20 +195,20 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
                 if dep_index == 1:
                     x0, m = nl_deps
-                    F = function_new_conjugate_dual(x0)
-                    function_assign(
+                    F = var_new_conjugate_dual(x0)
+                    var_assign(
                         F,
-                        (0.5 * function_scalar_value(adj_x)
-                         * (function_scalar_value(m)
-                            / (function_scalar_value(x0) ** 2) - 1.0)).conjugate())  # noqa: E501
+                        (0.5 * var_scalar_value(adj_x)
+                         * (var_scalar_value(m)
+                            / (var_scalar_value(x0) ** 2) - 1.0)).conjugate())
                     return F
                 elif dep_index == 2:
                     x0, m = nl_deps
-                    F = function_new_conjugate_dual(x0)
-                    function_assign(
+                    F = var_new_conjugate_dual(x0)
+                    var_assign(
                         F,
-                        (-0.5 * function_scalar_value(adj_x)
-                         / function_scalar_value(x0)).conjugate())
+                        (-0.5 * var_scalar_value(adj_x)
+                         / var_scalar_value(x0)).conjugate())
                     return F
                 else:
                     raise IndexError("Unexpected dep_index")
@@ -232,7 +232,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             for eq in [fp_eq, eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             fp_eq = WeakAlias(fp_eq)
@@ -241,7 +241,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             for eq in [fp_eq, eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             manager.drop_references()
@@ -249,11 +249,11 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             assert len(manager._to_drop_references) == 0
             assert fp_eq._references_dropped
             for dep in fp_eq.dependencies():
-                assert function_is_replacement(dep)
+                assert var_is_replacement(dep)
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
         eq0.solve()
@@ -264,7 +264,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             eq0 = WeakAlias(eq0)
@@ -274,7 +274,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             for eq in [eq0, eq1]:
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
-                    assert not function_is_replacement(dep)
+                    assert not var_is_replacement(dep)
             del eq
 
             manager.drop_references()
@@ -283,7 +283,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks, test_default_dtype
             for eq in [eq0, eq1]:
                 assert eq._references_dropped
                 for dep in eq.dependencies():
-                    assert function_is_replacement(dep)
+                    assert var_is_replacement(dep)
             del eq
 
         J = Functional(name="J")
@@ -340,7 +340,7 @@ def test_binomial_checkpointing(setup_test, test_leaks, test_default_dtypes,
                 new_block()
 
         J = Functional(name="J")
-        DotProduct(J.function(), m, m).solve()
+        DotProduct(J.var(), m, m).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)

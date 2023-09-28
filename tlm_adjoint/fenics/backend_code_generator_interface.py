@@ -9,9 +9,9 @@ from .backend import (
     backend_assemble_system, backend_solve as solve, complex_mode,
     has_lu_solver_method, parameters)
 from ..interface import (
-    check_space_type, check_space_types, function_assign, function_get_values,
-    function_inner, function_new_conjugate_dual, function_set_values,
-    function_space, function_space_type, space_new)
+    check_space_type, check_space_types, space_new, var_assign, var_get_values,
+    var_inner, var_new_conjugate_dual, var_set_values, var_space,
+    var_space_type)
 
 from ..manager import manager_disabled
 
@@ -240,8 +240,8 @@ def matrix_multiply(A, x, *,
         if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
             tensor = space_new(
                 A._tlm_adjoint__form.arguments()[0].function_space(),
-                space_type=function_space_type(x._tlm_adjoint__function,
-                                               rel_space_type=action_type))
+                space_type=var_space_type(x._tlm_adjoint__function,
+                                          rel_space_type=action_type))
             tensor = tensor.vector()
         else:
             return A * x
@@ -289,7 +289,7 @@ def is_valid_r0_space(space):
 
 def r0_space(x):
     if not hasattr(x, "_tlm_adjoint__r0_space"):
-        domain = function_space(x)._tlm_adjoint__space_interface_attrs["domain"]  # noqa: E501
+        domain = var_space(x)._tlm_adjoint__space_interface_attrs["domain"]
         domain = domain.ufl_cargo()
         if len(x.ufl_shape) == 0:
             space = FunctionSpace(domain, "R", 0)
@@ -384,7 +384,7 @@ def interpolate_expression(x, expr, *, adj_x=None):
                 value = x.values()
                 Expr().eval(value, ())
                 value, = value
-            function_assign(x, value)
+            var_assign(x, value)
         elif isinstance(x, backend_Function):
             try:
                 x.assign(expr)
@@ -393,21 +393,21 @@ def interpolate_expression(x, expr, *, adj_x=None):
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
     else:
-        expr_val = function_new_conjugate_dual(adj_x)
+        expr_val = var_new_conjugate_dual(adj_x)
         interpolate_expression(expr_val, expr)
 
         if isinstance(x, backend_Constant):
             if len(x.ufl_shape) > 0:
                 raise ValueError("Scalar Constant required")
-            function_assign(x, function_inner(adj_x, expr_val))
+            var_assign(x, var_inner(adj_x, expr_val))
         elif isinstance(x, backend_Function):
-            x_space = function_space(x)
-            adj_x_space = function_space(adj_x)
+            x_space = var_space(x)
+            adj_x_space = var_space(adj_x)
             if x_space.ufl_domains() != adj_x_space.ufl_domains() \
                     or x_space.ufl_element() != adj_x_space.ufl_element():
                 raise ValueError("Unable to perform transpose interpolation")
-            function_set_values(
-                x, function_get_values(expr_val).conjugate() * function_get_values(adj_x))  # noqa: E501
+            var_set_values(
+                x, var_get_values(expr_val).conjugate() * var_get_values(adj_x))  # noqa: E501
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 

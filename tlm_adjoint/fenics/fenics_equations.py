@@ -9,10 +9,9 @@ from .backend import (
     Cell, LocalSolver, Mesh, MeshEditor, Point, TestFunction, TrialFunction,
     backend_Function, backend_ScalarType, parameters)
 from ..interface import (
-    check_space_type, function_assign, function_comm, function_get_values,
-    function_is_scalar, function_local_size, function_new,
-    function_new_conjugate_dual, function_scalar_value, function_set_values,
-    function_space, is_function, space_comm)
+    check_space_type, is_var, space_comm, var_assign, var_comm, var_get_values,
+    var_is_scalar, var_local_size, var_new, var_new_conjugate_dual,
+    var_scalar_value, var_set_values, var_space)
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -42,7 +41,7 @@ __all__ = \
 
 
 def function_coords(x):
-    space = function_space(x)
+    space = var_space(x)
     return space.tabulate_dof_coordinates()
 
 
@@ -264,7 +263,7 @@ class LocalProjection(EquationSolver):
     performing a projection onto the space for `x`, for the case where the mass
     matrix is element-wise local block diagonal.
 
-    :arg x: A DOLFIN :class:`Function` defining the forward solution.
+    :arg x: A DOLFIN `Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
@@ -280,7 +279,7 @@ class LocalProjection(EquationSolver):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
-        space = function_space(x)
+        space = var_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
@@ -316,7 +315,7 @@ class LocalProjection(EquationSolver):
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)
 
-        local_solver.solve_local(x.vector(), b, function_space(x).dofmap())
+        local_solver.solve_local(x.vector(), b, var_space(x).dofmap())
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if self._cache_jacobian:
@@ -331,7 +330,7 @@ class LocalProjection(EquationSolver):
 
         adj_x = self.new_adj_x()
         local_solver.solve_local(adj_x.vector(), b.vector(),
-                                 function_space(adj_x).dofmap())
+                                 var_space(adj_x).dofmap())
         return adj_x
 
     def tangent_linear(self, M, dM, tlm_map):
@@ -389,7 +388,7 @@ def point_owners(x_coords, y_space, *,
 
 
 def interpolation_matrix(x_coords, y, y_cells, y_colors):
-    y_space = function_space(y)
+    y_space = var_space(y)
     y_mesh = y_space.mesh()
     y_dofmap = y_space.dofmap()
 
@@ -404,7 +403,7 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
         if owned.any() and not owned.all():
             raise RuntimeError("Non-process-local node-node graph")
 
-    comm = function_comm(y)
+    comm = var_comm(y)
     y_colors_N = y_colors.max() + 1
     y_colors_N = comm.allreduce(y_colors_N, op=MPI.MAX)
     assert y_colors_N >= 0
@@ -413,10 +412,10 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
         y_nodes[color].append(y_node)
 
     from scipy.sparse import dok_matrix
-    P = dok_matrix((x_coords.shape[0], function_local_size(y)),
+    P = dok_matrix((x_coords.shape[0], var_local_size(y)),
                    dtype=backend_ScalarType)
 
-    y_v = function_new(y)
+    y_v = var_new(y)
     for color, y_color_nodes in enumerate(y_nodes):
         y_v.vector()[y_color_nodes] = 1.0
         for x_node, y_cell in enumerate(y_cells):
@@ -450,11 +449,11 @@ class LocalMatrix(Matrix):
 
     def forward_action(self, nl_deps, x, b, *, method="assign"):
         if method == "assign":
-            function_set_values(b, self._P.dot(function_get_values(x)))
+            var_set_values(b, self._P.dot(var_get_values(x)))
         elif method == "add":
-            b.vector()[:] += self._P.dot(function_get_values(x))
+            b.vector()[:] += self._P.dot(var_get_values(x))
         elif method == "sub":
-            b.vector()[:] -= self._P.dot(function_get_values(x))
+            b.vector()[:] -= self._P.dot(var_get_values(x))
         else:
             raise ValueError(f"Invalid method: '{method:s}'")
 
@@ -462,12 +461,12 @@ class LocalMatrix(Matrix):
         if b_index != 0:
             raise IndexError("Invalid index")
         if method == "assign":
-            function_set_values(
-                b, self._P_T.dot(function_get_values(adj_x)))
+            var_set_values(
+                b, self._P_T.dot(var_get_values(adj_x)))
         elif method == "add":
-            b.vector()[:] += self._P_T.dot(function_get_values(adj_x))
+            b.vector()[:] += self._P_T.dot(var_get_values(adj_x))
         elif method == "sub":
-            b.vector()[:] -= self._P_T.dot(function_get_values(adj_x))
+            b.vector()[:] -= self._P_T.dot(var_get_values(adj_x))
         else:
             raise ValueError(f"Invalid method: '{method:s}'")
 
@@ -484,10 +483,9 @@ class Interpolation(LinearEquation):
     between owned and non-owned nodes in the degree of freedom graph associated
     with the discrete function space for `y`.
 
-    :arg x: A scalar-valued DOLFIN :class:`Function` defining the forward
-        solution.
-    :arg y: A scalar-valued DOLFIN :class:`Function` to interpolate onto the
-        space for `x`.
+    :arg x: A scalar-valued DOLFIN `Function` defining the forward solution.
+    :arg y: A scalar-valued DOLFIN `Function` to interpolate onto the space for
+        `x`.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         process local degrees of freedom for `x` and `d` is the geometric
@@ -511,11 +509,11 @@ class Interpolation(LinearEquation):
             raise TypeError("y must be a Function")
         if len(y.ufl_shape) > 0:
             raise ValueError("y must be a scalar-valued Function")
-        if (x_coords is not None) and (function_comm(x).size > 1):
+        if (x_coords is not None) and (var_comm(x).size > 1):
             raise TypeError("Cannot prescribe x_coords in parallel")
 
         if P is None:
-            y_space = function_space(y)
+            y_space = var_space(y)
 
             if x_coords is None:
                 x_coords = function_coords(x)
@@ -544,9 +542,9 @@ class PointInterpolation(Equation):
     between owned and non-owned nodes in the degree of freedom graph associated
     with the discrete function space for `y`.
 
-    :arg X: A scalar function, or a :class:`Sequence` of scalar functions,
+    :arg X: A scalar variable, or a :class:`Sequence` of scalar variables,
         defining the forward solution.
-    :arg y: A scalar-valued DOLFIN :class:`Function` to interpolate.
+    :arg y: A scalar-valued DOLFIN `Function` to interpolate.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
@@ -558,13 +556,13 @@ class PointInterpolation(Equation):
 
     def __init__(self, X, y, X_coords=None, *,
                  P=None, tolerance=0.0):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         for x in X:
             check_space_type(x, "primal")
-            if not function_is_scalar(x):
+            if not var_is_scalar(x):
                 raise ValueError("Solution must be a scalar, or a sequence of "
-                                 "scalars")
+                                 "scalar variables")
         check_space_type(y, "primal")
 
         if X_coords is None:
@@ -572,14 +570,14 @@ class PointInterpolation(Equation):
                 raise TypeError("X_coords required when P is not supplied")
         else:
             if len(X) != X_coords.shape[0]:
-                raise ValueError("Invalid number of functions")
+                raise ValueError("Invalid number of variables")
         if not isinstance(y, backend_Function):
             raise TypeError("y must be a Function")
         if len(y.ufl_shape) > 0:
             raise ValueError("y must be a scalar-valued Function")
 
         if P is None:
-            y_space = function_space(y)
+            y_space = var_space(y)
 
             y_cells = point_owners(X_coords, y_space, tolerance=tolerance)
             y_colors = greedy_coloring(y_space)
@@ -592,25 +590,25 @@ class PointInterpolation(Equation):
         self._P_T = P.T
 
     def forward_solve(self, X, deps=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
         check_space_type(y, "primal")
-        y_v = function_get_values(y)
+        y_v = var_get_values(y)
         x_v_local = np.full(len(X), np.NAN, dtype=backend_ScalarType)
         for i in range(len(X)):
             x_v_local[i] = self._P.getrow(i).dot(y_v)
 
-        comm = function_comm(y)
+        comm = var_comm(y)
         x_v = np.full(len(X), np.NAN, dtype=x_v_local.dtype)
         comm.Allreduce(x_v_local, x_v, op=MPI.SUM)
 
         for i, x in enumerate(X):
-            function_assign(x, x_v[i])
+            var_assign(x, x_v[i])
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_function(adj_X):
+        if is_var(adj_X):
             adj_X = (adj_X,)
 
         if dep_index < len(adj_X):
@@ -618,9 +616,9 @@ class PointInterpolation(Equation):
         elif dep_index == len(adj_X):
             adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
             for i, adj_x in enumerate(adj_X):
-                adj_x_v[i] = function_scalar_value(adj_x)
-            F = function_new_conjugate_dual(self.dependencies()[-1])
-            function_set_values(F, self._P_T.dot(adj_x_v))
+                adj_x_v[i] = var_scalar_value(adj_x)
+            F = var_new_conjugate_dual(self.dependencies()[-1])
+            var_set_values(F, self._P_T.dot(adj_x_v))
             return (-1.0, F)
         else:
             raise IndexError("dep_index out of bounds")

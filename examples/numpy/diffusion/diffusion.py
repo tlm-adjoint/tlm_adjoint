@@ -123,7 +123,7 @@ def forward_reference(psi_0, kappa):
         psi, fail = cg(lA, B.dot(psi), x0=psi)
         assert fail == 0
     J = Functional(name="J")
-    function_assign(J.function(), (psi + 1.0).dot(mass.dot(psi + 1.0)))
+    var_assign(J.var(), (psi + 1.0).dot(mass.dot(psi + 1.0)))
     return J
 
 
@@ -222,12 +222,12 @@ def forward(psi_0, kappa):
             new_block()
 
     one = Function(space, name="one", static=True)
-    function_assign(one, 1.0)
+    var_assign(one, 1.0)
     phi = Function(space, name="phi")
     Axpy(phi, psi_n, 1.0, one).solve()
 
     J = Functional(name="J")
-    InnerProduct(J.function(), phi, phi, M=ConstantMatrix(mass)).solve()
+    InnerProduct(J.var(), phi, phi, M=ConstantMatrix(mass)).solve()
 
     return J
 

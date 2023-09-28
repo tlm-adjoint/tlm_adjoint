@@ -89,8 +89,8 @@ def test_overrides(setup_test, test_leaks):
         error = Function(space, name="error")
         solve(inner(trial, test) * dx == inner(F, test) * dx,
               error, bc, solver_parameters=ls_parameters_cg)
-        function_axpy(error, -1.0, G)
-        assert function_linf_norm(error) < 1.0e-14
+        var_axpy(error, -1.0, G)
+        assert var_linf_norm(error) < 1.0e-14
 
         J_val = J.value()
 
@@ -185,8 +185,8 @@ def test_Nullspace(setup_test, test_leaks):
         solve(inner(grad(trial), grad(test)) * dx
               == -inner(F * F, test) * dx, psi,
               solver_parameters=ls_parameters_cg,
-              nullspace=VectorSpaceBasis(constant=True, comm=function_comm(psi)),  # noqa: E501
-              transpose_nullspace=VectorSpaceBasis(constant=True, comm=function_comm(psi)))  # noqa: E501
+              nullspace=VectorSpaceBasis(constant=True, comm=var_comm(psi)),
+              transpose_nullspace=VectorSpaceBasis(constant=True, comm=var_comm(psi)))  # noqa: E501
 
         J = Functional(name="J")
         J.assign((dot(psi, psi) ** 2) * dx
@@ -201,7 +201,7 @@ def test_Nullspace(setup_test, test_leaks):
     psi, J = forward(F)
     stop_manager()
 
-    assert abs(function_sum(psi)) < 1.0e-15
+    assert abs(var_sum(psi)) < 1.0e-15
 
     J_val = J.value()
 
@@ -263,7 +263,7 @@ def test_interpolate(setup_test, test_leaks,
         return x
 
     def interpolate_Interpolator_test(v, V):
-        interp = Interpolator(TestFunction(function_space(v)), V)
+        interp = Interpolator(TestFunction(var_space(v)), V)
         x = space_new(V)
         interp.interpolate(v, output=x)
         return x
@@ -284,9 +284,9 @@ def test_interpolate(setup_test, test_leaks,
         y_1, J = forward(y_2)
         stop_manager()
 
-        y_1_error = function_copy(y_1)
-        function_axpy(y_1_error, -1.0, y_1_ref)
-        assert function_linf_norm(y_1_error) < 1.0e-14
+        y_1_error = var_copy(y_1)
+        var_axpy(y_1_error, -1.0, y_1_ref)
+        assert var_linf_norm(y_1_error) < 1.0e-14
 
         J_val = J.value()
 
@@ -326,7 +326,7 @@ def test_Assemble_arity_1(setup_test, test_leaks):
         x = assemble(inner(ufl.conj(F ** 3), test) * dx)
 
         J = Functional(name="J")
-        InnerProduct(J.function(), F, x).solve()
+        InnerProduct(J.var(), F, x).solve()
         return J
 
     F = Function(space, name="F", static=True)

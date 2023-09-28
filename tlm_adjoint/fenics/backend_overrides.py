@@ -8,8 +8,8 @@ from .backend import (
     backend_Vector, backend_project, backend_solve, cpp_Assembler,
     cpp_SystemAssembler, parameters)
 from ..interface import (
-    function_assign, function_comm, function_new, function_space,
-    function_update_state, space_id, space_new)
+    space_id, space_new, var_assign, var_comm, var_new, var_space,
+    var_update_state)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
@@ -21,7 +21,7 @@ from ..override import (
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
-from .functions import Constant, define_function_alias
+from .functions import Constant, define_var_alias
 
 import numpy as np
 import ufl
@@ -114,7 +114,7 @@ def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
         tensor = tensor.vector()
     return_value = orig(self, tensor, form)
     if hasattr(tensor, "_tlm_adjoint__function"):
-        function_update_state(tensor._tlm_adjoint__function)
+        var_update_state(tensor._tlm_adjoint__function)
 
     if hasattr(form, "_tlm_adjoint__form") and \
             len(form._tlm_adjoint__form.arguments()) > 0:
@@ -188,7 +188,7 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
         A_tensor, b_tensor, x0 = args
 
     if b_tensor is not None and hasattr(b_tensor, "_tlm_adjoint__function"):
-        function_update_state(b_tensor._tlm_adjoint__function)
+        var_update_state(b_tensor._tlm_adjoint__function)
 
     if A_tensor is not None and b_tensor is not None and x0 is None \
             and hasattr(_getattr(self, "A_form"), "_tlm_adjoint__form") \
@@ -247,9 +247,9 @@ def solve_linear(orig, orig_args, A, x, b,
 
     eq._pre_process(annotate=annotate)
     return_value = orig_args()
-    function_update_state(x)
+    var_update_state(x)
     if hasattr(b, "_tlm_adjoint__function"):
-        function_update_state(b._tlm_adjoint__function)
+        var_update_state(b._tlm_adjoint__function)
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
 
@@ -302,14 +302,14 @@ def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
         if solver_parameters is None:
             eq._pre_process(annotate=annotate)
             return_value = orig_args()
-            function_update_state(return_value)
+            var_update_state(return_value)
             eq._post_process(annotate=annotate, tlm=tlm)
         else:
             eq.solve(annotate=annotate, tlm=tlm)
             return_value = x
     else:
         return_value = orig_args()
-        function_update_state(return_value)
+        var_update_state(return_value)
     return return_value
 
 
@@ -350,7 +350,7 @@ def _DirichletBC_apply(self, orig, orig_args, *args):
     orig(self, *args)
 
     if b is not None and hasattr(b, "_tlm_adjoint__function"):
-        function_update_state(b._tlm_adjoint__function)
+        var_update_state(b._tlm_adjoint__function)
 
     if x is None:
         if A is not None:
@@ -364,17 +364,17 @@ def _DirichletBC_apply(self, orig, orig_args, *args):
             b._tlm_adjoint__bcs.append(self)
 
 
-def function_update_state_post_call(self, return_value, *args, **kwargs):
-    function_update_state(self)
+def var_update_state_post_call(self, return_value, *args, **kwargs):
+    var_update_state(self)
     return return_value
 
 
 @manager_method(backend_Constant, "assign",
-                post_call=function_update_state_post_call)
+                post_call=var_update_state_post_call)
 def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
     if isinstance(x, (int, np.integer,
                       float, np.floating)):
-        eq = Assignment(self, Constant(x, comm=function_comm(self)))
+        eq = Assignment(self, Constant(x, comm=var_comm(self)))
     elif isinstance(x, backend_Constant):
         if x is not self:
             eq = Assignment(self, x)
@@ -395,23 +395,23 @@ def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
 
 
 @manager_method(backend_Function, "assign", override_without_manager=True,
-                post_call=function_update_state_post_call)
+                post_call=var_update_state_post_call)
 def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
     if isinstance(rhs, backend_Function):
         # Prevent a new vector being created
 
-        if space_id(function_space(rhs)) == space_id(function_space(self)):
+        if space_id(var_space(rhs)) == space_id(var_space(self)):
             if rhs is not self:
-                function_assign(self, rhs)
+                var_assign(self, rhs)
 
                 if annotate or tlm:
                     eq = Assignment(self, rhs)
                     assert len(eq.initial_condition_dependencies()) == 0
                     eq._post_process(annotate=annotate, tlm=tlm)
         else:
-            value = function_new(self)
+            value = var_new(self)
             orig(value, rhs)
-            function_assign(self, value)
+            var_assign(self, value)
 
             if annotate or tlm:
                 eq = ExprInterpolation(self, rhs)
@@ -436,14 +436,14 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
             assert len(eq.initial_condition_dependencies()) == 0
             eq._post_process(annotate=annotate, tlm=tlm)
     else:
-        define_function_alias(F, self, key=("copy",))
+        define_var_alias(F, self, key=("copy",))
     return F
 
 
 @override_method(backend_Function, "interpolate")
 def Function_interpolate(self, orig, orig_args, *args, **kwargs):
     return_value = orig_args()
-    function_update_state(self)
+    var_update_state(self)
     return return_value
 
 
@@ -532,9 +532,9 @@ def Solver_solve_pre_call(self, *args):
 def Solver_solve_post_call(self, return_value, *args):
     _, x, b = Solver_solve_args(self, *args)
     if hasattr(x, "_tlm_adjoint__function"):
-        function_update_state(x._tlm_adjoint__function)
+        var_update_state(x._tlm_adjoint__function)
     if hasattr(b, "_tlm_adjoint__function"):
-        function_update_state(b._tlm_adjoint__function)
+        var_update_state(b._tlm_adjoint__function)
 
     return return_value
 
@@ -665,7 +665,7 @@ def LinearVariationalSolver__init__(self, orig, orig_args, problem):
 def VariationalSolver_solve_post_call(self, return_value,
                                       *args, **kwargs):
     problem = _getattr(self, "problem")
-    function_update_state(problem.u_ufl)
+    var_update_state(problem.u_ufl)
     return return_value
 
 

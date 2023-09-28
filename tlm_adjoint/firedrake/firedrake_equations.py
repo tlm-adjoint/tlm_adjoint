@@ -10,10 +10,9 @@ from .backend import (
     VertexOnlyMesh, backend_Cofunction, backend_Constant, backend_Function,
     backend_assemble, complex_mode)
 from ..interface import (
-    check_space_type, comm_dup_cached, function_assign, function_comm,
-    function_id, function_inner, function_is_scalar, function_new,
-    function_new_conjugate_dual, function_replacement, function_scalar_value,
-    function_space, function_space_type, function_zero, is_function, space_new,
+    check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
+    var_id, var_inner, var_is_scalar, var_new, var_new_conjugate_dual,
+    var_replacement, var_scalar_value, var_space, var_space_type, var_zero,
     weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 
@@ -133,7 +132,7 @@ class LocalProjection(EquationSolver):
     performing a projection onto the space for `x`, for the case where the mass
     matrix is element-wise local block diagonal.
 
-    :arg x: A function defining the forward solution.
+    :arg x: A Firedrake `Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
@@ -149,7 +148,7 @@ class LocalProjection(EquationSolver):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
-        space = function_space(x)
+        space = var_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
@@ -258,9 +257,9 @@ class PointInterpolation(Equation):
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg X: A scalar-function, or a :class:`Sequence` of scalar-valued
-        functions, defining the forward solution.
-    :arg y: A scalar-valued Firedrake :class:`Function` to interpolate.
+    :arg X: A scalar variable, or a :class:`Sequence` of scalar variables,
+        defining the forward solution.
+    :arg y: A scalar-valued Firedrake `Function` to interpolate.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
@@ -270,12 +269,12 @@ class PointInterpolation(Equation):
 
     def __init__(self, X, y, X_coords=None, *, tolerance=None,
                  _interp=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
 
         for x in X:
             check_space_type(x, "primal")
-            if not function_is_scalar(x):
+            if not var_is_scalar(x):
                 raise ValueError("Solution must be a scalar, or a sequence of "
                                  "scalars")
         check_space_type(y, "primal")
@@ -285,7 +284,7 @@ class PointInterpolation(Equation):
                 raise TypeError("X_coords required")
         else:
             if len(X) != X_coords.shape[0]:
-                raise ValueError("Invalid number of functions")
+                raise ValueError("Invalid number of variables")
         if not isinstance(y, backend_Function):
             raise TypeError("y must be a Function")
         if len(y.ufl_shape) > 0:
@@ -293,7 +292,7 @@ class PointInterpolation(Equation):
 
         interp = _interp
         if interp is None:
-            y_space = function_space(y)
+            y_space = var_space(y)
             vmesh = VertexOnlyMesh(y_space.mesh(), X_coords,
                                    tolerance=tolerance)
             vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
@@ -305,21 +304,21 @@ class PointInterpolation(Equation):
         self._interp = interp
 
     def forward_solve(self, X, deps=None):
-        if is_function(X):
+        if is_var(X):
             X = (X,)
         y = (self.dependencies() if deps is None else deps)[-1]
 
         Xm = space_new(self._interp.V)
         self._interp.interpolate(y, output=Xm)
 
-        X_values = function_comm(Xm).allgather(Xm.dat.data_ro)
+        X_values = var_comm(Xm).allgather(Xm.dat.data_ro)
         vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
         for x_val, index in zip(itertools.chain(*X_values),
                                 itertools.chain(*vmesh_coords_map)):
-            function_assign(X[index], x_val)
+            var_assign(X[index], x_val)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_function(adj_X):
+        if is_var(adj_X):
             adj_X = (adj_X,)
 
         if dep_index < len(adj_X):
@@ -328,13 +327,13 @@ class PointInterpolation(Equation):
             adj_Xm = space_new(self._interp.V, space_type="conjugate_dual")
 
             vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
-            rank = function_comm(adj_Xm).rank
+            rank = var_comm(adj_Xm).rank
             # This line must be outside the loop to avoid deadlocks
             adj_Xm_data = adj_Xm.dat.data
             for i, j in enumerate(vmesh_coords_map[rank]):
-                adj_Xm_data[i] = function_scalar_value(adj_X[j])
+                adj_Xm_data[i] = var_scalar_value(adj_X[j])
 
-            F = function_new_conjugate_dual(self.dependencies()[-1])
+            F = var_new_conjugate_dual(self.dependencies()[-1])
             self._interp.interpolate(adj_Xm, transpose=True, output=F)
             return (-1.0, F)
         else:
@@ -362,7 +361,7 @@ class ExprAssignment(ExprEquation):
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg x: A Firedrake :class:`Function` defining the forward solution.
+    :arg x: A Firedrake `Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
         evaluate. Should not depend on `x`.
     :arg subset: A :class:`pyop2.types.set.Subset`. If provided then defines a
@@ -373,8 +372,8 @@ class ExprAssignment(ExprEquation):
     def __init__(self, x, rhs, *,
                  subset=None):
         deps, nl_deps = extract_dependencies(
-            rhs, space_type=function_space_type(x))
-        if function_id(x) in deps:
+            rhs, space_type=var_space_type(x))
+        if var_id(x) in deps:
             raise ValueError("Invalid non-linear dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
@@ -387,7 +386,7 @@ class ExprAssignment(ExprEquation):
         self._subset = subset
 
     def drop_references(self):
-        replace_map = {dep: function_replacement(dep)
+        replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()}
 
         super().drop_references()
@@ -397,7 +396,7 @@ class ExprAssignment(ExprEquation):
     def forward_solve(self, x, deps=None):
         rhs = self._replace(self._rhs, deps)
         if self._subset is not None:
-            function_zero(x)
+            var_zero(x)
         x.assign(rhs, subset=self._subset)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -411,7 +410,7 @@ class ExprAssignment(ExprEquation):
         if len(dep.ufl_shape) > 0:
             if complex_mode:
                 raise NotImplementedError("Case not implemented")
-            F = function_new(dep)
+            F = var_new(dep)
             if isinstance(F, backend_Constant):
                 raise NotImplementedError("Case not implemented")
 
@@ -426,7 +425,7 @@ class ExprAssignment(ExprEquation):
             F.assign(dF, subset=self._subset)
             F = F.riesz_representation("l2")
         else:
-            F = function_new_conjugate_dual(dep)
+            F = var_new_conjugate_dual(dep)
 
             dF = diff(self._rhs, dep)
             dF = ufl.algorithms.expand_derivatives(dF)
@@ -434,9 +433,9 @@ class ExprAssignment(ExprEquation):
             dF = self._nonlinear_replace(dF, nl_deps)
 
             if isinstance(F, backend_Constant):
-                dF = function_new_conjugate_dual(adj_x).assign(
+                dF = var_new_conjugate_dual(adj_x).assign(
                     dF, subset=self._subset)
-                F.assign(function_inner(adj_x, dF))
+                F.assign(var_inner(adj_x, dF))
             elif isinstance(F, (backend_Cofunction, backend_Function)):
                 dF = dF(()).conjugate()
                 F.assign(dF * adj_x, subset=self._subset)

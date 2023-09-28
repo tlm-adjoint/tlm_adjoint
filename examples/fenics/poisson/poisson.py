@@ -39,7 +39,7 @@ def forward(F, x0=None):
 
     if x0 is None:
         # If a reference is not provided, create it by copying x
-        x0 = function_copy(x, name="x0")
+        x0 = var_copy(x, name="x0")
 
     # The functional
     J = Functional(name="J")
@@ -59,7 +59,7 @@ x0, _ = forward(F0)
 
 # Set F to one everywhere ...
 F = Function(space, name="F", static=True)
-function_assign(F, 1.0)
+var_assign(F, 1.0)
 # ... and re-run the forward with this value of F, now obtaining a mis-match
 # functional, and processing equations using the manager
 start_manager()

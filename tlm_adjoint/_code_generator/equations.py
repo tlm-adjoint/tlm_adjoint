@@ -11,9 +11,9 @@ from .backend import (
     TestFunction, TrialFunction, adjoint, backend_DirichletBC,
     backend_Function, parameters)
 from ..interface import (
-    check_space_type, function_assign, function_id, function_is_scalar,
-    function_new, function_new_conjugate_dual, function_replacement,
-    function_scalar_value, function_space, function_zero, is_function)
+    check_space_type, is_var, var_assign, var_id, var_is_scalar, var_new,
+    var_new_conjugate_dual, var_replacement, var_scalar_value, var_space,
+    var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
@@ -57,12 +57,12 @@ def extract_dependencies(expr, *,
     deps = {}
     nl_deps = {}
     for dep in extract_coefficients(expr):
-        if is_function(dep):
-            deps.setdefault(function_id(dep), dep)
+        if is_var(dep):
+            deps.setdefault(var_id(dep), dep)
             for nl_dep in derivative_dependencies(expr, dep):
-                if is_function(nl_dep):
-                    nl_deps.setdefault(function_id(dep), dep)
-                    nl_deps.setdefault(function_id(nl_dep), nl_dep)
+                if is_var(nl_dep):
+                    nl_deps.setdefault(var_id(dep), dep)
+                    nl_deps.setdefault(var_id(nl_dep), nl_dep)
 
     deps = {dep_id: deps[dep_id]
             for dep_id in sorted(deps.keys())}
@@ -120,7 +120,7 @@ class Assembly(ExprEquation):
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg x: A function defining the forward solution.
+    :arg x: A variable defining the forward solution.
     :arg rhs: A :class:`ufl.Form` to assemble. Should have arity 0 or 1, and
         should not depend on the forward solution.
     :arg form_compiler_parameters: Form compiler parameters.
@@ -141,7 +141,7 @@ class Assembly(ExprEquation):
         arity = len(rhs.arguments())
         if arity == 0:
             check_space_type(x, "primal")
-            if not function_is_scalar(x):
+            if not var_is_scalar(x):
                 raise ValueError("Arity 0 forms can only be assigned to "
                                  "scalars")
         elif arity == 1:
@@ -150,7 +150,7 @@ class Assembly(ExprEquation):
             raise ValueError("Must be an arity 0 or arity 1 form")
 
         deps, nl_deps = extract_dependencies(rhs)
-        if function_id(x) in deps:
+        if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
@@ -172,7 +172,7 @@ class Assembly(ExprEquation):
         self._arity = arity
 
     def drop_references(self):
-        replace_map = {dep: function_replacement(dep)
+        replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()
                        if not isinstance(dep, SymbolicFloat)}
 
@@ -183,7 +183,7 @@ class Assembly(ExprEquation):
         rhs = self._replace(self._rhs, deps)
 
         if self._arity == 0:
-            function_assign(
+            var_assign(
                 x,
                 assemble(rhs, form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
         elif self._arity == 1:
@@ -219,7 +219,7 @@ class Assembly(ExprEquation):
                  for integral in dF.integrals()])  # dF = adjoint(dF)
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-function_scalar_value(adj_x), dF)
+            return (-var_scalar_value(adj_x), dF)
         elif self._arity == 1:
             dF = ufl.action(adjoint(dF), coefficient=adj_x)
             dF = assemble(
@@ -277,7 +277,7 @@ class EquationSolver(ExprEquation):
 
     :arg eq: A :class:`ufl.equation.Equation` defining the finite element
         variational problem.
-    :arg x: A function defining the forward solution.
+    :arg x: A backend `Function` defining the forward solution.
     :arg bcs: Dirichlet boundary conditions.
     :arg J: A :class:`ufl.Form` defining a Jacobian matrix approximation to use
         in a non-linear forward solve.
@@ -379,8 +379,8 @@ class EquationSolver(ExprEquation):
         deps, nl_deps = extract_dependencies(F)
         if nl_solve_J is not None:
             for dep in extract_coefficients(nl_solve_J):
-                if is_function(dep):
-                    deps.setdefault(function_id(dep), dep)
+                if is_var(dep):
+                    deps.setdefault(var_id(dep), dep)
 
         deps = list(deps.values())
         if x in deps:
@@ -452,7 +452,7 @@ class EquationSolver(ExprEquation):
         self._adjoint_J_solver = CacheRef()
 
     def drop_references(self):
-        replace_map = {dep: function_replacement(dep)
+        replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()}
 
         super().drop_references()
@@ -488,7 +488,7 @@ class EquationSolver(ExprEquation):
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
 
-            dep_indices = {function_id(dep): dep_index
+            dep_indices = {var_id(dep): dep_index
                            for dep_index, dep in enumerate(eq_deps)}
             mat_forms = {dep_indices[dep_id]: [mat_forms_[dep_id], CacheRef()]
                          for dep_id in mat_forms_}
@@ -541,7 +541,7 @@ class EquationSolver(ExprEquation):
                 rhs_addto(b, cached_b)
 
         if b is None:
-            b = function_new_conjugate_dual(self.x())
+            b = var_new_conjugate_dual(self.x())
 
         apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
         return b
@@ -746,7 +746,7 @@ def expr_new_x(expr, x, *,
     """
 
     if x in extract_coefficients(expr):
-        x_old = function_new(x)
+        x_old = var_new(x)
         Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
         return ufl.replace(expr, {x: x_old})
     else:
@@ -765,8 +765,8 @@ def linear_equation_new_x(eq, x, *,
 
     :arg eq: A :class:`ufl.equation.Equation` defining the finite element
         variational problem.
-    :arg x: A function defining the solution to the finite element variational
-        problem.
+    :arg x: A backend `Function` defining the solution to the finite element
+        variational problem.
     :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
         should record the solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
@@ -778,7 +778,7 @@ def linear_equation_new_x(eq, x, *,
     lhs_x_dep = x in extract_coefficients(lhs)
     rhs_x_dep = x in extract_coefficients(rhs)
     if lhs_x_dep or rhs_x_dep:
-        x_old = function_new(x)
+        x_old = var_new(x)
         Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
         if lhs_x_dep:
             lhs = ufl.replace(lhs, {x: x_old})
@@ -793,7 +793,7 @@ class Projection(EquationSolver):
     """Represents the solution of a finite element variational problem
     performing a projection onto the space for `x`.
 
-    :arg x: A function defining the forward solution.
+    :arg x: A backend `Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
@@ -803,7 +803,7 @@ class Projection(EquationSolver):
     """
 
     def __init__(self, x, rhs, *args, **kwargs):
-        space = function_space(x)
+        space = var_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
         if not isinstance(rhs, ufl.classes.Form):
             rhs = ufl.inner(rhs, test) * ufl.dx
@@ -813,7 +813,8 @@ class Projection(EquationSolver):
 
 class DirichletBCApplication(Equation):
     r"""Represents the application of a Dirichlet boundary condition to a zero
-    valued function. Specifically, with the Firedrake backend this represents:
+    valued backend `Function`. Specifically, with the Firedrake backend this
+    represents:
 
     .. code-block:: python
 
@@ -823,8 +824,8 @@ class DirichletBCApplication(Equation):
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg x: A function, updated by the above operations.
-    :arg y: A function, defines the Dirichet boundary condition.
+    :arg x: A backend `Function`, updated by the above operations.
+    :arg y: A backend `Function`, defines the Dirichet boundary condition.
 
     Remaining arguments are passed to `DirichletBC`.
     """
@@ -839,9 +840,9 @@ class DirichletBCApplication(Equation):
 
     def forward_solve(self, x, deps=None):
         _, y = self.dependencies() if deps is None else deps
-        function_zero(x)
+        var_zero(x)
         backend_DirichletBC(
-            function_space(x), y,
+            var_space(x), y,
             *self._bc_args, **self._bc_kwargs).apply(x)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -849,9 +850,9 @@ class DirichletBCApplication(Equation):
             return adj_x
         elif dep_index == 1:
             _, y = self.dependencies()
-            F = function_new_conjugate_dual(y)
+            F = var_new_conjugate_dual(y)
             backend_DirichletBC(
-                function_space(y), adj_x,
+                var_space(y), adj_x,
                 *self._bc_args, **self._bc_kwargs).apply(F)
             return (-1.0, F)
         else:
@@ -878,14 +879,14 @@ class ExprInterpolation(ExprEquation):
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg x: A function defining the forward solution.
+    :arg x: The forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
         interpolate onto the space for `x`. Should not depend on `x`.
     """
 
     def __init__(self, x, rhs):
         deps, nl_deps = extract_dependencies(rhs)
-        if function_id(x) in deps:
+        if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
@@ -894,7 +895,7 @@ class ExprInterpolation(ExprEquation):
         self._rhs = rhs
 
     def drop_references(self):
-        replace_map = {dep: function_replacement(dep)
+        replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()}
 
         super().drop_references()
@@ -914,7 +915,7 @@ class ExprInterpolation(ExprEquation):
         if len(dep.ufl_shape) > 0:
             raise NotImplementedError("Case not implemented")
 
-        F = function_new_conjugate_dual(dep)
+        F = var_new_conjugate_dual(dep)
 
         dF = diff(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)

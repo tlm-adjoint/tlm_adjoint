@@ -22,7 +22,7 @@ bc = HomogeneousDirichletBC(space, "on_boundary")
 dt = Constant(0.01, static=True)
 N = 10
 kappa = Function(space, name="kappa", static=True)
-function_assign(kappa, 1.0)
+var_assign(kappa, 1.0)
 Psi_0 = Function(space, name="Psi_0", static=True)
 Psi_0.interpolate(exp(X[0]) * sin(pi * X[0])
                   * sin(10.0 * pi * X[0])
@@ -31,10 +31,10 @@ Psi_0.interpolate(exp(X[0]) * sin(pi * X[0])
 zeta_1 = Function(space, name="zeta_1", static=True)
 zeta_2 = Function(space, name="zeta_2", static=True)
 zeta_3 = ZeroFunction(space, name="zeta_3")
-function_set_values(zeta_1,
-                    2.0 * np.random.random(function_local_size(zeta_1)) - 1.0)
-function_set_values(zeta_2,
-                    2.0 * np.random.random(function_local_size(zeta_2)) - 1.0)
+var_set_values(zeta_1,
+               2.0 * np.random.random(var_local_size(zeta_1)) - 1.0)
+var_set_values(zeta_2,
+               2.0 * np.random.random(var_local_size(zeta_2)) - 1.0)
 # File("zeta_1.pvd").write(zeta_1)
 # File("zeta_2.pvd").write(zeta_2)
 
@@ -96,13 +96,13 @@ def info_compare(x, y, tol):
 
 
 info("TLM/adjoint consistency, zeta_1")
-info_compare(dJ_tlm_1.value(), function_inner(zeta_1, dJ_adj), tol=1.0e-17)
+info_compare(dJ_tlm_1.value(), var_inner(zeta_1, dJ_adj), tol=1.0e-17)
 
 info("TLM/adjoint consistency, zeta_2")
-info_compare(dJ_tlm_2.value(), function_inner(zeta_2, dJ_adj), tol=1.0e-17)
+info_compare(dJ_tlm_2.value(), var_inner(zeta_2, dJ_adj), tol=1.0e-17)
 
 info("Second order TLM/adjoint consistency")
-info_compare(ddJ_tlm.value(), function_inner(zeta_2, ddJ_adj), tol=1.0e-17)
+info_compare(ddJ_tlm.value(), var_inner(zeta_2, ddJ_adj), tol=1.0e-17)
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99

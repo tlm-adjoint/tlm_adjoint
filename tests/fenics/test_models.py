@@ -239,7 +239,7 @@ def test_diffusion_1d(setup_test, test_leaks,
 
     dJs = compute_gradient(J, [T_0, kappa])
 
-    if issubclass(function_dtype(kappa), (complex, np.complexfloating)):
+    if issubclass(var_dtype(kappa), (complex, np.complexfloating)):
         dm_kappa = None
     else:
         dm_kappa = Constant(1.0, domain=mesh, name="dm_kappa", static=True)

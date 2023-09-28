@@ -185,7 +185,7 @@ class FunctionInterface(_VariableInterface):
         return self.space().dim() == 1
 
     def _scalar_value(self):
-        # assert function_is_scalar(self)
+        # assert var_is_scalar(self)
         return self.vector()[0]
 
 

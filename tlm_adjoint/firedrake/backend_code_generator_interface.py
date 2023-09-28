@@ -7,9 +7,8 @@ from .backend import (
     backend_assemble, backend_solve, complex_mode, extract_args, homogenize,
     parameters)
 from ..interface import (
-    check_space_type, check_space_types, function_assign, function_axpy,
-    function_copy, function_inner, function_new_conjugate_dual, function_space,
-    function_space_type, space_new)
+    check_space_type, check_space_types, space_new, var_assign, var_axpy,
+    var_copy, var_inner, var_new_conjugate_dual, var_space, var_space_type)
 
 from ..manager import manager_disabled
 from ..override import override_method
@@ -294,7 +293,7 @@ def matrix_multiply(A, x, *,
     if tensor is None:
         tensor = space_new(
             A.a.arguments()[0].function_space(),
-            space_type=function_space_type(x, rel_space_type=action_type))
+            space_type=var_space_type(x, rel_space_type=action_type))
     else:
         check_space_types(tensor, x, rel_space_type=action_type)
 
@@ -314,13 +313,13 @@ def r0_space(x):
 
 def rhs_copy(x):
     check_space_type(x, "conjugate_dual")
-    return function_copy(x)
+    return var_copy(x)
 
 
 def rhs_addto(x, y):
     check_space_type(x, "conjugate_dual")
     check_space_type(y, "conjugate_dual")
-    function_axpy(x, 1.0, y)
+    var_axpy(x, 1.0, y)
 
 
 def parameters_key(parameters):
@@ -388,12 +387,12 @@ def interpolate_expression(x, expr, *, adj_x=None):
     elif isinstance(x, backend_Constant):
         if len(x.ufl_shape) > 0:
             raise ValueError("Scalar Constant required")
-        expr_val = function_new_conjugate_dual(adj_x)
+        expr_val = var_new_conjugate_dual(adj_x)
         interpolate_expression(expr_val, expr)
-        function_assign(x, function_inner(adj_x, expr_val))
+        var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        x_space = function_space(x)
-        adj_x_space = function_space(adj_x)
+        x_space = var_space(x)
+        adj_x_space = var_space(adj_x)
         interp = Interpolator(ufl.conj(expr) * TestFunction(x_space.dual()), adj_x_space)  # noqa: E501
         interp.interpolate(adj_x, transpose=True, output=x)
     else:

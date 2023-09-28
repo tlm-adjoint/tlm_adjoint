@@ -70,7 +70,7 @@ def test_minimize_project(setup_test, test_leaks,
 
         if x_ref is None:
             x_ref = Function(space, name="x_ref", static=True)
-            function_assign(x_ref, x)
+            var_assign(x_ref, x)
 
         J = Functional(name="J")
         J.assign(inner(x - x_ref, x - x_ref) * dx)
@@ -88,9 +88,9 @@ def test_minimize_project(setup_test, test_leaks,
     alpha = minimize(forward_J, alpha0)
 
     error = Function(space, name="error")
-    function_assign(error, alpha_ref)
-    function_axpy(error, -1.0, alpha)
-    assert function_linf_norm(error) < 1.0e-8
+    var_assign(error, alpha_ref)
+    var_axpy(error, -1.0, alpha)
+    assert var_linf_norm(error) < 1.0e-8
 
 
 @pytest.mark.firedrake
@@ -117,10 +117,10 @@ def test_minimize_project_multiple(setup_test, test_leaks,
 
         if x_ref is None:
             x_ref = Function(space, name="x_ref", static=True)
-            function_assign(x_ref, x)
+            var_assign(x_ref, x)
         if y_ref is None:
             y_ref = Function(space, name="y_ref", static=True)
-            function_assign(y_ref, y)
+            var_assign(y_ref, y)
 
         J = Functional(name="J")
         J.assign(inner(x - x_ref, x - x_ref) * dx)
@@ -142,13 +142,13 @@ def test_minimize_project_multiple(setup_test, test_leaks,
     (alpha, beta) = minimize(forward_J, (alpha0, beta0))
 
     error = Function(space, name="error")
-    function_assign(error, alpha_ref)
-    function_axpy(error, -1.0, alpha)
-    assert function_linf_norm(error) < 1.0e-8
+    var_assign(error, alpha_ref)
+    var_axpy(error, -1.0, alpha)
+    assert var_linf_norm(error) < 1.0e-8
 
-    function_assign(error, beta_ref)
-    function_axpy(error, -1.0, beta)
-    assert function_linf_norm(error) < 1.0e-9
+    var_assign(error, beta_ref)
+    var_axpy(error, -1.0, beta)
+    assert var_linf_norm(error) < 1.0e-9
 
 
 @pytest.mark.firedrake
@@ -178,17 +178,17 @@ def test_l_bfgs_single(setup_test, test_leaks):
     def H_0_action(x):
         check_space_type(x, "conjugate_dual")
         H_0_action = Function(space, name="H_0_action")
-        function_set_values(H_0_action,
-                            function_get_values(x)
-                            / function_get_values(M_l))
+        var_set_values(H_0_action,
+                       var_get_values(x)
+                       / var_get_values(M_l))
         return H_0_action
 
     def B_0_action(x):
         check_space_type(x, "primal")
         B_0_action = Cofunction(space.dual(), name="B_0_action")
-        function_set_values(B_0_action,
-                            function_get_values(x)
-                            * function_get_values(M_l))
+        var_set_values(B_0_action,
+                       var_get_values(x)
+                       * var_get_values(M_l))
         return B_0_action
 
     x0 = Function(space, name="x0")
@@ -196,9 +196,9 @@ def test_l_bfgs_single(setup_test, test_leaks):
         F, Fp, x0, m=30, s_atol=0.0, g_atol=1.0e-12,
         H_0_action=H_0_action, M_action=B_0_action, M_inv_action=H_0_action)
 
-    error = function_copy(x, name="error")
-    function_axpy(error, -1.0, x_star)
-    error_norm = function_linf_norm(error)
+    error = var_copy(x, name="error")
+    var_axpy(error, -1.0, x_star)
+    error_norm = var_linf_norm(error)
     info(f"{error_norm=:.6e}")
     info(f"{F_calls=:d}")
     info(f"{Fp_calls=:d}")
@@ -251,12 +251,12 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
         check_space_type(y, "conjugate_dual")
         H_0_action = (Function(space_x, name="H_0_action_0"),
                       Function(space_y, name="H_0_action_1"))
-        function_set_values(H_0_action[0],
-                            function_get_values(x)
-                            / function_get_values(M_l_x))
-        function_set_values(H_0_action[1],
-                            function_get_values(y)
-                            / function_get_values(M_l_y))
+        var_set_values(H_0_action[0],
+                       var_get_values(x)
+                       / var_get_values(M_l_x))
+        var_set_values(H_0_action[1],
+                       var_get_values(y)
+                       / var_get_values(M_l_y))
         return H_0_action
 
     def B_0_action(x, y):
@@ -264,12 +264,12 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
         check_space_type(y, "primal")
         B_0_action = (Cofunction(space_x.dual(), name="B_0_action_0"),
                       Cofunction(space_y.dual(), name="B_0_action_1"))
-        function_set_values(B_0_action[0],
-                            function_get_values(x)
-                            * function_get_values(M_l_x))
-        function_set_values(B_0_action[1],
-                            function_get_values(y)
-                            * function_get_values(M_l_y))
+        var_set_values(B_0_action[0],
+                       var_get_values(x)
+                       * var_get_values(M_l_x))
+        var_set_values(B_0_action[1],
+                       var_get_values(y)
+                       * var_get_values(M_l_y))
         return B_0_action
 
     x0 = Function(space_x, name="x0")
@@ -279,12 +279,12 @@ def test_l_bfgs_multiple(setup_test, test_leaks):
                H_0_action=H_0_action,
                M_action=B_0_action, M_inv_action=H_0_action)
 
-    x_error = function_copy(x, name="x_error")
-    function_axpy(x_error, -1.0, x_star)
-    x_error_norm = function_linf_norm(x_error)
-    y_error = function_copy(y, name="y_error")
-    function_axpy(y_error, -1.0, y_star)
-    y_error_norm = function_linf_norm(y_error)
+    x_error = var_copy(x, name="x_error")
+    var_axpy(x_error, -1.0, x_star)
+    x_error_norm = var_linf_norm(x_error)
+    y_error = var_copy(y, name="y_error")
+    var_axpy(y_error, -1.0, y_star)
+    y_error_norm = var_linf_norm(y_error)
     info(f"{x_error_norm=:.6e}")
     info(f"{y_error_norm=:.6e}")
     info(f"{F_calls=:d}")

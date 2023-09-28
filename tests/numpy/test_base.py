@@ -58,28 +58,28 @@ def test_default_dtypes(request):
     set_default_dtype(request.param["default_dtype"])
 
 
-_function_ids = weakref.WeakValueDictionary()
+_var_ids = weakref.WeakValueDictionary()
 
 
-def clear_function_references():
-    _function_ids.clear()
+def clear_var_references():
+    _var_ids.clear()
 
 
 @gc_disabled
-def referenced_functions():
-    return tuple(F_ref for F_ref in map(call, _function_ids.valuerefs())
+def referenced_vars():
+    return tuple(F_ref for F_ref in map(call, _var_ids.valuerefs())
                  if F_ref is not None)
 
 
 @override_method(Function, "__init__")
 def Function__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
-    _function_ids[function_id(self)] = self
+    _var_ids[var_id(self)] = self
 
 
 @pytest.fixture
 def test_leaks():
-    clear_function_references()
+    clear_var_references()
 
     yield
 
@@ -97,13 +97,13 @@ def test_leaks():
     gc.collect()
 
     refs = 0
-    for F in referenced_functions():
-        info(f"{function_name(F):s} referenced")
+    for F in referenced_vars():
+        info(f"{var_name(F):s} referenced")
         refs += 1
     if refs == 0:
         info("No references")
 
-    clear_function_references()
+    clear_var_references()
     assert refs == 0
 
     manager.reset("memory", {"drop_references": False})
@@ -133,4 +133,4 @@ class Constant(Function):
         self.assign(value)
 
     def assign(self, y):
-        function_assign(self, y)
+        var_assign(self, y)
