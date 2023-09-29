@@ -33,6 +33,7 @@ Optional
 
 Some features of tlm_adjoint require:
 
+  - `JAX <https://jax.readthedocs.io>`_
   - `H-Revolve <https://gitlab.inria.fr/adjoint-computation/H-Revolve>`_
   - `h5py <https://www.h5py.org>`_
   - `SciPy <https://scipy.org>`_
