@@ -13,6 +13,5 @@ setup(
               "tlm_adjoint._code_generator",
               "tlm_adjoint.checkpoint_schedules",
               "tlm_adjoint.fenics",
-              "tlm_adjoint.firedrake",
-              "tlm_adjoint.numpy"],
+              "tlm_adjoint.firedrake"],
     python_requires=">=3.8")
