@@ -512,8 +512,7 @@ class EquationManager:
         return self._tlm_state == TangentLinearState.DERIVING
 
     def var_tlm(self, x, *args):
-        """Return a variable associated with a tangent-linear variable, and
-        storing its current value.
+        """Return a tangent-linear variable.
 
         :arg x: A variable whose tangent-linear variable should be returned.
         :arg args: Identifies the tangent-linear model. See
