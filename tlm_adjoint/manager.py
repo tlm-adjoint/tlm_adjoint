@@ -184,8 +184,7 @@ def var_tlm(x, *args):
 
 
 def function_tlm(x, *args):
-    """
-    """
+    ""
 
     # warnings.warn("function_tlm is deprecated -- "
     #               "use var_tlm instead",
