@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint import DEFAULT_COMM, Float, var_name
+from tlm_adjoint import DEFAULT_COMM, Float, Vector, var_name
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
@@ -14,7 +14,8 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.base
 @pytest.mark.parametrize(
     "cls",
-    [lambda name: Float(name=name)])
+    [lambda name: Float(name=name),
+     lambda name: Vector(1, name=name)])
 @seed_test
 def test_name(setup_test,  # noqa: F811
               cls):

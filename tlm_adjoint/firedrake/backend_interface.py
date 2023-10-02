@@ -16,6 +16,7 @@ from ..interface import (
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
+from ..equations import Conversion
 from ..manager import manager_disabled
 from ..override import override_method, override_property
 from ..overloaded_float import SymbolicFloat
@@ -38,7 +39,9 @@ __all__ = \
 
         "ZeroFunction",
 
-        "ReplacementCofunction"
+        "ReplacementCofunction",
+
+        "to_firedrake"
     ]
 
 
@@ -218,11 +221,7 @@ class FunctionInterfaceBase(_VariableInterface):
         return values
 
     def _set_values(self, values):
-        if not np.can_cast(values, self.dat.dtype.type):
-            raise ValueError("Invalid dtype")
-        with self.dat.vec as x_v:
-            if values.shape != (x_v.getLocalSize(),):
-                raise ValueError("Invalid shape")
+        with self.dat.vec_wo as x_v:
             x_v.setArray(values)
 
     def _is_replacement(self):
@@ -482,6 +481,32 @@ class ReplacementCofunction(ufl.classes.Cofunction):
 
     def function_space(self):
         return var_space(self)
+
+
+def to_firedrake(y, space, *, name=None):
+    """Convert a variable to a Firedrake `Function`.
+
+    :arg y: A variable.
+    :arg space: The space for the return value.
+    :arg name: A :class:`str` name.
+    :returns: The Firedrake `Function`.
+    """
+
+    space_type = var_space_type(y)
+    if space_type in {"primal", "conjugate"}:
+        if isinstance(space, backend_FunctionSpace):
+            x = Function(space, space_type=space_type, name=name)
+        else:
+            x = Function(space.dual(), space_type=space_type, name=name)
+    elif space_type in {"dual", "conjugate_dual"}:
+        if isinstance(space, backend_FunctionSpace):
+            x = Cofunction(space.dual(), space_type=space_type, name=name)
+        else:
+            x = Cofunction(space, space_type=space_type, name=name)
+    else:
+        raise ValueError("Invalid space type")
+    Conversion(x, y).solve()
+    return x
 
 
 def garbage_cleanup_internal_comm(comm):

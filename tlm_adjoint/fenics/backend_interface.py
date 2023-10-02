@@ -15,14 +15,15 @@ from ..interface import (
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
+from ..equations import Conversion
+from ..manager import manager_disabled
+from ..overloaded_float import SymbolicFloat
+from ..override import override_method
+
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
     Zero, define_var_alias)
-from ..override import override_method
-
-from ..manager import manager_disabled
-from ..overloaded_float import SymbolicFloat
 
 import functools
 import numpy as np
@@ -32,7 +33,9 @@ __all__ = \
     [
         "Function",
 
-        "ZeroFunction"
+        "ZeroFunction",
+
+        "to_fenics"
     ]
 
 
@@ -217,10 +220,6 @@ class FunctionInterface(_VariableInterface):
 
     @check_vector_size
     def _set_values(self, values):
-        if not np.can_cast(values, backend_ScalarType):
-            raise ValueError("Invalid dtype")
-        if values.shape != (self.vector().local_size(),):
-            raise ValueError("Invalid shape")
         self.vector().set_local(values)
         self.vector().apply("insert")
 
@@ -382,6 +381,20 @@ def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
             value[i] -= alpha * y_fn_c.vector().max()
         value.shape = x.ufl_shape
         x.assign(backend_Constant(value))
+
+
+def to_fenics(y, space, *, name=None):
+    """Convert a variable to a FEniCS `Function`.
+
+    :arg y: A variable.
+    :arg space: The space for the return value.
+    :arg name: A :class:`str` name.
+    :returns: The FEniCS `Function`.
+    """
+
+    x = Function(space, space_type=var_space_type(y), name=name)
+    Conversion(x, y).solve()
+    return x
 
 
 def subtract_adjoint_derivative_action_backend_function_vector(x, alpha, y):
