@@ -24,7 +24,6 @@ from .backend_code_generator_interface import (
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
 from ..equations import Assignment
-from ..overloaded_float import SymbolicFloat
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
@@ -89,7 +88,7 @@ class ExprEquation(Equation):
         assert len(eq_deps) == len(deps)
         return {eq_dep: dep
                 for eq_dep, dep in zip(eq_deps, deps)
-                if not isinstance(eq_dep, SymbolicFloat)}
+                if isinstance(eq_dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
 
     def _replace(self, expr, deps):
         if deps is None:
@@ -103,7 +102,7 @@ class ExprEquation(Equation):
         assert len(eq_nl_deps) == len(nl_deps)
         return {eq_nl_dep: nl_dep
                 for eq_nl_dep, nl_dep in zip(eq_nl_deps, nl_deps)
-                if not isinstance(eq_nl_dep, SymbolicFloat)}
+                if isinstance(eq_nl_dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
 
     def _nonlinear_replace(self, expr, nl_deps):
         replace_map = self._nonlinear_replace_map(nl_deps)
@@ -174,7 +173,7 @@ class Assembly(ExprEquation):
     def drop_references(self):
         replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()
-                       if not isinstance(dep, SymbolicFloat)}
+                       if isinstance(dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
 
         super().drop_references()
         self._rhs = ufl.replace(self._rhs, replace_map)
