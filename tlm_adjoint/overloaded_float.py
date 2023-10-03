@@ -135,7 +135,7 @@ class FloatSpace:
         return self._id
 
 
-_overload = 0
+_overloading = True
 
 
 def no_float_overloading(fn):
@@ -163,18 +163,19 @@ def paused_float_overloading():
         :class:`OverloadedFloat` operator overloading.
     """
 
-    global _overload
-    _overload += 1
+    global _overloading
+    overloading = _overloading
+    _overloading = False
     yield
-    _overload -= 1
+    _overloading = overloading
 
 
 class FloatInterface(VariableInterface):
     def _space(self):
-        return self._tlm_adjoint__var_interface_attrs["space"]
+        return self.space
 
     def _space_type(self):
-        return self._tlm_adjoint__var_interface_attrs["space_type"]
+        return self.space_type
 
     def _id(self):
         return self._tlm_adjoint__var_interface_attrs["id"]
@@ -352,11 +353,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
         super().__init__()
         self._value = 0.0
+        self._space = FloatSpace(type(self), dtype=dtype, comm=comm)
+        self._space_type = space_type
         add_interface(self, FloatInterface,
                       {"cache": cache, "checkpoint": checkpoint, "id": id,
-                       "name": name, "state": [0],
-                       "space": FloatSpace(type(self), dtype=dtype, comm=comm),
-                       "space_type": space_type, "static": static})
+                       "name": name, "state": [0], "static": static})
         self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
 
         if isinstance(value, (int, np.integer, sp.Integer,
@@ -374,15 +375,16 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             name=None,
             static=False, cache=None, checkpoint=None,
             annotate=None, tlm=None):
-        """Return a new object, which same type as this :class:`SymbolicFloat`.
-        For argument documentation see the :class:`SymbolicFloat` constructor.
+        """Return a new object, which same type and space type as this
+        :class:`SymbolicFloat`.
 
         :returns: The new :class:`SymbolicFloat`.
+
+        Arguments are as for the :class:`SymbolicFloat` constructor.
         """
 
         x = var_new(
-            self, name=name,
-            static=static, cache=cache, checkpoint=checkpoint)
+            self, name=name, static=static, cache=cache, checkpoint=checkpoint)
         if isinstance(value, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
@@ -399,6 +401,20 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
     def __complex__(self):
         return complex(self.value())
+
+    @property
+    def space(self):
+        """The :class:`FloatSpace` for the :class:`SymbolicFloat`.
+        """
+
+        return self._space
+
+    @property
+    def space_type(self):
+        """The space type for the :class:`SymbolicFloat`.
+        """
+
+        return self._space_type
 
     def assign(self, y, *, annotate=None, tlm=None):
         """:class:`SymbolicFloat` assignment.
@@ -487,6 +503,22 @@ class SymbolicFloat(_tlm_adjoint__SymbolicFloat):
 SymbolicFloat = _tlm_adjoint__SymbolicFloat  # noqa: F811
 
 
+def unary_operator(x, op):
+    with paused_float_overloading():
+        z = op(x)
+    if _overloading:
+        z = x.new(z)
+    return z
+
+
+def binary_operator(x, y, op):
+    with paused_float_overloading():
+        z = op(x, y)
+    if _overloading:
+        z = x.new(z)
+    return z
+
+
 class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
     """A subclass of :class:`SymbolicFloat` with operator overloading. Also
     defines methods for NumPy integration.
@@ -499,164 +531,91 @@ class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
     """
 
     def __neg__(self):
-        with paused_float_overloading():
-            result = super().__neg__()
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return unary_operator(self, SymbolicFloat.__neg__)
 
     def __add__(self, other):
-        with paused_float_overloading():
-            result = super().__add__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__add__)
 
     def __radd__(self, other):
-        with paused_float_overloading():
-            result = super().__radd__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__radd__)
 
     def __sub__(self, other):
-        with paused_float_overloading():
-            result = super().__sub__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__sub__)
 
     def __rsub__(self, other):
-        with paused_float_overloading():
-            result = super().__rsub__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__rsub__)
 
     def __mul__(self, other):
-        with paused_float_overloading():
-            result = super().__mul__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__mul__)
 
     def __rmul__(self, other):
-        with paused_float_overloading():
-            result = super().__rmul__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__rmul__)
 
     def __truediv__(self, other):
-        with paused_float_overloading():
-            result = super().__truediv__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__truediv__)
 
     def __rtruediv__(self, other):
-        with paused_float_overloading():
-            result = super().__rtruediv__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__rtruediv__)
 
     def __pow__(self, other):
-        with paused_float_overloading():
-            result = super().__pow__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__pow__)
 
     def __rpow__(self, other):
-        with paused_float_overloading():
-            result = super().__rpow__(other)
-        if _overload == 0:
-            return self.new(result)
-        else:
-            return result
+        return binary_operator(self, other, SymbolicFloat.__rpow__)
 
-    @no_float_overloading
     def sin(self):
-        return self.new(sp.sin(self))
+        return unary_operator(self, sp.sin)
 
-    @no_float_overloading
     def cos(self):
-        return self.new(sp.cos(self))
+        return unary_operator(self, sp.cos)
 
-    @no_float_overloading
     def tan(self):
-        return self.new(sp.tan(self))
+        return unary_operator(self, sp.tan)
 
-    @no_float_overloading
     def arcsin(self):
-        return self.new(sp.arcsin(self))
+        return unary_operator(self, sp.asin)
 
-    @no_float_overloading
     def arccos(self):
-        return self.new(sp.arccos(self))
+        return unary_operator(self, sp.acos)
 
-    @no_float_overloading
     def arctan(self):
-        return self.new(sp.arctan(self))
+        return unary_operator(self, sp.atan)
 
-    @no_float_overloading
     def arctan2(self, other):
-        return self.new(sp.atan2(self, other))
+        return binary_operator(self, other, sp.atan2)
 
-    @no_float_overloading
     def sinh(self):
-        return self.new(sp.sinh(self))
+        return unary_operator(self, sp.sinh)
 
-    @no_float_overloading
     def cosh(self):
-        return self.new(sp.cosh(self))
+        return unary_operator(self, sp.cosh)
 
-    @no_float_overloading
     def tanh(self):
-        return self.new(sp.tanh(self))
+        return unary_operator(self, sp.tanh)
 
-    @no_float_overloading
     def arcsinh(self):
-        return self.new(sp.arcsinh(self))
+        return unary_operator(self, sp.asinh)
 
-    @no_float_overloading
     def arccosh(self):
-        return self.new(sp.arccosh(self))
+        return unary_operator(self, sp.acosh)
 
-    @no_float_overloading
     def arctanh(self):
-        return self.new(sp.arctanh(self))
+        return unary_operator(self, sp.atanh)
 
-    @no_float_overloading
     def exp(self):
-        return self.new(sp.exp(self))
+        return unary_operator(self, sp.exp)
 
-    @no_float_overloading
     def expm1(self):
-        return self.new(sp.exp(self) - 1)
+        return unary_operator(self, lambda x: sp.exp(x) - 1)
 
-    @no_float_overloading
     def log(self):
-        return self.new(sp.log(self))
+        return unary_operator(self, sp.log)
 
-    @no_float_overloading
     def log10(self):
-        return self.new(sp.log(self, 10))
+        return unary_operator(self, lambda x: sp.log(x, 10))
 
-    @no_float_overloading
     def sqrt(self):
-        return self.new(sp.sqrt(self))
+        return unary_operator(self, sp.sqrt)
 
 
 # Required by Sphinx

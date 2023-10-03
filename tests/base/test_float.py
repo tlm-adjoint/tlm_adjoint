@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint import DEFAULT_COMM, Float
+from tlm_adjoint import (
+    DEFAULT_COMM, DotProduct, Float, FloatEquation, Hessian, compute_gradient,
+    start_manager, stop_manager, taylor_test, taylor_test_tlm,
+    taylor_test_tlm_adjoint)
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
+import numpy as np
+import operator
 import pytest
 
 pytestmark = pytest.mark.skipif(
-    DEFAULT_COMM.size > 1, reason="serial only")
+    DEFAULT_COMM.size not in {1, 4},
+    reason="tests must be run in serial, or with 4 processes")
 
 
 @pytest.mark.base
@@ -17,8 +23,201 @@ pytestmark = pytest.mark.skipif(
 def test_Float_new(setup_test,  # noqa: F811
                    value):
     x = Float(name="x")
-    assert x.value() == 0.0
+    assert complex(x) == 0.0
 
     y = x.new(value)
-    assert x.value() == 0.0
-    assert y.value() == value
+    assert complex(x) == 0.0
+    assert complex(y) == value
+
+
+@pytest.mark.base
+@pytest.mark.parametrize("dtype", [np.double, np.cdouble])
+@seed_test
+def test_float_assignment(setup_test,  # noqa: F811
+                          dtype):
+    def forward(y):
+        x = Float(name="x")
+        FloatEquation(x, y).solve()
+
+        c = Float(name="c")
+        e = Float(name="e", space_type="dual").assign(1.0)
+        DotProduct(c, x, e).solve()
+
+        return (c - 1.0) ** 4
+
+    if issubclass(dtype, np.complexfloating):
+        y = Float(2.0 + 3.0j)
+    else:
+        y = Float(2.0)
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    dJ = compute_gradient(J, y)
+
+    J_val = complex(J)
+    if issubclass(dtype, (float, np.floating)):
+        dm = Float(1.0)
+    else:
+        dm = None
+
+    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ,
+                            dM=None if dm is None else dm)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ,
+                            dM=None if dm is None else dm)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, y, tlm_order=1,
+                                dMs=None if dm is None else (dm,))
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1,
+                                        dMs=None if dm is None else (dm,))
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
+                                        dMs=None if dm is None else (dm, dm))
+    assert min_order > 2.00
+
+
+@pytest.mark.base
+@pytest.mark.parametrize("op", [operator.neg,
+                                np.sin,
+                                np.cos,
+                                np.tan,
+                                np.arcsin,
+                                np.arccos,
+                                np.arctan,
+                                np.sinh,
+                                np.cosh,
+                                np.tanh,
+                                np.arcsinh,
+                                np.arccosh,
+                                np.arctanh,
+                                np.exp,
+                                np.expm1,
+                                np.log,
+                                np.log10,
+                                np.sqrt])
+@seed_test
+def test_float_unary_overloading(setup_test,  # noqa: F811
+                                 op):
+    def forward(y):
+        x = op(y)
+        assert abs(float(x) - op(float(y))) < 1.0e-15
+
+        c = Float(name="c")
+        e = Float(name="e", space_type="dual").assign(1.0)
+        DotProduct(c, x, e).solve()
+
+        return (c - 1.0) ** 4
+
+    if op is np.arccosh:
+        y = Float(1.1)
+    else:
+        y = Float(0.1)
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    dJ = compute_gradient(J, y)
+
+    J_val = float(J)
+    dm = Float(1.0)
+
+    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ, seed=1.0e-3, dM=dm)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
+                            dM=dm)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, y, tlm_order=1, seed=1.0e-3,
+                                dMs=(dm,))
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1,
+                                        seed=1.0e-3, dMs=(dm,))
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
+                                        seed=1.0e-3, dMs=(dm, dm))
+    assert min_order > 1.99
+
+
+@pytest.mark.base
+@pytest.mark.parametrize("dtype", [np.double, np.cdouble])
+@pytest.mark.parametrize("op", [operator.add,
+                                operator.sub,
+                                operator.mul,
+                                operator.truediv,
+                                operator.pow,
+                                np.arctan2])
+@seed_test
+def test_float_binary_overloading(setup_test,  # noqa: F811
+                                  dtype, op):
+    if op is np.arctan2 and issubclass(dtype, (complex, np.complexfloating)):
+        pytest.skip()
+
+    def forward(y):
+        x = y * y
+        x = op(x, y)
+        if issubclass(dtype, (complex, np.complexfloating)):
+            assert abs(complex(x) - op(complex(y) ** 2, complex(y))) < 1.0e-16
+        else:
+            assert abs(float(x) - op(float(y) ** 2, float(y))) < 1.0e-16
+
+        c = Float(name="c")
+        e = Float(name="e", space_type="dual").assign(1.0)
+        DotProduct(c, x, e).solve()
+
+        return (c - 1.0) ** 4
+
+    if op is np.arccosh:
+        y = 1.0
+    else:
+        y = 0.1
+    if issubclass(dtype, (complex, np.complexfloating)):
+        y += 0.4j
+    y = Float(y)
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    dJ = compute_gradient(J, y)
+
+    J_val = complex(J)
+    if issubclass(dtype, (float, np.floating)):
+        dm = Float(1.0)
+    else:
+        dm = None
+
+    min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ, seed=1.0e-3,
+                            dM=None if dm is None else dm)
+    assert min_order > 1.98
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
+                            dM=None if dm is None else dm)
+    assert min_order > 2.94
+
+    min_order = taylor_test_tlm(forward, y, tlm_order=1, seed=1.0e-3,
+                                dMs=None if dm is None else (dm,))
+    assert min_order > 1.98
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1,
+                                        seed=1.0e-3,
+                                        dMs=None if dm is None else (dm,))
+    assert min_order > 1.98
+
+    min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
+                                        seed=1.0e-3,
+                                        dMs=None if dm is None else (dm, dm))
+    assert min_order > 1.99
