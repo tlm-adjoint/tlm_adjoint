@@ -677,7 +677,7 @@ class VectorEquation(Equation):
 
     :arg X: A :class:`Vector` or a :class:`Sequence` of :class:`Vector objects
         defining outputs, whose value is set by the return value from `fn`.
-    :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector objects
+    :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector` objects
         defining the inputs, whose values are passed to `fn`.
     :arg fn: A callable.
     """
@@ -804,7 +804,7 @@ def call_jax(X, Y, fn):
 
     :arg X: A :class:`Vector` or a :class:`Sequence` of :class:`Vector objects
         defining outputs, whose value is set by the return value from `fn`.
-    :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector objects
+    :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector` objects
         defining the inputs, whose values are passed to `fn`.
     :arg fn: A callable.
     """
