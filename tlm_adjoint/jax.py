@@ -282,10 +282,9 @@ def unary_operator(x, op):
     tlm = tlm_enabled()
     if not _overloading or (not annotate and not tlm):
         with paused_manager():
-            return Vector(x.space, space_type=x.space_type).assign(
-                op(x.vector))
+            return x.new(op(x.vector))
     else:
-        z = Vector(x.space, space_type=x.space_type)
+        z = x.new()
         VectorEquation(z, x, fn=op).solve()
         return z
 
@@ -302,18 +301,17 @@ def binary_operator(x, y, op, *, reverse_args=False):
     tlm = tlm_enabled()
     if not _overloading or (not annotate and not tlm):
         with paused_manager():
-            return Vector(x.space, space_type=x.space_type).assign(
-                op(x.vector, y.vector))
+            return x.new(op(x.vector, y.vector))
     elif x is y:
-        z = Vector(x.space, space_type=x.space_type)
+        z = x.new()
         VectorEquation(z, x, fn=lambda x: op(x, x)).solve()
         return z
     elif isinstance(y, Vector):
-        z = Vector(x.space, space_type=x.space_type)
+        z = x.new()
         VectorEquation(z, (x, y), fn=op).solve()
         return z
     else:
-        z = Vector(x.space, space_type=x.space_type)
+        z = x.new()
         VectorEquation(z, x, fn=lambda x: op(x, y)).solve()
         return z
 
@@ -385,6 +383,23 @@ class Vector:
     def __complex__(self):
         return complex(var_scalar_value(self))
 
+    def new(self, y=None, *, name=None, static=False, cache=None,
+            checkpoint=None):
+        """Return a new :class:`Vector`, with the same :class:`VectorSpace` and
+        space type as this :class:`Vector`.
+
+        :arg y: Defines a value for the new :class:`Vector`.
+        :returns: The new :class:`Vector`.
+
+        Remaining arguments are as for the :class:`Vector` constructor.
+        """
+
+        x = Vector(self.space, space_type=self.space_type, name=name,
+                   static=static, cache=cache, checkpoint=checkpoint)
+        if y is not None:
+            x.assign(y)
+        return x
+
     @property
     def name(self):
         """The :class:`str` name of the :class:`Vector`.
@@ -413,7 +428,7 @@ class Vector:
                                   float, np.floating,
                                   complex, np.complexfloating,
                                   np.ndarray, jax.Array)):
-                    y = Vector(self.space, space_type=self.space_type).assign(y)  # noqa: E501
+                    y = self.new(y)
                 elif isinstance(y, Vector):
                     pass
                 else:
@@ -638,7 +653,7 @@ def jax_forward(fn, X, Y, *, manager=None):
         for y in Y:
             tlm_y = manager.var_tlm(y, (M, dM))
             if tlm_y is None:
-                tlm_y = Vector(y.space, space_type=y.space_type)
+                tlm_y = y.new()
             tlm_Y.append(tlm_y)
     tlm_X = tuple(tlm_X)
     tlm_Y = tuple(tlm_Y)
@@ -860,7 +875,7 @@ def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
 
 
 def subtract_adjoint_derivative_action_vector_array(x, alpha, y):
-    var_axpy(x, -alpha, Vector(x.space, space_type=x.space_type).assign(y))
+    var_axpy(x, -alpha, x.new(y))
 
 
 register_subtract_adjoint_derivative_action(
