@@ -600,15 +600,15 @@ class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
 
     @no_float_overloading
     def arcsin(self):
-        return self.new(sp.arcsin(self))
+        return self.new(sp.asin(self))
 
     @no_float_overloading
     def arccos(self):
-        return self.new(sp.arccos(self))
+        return self.new(sp.acos(self))
 
     @no_float_overloading
     def arctan(self):
-        return self.new(sp.arctan(self))
+        return self.new(sp.atan(self))
 
     @no_float_overloading
     def arctan2(self, other):
@@ -628,15 +628,15 @@ class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
 
     @no_float_overloading
     def arcsinh(self):
-        return self.new(sp.arcsinh(self))
+        return self.new(sp.asinh(self))
 
     @no_float_overloading
     def arccosh(self):
-        return self.new(sp.arccosh(self))
+        return self.new(sp.acosh(self))
 
     @no_float_overloading
     def arctanh(self):
-        return self.new(sp.arctanh(self))
+        return self.new(sp.atanh(self))
 
     @no_float_overloading
     def exp(self):
