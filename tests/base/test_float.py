@@ -45,7 +45,7 @@ def test_float_assignment(setup_test,  # noqa: F811
 
         return (c - 1.0) ** 4
 
-    if issubclass(dtype, np.complexfloating):
+    if issubclass(dtype, (complex, np.complexfloating)):
         y = Float(2.0 + 3.0j)
     else:
         y = Float(2.0)

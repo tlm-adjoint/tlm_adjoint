@@ -404,6 +404,8 @@ def interpolation_matrix(x_coords, y, y_cells, y_colors):
             raise RuntimeError("Non-process-local node-node graph")
 
     comm = var_comm(y)
+    if len(y_colors) == 0 or y_colors.min() != 0:
+        raise ValueError("Invalid graph coloring")
     y_colors_N = y_colors.max() + 1
     y_colors_N = comm.allreduce(y_colors_N, op=MPI.MAX)
     assert y_colors_N >= 0

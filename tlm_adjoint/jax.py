@@ -224,7 +224,7 @@ class VectorInterface(VariableInterface):
         return s
 
     def _linf_norm(self):
-        norm = abs(self.vector).max()
+        norm = abs(self.vector).max(initial=0.0)
         if MPI is not None:
             norm = self.space.comm.allreduce(norm, op=MPI.MAX)
         return norm
@@ -866,8 +866,10 @@ def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
     :returns: A scalar-valued :class:`Vector`.
     """
 
+    if comm is None:
+        comm = DEFAULT_COMM
     if space is None:
-        space = VectorSpace(1, dtype=dtype, comm=comm)
+        space = VectorSpace(1 if comm.rank == 0 else 0, dtype=dtype, comm=comm)
     x = Vector(space, name=name)
     if not var_is_scalar(x):
         raise RuntimeError("Vector is not scalar-valued")
