@@ -121,6 +121,9 @@ def test_MultistageCheckpointSchedule(trajectory,
         ics.update(cp[0])
         model_n = cp_action.n
 
+        # Can advance the forward to the current location of the adjoint
+        assert ics.issuperset(range(model_n, n - model_r))
+
         if cp_action.delete:
             del snapshots[cp_action.n]
 
@@ -180,6 +183,7 @@ def test_MultistageCheckpointSchedule(trajectory,
             # adjoint
             assert model_n == cp_schedule.n
             assert model_r == cp_schedule.r
+            assert cp_schedule.max_n == n
 
             # Either no data is being stored, or exactly one of forward restart
             # or non-linear dependency data is being stored
