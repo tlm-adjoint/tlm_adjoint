@@ -121,6 +121,9 @@ def test_MultistageCheckpointSchedule(trajectory,
         ics.update(cp[0])
         model_n = cp_action.n
 
+        # Can advance the forward to the current location of the adjoint
+        assert ics.issuperset(range(model_n, n - model_r))
+
         if cp_action.delete:
             del snapshots[cp_action.n]
 

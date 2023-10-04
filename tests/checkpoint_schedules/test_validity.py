@@ -175,6 +175,9 @@ def test_validity(schedule, schedule_kwargs,
             ics.update(cp[0])
             model_n = cp_action.n
 
+            # Can advance the forward to the current location of the adjoint
+            assert ics.issuperset(range(model_n, n - model_r))
+
         if len(cp[1]) > 0:
             data.clear()
             data.update(cp[1])
