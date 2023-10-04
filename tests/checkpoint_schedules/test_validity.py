@@ -242,6 +242,7 @@ def test_validity(schedule, schedule_kwargs,
             # adjoint
             assert model_n is None or model_n == cp_schedule.n
             assert model_r == cp_schedule.r
+            assert cp_schedule.max_n is None or cp_schedule.max_n == n
 
             # Checkpoint storage limits are not exceeded
             for storage_type, storage_limit in storage_limits.items():

@@ -203,6 +203,7 @@ def test_MixedCheckpointSchedule(n, S):
             # adjoint
             assert model_n is None or model_n == cp_schedule.n
             assert model_r == cp_schedule.r
+            assert cp_schedule.max_n == n
 
             # Either no data is being stored, or exactly one of forward restart
             # or non-linear dependency data is being stored
