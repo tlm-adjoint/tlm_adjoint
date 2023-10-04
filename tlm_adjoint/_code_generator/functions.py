@@ -166,7 +166,7 @@ class ConstantInterface(_VariableInterface):
         return self.values().sum()
 
     def _linf_norm(self):
-        return abs(self.values()).max()
+        return abs(self.values()).max(initial=0.0)
 
     def _local_size(self):
         comm = var_comm(self)
