@@ -3,8 +3,10 @@
 
 from tlm_adjoint import (
     DEFAULT_COMM, DotProduct, Float, Hessian, Vector, VectorEquation,
-    compute_gradient, set_default_jax_dtype, start_manager, stop_manager,
-    taylor_test, taylor_test_tlm, taylor_test_tlm_adjoint)
+    compute_gradient, new_jax_float, set_default_jax_dtype, start_manager,
+    stop_manager, taylor_test, taylor_test_tlm, taylor_test_tlm_adjoint,
+    var_get_values, var_global_size, var_is_scalar, var_linf_norm,
+    var_local_size, var_scalar_value, var_sum)
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
@@ -17,11 +19,13 @@ import operator
 import pytest
 
 pytestmark = pytest.mark.skipif(
-    DEFAULT_COMM.size > 1, reason="serial only")
+    DEFAULT_COMM.size not in {1, 4},
+    reason="tests must be run in serial, or with 4 processes")
 
 
 @pytest.mark.base
 @pytest.mark.skipif(jax is None, reason="JAX not available")
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("dtype", [np.double, np.cdouble])
 @seed_test
 def test_jax_assignment(setup_test,  # noqa: F811
@@ -43,7 +47,7 @@ def test_jax_assignment(setup_test,  # noqa: F811
         return (c - 1.0) ** 4
 
     y = Vector(10, dtype=dtype)
-    if issubclass(dtype, np.complexfloating):
+    if issubclass(dtype, (complex, np.complexfloating)):
         y.assign(np.arange(1, 11, dtype=dtype)
                  + 1.0j * np.arange(11, 12, dtype=dtype))
     else:
@@ -76,6 +80,7 @@ def test_jax_assignment(setup_test,  # noqa: F811
 
 @pytest.mark.base
 @pytest.mark.skipif(jax is None, reason="JAX not available")
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("op", [operator.neg,
                                 np.sin,
                                 np.cos,
@@ -145,6 +150,7 @@ def test_jax_unary_overloading(setup_test,  # noqa: F811
 
 @pytest.mark.base
 @pytest.mark.skipif(jax is None, reason="JAX not available")
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("dtype", [np.double, np.cdouble])
 @pytest.mark.parametrize("op", [operator.add,
                                 operator.sub,
@@ -205,3 +211,32 @@ def test_jax_binary_overloading(setup_test,  # noqa: F811
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
                                         seed=1.0e-3)
     assert min_order > 1.99
+
+
+@pytest.mark.base
+@pytest.mark.skipif(jax is None, reason="JAX not available")
+@pytest.mark.parametrize("dtype", [np.double, np.cdouble])
+@pytest.mark.parametrize("x_val", [-np.sqrt(2.0),
+                                   np.sqrt(3.0),
+                                   np.sqrt(5.0) + 1.0j * np.sqrt(7.0)])
+@seed_test
+def test_jax_float(setup_test,  # noqa: F811
+                   dtype, x_val):
+    if isinstance(x_val, (complex, np.complexfloating)) \
+            and not issubclass(dtype, (complex, np.complexfloating)):
+        pytest.skip()
+    set_default_jax_dtype(dtype)
+
+    x = new_jax_float().assign(x_val)
+
+    if not issubclass(dtype, (complex, np.complexfloating)):
+        assert float(x) == x_val
+    assert complex(x) == x_val
+    assert var_sum(x) == x_val
+    assert abs(var_linf_norm(x) - abs(x_val)) < 1.0e-15
+    assert var_local_size(x) == (1 if DEFAULT_COMM.rank == 0 else 0)
+    assert var_global_size(x) == 1
+    assert (var_get_values(x) == np.array([x_val] if DEFAULT_COMM.rank == 0
+                                          else [], dtype=x.space.dtype)).all()
+    assert var_is_scalar(x)
+    assert var_scalar_value(x) == x_val
