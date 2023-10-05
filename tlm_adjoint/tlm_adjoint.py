@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, garbage_cleanup, is_var, var_assign,
-    var_copy, var_id, var_is_replacement, var_name)
+    DEFAULT_COMM, comm_dup_cached, garbage_cleanup, var_assign, var_copy,
+    var_id, var_is_replacement, var_name)
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
 from .alias import WeakAlias, gc_disabled
@@ -15,7 +15,6 @@ from .checkpoint_schedules import (
 from .checkpointing import (
     CheckpointStorage, HDF5Checkpoints, PickleCheckpoints, ReplayStorage)
 from .equation import Equation, ZeroAssignment
-from .functional import Functional
 from .markers import ControlsMarker, FunctionalMarker
 from .manager import restore_manager, set_manager
 from .tangent_linear import TangentLinear, TangentLinearMap, tlm_key, tlm_keys
@@ -1077,9 +1076,8 @@ class EquationManager:
         Compute the derivative of one or more functionals with respect to
         one or model controls, using an adjoint approach.
 
-        :arg Js: A variable, :class:`tlm_adjoint.functional.Functional`, or a
-            :class:`Sequence` of these, defining the functionals to
-            differentiate.
+        :arg Js: A variable or a sequence of variables defining the functionals
+            to differentiate.
         :arg M: A variable or a :class:`Sequence` of variables defining the
             controls. Derivatives with respect to the controls are computed.
         :arg callback: Diagnostic callback. A callable of the form
@@ -1130,18 +1128,15 @@ class EquationManager:
         :returns: The conjugate of the derivatives. The return type depends on
             the type of `Js` and `M`.
 
-              - If `Js` is a variable or
-                :class:`tlm_adjoint.functional.Functional`, and `M` is a
-                variable, returns a variable storing the conjugate of the
-                derivative.
+              - If `Js` is a variable and `M` is a variable, returns a variable
+                storing the conjugate of the derivative.
               - If `Js` is a :class:`Sequence`, and `M` is a variable, returns
                 a variable whose :math:`i` th component stores the conjugate of
                 the derivative of the :math:`i` th functional.
-              - If `Js` is a variable or
-                :class:`tlm_adjoint.functional.Functional`, and `M` is a
-                :class:`Sequence`, returns a :class:`Sequence` of variables
-                whose :math:`j` th component stores the conjugate of the
-                derivative with respect to the :math:`j` th control.
+              - If `Js` is a variable and `M` is a :class:`Sequence`, returns a
+                :class:`Sequence` of variables whose :math:`j` th component
+                stores the conjugate of the derivative with respect to the
+                :math:`j` th control.
               - If both `Js` and `M` are :class:`Sequence` objects, returns a
                 :class:`Sequence` whose :math:`i` th component stores the
                 conjugate of the derivatives of the :math:`i` th functional.
@@ -1186,7 +1181,7 @@ class EquationManager:
             raise RuntimeError("Invalid checkpointing state")
 
         # Functionals
-        Js = tuple(Functional(_fn=J) if is_var(J) else J for J in Js)
+        Js = tuple(Js)
 
         # Controls
         M = tuple(M)

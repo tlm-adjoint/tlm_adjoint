@@ -12,7 +12,7 @@ from .interface import (
 
 from .caches import Caches
 from .equation import Equation
-from .equations import Assignment, Conversion
+from .equations import Assignment, Axpy, Conversion
 from .manager import (
     annotation_enabled, manager as _manager, manager_disabled, paused_manager,
     tlm_enabled)
@@ -455,6 +455,40 @@ class Vector:
                 raise TypeError(f"Unexpected type: {type(y)}")
         return self
 
+    def addto(self, y, *, annotate=None, tlm=None):
+        """:class:`Vector` in-place addition.
+
+        :arg y: A scalar, :class:`Vector`, or ndim 1 array defining the value
+            to add.
+        :arg annotate: Whether the
+            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+            solution of equations.
+        :arg tlm: Whether tangent-linear equations should be solved.
+        """
+
+        x_old = self.new().assign(self, annotate=annotate, tlm=tlm)
+        y = self.new().assign(y, annotate=annotate, tlm=tlm)
+        Axpy(self, x_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
+
+    @property
+    def value(self):
+        """For a :class:`Vector` with one element, the value of the element.
+
+        If the value has zero complex part, then this property will be the
+        real part with real type.
+
+        The value may also be accessed by casting using :class:`float` or
+        :class:`complex`.
+
+        :returns: The value.
+        """
+
+        value = var_scalar_value(self)
+        if value.imag == 0.0:
+            return value.real
+        else:
+            return value
+
     @property
     def space(self):
         """The :class:`VectorSpace` for the :class:`Vector`.
@@ -857,13 +891,13 @@ def to_jax(y, space=None, *, name=None):
 
 
 def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
-    """Create a new scalar-valued :class:`Vector`.
+    """Create a new :class:`Vector` with one element.
 
     :arg space: The :class:`VectorSpace`.
     :arg name: A :class:`str` name.
     :arg dtype: The data type. Ignored if `space` is supplied.
     :arg comm: A communicator. Ignored if `space` is supplied.
-    :returns: A scalar-valued :class:`Vector`.
+    :returns: A :class:`Vector` with one element.
     """
 
     if comm is None:
@@ -872,7 +906,7 @@ def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
         space = VectorSpace(1 if comm.rank == 0 else 0, dtype=dtype, comm=comm)
     x = Vector(space, name=name)
     if not var_is_scalar(x):
-        raise RuntimeError("Vector is not scalar-valued")
+        raise RuntimeError("Vector does not have a scalar value")
     return x
 
 

@@ -60,13 +60,10 @@ class FunctionalMarker(Equation):
 
         \mathcal{F} \left( J_\text{output}, J \right) = J_\text{output} - J.
 
-    :arg J: A variable or :class:`tlm_adjoint.functional.Functional` defining
-        the functional :math:`J`.
+    :arg J: A variable defining the functional :math:`J`.
     """
 
     def __init__(self, J):
-        if not is_var(J):
-            J = J.var()
         # Extra variable allocation could be avoided
         J_ = var_new(J)
         super().__init__([J_], [J_, J], nl_deps=[], ic=False, adj_ic=False)

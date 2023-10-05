@@ -73,7 +73,7 @@ manager_info()
 # Compute a forward model constrained derivative of J with respect to F
 dJ = compute_gradient(J, F)
 # Taylor verify the forward model constrained derivative
-min_order = taylor_test(lambda F: forward(F, x0=x0)[1], F, J_val=J.value(),
+min_order = taylor_test(lambda F: forward(F, x0=x0)[1], F, J_val=J.value,
                         dJ=dJ, size=5)
 assert min_order > 2.00
 
@@ -81,7 +81,7 @@ assert min_order > 2.00
 # equal perturbation directions. Omitting the dJ argument here includes the
 # first order tangent-linear in the verification test.
 ddJ = Hessian(lambda F: forward(F, x0=x0)[1])
-min_order = taylor_test(lambda F: forward(F, x0=x0)[1], F, J_val=J.value(),
+min_order = taylor_test(lambda F: forward(F, x0=x0)[1], F, J_val=J.value,
                         ddJ=ddJ, size=5)
 assert min_order > 3.00
 

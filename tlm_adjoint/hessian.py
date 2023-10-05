@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types_conjugate_dual, is_var, var_axpy, var_copy,
-    var_is_cached, var_is_checkpointed, var_is_static, var_name, var_new,
-    var_copy_conjugate)
+    check_space_types_conjugate_dual, var_axpy, var_copy, var_is_cached,
+    var_is_checkpointed, var_is_static, var_name, var_new, var_copy_conjugate,
+    var_scalar_value)
 
 from .caches import local_caches
 from .equations import InnerProduct
@@ -13,11 +13,9 @@ from .manager import manager as _manager
 from .manager import (
     compute_gradient, configure_tlm, var_tlm, paused_manager,
     reset_manager, restore_manager, set_manager, start_manager, stop_manager)
-from .overloaded_float import Float, FloatSpace
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-import functools
 
 __all__ = \
     [
@@ -103,8 +101,7 @@ class GeneralHessian(Hessian):
     to :meth:`compute_gradient` or :meth:`action` re-run the forward.
 
     :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional.
+        which returns a variable defining the forward functional.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
     """
@@ -113,15 +110,8 @@ class GeneralHessian(Hessian):
         if manager is None:
             manager = _manager().new()
 
-        @functools.wraps(forward)
-        def wrapped_forward(*M):
-            J = forward(*M)
-            if is_var(J):
-                J = Functional(_fn=J)
-            return J
-
         super().__init__()
-        self._forward = wrapped_forward
+        self._forward = forward
         self._manager = manager
 
     @local_caches
@@ -149,7 +139,7 @@ class GeneralHessian(Hessian):
         J = self._forward(*M)
         stop_manager()
 
-        J_val = J.value()
+        J_val = var_scalar_value(J)
         dJ = compute_gradient(J, M)
 
         return J_val, dJ
@@ -184,11 +174,11 @@ class GeneralHessian(Hessian):
         configure_tlm((M, dM))
         start_manager()
         J = self._forward(*M)
-        dJ = J.tlm_functional((M, dM))
+        dJ = var_tlm(J, (M, dM))
         stop_manager()
 
-        J_val = J.value()
-        dJ_val = dJ.value()
+        J_val = var_scalar_value(J)
+        dJ_val = var_scalar_value(dJ)
         ddJ = compute_gradient(dJ, M)
 
         return J_val, dJ_val, ddJ
@@ -217,16 +207,9 @@ class GaussNewton(ABC):
         returns the conjugate of the action of the operator corresponding to
         :math:`B^{-1}` on those variables, returning the result as a variable
         or a :class:`Sequence` of variables.
-    :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
-        not supplied.
     """
 
-    def __init__(self, R_inv_action, B_inv_action=None, *,
-                 J_space=None):
-        if J_space is None:
-            J_space = FloatSpace(Float)
-
-        self._J_space = J_space
+    def __init__(self, R_inv_action, B_inv_action=None):
         self._R_inv_action = R_inv_action
         self._B_inv_action = B_inv_action
 
@@ -277,10 +260,10 @@ class GaussNewton(ABC):
         # This defines the adjoint right-hand-side appropriately to compute a
         # J^T action
         start_manager()
-        J = Functional(space=self._J_space)
+        J = Functional()
         assert len(X) == len(R_inv_tau_X)
         for x, R_inv_tau_x in zip(X, R_inv_tau_X):
-            J_term = var_new(J.var())
+            J_term = var_new(J)
             with paused_manager(annotate=False, tlm=True):
                 InnerProduct(J_term, x, var_copy(R_inv_tau_x)).solve()
                 J.addto(J_term)
@@ -333,19 +316,16 @@ class GeneralGaussNewton(GaussNewton):
         state.
     :arg R_inv_action: See :class:`GaussNewton`.
     :arg B_inv_action: See :class:`GaussNewton`.
-    :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
-        not supplied.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
     """
 
     def __init__(self, forward, R_inv_action, B_inv_action=None, *,
-                 J_space=None, manager=None):
+                 manager=None):
         if manager is None:
             manager = _manager().new()
 
-        super().__init__(R_inv_action, B_inv_action=B_inv_action,
-                         J_space=J_space)
+        super().__init__(R_inv_action, B_inv_action=B_inv_action)
         self._forward = forward
         self._manager = manager
 

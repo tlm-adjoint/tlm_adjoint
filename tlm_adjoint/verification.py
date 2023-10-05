@@ -87,17 +87,16 @@ e.g. to verify Hessian matrix calculations
 """
 
 from .interface import (
-    garbage_cleanup, is_var, space_comm, var_assign, var_axpy, var_copy,
-    var_dtype, var_is_cached, var_is_checkpointed, var_is_static,
-    var_local_size, var_name, var_new, var_set_values, vars_inner,
-    vars_linf_norm)
+    garbage_cleanup, space_comm, var_assign, var_axpy, var_copy, var_dtype,
+    var_is_cached, var_is_checkpointed, var_is_static, var_local_size,
+    var_name, var_new, var_set_values, vars_inner, vars_linf_norm,
+    var_scalar_value)
 
 from .caches import clear_caches, local_caches
-from .functional import Functional
 from .manager import manager as _manager
 from .manager import (
     configure_tlm, manager_disabled, reset_manager, restore_manager,
-    set_manager, start_manager, stop_manager)
+    set_manager, start_manager, stop_manager, var_tlm)
 
 from collections.abc import Sequence
 import functools
@@ -116,9 +115,7 @@ def wrapped_forward(forward):
     @functools.wraps(forward)
     def wrapped_forward(*M):
         J = forward(*M)
-        if is_var(J):
-            J = Functional(_fn=J)
-        garbage_cleanup(space_comm(J.space()))
+        garbage_cleanup(space_comm(J.space))
         return J
 
     return wrapped_forward
@@ -147,9 +144,9 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     value of :math:`\eta`, and the argument `size` sets the value of :math:`P`.
 
     :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional :math:`J`. Corresponds to the `J`
-        argument in the dolfin-adjoint :func:`taylor_test` function.
+        which returns a variable defining the forward functional :math:`J`.
+        Corresponds to the `J` argument in the dolfin-adjoint
+        :func:`taylor_test` function.
     :arg M: A variable or a :class:`Sequence` of variables defining the control
         :math:`m`. Corresponds to the `m` argument in the dolfin-adjoint
         :func:`taylor_test` function.
@@ -230,7 +227,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
             var_assign(m1, m0)
             var_axpy(m1, eps[i], dm)
         clear_caches()
-        J_vals[i] = forward(*M1).value()
+        J_vals[i] = var_scalar_value(forward(*M1))
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
@@ -269,8 +266,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     order tangent-linear.
 
     :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional :math:`K`.
+        which returns a variable defining the forward functional :math:`K`.
     :arg M: A variable or a :class:`Sequence` of variables defining the control
         :math:`m` and its value.
     :arg tlm_order: An :class:`int` defining the tangent-linear order to
@@ -347,12 +343,12 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         J = forward(*M)
         stop_manager()
         for dM in dMs:
-            J = J.tlm_functional((M, dM))
+            J = var_tlm(J, (M, dM))
 
         return J
 
-    J_val = forward_tlm(dMs[:-1], *M).value()
-    dJ = forward_tlm(dMs, *M).value()
+    J_val = var_scalar_value(forward_tlm(dMs[:-1], *M))
+    dJ = var_scalar_value(forward_tlm(dMs, *M))
 
     J_vals = np.full(eps.shape, np.NAN, dtype=complex)
     for i in range(eps.shape[0]):
@@ -361,7 +357,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         for m0, m1, dm in zip(M, M1, dMs[-1]):
             var_assign(m1, m0)
             var_axpy(m1, eps[i], dm)
-        J_vals[i] = forward_tlm(dMs[:-1], *M1).value()
+        J_vals[i] = var_scalar_value(forward_tlm(dMs[:-1], *M1))
 
     error_norms_0 = abs(J_vals - J_val)
     orders_0 = np.log(error_norms_0[1:] / error_norms_0[:-1]) / np.log(0.5)
@@ -385,8 +381,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     associated with an `(adjoint_order - 1)` th order tangent-linear.
 
     :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional :math:`K`.
+        which returns a variable defining the forward functional :math:`K`.
     :arg M: A variable or a :class:`Sequence` of variables defining the control
         :math:`m` and its value.
     :arg adjoint_order: An :class:`int` defining the adjoint order to test.
@@ -461,12 +456,12 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         J = forward(*M)
         stop_manager()
         for dM in dMs:
-            J = J.tlm_functional((M, dM))
+            J = var_tlm(J, (M, dM))
 
         return J
 
     J = forward_tlm(*M, annotate=True)
-    J_val = J.value()
+    J_val = var_scalar_value(J)
     dJ = tlm_manager.compute_gradient(J, M)
 
     return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, dM=dM_test,

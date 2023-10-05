@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import is_var, var_id, var_new, var_state
+from .interface import var_id, var_new, var_scalar_value, var_state
 
 from .caches import clear_caches
-from .functional import Functional
 from .hessian import GaussNewton, Hessian
 from .manager import manager as _manager
-from .manager import compute_gradient, set_manager, restore_manager
+from .manager import compute_gradient, set_manager, restore_manager, var_tlm
 from .tlm_adjoint import AdjointCache, EquationManager
 
 from collections.abc import Sequence
@@ -138,8 +137,7 @@ class CachedHessian(Hessian, HessianOptimization):
     """Represents a Hessian matrix associated with a given forward model. Uses
     a cached forward calculation.
 
-    :arg J: A variable or :class:`tlm_adjoint.functional.Functional` defining
-        the Hessian matrix.
+    :arg J: A variable defining the Hessian matrix.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
         automatic dropping of variable references disabled. `manager()` is used
@@ -148,13 +146,11 @@ class CachedHessian(Hessian, HessianOptimization):
     """
 
     def __init__(self, J, *, manager=None, cache_adjoint=True):
-        if is_var(J):
-            J = Functional(_fn=J)
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
-        self._J_state = var_state(J.var())
-        self._J = Functional(_fn=J.var())
+        self._J_state = var_state(J)
+        self._J = J
 
     @restore_manager
     def compute_gradient(self, M, M0=None):
@@ -164,16 +160,16 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ
 
-        if var_state(self._J.var()) != self._J_state:
+        if var_state(self._J) != self._J_state:
             raise RuntimeError("State has changed")
 
         dM = tuple(map(var_new, M))
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
         set_manager(manager)
 
-        dJ = self._J.tlm_functional((M, dM))
+        dJ = var_tlm(self._J, (M, dM))
 
-        J_val = self._J.value()
+        J_val = var_scalar_value(self._J)
         dJ = compute_gradient(
             dJ, dM,
             cache_adjoint_degree=1 if self._cache_adjoint else 0,
@@ -189,16 +185,16 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
-        if var_state(self._J.var()) != self._J_state:
+        if var_state(self._J) != self._J_state:
             raise RuntimeError("State has changed")
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
         set_manager(manager)
 
-        dJ = self._J.tlm_functional((M, dM))
+        dJ = var_tlm(self._J, (M, dM))
 
-        J_val = self._J.value()
-        dJ_val = dJ.value()
+        J_val = var_scalar_value(self._J)
+        dJ_val = var_scalar_value(dJ)
         ddJ = compute_gradient(
             dJ, M,
             cache_adjoint_degree=1 if self._cache_adjoint else 0,
@@ -214,8 +210,6 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     :arg X: A variable or a :class:`Sequence` of variables defining the state.
     :arg R_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
     :arg B_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
-    :arg J_space: The space for the functional. `FloatSpace(Float)` is used if
-        not supplied.
     :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
         record the forward. This must have used `'memory'` checkpointing with
         automatic dropping of variable references disabled. `manager()` is used
@@ -223,15 +217,14 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
     """
 
     def __init__(self, X, R_inv_action, B_inv_action=None, *,
-                 J_space=None, manager=None):
+                 manager=None):
         if not isinstance(X, Sequence):
             X = (X,)
 
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=False)
         GaussNewton.__init__(
-            self, R_inv_action, B_inv_action=B_inv_action,
-            J_space=J_space)
+            self, R_inv_action, B_inv_action=B_inv_action)
         self._X = tuple(X)
         self._X_state = tuple(map(var_state, X))
 

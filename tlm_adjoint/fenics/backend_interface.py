@@ -156,7 +156,7 @@ class FunctionInterface(_VariableInterface):
     @check_vector_size
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
-            y = y.value()
+            y = y.value
         if isinstance(y, backend_Function):
             if self.vector().local_size() != y.vector().local_size():
                 raise ValueError("Invalid function space")
@@ -448,5 +448,5 @@ def functional_term_eq_form(x, term):
 
 
 register_functional_term_eq(
-    (SymbolicFloat, backend_Constant), ufl.classes.Form,
+    ufl.classes.Form,
     functional_term_eq_form)

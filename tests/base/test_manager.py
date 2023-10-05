@@ -42,7 +42,7 @@ def test_EmptyEquation(setup_test):  # noqa: F811
     manager.finalize()
     assert len(manager._blocks[0][0].X()) == 0
 
-    J_val = J.value()
+    J_val = J.value
     assert abs(J_val - 16.0) == 0.0
 
     dJ = compute_gradient(J, F)
@@ -80,7 +80,7 @@ def test_empty(setup_test):  # noqa: F811
     stop_manager()
 
     dJ = compute_gradient(J, m)
-    assert dJ.value() == 0.0
+    assert dJ.value == 0.0
 
 
 @pytest.mark.base
@@ -132,7 +132,7 @@ def test_binomial_checkpointing(setup_test,  # noqa: F811
     print(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
     assert n_forward_solves == n_forward_solves_optimal
 
-    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ)
+    min_order = taylor_test(forward, m, J_val=J.value, dJ=dJ)
     assert min_order > 1.99
 
 
@@ -246,7 +246,7 @@ def test_random_computational_graph(setup_test,  # noqa: F811
                         X.append(Float().assign(sum(c * y for c, y in zip(C, Y))))  # noqa: E501
                 if n < N - 1:
                     new_block()
-            if X[-1].value() == 0.0:
+            if X[-1].value == 0.0:
                 return X[-1] ** 4 + (X[0] + 0.5) ** 4
             else:
                 return X[-1] ** 4
@@ -269,7 +269,7 @@ def test_random_computational_graph(setup_test,  # noqa: F811
                     # Tests that CachedHessian uses stored values
                     c.assign(np.NAN)
 
-            J_val = J.value()
+            J_val = J.value
 
             N_eq = sum(len(block) for block in (list(manager()._blocks)
                                                 + [manager()._block]))

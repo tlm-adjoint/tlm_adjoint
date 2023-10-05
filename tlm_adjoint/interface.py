@@ -1423,33 +1423,23 @@ def register_finalize_adjoint_derivative_action(fn):
 
 
 @functools.singledispatch
-def functional_term_eq(x, term):
+def _functional_term_eq(term, x):
     raise NotImplementedError("Unexpected case encountered")
 
 
-def register_functional_term_eq(x_cls, term_cls, fn, *,
+def functional_term_eq(x, term):
+    return _functional_term_eq(term, x)
+
+
+def register_functional_term_eq(term_cls, fn, *,
                                 replace=False):
-    if not isinstance(x_cls, Sequence):
-        x_cls = (x_cls,)
     if not isinstance(term_cls, Sequence):
         term_cls = (term_cls,)
-    for x_cls, term_cls in itertools.product(x_cls, term_cls):
-        if x_cls not in functional_term_eq.registry:
-            @functools.singledispatch
-            def _x_fn(term, x):
-                raise NotImplementedError("Unexpected case encountered")
-
-            @functional_term_eq.register(x_cls)
-            def x_fn(x, term):
-                return functional_term_eq.dispatch(type(x))._tlm_adjoint__x_fn(term, x)  # noqa: E501
-
-            x_fn._tlm_adjoint__x_fn = _x_fn
-
-        _x_fn = functional_term_eq.registry[x_cls]._tlm_adjoint__x_fn
-        if term_cls in _x_fn.registry and not replace:
+    for term_cls in term_cls:
+        if term_cls in _functional_term_eq.registry and not replace:
             raise RuntimeError("Case already registered")
 
-        @_x_fn.register(term_cls)
+        @_functional_term_eq.register(term_cls)
         def wrapped_fn(term, x):
             return fn(x, term)
 

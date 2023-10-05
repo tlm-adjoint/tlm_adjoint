@@ -82,9 +82,9 @@ configure_tlm((kappa, zeta_1), ((kappa, zeta_1), (zeta_2, zeta_3)))
 start_manager()
 # J = forward(kappa, output_filename="forward.pvd")
 J = forward(kappa)
-dJ_tlm_1 = J.tlm_functional((kappa, zeta_1))
-dJ_tlm_2 = J.tlm_functional(((kappa, zeta_1), (zeta_2, zeta_3)))
-ddJ_tlm = dJ_tlm_1.tlm_functional(((kappa, zeta_1), (zeta_2, zeta_3)))
+dJ_tlm_1 = var_tlm(J, (kappa, zeta_1))
+dJ_tlm_2 = var_tlm(J, ((kappa, zeta_1), (zeta_2, zeta_3)))
+ddJ_tlm = var_tlm(dJ_tlm_1, ((kappa, zeta_1), (zeta_2, zeta_3)))
 stop_manager()
 
 dJ_adj, ddJ_adj, dddJ_adj = compute_gradient(ddJ_tlm, (zeta_3, zeta_2, kappa))
@@ -96,13 +96,13 @@ def info_compare(x, y, tol):
 
 
 info("TLM/adjoint consistency, zeta_1")
-info_compare(dJ_tlm_1.value(), var_inner(zeta_1, dJ_adj), tol=1.0e-17)
+info_compare(dJ_tlm_1.value, var_inner(zeta_1, dJ_adj), tol=1.0e-17)
 
 info("TLM/adjoint consistency, zeta_2")
-info_compare(dJ_tlm_2.value(), var_inner(zeta_2, dJ_adj), tol=1.0e-17)
+info_compare(dJ_tlm_2.value, var_inner(zeta_2, dJ_adj), tol=1.0e-17)
 
 info("Second order TLM/adjoint consistency")
-info_compare(ddJ_tlm.value(), var_inner(zeta_2, ddJ_adj), tol=1.0e-17)
+info_compare(ddJ_tlm.value, var_inner(zeta_2, ddJ_adj), tol=1.0e-17)
 
 min_order = taylor_test_tlm(forward, kappa, tlm_order=1, seed=1.0e-3)
 assert min_order > 1.99

@@ -64,7 +64,7 @@ def test_hessian_solve(setup_test,
         J_mismatch.assign(0.5 * alpha * dot(u - u_ref, u - u_ref) * dx)
 
         J = Functional(name="J")
-        J.assign(J_mismatch.var())
+        J.assign(J_mismatch)
         J.addto(0.5 * beta * dot(m, m) * dx)
 
         return u, J, J_mismatch
