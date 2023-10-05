@@ -5,12 +5,11 @@ from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
     var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_global_size,
     var_is_cached, var_is_checkpointed, var_is_static, var_linf_norm,
-    var_local_size, var_new, var_new_conjugate_dual, var_set_values,
-    vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
+    var_local_size, var_new, var_new_conjugate_dual, var_scalar_value,
+    var_set_values, vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
     vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
-from .functional import Functional
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
 from .manager import (
@@ -82,8 +81,6 @@ class ReducedFunctional:
 
             start_manager()
             J = self._forward(*M)
-            if is_var(J):
-                J = Functional(_fn=J)
             stop_manager()
 
             self._M = M
@@ -92,7 +89,7 @@ class ReducedFunctional:
         assert self._M is not None
         assert self._J is not None
 
-        J_val = self._J.value()
+        J_val = var_scalar_value(self._J)
         if not isinstance(J_val, (float, np.floating)):
             raise ValueError("Invalid dtype")
         return J_val
@@ -147,8 +144,7 @@ def minimize_scipy(forward, M0, *,
     :func:`scipy.optimize.minimize`.
 
     :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional.
+        which returns a variable defining the forward functional.
     :arg M0: A variable or :class:`Sequence` of variables defining the control,
         and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
@@ -888,8 +884,7 @@ def minimize_l_bfgs(forward, M0, *,
     """Functional minimization using the L-BFGS algorithm.
 
     :arg forward: A callable which accepts one or more variable arguments, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional.
+        which returns a variable defining the forward functional.
     :arg M0: A variable or :class:`Sequence` of variables defining the control,
         and the initial guess for the optimization.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
@@ -932,8 +927,7 @@ def minimize_tao(forward, m0, *,
     r"""Functional minimization using TAO.
 
     :arg forward: A callable which accepts one variable argument, and
-        which returns a variable or :class:`tlm_adjoint.functional.Functional`
-        defining the forward functional.
+        which returns a variable defining the forward functional.
     :arg m0: A variable defining the control, and the initial guess for the
         optimization.
     :arg method: TAO type. Defaults to `PETSc.TAO.Type.LMVM`.

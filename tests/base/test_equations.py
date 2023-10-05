@@ -45,15 +45,15 @@ def test_Assignment(setup_test):  # noqa: F811
     J, K = forward(x)
     stop_manager()
 
-    assert abs(J.value() - 66048.0) == 0.0
-    assert abs(K.value() - 65536.0) == 0.0
+    assert abs(J.value - 66048.0) == 0.0
+    assert abs(K.value - 65536.0) == 0.0
 
     dJs = compute_gradient([J, K], x)
 
     dm = Float(1.0, name="dm")
 
-    for forward_J, J_val, dJ in [(lambda x: forward(x)[0], J.value(), dJs[0]),
-                                 (lambda x: forward(x)[1], K.value(), dJs[1])]:
+    for forward_J, J_val, dJ in [(lambda x: forward(x)[0], J.value, dJs[0]),
+                                 (lambda x: forward(x)[1], K.value, dJs[1])]:
         min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, dM=dm)
         assert min_order > 2.00
 
@@ -96,7 +96,7 @@ def test_Axpy(setup_test):  # noqa: F811
     J = forward(x)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     assert abs(J_val - 25411681.0) == 0.0
 
     dJ = compute_gradient(J, x)

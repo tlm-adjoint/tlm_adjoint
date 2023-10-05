@@ -61,7 +61,7 @@ def test_long_range(setup_test, test_leaks,
     x_ref, J = forward(F)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, F)
 
@@ -105,11 +105,11 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
         J_1 = Functional(name="J_1")
         J_1.assign(x * dx)
 
-        J_0_val = J_0.value()
+        J_0_val = J_0.value
         ZeroAssignment(x).solve()
         assert var_linf_norm(x) == 0.0
         J_0.addto(dot(x, y) * dx)
-        assert J_0.value() == J_0_val
+        assert J_0.value == J_0_val
 
         J_2 = Functional(name="J_2")
         J_2.assign(x * dx)
@@ -123,8 +123,8 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
     J = forward(y)
     stop_manager()
 
-    eqs = {(0, 0, i) for i in range(8)}
-    active_eqs = {(0, 0, 1), (0, 0, 2), (0, 0, 5), (0, 0, 6)}
+    eqs = {(0, 0, i) for i in range(9)}
+    active_eqs = {(0, 0, 1), (0, 0, 2), (0, 0, 5), (0, 0, 6), (0, 0, 7)}
 
     def callback(J_i, n, i, eq, adj_X):
         if n == 0:
@@ -134,7 +134,7 @@ def test_adjoint_graph_pruning(setup_test, test_leaks):
     dJ = compute_gradient(J, y, callback=callback)
     assert len(eqs) == 0
 
-    J_val = J.value()
+    J_val = J.value
 
     min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ)
     assert min_order > 2.00
@@ -269,7 +269,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
         M = IdentityMatrix()
 
         J = Functional(name="J")
-        InnerProduct(J.var(), z, z, M=M).solve()
+        InnerProduct(J, z, z, M=M).solve()
         return J
 
     m = Constant(np.sqrt(2.0), name="m")
@@ -278,7 +278,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
     J = forward(m, forward_run=True)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     info(f"J = {J_val:.16e}")
     assert abs(J_val - 36.0) < 1.0e-13
 
@@ -435,7 +435,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
     J = forward(m, forward_run=True)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     info(f"J = {J_val:.16e}")
     assert abs(J_val - np.sqrt(2.0)) < 1.0e-15
 
@@ -479,7 +479,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
                 new_block()
 
         J = Functional(name="J")
-        DotProduct(J.var(), m, m).solve()
+        DotProduct(J, m, m).solve()
         return J
 
     m = Constant(1.0, name="m", static=True)
@@ -495,7 +495,7 @@ def test_binomial_checkpointing(setup_test, test_leaks,
     info(f"Optimal number of forward steps: {n_forward_solves_optimal:d}")
     assert n_forward_solves == n_forward_solves_optimal
 
-    min_order = taylor_test(forward, m, J_val=J.value(), dJ=dJ)
+    min_order = taylor_test(forward, m, J_val=J.value, dJ=dJ)
     assert min_order > 1.99
 
 
@@ -546,8 +546,8 @@ def test_adjoint_caching(setup_test, test_leaks):
         J, K = forward(m)
         return K
 
-    J_val = J.value()
-    K_val = K.value()
+    J_val = J.value
+    K_val = K.value
     dJ_0, dK_0 = compute_gradient(
         [J, K], m,
         cache_adjoint_degree=0)
@@ -585,7 +585,7 @@ def test_adjoint_caching(setup_test, test_leaks):
     stop_manager()
 
     dJ_1, ddJ_1, dK_1 = manager().compute_gradient(
-        [J, J.tlm_functional((m, dm_0)), K], m,
+        [J, var_tlm(J, (m, dm_0)), K], m,
         cache_adjoint_degree=1)
 
     adj_cache = manager()._adj_cache
@@ -616,13 +616,13 @@ def test_adjoint_caching(setup_test, test_leaks):
     stop_manager()
 
     dddJ_2 = compute_gradient(
-        J.tlm_functional((m, dm_0), (m, dm_1)), m,
+        var_tlm(J, (m, dm_0), (m, dm_1)), m,
         cache_adjoint_degree=0)
 
     ddJ_2a, ddJ_2b, dddJ_2b, dJ_2, dK_2 = manager().compute_gradient(
-        [J.tlm_functional((m, dm_0)),
-         J.tlm_functional((m, dm_1)),
-         J.tlm_functional((m, dm_0), (m, dm_1)),
+        [var_tlm(J, (m, dm_0)),
+         var_tlm(J, (m, dm_1)),
+         var_tlm(J, (m, dm_0), (m, dm_1)),
          J,
          K],
         m, cache_adjoint_degree=1)
@@ -663,8 +663,8 @@ def test_adjoint_caching(setup_test, test_leaks):
     stop_manager()
 
     ddJ_3, dddJ_3, dJ_3, dK_3 = manager().compute_gradient(
-        [J.tlm_functional((m, dm_0)),
-         J.tlm_functional((m, dm_0), (m, dm_0)),
+        [var_tlm(J, (m, dm_0)),
+         var_tlm(J, (m, dm_0), (m, dm_0)),
          J,
          K],
         m, cache_adjoint_degree=1)
@@ -713,23 +713,23 @@ def test_adjoint_caching(setup_test, test_leaks):
     stop_manager()
 
     dddJ_02_0 = compute_gradient(
-        J.tlm_functional((m, dm_0), (m, dm_2)), m,
+        var_tlm(J, (m, dm_0), (m, dm_2)), m,
         cache_adjoint_degree=0)
     dddJ_03_0 = compute_gradient(
-        J.tlm_functional((m, dm_0), (m, dm_3)), m,
+        var_tlm(J, (m, dm_0), (m, dm_3)), m,
         cache_adjoint_degree=0)
     dddJ_12_0 = compute_gradient(
-        J.tlm_functional((m, dm_1), (m, dm_2)), m,
+        var_tlm(J, (m, dm_1), (m, dm_2)), m,
         cache_adjoint_degree=0)
     dddJ_13_0 = compute_gradient(
-        J.tlm_functional((m, dm_1), (m, dm_3)), m,
+        var_tlm(J, (m, dm_1), (m, dm_3)), m,
         cache_adjoint_degree=0)
 
     dddJ_02_1, dddJ_03_1, dddJ_12_1, dddJ_13_1 = compute_gradient(
-        [J.tlm_functional((m, dm_0), (m, dm_2)),
-         J.tlm_functional((m, dm_0), (m, dm_3)),
-         J.tlm_functional((m, dm_1), (m, dm_2)),
-         J.tlm_functional((m, dm_1), (m, dm_3))],
+        [var_tlm(J, (m, dm_0), (m, dm_2)),
+         var_tlm(J, (m, dm_0), (m, dm_3)),
+         var_tlm(J, (m, dm_1), (m, dm_2)),
+         var_tlm(J, (m, dm_1), (m, dm_3))],
         m, cache_adjoint_degree=2)
 
     adj_cache = manager()._adj_cache

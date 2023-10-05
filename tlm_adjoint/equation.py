@@ -405,8 +405,7 @@ class Equation(Referrer):
         """Compute the adjoint solution, and subtract terms from other adjoint
         right-hand-sides.
 
-        :arg J: The :class:`tlm_adjoint.functional.Functional` defining the
-            adjoint.
+        :arg J: The variable defining the forward functional.
         :arg adj_X: Either `None`, or a :class:`Sequence` of variables defining
             the initial guess for an iterative solve. May be modified or
             returned.
@@ -447,8 +446,7 @@ class Equation(Referrer):
     def adjoint_cached(self, J, adj_X, nl_deps, dep_Bs):
         """Subtract terms from other adjoint right-hand-sides.
 
-        :arg J: The :class:`tlm_adjoint.functional.Functional` defining the
-            adjoint.
+        :arg J: The variable defining the forward functional.
         :arg adj_X: A :class:`Sequence` of variables defining the adjoint
             solution.
         :arg nl_deps: A :class:`Sequence` of variables defining values of

@@ -218,7 +218,7 @@ def test_cached_adjoint(setup_test, test_leaks,
     assert isinstance(eq._adjoint_J_solver, CacheRef)
     assert eq._adjoint_J_solver() is not None
 
-    min_order = taylor_test(forward, G, J_val=J.value(), dJ=dJ)
+    min_order = taylor_test(forward, G, J_val=J.value, dJ=dJ)
     assert min_order > 1.99
 
 

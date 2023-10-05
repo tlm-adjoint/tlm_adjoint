@@ -92,7 +92,7 @@ def test_overrides(setup_test, test_leaks):
         var_axpy(error, -1.0, G)
         assert var_linf_norm(error) < 1.0e-14
 
-        J_val = J.value()
+        J_val = J.value
 
         dJ = compute_gradient(J, F)
 
@@ -145,7 +145,7 @@ def test_Function_assign(setup_test, test_leaks):
     J = forward(m)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     assert abs(J_val - 342974.2096) < 1.0e-9
 
     dJ = compute_gradient(J, m)
@@ -203,7 +203,7 @@ def test_Nullspace(setup_test, test_leaks):
 
     assert abs(var_sum(psi)) < 1.0e-15
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, F)
 
@@ -288,7 +288,7 @@ def test_interpolate(setup_test, test_leaks,
         var_axpy(y_1_error, -1.0, y_1_ref)
         assert var_linf_norm(y_1_error) < 1.0e-14
 
-        J_val = J.value()
+        J_val = J.value
 
         dJ = compute_gradient(J, y_2)
 
@@ -326,7 +326,7 @@ def test_Assemble_arity_1(setup_test, test_leaks):
         x = assemble(inner(ufl.conj(F ** 3), test) * dx)
 
         J = Functional(name="J")
-        InnerProduct(J.var(), F, x).solve()
+        InnerProduct(J, F, x).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -336,7 +336,7 @@ def test_Assemble_arity_1(setup_test, test_leaks):
     J = forward(F)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     assert abs(J_val - assemble((F ** 4) * dx)) < 1.0e-16
 
     dJ = compute_gradient(J, F)
@@ -446,7 +446,7 @@ def test_DirichletBC_apply(setup_test, test_leaks, tmp_path):
     J = forward(y)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, y)
 

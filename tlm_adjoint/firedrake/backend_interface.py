@@ -241,7 +241,7 @@ class FunctionInterface(FunctionInterfaceBase):
     @manager_disabled()
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
-            y = y.value()
+            y = y.value
         if isinstance(y, (backend_Cofunction, backend_Function)):
             with self.dat.vec as x_v, y.dat.vec_ro as y_v:
                 if x_v.getLocalSize() != y_v.getLocalSize():
@@ -560,5 +560,5 @@ def functional_term_eq_form(x, term):
 
 
 register_functional_term_eq(
-    (SymbolicFloat, backend_Constant), ufl.classes.Form,
+    ufl.classes.Form,
     functional_term_eq_form)

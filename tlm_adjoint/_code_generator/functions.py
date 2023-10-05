@@ -113,7 +113,7 @@ class ConstantInterface(_VariableInterface):
     @manager_disabled()
     def _assign(self, y):
         if isinstance(y, SymbolicFloat):
-            y = y.value()
+            y = y.value
         if isinstance(y, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
@@ -131,7 +131,7 @@ class ConstantInterface(_VariableInterface):
     @manager_disabled()
     def _axpy(self, alpha, x, /):
         if isinstance(x, SymbolicFloat):
-            x = x.value()
+            x = x.value
         if isinstance(x, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):

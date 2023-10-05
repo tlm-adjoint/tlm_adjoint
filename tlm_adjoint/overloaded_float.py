@@ -24,12 +24,13 @@ from .interface import (
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
     subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
-    var_id, var_is_scalar, var_name, var_new, var_new_conjugate_dual,
-    var_scalar_value, var_space_type)
+    var_id, var_is_scalar, var_new, var_new_conjugate_dual, var_scalar_value,
+    var_space_type)
 
+from .alias import Alias
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
-from .equations import Assignment, Conversion
+from .equations import Assignment, Axpy, Conversion
 from .manager import annotation_enabled, tlm_enabled
 
 import contextlib
@@ -41,6 +42,7 @@ try:
     from sympy.printing.numpy import NumPyPrinter
 except ImportError:
     from sympy.printing.pycode import NumPyPrinter
+import warnings
 
 
 __all__ = \
@@ -209,7 +211,7 @@ class FloatInterface(VariableInterface):
         rdtype = type(dtype().real)
 
         if isinstance(y, SymbolicFloat):
-            y = y.value()
+            y = y.value
         elif isinstance(y, (sp.Integer, sp.Float)):
             y = complex(y)
         if isinstance(y, (int, np.integer,
@@ -230,16 +232,16 @@ class FloatInterface(VariableInterface):
             var_assign(self, var_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
-        var_assign(self, self.value() + alpha * var_scalar_value(x))
+        var_assign(self, self.value + alpha * var_scalar_value(x))
 
     def _inner(self, y):
-        return var_scalar_value(y).conjugate() * self.value()
+        return var_scalar_value(y).conjugate() * self.value
 
     def _sum(self):
-        return self.value()
+        return self.value
 
     def _linf_norm(self):
-        return abs(self.value())
+        return abs(self.value)
 
     def _local_size(self):
         comm = var_comm(self)
@@ -261,7 +263,7 @@ class FloatInterface(VariableInterface):
     def _get_values(self):
         comm = var_comm(self)
         dtype = var_dtype(self)
-        value = dtype(self.value())
+        value = dtype(self.value)
         values = np.array([value] if comm.rank == 0 else [], dtype=dtype)
         return values
 
@@ -289,7 +291,7 @@ class FloatInterface(VariableInterface):
 
     def _scalar_value(self):
         # assert var_is_scalar(self)
-        return self.value()
+        return self.value
 
 
 @no_float_overloading
@@ -397,17 +399,23 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         return x
 
     def __float__(self):
-        return float(self.value())
+        return float(self.value)
 
     def __complex__(self):
-        return complex(self.value())
+        return complex(self.value)
 
     @property
     def space(self):
         """The :class:`FloatSpace` for the :class:`SymbolicFloat`.
         """
 
-        return self._space
+        class CallableProperty(Alias):
+            def __call__(self):
+                warnings.warn("space is a property and should not be called",
+                              DeprecationWarning, stacklevel=2)
+                return self
+
+        return CallableProperty(self._space)
 
     @property
     def space_type(self):
@@ -451,12 +459,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                 deps = expr_dependencies(y)
                 var_assign(
                     self,
-                    lambdify(y, deps)(*(dep.value() for dep in deps)))
+                    lambdify(y, deps)(*(dep.value for dep in deps)))
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         return self
 
-    @no_float_overloading
     def addto(self, y, *, annotate=None, tlm=None):
         """:class:`SymbolicFloat` in-place addition.
 
@@ -468,10 +475,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        x = self.new(value=self, name=f"{var_name(self):s}_old",
-                     annotate=annotate, tlm=tlm)
-        self.assign(x + y, annotate=annotate, tlm=tlm)
+        x_old = self.new().assign(self, annotate=annotate, tlm=tlm)
+        y = self.new().assign(y, annotate=annotate, tlm=tlm)
+        Axpy(self, x_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
 
+    @property
     def value(self):
         """Return the current value associated with the :class:`SymbolicFloat`.
 
@@ -485,7 +493,13 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :returns: The value.
         """
 
-        return self._value
+        class CallableProperty(type(self._value)):
+            def __call__(self):
+                warnings.warn("value is a property and should not be called",
+                              DeprecationWarning, stacklevel=2)
+                return self
+
+        return CallableProperty(self._value)
 
 
 # Required by Sphinx
@@ -706,7 +720,7 @@ class FloatEquation(Equation):
     def forward_solve(self, x, deps=None):
         if deps is None:
             deps = self.dependencies()
-        dep_vals = tuple(dep.value() for dep in deps)
+        dep_vals = tuple(dep.value for dep in deps)
         x_val = self._F(*dep_vals)
         var_assign(x, x_val)
 
@@ -715,12 +729,12 @@ class FloatEquation(Equation):
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
         deps = self.dependencies()
-        nl_dep_vals = tuple(nl_dep.value() for nl_dep in nl_deps)
+        nl_dep_vals = tuple(nl_dep.value for nl_dep in nl_deps)
         for dep_index, dep_B in dep_Bs.items():
             dep = deps[dep_index]
             F = var_new_conjugate_dual(dep)
             F_val = (-self._dF[dep_index](*nl_dep_vals).conjugate()
-                     * adj_x.value())
+                     * adj_x.value)
             var_assign(F, F_val)
             dep_B.sub(F)
 

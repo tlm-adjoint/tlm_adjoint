@@ -54,7 +54,7 @@ def test_Assignment(setup_test, test_leaks):
     var_axpy(y_error, -1.0, x)
     assert var_linf_norm(y_error) == 0.0
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, x)
 
@@ -126,7 +126,7 @@ def test_Axpy(setup_test, test_leaks,
     del y_1
     assert var_linf_norm(y_error) == 0.0
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, x)
 
@@ -198,7 +198,7 @@ def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
     var_axpy(error, -1.0, x)
     assert var_linf_norm(error) < 1.0e-14
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, bc)
 
@@ -255,7 +255,7 @@ def test_FixedPointSolver(setup_test, test_leaks):
     b_val = var_scalar_value(b)
     assert abs(x_val * np.sqrt(x_val + b_val) - a_val) < 1.0e-14
 
-    J_val = J.value()
+    J_val = J.value
 
     dJda, dJdb = compute_gradient(J, [a, b])
 
@@ -351,7 +351,7 @@ def test_PointInterpolation(setup_test, test_leaks,
     info(f"Error norm = {x_error_norm:.16e}")
     assert x_error_norm < 1.0e-13
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, y)
 
@@ -424,7 +424,7 @@ def test_ExprAssignment(setup_test, test_leaks,
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-14
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ_c, dJ_y = compute_gradient(J, (c, y))
 
@@ -485,7 +485,7 @@ def test_ExprAssignment_vector(setup_test, test_leaks):
         _, J = forward(m)
         return J
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, m)
 
@@ -539,7 +539,7 @@ def test_ExprInterpolation(setup_test, test_leaks):
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-15
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, y)
 
@@ -601,7 +601,7 @@ def test_ExprInterpolation_transpose(setup_test, test_leaks,
     var_axpy(y_1_error, -1.0, y_1_ref)
     assert var_linf_norm(y_1_error) == 0.0
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, y_2)
 
@@ -662,7 +662,7 @@ def test_LocalProjection(setup_test, test_leaks):
     info(f"Error norm = {F_error_norm:.16e}")
     assert F_error_norm < 1.0e-14
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, G)
 
@@ -709,7 +709,7 @@ def test_Assembly_arity_0(setup_test, test_leaks):
     J = forward(F)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     assert abs(J_val - assemble((F ** 4) * dx)) == 0.0
 
     dJ = compute_gradient(J, F)
@@ -745,7 +745,7 @@ def test_Assembly_arity_1(setup_test, test_leaks):
         Assembly(x, inner(ufl.conj(F ** 3), test) * dx).solve()
 
         J = Functional(name="J")
-        InnerProduct(J.var(), F, x).solve()
+        InnerProduct(J, F, x).solve()
         return J
 
     F = Function(space, name="F", static=True)
@@ -755,7 +755,7 @@ def test_Assembly_arity_1(setup_test, test_leaks):
     J = forward(F)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     assert abs(J_val - assemble((F ** 4) * dx)) < 1.0e-16
 
     dJ = compute_gradient(J, F)
@@ -838,7 +838,7 @@ def test_Storage(setup_test, test_leaks,
         == (0, 2, 0, 2)
     assert len(manager()._cp._storage) == 4
 
-    J_val = J.value()
+    J_val = J.value
 
     def forward_J(x):
         return forward(x, d=d, h=h)[5]
@@ -967,7 +967,7 @@ def test_initial_guess(setup_test, test_leaks,
                    solver_parameters=ls_parameters_cg).solve()
         if not test_adj_ic:
             ZeroAssignment(x).solve()
-        J_term = var_new(J.var())
+        J_term = var_new(J)
         InnerProduct(J_term, x, adj_x_0).solve()
         J.addto(J_term)
 
@@ -989,19 +989,19 @@ def test_initial_guess(setup_test, test_leaks,
                                                  var_id(adj_x_0))
     assert len(manager()._cp._cp) == 0
     if test_adj_ic:
-        assert len(manager()._cp._data) == 8
-        assert tuple(map(len, manager()._cp._data.values())) \
-            == (0, 0, 0, 0, 1, 0, 2, 0)
-    else:
         assert len(manager()._cp._data) == 9
         assert tuple(map(len, manager()._cp._data.values())) \
-            == (0, 0, 0, 0, 1, 0, 0, 2, 0)
+            == (0, 0, 0, 0, 1, 0, 2, 0, 0)
+    else:
+        assert len(manager()._cp._data) == 10
+        assert tuple(map(len, manager()._cp._data.values())) \
+            == (0, 0, 0, 0, 1, 0, 0, 2, 0, 0)
     assert len(manager()._cp._storage) == 5
 
     dJdx_0, dJdy = compute_gradient(J, [x_0, y])
     assert var_linf_norm(dJdx_0) == 0.0
 
-    J_val = J.value()
+    J_val = J.value
 
     def forward_J(y):
         _, _, _, J = forward(y)
@@ -1046,7 +1046,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
     J = forward(m)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
 
     dJ = compute_gradient(J, m)
 
@@ -1156,7 +1156,7 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
 
     dJ = compute_gradient(J, m)
 
-    J_val = J.value()
+    J_val = J.value
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
     assert min_order > 2.00

@@ -152,7 +152,7 @@ def test_oscillator(setup_test, test_leaks,
     J = forward(T_0)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     J_val_ref = oscillator_ref() ** 2
     assert abs(J_val - J_val_ref) < 1.0e-14
 
@@ -236,7 +236,7 @@ def test_diffusion_1d(setup_test, test_leaks,
     J = forward(T_0, kappa)
     stop_manager()
 
-    J_val = J.value()
+    J_val = J.value
     if n_steps == 20:
         J_val_ref = diffusion_ref()
         assert abs(J_val - J_val_ref) < 1.0e-12
