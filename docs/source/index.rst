@@ -52,6 +52,8 @@ tlm_adjoint.
   partial differential equation constrained optimization problems.
 - `Defining custom operations <examples/6_custom_operations.ipynb>`__: An
   example using the tlm_adjoint 'escape-hatch' to define a custom operation.
+- `JAX integration <examples/7_jax_integration.ipynb>`__: A finite difference
+  example using JAX.
 
 Source and license
 ------------------

@@ -763,21 +763,21 @@ class VectorEquation(Equation):
         if tlm is None or tlm:
             tlm = manager.tlm_enabled()
 
+        X = self.X()
+        Y = self.dependencies()[len(X):]
         if tlm and len(manager._tlm) > 0:
-            X = self.X()
-            Y = self.dependencies()[len(X):]
             tlm_X, tlm_Y, tlm_fn = jax_forward(self._fn, X, Y, manager=manager)
             VectorEquation(tlm_X, tlm_Y, tlm_fn).solve(
                 manager=manager, annotate=annotate, tlm=False)
         else:
+            eq = VectorEquation(X, Y, self._fn)
             if not manager._cp.store_data():
-                self._annotate = False
-                self._vjp = None
+                eq._annotate = False
             try:
-                return super().solve(manager=manager,
-                                     annotate=annotate, tlm=tlm)
+                return super(type(eq), eq).solve(manager=manager,
+                                                 annotate=annotate, tlm=tlm)
             finally:
-                self._annotate = True
+                eq._annotate = True
 
     def forward_solve(self, X, deps=None):
         if not isinstance(X, Sequence):
