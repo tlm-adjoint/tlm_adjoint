@@ -25,7 +25,6 @@ try:
 except ImportError:
     MPI = None
 import numpy as np
-import operator
 
 try:
     import jax
@@ -56,6 +55,11 @@ except ImportError:
 
 
 def set_default_jax_dtype(dtype):
+    """Set the default dtype used by :class:`Vector` objects.
+
+    :arg dtype: The default dtype.
+    """
+
     global _default_dtype
 
     if not issubclass(dtype, (float, np.floating,
@@ -96,6 +100,7 @@ class VectorSpace:
 
         self._n = n
         self._dtype = dtype
+        self._rdtype = type(dtype().real)
         self._comm = comm_dup_cached(comm)
 
         N = self._n
@@ -118,6 +123,14 @@ class VectorSpace:
         """
 
         return self._dtype
+
+    @property
+    def rdtype(self):
+        """
+        The real dtype associated with the space.
+        """
+
+        return self._rdtype
 
     @property
     def comm(self):
@@ -277,7 +290,10 @@ def paused_vector_overloading():
     _overloading = overloading
 
 
-def unary_operator(x, op):
+def unary_operation(op, x):
+    if not isinstance(x, Vector):
+        return NotImplemented
+
     annotate = annotation_enabled()
     tlm = tlm_enabled()
     if not _overloading or (not annotate and not tlm):
@@ -289,34 +305,49 @@ def unary_operator(x, op):
         return z
 
 
-def binary_operator(x, y, op, *, reverse_args=False):
-    op_arg = op
-    if reverse_args:
-        def op(x, y):
-            return op_arg(y, x)
-    else:
-        op = op_arg
+def binary_operation(op, x, y):
+    if not isinstance(x, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating,
+                          Vector)):
+        return NotImplemented
+    if not isinstance(y, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating,
+                          Vector)):
+        return NotImplemented
+    if not isinstance(x, Vector) and not isinstance(y, Vector):
+        return NotImplemented
 
     annotate = annotation_enabled()
     tlm = tlm_enabled()
     if not _overloading or (not annotate and not tlm):
         with paused_manager():
-            return x.new(op(x.vector, y.vector))
-    elif x is y:
-        z = x.new()
-        VectorEquation(z, x, fn=lambda x: op(x, x)).solve()
-        return z
+            z = op(x.vector if isinstance(x, Vector) else x,
+                   y.vector if isinstance(y, Vector) else y)
+            return x.new(z) if isinstance(x, Vector) else y.new(z)
+    elif isinstance(x, Vector):
+        if x is y:
+            z = x.new()
+            VectorEquation(z, x, fn=lambda x: op(x, x)).solve()
+            return z
+        elif isinstance(y, Vector):
+            z = x.new()
+            VectorEquation(z, (x, y), fn=op).solve()
+            return z
+        else:
+            z = x.new()
+            VectorEquation(z, x, fn=lambda x: op(x, y)).solve()
+            return z
     elif isinstance(y, Vector):
-        z = x.new()
-        VectorEquation(z, (x, y), fn=op).solve()
+        z = y.new()
+        VectorEquation(z, y, fn=lambda y: op(x, y)).solve()
         return z
     else:
-        z = x.new()
-        VectorEquation(z, x, fn=lambda x: op(x, y)).solve()
-        return z
+        raise RuntimeError("Unexpected case encountered")
 
 
-class Vector:
+class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     """Vector, with degrees of freedom stored as a JAX array.
 
     :arg V: A :class:`VectorSpace`, an :class:`int` defining the number of
@@ -376,6 +407,31 @@ class Vector:
                       {"cache": cache, "checkpoint": checkpoint, "id": id,
                        "state": [0], "static": static})
         self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        if method != "__call__":
+            return NotImplemented
+        if len(kwargs) > 0:
+            return NotImplemented
+        if ufunc in {np.equal, np.not_equal,
+                     np.less, np.less_equal,
+                     np.greater, np.greater_equal}:
+            return NotImplemented
+        op = getattr(jax.numpy, ufunc.__name__, None)
+        if op is None:
+            return NotImplemented
+        if ufunc.nargs == 2 and len(inputs) == 1:
+            return unary_operation(op, *inputs)
+        elif ufunc.nargs == 3 and len(inputs) == 2:
+            return binary_operation(op, *inputs)
+        else:
+            return NotImplemented
+
+    def __eq__(self, other):
+        return object.__eq__(self, other)
+
+    def __hash__(self):
+        return object.__hash__(self)
 
     def __float__(self):
         return float(var_scalar_value(self))
@@ -485,7 +541,7 @@ class Vector:
 
         value = var_scalar_value(self)
         if value.imag == 0.0:
-            return value.real
+            return self.space.rdtype(value.real)
         else:
             return value
 
@@ -513,93 +569,6 @@ class Vector:
                                    dtype=self.space.dtype)
         else:
             return self._vector
-
-    def __neg__(self):
-        return unary_operator(self, operator.neg)
-
-    def __add__(self, other):
-        return binary_operator(self, other, operator.add)
-
-    def __radd__(self, other):
-        return binary_operator(self, other, operator.add, reverse_args=True)
-
-    def __sub__(self, other):
-        return binary_operator(self, other, operator.sub)
-
-    def __rsub__(self, other):
-        return binary_operator(self, other, operator.sub, reverse_args=True)
-
-    def __mul__(self, other):
-        return binary_operator(self, other, operator.mul)
-
-    def __rmul__(self, other):
-        return binary_operator(self, other, operator.mul, reverse_args=True)
-
-    def __truediv__(self, other):
-        return binary_operator(self, other, operator.truediv)
-
-    def __rtruediv__(self, other):
-        return binary_operator(self, other, operator.truediv, reverse_args=True)  # noqa: E501
-
-    def __pow__(self, other):
-        return binary_operator(self, other, operator.pow)
-
-    def __rpow__(self, other):
-        return binary_operator(self, other, operator.pow, reverse_args=True)
-
-    def sin(self):
-        return unary_operator(self, jax.numpy.sin)
-
-    def cos(self):
-        return unary_operator(self, jax.numpy.cos)
-
-    def tan(self):
-        return unary_operator(self, jax.numpy.tan)
-
-    def arcsin(self):
-        return unary_operator(self, jax.numpy.arcsin)
-
-    def arccos(self):
-        return unary_operator(self, jax.numpy.arccos)
-
-    def arctan(self):
-        return unary_operator(self, jax.numpy.arctan)
-
-    def arctan2(self, other):
-        return binary_operator(self, other, jax.numpy.arctan2)
-
-    def sinh(self):
-        return unary_operator(self, jax.numpy.sinh)
-
-    def cosh(self):
-        return unary_operator(self, jax.numpy.cosh)
-
-    def tanh(self):
-        return unary_operator(self, jax.numpy.tanh)
-
-    def arcsinh(self):
-        return unary_operator(self, jax.numpy.arcsinh)
-
-    def arccosh(self):
-        return unary_operator(self, jax.numpy.arccosh)
-
-    def arctanh(self):
-        return unary_operator(self, jax.numpy.arctanh)
-
-    def exp(self):
-        return unary_operator(self, jax.numpy.exp)
-
-    def expm1(self):
-        return unary_operator(self, jax.numpy.expm1)
-
-    def log(self):
-        return unary_operator(self, jax.numpy.log)
-
-    def log10(self):
-        return unary_operator(self, jax.numpy.log10)
-
-    def sqrt(self):
-        return unary_operator(self, jax.numpy.sqrt)
 
 
 class ReplacementVectorInterface(VariableInterface):

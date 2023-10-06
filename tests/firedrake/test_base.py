@@ -67,6 +67,7 @@ def setup_test():
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
 
+    set_default_float_dtype(backend_ScalarType)
     set_default_jax_dtype(backend_ScalarType)
 
     logging.getLogger("firedrake").setLevel(logging.INFO)
