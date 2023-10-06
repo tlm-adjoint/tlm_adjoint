@@ -242,26 +242,17 @@ class FloatInterface(VariableInterface):
 
     def _assign(self, y):
         dtype = self.space.dtype
-        rdtype = self.space.rdtype
 
         if isinstance(y, SymbolicFloat):
             y = y.value
         elif isinstance(y, (sp.Integer, sp.Float)):
-            y = complex(y)
+            y = dtype(y)
         if isinstance(y, (int, np.integer,
-                          float, np.floating)):
-            if not np.can_cast(y, rdtype):
+                          float, np.floating,
+                          complex, np.complexfloating)):
+            if not np.can_cast(y, dtype):
                 raise ValueError("Invalid dtype")
-            self._value = rdtype(y)
-        elif isinstance(y, (complex, np.complexfloating)):
-            if y.imag == 0.0:
-                if not np.can_cast(y.real, rdtype):
-                    raise ValueError("Invalid dtype")
-                self._value = rdtype(y.real)
-            else:
-                if not np.can_cast(y, dtype):
-                    raise ValueError("Invalid dtype")
-                self._value = dtype(y)
+            self._value = dtype(y)
         else:
             var_assign(self, var_scalar_value(y))
 
@@ -388,9 +379,9 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             checkpoint = not static
 
         super().__init__()
-        self._value = 0.0
         self._space = FloatSpace(type(self), dtype=dtype, comm=comm)
         self._space_type = space_type
+        self._value = self._space.dtype(0.0)
         add_interface(self, FloatInterface,
                       {"cache": cache, "checkpoint": checkpoint, "id": id,
                        "name": name, "state": [0], "static": static})
@@ -527,13 +518,16 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         :returns: The value.
         """
 
-        class CallableProperty(type(self._value)):
+        value = self._value
+        if value.imag == 0.0:
+            value = self.space.rdtype(value.real)
+
+        class CallableProperty(type(value)):
             def __call__(self):
                 warnings.warn("value is a property and should not be called",
                               DeprecationWarning, stacklevel=2)
                 return self
-
-        return CallableProperty(self._value)
+        return CallableProperty(value)
 
 
 # Required by Sphinx
