@@ -3,10 +3,10 @@
 
 from tlm_adjoint import (
     DEFAULT_COMM, DotProduct, Float, Hessian, Vector, VectorEquation,
-    compute_gradient, new_jax_float, set_default_jax_dtype, start_manager,
-    stop_manager, taylor_test, taylor_test_tlm, taylor_test_tlm_adjoint,
-    var_get_values, var_global_size, var_is_scalar, var_linf_norm,
-    var_local_size, var_scalar_value, var_sum)
+    compute_gradient, new_jax_float, set_default_float_dtype,
+    set_default_jax_dtype, start_manager, stop_manager, taylor_test,
+    taylor_test_tlm, taylor_test_tlm_adjoint, var_get_values, var_global_size,
+    var_is_scalar, var_linf_norm, var_local_size, var_scalar_value, var_sum)
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
@@ -30,6 +30,7 @@ pytestmark = pytest.mark.skipif(
 @seed_test
 def test_jax_assignment(setup_test,  # noqa: F811
                         dtype):
+    set_default_float_dtype(dtype)
     set_default_jax_dtype(dtype)
 
     def fn(y):
@@ -81,7 +82,8 @@ def test_jax_assignment(setup_test,  # noqa: F811
 @pytest.mark.base
 @pytest.mark.skipif(jax is None, reason="JAX not available")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
-@pytest.mark.parametrize("op", [operator.neg,
+@pytest.mark.parametrize("op", [operator.abs,
+                                operator.neg,
                                 np.sin,
                                 np.cos,
                                 np.tan,
@@ -102,6 +104,7 @@ def test_jax_assignment(setup_test,  # noqa: F811
 @seed_test
 def test_jax_unary_overloading(setup_test,  # noqa: F811
                                op):
+    set_default_float_dtype(np.double)
     set_default_jax_dtype(np.double)
 
     def forward(y):
@@ -161,6 +164,7 @@ def test_jax_unary_overloading(setup_test,  # noqa: F811
 @seed_test
 def test_jax_binary_overloading(setup_test,  # noqa: F811
                                 dtype, op):
+    set_default_float_dtype(dtype)
     set_default_jax_dtype(dtype)
 
     if op is np.arctan2 and issubclass(dtype, (complex, np.complexfloating)):

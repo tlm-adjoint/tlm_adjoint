@@ -23,8 +23,8 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
-    var_id, var_is_scalar, var_new, var_new_conjugate_dual, var_scalar_value,
+    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_id,
+    var_is_scalar, var_new, var_new_conjugate_dual, var_scalar_value,
     var_space_type)
 
 from .alias import Alias
@@ -47,6 +47,8 @@ import warnings
 
 __all__ = \
     [
+        "set_default_float_dtype",
+
         "FloatSpace",
 
         "OverloadedFloat",
@@ -72,7 +74,25 @@ def new_symbol_name():
     return f"_tlm_adjoint_symbol__{count:d}"
 
 
-_default_dtype = np.cdouble
+try:
+    import petsc4py.PETSc as PETSc
+    _default_dtype = PETSc.ScalarType
+except ImportError:
+    _default_dtype = np.double
+
+
+def set_default_float_dtype(dtype):
+    """Set the default dtype used by :class:`SymbolicFloat` objects.
+
+    :arg dtype: The default dtype.
+    """
+
+    global _default_dtype
+
+    if not issubclass(dtype, (float, np.floating,
+                              complex, np.complexfloating)):
+        raise TypeError("Invalid dtype")
+    _default_dtype = dtype
 
 
 class FloatSpaceInterface(SpaceInterface):
@@ -83,7 +103,7 @@ class FloatSpaceInterface(SpaceInterface):
         return self.dtype
 
     def _id(self):
-        return self.id
+        return self._tlm_adjoint__var_interface_attrs["id"]
 
     def _new(self, *, name=None, space_type="primal", static=False, cache=None,
              checkpoint=None):
@@ -115,26 +135,40 @@ class FloatSpace:
 
         self._comm = comm_dup_cached(comm)
         self._dtype = dtype
+        self._rdtype = type(dtype().real)
         self._float_cls = float_cls
-        self._id = new_space_id()
 
-        add_interface(self, FloatSpaceInterface)
-
-    @property
-    def comm(self):
-        return self._comm
+        add_interface(self, FloatSpaceInterface,
+                      {"id": new_space_id()})
 
     @property
     def dtype(self):
+        """The dtype associated with the space.
+        """
+
         return self._dtype
 
     @property
-    def float_cls(self):
-        return self._float_cls
+    def rdtype(self):
+        """
+        The real dtype associated with the space.
+        """
+
+        return self._rdtype
 
     @property
-    def id(self):
-        return self._id
+    def comm(self):
+        """The communicator associated with the space.
+        """
+
+        return self._comm
+
+    @property
+    def float_cls(self):
+        """The :class:`SymbolicFloat` class associated with the space.
+        """
+
+        return self._float_cls
 
 
 _overloading = True
@@ -207,8 +241,8 @@ class FloatInterface(VariableInterface):
         var_assign(self, 0.0)
 
     def _assign(self, y):
-        dtype = var_dtype(self)
-        rdtype = type(dtype().real)
+        dtype = self.space.dtype
+        rdtype = self.space.rdtype
 
         if isinstance(y, SymbolicFloat):
             y = y.value
@@ -262,7 +296,7 @@ class FloatInterface(VariableInterface):
 
     def _get_values(self):
         comm = var_comm(self)
-        dtype = var_dtype(self)
+        dtype = self.space.dtype
         value = dtype(self.value)
         values = np.array([value] if comm.rank == 0 else [], dtype=dtype)
         return values
@@ -517,25 +551,60 @@ class SymbolicFloat(_tlm_adjoint__SymbolicFloat):
 SymbolicFloat = _tlm_adjoint__SymbolicFloat  # noqa: F811
 
 
-def unary_operator(x, op):
+def operation(op, *args):
+    for arg in args:
+        if not isinstance(arg, (int, np.integer,
+                                float, np.floating,
+                                complex, np.complexfloating,
+                                sp.Expr)):
+            # e.g. we don't want to allow 'Float + str'
+            return NotImplemented
+    for arg in args:
+        if isinstance(arg, SymbolicFloat):
+            new = arg.new
+            break
+    else:
+        return NotImplemented
+
     with paused_float_overloading():
-        z = op(x)
-    if _overloading:
-        z = x.new(z)
+        z = op(*args)
+    if _overloading and z is not NotImplemented:
+        z = new(z)
     return z
 
 
-def binary_operator(x, y, op):
-    with paused_float_overloading():
-        z = op(x, y)
-    if _overloading:
-        z = x.new(z)
-    return z
+_ops = {}
+_op_fns = {}
 
 
-class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
-    """A subclass of :class:`SymbolicFloat` with operator overloading. Also
-    defines methods for NumPy integration.
+def register_operation(np_op, *, replace=False):
+    def register(sp_op):
+        if not replace and np_op in _ops:
+            raise RuntimeError("Operation already registered")
+        op = _ops[np_op] = functools.partial(operation, sp_op)
+        return op
+    return register
+
+
+def register_function(np_op, np_code, *, replace=False):
+    def register(cls):
+        if not replace and cls.__name__ in _op_fns:
+            raise RuntimeError("Function already registered")
+        _op_fns[cls.__name__] = np_code
+        return cls
+    return register
+
+
+@register_function(np.expm1, "numpy.expm1")
+class _tlm_adjoint__expm1(sp.Function):  # noqa: N801
+    def fdiff(self, argindex=1):
+        if argindex == 1:
+            return sp.exp(self.args[0])
+
+
+class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa: E501,N801
+                                    SymbolicFloat):
+    """A subclass of :class:`SymbolicFloat` with operator overloading.
 
     If constructing SymPy expressions then the :class:`SymbolicFloat` class
     should be used instead of the :class:`OverloadedFloat` subclass, or else
@@ -544,92 +613,171 @@ class _tlm_adjoint__OverloadedFloat(SymbolicFloat):  # noqa: N801
     For argument documentation see :class:`SymbolicFloat`.
     """
 
-    def __neg__(self):
-        return unary_operator(self, SymbolicFloat.__neg__)
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        if method != "__call__":
+            return NotImplemented
+        if len(kwargs) > 0:
+            return NotImplemented
+        if ufunc not in _ops:
+            return NotImplemented
+        return _ops[ufunc](*inputs)
 
-    def __add__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__add__)
+    def __eq__(self, other):
+        return SymbolicFloat.__eq__(self, other)
 
-    def __radd__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__radd__)
+    def __ne__(self, other):
+        return SymbolicFloat.__ne__(self, other)
 
-    def __sub__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__sub__)
+    def __hash__(self):
+        return SymbolicFloat.__hash__(self)
 
-    def __rsub__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__rsub__)
+    @staticmethod
+    @register_operation(np.abs)
+    def abs(x):
+        if not isinstance(x, SymbolicFloat):
+            return NotImplemented
+        if not issubclass(x.space.dtype, (float, np.floating)):
+            return NotImplemented
 
-    def __mul__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__mul__)
+        if x.value >= 0.0:
+            return x
+        else:
+            return -x
 
-    def __rmul__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__rmul__)
+    @staticmethod
+    @register_operation(np.negative)
+    def negative(x):
+        return SymbolicFloat.__neg__(x)
 
-    def __truediv__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__truediv__)
+    @staticmethod
+    @register_operation(np.add)
+    def add(x1, x2):
+        if isinstance(x1, SymbolicFloat):
+            return SymbolicFloat.__add__(x1, x2)
+        else:
+            return SymbolicFloat.__radd__(x2, x1)
 
-    def __rtruediv__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__rtruediv__)
+    @staticmethod
+    @register_operation(np.subtract)
+    def subtract(x1, x2):
+        if isinstance(x1, SymbolicFloat):
+            return SymbolicFloat.__sub__(x1, x2)
+        else:
+            return SymbolicFloat.__rsub__(x2, x1)
 
-    def __pow__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__pow__)
+    @staticmethod
+    @register_operation(np.multiply)
+    def multiply(x1, x2):
+        if isinstance(x1, SymbolicFloat):
+            return SymbolicFloat.__mul__(x1, x2)
+        else:
+            return SymbolicFloat.__rmul__(x2, x1)
 
-    def __rpow__(self, other):
-        return binary_operator(self, other, SymbolicFloat.__rpow__)
+    @staticmethod
+    @register_operation(np.divide)
+    def divide(x1, x2):
+        if isinstance(x1, SymbolicFloat):
+            return SymbolicFloat.__truediv__(x1, x2)
+        else:
+            return SymbolicFloat.__rtruediv__(x2, x1)
 
-    def sin(self):
-        return unary_operator(self, sp.sin)
+    @staticmethod
+    @register_operation(np.power)
+    def power(x1, x2):
+        if isinstance(x1, SymbolicFloat):
+            return SymbolicFloat.__pow__(x1, x2)
+        else:
+            return SymbolicFloat.__rpow__(x2, x1)
 
-    def cos(self):
-        return unary_operator(self, sp.cos)
+    @staticmethod
+    @register_operation(np.sin)
+    def sin(x):
+        return sp.sin(x)
 
-    def tan(self):
-        return unary_operator(self, sp.tan)
+    @staticmethod
+    @register_operation(np.cos)
+    def cos(x):
+        return sp.cos(x)
 
-    def arcsin(self):
-        return unary_operator(self, sp.asin)
+    @staticmethod
+    @register_operation(np.tan)
+    def tan(x):
+        return sp.tan(x)
 
-    def arccos(self):
-        return unary_operator(self, sp.acos)
+    @staticmethod
+    @register_operation(np.arcsin)
+    def arcsin(x):
+        return sp.asin(x)
 
-    def arctan(self):
-        return unary_operator(self, sp.atan)
+    @staticmethod
+    @register_operation(np.arccos)
+    def arccos(x):
+        return sp.acos(x)
 
-    def arctan2(self, other):
-        return binary_operator(self, other, sp.atan2)
+    @staticmethod
+    @register_operation(np.arctan)
+    def arctan(x):
+        return sp.atan(x)
 
-    def sinh(self):
-        return unary_operator(self, sp.sinh)
+    @staticmethod
+    @register_operation(np.arctan2)
+    def arctan2(x1, x2):
+        return sp.atan2(x1, x2)
 
-    def cosh(self):
-        return unary_operator(self, sp.cosh)
+    @staticmethod
+    @register_operation(np.sinh)
+    def sinh(x):
+        return sp.sinh(x)
 
-    def tanh(self):
-        return unary_operator(self, sp.tanh)
+    @staticmethod
+    @register_operation(np.cosh)
+    def cosh(x):
+        return sp.cosh(x)
 
-    def arcsinh(self):
-        return unary_operator(self, sp.asinh)
+    @staticmethod
+    @register_operation(np.tanh)
+    def tanh(x):
+        return sp.tanh(x)
 
-    def arccosh(self):
-        return unary_operator(self, sp.acosh)
+    @staticmethod
+    @register_operation(np.arcsinh)
+    def arcsinh(x):
+        return sp.asinh(x)
 
-    def arctanh(self):
-        return unary_operator(self, sp.atanh)
+    @staticmethod
+    @register_operation(np.arccosh)
+    def arccosh(x):
+        return sp.acosh(x)
 
-    def exp(self):
-        return unary_operator(self, sp.exp)
+    @staticmethod
+    @register_operation(np.arctanh)
+    def arctanh(x):
+        return sp.atanh(x)
 
-    def expm1(self):
-        return unary_operator(self, lambda x: sp.exp(x) - 1)
+    @staticmethod
+    @register_operation(np.exp)
+    def exp(x):
+        return sp.exp(x)
 
-    def log(self):
-        return unary_operator(self, sp.log)
+    @staticmethod
+    @register_operation(np.expm1)
+    def expm1(x):
+        return _tlm_adjoint__expm1(x)
 
-    def log10(self):
-        return unary_operator(self, lambda x: sp.log(x, 10))
+    @staticmethod
+    @register_operation(np.log)
+    def log(x):
+        return sp.log(x)
 
-    def sqrt(self):
-        return unary_operator(self, sp.sqrt)
+    @staticmethod
+    @register_operation(np.log10)
+    def log10(x):
+        return sp.log(x, 10)
+
+    @staticmethod
+    @register_operation(np.sqrt)
+    def sqrt(x):
+        return sp.sqrt(x)
 
 
 # Required by Sphinx
@@ -660,7 +808,8 @@ del _x, _F
 @no_float_overloading
 def lambdify(expr, deps):
     printer = NumPyPrinter(
-        settings={"fully_qualified_modules": False})
+        settings={"fully_qualified_modules": False,
+                  "user_functions": _op_fns})
     code = lambdastr(deps, expr, printer=printer)
     assert "\n" not in code
     local_vars = {}

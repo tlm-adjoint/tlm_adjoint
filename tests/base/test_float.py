@@ -3,8 +3,8 @@
 
 from tlm_adjoint import (
     DEFAULT_COMM, DotProduct, Float, FloatEquation, Hessian, compute_gradient,
-    start_manager, stop_manager, taylor_test, taylor_test_tlm,
-    taylor_test_tlm_adjoint)
+    set_default_float_dtype, start_manager, stop_manager, taylor_test,
+    taylor_test_tlm, taylor_test_tlm_adjoint)
 
 from .test_base import seed_test, setup_test  # noqa: F401
 
@@ -22,6 +22,8 @@ pytestmark = pytest.mark.skipif(
 @seed_test
 def test_Float_new(setup_test,  # noqa: F811
                    value):
+    set_default_float_dtype(np.cdouble)
+
     x = Float(name="x")
     assert complex(x) == 0.0
 
@@ -35,6 +37,8 @@ def test_Float_new(setup_test,  # noqa: F811
 @seed_test
 def test_float_assignment(setup_test,  # noqa: F811
                           dtype):
+    set_default_float_dtype(dtype)
+
     def forward(y):
         x = Float(name="x")
         FloatEquation(x, y).solve()
@@ -85,7 +89,8 @@ def test_float_assignment(setup_test,  # noqa: F811
 
 
 @pytest.mark.base
-@pytest.mark.parametrize("op", [operator.neg,
+@pytest.mark.parametrize("op", [operator.abs,
+                                operator.neg,
                                 np.sin,
                                 np.cos,
                                 np.tan,
@@ -106,6 +111,8 @@ def test_float_assignment(setup_test,  # noqa: F811
 @seed_test
 def test_float_unary_overloading(setup_test,  # noqa: F811
                                  op):
+    set_default_float_dtype(np.double)
+
     def forward(y):
         x = op(y)
         assert abs(float(x) - op(float(y))) < 1.0e-15
@@ -164,6 +171,7 @@ def test_float_binary_overloading(setup_test,  # noqa: F811
                                   dtype, op):
     if op is np.arctan2 and issubclass(dtype, (complex, np.complexfloating)):
         pytest.skip()
+    set_default_float_dtype(dtype)
 
     def forward(y):
         x = y * y
