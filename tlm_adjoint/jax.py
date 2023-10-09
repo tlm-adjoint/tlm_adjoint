@@ -7,8 +7,8 @@ from .interface import (
     register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_axpy, var_caches, var_comm,
     var_dtype, var_id, var_is_cached, var_is_checkpointed, var_is_scalar,
-    var_is_static, var_local_size, var_name, var_scalar_value, var_set_values,
-    var_space, var_space_type, var_state)
+    var_is_static, var_local_size, var_name, var_set_values, var_space,
+    var_space_type, var_state)
 
 from .caches import Caches
 from .equation import Equation
@@ -100,7 +100,6 @@ class VectorSpace:
 
         self._n = n
         self._dtype = dtype
-        self._rdtype = type(dtype().real)
         self._comm = comm_dup_cached(comm)
 
         N = self._n
@@ -123,14 +122,6 @@ class VectorSpace:
         """
 
         return self._dtype
-
-    @property
-    def rdtype(self):
-        """
-        The real dtype associated with the space.
-        """
-
-        return self._rdtype
 
     @property
     def comm(self):
@@ -267,15 +258,7 @@ class VectorInterface(VariableInterface):
         return self.space.global_size == 1
 
     def _scalar_value(self):
-        if self.space.comm.rank == 0:
-            if self.vector.shape != (1,):
-                raise RuntimeError("Invalid parallel decomposition")
-            value, = self.vector
-        else:
-            if self.vector.shape != (0,):
-                raise RuntimeError("Invalid parallel decomposition")
-            value = None
-        return self.space.comm.bcast(value, root=0)
+        return self.value
 
 
 _overloading = True
@@ -434,10 +417,10 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         return object.__hash__(self)
 
     def __float__(self):
-        return float(var_scalar_value(self))
+        return float(self.value)
 
     def __complex__(self):
-        return complex(var_scalar_value(self))
+        return complex(self.value)
 
     def new(self, y=None, *, name=None, static=False, cache=None,
             checkpoint=None):
@@ -530,20 +513,25 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     def value(self):
         """For a :class:`Vector` with one element, the value of the element.
 
-        If the value has zero complex part, then this property will be the
-        real part with real type.
-
         The value may also be accessed by casting using :class:`float` or
         :class:`complex`.
 
         :returns: The value.
         """
 
-        value = var_scalar_value(self)
-        if value.imag == 0.0:
-            return self.space.rdtype(value.real)
+        if self.space.global_size != 1:
+            raise ValueError("Invalid variable")
+
+        if self.space.comm.rank == 0:
+            if self.vector.shape != (1,):
+                raise RuntimeError("Invalid parallel decomposition")
+            value, = self.vector
         else:
-            return value
+            if self.vector.shape != (0,):
+                raise RuntimeError("Invalid parallel decomposition")
+            value = None
+
+        return self.space.comm.bcast(value, root=0)
 
     @property
     def space(self):

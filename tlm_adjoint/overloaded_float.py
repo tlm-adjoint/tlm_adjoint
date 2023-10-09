@@ -135,7 +135,6 @@ class FloatSpace:
 
         self._comm = comm_dup_cached(comm)
         self._dtype = dtype
-        self._rdtype = type(dtype().real)
         self._float_cls = float_cls
 
         add_interface(self, FloatSpaceInterface,
@@ -147,14 +146,6 @@ class FloatSpace:
         """
 
         return self._dtype
-
-    @property
-    def rdtype(self):
-        """
-        The real dtype associated with the space.
-        """
-
-        return self._rdtype
 
     @property
     def comm(self):
@@ -508,26 +499,19 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def value(self):
         """Return the current value associated with the :class:`SymbolicFloat`.
 
-        If the :class:`SymbolicFloat` has complex type, and the value has zero
-        complex part, then this method will return the real part with real
-        type.
-
         The value may also be accessed by casting using :class:`float` or
         :class:`complex`.
 
         :returns: The value.
         """
 
-        value = self._value
-        if value.imag == 0.0:
-            value = self.space.rdtype(value.real)
-
-        class CallableProperty(type(value)):
+        class CallableProperty(type(self._value)):
             def __call__(self):
                 warnings.warn("value is a property and should not be called",
                               DeprecationWarning, stacklevel=2)
                 return self
-        return CallableProperty(value)
+
+        return CallableProperty(self._value)
 
 
 # Required by Sphinx
