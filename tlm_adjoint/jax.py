@@ -794,6 +794,7 @@ class VectorEquation(Equation):
         dF = vjp(tuple(adj_x.vector.conjugate() for adj_x in adj_X))
         for dep_index, dep_B in dep_Bs.items():
             dep_B.sub((-1.0, dF[dep_index - len(adj_X)].conjugate()))
+        self._vjp = None
 
 
 def call_jax(X, Y, fn):
