@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint import DEFAULT_COMM
-from tlm_adjoint.override import override_function
+from tlm_adjoint import DEFAULT_COMM, VectorEquation
+from tlm_adjoint.override import override_function, override_method
 import tlm_adjoint.interface
 
 import hashlib
@@ -17,6 +17,7 @@ import runpy
 __all__ = \
     [
         "chdir_tmp_path",
+        "jax_tlm_config",
         "seed_test",
         "tmp_path"
     ]
@@ -66,6 +67,25 @@ def chdir_tmp_path(tmp_path):
     yield
 
     os.chdir(cwd)
+
+
+_jax_with_tlm = True
+
+
+@override_method(VectorEquation, "__init__")
+def VectorEquation__init__(self, orig, orig_args, *args, with_tlm=None,
+                           **kwargs):
+    if with_tlm is None:
+        with_tlm = _jax_with_tlm
+    orig(self, *args, with_tlm=with_tlm, **kwargs)
+
+
+@pytest.fixture(params=[True, False])
+def jax_tlm_config(request):
+    global _jax_with_tlm
+    _jax_with_tlm = request.param
+    yield
+    _jax_with_tlm = True
 
 
 def run_example(filename, *,

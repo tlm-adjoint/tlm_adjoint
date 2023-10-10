@@ -7,9 +7,10 @@ from .interface import (
     register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_axpy, var_caches, var_comm,
     var_dtype, var_id, var_is_cached, var_is_checkpointed, var_is_scalar,
-    var_is_static, var_local_size, var_name, var_set_values, var_space,
-    var_space_type, var_state)
+    var_is_static, var_local_size, var_name, var_space, var_space_type,
+    var_state)
 
+from .alias import WeakAlias
 from .caches import Caches
 from .equation import Equation
 from .equations import Assignment, Axpy, Conversion
@@ -201,12 +202,8 @@ class VectorInterface(VariableInterface):
         if isinstance(x, Vector):
             if x.space.local_size != self.space.local_size:
                 raise ValueError("Invalid shape")
-            if self._vector is None:
-                if x._vector is not None:
-                    self._vector = jax.numpy.array(alpha * x._vector, dtype=self.space.dtype)  # noqa: E501
-            else:
-                if x._vector is not None:
-                    self._vector = jax.numpy.array(self._vector + alpha * x._vector, dtype=self.space.dtype)  # noqa: E501
+            self.assign(jax.numpy.array(self.vector + alpha * x.vector,
+                                        dtype=self.space.dtype))
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -246,7 +243,7 @@ class VectorInterface(VariableInterface):
         return np.array(self.vector, dtype=self.space.dtype)
 
     def _set_values(self, values):
-        self._vector = jax.numpy.array(values, dtype=self.space.dtype)
+        self.assign(values)
 
     def _replacement(self):
         return ReplacementVector(self)
@@ -478,18 +475,15 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             if isinstance(y, (int, np.integer,
                               float, np.floating,
                               complex, np.complexfloating)):
-                var_set_values(self, jax.numpy.full(self.space.local_size, y,
-                                                    dtype=self.space.dtype))
+                self._vector = jax.numpy.full(self.space.local_size, y,
+                                              dtype=self.space.dtype)
             elif isinstance(y, (np.ndarray, jax.Array)):
-                var_set_values(self, y)
+                self._vector = jax.numpy.array(y, dtype=self.space.dtype)
             elif isinstance(y, Vector):
                 if y.space.local_size != self.space.local_size:
                     raise ValueError("Invalid shape")
-                if y._vector is None:
-                    self._vector = None
-                else:
-                    self._vector = jax.numpy.array(y._vector,
-                                                   dtype=self.space.dtype)
+                self._vector = jax.numpy.array(y.vector,
+                                               dtype=self.space.dtype)
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         return self
@@ -553,10 +547,9 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         """
 
         if self._vector is None:
-            return jax.numpy.zeros(self.space.local_size,
-                                   dtype=self.space.dtype)
-        else:
-            return self._vector
+            self._vector = jax.numpy.zeros(self.space.local_size,
+                                           dtype=self.space.dtype)
+        return self._vector
 
 
 class ReplacementVectorInterface(VariableInterface):
@@ -686,9 +679,12 @@ class VectorEquation(Equation):
     :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector` objects
         defining the inputs, whose values are passed to `fn`.
     :arg fn: A callable.
+    :arg with_tlm: Whether to annotate an equation solving for the forward and
+        all tangent-linears (`with_tlm=True`), or solving only for the
+        forward (`with_tlm=False`).
     """
 
-    def __init__(self, X, Y, fn):
+    def __init__(self, X, Y, fn, *, with_tlm=True, _forward_eq=None):
         if not isinstance(X, Sequence):
             X = (X,)
         if not isinstance(Y, Sequence):
@@ -700,24 +696,32 @@ class VectorEquation(Equation):
         if len(set(X).intersection(Y)) > 0:
             raise ValueError("Invalid dependency")
 
+        n_X = len(X)
+        n_Y = len(Y)
+
         @functools.wraps(fn)
         def wrapped_fn(*args):
-            X = fn(*args)
-            if not isinstance(X, Sequence):
-                X = X,
+            if len(args) != n_Y:
+                raise ValueError("Unexpected number of inputs")
+            X_val = fn(*args)
+            if not isinstance(X_val, Sequence):
+                X_val = X_val,
+            if len(X_val) != n_X:
+                raise ValueError("Unexpected number of outputs")
 
-            def to_jax_array(x):
-                if isinstance(x, jax.Array):
-                    if len(x.shape) == 1:
-                        return x
-                    elif np.prod(x.shape) == 1:
-                        return x.flatten()
+            def to_jax_array(x_val):
+                if isinstance(x_val, jax.Array):
+                    if len(x_val.shape) == 1:
+                        return x_val
+                    elif np.prod(x_val.shape) == 1:
+                        return x_val.flatten()
                     else:
                         raise ValueError("Unexpected shape")
                 else:
-                    raise TypeError(f"Unexpected type: {type(x)}")
+                    raise TypeError(f"Unexpected type: {type(x_val)}")
 
-            return tuple(map(to_jax_array, X))
+            return tuple(map(to_jax_array, X_val))
+            return X_val
 
         super().__init__(X, list(X) + list(Y), nl_deps=Y,
                          ic=False, adj_ic=False)
@@ -725,11 +729,20 @@ class VectorEquation(Equation):
         self._annotate = True
         self._vjp = None
 
+        self._with_tlm = with_tlm
+        if _forward_eq is None:
+            self._forward_eq = self
+        else:
+            self._forward_eq = _forward_eq
+            self.add_referrer(_forward_eq)
+
     def drop_reference(self):
         super().drop_references()
         self._vjp = None
+        if self._forward_eq is not self:
+            self._forward_eq = WeakAlias(self._forward_eq)
 
-    def _jax_reverse(self, Y):
+    def _jax_reverse(self, *Y):
         key = tuple((var_id(y), var_state(y)) for y in Y)
         if self._vjp is not None:
             vjp_key, vjp = self._vjp
@@ -753,9 +766,9 @@ class VectorEquation(Equation):
 
         X = self.X()
         Y = self.dependencies()[len(X):]
-        if tlm and len(manager._tlm) > 0:
+        if self._with_tlm and tlm and len(manager._tlm) > 0:
             tlm_X, tlm_Y, tlm_fn = jax_forward(self._fn, X, Y, manager=manager)
-            VectorEquation(tlm_X, tlm_Y, tlm_fn).solve(
+            VectorEquation(tlm_X, tlm_Y, tlm_fn, _forward_eq=self).solve(
                 manager=manager, annotate=annotate, tlm=False)
         else:
             eq = VectorEquation(X, Y, self._fn)
@@ -775,7 +788,7 @@ class VectorEquation(Equation):
         Y = deps[len(X):]
 
         if self._annotate:
-            X_val, _ = self._jax_reverse(Y)
+            X_val, _ = self._jax_reverse(*Y)
         else:
             X_val = self._fn(*(y.vector for y in Y))
 
@@ -790,11 +803,35 @@ class VectorEquation(Equation):
     def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
         if not isinstance(adj_X, Sequence):
             adj_X = (adj_X,)
-        _, vjp = self._jax_reverse(nl_deps)
+        _, vjp = self._jax_reverse(*nl_deps)
         dF = vjp(tuple(adj_x.vector.conjugate() for adj_x in adj_X))
         for dep_index, dep_B in dep_Bs.items():
             dep_B.sub((-1.0, dF[dep_index - len(adj_X)].conjugate()))
         self._vjp = None
+
+    def tangent_linear(self, M, dM, tlm_map):
+        X = self._forward_eq.X()
+        Y = self._forward_eq.dependencies()[len(X):]
+        fn = self._forward_eq._fn
+
+        n_Y = len(Y)
+
+        tau_Y = []
+        for y in Y:
+            tau_y = tlm_map[y]
+            if tau_y is None:
+                tau_y = y.new()
+            tau_Y.append(tau_y)
+
+        def tlm_fn(*args):
+            assert len(args) == 2 * n_Y
+            Y_val = args[:n_Y]
+            tau_Y_val = args[n_Y:]
+            _, jvp = jax.linearize(fn, *Y_val)
+            return jvp(*tau_Y_val)
+
+        return VectorEquation([tlm_map[x] for x in X], list(Y) + tau_Y,
+                              fn=tlm_fn, with_tlm=False)
 
 
 def call_jax(X, Y, fn):
