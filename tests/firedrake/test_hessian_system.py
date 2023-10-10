@@ -102,7 +102,10 @@ def test_hessian_solve(setup_test,
     if N_eigenvalues == 0:
         pc_fn = None
     else:
-        import slepc4py.SLEPc as SLEPc
+        try:
+            import slepc4py.SLEPc as SLEPc
+        except ImportError:
+            pytest.skip(reason="SLEPc not available")
 
         Lam, V = hessian_eigendecompose(
             H_mismatch, m, B_inv, B, nullspace=nullspace,
