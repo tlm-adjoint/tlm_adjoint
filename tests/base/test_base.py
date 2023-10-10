@@ -5,7 +5,7 @@ from tlm_adjoint import (
     clear_caches, set_default_float_dtype, set_default_jax_dtype,
     reset_manager)
 
-from ..test_base import chdir_tmp_path, seed_test, tmp_path
+from ..test_base import chdir_tmp_path, jax_tlm_config, seed_test, tmp_path
 
 import logging
 import numpy as np
@@ -14,6 +14,7 @@ import pytest
 __all__ = \
     [
         "chdir_tmp_path",
+        "jax_tlm_config",
         "seed_test",
         "setup_test",
         "tmp_path"

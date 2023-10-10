@@ -16,12 +16,14 @@ import pytest
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
+pytestmark = pytest.mark.skipif(
+    jax is None,
+    reason="JAX not available")
 
 
 @pytest.mark.firedrake
-@pytest.mark.skipif(jax is None, reason="JAX not available")
 @seed_test
-def test_jax_conversion(setup_test):
+def test_jax_conversion(setup_test, jax_tlm_config):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -64,9 +66,8 @@ def test_jax_conversion(setup_test):
 
 
 @pytest.mark.firedrake
-@pytest.mark.skipif(jax is None, reason="JAX not available")
 @seed_test
-def test_jax_integration(setup_test):
+def test_jax_integration(setup_test, jax_tlm_config):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)

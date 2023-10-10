@@ -10,7 +10,7 @@ from tlm_adjoint.fenics.backend_code_generator_interface import (
 from tlm_adjoint.alias import gc_disabled
 from tlm_adjoint.override import override_method
 
-from ..test_base import chdir_tmp_path, seed_test, tmp_path
+from ..test_base import chdir_tmp_path, jax_tlm_config, seed_test, tmp_path
 from ..test_base import run_example as _run_example
 
 import gc
@@ -32,6 +32,7 @@ __all__ = \
         "interpolate_expression",
 
         "chdir_tmp_path",
+        "jax_tlm_config",
         "run_example",
         "seed_test",
         "setup_test",

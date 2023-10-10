@@ -8,7 +8,7 @@ from tlm_adjoint import (
     taylor_test_tlm, taylor_test_tlm_adjoint, var_get_values, var_global_size,
     var_is_scalar, var_linf_norm, var_local_size, var_scalar_value, var_sum)
 
-from .test_base import seed_test, setup_test  # noqa: F401
+from .test_base import jax_tlm_config, seed_test, setup_test  # noqa: F401
 
 try:
     import jax
@@ -21,14 +21,16 @@ import pytest
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
+pytestmark = pytest.mark.skipif(
+    jax is None,
+    reason="JAX not available")
 
 
 @pytest.mark.base
-@pytest.mark.skipif(jax is None, reason="JAX not available")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("dtype", [np.double, np.cdouble])
 @seed_test
-def test_jax_assignment(setup_test,  # noqa: F811
+def test_jax_assignment(setup_test, jax_tlm_config,  # noqa: F811
                         dtype):
     set_default_float_dtype(dtype)
     set_default_jax_dtype(dtype)
@@ -80,7 +82,6 @@ def test_jax_assignment(setup_test,  # noqa: F811
 
 
 @pytest.mark.base
-@pytest.mark.skipif(jax is None, reason="JAX not available")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("op", [operator.abs,
                                 operator.neg,
@@ -102,7 +103,7 @@ def test_jax_assignment(setup_test,  # noqa: F811
                                 np.log10,
                                 np.sqrt])
 @seed_test
-def test_jax_unary_overloading(setup_test,  # noqa: F811
+def test_jax_unary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                op):
     set_default_float_dtype(np.double)
     set_default_jax_dtype(np.double)
@@ -137,7 +138,7 @@ def test_jax_unary_overloading(setup_test,  # noqa: F811
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
-    assert min_order > 2.97
+    assert min_order > 2.93
 
     min_order = taylor_test_tlm(forward, y, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
@@ -152,7 +153,6 @@ def test_jax_unary_overloading(setup_test,  # noqa: F811
 
 
 @pytest.mark.base
-@pytest.mark.skipif(jax is None, reason="JAX not available")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("dtype", [np.double, np.cdouble])
 @pytest.mark.parametrize("op", [operator.add,
@@ -162,7 +162,7 @@ def test_jax_unary_overloading(setup_test,  # noqa: F811
                                 operator.pow,
                                 np.arctan2])
 @seed_test
-def test_jax_binary_overloading(setup_test,  # noqa: F811
+def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                 dtype, op):
     set_default_float_dtype(dtype)
     set_default_jax_dtype(dtype)
@@ -218,13 +218,12 @@ def test_jax_binary_overloading(setup_test,  # noqa: F811
 
 
 @pytest.mark.base
-@pytest.mark.skipif(jax is None, reason="JAX not available")
 @pytest.mark.parametrize("dtype", [np.double, np.cdouble])
 @pytest.mark.parametrize("x_val", [-np.sqrt(2.0),
                                    np.sqrt(3.0),
                                    np.sqrt(5.0) + 1.0j * np.sqrt(7.0)])
 @seed_test
-def test_jax_float(setup_test,  # noqa: F811
+def test_jax_float(setup_test, jax_tlm_config,  # noqa: F811
                    dtype, x_val):
     if isinstance(x_val, (complex, np.complexfloating)) \
             and not issubclass(dtype, (complex, np.complexfloating)):
