@@ -10,10 +10,17 @@ from .test_base import *
 import numpy as np
 import petsc4py.PETSc as PETSc
 import pytest
+try:
+    import slepc4py.SLEPc as SLEPc
+except ImportError:
+    SLEPc = None
 
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
+pytestmark = pytest.mark.skipif(
+    SLEPc is None,
+    reason="SLEPc not available")
 
 
 @pytest.mark.fenics
@@ -31,7 +38,6 @@ def test_HEP(setup_test, test_leaks):
         assemble(inner(x, test) * dx, tensor=y)
         return y
 
-    import slepc4py.SLEPc as SLEPc
     lam, V = eigendecompose(
         space, M_action, action_space_type="conjugate_dual",
         problem_type=SLEPc.EPS.ProblemType.HEP)
@@ -94,8 +100,6 @@ def test_NHEP(setup_test, test_leaks):
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_CachedHessian(setup_test):
-    import slepc4py.SLEPc as SLEPc
-
     configure_checkpointing("memory", {"drop_references": False})
 
     mesh = UnitIntervalMesh(5)
