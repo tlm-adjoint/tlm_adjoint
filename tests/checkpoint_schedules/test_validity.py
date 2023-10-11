@@ -112,9 +112,9 @@ def test_validity(schedule, schedule_kwargs,
 
         # Start at the current location of the forward
         assert model_n is not None and cp_action.n0 == model_n
-        # If the schedule has been finalized, end at or before the end of the
-        # forward
-        assert cp_schedule.max_n is None or cp_action.n1 <= n
+        # If the schedule has been finalized, do not advance futher than the
+        # current location of the adjoint
+        assert cp_schedule.max_n is None or cp_action.n1 <= n - model_r
 
         if cp_schedule.max_n is not None:
             # Do not advance further than the current location of the adjoint
@@ -200,6 +200,7 @@ def test_validity(schedule, schedule_kwargs,
         elif len(data) > 0:
             assert cp_action.n == min(data)
 
+        assert cp_action.n not in snapshots[cp_action.storage]
         snapshots[cp_action.storage][cp_action.n] = (set(ics), set(data))
 
     @action.register(EndForward)
