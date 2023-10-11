@@ -139,3 +139,20 @@ def test_default_var_flags(setup_test, test_leaks):
     assert var_is_cached(F) is not None and not var_is_cached(F)
     assert var_is_checkpointed(F) is not None and var_is_checkpointed(F)
     del F
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_scalar_var(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    space = FunctionSpace(mesh, "R", 0)
+
+    def test_scalar(x, ref):
+        val = var_is_scalar(x)
+        assert isinstance(val, bool)
+        assert val == ref
+
+    test_scalar(Constant(0.0), True)
+    test_scalar(Constant((0.0, 0.0)), False)
+    test_scalar(Function(space), False)
+    test_scalar(Cofunction(space.dual()), False)
