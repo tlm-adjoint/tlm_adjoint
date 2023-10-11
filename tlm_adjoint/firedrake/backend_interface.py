@@ -79,7 +79,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
     add_interface(self, ConstantInterface,
                   {"id": new_var_id(), "name": lambda x: name,
                    "state": [0], "space": space,
-                   "form_derivative_space": lambda x: r0_space(x),
+                   "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
 
@@ -235,7 +235,7 @@ class FunctionInterfaceBase(_VariableInterface):
 
 
 class FunctionInterface(FunctionInterfaceBase):
-    def _form_derivative_space(self):
+    def _derivative_space(self):
         return self.function_space()
 
     @manager_disabled()

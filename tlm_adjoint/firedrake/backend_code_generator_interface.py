@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    LinearSolver, Interpolator, Parameters, TestFunction, backend_Cofunction,
+    LinearSolver, Interpolator, Parameters, backend_Cofunction,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
     backend_assemble, backend_solve, complex_mode, extract_args, homogenize,
     parameters)
@@ -391,10 +391,12 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        x_space = var_space(x)
         adj_x_space = var_space(adj_x)
-        interp = Interpolator(ufl.conj(expr) * TestFunction(x_space.dual()), adj_x_space)  # noqa: E501
+        interp = Interpolator(expr, adj_x_space)
+        adj_x = var_copy(adj_x)
+        adj_x.dat.data[:] = adj_x.dat.data_ro.conjugate()
         interp.interpolate(adj_x, transpose=True, output=x)
+        x.dat.data[:] = x.dat.data_ro.conjugate()
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 

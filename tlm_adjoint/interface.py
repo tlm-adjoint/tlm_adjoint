@@ -99,8 +99,8 @@ __all__ = \
         "var_caches",
         "var_comm",
         "var_copy",
+        "var_derivative_space",
         "var_dtype",
-        "var_form_derivative_space",
         "var_get_values",
         "var_global_size",
         "var_id",
@@ -140,8 +140,8 @@ __all__ = \
         "function_caches",
         "function_comm",
         "function_copy",
+        "function_derivative_space",
         "function_dtype",
-        "function_form_derivative_space",
         "function_get_values",
         "function_global_size",
         "function_id",
@@ -707,7 +707,7 @@ class VariableInterface:
     """
 
     prefix = "_tlm_adjoint__var_interface"
-    names = ("_comm", "_space", "_form_derivative_space", "_space_type",
+    names = ("_comm", "_space", "_derivative_space", "_space_type",
              "_dtype", "_id", "_name", "_state", "_update_state", "_is_static",
              "_is_cached", "_is_checkpointed", "_caches", "_zero", "_assign",
              "_axpy", "_inner", "_sum", "_linf_norm", "_local_size",
@@ -724,7 +724,7 @@ class VariableInterface:
     def _space(self):
         raise NotImplementedError("Method not overridden")
 
-    def _form_derivative_space(self):
+    def _derivative_space(self):
         raise NotImplementedError("Method not overridden")
 
     def _space_type(self):
@@ -848,13 +848,13 @@ def var_space(x):
     return x._tlm_adjoint__var_interface_space()
 
 
-def var_form_derivative_space(x):
+def var_derivative_space(x):
     """
     :returns: The space in which a derivative is defined when differentiating a
-        :class:`ufl.Form` with respect to the variable.
+        UFL expression with respect to the variable.
     """
 
-    return x._tlm_adjoint__var_interface_form_derivative_space()
+    return x._tlm_adjoint__var_interface_derivative_space()
 
 
 def var_space_type(x, *, rel_space_type="primal"):
@@ -1478,7 +1478,7 @@ function_caches = _function_warning(var_caches)
 function_comm = _function_warning(var_comm)
 function_copy = _function_warning(var_copy)
 function_dtype = _function_warning(var_dtype)
-function_form_derivative_space = _function_warning(var_form_derivative_space)
+function_derivative_space = _function_warning(var_derivative_space)
 function_get_values = _function_warning(var_get_values)
 function_global_size = _function_warning(var_global_size)
 function_id = _function_warning(var_id)

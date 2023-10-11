@@ -11,10 +11,10 @@ from .backend import (
     backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
-    space_comm, var_caches, var_comm, var_dtype, var_form_derivative_space,
-    var_id, var_is_cached, var_is_checkpointed, var_is_replacement,
-    var_is_static, var_linf_norm, var_name, var_replacement, var_scalar_value,
-    var_space, var_space_type)
+    space_comm, var_caches, var_comm, var_dtype, var_derivative_space, var_id,
+    var_is_cached, var_is_checkpointed, var_is_replacement, var_is_static,
+    var_linf_norm, var_name, var_replacement, var_scalar_value, var_space,
+    var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -65,8 +65,8 @@ class ConstantInterface(_VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
 
-    def _form_derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs["form_derivative_space"](self)  # noqa: E501
+    def _derivative_space(self):
+        return self._tlm_adjoint__var_interface_attrs["derivative_space"](self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -481,21 +481,22 @@ def diff(expr, x):
 
 def derivative(expr, x, argument=None, *,
                enable_automatic_argument=True):
+    expr_arguments = ufl.algorithms.extract_arguments(expr)
+    arity = len(expr_arguments)
+
+    if argument is None and enable_automatic_argument:
+        Argument = {0: TestFunction, 1: TrialFunction}[arity]
+        argument = Argument(var_derivative_space(x))
+
+    for expr_argument in expr_arguments:
+        if expr_argument.number() >= arity:
+            raise ValueError("Unexpected argument")
+    if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
+        raise ValueError("Invalid argument")
+
     if isinstance(expr, ufl.classes.Expr):
         expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
     else:
-        arity = len(expr.arguments())
-        for expr_argument in expr.arguments():
-            if expr_argument.number() >= arity:
-                raise ValueError("Unexpected argument")
-
-        if argument is None and enable_automatic_argument:
-            Argument = {0: TestFunction, 1: TrialFunction}[arity]
-            argument = Argument(var_form_derivative_space(x))
-
-        if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
-            raise ValueError("Invalid argument")
-
         expr, replace_map, replace_map_inverse = with_coefficients(expr)
 
     if argument is not None:
@@ -668,9 +669,9 @@ class ReplacementInterface(_VariableInterface):
     def _space(self):
         return self.ufl_function_space()
 
-    def _form_derivative_space(self):
+    def _derivative_space(self):
         return self._tlm_adjoint__var_interface_attrs.get(
-            "form_derivative_space", lambda x: var_space(x))(self)
+            "derivative_space", lambda x: var_space(x))(self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -744,8 +745,8 @@ class ReplacementConstant(Replacement):
 
     def __init__(self, x):
         super().__init__(x)
-        self._tlm_adjoint__var_interface_attrs["form_derivative_space"] \
-            = x._tlm_adjoint__var_interface_attrs["form_derivative_space"]
+        self._tlm_adjoint__var_interface_attrs["derivative_space"] \
+            = x._tlm_adjoint__var_interface_attrs["derivative_space"]
 
 
 class ReplacementFunction(Replacement):

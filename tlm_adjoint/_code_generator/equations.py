@@ -8,8 +8,8 @@ variational problems.
 """
 
 from .backend import (
-    TestFunction, TrialFunction, adjoint, backend_DirichletBC,
-    backend_Function, parameters)
+    TestFunction, TrialFunction, adjoint, backend_Constant,
+    backend_DirichletBC, backend_Function, parameters)
 from ..interface import (
     check_space_type, is_var, var_assign, var_id, var_is_scalar, var_new,
     var_new_conjugate_dual, var_replacement, var_scalar_value, var_space,
@@ -27,8 +27,8 @@ from ..equations import Assignment
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
-    bcs_is_cached, bcs_is_homogeneous, bcs_is_static, derivative, diff,
-    eliminate_zeros, extract_coefficients)
+    ReplacementConstant, bcs_is_cached, bcs_is_homogeneous, bcs_is_static,
+    derivative, eliminate_zeros, extract_coefficients)
 
 import numpy as np
 import ufl
@@ -911,12 +911,15 @@ class ExprInterpolation(ExprEquation):
             return adj_x
 
         dep = eq_deps[dep_index]
-        if len(dep.ufl_shape) > 0:
-            raise NotImplementedError("Case not implemented")
 
         F = var_new_conjugate_dual(dep)
 
-        dF = diff(self._rhs, dep)
+        if isinstance(dep, (backend_Constant, ReplacementConstant)):
+            if len(dep.ufl_shape) > 0:
+                raise NotImplementedError("Case not implemented")
+            dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
+        else:
+            dF = derivative(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
