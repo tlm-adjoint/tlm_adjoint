@@ -228,7 +228,7 @@ class FunctionInterfaceBase(_VariableInterface):
         return False
 
     def _is_scalar(self):
-        False
+        return False
 
     def _is_alias(self):
         return "alias" in self._tlm_adjoint__var_interface_attrs
