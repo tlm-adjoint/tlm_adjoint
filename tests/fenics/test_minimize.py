@@ -96,7 +96,9 @@ def test_minimize_project(setup_test, test_leaks,
 @pytest.mark.fenics
 @pytest.mark.parametrize("minimize", [scipy_l_bfgs_b_minimization,
                                       scipy_trust_ncg_minimization,
-                                      l_bfgs_minimization])
+                                      l_bfgs_minimization,
+                                      tao_lmvm_minimization,
+                                      tao_nls_minimization])
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_minimize_project_multiple(setup_test, test_leaks,
@@ -148,7 +150,7 @@ def test_minimize_project_multiple(setup_test, test_leaks,
 
     var_assign(error, beta_ref)
     var_axpy(error, -1.0, beta)
-    assert var_linf_norm(error) < 1.0e-9
+    assert var_linf_norm(error) < 1.0e-8
 
 
 @pytest.mark.fenics

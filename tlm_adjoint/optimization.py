@@ -920,16 +920,16 @@ def minimize_l_bfgs(forward, M0, *,
 
 
 @local_caches
-def minimize_tao(forward, m0, *,
+def minimize_tao(forward, M0, *,
                  method=None, gatol, grtol, gttol=0.0,
                  M_inv_action=None,
                  pre_callback=None, post_callback=None, manager=None):
     r"""Functional minimization using TAO.
 
-    :arg forward: A callable which accepts one variable argument, and
+    :arg forward: A callable which accepts one or more variable arguments, and
         which returns a variable defining the forward functional.
-    :arg m0: A variable defining the control, and the initial guess for the
-        optimization.
+    :arg M0: A variable or :class:`Sequence` of variables defining the control,
+        and the initial guess for the optimization.
     :arg method: TAO type. Defaults to `PETSc.TAO.Type.LMVM`.
     :arg gatol: TAO gradient absolute tolerance.
     :arg grtol: TAO gradient relative tolerance.
@@ -943,9 +943,9 @@ def minimize_tao(forward, m0, *,
 
         where :math:`x` and :math:`y` are degree of freedom vectors for
         (conjugate) dual space elements and :math:`M` is a Hermitian and
-        positive definite matrix. Accepts one variable argument, defining the
-        direction, and returns a variable defining the action of :math:`M^{-1}`
-        on this direction.
+        positive definite matrix. Accepts one or more variables as arguments,
+        defining the direction, and returns a variable or a :class:`Sequence`
+        of variables defining the action of :math:`M^{-1}` on this direction.
     :arg pre_callback: A callable accepting a single
         :class:`petsc4py.PETSc.TAO` argument. Used for detailed manual
         configuration. Called after all other configuration options are set.
@@ -954,36 +954,69 @@ def minimize_tao(forward, m0, *,
         :meth:`petsc4py.PETSc.TAO.solve` method has been called.
     :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
         should be used internally. `manager().new()` is used if not supplied.
+    :returns: A variable or a :class:`Sequence` of variables storing the
+        result.
     """
+
+    if not isinstance(M0, Sequence):
+        m, = minimize_tao(
+            forward, (M0,),
+            method=method, gatol=gatol, grtol=grtol, gttol=gttol,
+            M_inv_action=M_inv_action,
+            pre_callback=pre_callback, post_callback=post_callback,
+            manager=manager)
+        return m
 
     import petsc4py.PETSc as PETSc
 
     if method is None:
         method = PETSc.TAO.Type.LMVM
-    if not issubclass(var_dtype(m0), (float, np.floating)):
-        raise ValueError("Invalid dtype")
+    for m0 in M0:
+        if not issubclass(var_dtype(m0), (float, np.floating)):
+            raise ValueError("Invalid dtype")
+    if M_inv_action is not None:
+        M_inv_action = wrapped_action(M_inv_action, copy=False)
 
-    def from_petsc(y, x):
+    def from_petsc(y, X):
         with y as y_a:
             if not issubclass(y_a.dtype.type, (float, np.floating)):
                 raise ValueError("Invalid dtype")
+            if len(y_a.shape) != 1:
+                raise ValueError("Invalid shape")
 
-            var_set_values(x, y_a)
+            i0 = 0
+            for x in X:
+                i1 = i0 + var_local_size(x)
+                if i1 > y_a.shape[0]:
+                    raise ValueError("Invalid shape")
+                var_set_values(x, y_a[i0:i1])
+                i0 = i1
+            if i0 != y_a.shape[0]:
+                raise ValueError("Invalid shape")
 
-    def to_petsc(x, y):
-        if is_var(y):
+    def to_petsc(x, Y):
+        x_a = np.zeros(n, dtype=PETSc.ScalarType)
+
+        i0 = 0
+        for y in Y:
             y_a = var_get_values(y)
-        else:
-            y_a = y
 
-        if not issubclass(y_a.dtype.type, (float, np.floating)):
-            raise ValueError("Invalid dtype")
-        if not np.can_cast(y_a, PETSc.ScalarType):
-            raise ValueError("Invalid dtype")
-        if y_a.shape != (x.getLocalSize(),):
+            if not issubclass(y_a.dtype.type, (float, np.floating)):
+                raise ValueError("Invalid dtype")
+            if not np.can_cast(y_a, x_a.dtype):
+                raise ValueError("Invalid dtype")
+            if len(y_a.shape) != 1:
+                raise ValueError("Invalid shape")
+
+            i1 = i0 + y_a.shape[0]
+            if i1 > x_a.shape[0]:
+                raise ValueError("Invalid shape")
+            x_a[i0:i1] = y_a
+            i0 = i1
+        if i0 != x_a.shape[0]:
             raise ValueError("Invalid shape")
 
-        x.setArray(y_a)
+        x.setArray(x_a)
 
     if manager is None:
         manager = _manager().new()
@@ -994,58 +1027,61 @@ def minimize_tao(forward, m0, *,
     tao.setType(method)
     tao.setTolerances(gatol=gatol, grtol=grtol, gttol=gttol)
 
-    m = var_new(m0, static=var_is_static(m0),
-                cache=var_is_cached(m0),
-                checkpoint=var_is_checkpointed(m0))
+    M = tuple(var_new(m0, static=var_is_static(m0),
+                      cache=var_is_cached(m0),
+                      checkpoint=var_is_checkpointed(m0))
+              for m0 in M0)
     J_hat = ReducedFunctional(forward, manager=manager)
 
     def objective(tao, x):
-        from_petsc(x, m)
-        J_val = J_hat.objective(m)
+        from_petsc(x, M)
+        J_val = J_hat.objective(M)
         return J_val
 
     def gradient(tao, x, g):
-        from_petsc(x, m)
-        dJ = J_hat.gradient(m)
+        from_petsc(x, M)
+        dJ = J_hat.gradient(M)
         to_petsc(g, dJ)
 
     def objective_gradient(tao, x, g):
-        from_petsc(x, m)
-        J_val = J_hat.objective(m)
-        dJ = J_hat.gradient(m)
+        from_petsc(x, M)
+        J_val = J_hat.objective(M)
+        dJ = J_hat.gradient(M)
         to_petsc(g, dJ)
         return J_val
 
     def hessian(tao, x, H, P):
-        H.getPythonContext().set_m(x)
+        H.getPythonContext().set_M(x)
 
     class Hessian:
-        def __init__(self, m0):
-            self._m = var_new(m0, static=var_is_static(m0),
-                              cache=var_is_cached(m0),
-                              checkpoint=var_is_checkpointed(m0))
+        def __init__(self):
             self._shift = 0.0
 
-        def set_m(self, x):
-            from_petsc(x, self._m)
+        @functools.cached_property
+        def _M(self):
+            return tuple(var_new(m0, static=var_is_static(m0),
+                                 cache=var_is_cached(m0),
+                                 checkpoint=var_is_checkpointed(m0))
+                         for m0 in M0)
+
+        def set_M(self, x):
+            from_petsc(x, self._M)
 
         def shift(self, A, alpha):
             self._shift += alpha
 
         def mult(self, A, x, y):
-            dm = var_new(self._m)
-            from_petsc(x, dm)
-            ddJ = J_hat.hessian_action(self._m, dm)
-            y_a = var_get_values(ddJ)
+            dM = tuple(map(var_new, self._M))
+            from_petsc(x, dM)
+            ddJ = J_hat.hessian_action(self._M, dM)
+            to_petsc(y, ddJ)
             if self._shift != 0.0:
-                with x as x_a:
-                    y_a += self._shift * x_a
-            to_petsc(y, y_a)
+                y.axpy(self._shift, x)
 
-    n = var_local_size(m0)
-    N = var_global_size(m0)
+    n = sum(map(var_local_size, M0))
+    N = sum(map(var_global_size, M0))
     H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                        Hessian(m0), comm=comm)
+                                        Hessian(), comm=comm)
     H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
     H_matrix.setUp()
 
@@ -1056,22 +1092,23 @@ def minimize_tao(forward, m0, *,
 
     if M_inv_action is not None:
         class GradientNorm:
-            def __init__(self, m0):
-                self._g = var_new_conjugate_dual(m0)
+            @functools.cached_property
+            def _dJ(self):
+                return tuple(map(var_new_conjugate_dual, M0))
 
             def mult(self, A, x, y):
-                from_petsc(x, self._g)
-                M_inv_x = M_inv_action(self._g)
-                to_petsc(y, M_inv_x)
+                from_petsc(x, self._dJ)
+                M_inv_X = M_inv_action(*self._dJ)
+                to_petsc(y, M_inv_X)
 
         M_inv_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
-                                                GradientNorm(m0), comm=comm)
+                                                GradientNorm(), comm=comm)
         M_inv_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
         M_inv_matrix.setUp()
         tao.setGradientNorm(M_inv_matrix)
 
     x = H_matrix.getVecRight()
-    to_petsc(x, m0)
+    to_petsc(x, M0)
 
     if pre_callback is not None:
         pre_callback(tao)
@@ -1082,7 +1119,7 @@ def minimize_tao(forward, m0, *,
     if tao.getConvergedReason() <= 0:
         raise RuntimeError("Convergence failure")
 
-    from_petsc(x, m)
+    from_petsc(x, M)
 
     tao.destroy()
     H_matrix.destroy()
@@ -1090,4 +1127,4 @@ def minimize_tao(forward, m0, *,
         M_inv_matrix.destroy()
     x.destroy()
 
-    return m
+    return M
