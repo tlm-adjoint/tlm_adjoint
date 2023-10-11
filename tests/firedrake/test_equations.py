@@ -627,6 +627,61 @@ def test_ExprInterpolation_transpose(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
+@seed_test
+def test_ExprInterpolation_transpose_vector(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space_1 = VectorFunctionSpace(mesh, "Lagrange", 1)
+    space_2 = VectorFunctionSpace(mesh, "Lagrange", 2)
+
+    def forward(y):
+        x = Function(space_1, name="x")
+        ExprInterpolation(x, Constant(2.0) * y).solve()
+
+        J = Functional(name="J")
+        J.assign(((dot(x, x) - 1.0) ** 2) * dx)
+        return x, J
+
+    y = Function(space_2, name="y")
+    interpolate_expression(y, as_vector([cos(2.0 * pi * X[0]) * cos(3.0 * pi * X[1]),  # noqa: E501
+                                         cos(5.0 * pi * X[0]) * cos(7.0 * pi * X[1])]))  # noqa: E501
+    start_manager()
+    x, J = forward(y)
+    stop_manager()
+
+    x_ref = interpolate(2 * y, space_1)
+    error_norm = np.sqrt(abs(assemble(inner(x - x_ref, x - x_ref) * dx)))
+    info(f"Error norm = {error_norm:.16e}")
+    assert error_norm == 0.0
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, y)
+
+    def forward_J(y):
+        _, J = forward(y)
+        return J
+
+    min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ, seed=1.0e-3)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward_J, y, tlm_order=1, seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_LocalProjection(setup_test, test_leaks):

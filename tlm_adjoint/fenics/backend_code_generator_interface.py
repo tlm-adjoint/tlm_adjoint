@@ -394,6 +394,12 @@ def interpolate_expression(x, expr, *, adj_x=None):
             raise TypeError(f"Unexpected type: {type(x)}")
     else:
         expr_val = var_new_conjugate_dual(adj_x)
+        expr_arguments = ufl.algorithms.extract_arguments(expr)
+        if len(expr_arguments) > 0:
+            test, = expr_arguments
+            if len(test.ufl_shape) > 0:
+                raise NotImplementedError("Case not implemented")
+            expr = ufl.replace(expr, {test: ufl.classes.IntValue(1)})
         interpolate_expression(expr_val, expr)
 
         if isinstance(x, backend_Constant):

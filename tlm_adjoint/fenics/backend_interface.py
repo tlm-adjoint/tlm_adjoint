@@ -57,7 +57,7 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
     add_interface(self, ConstantInterface,
                   {"id": new_var_id(), "name": lambda x: x.name(),
                    "state": [0], "space": space,
-                   "form_derivative_space": lambda x: r0_space(x),
+                   "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.values().dtype.type,
                    "static": False, "cache": False, "checkpoint": True})
 
@@ -116,7 +116,7 @@ class FunctionInterface(_VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
 
-    def _form_derivative_space(self):
+    def _derivative_space(self):
         return var_space(self)
 
     def _space_type(self):
