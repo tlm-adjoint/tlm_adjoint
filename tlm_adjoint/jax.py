@@ -198,6 +198,7 @@ class VectorInterface(VariableInterface):
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
+    @manager_disabled()
     def _axpy(self, alpha, x, /):
         if isinstance(x, Vector):
             if x.space.local_size != self.space.local_size:
@@ -242,6 +243,7 @@ class VectorInterface(VariableInterface):
     def _get_values(self):
         return np.array(self.vector, dtype=self.space.dtype)
 
+    @manager_disabled()
     def _set_values(self, values):
         self.assign(values)
 
