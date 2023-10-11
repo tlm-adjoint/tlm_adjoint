@@ -51,8 +51,8 @@ def test_MixedCheckpointSchedule(n, S):
 
         # Start at the current location of the forward
         assert model_n is not None and cp_action.n0 == model_n
-        # End at or before the end of the forward
-        assert cp_action.n1 <= n
+        # Do not advance further than the current location of the adjoint
+        assert cp_action.n1 <= n - model_r
 
         if store_ics:
             # Advance at least two steps when storing forward restart data
@@ -116,7 +116,7 @@ def test_MixedCheckpointSchedule(n, S):
             # location of the adjoint
             assert cp_action.n < n - model_r - 1
             # The loaded data is deleted iff non-linear dependency data for all
-            # remaining steps can be checkpoint and stored
+            # remaining steps can be stored
             assert cp_action.delete == (cp_action.n >= n - model_r - 1
                                         - (s - len(snapshots) + 1))
 
@@ -164,6 +164,7 @@ def test_MixedCheckpointSchedule(n, S):
         if len(data) > 0:
             assert cp_action.n == min(data)
 
+        assert cp_action.n not in snapshots
         snapshots[cp_action.n] = (set(ics), set(data))
 
     @action.register(EndForward)

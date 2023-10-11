@@ -53,8 +53,8 @@ def test_MultistageCheckpointSchedule(trajectory,
 
         # Start at the current location of the forward
         assert cp_action.n0 == model_n
-        # End at or before the end of the forward
-        assert cp_action.n1 <= n
+        # Do not advance further than the current location of the adjoint
+        assert cp_action.n1 <= n - model_r
 
         if store_ics:
             # Advance at least one step when storing forward restart data
@@ -140,6 +140,7 @@ def test_MultistageCheckpointSchedule(trajectory,
         # which data has been stored
         assert cp_action.n == min(ics)
 
+        assert cp_action.n not in snapshots
         snapshots[cp_action.n] = (set(ics), set(data))
 
     @action.register(EndForward)
