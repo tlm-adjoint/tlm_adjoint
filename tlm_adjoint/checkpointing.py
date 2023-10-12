@@ -3,9 +3,9 @@
 
 from .interface import (
     DEFAULT_COMM, comm_dup_cached, space_id, space_new, var_assign, var_copy,
-    var_get_values, var_global_size, var_id, var_is_checkpointed,
-    var_is_scalar, var_local_indices, var_new, var_scalar_value,
-    var_set_values, var_space, var_space_type)
+    var_get_values, var_global_size, var_id, var_is_scalar, var_is_static,
+    var_local_indices, var_new, var_scalar_value, var_set_values, var_space,
+    var_space_type)
 
 from .instructions import Instruction
 
@@ -36,8 +36,7 @@ class CheckpointStorage:
     data. Contains three types of data:
 
         1. References: Dependencies which are stored by reference. Variables
-           `x` for which `var_is_checkpointed(x)` is `False` are stored by
-           reference.
+           `x` for which `var_is_static(x)` is `True` are stored by reference.
         2. Forward restart / initial condition data: Dependencies which are
            used to restart and advance the forward calculation.
         3. Non-linear dependency data: Non-linear dependencies of the forward
@@ -207,7 +206,7 @@ class CheckpointStorage:
 
         self._add_initial_condition(
             x_id=var_id(x), value=value,
-            copy=var_is_checkpointed(x))
+            copy=not var_is_static(x))
 
     def update_keys(self, n, i, eq):
         """The :class:`CheckpointStorage` keeps an internal map from forward
@@ -282,7 +281,7 @@ class CheckpointStorage:
             for eq_dep, dep in zip(eq_deps, deps):
                 self._add_initial_condition(
                     x_id=var_id(eq_dep), value=dep,
-                    copy=var_is_checkpointed(eq_dep))
+                    copy=not var_is_static(eq_dep))
 
         self._add_equation_data(
             n, i, eq_deps, deps, eq.nonlinear_dependencies(), nl_deps)
@@ -309,7 +308,7 @@ class CheckpointStorage:
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
                 self._add_initial_condition(
                     x_id=var_id(eq_dep), value=dep,
-                    copy=var_is_checkpointed(eq_dep))
+                    copy=not var_is_static(eq_dep))
 
         self._add_equation_data(n, i, eq_nl_deps, nl_deps, eq_nl_deps, nl_deps)
 
@@ -317,7 +316,7 @@ class CheckpointStorage:
                            *, refs=True, copy=None):
         if copy is None:
             def copy(x):
-                return var_is_checkpointed(x)
+                return not var_is_static(x)
         else:
             _copy = copy
 

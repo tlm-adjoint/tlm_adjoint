@@ -3,8 +3,7 @@
 
 from .interface import (
     check_space_types_conjugate_dual, var_axpy, var_copy, var_is_cached,
-    var_is_checkpointed, var_is_static, var_name, var_new, var_copy_conjugate,
-    var_scalar_value)
+    var_is_static, var_name, var_new, var_copy_conjugate, var_scalar_value)
 
 from .caches import local_caches
 from .equations import InnerProduct
@@ -130,8 +129,7 @@ class GeneralHessian(Hessian):
         assert len(M0) == len(M)
         M = tuple(var_copy(m0, name=var_name(m),
                            static=var_is_static(m),
-                           cache=var_is_cached(m),
-                           checkpoint=var_is_checkpointed(m))
+                           cache=var_is_cached(m))
                   for m0, m in zip(M0, M))
         del M0
 
@@ -160,15 +158,13 @@ class GeneralHessian(Hessian):
         assert len(M0) == len(M)
         M = tuple(var_copy(m0, name=var_name(m),
                            static=var_is_static(m),
-                           cache=var_is_cached(m),
-                           checkpoint=var_is_checkpointed(m))
+                           cache=var_is_cached(m))
                   for m0, m in zip(M0, M))
         del M0
 
         dM = tuple(var_copy(dm, name=var_name(dm),
                             static=var_is_static(dm),
-                            cache=var_is_cached(dm),
-                            checkpoint=var_is_checkpointed(dm))
+                            cache=var_is_cached(dm))
                    for dm in dM)
 
         configure_tlm((M, dM))
@@ -340,15 +336,13 @@ class GeneralGaussNewton(GaussNewton):
         assert len(M0) == len(M)
         M = tuple(var_copy(m0, name=var_name(m),
                            static=var_is_static(m),
-                           cache=var_is_cached(m),
-                           checkpoint=var_is_checkpointed(m))
+                           cache=var_is_cached(m))
                   for m0, m in zip(M0, M))
         del M0
 
         dM = tuple(var_copy(dm, name=var_name(dm),
                             static=var_is_static(dm),
-                            cache=var_is_cached(dm),
-                            checkpoint=var_is_checkpointed(dm))
+                            cache=var_is_cached(dm))
                    for dm in dM)
 
         configure_tlm((M, dM), annotate=False)

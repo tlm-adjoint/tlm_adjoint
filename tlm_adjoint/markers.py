@@ -27,7 +27,7 @@ class ControlsMarker(Equation):
         \mathcal{F} \left( m \right) = m - m_\text{input}.
 
     :arg M: A variable or a :class:`Sequence` of variables defining the
-        control :math:`m`. May be non-checkpointed.
+        control :math:`m`. May be static.
     """
 
     def __init__(self, M):
