@@ -88,9 +88,8 @@ e.g. to verify Hessian matrix calculations
 
 from .interface import (
     garbage_cleanup, space_comm, var_assign, var_axpy, var_copy, var_dtype,
-    var_is_cached, var_is_checkpointed, var_is_static, var_local_size,
-    var_name, var_new, var_set_values, vars_inner, vars_linf_norm,
-    var_scalar_value)
+    var_is_cached, var_is_static, var_local_size, var_name, var_new,
+    var_set_values, vars_inner, vars_linf_norm, var_scalar_value)
 
 from .caches import clear_caches, local_caches
 from .manager import manager as _manager
@@ -201,8 +200,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
     if M0 is None:
         M0 = tuple(map(var_copy, M))
     M1 = tuple(var_new(m, static=var_is_static(m),
-                       cache=var_is_cached(m),
-                       checkpoint=var_is_checkpointed(m))
+                       cache=var_is_cached(m))
                for m in M)
 
     # This combination seems to reproduce dolfin-adjoint behaviour
@@ -310,11 +308,9 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
 
     M = tuple(var_copy(m, name=var_name(m),
                        static=var_is_static(m),
-                       cache=var_is_cached(m),
-                       checkpoint=var_is_checkpointed(m)) for m in M)
+                       cache=var_is_cached(m)) for m in M)
     M1 = tuple(var_new(m, static=var_is_static(m),
-                       cache=var_is_cached(m),
-                       checkpoint=var_is_checkpointed(m))
+                       cache=var_is_cached(m))
                for m in M)
 
     eps = np.array([2 ** -p for p in range(size)], dtype=float)
@@ -424,8 +420,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
 
     M = tuple(var_copy(m, name=var_name(m),
                        static=var_is_static(m),
-                       cache=var_is_cached(m),
-                       checkpoint=var_is_checkpointed(m)) for m in M)
+                       cache=var_is_cached(m)) for m in M)
 
     if dMs is None:
         dM_test = None

@@ -4,10 +4,9 @@
 from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
     var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_global_size,
-    var_is_cached, var_is_checkpointed, var_is_static, var_linf_norm,
-    var_local_size, var_new, var_new_conjugate_dual, var_scalar_value,
-    var_set_values, vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
-    vars_new_conjugate_dual)
+    var_is_cached, var_is_static, var_linf_norm, var_local_size, var_new,
+    var_new_conjugate_dual, var_scalar_value, var_set_values, vars_assign,
+    vars_axpy, vars_copy, vars_inner, vars_new, vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
@@ -72,8 +71,7 @@ class ReducedFunctional:
 
         if self._J is None:
             M = tuple(var_copy(m, static=var_is_static(m),
-                               cache=var_is_cached(m),
-                               checkpoint=var_is_checkpointed(m))
+                               cache=var_is_cached(m))
                       for m in M)
 
             reset_manager()
@@ -204,8 +202,7 @@ def minimize_scipy(forward, M0, *,
             var_set_values(f, x[N[i]:N[i + 1]])
 
     M = tuple(var_new(m0, static=var_is_static(m0),
-                      cache=var_is_cached(m0),
-                      checkpoint=var_is_checkpointed(m0))
+                      cache=var_is_cached(m0))
               for m0 in M0)
     J_hat = ReducedFunctional(forward, manager=manager)
 
@@ -1028,8 +1025,7 @@ def minimize_tao(forward, M0, *,
     tao.setTolerances(gatol=gatol, grtol=grtol, gttol=gttol)
 
     M = tuple(var_new(m0, static=var_is_static(m0),
-                      cache=var_is_cached(m0),
-                      checkpoint=var_is_checkpointed(m0))
+                      cache=var_is_cached(m0))
               for m0 in M0)
     J_hat = ReducedFunctional(forward, manager=manager)
 
@@ -1060,8 +1056,7 @@ def minimize_tao(forward, M0, *,
         @functools.cached_property
         def _M(self):
             return tuple(var_new(m0, static=var_is_static(m0),
-                                 cache=var_is_cached(m0),
-                                 checkpoint=var_is_checkpointed(m0))
+                                 cache=var_is_cached(m0))
                          for m0 in M0)
 
         def set_M(self, x):

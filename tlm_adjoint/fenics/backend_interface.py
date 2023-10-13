@@ -59,7 +59,7 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
                    "state": [0], "space": space,
                    "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.values().dtype.type,
-                   "static": False, "cache": False, "checkpoint": True})
+                   "static": False, "cache": False})
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -72,10 +72,10 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
-             checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False,
+             cache=None):
         return Function(self, name=name, space_type=space_type, static=static,
-                        cache=cache, checkpoint=checkpoint)
+                        cache=cache)
 
 
 _FunctionSpace_add_interface = True
@@ -139,9 +139,6 @@ class FunctionInterface(_VariableInterface):
 
     def _is_cached(self):
         return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _is_checkpointed(self):
-        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
         if "caches" not in self._tlm_adjoint__var_interface_attrs:
@@ -224,10 +221,9 @@ class FunctionInterface(_VariableInterface):
         self.vector().apply("insert")
 
     @check_vector_size
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
+    def _new(self, *, name=None, static=False, cache=None,
              rel_space_type="primal"):
-        y = var_copy(self, name=name, static=static, cache=cache,
-                     checkpoint=checkpoint)
+        y = var_copy(self, name=name, static=static, cache=cache)
         y.vector().zero()
         space_type = var_space_type(self, rel_space_type=rel_space_type)
         y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
@@ -235,18 +231,15 @@ class FunctionInterface(_VariableInterface):
 
     @manager_disabled()
     @check_vector_size
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
+    def _copy(self, *, name=None, static=False, cache=None):
         y = self.copy(deepcopy=True)
         if name is not None:
             y.rename(name, "a Function")
         if cache is None:
             cache = static
-        if checkpoint is None:
-            checkpoint = not static
         y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", var_space_type(self))  # noqa: E501
         y._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         y._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-        y._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
         return y
 
     def _replacement(self):
@@ -269,44 +262,39 @@ class Function(backend_Function):
 
     :arg space_type: The space type for the :class:`Function`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this :class:`Function` may be
+    :arg static: Defines whether the :class:`Function` is static, meaning that
+        it is stored by reference in checkpointing/replay, and an associated
+        tangent-linear variable is zero.
+    :arg cache: Defines whether results involving the :class:`Function` may be
         cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        :class:`Function` by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
 
     Remaining arguments are passed to the backend `Function` constructor.
     """
 
     def __init__(self, *args, space_type="primal", static=False, cache=None,
-                 checkpoint=None, **kwargs):
+                 **kwargs):
         if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
         if cache is None:
             cache = static
-        if checkpoint is None:
-            checkpoint = not static
 
         super().__init__(*args, **kwargs)
         self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 class ZeroFunction(Function, Zero):
     """A :class:`Function` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Function` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`.
+    `static=True` and `cache=True`.
     """
 
     def __init__(self, *args, **kwargs):
         Function.__init__(
             self, *args, **kwargs,
-            static=True, cache=True, checkpoint=False)
+            static=True, cache=True)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroFunction is not zero-valued")
 
@@ -336,8 +324,7 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
 
     add_interface(self, FunctionInterface,
                   {"id": new_var_id(), "state": [0],
-                   "space_type": "primal", "static": False, "cache": False,
-                   "checkpoint": True})
+                   "space_type": "primal", "static": False, "cache": False})
 
     space = self.function_space()
     if isinstance(args[0], backend_FunctionSpace) and args[0].id() == space.id():  # noqa: E501

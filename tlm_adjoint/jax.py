@@ -6,9 +6,8 @@ from .interface import (
     comm_dup_cached, new_var_id, new_space_id,
     register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_axpy, var_caches, var_comm,
-    var_dtype, var_id, var_is_cached, var_is_checkpointed, var_is_scalar,
-    var_is_static, var_local_size, var_name, var_space, var_space_type,
-    var_state)
+    var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
+    var_local_size, var_name, var_space, var_space_type, var_state)
 
 from .alias import WeakAlias
 from .caches import Caches
@@ -79,10 +78,10 @@ class VectorSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
-             checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False,
+             cache=None):
         return Vector(self, name=name, space_type=space_type, static=static,
-                      cache=cache, checkpoint=checkpoint)
+                      cache=cache)
 
 
 class VectorSpace:
@@ -178,9 +177,6 @@ class VectorInterface(VariableInterface):
 
     def _is_cached(self):
         return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _is_checkpointed(self):
-        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
         return self._tlm_adjoint__var_interface_attrs["caches"]
@@ -338,19 +334,17 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     :arg name: A :class:`str` name for the :class:`Vector`.
     :arg space_type: The space type for the :class:`Vector`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this :class:`Vector` may be
+    :arg static: Defines whether the :class:`Vector` is static, meaning that
+        it is stored by reference in checkpointing/replay, and an associated
+        tangent-linear variable is zero.
+    :arg cache: Defines whether results involving the :class:`Vector` may be
         cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        :class:`Vector` by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
     :arg dtype: The data type. Ignored if `V` is a :class:`VectorSpace`.
     :arg comm: A communicator. Ignored if `V` is a :class:`VectorSpace`.
     """
 
     def __init__(self, V, *, name=None, space_type="primal", static=False,
-                 cache=None, checkpoint=None, dtype=None, comm=None):
+                 cache=None, dtype=None, comm=None):
         if isinstance(V, VectorSpace):
             vector = None
             n = V.local_size
@@ -377,8 +371,6 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             raise ValueError("Invalid space type")
         if cache is None:
             cache = static
-        if checkpoint is None:
-            checkpoint = not static
 
         super().__init__()
         self._name = name
@@ -386,8 +378,8 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         self._space_type = space_type
         self._vector = vector
         add_interface(self, VectorInterface,
-                      {"cache": cache, "checkpoint": checkpoint, "id": id,
-                       "state": [0], "static": static})
+                      {"cache": cache, "id": id, "state": [0],
+                       "static": static})
         self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
@@ -421,8 +413,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     def __complex__(self):
         return complex(self.value)
 
-    def new(self, y=None, *, name=None, static=False, cache=None,
-            checkpoint=None):
+    def new(self, y=None, *, name=None, static=False, cache=None):
         """Return a new :class:`Vector`, with the same :class:`VectorSpace` and
         space type as this :class:`Vector`.
 
@@ -433,7 +424,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         """
 
         x = Vector(self.space, space_type=self.space_type, name=name,
-                   static=static, cache=cache, checkpoint=checkpoint)
+                   static=static, cache=cache)
         if y is not None:
             x.assign(y)
         return x
@@ -576,9 +567,6 @@ class ReplacementVectorInterface(VariableInterface):
     def _is_cached(self):
         return self._tlm_adjoint__var_interface_attrs["cache"]
 
-    def _is_checkpointed(self):
-        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
-
     def _caches(self):
         return self._tlm_adjoint__var_interface_attrs["caches"]
 
@@ -597,7 +585,6 @@ class ReplacementVector:
         add_interface(self, ReplacementVectorInterface,
                       {"cache": var_is_cached(x),
                        "caches": var_caches(x),
-                       "checkpoint": var_is_checkpointed(x),
                        "id": var_id(x),
                        "static": var_is_static(x)})
 

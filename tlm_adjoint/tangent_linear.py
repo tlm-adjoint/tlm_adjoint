@@ -142,10 +142,9 @@ class TangentLinearMap:
 
         - If `x` is defines a component of the control, then `tau_x` is a
           variable defining the associated component of the direction.
-        - If `x` does not define a component of the control but is
-          'checkpointed', meaning that it is stored by value by a
-          :class:`tlm_adjoint.checkpointing.CheckpointStorage`, then `tau_x` is
-          a tangent-linear variable. A new variable is instantiated if needed.
+        - If `x` does not define a component of the control and is not
+          'static', then `tau_x` is a tangent-linear variable. A new variable
+          is instantiated if needed.
         - Otherwise `tau_x` is `None`, indicating that the tangent-linear
           variable is zero.
 

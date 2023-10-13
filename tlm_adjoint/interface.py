@@ -106,7 +106,6 @@ __all__ = \
         "var_id",
         "var_inner",
         "var_is_cached",
-        "var_is_checkpointed",
         "var_is_replacement",
         "var_is_static",
         "var_linf_norm",
@@ -169,7 +168,8 @@ __all__ = \
         "function_zero",
         "function_is_scalar",
         "function_scalar_value",
-        "function_is_alias"
+        "function_is_alias",
+        "var_is_checkpointed"
     ]
 
 
@@ -443,8 +443,8 @@ class SpaceInterface:
     def _id(self):
         raise NotImplementedError("Method not overridden")
 
-    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
-             checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False,
+             cache=None):
         raise NotImplementedError("Method not overridden")
 
 
@@ -499,28 +499,25 @@ def space_id(space):
 
 
 def space_new(space, *, name=None, space_type="primal", static=False,
-              cache=None, checkpoint=None):
+              cache=None):
     """Return a new variable.
 
     :arg space: The space.
     :arg name: A :class:`str` name for the variable.
     :arg space_type: The space type for the new variable. `'primal'`, `'dual'`,
         `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg static: Defines whether the new variable is static, meaning that it is
+        stored by reference in checkpointing/replay, and an associated
+        tangent-linear variable is zero.
     :arg cache: Defines whether results involving the new variable may be
         cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        variable by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
     :returns: The new variable.
     """
 
     if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
     return space._tlm_adjoint__space_interface_new(
-        name=name, space_type=space_type, static=static, cache=cache,
-        checkpoint=checkpoint)
+        name=name, space_type=space_type, static=static, cache=cache)
 
 
 def relative_space_type(space_type, rel_space_type):
@@ -707,13 +704,13 @@ class VariableInterface:
     """
 
     prefix = "_tlm_adjoint__var_interface"
-    names = ("_comm", "_space", "_derivative_space", "_space_type",
-             "_dtype", "_id", "_name", "_state", "_update_state", "_is_static",
-             "_is_cached", "_is_checkpointed", "_caches", "_zero", "_assign",
-             "_axpy", "_inner", "_sum", "_linf_norm", "_local_size",
-             "_global_size", "_local_indices", "_get_values", "_set_values",
-             "_new", "_copy", "_replacement", "_is_replacement", "_is_scalar",
-             "_scalar_value", "_is_alias")
+    names = ("_comm", "_space", "_derivative_space", "_space_type", "_dtype",
+             "_id", "_name", "_state", "_update_state", "_is_static",
+             "_is_cached", "_caches", "_zero", "_assign", "_axpy", "_inner",
+             "_sum", "_linf_norm", "_local_size", "_global_size",
+             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
+             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value",
+             "_is_alias")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate VariableInterface object")
@@ -749,9 +746,6 @@ class VariableInterface:
         raise NotImplementedError("Method not overridden")
 
     def _is_cached(self):
-        raise NotImplementedError("Method not overridden")
-
-    def _is_checkpointed(self):
         raise NotImplementedError("Method not overridden")
 
     def _caches(self):
@@ -790,16 +784,14 @@ class VariableInterface:
     def _set_values(self, values):
         raise NotImplementedError("Method not overridden")
 
-    def _new(self, *, name=None, static=False, cache=None, checkpoint=None,
+    def _new(self, *, name=None, static=False, cache=None,
              rel_space_type="primal"):
         space_type = var_space_type(self, rel_space_type=rel_space_type)
         return space_new(var_space(self), name=name,
-                         space_type=space_type, static=static, cache=cache,
-                         checkpoint=checkpoint)
+                         space_type=space_type, static=static, cache=cache)
 
-    def _copy(self, *, name=None, static=False, cache=None, checkpoint=None):
-        y = var_new(self, name=name, static=static, cache=cache,
-                    checkpoint=checkpoint)
+    def _copy(self, *, name=None, static=False, cache=None):
+        y = var_new(self, name=name, static=static, cache=cache)
         var_assign(y, self)
         return y
 
@@ -939,10 +931,9 @@ def var_update_state(*X):
 
 
 def var_is_static(x):
-    """Return whether a variable is flagged as 'static'.
-
-    The 'static' flag is used when instantiating variables to set the default
-    caching and checkpointing behaviour, but plays no other role.
+    """Return whether a variable is flagged as 'static'. A static variable
+    is stored by reference in checkpointing/replay, and the associated
+    tangent-linear variable is zero.
 
     :arg x: The variable.
     :returns: Whether the variable is flagged as static.
@@ -962,20 +953,12 @@ def var_is_cached(x):
 
 
 def var_is_checkpointed(x):
-    """Return whether the variable is 'checkpointed', meaning that a
-    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this variable
-    by value. If not 'checkpointed' then a
-    :class:`tlm_adjoint.checkpointing.CheckpointStorage` stores this variable
-    by reference.
+    ""
 
-    Only variables which are 'checkpointed' may appear as the solution of
-    equations.
-
-    :arg x: The variable.
-    :returns: Whether the variable is 'checkpointed'.
-    """
-
-    return x._tlm_adjoint__var_interface_is_checkpointed()
+    warnings.warn("var_is_checkpoint is deprecated -- "
+                  "use `not var_is_static(x)` instead",
+                  DeprecationWarning, stacklevel=2)
+    return var_is_static(x)
 
 
 def var_caches(x):
@@ -1154,27 +1137,31 @@ def var_new(x, *, name=None, static=False, cache=None, checkpoint=None,
 
     :arg x: A variable.
     :arg name: A :class:`str` name for the new variable.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
+    :arg static: Defines whether the new variable is static, meaning that it is
+        stored by reference in checkpointing/replay, and an associated
+        tangent-linear variable is zero.
     :arg cache: Defines whether results involving the new variable may be
         cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store the
-        new variable by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
+    :arg checkpoint: Deprecated.
     :arg rel_space_type: Defines the space type of the new variable, relative
         to the space type of `x`.
     :returns: The new variable.
     """
 
+    if checkpoint is not None:
+        if checkpoint == static:
+            warnings.warn("checkpoint argument is deprecated",
+                          DeprecationWarning, stacklevel=2)
+        else:
+            raise ValueError("checkpoint argument is deprecated")
+
     if rel_space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid relative space type")
     return x._tlm_adjoint__var_interface_new(
-        name=name, static=static, cache=cache, checkpoint=checkpoint,
-        rel_space_type=rel_space_type)
+        name=name, static=static, cache=cache, rel_space_type=rel_space_type)
 
 
-def var_new_conjugate(x, *, name=None, static=False, cache=None,
-                      checkpoint=None):
+def var_new_conjugate(x, *, name=None, static=False, cache=None):
     """Return a new conjugate variable. See :func:`var_new`.
 
     :returns: A new variable defined using the same space as `x`, with space
@@ -1182,12 +1169,10 @@ def var_new_conjugate(x, *, name=None, static=False, cache=None,
     """
 
     return var_new(x, name=name, static=static, cache=cache,
-                   checkpoint=checkpoint,
                    rel_space_type="conjugate")
 
 
-def var_new_dual(x, *, name=None, static=False, cache=None,
-                 checkpoint=None):
+def var_new_dual(x, *, name=None, static=False, cache=None):
     """Return a new dual variable. See :func:`var_new`.
 
     :returns: A new variable defined using the same space as `x`, with space
@@ -1195,12 +1180,10 @@ def var_new_dual(x, *, name=None, static=False, cache=None,
     """
 
     return var_new(x, name=name, static=static, cache=cache,
-                   checkpoint=checkpoint,
                    rel_space_type="dual")
 
 
-def var_new_conjugate_dual(x, *, name=None, static=False, cache=None,
-                           checkpoint=None):
+def var_new_conjugate_dual(x, *, name=None, static=False, cache=None):
     """Return a new conjugate dual variable. See :func:`var_new`.
 
     :returns: A new variable defined using the same space as `x`, with space
@@ -1208,27 +1191,24 @@ def var_new_conjugate_dual(x, *, name=None, static=False, cache=None,
     """
 
     return var_new(x, name=name, static=static, cache=cache,
-                   checkpoint=checkpoint,
                    rel_space_type="conjugate_dual")
 
 
-def var_copy(x, *, name=None, static=False, cache=None, checkpoint=None):
+def var_copy(x, *, name=None, static=False, cache=None):
     """Copy a variable. See :func:`var_new`.
 
     :returns: The copied variable.
     """
 
     return x._tlm_adjoint__var_interface_copy(
-        name=name, static=static, cache=cache, checkpoint=checkpoint)
+        name=name, static=static, cache=cache)
 
 
 def var_new_tangent_linear(x, *, name=None):
-    if var_is_checkpointed(x):
-        return var_new(x, name=name, static=var_is_static(x),
-                       cache=var_is_cached(x),
-                       checkpoint=True)
-    else:
+    if var_is_static(x):
         return None
+    else:
+        return var_new(x, name=name, static=False, cache=var_is_cached(x))
 
 
 def var_replacement(x):

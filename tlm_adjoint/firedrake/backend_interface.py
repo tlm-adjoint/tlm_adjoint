@@ -11,8 +11,8 @@ from ..interface import (
     register_subtract_adjoint_derivative_action, relative_space_type,
     space_type_warning, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
-    var_is_cached, var_is_checkpointed, var_is_static, var_linf_norm, var_name,
-    var_space, var_space_type)
+    var_is_cached, var_is_static, var_linf_norm, var_name, var_space,
+    var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
@@ -81,7 +81,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
                    "state": [0], "space": space,
                    "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
-                   "static": False, "cache": False, "checkpoint": True})
+                   "static": False, "cache": False})
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -94,16 +94,15 @@ class FunctionSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__space_interface_attrs["id"]
 
-    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
-             checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False,
+             cache=None):
         space = self._tlm_adjoint__space_interface_attrs["space"]
         if space_type in {"primal", "conjugate"}:
             return Function(space, name=name, space_type=space_type,
-                            static=static, cache=cache, checkpoint=checkpoint)
+                            static=static, cache=cache)
         elif space_type in {"dual", "conjugate_dual"}:
             return Cofunction(space.dual(), name=name, space_type=space_type,
-                              static=static, cache=cache,
-                              checkpoint=checkpoint)
+                              static=static, cache=cache)
         else:
             raise ValueError("Invalid space type")
 
@@ -154,9 +153,6 @@ class FunctionInterfaceBase(_VariableInterface):
 
     def _is_cached(self):
         return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _is_checkpointed(self):
-        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
         if "caches" not in self._tlm_adjoint__var_interface_attrs:
@@ -271,46 +267,41 @@ class Function(backend_Function):
 
     :arg space_type: The space type for the :class:`Function`. `'primal'` or
         `'conjugate'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this :class:`Function` may be
+    :arg static: Defines whether the :class:`Function` is static, meaning that
+        it is stored by reference in checkpointing/replay, and an associated
+        tangent-linear variable is zero.
+    :arg cache: Defines whether results involving the :class:`Function` may be
         cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        :class:`Function` by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
 
     Remaining arguments are passed to the backend `Function` constructor.
     """
 
     def __init__(self, *args, space_type="primal", static=False, cache=None,
-                 checkpoint=None, **kwargs):
+                 **kwargs):
         if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
         if space_type not in {"primal", "conjugate"}:
             space_type_warning("Unexpected space type")
         if cache is None:
             cache = static
-        if checkpoint is None:
-            checkpoint = not static
 
         super().__init__(*args, **kwargs)
         self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 class ZeroFunction(Function, Zero):
     """A :class:`Function` which is flagged as having a value of zero.
 
     Arguments are passed to the :class:`Function` constructor, together with
-    `static=True`, `cache=True`, and `checkpoint=False`.
+    `static=True` and `cache=True`.
     """
 
     def __init__(self, *args, **kwargs):
         Function.__init__(
             self, *args, **kwargs,
-            static=True, cache=True, checkpoint=False)
+            static=True, cache=True)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroFunction is not zero-valued")
 
@@ -335,7 +326,7 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
     add_interface(self, FunctionInterface,
                   {"comm": comm_dup_cached(comm), "id": new_var_id(),
                    "state": [0], "space_type": "primal", "static": False,
-                   "cache": False, "checkpoint": True})
+                   "cache": False})
     if isinstance(val, backend_Function):
         define_var_alias(self, val, key=("Function__init__",))
 
@@ -402,33 +393,28 @@ class Cofunction(backend_Cofunction):
 
     :arg space_type: The space type for the :class:`Cofunction`. `'conjugate'`
         or `'conjugate_dual'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this :class:`Cofunction` may
+    :arg static: Defines whether the :class:`Cofunction` is static, meaning
+        that it is stored by reference in checkpointing/replay, and an
+        associated tangent-linear variable is zero.
+    :arg cache: Defines whether results involving the :class:`Cofunction` may
         be cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        :class:`Cofunction` by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
 
     Remaining arguments are passed to the backend `Cofunction` constructor.
     """
 
     def __init__(self, *args, space_type="conjugate_dual", static=False,
-                 cache=None, checkpoint=None, **kwargs):
+                 cache=None, **kwargs):
         if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
             raise ValueError("Invalid space type")
         if space_type not in {"dual", "conjugate_dual"}:
             space_type_warning("Unexpected space type")
         if cache is None:
             cache = static
-        if checkpoint is None:
-            checkpoint = not static
 
         super().__init__(*args, **kwargs)
         self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("checkpoint", checkpoint)  # noqa: E501
 
 
 @override_method(backend_Cofunction, "__init__")
@@ -438,7 +424,7 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
     add_interface(self, CofunctionInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
                    "state": [0], "space_type": "conjugate_dual",
-                   "static": False, "cache": False, "checkpoint": True})
+                   "static": False, "cache": False})
     if isinstance(val, backend_Cofunction):
         define_var_alias(self, val, key=("Cofunction__init__",))
 
@@ -473,7 +459,6 @@ class ReplacementCofunction(ufl.classes.Cofunction):
                        "space_type": var_space_type(x),
                        "static": var_is_static(x),
                        "cache": var_is_cached(x),
-                       "checkpoint": var_is_checkpointed(x),
                        "caches": var_caches(x)})
 
     def __new__(cls, x, *args, **kwargs):

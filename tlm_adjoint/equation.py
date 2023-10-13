@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types, is_var, var_id, var_is_alias, var_is_checkpointed,
-    var_new, var_replacement, var_update_caches, var_update_state, var_zero)
+    check_space_types, is_var, var_id, var_is_alias, var_is_static, var_new,
+    var_replacement, var_update_caches, var_update_state, var_zero)
 
 from .alias import gc_disabled
 from .manager import manager as _manager
@@ -133,8 +133,8 @@ class Equation(Referrer):
         for x in X:
             if not is_var(x):
                 raise ValueError("Solution must be a variable")
-            if not var_is_checkpointed(x):
-                raise ValueError("Solution must be checkpointed")
+            if var_is_static(x):
+                raise ValueError("Solution cannot be static")
             if var_is_alias(x):
                 raise ValueError("Solution cannot be an alias")
             if var_id(x) not in dep_ids:

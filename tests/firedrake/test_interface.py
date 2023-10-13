@@ -123,21 +123,18 @@ def test_default_var_flags(setup_test, test_leaks):
     c = Constant(0.0)
     assert var_is_static(c) is not None and not var_is_static(c)
     assert var_is_cached(c) is not None and not var_is_cached(c)
-    assert var_is_checkpointed(c) is not None and var_is_checkpointed(c)
     del c
 
     # Constant, with domain
     c = Constant(0.0, domain=mesh)
     assert var_is_static(c) is not None and not var_is_static(c)
     assert var_is_cached(c) is not None and not var_is_cached(c)
-    assert var_is_checkpointed(c) is not None and var_is_checkpointed(c)
     del c
 
     # Function
     F = Function(space)
     assert var_is_static(F) is not None and not var_is_static(F)
     assert var_is_cached(F) is not None and not var_is_cached(F)
-    assert var_is_checkpointed(F) is not None and var_is_checkpointed(F)
     del F
 
 

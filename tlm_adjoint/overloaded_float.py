@@ -105,12 +105,12 @@ class FloatSpaceInterface(SpaceInterface):
     def _id(self):
         return self._tlm_adjoint__var_interface_attrs["id"]
 
-    def _new(self, *, name=None, space_type="primal", static=False, cache=None,
-             checkpoint=None):
+    def _new(self, *, name=None, space_type="primal", static=False,
+             cache=None):
         return self.float_cls(
             name=name, space_type=space_type,
-            static=static, cache=cache, checkpoint=checkpoint,
-            dtype=space_dtype(self), comm=space_comm(self))
+            static=static, cache=cache, dtype=space_dtype(self),
+            comm=space_comm(self))
 
 
 class FloatSpace:
@@ -221,9 +221,6 @@ class FloatInterface(VariableInterface):
 
     def _is_cached(self):
         return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _is_checkpointed(self):
-        return self._tlm_adjoint__var_interface_attrs["checkpoint"]
 
     def _caches(self):
         return self._tlm_adjoint__var_interface_attrs["caches"]
@@ -338,13 +335,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     :arg name: A :class:`str` name for the :class:`SymbolicFloat`.
     :arg space_type: The space type for the :class:`SymbolicFloat`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines the default value for `cache` and `checkpoint`.
-    :arg cache: Defines whether results involving this :class:`SymbolicFloat`
+    :arg static: Defines whether the :class:`SymbolicFloat` is static, meaning
+        that it is stored by reference in checkpointing/replay, and an
+        associated tangent-linear variable is zero.
+    :arg cache: Defines whether results involving the :class:`SymbolicFloat`
         may be cached. Default `static`.
-    :arg checkpoint: Defines whether a
-        :class:`tlm_adjoint.checkpointing.CheckpointStorage` should store this
-        :class:`SymbolicFloat` by value (`checkpoint=True`) or reference
-        (`checkpoint=False`). Default `not static`.
     :arg dtype: The data type associated with the :class:`SymbolicFloat`.
         Typically :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
         :class:`numpy.cdouble`.
@@ -355,7 +350,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     """
 
     def __init__(self, value=0.0, *, name=None, space_type="primal",
-                 static=False, cache=None, checkpoint=None,
+                 static=False, cache=None,
                  dtype=None, comm=None,
                  annotate=None, tlm=None):
         id = new_var_id()
@@ -366,16 +361,14 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             raise ValueError("Invalid space type")
         if cache is None:
             cache = static
-        if checkpoint is None:
-            checkpoint = not static
 
         super().__init__()
         self._space = FloatSpace(type(self), dtype=dtype, comm=comm)
         self._space_type = space_type
         self._value = self._space.dtype(0.0)
         add_interface(self, FloatInterface,
-                      {"cache": cache, "checkpoint": checkpoint, "id": id,
-                       "name": name, "state": [0], "static": static})
+                      {"cache": cache, "id": id, "name": name, "state": [0],
+                       "static": static})
         self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
 
         if isinstance(value, (int, np.integer, sp.Integer,
@@ -391,7 +384,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
     def new(self, value=0.0, *,
             name=None,
-            static=False, cache=None, checkpoint=None,
+            static=False, cache=None,
             annotate=None, tlm=None):
         """Return a new object, which same type and space type as this
         :class:`SymbolicFloat`.
@@ -401,8 +394,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         Arguments are as for the :class:`SymbolicFloat` constructor.
         """
 
-        x = var_new(
-            self, name=name, static=static, cache=cache, checkpoint=checkpoint)
+        x = var_new(self, name=name, static=static, cache=cache)
         if isinstance(value, (int, np.integer, sp.Integer,
                               float, np.floating, sp.Float,
                               complex, np.complexfloating)):
