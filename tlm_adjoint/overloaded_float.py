@@ -615,11 +615,6 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
             return -x
 
     @staticmethod
-    @register_operation(np.positive)
-    def positive(x):
-        return SymbolicFloat.__pos__(x)
-
-    @staticmethod
     @register_operation(np.negative)
     def negative(x):
         return SymbolicFloat.__neg__(x)
