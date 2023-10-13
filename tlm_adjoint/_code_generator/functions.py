@@ -459,13 +459,6 @@ def extract_coefficients(expr):
     return deps
 
 
-def diff(expr, x):
-    expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
-    dexpr = ufl.diff(expr, replace_map.get(x, x))
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
-    return ufl.replace(dexpr, replace_map_inverse)
-
-
 def derivative(expr, x, argument=None, *,
                enable_automatic_argument=True):
     expr_arguments = ufl.algorithms.extract_arguments(expr)

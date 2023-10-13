@@ -22,7 +22,7 @@ from ..equation import Equation, ZeroAssignment
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
-from .functions import diff, eliminate_zeros
+from .functions import eliminate_zeros
 
 import itertools
 import numpy as np
@@ -427,7 +427,7 @@ class ExprAssignment(ExprEquation):
         else:
             F = var_new_conjugate_dual(dep)
 
-            dF = diff(self._rhs, dep)
+            dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
             dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = self._nonlinear_replace(dF, nl_deps)
@@ -437,8 +437,14 @@ class ExprAssignment(ExprEquation):
                     dF, subset=self._subset)
                 F.assign(var_inner(adj_x, dF))
             elif isinstance(F, (backend_Cofunction, backend_Function)):
-                dF = dF(()).conjugate()
-                F.assign(dF * adj_x, subset=self._subset)
+                e = F.function_space().ufl_element()
+                if (e.family(), e.degree(), e.value_shape()) == ("Real", 0, ()):  # noqa: E501
+                    dF = var_new_conjugate_dual(adj_x).assign(
+                        dF, subset=self._subset)
+                    F.dat.data[:] = var_inner(adj_x, dF)
+                else:
+                    dF = dF(()).conjugate()
+                    F.assign(dF * adj_x, subset=self._subset)
             else:
                 raise TypeError(f"Unexpected type: {type(F)}")
         return (-1.0, F)

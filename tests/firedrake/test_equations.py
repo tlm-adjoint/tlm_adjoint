@@ -9,6 +9,7 @@ from tlm_adjoint.firedrake.backend_code_generator_interface import (
 from .test_base import *
 
 import firedrake
+import functools
 import numpy as np
 import os
 import pytest
@@ -455,54 +456,65 @@ def test_ExprAssignment(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("c0", [lambda mesh: 2,
+                                lambda mesh: Constant(2.0),
+                                lambda mesh: Function(FunctionSpace(mesh, "R", 0)).assign(2.0)])  # noqa: E501
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
-def test_ExprAssignment_vector(setup_test, test_leaks):
+def test_ExprAssignment_vector(setup_test, test_leaks,
+                               c0):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
     space = VectorFunctionSpace(mesh, "Lagrange", 1)
 
-    def forward(m):
+    def forward(c, m):
         u = Function(space, name="u").assign(m)
-        u.assign(2 * u + m)
+        u.assign(c * u + m)
 
         J = Functional(name="J")
         J.assign(((dot(u, u) + Constant(1.0)) ** 2) * dx)
         return u, J
 
+    c = c0(mesh)
     m0 = Function(space, name="m0")
     interpolate_expression(
         m0, as_vector((cos(pi * X[0]), X[1] * exp(X[0]))))
     m = Function(space, name="m").assign(m0)
 
+    if is_var(c):
+        M = (c, m)
+    else:
+        M = (m,)
+        forward = functools.partial(forward, c)
+
     start_manager()
-    u, J = forward(m)
+    u, J = forward(*M)
     stop_manager()
 
-    assert np.sqrt(abs(assemble(inner(u - 3 * m0, u - 3 * m0) * dx))) < 1.0e-15
+    assert np.sqrt(abs(assemble(inner(u - (1 + c0(mesh)) * m0, u - (1 + c0(mesh)) * m0) * dx))) < 1.0e-15  # noqa: E501
 
-    def forward_J(m):
-        _, J = forward(m)
+    def forward_J(*M):
+        _, J = forward(*M)
         return J
 
     J_val = J.value
 
-    dJ = compute_gradient(J, m)
+    dJ = compute_gradient(J, M)
 
-    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
+    min_order = taylor_test(forward_J, M, J_val=J_val, dJ=dJ)
     assert min_order > 2.00
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ)
+    min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ)
     assert min_order > 3.00
 
-    min_order = taylor_test_tlm(forward_J, m, tlm_order=1)
+    min_order = taylor_test_tlm(forward_J, M, tlm_order=1)
     assert min_order > 2.00
 
-    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1)
+    min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=1)
     assert min_order > 2.00
 
-    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
+    min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2)
     assert min_order > 2.00
 
 
