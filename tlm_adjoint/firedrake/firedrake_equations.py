@@ -437,8 +437,14 @@ class ExprAssignment(ExprEquation):
                     dF, subset=self._subset)
                 F.assign(var_inner(adj_x, dF))
             elif isinstance(F, (backend_Cofunction, backend_Function)):
-                dF = dF(()).conjugate()
-                F.assign(dF * adj_x, subset=self._subset)
+                e = F.function_space().ufl_element()
+                if (e.family(), e.degree(), e.value_shape()) == ("Real", 0, ()):  # noqa: E501
+                    dF = var_new_conjugate_dual(adj_x).assign(
+                        dF, subset=self._subset)
+                    F.dat.data[:] = var_inner(adj_x, dF)
+                else:
+                    dF = dF(()).conjugate()
+                    F.assign(dF * adj_x, subset=self._subset)
             else:
                 raise TypeError(f"Unexpected type: {type(F)}")
         return (-1.0, F)
