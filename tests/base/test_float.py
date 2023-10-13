@@ -91,7 +91,6 @@ def test_float_assignment(setup_test,  # noqa: F811
 @pytest.mark.base
 @pytest.mark.parametrize("op", [operator.abs,
                                 operator.neg,
-                                operator.pos,
                                 np.sin,
                                 np.cos,
                                 np.tan,

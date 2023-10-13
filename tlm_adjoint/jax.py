@@ -387,7 +387,8 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             return NotImplemented
         if len(kwargs) > 0:
             return NotImplemented
-        if ufunc in {np.equal, np.not_equal,
+        if ufunc in {np.positive,
+                     np.equal, np.not_equal,
                      np.less, np.less_equal,
                      np.greater, np.greater_equal}:
             return NotImplemented
