@@ -85,6 +85,7 @@ def test_jax_assignment(setup_test, jax_tlm_config,  # noqa: F811
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("op", [operator.abs,
                                 operator.neg,
+                                operator.pos,
                                 np.sin,
                                 np.cos,
                                 np.tan,
