@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module is used by both the FEniCS and Firedrake backends, and includes
-functionality for handling :class:`ufl.Coefficient` objects and boundary
-conditions.
+"""This module includes functionality for handling :class:`ufl.Coefficient`
+objects and boundary conditions.
 """
 
 from .backend import (
@@ -310,26 +309,6 @@ class Constant(backend_Constant):
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
 
-    def __new__(cls, value=None, *args, name=None, domain=None,
-                space_type="primal", shape=None, static=False, cache=None,
-                **kwargs):
-        if issubclass(cls, ufl.classes.Coefficient) or domain is None:
-            return object().__new__(cls)
-        else:
-            # For Firedrake
-            value = constant_value(value, shape)
-            if space_type not in {"primal", "conjugate",
-                                  "dual", "conjugate_dual"}:
-                raise ValueError("Invalid space type")
-            if cache is None:
-                cache = static
-            F = super().__new__(cls, value, domain=domain)
-            F.rename(name=name)
-            F._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-            F._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
-            F._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-            return F
-
 
 class Zero:
     """Mixin for defining a zero-valued variable. Used for zero-valued
@@ -364,74 +343,8 @@ class ZeroConstant(Constant, Zero):
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroConstant is not zero-valued")
 
-    def __new__(cls, *args, shape=None, **kwargs):
-        return Constant.__new__(
-            cls, constant_value(shape=shape), *args,
-            shape=shape, static=True, cache=True, **kwargs)
-
     def assign(self, *args, **kwargs):
         raise RuntimeError("Cannot call assign method of ZeroConstant")
-
-
-def as_coefficient(x):
-    if isinstance(x, ufl.classes.Coefficient):
-        return x
-
-    # For Firedrake
-
-    if not isinstance(x, backend_Constant):
-        raise TypeError("Unexpected type")
-
-    if not hasattr(x, "_tlm_adjoint__Coefficient"):
-        if is_var(x):
-            space = var_space(x)
-        else:
-            if len(x.ufl_shape) == 0:
-                element = ufl.classes.FiniteElement("R", None, 0)
-            elif len(x.ufl_shape) == 1:
-                element = ufl.classes.VectorElement("R", None, 0,
-                                                    dim=x.ufl_shape[0])
-            else:
-                element = ufl.classes.TensorElement("R", None, 0,
-                                                    shape=x.ufl_shape)
-            space = ufl.classes.FunctionSpace(None, element)
-
-        x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space)
-
-    return x._tlm_adjoint__Coefficient
-
-
-def with_coefficient(expr, x):
-    x_coeff = as_coefficient(x)
-    if x_coeff is x:
-        return expr, {}, {}
-    else:
-        # For Firedrake
-        replace_map = {x: x_coeff}
-        replace_map_inverse = {x_coeff: x}
-        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
-
-
-def with_coefficients(expr):
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__form_with_coefficients" in expr._cache:
-        return expr._cache["_tlm_adjoint__form_with_coefficients"]
-
-    if issubclass(backend_Constant, ufl.classes.Coefficient):
-        replace_map = {}
-    else:
-        # For Firedrake
-        constants = tuple(sorted(ufl.algorithms.extract_type(expr, backend_Constant),  # noqa: E501
-                          key=lambda c: c.count()))
-        replace_map = dict(zip(constants, map(as_coefficient, constants)))
-    replace_map_inverse = {c_coeff: c
-                           for c, c_coeff in replace_map.items()}
-
-    expr_with_coeffs = ufl.replace(expr, replace_map)
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__form_with_coefficients"] = \
-            (expr_with_coeffs, replace_map, replace_map_inverse)
-    return expr_with_coeffs, replace_map, replace_map_inverse
 
 
 def extract_coefficients(expr):
@@ -440,23 +353,7 @@ def extract_coefficients(expr):
         :class:`ufl.Form` depends.
     """
 
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__form_coefficients" in expr._cache:
-        return expr._cache["_tlm_adjoint__form_coefficients"]
-
-    if issubclass(backend_Constant, ufl.classes.Coefficient):
-        cls = (ufl.classes.Coefficient,)
-    else:
-        # For Firedrake
-        cls = (ufl.classes.Coefficient, backend_Constant)
-    deps = []
-    for c in cls:
-        deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
-                           key=lambda dep: dep.count()))
-
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__form_coefficients"] = deps
-    return deps
+    return ufl.algorithms.extract_coefficients(expr)
 
 
 def derivative(expr, x, argument=None, *,
@@ -474,17 +371,7 @@ def derivative(expr, x, argument=None, *,
     if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
         raise ValueError("Invalid argument")
 
-    if isinstance(expr, ufl.classes.Expr):
-        expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
-    else:
-        expr, replace_map, replace_map_inverse = with_coefficients(expr)
-
-    if argument is not None:
-        argument, _, argument_replace_map_inverse = with_coefficients(argument)
-        replace_map_inverse.update(argument_replace_map_inverse)
-
-    dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
-    return ufl.replace(dexpr, replace_map_inverse)
+    return ufl.derivative(expr, x, argument=argument)
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):

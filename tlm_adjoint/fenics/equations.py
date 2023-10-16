@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module is used by both the FEniCS and Firedrake backends, and
-implements finite element calculations. In particular the
+"""This module implements finite element calculations. In particular the
 :class:`EquationSolver` class implements the solution of finite element
 variational problems.
 """
@@ -812,13 +811,13 @@ class Projection(EquationSolver):
 
 class DirichletBCApplication(Equation):
     r"""Represents the application of a Dirichlet boundary condition to a zero
-    valued backend `Function`. Specifically, with the Firedrake backend this
-    represents:
+    valued backend `Function`. Specifically this represents:
 
     .. code-block:: python
 
-        x.zero()
-        DirichletBC(x.function_space(), y, *args, **kwargs).apply(x)
+        x.vector().zero()
+        DirichletBC(x.function_space(), y,
+                    *args, **kwargs).apply(x.vector())
 
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.

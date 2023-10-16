@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module is used by both the FEniCS and Firedrake backends, and
-implements finite element assembly and linear solver data caching.
+"""This module implements finite element assembly and linear solver data
+caching.
 """
 
 from .backend import TrialFunction, backend_DirichletBC, backend_Function
@@ -311,8 +311,7 @@ class AssemblyCache(Cache):
         :arg bcs: Dirichlet boundary conditions.
         :arg form_compiler_parameters: Form compiler parameters.
         :arg linear_solver_parameters: Linear solver parameters. Required for
-            assembly parameters which appear in the linear solver parameters
-            -- in particular the Firedrake `'mat_type'` parameter.
+            assembly parameters which appear in the linear solver parameters.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
         :returns: A :class:`tuple` `(value_ref, value)`, where `value` is the
