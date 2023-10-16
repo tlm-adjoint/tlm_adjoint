@@ -1,37 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import importlib
-import sys
-
-modules = [("backend", "tlm_adjoint.fenics"),
-           ("functions", "tlm_adjoint._code_generator"),
-           ("backend_code_generator_interface", "tlm_adjoint.fenics"),
-           ("caches", "tlm_adjoint._code_generator"),
-           ("equations", "tlm_adjoint._code_generator"),
-           ("backend_interface", "tlm_adjoint.fenics"),
-           ("backend_overrides", "tlm_adjoint.fenics"),
-           ("fenics_equations", "tlm_adjoint.fenics"),
-           ("block_system", "tlm_adjoint._code_generator"),
-           ("hessian_system", "tlm_adjoint._code_generator")]
-
-for module_name, package in modules:
-    if package == "tlm_adjoint._code_generator":
-        sys.modules[f"tlm_adjoint.fenics.{module_name:s}"] \
-            = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint._code_generator")
-    else:
-        assert package == "tlm_adjoint.fenics"
-        sys.modules[f"tlm_adjoint._code_generator.{module_name:s}"] \
-            = importlib.import_module(f".{module_name:s}",
-                                      package="tlm_adjoint.fenics")
-
-for module_name, package in modules:
-    del sys.modules[f"tlm_adjoint._code_generator.{module_name:s}"]
-del sys.modules["tlm_adjoint._code_generator"]
-
-del importlib, sys, modules, module_name, package
-
 from .. import *  # noqa: E402,F401
 del adjoint, alias, cached_hessian, caches, checkpointing, \
     eigendecomposition, equation, equations, fixed_point, functional, \
