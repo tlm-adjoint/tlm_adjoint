@@ -18,7 +18,10 @@ from .functions import (
     replaced_form)
 
 from collections import defaultdict
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 __all__ = \
     [

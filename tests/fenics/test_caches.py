@@ -10,7 +10,10 @@ from .test_base import *
 
 import numpy as np
 import pytest
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},

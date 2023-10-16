@@ -24,7 +24,10 @@ from .equations import (
 from .functions import Constant, define_var_alias
 
 import numpy as np
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 import warnings
 import weakref
 

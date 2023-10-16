@@ -88,7 +88,10 @@ from dolfin.cpp.function import Constant as cpp_Constant
 
 
 import petsc4py.PETSc as PETSc
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 from abc import ABC, abstractmethod
 from collections import deque

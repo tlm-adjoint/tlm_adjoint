@@ -20,7 +20,10 @@ from ..manager import manager_disabled
 from ..overloaded_float import SymbolicFloat
 
 import numpy as np
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 import weakref
 
 __all__ = \

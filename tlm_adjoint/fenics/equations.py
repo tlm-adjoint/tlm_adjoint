@@ -30,7 +30,10 @@ from .functions import (
     derivative, eliminate_zeros, extract_coefficients)
 
 import numpy as np
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 __all__ = \
     [

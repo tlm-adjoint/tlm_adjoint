@@ -27,7 +27,10 @@ from .functions import (
 
 import functools
 import numpy as np
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 __all__ = \
     [
