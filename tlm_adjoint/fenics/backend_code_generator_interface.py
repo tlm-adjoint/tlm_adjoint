@@ -20,7 +20,10 @@ from .functions import eliminate_zeros, extract_coefficients
 from collections.abc import Sequence
 import ffc
 import numpy as np
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 __all__ = \
     [

@@ -6,7 +6,10 @@ from .test_base import setup_test  # noqa: F401
 import mpi4py.MPI as MPI  # noqa: N817
 import numpy as np
 import pytest
-import ufl
+try:
+    import ufl_legacy as ufl
+except ImportError:
+    import ufl
 
 pytestmark = pytest.mark.skipif(
     MPI.COMM_WORLD.size not in {1, 4},

@@ -10,7 +10,6 @@ setup(
     url="https://github.com/tlm-adjoint/tlm_adjoint",
     license="GNU LGPL version 3",
     packages=["tlm_adjoint",
-              "tlm_adjoint._code_generator",
               "tlm_adjoint.checkpoint_schedules",
               "tlm_adjoint.fenics",
               "tlm_adjoint.firedrake"],

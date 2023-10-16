@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module is used by both the FEniCS and Firedrake backends, and includes
-functionality for handling :class:`ufl.Coefficient` objects and boundary
-conditions.
+"""This module includes functionality for handling :class:`ufl.Coefficient`
+objects and boundary conditions.
 """
 
 from .backend import (
@@ -313,10 +312,10 @@ class Constant(backend_Constant):
     def __new__(cls, value=None, *args, name=None, domain=None,
                 space_type="primal", shape=None, static=False, cache=None,
                 **kwargs):
-        if issubclass(cls, ufl.classes.Coefficient) or domain is None:
+        assert not issubclass(cls, ufl.classes.Coefficient)
+        if domain is None:
             return object().__new__(cls)
         else:
-            # For Firedrake
             value = constant_value(value, shape)
             if space_type not in {"primal", "conjugate",
                                   "dual", "conjugate_dual"}:
@@ -377,8 +376,6 @@ def as_coefficient(x):
     if isinstance(x, ufl.classes.Coefficient):
         return x
 
-    # For Firedrake
-
     if not isinstance(x, backend_Constant):
         raise TypeError("Unexpected type")
 
@@ -406,7 +403,6 @@ def with_coefficient(expr, x):
     if x_coeff is x:
         return expr, {}, {}
     else:
-        # For Firedrake
         replace_map = {x: x_coeff}
         replace_map_inverse = {x_coeff: x}
         return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
@@ -417,13 +413,10 @@ def with_coefficients(expr):
             and "_tlm_adjoint__form_with_coefficients" in expr._cache:
         return expr._cache["_tlm_adjoint__form_with_coefficients"]
 
-    if issubclass(backend_Constant, ufl.classes.Coefficient):
-        replace_map = {}
-    else:
-        # For Firedrake
-        constants = tuple(sorted(ufl.algorithms.extract_type(expr, backend_Constant),  # noqa: E501
-                          key=lambda c: c.count()))
-        replace_map = dict(zip(constants, map(as_coefficient, constants)))
+    assert not issubclass(backend_Constant, ufl.classes.Coefficient)
+    constants = tuple(sorted(ufl.algorithms.extract_type(expr, backend_Constant),  # noqa: E501
+                      key=lambda c: c.count()))
+    replace_map = dict(zip(constants, map(as_coefficient, constants)))
     replace_map_inverse = {c_coeff: c
                            for c, c_coeff in replace_map.items()}
 
@@ -444,11 +437,8 @@ def extract_coefficients(expr):
             and "_tlm_adjoint__form_coefficients" in expr._cache:
         return expr._cache["_tlm_adjoint__form_coefficients"]
 
-    if issubclass(backend_Constant, ufl.classes.Coefficient):
-        cls = (ufl.classes.Coefficient,)
-    else:
-        # For Firedrake
-        cls = (ufl.classes.Coefficient, backend_Constant)
+    assert not issubclass(backend_Constant, ufl.classes.Coefficient)
+    cls = (ufl.classes.Coefficient, backend_Constant)
     deps = []
     for c in cls:
         deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
