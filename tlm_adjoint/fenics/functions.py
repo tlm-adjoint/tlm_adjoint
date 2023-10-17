@@ -378,9 +378,8 @@ def derivative(expr, x, argument=None, *,
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):
-    """Apply zero elimination for
-    :class:`tlm_adjoint._code_generator.functions.Zero` objects in the supplied
-    :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
+    """Apply zero elimination for :class:`tlm_adjoint.fenics.functions.Zero`
+    objects in the supplied :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
 
     :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
     :arg force_non_empty_form: If `True` and if `expr` is a :class:`ufl.Form`,
