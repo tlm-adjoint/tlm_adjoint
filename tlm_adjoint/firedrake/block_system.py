@@ -53,12 +53,15 @@ This has two primary use cases:
        a solution to the original problem subject to the linear constraints
        :math:`V^* C u = 0`.
 
-Function spaces are defined via backend function spaces, and :class:`Sequence`
-objects containing backend function spaces or similar :class:`Sequence`
-objects. Similarly functions are defined via backend `Function` objects, or
-:class:`Sequence` objects containing backend `Function` objects or similar
-:class:`Sequence` objects. This defines a basic tree structure which is useful
-e.g. when defining block matrices in terms of sub-block matrices.
+Function spaces are defined via Firedrake function spaces, and
+:class:`Sequence` objects containing Firedrake function spaces or similar
+:class:`Sequence` objects. Similarly functions are defined via
+:class:`firedrake.function.Function` or
+:class:`firedrake.cofunction.Cofunction` objects, or :class:`Sequence` objects
+containing :class:`firedrake.function.Function`,
+:class:`firedrake.cofunction.Cofunction`, or similar :class:`Sequence` objects.
+This defines a basic tree structure which is useful e.g. when defining block
+matrices in terms of sub-block matrices.
 
 Elements of the tree are accessed in a consistent order using a depth first
 search. Hence e.g.
@@ -73,17 +76,13 @@ and
 
     (u_0, u_1, u_2)
 
-where `u_0`, `u_1`, and `u_2` are backend `Function` objects, are both valid
+where `u_0`, `u_1`, and `u_2` are :class:`firedrake.function.Function` or
+:class:`firedrake.cofunction.Cofunction` objects, are both valid
 representations of a mixed space solution.
-
-Code in this module is written to use only backend functionality, and does not
-use tlm_adjoint interfaces. Consequently if used directly, and in combination
-with other tlm_adjoint code, space type warnings may be encountered.
 """
 
 from firedrake import (
-    Cofunction, Constant, DirichletBC, Function, FunctionSpace, TestFunction,
-    assemble)
+    Cofunction, Constant, DirichletBC, Function, TestFunction, assemble)
 from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 import petsc4py.PETSc as PETSc
@@ -92,15 +91,14 @@ import ufl
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Sequence
-from contextlib import contextmanager
-from enum import Enum
 from functools import wraps
 import logging
+import mpi4py.MPI as MPI
+import numpy as np
 
 __all__ = \
     [
         "MixedSpace",
-        "BackendMixedSpace",
 
         "Nullspace",
         "NoneNullspace",
@@ -116,13 +114,6 @@ __all__ = \
 
         "System"
     ]
-
-
-# Following naming of PyOP2 Dat.vec_context access types
-class Access(Enum):
-    RW = "RW"
-    READ = "READ"
-    WRITE = "WRITE"
 
 
 def iter_sub(iterable, *, expand=None):
@@ -171,21 +162,20 @@ def tuple_sub(iterable, sequence):
 
 
 class MixedSpace(ABC):
-    """Used to map between mixed and split versions of spaces.
+    """Used to map between different versions of a mixed space.
 
-    This class defines three representations for the space:
+    This class defines two representations for the space:
 
-        1. As a 'mixed space': A single function space defined using a
-           :class:`ufl.MixedElement`.
-        2. As a 'split space': A tree defining the mixed space. Stored using
-           backend function space and :class:`tuple` objects, each
+        1. As a 'split space': A tree defining the mixed space. Stored using
+           Firedrake function space and :class:`tuple` objects, each
            corresponding to a node in the tree. Function spaces correspond to
            leaf nodes, and :class:`tuple` objects to other nodes in the tree.
-        3. As a 'flattened space': A :class:`Sequence` containing leaf nodes of
+        2. As a 'flattened space': A :class:`Sequence` containing leaf nodes of
            the split space with an ordering determined using a depth first
            search.
 
-    This allows, for example, the construction:
+    Provides methods to allow data to be copied to and from a compatible
+    :class:`petsc4py.PETSc.Vec`. This allows, for example, the construction:
 
     .. code-block:: python
 
@@ -193,20 +183,19 @@ class MixedSpace(ABC):
         u_1 = Function(space_1, name='u_1')
         u_2 = Function(space_2, name='u_2')
 
-        mixed_space = BackendMixedSpace(((space_0, space_1), space_2))
-        u_fn = mixed_space.new_mixed()
+        mixed_space = MixedSpace(((space_0, space_1), space_2))
 
-    and then data can be copied to the function in the mixed space via
-
-    .. code-block:: python
-
-        mixed_space.split_to_mixed(u_fn, ((u_0, u_1), u_2))
-
-    and from the function in the mixed space via
+    and then data can be copied to a compatible :class:`petsc4py.PETSc.Vec` via
 
     .. code-block:: python
 
-        mixed_space.mixed_to_split(((u_0, u_1), u_2), u_fn)
+        mixed_space.to_petsc(u_petsc, ((u_0, u_1), u_2))
+
+    and from a compatible :class:`petsc4py.PETSc.Vec` via
+
+    .. code-block:: python
+
+        mixed_space.from_petsc(u_petsc, ((u_0, u_1), u_2))
 
     :arg spaces: The split space.
     """
@@ -219,184 +208,136 @@ class MixedSpace(ABC):
         spaces = tuple_sub(spaces, spaces)
         flattened_spaces = tuple(iter_sub(spaces))
 
-        mesh = flattened_spaces[0].mesh()
-        for space in flattened_spaces[1:]:
-            if space.mesh() != mesh:
-                raise ValueError("Invalid mesh")
+        comm = None
+        indices = []
+        n = 0
+        N = 0
+        for space in flattened_spaces:
+            if isinstance(space, FunctionSpaceBase):
+                u_i = Function(space)
+            else:
+                u_i = Cofunction(space)
+            with u_i.dat.vec_ro as u_i_v:
+                if comm is None:
+                    comm = u_i_v.comm.tompi4py()
+                indices.append((n, n + u_i_v.getLocalSize()))
+                n += u_i_v.getLocalSize()
+                N += u_i_v.getSize()
+        if comm is None:
+            comm = MPI.COMM_SELF
 
-        if len(flattened_spaces) == 1:
-            mixed_space, = flattened_spaces
-        else:
-            mixed_element = ufl.classes.MixedElement(
-                *(space.ufl_element() for space in flattened_spaces))
-            mixed_space = FunctionSpace(mesh, mixed_element)
-
-        with vec(Function(mixed_space), Access.READ) as v:
-            n = v.getLocalSize()
-            N = v.getSize()
-
-        self._mesh = mesh
         self._spaces = spaces
         self._flattened_spaces = flattened_spaces
-        self._mixed_space = mixed_space
-        self._sizes = (n, N)
+        self._comm = comm
+        self._indices = indices
+        self._n = n
+        self._N = N
 
-    def mesh(self):
+    @property
+    def comm(self):
+        """The communicator associated with the mixed space.
         """
-        :returns: The mesh associated with the space.
-        """
 
-        return self._mesh
+        return self._comm
 
+    @property
     def split_space(self):
-        """
-        :returns: The split space.
+        """ The split space representation.
         """
 
         return self._spaces
 
+    @property
     def flattened_space(self):
-        """
-        :returns: The flattened space.
+        """ The flattened space representation.
         """
 
         return self._flattened_spaces
 
-    def mixed_space(self):
-        """
-        :returns: The mixed space.
-        """
-
-        return self._mixed_space
-
     def new_split(self):
         """
-        :returns: A new function in the split space.
+        :returns: A new element in the split space.
         """
 
-        return tuple_sub(map(Function, self._flattened_spaces), self._spaces)
-
-    def new_mixed(self):
-        """
-        :returns: A new function in the mixed space.
-        """
-
-        return Function(self._mixed_space)
-
-    @property
-    def sizes(self):
-        """
-        A :class:`tuple`, `(n, N)`, where `n` is the number of process local
-        degrees of freedom and `N` is the number of global degrees of freedom,
-        each for the mixed space.
-        """
-
-        return self._sizes
-
-    @abstractmethod
-    def mixed_to_split(self, u, u_fn):
-        """Copy data out of the mixed space representation.
-
-        :arg u: A function in a compatible split space.
-        :arg u_fn: The function in the mixed space.
-        """
-
-        raise NotImplementedError
-
-    @abstractmethod
-    def split_to_mixed(self, u_fn, u):
-        """Copy data into the mixed space representation.
-
-        :arg u_fn: The function in the mixed space.
-        :arg u: A function in a compatible split space.
-        """
-
-        raise NotImplementedError
-
-
-def mesh_comm(mesh):
-    return mesh.comm
-
-
-class BackendMixedSpace(MixedSpace):
-    def __init__(self, spaces):
-        if isinstance(spaces, Sequence):
-            spaces = tuple(spaces)
-        else:
-            spaces = (spaces,)
-        spaces = tuple_sub(spaces, spaces)
-        super().__init__(
-            tuple_sub((space if isinstance(space, FunctionSpaceBase)
-                       else space.dual() for space in iter_sub(spaces)),
-                      spaces))
-        self._primal_dual_spaces = tuple(iter_sub(spaces))
-        assert len(self._primal_dual_spaces) == len(self._flattened_spaces)
-
-    def new_split(self):
         u = []
-        for space in self._primal_dual_spaces:
+        for space in self._flattened_spaces:
             if isinstance(space, FunctionSpaceBase):
                 u.append(Function(space))
             else:
                 u.append(Cofunction(space))
         return tuple_sub(u, self._spaces)
 
-    @staticmethod
-    def _iter_sub_fn(iterable):
-        def expand(e):
-            if isinstance(e, (Cofunction, Function)):
-                space = e.function_space()
-                if hasattr(space, "num_sub_spaces"):
-                    return tuple(e.sub(i)
-                                 for i in range(space.num_sub_spaces()))
-            return e
+    @property
+    def local_size(self):
+        """The number of local degrees of freedom.
+        """
 
-        return iter_sub(iterable, expand=expand)
+        return self._n
 
-    def mixed_to_split(self, u, u_fn):
-        if len(self._flattened_spaces) == 1:
-            u, = tuple(iter_sub(u))
-            with u_fn.dat.vec_ro as u_fn_v, u.dat.vec_wo as u_v:
-                u_fn_v.copy(result=u_v)
-        else:
-            for i, u_i in enumerate(self._iter_sub_fn(u)):
-                with u_fn.sub(i).dat.vec_ro as u_fn_i_v, u_i.dat.vec_wo as u_i_v:  # noqa: E501
-                    u_fn_i_v.copy(result=u_i_v)
+    @property
+    def global_size(self):
+        """The global number of degrees of freedom.
+        """
 
-    def split_to_mixed(self, u_fn, u):
-        if len(self._flattened_spaces) == 1:
-            u, = tuple(iter_sub(u))
-            with u_fn.dat.vec_wo as u_fn_v, u.dat.vec_ro as u_v:
-                u_v.copy(result=u_fn_v)
-        else:
-            for i, u_i in enumerate(self._iter_sub_fn(u)):
-                with u_fn.sub(i).dat.vec_wo as u_fn_i_v, u_i.dat.vec_ro as u_i_v:  # noqa: E501
-                    u_i_v.copy(result=u_fn_i_v)
+        return self._N
 
+    def from_petsc(self, u_petsc, u):
+        """Copy data from a compatible :class:`petsc4py.PETSc.Vec`.
 
-def mat(a):
-    return a.petscmat
+        :arg u_petsc: The :class:`petsc4py.PETSc.Vec`.
+        :arg u: An element of the split space.
+        """
 
+        with u_petsc as u_a:
+            if not np.can_cast(u_a, PETSc.ScalarType):
+                raise ValueError("Invalid dtype")
+            if len(u_a.shape) != 1:
+                raise ValueError("Invalid shape")
 
-@contextmanager
-def vec(u, mode=Access.RW):
-    attribute_name = {Access.RW: "vec",
-                      Access.READ: "vec_ro",
-                      Access.WRITE: "vec_wo"}[mode]
-    with getattr(u.dat, attribute_name) as u_v:
-        yield u_v
+            i0 = 0
+            for j, u_i in zip_sub(range(len(self._indices)), u):
+                with u_i.dat.vec_ro as u_i_v:
+                    i1 = i0 + u_i_v.getLocalSize()
+                if i1 > u_a.shape[0]:
+                    raise ValueError("Invalid shape")
+                if (i0, i1) != self._indices[j]:
+                    raise ValueError("Invalid shape")
+                with u_i.dat.vec_wo as u_i_v:
+                    u_i_v.setArray(u_a[i0:i1])
+                i0 = i1
+            if i0 != u_a.shape[0]:
+                raise ValueError("Invalid shape")
 
+    def to_petsc(self, u_petsc, u):
+        """Copy data to a compatible :class:`petsc4py.PETSc.Vec`. Does not
+        update the ghost.
 
-def bc_space(bc):
-    return bc.function_space()
+        :arg u_petsc: The :class:`petsc4py.PETSc.Vec`.
+        :arg u: An elmeent of the split space.
+        """
 
+        u_a = np.zeros(self.local_size, dtype=PETSc.ScalarType)
 
-def bc_is_homogeneous(bc):
-    return isinstance(bc.function_arg, ufl.classes.Zero)
+        i0 = 0
+        for j, u_i in zip_sub(range(len(self._indices)), iter_sub(u)):
+            with u_i.dat.vec_ro as u_i_v:
+                with u_i_v as u_i_a:
+                    if not np.can_cast(u_i_a, PETSc.ScalarType):
+                        raise ValueError("Invalid dtype")
+                    if len(u_i_a.shape) != 1:
+                        raise ValueError("Invalid shape")
 
+                    i1 = i0 + u_i_a.shape[0]
+                    if i1 > u_a.shape[0]:
+                        raise ValueError("Invalid shape")
+                    if (i0, i1) != self._indices[j]:
+                        raise ValueError("Invalid shape")
+                    u_a[i0:i1] = u_i_a
+            i0 = i1
+        if i0 != u_a.shape[0]:
+            raise ValueError("Invalid shape")
 
-def bc_domain_args(bc):
-    return (bc.sub_domain,)
+        u_petsc.setArray(u_a)
 
 
 def apply_bcs(u, bcs):
@@ -576,11 +517,11 @@ class ConstantNullspace(Nullspace):
 
     @staticmethod
     def _correct(x, y, *, alpha=1.0):
-        with vec(x, Access.READ) as x_v:
+        with x.dat.vec_ro as x_v:
             x_sum = x_v.sum()
             N = x_v.getSize()
 
-        with vec(y) as y_v:
+        with y.dat.vec as y_v:
             y_v.shift(alpha * x_sum / float(N))
 
     def apply_nullspace_transformation_lhs_right(self, x):
@@ -622,10 +563,10 @@ class UnityNullspace(Nullspace):
 
     @staticmethod
     def _correct(x, y, u, v, *, alpha=1.0):
-        with vec(x, Access.READ) as x_v, vec(u, Access.READ) as u_v:
+        with x.dat.vec_ro as x_v, u.dat.vec_ro as u_v:
             u_x = x_v.dot(u_v)
 
-        with vec(y) as y_v, vec(v, Access.READ) as v_v:
+        with y.dat.vec as y_v, v.dat.vec_ro as v_v:
             y_v.axpy(alpha * u_x, v_v)
 
     def apply_nullspace_transformation_lhs_right(self, x):
@@ -653,7 +594,8 @@ class DirichletBCNullspace(Nullspace):
     non-zero per column corresponding to one boundary condition
     degree-of-freedom, :math:`C = M`, and :math:`M` is an identity matrix.
 
-    :arg bcs: The Dirichlet boundary conditions.
+    :arg bcs: A :class:`firedrake.bcs.DirichletBC`, or a :class:`Sequence` of
+        :class:`firedrake.bcs.DirichletBC` objects.
     :arg alpha: Defines the linear constraint matrix :math:`S = \alpha M`.
     """
 
@@ -663,11 +605,11 @@ class DirichletBCNullspace(Nullspace):
         else:
             bcs = (bcs,)
 
-        space = bc_space(bcs[0])
+        space = bcs[0].function_space()
         for bc in bcs:
-            if bc_space(bc) != space:
+            if bc.function_space() != space:
                 raise ValueError("Invalid space")
-            if not bc_is_homogeneous(bc):
+            if not isinstance(bc.function_arg, ufl.classes.Zero):
                 raise ValueError("Homogeneous boundary conditions required")
 
         super().__init__()
@@ -682,14 +624,14 @@ class DirichletBCNullspace(Nullspace):
         apply_bcs(y, self._bcs)
 
     def _constraint_correct_lhs(self, x, y, *, alpha=1.0):
-        with vec(self._c, Access.WRITE) as c_v:
+        with self._c.dat.vec_wo as c_v:
             c_v.zeroEntries()
 
         apply_bcs(self._c,
-                  tuple(DirichletBC(x.function_space(), x, *bc_domain_args(bc))
+                  tuple(DirichletBC(x.function_space(), x, bc.sub_domain)
                         for bc in self._bcs))
 
-        with vec(self._c, Access.READ) as c_v, vec(y) as y_v:
+        with self._c.dat.vec_ro as c_v, y.dat.vec as y_v:
             y_v.axpy(alpha, c_v)
 
     def constraint_correct_lhs(self, x, y):
@@ -766,10 +708,6 @@ class BlockNullspace(Nullspace):
 class Matrix(ABC):
     r"""Represents a matrix :math:`A` mapping :math:`V \rightarrow W`.
 
-    Note that :math:`V` and :math:`W` need not correspond directly to discrete
-    function spaces as defined by `arg_space` and `action_space`, but may
-    instead e.g. be defined via one or more antidual spaces.
-
     :arg arg_space: Defines the space `V`.
     :arg action_space: Defines the space `W`.
     """
@@ -811,12 +749,12 @@ class Matrix(ABC):
 
 
 class PETScMatrix(Matrix):
-    r"""A :class:`Matrix` associated with a PETSc matrix :math:`A` mapping
-    :math:`V \rightarrow W`.
+    r"""A :class:`Matrix` associated with a :class:`petsc4py.PETSc.Mat`
+    :math:`A` mapping :math:`V \rightarrow W`.
 
     :arg arg_space: Defines the space `V`.
     :arg action_space: Defines the space `W`.
-    :arg a: The PETSc matrix.
+    :arg a: The :class:`petsc4py.PETSc.Mat`.
     """
 
     def __init__(self, arg_space, action_space, a):
@@ -824,8 +762,8 @@ class PETScMatrix(Matrix):
         self._matrix = a
 
     def mult_add(self, x, y):
-        matrix = mat(self._matrix)
-        with vec(x, Access.READ) as x_v, vec(y) as y_v:
+        matrix = self._matrix.petscmat
+        with x.dat.vec_ro as x_v, y.dat.vec as y_v:
             matrix.multAdd(x_v, y_v, y_v)
 
 
@@ -836,7 +774,8 @@ def form_matrix(a, *args, **kwargs):
     :arg a: A :class:`ufl.Form` defining the sesquilinear form.
     :returns: The :class:`PETScMatrix`.
 
-    Remaining arguments are passed to the backend :func:`assemble`.
+    Remaining arguments are passed to the :func:`firedrake.assemble.assemble`
+    function.
     """
 
     test, trial = a.arguments()
@@ -933,50 +872,32 @@ class PETScInterface:
         self._x = arg_space.new_split()
         self._y = action_space.new_split()
 
-        if len(arg_space.flattened_space()) == 1:
-            self._x_fn, = tuple(iter_sub(self._x))
-        else:
-            self._x_fn = arg_space.new_mixed()
-        if len(action_space.flattened_space()) == 1:
-            self._y_fn, = tuple(iter_sub(self._y))
-        else:
-            self._y_fn = action_space.new_mixed()
-
         if isinstance(self._nullspace, NoneNullspace):
             self._x_c = self._x
         else:
             self._x_c = arg_space.new_split()
 
     def _pre_mult(self, x_petsc):
-        with vec(self._x_fn, Access.WRITE) as x_v:
-            # assert x_petsc.getSizes() == x_v.getSizes()
-            x_petsc.copy(result=x_v)
-        if len(self._arg_space.flattened_space()) != 1:
-            self._arg_space.mixed_to_split(self._x, self._x_fn)
+        self._arg_space.from_petsc(x_petsc, self._x)
 
         if not isinstance(self._nullspace, NoneNullspace):
             for x_i, x_c_i in zip_sub(self._x, self._x_c):
-                with vec(x_c_i, Access.WRITE) as x_c_i_v, vec(x_i, Access.READ) as x_i_v:  # noqa: E501
+                with x_c_i.dat.vec_wo as x_c_i_v, x_i.dat.vec_ro as x_i_v:
                     x_i_v.copy(result=x_c_i_v)
 
         for y_i in iter_sub(self._y):
-            with vec(y_i, Access.WRITE) as y_i_v:
+            with y_i.dat.vec_wo as y_i_v:
                 y_i_v.zeroEntries()
 
     def _post_mult(self, y_petsc):
-        if len(self._action_space.flattened_space()) != 1:
-            self._action_space.split_to_mixed(self._y_fn, self._y)
-
-        with vec(self._y_fn, Access.READ) as y_v:
-            assert y_petsc.getSizes() == y_v.getSizes()
-            y_v.copy(result=y_petsc)
+        self._action_space.to_petsc(y_petsc, self._y)
 
 
 class SystemMatrix(PETScInterface):
     def __init__(self, arg_space, action_space, matrix, nullspace):
-        if matrix.arg_space() != arg_space.split_space():
+        if matrix.arg_space() != arg_space.split_space:
             raise ValueError("Invalid space")
-        if matrix.action_space() != action_space.split_space():
+        if matrix.action_space() != action_space.split_space:
             raise ValueError("Invalid space")
 
         super().__init__(arg_space, action_space, nullspace)
@@ -1032,7 +953,7 @@ class System:
     :arg nullspaces: A :class:`Nullspace` or a :class:`Sequence` of
         :class:`Nullspace` objects defining the nullspace and left nullspace of
         :math:`A`. `None` indicates a :class:`NoneNullspace`.
-    :arg comm: MPI communicator.
+    :arg comm: Communicator.
     """
 
     def __init__(self, arg_spaces, action_spaces, blocks, *,
@@ -1040,13 +961,13 @@ class System:
         if isinstance(arg_spaces, MixedSpace):
             arg_space = arg_spaces
         else:
-            arg_space = BackendMixedSpace(arg_spaces)
-        arg_spaces = arg_space.split_space()
+            arg_space = MixedSpace(arg_spaces)
+        arg_spaces = arg_space.split_space
         if isinstance(action_spaces, MixedSpace):
             action_space = action_spaces
         else:
-            action_space = BackendMixedSpace(action_spaces)
-        action_spaces = action_space.split_space()
+            action_space = MixedSpace(action_spaces)
+        action_spaces = action_space.split_space
 
         matrix = BlockMatrix(arg_spaces, action_spaces, blocks)
 
@@ -1058,9 +979,9 @@ class System:
                 raise ValueError("Invalid space")
 
         if comm is None:
-            self._comm = mesh_comm(arg_space.mesh())
-        else:
-            self._comm = comm
+            comm = arg_space.comm
+
+        self._comm = comm
         self._arg_space = arg_space
         self._action_space = action_space
         self._matrix = matrix
@@ -1128,7 +1049,7 @@ class System:
                 def pc_fn(u, b):
                     u, = tuple(iter_sub(u))
                     return pc_fn_u(u, b)
-        u = tuple_sub(u, self._arg_space.split_space())
+        u = tuple_sub(u, self._arg_space.split_space)
 
         if isinstance(b, Sequence):
             b = tuple(b)
@@ -1142,26 +1063,27 @@ class System:
                 def pc_fn(u, b):
                     b, = tuple(iter_sub(b))
                     return pc_fn_b(u, b)
-        b = tuple_sub(b, self._action_space.split_space())
+        b = tuple_sub(b, self._action_space.split_space)
 
         if tuple(u_i.function_space() for u_i in iter_sub(u)) \
-                != self._arg_space.flattened_space():
+                != self._arg_space.flattened_space:
             raise ValueError("Invalid space")
-        for b_i, space in zip_sub(b, self._action_space.split_space()):
+        for b_i, space in zip_sub(b, self._action_space.split_space):
             if b_i is not None and b_i.function_space() != space:
                 raise ValueError("Invalid space")
 
         b_c = self._action_space.new_split()
         for b_c_i, b_i in zip_sub(b_c, b):
             if b_i is not None:
-                with vec(b_c_i, Access.WRITE) as b_c_i_v, vec(b_i, Access.READ) as b_i_v:  # noqa: E501
+                with b_c_i.dat.vec_wo as b_c_i_v, b_i.dat.vec_ro as b_i_v:
                     b_i_v.copy(result=b_c_i_v)
 
         A = SystemMatrix(self._arg_space, self._action_space,
                          self._matrix, self._nullspace)
 
         mat_A = PETSc.Mat().createPython(
-            (self._action_space.sizes, self._arg_space.sizes), A,
+            ((self._action_space.local_size, self._action_space.global_size),
+             (self._arg_space.local_size, self._arg_space.global_size)), A,
             comm=self._comm)
         mat_A.setUp()
 
@@ -1206,30 +1128,22 @@ class System:
             self._nullspace.correct_soln(u)
         self._nullspace.correct_rhs(b_c)
 
-        if len(self._arg_space.flattened_space()) == 1:
-            u_fn, = tuple(iter_sub(u))
-        else:
-            u_fn = self._arg_space.new_mixed()
-            self._arg_space.split_to_mixed(u_fn, u)
-        if len(self._action_space.flattened_space()) == 1:
-            b_fn, = tuple(iter_sub(b_c))
-        else:
-            b_fn = self._action_space.new_mixed()
-            self._action_space.split_to_mixed(b_fn, b_c)
+        u_petsc = mat_A.createVecRight()
+        self._arg_space.to_petsc(u_petsc, u)
+        b_petsc = mat_A.createVecLeft()
+        self._action_space.to_petsc(b_petsc, b_c)
         del b_c
 
         if pre_callback is not None:
             pre_callback(ksp_solver)
         ksp_solver.setUp()
-        with vec(u_fn) as u_v, vec(b_fn) as b_v:
-            ksp_solver.solve(b_v, u_v)
+        ksp_solver.solve(b_petsc, u_petsc)
         if post_callback is not None:
             post_callback(ksp_solver)
-        del b_fn
+        del b_petsc
 
-        if len(self._arg_space.flattened_space()) != 1:
-            self._arg_space.mixed_to_split(u, u_fn)
-        del u_fn
+        self._arg_space.from_petsc(u_petsc, u)
+        del u_petsc
 
         if correct_solution:
             # Not needed if the linear problem were to be solved exactly
