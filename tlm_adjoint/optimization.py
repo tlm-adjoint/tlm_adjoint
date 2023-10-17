@@ -982,9 +982,13 @@ def minimize_tao(forward, M0, *,
                 raise ValueError("Invalid shape")
 
             i0 = 0
-            for x in X:
+            if len(X) != len(indices):
+                raise ValueError("Invalid length")
+            for j, x in enumerate(X):
                 i1 = i0 + var_local_size(x)
                 if i1 > y_a.shape[0]:
+                    raise ValueError("Invalid shape")
+                if (i0, i1) != indices[j]:
                     raise ValueError("Invalid shape")
                 var_set_values(x, y_a[i0:i1])
                 i0 = i1
@@ -995,7 +999,9 @@ def minimize_tao(forward, M0, *,
         x_a = np.zeros(n, dtype=PETSc.ScalarType)
 
         i0 = 0
-        for y in Y:
+        if len(Y) != len(indices):
+            raise ValueError("Invalid length")
+        for j, y in enumerate(Y):
             y_a = var_get_values(y)
 
             if not issubclass(y_a.dtype.type, (float, np.floating)):
@@ -1008,6 +1014,8 @@ def minimize_tao(forward, M0, *,
             i1 = i0 + y_a.shape[0]
             if i1 > x_a.shape[0]:
                 raise ValueError("Invalid shape")
+                if (i0, i1) != indices[j]:
+                    raise ValueError("Invalid shape")
             x_a[i0:i1] = y_a
             i0 = i1
         if i0 != x_a.shape[0]:
@@ -1073,8 +1081,13 @@ def minimize_tao(forward, M0, *,
             if self._shift != 0.0:
                 y.axpy(self._shift, x)
 
-    n = sum(map(var_local_size, M0))
-    N = sum(map(var_global_size, M0))
+    indices = []
+    n = 0
+    N = 0
+    for m0 in M0:
+        indices.append((n, n + var_local_size(m0)))
+        n += var_local_size(m0)
+        N += var_global_size(m0)
     H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         Hessian(), comm=comm)
     H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
