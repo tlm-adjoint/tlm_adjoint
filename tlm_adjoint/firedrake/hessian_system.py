@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from ..interface import (
-    check_space_types, comm_dup_cached, is_var, space_comm, space_dtype,
-    space_new, var_assign, var_axpy, var_axpy_conjugate, var_copy,
-    var_copy_conjugate, var_dtype, var_inner, var_space, var_space_type)
+    check_space_types, comm_dup_cached, is_var, space_dtype, space_new,
+    var_assign, var_axpy, var_axpy_conjugate, var_copy, var_copy_conjugate,
+    var_dtype, var_inner, var_space, var_space_type)
 
 from ..eigendecomposition import eigendecompose
 from ..manager import manager_disabled
 
 from .block_system import (
-    BackendMixedSpace, BlockNullspace, Matrix, NoneNullspace, Preconditioner,
-    System, iter_sub, tuple_sub)
+    BlockNullspace, Matrix, MixedSpace as _MixedSpace, NoneNullspace,
+    Preconditioner, System, iter_sub, tuple_sub)
 
 from collections.abc import Sequence
 import numpy as np
@@ -27,7 +27,7 @@ __all__ = \
     ]
 
 
-class MixedSpace(BackendMixedSpace):
+class MixedSpace(_MixedSpace):
     def __init__(self, spaces, space_types=None):
         if isinstance(spaces, Sequence):
             spaces = tuple(spaces)
@@ -43,20 +43,16 @@ class MixedSpace(BackendMixedSpace):
             space_types = tuple(iter_sub(space_types))
 
         super().__init__(spaces)
-        if len(space_types) != len(self.flattened_space()):
+        if len(space_types) != len(self.flattened_space):
             raise ValueError("Invalid space types")
         self._space_types = space_types
 
     def new_split(self):
-        flattened_space = self.flattened_space()
+        flattened_space = self.flattened_space
         assert len(flattened_space) == len(self._space_types)
         return tuple_sub((space_new(space, space_type=space_type)
                           for space, space_type in zip(flattened_space, self._space_types)),  # noqa: E501
-                         self.split_space())
-
-    def new_mixed(self):
-        space_type = self._space_types[0]
-        return space_new(self.mixed_space(), space_type=space_type)
+                         self.split_space)
 
 
 # Complex note: It is convenient to define a Hessian matrix action in terms of
@@ -105,16 +101,14 @@ class HessianSystem(System):
 
         H u = b.
 
-    :arg H: A :class:`tlm_adjoint.hessian.Hessian` defining :math:`H`.
-    :arg M: A backend `Function`, or a :class:`Sequence` of backend `Function`
-        objects, defining the control.
-    :arg nullspace: A
-        :class:`tlm_adjoint._code_generator.block_system.Nullspace` or a
-        :class:`Sequence` of
-        :class:`tlm_adjoint._code_generator.block_system.Nullspace` objects
-        defining the nullspace and left nullspace of the Hessian matrix. `None`
-        indicates a
-        :class:`tlm_adjoint._code_generator.block_system.NoneNullspace`.
+    :arg H: A :class:`~.Hessian` defining :math:`H`.
+    :arg M: A :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
+        :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` objects, defining the control.
+    :arg nullspace: A :class:`~.Nullspace` or a :class:`Sequence` of
+        :class:`~.Nullspace` objects defining the nullspace and left nullspace
+        of the Hessian matrix. `None` indicates a :class:`~.NoneNullspace`.
     :arg comm: MPI communicator.
     """
 
@@ -134,7 +128,7 @@ class HessianSystem(System):
         matrix = HessianMatrix(H, M)
 
         if comm is None:
-            comm = space_comm(arg_spaces.mixed_space())
+            comm = arg_spaces.comm
         comm = comm_dup_cached(comm, key="HessianSystem")
 
         super().__init__(
@@ -149,13 +143,19 @@ class HessianSystem(System):
 
             H u = b.
 
-        :arg u: A backend `Function`, or a :class:`Sequence` of backend
-            `Function` objects, defining the solution :math:`u`.
-        :arg b: A backend `Function`, or a :class:`Sequence` of backend
-            `Function` objects, defining the conjugate of the right-hand-side
-            :math:`b`.
+        :arg u: A :class:`firedrake.function.Function` or
+            :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
+            :class:`firedrake.function.Function` or
+            :class:`firedrake.cofunction.Cofunction` objects, defining the
+            solution :math:`u`.
+        :arg b: A :class:`firedrake.function.Function` or
+            :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
+            :class:`firedrake.function.Function` or
+            :class:`firedrake.cofunction.Cofunction` objects, defining the
+            conjugate of the right-hand-side :math:`b`.
 
-        Remaining arguments are handed to the base class :meth:`solve` method.
+        Remaining arguments are handed to the base class
+        :meth:`~.System.solve` method.
         """
 
         if is_var(b):
@@ -181,17 +181,22 @@ def hessian_eigendecompose(
     Despite the notation :math:`B^{-1}` may be singular, defining an inverse
     operator only on an appropriate subspace.
 
-    :arg H: A :class:`tlm_adjoint.hessian.Hessian`.
-    :arg m: A backend `Function` defining the control.
-    :arg B_inv_action: A callable accepting a backend `Function` defining `v`
-        and computing the conjugate of the action of :math:`B^{-1}` on
-        :math:`v`, returning the result as a backend `Function`.
-    :arg B_action: A callable accepting a backend `Function` defining :math:`v`
-        and computing the action of :math:`B` on the conjugate of :math:`v`,
-        returning the result as a backend `Function`.
-    :arg nullspace: A
-        :class:`tlm_adjoint._code_generator.block_system.Nullspace` defining
-        the nullspace and left nullspace of :math:`H` and :math:`B^{-1}`.
+    :arg H: A :class:`~.Hessian`.
+    :arg m: A :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` defining the control.
+    :arg B_inv_action: A callable accepting a
+        :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
+        computing the conjugate of the action of :math:`B^{-1}` on :math:`v`,
+        returning the result as a :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction`.
+    :arg B_action: A callable accepting a :class:`firedrake.function.Function`
+        or :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
+        computing the action of :math:`B` on the conjugate of :math:`v`,
+        returning the result as a :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction`.
+    :arg nullspace: A :class:`~.Nullspace` defining the nullspace and left
+        nullspace of :math:`H` and :math:`B^{-1}`.
     :arg problem_type: The eigenproblem type -- see
         :class:`slepc4py.SLEPc.EPS.ProblemType`. Defaults to
         `slepc4py.SLEPc.EPS.ProblemType.GHEP` in the real case and
@@ -199,27 +204,24 @@ def hessian_eigendecompose(
     :arg pre_callback: A callable accepting a single
         :class:`slepc4py.SLEPc.EPS` argument. Used for detailed manual
         configuration. Called after all other configuration options are set,
-        but before the :meth:`EPS.setUp` method is called.
+        but before the :meth:`slepc4py.SLEPc.EPS.setUp` method is called.
     :arg correct_eigenvectors: Whether to apply a nullspace correction to the
         eigenvectors.
 
-    Remaining keyword arguments are passed to
-    :func:`tlm_adjoint.eigendecomposition.eigendecompose`.
+    Remaining keyword arguments are passed to :func:`~.eigendecompose`.
     """
 
     space = var_space(m)
 
     arg_space_type = var_space_type(m)
     arg_space = MixedSpace(space, space_types=arg_space_type)
-    assert arg_space.split_space() == (space,)
-    assert arg_space.flattened_space() == (space,)
-    assert arg_space.mixed_space() == space
+    assert arg_space.split_space == (space,)
+    assert arg_space.flattened_space == (space,)
 
     action_space_type = var_space_type(m, rel_space_type="dual")
     action_space = MixedSpace(space, space_types=action_space_type)
-    assert action_space.split_space() == (space,)
-    assert action_space.flattened_space() == (space,)
-    assert action_space.mixed_space() == space
+    assert action_space.split_space == (space,)
+    assert action_space.flattened_space == (space,)
 
     if nullspace is None:
         nullspace = NoneNullspace()
@@ -312,10 +314,14 @@ def B_inv_orthonormality_test(V, B_inv_action):
 
     Requires real spaces.
 
-    :arg B_inv_action: A callable accepting a backend `Function` defining `v`
-        and computing the action of :math:`B^{-1}` on :math:`v`, returning the
-        result as a backend `Function`.
-    :arg V: A :class:`Sequence` of backend `Function` objects to test for
+    :arg B_inv_action: A callable accepting a
+        :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
+        computing the action of :math:`B^{-1}` on :math:`v`, returning the
+        result as a :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction`.
+    :arg V: A :class:`Sequence` of :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` objects to test for
         :math:`B^{-1}`-orthonormality.
     :returns: A :class:`tuple` `(max_diagonal_error_norm,
         max_off_diagonal_error_norm)` with
@@ -400,12 +406,15 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
 
     See in particular their equation (20).
 
-    :arg B_action: A callable accepting a backend `Function` defining :math:`v`
-        and computing the action of :math:`B` on :math:`v`, returning the
-        result as a backend `Function`.
+    :arg B_action: A callable accepting a :class:`firedrake.function.Function`
+        or :class:`firedrake.cofunction.Cofunction` defining :math:`v` and
+        computing the action of :math:`B` on :math:`v`, returning the result as
+        a :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction`.
     :arg Lam: A :class:`Sequence` defining the diagonal of :math:`\Lambda`.
-    :arg V: A :class:`Sequence` of backend `Function` objects defining the
-        columns of :math:`V`.
+    :arg V: A :class:`Sequence` of :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` objects defining the columns
+        of :math:`V`.
     :returns: A callable suitable for use as the `pc_fn` argument to
         :meth:`HessianSystem.solve`.
     """

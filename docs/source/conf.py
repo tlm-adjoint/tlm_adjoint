@@ -30,7 +30,8 @@ templates_path = []
 
 html_css_files = ["custom.css"]
 
-intersphinx_mapping = {"h5py": ("https://docs.h5py.org/en/stable", None),
+intersphinx_mapping = {"firedrake": ("https://firedrakeproject.org", None),
+                       "h5py": ("https://docs.h5py.org/en/stable", None),
                        "numpy": ("https://numpy.org/doc/stable", None),
                        "petsc4py": ("https://petsc.org/main/petsc4py", None),
                        "pyop2": ("https://op2.github.io/PyOP2", None),
