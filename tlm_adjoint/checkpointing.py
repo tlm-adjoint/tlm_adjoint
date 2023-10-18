@@ -48,16 +48,15 @@ class CheckpointStorage:
     Non-linear dependency data has an associated key `(n, i)`, where `n` is an
     :class:`int` indicating the block index and `i` is an :class:`int`
     indicating the equation index within that block. Non-linear-dependency data
-    for a :class:`tlm_adjoint.equation.Equation` can be accessed via, e.g.
+    for a :class:`.Equation` can be accessed via, e.g.
 
     .. code-block:: python
 
         nl_deps = cp[(n, i)]
 
-    where `cp` is a :class:`CheckpointStorage`. Here `nl_deps` is a
+    where `cp` is a :class:`.CheckpointStorage`. Here `nl_deps` is a
     :class:`tuple` of variables storing values associated with
-    `eq.nonlinear_dependencies()`, for :class:`tlm_adjoint.equation.Equation`
-    `i` in block `n`.
+    `eq.nonlinear_dependencies()`, for :class:`.Equation` `i` in block `n`.
 
     :arg store_ics: Whether to enable storage of forward restart data.
     :arg store_data: Whether to enable storage of non-linear dependency data.
@@ -209,15 +208,14 @@ class CheckpointStorage:
             copy=not var_is_static(x))
 
     def update_keys(self, n, i, eq):
-        """The :class:`CheckpointStorage` keeps an internal map from forward
+        """The :class:`.CheckpointStorage` keeps an internal map from forward
         variables to equations in which values for those variables are
         computed. Keys are updated automatically as needed. This method allows
         keys to be updated manually.
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: A :class:`tlm_adjoint.equation.Equation`, equation `i` in
-            block `n`.
+        :arg eq: A :class:`.Equation`, equation `i` in block `n`.
         """
 
         for m, x in enumerate(eq.X()):
@@ -259,8 +257,7 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: A :class:`tlm_adjoint.equation.Equation`, equation `i` in
-            block `n`.
+        :arg eq: A :class:`.Equation`, equation `i` in block `n`.
         :arg deps: Equation dependency values. `eq.dependencies()` is used if
             not supplied.
         :arg nl_deps: Equation non-linear dependency values. Extracted from
@@ -288,12 +285,12 @@ class CheckpointStorage:
 
     def add_equation_data(self, n, i, eq, *, nl_deps=None):
         """Store checkpoint data associated with an equation. As
-        :meth:`add_equation`, but adds only *non-linear* dependency data.
+        :meth:`.CheckpointStorage.add_equation`, but adds only *non-linear*
+        dependency data.
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: A :class:`tlm_adjoint.equation.Equation`, equation `i` in
-            block `n`.
+        :arg eq: A :class:`.Equation`, equation `i` in block `n`.
         :arg nl_deps: Equation non-linear dependency values.
             `eq.nonlinear_dependencies()` is used if not supplied.
         """
@@ -352,7 +349,7 @@ class CheckpointStorage:
             `False` then internal variables storing the data are returned.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
-            :meth:`update` method.
+            :meth:`.CheckpointStorage.update` method.
         """
 
         if ics:
@@ -378,10 +375,10 @@ class CheckpointStorage:
         return (cp_cp, cp_data, cp_storage)
 
     def update(self, cp, data, storage, *, copy=True):
-        """Update the :class:`CheckpointStorage` using the provided checkpoint
-        data. Used to update the :class:`CheckpointStorage` from loaded data.
-        Note that the :class:`CheckpointStorage` is *not* cleared prior to
-        updating using the provided data.
+        """Update the :class:`.CheckpointStorage` using the provided
+        checkpoint data. Used to update the :class:`.CheckpointStorage` from
+        loaded data. Note that the :class:`.CheckpointStorage` is *not*
+        cleared prior to updating using the provided data.
 
         :arg cp: A :class:`tuple` of keys. Forward restart data is defined by
             `(storage[key] for key in cp)`.
@@ -396,7 +393,7 @@ class CheckpointStorage:
             indicating that the variable value was computed as component `m` of
             the solution to equation `i` in block `n`.
         :arg copy: Whether the values in `storage` should be copied when being
-            stored in the :class:`CheckpointStorage`.
+            stored in the :class:`.CheckpointStorage`.
         """
 
         keys = set(cp)
@@ -452,14 +449,13 @@ class ReplayStorage:
             [...]
 
     :arg blocks: A :class:`Sequence` or :class:`Mapping`, whose elements or
-        values are :class:`Sequence` objects containing
-        :class:`tlm_adjoint.equation.Equation` objects. Forward equations.
+        values are :class:`Sequence` objects containing :class:`.Equation`
+        objects. Forward equations.
     :arg N0: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
         forward equations which will be solved.
     :arg N1: An :class:`int`. `(blocks[n] for n in range(N0, N1))` defines the
         forward equations which will be solved.
-    :arg transpose_deps: A
-        :class:`tlm_adjoint.adjoint.TransposeComputationalGraph`. If supplied
+    :arg transpose_deps: A :class:`.TransposeComputationalGraph`. If supplied
         then an activity analysis is applied.
     """
 
@@ -607,9 +603,9 @@ class ReplayStorage:
         """Use the supplied :class:`Mapping` to update forward values.
 
         :arg d: A :class:`Mapping`. Updates values for those keys in `d`
-            which are also in the :class:`ReplayStorage`.
+            which are also in the :class:`.ReplayStorage`.
         :arg copy: Whether the values in `d` should be copied when being stored
-            in the :class:`ReplayStorage`.
+            in the :class:`.ReplayStorage`.
         """
 
         for key, value in d.items():
@@ -645,9 +641,9 @@ class Checkpoints(ABC):
 
         :arg n: The :class:`int` index of the block with which the checkpoint
             data to be written is associated.
-        :arg cp: See :meth:`CheckpointStorage.update`.
-        :arg data: See :meth:`CheckpointStorage.update`.
-        :arg storage: See :meth:`CheckpointStorage.update`.
+        :arg cp: See :meth:`.CheckpointStorage.update`.
+        :arg data: See :meth:`.CheckpointStorage.update`.
+        :arg storage: See :meth:`.CheckpointStorage.update`.
         """
 
         raise NotImplementedError
@@ -664,7 +660,7 @@ class Checkpoints(ABC):
             ID in `ic_ids` are included.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
-            :meth:`CheckpointStorage.update` method.
+            :meth:`.CheckpointStorage.update` method.
         """
 
         raise NotImplementedError

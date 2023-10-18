@@ -200,8 +200,7 @@ def local_solver_key(form, solver_type):
 
 
 class LocalSolverCache(Cache):
-    """A :class:`tlm_adjoint.caches.Cache` for element-wise local block
-    diagonal linear solvers.
+    """A :class:`.Cache` for element-wise local block diagonal linear solvers.
     """
 
     def local_solver(self, form, solver_type=None, *,
@@ -211,14 +210,13 @@ class LocalSolverCache(Cache):
 
         :arg form: An arity two :class:`ufl.Form`, defining the element-wise
             local block diagonal matrix.
-        :arg local_solver: DOLFIN :class:`LocalSolver.SolverType`. Defaults
-            to `dolfin.LocalSolver.SolverType.LU`.
+        :arg local_solver: `dolfin.LocalSolver.SolverType`. Defaults to
+            `dolfin.LocalSolver.SolverType.LU`.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
-        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a DOLFIN
-            :class:`LocalSolver` and `value_ref` is a
-            :class:`tlm_adjoint.caches.CacheRef` storing a reference to
-            `value`.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
+            `dolfin.LocalSolver` and `value_ref` is a :class:`.CacheRef`
+            storing a reference to `value`.
         """
 
         if solver_type is None:
@@ -245,16 +243,16 @@ _local_solver_cache = LocalSolverCache()
 
 def local_solver_cache():
     """
-    :returns: The default :class:`LocalSolverCache`.
+    :returns: The default :class:`.LocalSolverCache`.
     """
 
     return _local_solver_cache
 
 
 def set_local_solver_cache(local_solver_cache):
-    """Set the default :class:`LocalSolverCache`.
+    """Set the default :class:`.LocalSolverCache`.
 
-    :arg local_solver_cache: The new default :class:`LocalSolverCache`.
+    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
     """
 
     global _local_solver_cache
@@ -266,13 +264,14 @@ class LocalProjection(EquationSolver):
     performing a projection onto the space for `x`, for the case where the mass
     matrix is element-wise local block diagonal.
 
-    :arg x: A DOLFIN `Function` defining the forward solution.
+    :arg x: A `dolfin.Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 
-    Remaining arguments are passed to the :class:`EquationSolver` constructor.
+    Remaining arguments are passed to the
+    :class:`tlm_adjoint.fenics.equations.EquationSolver` constructor.
     """
 
     def __init__(self, x, rhs, *,
@@ -488,8 +487,8 @@ class Interpolation(LinearEquation):
     between owned and non-owned nodes in the degree of freedom graph associated
     with the discrete function space for `y`.
 
-    :arg x: A scalar-valued DOLFIN `Function` defining the forward solution.
-    :arg y: A scalar-valued DOLFIN `Function` to interpolate onto the space for
+    :arg x: A scalar-valued `dolfin.Function` defining the forward solution.
+    :arg y: A scalar-valued `dolfin.Function` to interpolate onto the space for
         `x`.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
@@ -549,7 +548,7 @@ class PointInterpolation(Equation):
 
     :arg X: A scalar variable, or a :class:`Sequence` of scalar variables,
         defining the forward solution.
-    :arg y: A scalar-valued DOLFIN `Function` to interpolate.
+    :arg y: A scalar-valued `dolfin.Function` to interpolate.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`

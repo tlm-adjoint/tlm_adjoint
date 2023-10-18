@@ -125,21 +125,21 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
     :arg N_eigenvalues: An :class:`int`, the number of eigenvalues to attempt
         to compute. Defaults to the dimension of `space`.
     :arg problem_type: The eigenproblem type -- see
-        :class:`slepc4py.SLEPc.EPS.ProblemType`. Defaults to
+        `slepc4py.SLEPc.EPS.ProblemType`. Defaults to
         `slepc4py.SLEPc.EPS.ProblemType.GNHEP` if `B_action` is supplied, or
         `slepc4py.SLEPc.EPS.ProblemType.NHEP` otherwise.
     :arg which: Which eigenvalues to attempt to compute -- see
-        :class:`slepc4py.SLEPc.EPS.Which`. Defaults to
+        `slepc4py.SLEPc.EPS.Which`. Defaults to
         `slepc4py.SLEPc.EPS.Which.LARGEST_MAGNITUDE`.
     :arg tolerance: Convergence tolerance. By default the convergence criterion
         is defined using `slepc4py.SLEPc.EPS.Conv.REL`.
-    :arg pre_callback: A callable accepting a single
-        :class:`slepc4py.SLEPc.EPS` argument. Used for detailed manual
-        configuration. Called after all other configuration options are set,
-        but before the :meth:`EPS.setUp` method is called.
-    :arg post_callback: A callable accepting a single
-        :class:`slepc4py.SLEPc.EPS` argument. Called after the
-        :meth:`EPS.solve` method has been called.
+    :arg pre_callback: A callable accepting a single `slepc4py.SLEPc.EPS`
+        argument. Used for detailed manual configuration. Called after all
+        other configuration options are set, but before the
+        `slepc4py.SLEPc.EPS.setUp` method is called.
+    :arg post_callback: A callable accepting a single `slepc4py.SLEPc.EPS`
+        argument. Called after the `slepc4py.SLEPc.EPS.solve` method has been
+        called.
     :returns: A :class:`tuple` `(lam, V)`. `lam` is a :class:`numpy.ndarray`
         containing eigenvalues. For non-Hermitian algorithms and a real build
         of PETSc, `V` is a :class:`tuple` `(V_r, V_i)`, where `V_r` and `V_i`

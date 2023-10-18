@@ -22,8 +22,8 @@ class Storage(Equation):
     `save=False`, or on any subsequent forward solve, the value of the forward
     solution is loaded into `x`.
 
-    When processed by the :class:`tlm_adjoint.tlm_adjoint.EquationManager` this
-    is equivalent to an assignment
+    When processed by the :class:`.EquationManager` this is equivalent to an
+    assignment
 
     .. math::
 
@@ -104,7 +104,7 @@ class Storage(Equation):
 
 
 class MemoryStorage(Storage):
-    """A :class:`tlm_adjoint.storage.Storage` which stores the value in memory.
+    """A :class:`.Storage` which stores the value in memory.
 
     :arg x: A variable defining the forward solution, whose value is saved or
         loaded.
@@ -129,8 +129,8 @@ class MemoryStorage(Storage):
 
 
 class HDF5Storage(Storage):
-    """A :class:`tlm_adjoint.storage.Storage` which stores the value on disk
-    using the h5py library.
+    """A :class:`.Storage` which stores the value on disk using the h5py
+    library.
 
     :arg x: A variable defining the forward solution, whose value is saved or
         loaded.

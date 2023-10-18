@@ -55,7 +55,7 @@ except ImportError:
 
 
 def set_default_jax_dtype(dtype):
-    """Set the default dtype used by :class:`Vector` objects.
+    """Set the default dtype used by :class:`.Vector` objects.
 
     :arg dtype: The default dtype.
     """
@@ -328,19 +328,19 @@ def binary_operation(op, x, y):
 class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     """Vector, with degrees of freedom stored as a JAX array.
 
-    :arg V: A :class:`VectorSpace`, an :class:`int` defining the number of
+    :arg V: A :class:`.VectorSpace`, an :class:`int` defining the number of
         local degrees of freedom, or an ndim 1 array defining the local degrees
         of freedom.
-    :arg name: A :class:`str` name for the :class:`Vector`.
-    :arg space_type: The space type for the :class:`Vector`. `'primal'`,
+    :arg name: A :class:`str` name for the :class:`.Vector`.
+    :arg space_type: The space type for the :class:`.Vector`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines whether the :class:`Vector` is static, meaning that
+    :arg static: Defines whether the :class:`.Vector` is static, meaning that
         it is stored by reference in checkpointing/replay, and an associated
         tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`Vector` may be
+    :arg cache: Defines whether results involving the :class:`.Vector` may be
         cached. Default `static`.
-    :arg dtype: The data type. Ignored if `V` is a :class:`VectorSpace`.
-    :arg comm: A communicator. Ignored if `V` is a :class:`VectorSpace`.
+    :arg dtype: The data type. Ignored if `V` is a :class:`.VectorSpace`.
+    :arg comm: A communicator. Ignored if `V` is a :class:`.VectorSpace`.
     """
 
     def __init__(self, V, *, name=None, space_type="primal", static=False,
@@ -415,13 +415,13 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         return complex(self.value)
 
     def new(self, y=None, *, name=None, static=False, cache=None):
-        """Return a new :class:`Vector`, with the same :class:`VectorSpace` and
-        space type as this :class:`Vector`.
+        """Return a new :class:`.Vector`, with the same :class:`.VectorSpace`
+        and space type as this :class:`.Vector`.
 
-        :arg y: Defines a value for the new :class:`Vector`.
-        :returns: The new :class:`Vector`.
+        :arg y: Defines a value for the new :class:`.Vector`.
+        :returns: The new :class:`.Vector`.
 
-        Remaining arguments are as for the :class:`Vector` constructor.
+        Remaining arguments are as for the :class:`.Vector` constructor.
         """
 
         x = Vector(self.space, space_type=self.space_type, name=name,
@@ -432,20 +432,19 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
     @property
     def name(self):
-        """The :class:`str` name of the :class:`Vector`.
+        """The :class:`str` name of the :class:`.Vector`.
         """
 
         return self._name
 
     def assign(self, y, *, annotate=None, tlm=None):
-        """:class:`Vector` assignment.
+        """:class:`.Vector` assignment.
 
-        :arg y: A scalar, :class:`Vector`, or ndim 1 array defining the value.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg y: A scalar, :class:`.Vector`, or ndim 1 array defining the value.
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
-        :returns: The :class:`Vector`.
+        :returns: The :class:`.Vector`.
         """
 
         if annotate is None or annotate:
@@ -483,12 +482,11 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         return self
 
     def addto(self, y, *, annotate=None, tlm=None):
-        """:class:`Vector` in-place addition.
+        """:class:`.Vector` in-place addition.
 
-        :arg y: A scalar, :class:`Vector`, or ndim 1 array defining the value
+        :arg y: A scalar, :class:`.Vector`, or ndim 1 array defining the value
             to add.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
@@ -499,7 +497,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
     @property
     def value(self):
-        """For a :class:`Vector` with one element, the value of the element.
+        """For a :class:`.Vector` with one element, the value of the element.
 
         The value may also be accessed by casting using :class:`float` or
         :class:`complex`.
@@ -523,14 +521,14 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
     @property
     def space(self):
-        """The :class:`VectorSpace` for the :class:`Vector`.
+        """The :class:`.VectorSpace` for the :class:`.Vector`.
         """
 
         return self._space
 
     @property
     def space_type(self):
-        """The space type for the :class:`Vector`.
+        """The space type for the :class:`.Vector`.
         """
 
         return self._space_type
@@ -591,21 +589,21 @@ class ReplacementVector:
 
     @property
     def name(self):
-        """The :class:`str` name of the :class:`ReplacementVector`.
+        """The :class:`str` name of the :class:`.ReplacementVector`.
         """
 
         return self._name
 
     @property
     def space(self):
-        """The :class:`VectorSpace` for the :class:`ReplacementVector`.
+        """The :class:`.VectorSpace` for the :class:`.ReplacementVector`.
         """
 
         return self._space
 
     @property
     def space_type(self):
-        """The space type for the :class:`ReplacementVector`.
+        """The space type for the :class:`.ReplacementVector`.
         """
 
         return self._space_type
@@ -661,13 +659,14 @@ class VectorEquation(Equation):
             ...
             return x0, x1, ...
 
-    where the `y0`, `y1` are ndim 1 JAX arrays, and the `x_0`, x1`, are scalars
+    where the `y0`, `y1` are ndim 1 JAX arrays, and the `x0`, `x1`, are scalars
     or ndim 1 JAX arrays.
 
-    :arg X: A :class:`Vector` or a :class:`Sequence` of :class:`Vector objects
-        defining outputs, whose value is set by the return value from `fn`.
-    :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector` objects
-        defining the inputs, whose values are passed to `fn`.
+    :arg X: A :class:`.Vector` or a :class:`Sequence` of :class:`.Vector`
+        objects defining outputs, whose value is set by the return value from
+        `fn`.
+    :arg Y: A :class:`.Vector` or a :class:`Sequence` of :class:`.Vector`
+        objects defining the inputs, whose values are passed to `fn`.
     :arg fn: A callable.
     :arg with_tlm: Whether to annotate an equation solving for the forward and
         all tangent-linears (`with_tlm=True`), or solving only for the
@@ -833,13 +832,14 @@ def call_jax(X, Y, fn):
             ...
             return x0, x1, ...
 
-    where the `y0`, `y1` are ndim 1 JAX arrays, and the `x_0`, x1`, are scalars
+    where the `y0`, `y1` are ndim 1 JAX arrays, and the `x0`, `x1`, are scalars
     or ndim 1 JAX arrays.
 
-    :arg X: A :class:`Vector` or a :class:`Sequence` of :class:`Vector objects
-        defining outputs, whose value is set by the return value from `fn`.
-    :arg Y: A :class:`Vector` or a :class:`Sequence` of :class:`Vector` objects
-        defining the inputs, whose values are passed to `fn`.
+    :arg X: A :class:`.Vector` or a :class:`Sequence` of :class:`.Vector`
+        objects defining outputs, whose value is set by the return value from
+        `fn`.
+    :arg Y: A :class:`.Vector` or a :class:`Sequence` of :class:`.Vector`
+        objects defining the inputs, whose values are passed to `fn`.
     :arg fn: A callable.
     """
 
@@ -847,12 +847,12 @@ def call_jax(X, Y, fn):
 
 
 def new_jax(y, space=None, *, name=None):
-    """Construct a new zero-valued :class:`Vector`.
+    """Construct a new zero-valued :class:`.Vector`.
 
     :arg y: A variable.
-    :arg space: The :class:`VectorSpace` for the return value.
+    :arg space: The :class:`.VectorSpace` for the return value.
     :arg name: A :class:`str` name.
-    :returns: The :class:`Vector`.
+    :returns: The :class:`.Vector`.
     """
 
     if space is None:
@@ -862,12 +862,12 @@ def new_jax(y, space=None, *, name=None):
 
 
 def to_jax(y, space=None, *, name=None):
-    """Convert a variable to a :class:`Vector`.
+    """Convert a variable to a :class:`.Vector`.
 
     :arg y: A variable.
-    :arg space: The :class:`VectorSpace` for the return value.
+    :arg space: The :class:`.VectorSpace` for the return value.
     :arg name: A :class:`str` name.
-    :returns: The :class:`Vector`.
+    :returns: The :class:`.Vector`.
     """
 
     x = new_jax(y, space, name=name)
@@ -876,13 +876,13 @@ def to_jax(y, space=None, *, name=None):
 
 
 def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
-    """Create a new :class:`Vector` with one element.
+    """Create a new :class:`.Vector` with one element.
 
-    :arg space: The :class:`VectorSpace`.
+    :arg space: The :class:`.VectorSpace`.
     :arg name: A :class:`str` name.
     :arg dtype: The data type. Ignored if `space` is supplied.
     :arg comm: A communicator. Ignored if `space` is supplied.
-    :returns: A :class:`Vector` with one element.
+    :returns: A :class:`.Vector` with one element.
     """
 
     if comm is None:

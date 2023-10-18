@@ -63,32 +63,30 @@ class EquationManager:
           order adjoint calculations.
         - Handles variable reference dropping, e.g. handles the dropping of
           references to variables which store values, and their replacement
-          with symbolic equivalents, after
-          :class:`tlm_adjoint.equation.Equation` objects holding those
-          references have been destroyed. Internally the manager retains a
-          reference to a :class:`tlm_adjoint.alias.WeakAlias` subclass so that
-          the :class:`tlm_adjoint.equation.Equation` methods may be called
-          after the original :class:`tlm_adjoint.equation.Equation` is
-          destroyed.
+          with symbolic equivalents, after :class:`.Equation` objects holding
+          those references have been destroyed. Internally the manager retains
+          a reference to a :class:`.WeakAlias` subclass so that the
+          :class:`.Equation` methods may be called after the original
+          :class:`.Equation` is destroyed.
 
     The manager processes forward equations (and tangent-linear equations) as
     they are solved. Equations are collected into 'blocks' of equations,
     corresponding to 'steps' in step-based checkpointing schedules. For
     checkpointing schedule configuration details see
-    :meth:`configure_checkpointing`.
+    :meth:`.EquationManager.configure_checkpointing`.
 
     The configuration of tangent-linear models is defined by a tangent-linear
     tree. The root node of this tree corresponds to the forward model.
     Following :math:`n` edges from the root node leads to a node associated
     with an :math:`n` th order tangent-linear model. For tangent-linear
-    configuration details see :meth:`configure_tlm`.
+    configuration details see :meth:`.EquationManager.configure_tlm`.
 
     On instantiation both equation annotation and tangent-linear derivation and
     solution are *enabled*.
 
     :arg comm: The communicator associated with the manager.
-    :arg cp_method: See :meth:`configure_checkpointing`.
-    :arg cp_parameters: See :meth:`configure_checkpointing`.
+    :arg cp_method: See :meth:`.EquationManager.configure_checkpointing`.
+    :arg cp_parameters: See :meth:`.EquationManager.configure_checkpointing`.
     """
 
     _id_counter = [0]
@@ -177,17 +175,18 @@ class EquationManager:
             info(f"  Method: {self._cp_method:s}")
 
     def new(self, cp_method=None, cp_parameters=None):
-        """Construct a new :class:`EquationManager` sharing the communicator
-        with this :class:`EquationManager`. By default the new
-        :class:`EquationManager` also shares the checkpointing schedule
-        configuration with this :class:`EquationManager`, but this may be
+        """Construct a new :class:`.EquationManager` sharing the communicator
+        with this :class:`.EquationManager`. By default the new
+        :class:`.EquationManager` also shares the checkpointing schedule
+        configuration with this :class:`.EquationManager`, but this may be
         overridden with the arguments `cp_method` and `cp_parameters`.
 
         Both equation annotation and tangent-linear derivation and solution are
-        *enabled* for the new :class:`EquationManager`.
+        *enabled* for the new :class:`.EquationManager`.
 
-        :arg cp_method: See :meth:`configure_checkpointing`.
-        :arg cp_parameters: See :meth:`configure_checkpointing`.
+        :arg cp_method: See :meth:`.EquationManager.configure_checkpointing`.
+        :arg cp_parameters: See
+            :meth:`.EquationManager.configure_checkpointing`.
         """
 
         if cp_method is None:
@@ -205,18 +204,19 @@ class EquationManager:
 
     @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
-        """Reset the :class:`EquationManager`. Clears all recorded equations,
+        """Reset the :class:`.EquationManager`. Clears all recorded equations,
         and all configured tangent-linear models.
 
-        By default the :class:`EquationManager` *retains* its previous
+        By default the :class:`.EquationManager` *retains* its previous
         checkpointing schedule configuration, but this may be overridden with
         the arguments `cp_method` and `cp_parameters`.
 
         Both equation annotation and tangent-linear derivation and solution are
         *enabled* after calling this method.
 
-        :arg cp_method: See :meth:`configure_checkpointing`.
-        :arg cp_parameters: See :meth:`configure_checkpointing`.
+        :arg cp_method: See :meth:`.EquationManager.configure_checkpointing`.
+        :arg cp_parameters: See
+            :meth:`.EquationManager.configure_checkpointing`.
         """
 
         if cp_method is None:
@@ -312,14 +312,15 @@ class EquationManager:
                   :class:`int`, optional, default 0.
 
               The name 'multistage' originates from the corresponding
-              `strategy` argument value for the :func:`adj_checkpointing`
-              function in dolfin-adjoint (see e.g. version 2017.1.0). The
-              parameter names `snaps_in_ram` and `snaps_on_disk` originate from
-              the corresponding arguments for the :func:`adj_checkpointing`
-              function in dolfin-adjoint (see e.g. version 2017.1.0).
+              `strategy` argument value for the
+              `dolfin_adjoint.solving.adj_checkpointing` function in
+              dolfin-adjoint (see e.g. version 2017.1.0). The parameter names
+              `snaps_in_ram` and `snaps_on_disk` originate from the
+              corresponding arguments for the
+              `dolfin_adjoint.solving.adj_checkpointing` function in
+              dolfin-adjoint (see e.g. version 2017.1.0).
 
-            - A callable: A callable returning a
-              :class:`tlm_adjoint.checkpoint_schedules.schedule.CheckpointSchedule`.
+            - A callable: A callable returning a :class:`.CheckpointSchedule`.
               Options defined by `cp_parameters`:
 
                 - `'path'`: Directory in which disk checkpoint data should be
@@ -515,7 +516,7 @@ class EquationManager:
 
         :arg x: A variable whose tangent-linear variable should be returned.
         :arg args: Identifies the tangent-linear model. See
-            :meth:`configure_tlm`.
+            :meth:`.EquationManager.configure_tlm`.
         :returns: The tangent-linear variable.
         """
 
@@ -567,10 +568,11 @@ class EquationManager:
             should be disabled.
         :returns: A :class:`tuple` `(annotation_state, tlm_state)`.
             `annotation_state` is a :class:`bool` indicating whether processing
-            of equations was enabled prior to the call to :meth:`stop`.
-            `tlm_state` is a :class:`bool` indicating whether derivation and
-            solution of tangent-linear equations was enabled prior to the call
-            to :meth:`stop`.
+            of equations was enabled prior to the call to
+            :meth:`.EquationManager.stop`. `tlm_state` is a :class:`bool`
+            indicating whether derivation and solution of tangent-linear
+            equations was enabled prior to the call to
+            :meth:`.EquationManager.stop`.
         """
 
         state = (self.annotation_enabled(), self.tlm_enabled())
@@ -626,10 +628,9 @@ class EquationManager:
             self._cp.add_initial_condition(x)
 
     def add_equation(self, eq, *, annotate=None, tlm=None):
-        """Process a :class:`tlm_adjoint.equation.Equation` after it has been
-        solved.
+        """Process a :class:`.Equation` after it has been solved.
 
-        :arg eq: The :class:`tlm_adjoint.equation.Equation`.
+        :arg eq: The :class:`.Equation`.
         :arg annotate: Whether solution of this equation, and any
             tangent-linear equations, should be recorded.
         :arg tlm: Whether tangent-linear equations should be derived and
@@ -1041,8 +1042,8 @@ class EquationManager:
         new tangent-linear equations cannot be derived and solved, after a call
         to this method.
 
-        Called by :meth:`compute_gradient`, and typically need not be called
-        manually.
+        Called by :meth:`.EquationManager.compute_gradient`, and typically need
+        not be called manually.
         """
 
         self.drop_references()
@@ -1093,8 +1094,7 @@ class EquationManager:
                   equations.
                 - `i`: A :class:`int` defining the index of the considered
                   equation in block `n`.
-                - `eq`: The :class:`tlm_adjoint.equation.Equation`, equation
-                  `i` in block `n`.
+                - `eq`: The :class:`.Equation`, equation `i` in block `n`.
                 - `adj_X`: The adjoint solution associated with equation `i` in
                   block `n` for the `J_i` th functional. `None` indicates that
                   the solution is zero or is not computed (due to an activity
