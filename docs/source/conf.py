@@ -17,7 +17,7 @@ autoapi_ignore = ["*/checkpoint_schedules/__init__.py",
                   "*/firedrake/backend_code_generator_interface.py",
                   "*/firedrake/backend_overrides.py"]
 autoapi_add_toctree_entry = False
-autoapi_options = {"private-members": False}
+autoapi_options = []
 
 nbsphinx_execute = "auto"
 
@@ -30,7 +30,7 @@ templates_path = []
 
 html_css_files = ["custom.css"]
 
-intersphinx_mapping = {"firedrake": ("https://firedrakeproject.org", None),
+intersphinx_mapping = {"firedrake": ("https://www.firedrakeproject.org", None),
                        "h5py": ("https://docs.h5py.org/en/stable", None),
                        "numpy": ("https://numpy.org/doc/stable", None),
                        "petsc4py": ("https://petsc.org/main/petsc4py", None),
