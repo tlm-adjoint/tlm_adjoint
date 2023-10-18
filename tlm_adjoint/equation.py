@@ -356,10 +356,8 @@ class Equation(Referrer):
     def solve(self, *, manager=None, annotate=None, tlm=None):
         """Compute the forward solution.
 
-        :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager`.
-            Defaults to `manager()`.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg manager: The :class:`.EquationManager`. Defaults to `manager()`.
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
@@ -375,7 +373,7 @@ class Equation(Referrer):
         self._post_process(annotate=annotate, tlm=tlm)
 
     def forward(self, X, deps=None):
-        """Wraps :meth:`forward_solve` to handle cache invalidation.
+        """Wraps :meth:`.Equation.forward_solve` to handle cache invalidation.
         """
 
         var_update_caches(*self.dependencies(), value=deps)
@@ -386,8 +384,8 @@ class Equation(Referrer):
     def forward_solve(self, X, deps=None):
         """Compute the forward solution.
 
-        Can assume that the currently active
-        :class:`tlm_adjoint.tlm_adjoint.EquationManager` is paused.
+        Can assume that the currently active :class:`.EquationManager` is
+        paused.
 
         :arg X: A variable if the forward solution has a single component,
             otherwise a :class:`Sequence` of variables. May define an initial
@@ -414,9 +412,9 @@ class Equation(Referrer):
         :arg B: A sequence of variables defining the right-hand-side of the
             adjoint equation. May be modified or returned.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
-            Each `dep_B` is a :class:`tlm_adjoint.adjoint.AdjointRHS` which
-            should be updated by subtracting derivative information computed by
-            differentiating with respect to `self.dependencies()[dep_index]`.
+            Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
+            subtracting derivative information computed by differentiating with
+            respect to `self.dependencies()[dep_index]`.
 
         :returns: A :class:`tuple` of variables defining the adjoint solution,
             or `None` to indicate that the solution is zero.
@@ -452,9 +450,9 @@ class Equation(Referrer):
         :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
-            Each `dep_B` is a :class:`tlm_adjoint.adjoint.AdjointRHS` which
-            should be updated by subtracting derivative information computed by
-            differentiating with respect to `self.dependencies()[dep_index]`.
+            Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
+            subtracting derivative information computed by differentiating with
+            respect to `self.dependencies()[dep_index]`.
         """
 
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
@@ -479,11 +477,11 @@ class Equation(Referrer):
             `adj_x` if the adjoint solution has a single component.
         :returns: The action of the adjoint of a derivative on the adjoint
             solution. Will be passed to
-            :func:`tlm_adjoint.interface.subtract_adjoint_derivative_action`,
-            and valid types depend upon the backend used. Typically this will
-            be a variable, or a two element :class:`tuple` `(alpha, F)`, where
-            `alpha` is a scalar and `F` a variable, with the value defined by
-            the product of `alpha` and `F`.
+            :func:`.subtract_adjoint_derivative_action`, and valid types depend
+            upon the backend used. Typically this will be a variable, or a two
+            element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and
+            `F` a variable, with the value defined by the product of `alpha`
+            and `F`.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -492,7 +490,7 @@ class Equation(Referrer):
         """Subtract terms from other adjoint right-hand-sides.
 
         Can be overridden for an optimized implementation, but otherwise uses
-        :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action`.
+        :meth:`.Equation.adjoint_derivative_action`.
 
         :arg adj_X: The adjoint solution. A variable if the adjoint solution
             has a single component, otherwise a :class:`Sequence` of variables.
@@ -501,9 +499,9 @@ class Equation(Referrer):
         :arg nl_deps: A :class:`Sequence` of variables defining values of
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
-            Each `dep_B` is a :class:`tlm_adjoint.adjoint.AdjointRHS` which
-            should be updated by subtracting derivative information computed by
-            differentiating with respect to `self.dependencies()[dep_index]`.
+            Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
+            subtracting derivative information computed by differentiating with
+            respect to `self.dependencies()[dep_index]`.
         """
 
         for dep_index, dep_B in dep_Bs.items():
@@ -533,7 +531,7 @@ class Equation(Referrer):
         raise NotImplementedError("Method not overridden")
 
     def tangent_linear(self, M, dM, tlm_map):
-        """Derive an :class:`Equation` corresponding to a associated equation
+        """Derive an :class:`.Equation` corresponding to an associated equation
         in a tangent-linear model.
 
         :arg M: A :class:`Sequence` of variables defining the control.
@@ -541,9 +539,9 @@ class Equation(Referrer):
             direction. The tangent-linear model computes directional
             derivatives with respect to the control defined by `M` and with
             direction defined by `dM`.
-        :arg tlm_map: A :class:`tlm_adjoint.tangent_linear.TangentLinearMap`
-            storing values for tangent-linear variables.
-        :returns: An :class:`Equation`, corresponding to the tangent-linear
+        :arg tlm_map: A :class:`.TangentLinearMap` storing values for
+            tangent-linear variables.
+        :returns: An :class:`.Equation`, corresponding to the tangent-linear
             equation.
         """
 

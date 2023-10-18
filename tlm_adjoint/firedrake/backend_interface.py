@@ -263,17 +263,18 @@ class FunctionInterface(FunctionInterfaceBase):
 
 
 class Function(backend_Function):
-    """Extends the backend `Function` class.
+    """Extends :class:`firedrake.function.Function`.
 
-    :arg space_type: The space type for the :class:`Function`. `'primal'` or
+    :arg space_type: The space type for the :class:`.Function`. `'primal'` or
         `'conjugate'`.
-    :arg static: Defines whether the :class:`Function` is static, meaning that
+    :arg static: Defines whether the :class:`.Function` is static, meaning that
         it is stored by reference in checkpointing/replay, and an associated
         tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`Function` may be
-        cached. Default `static`.
+    :arg cache: Defines whether results involving the :class:`.Function` may
+        be cached. Default `static`.
 
-    Remaining arguments are passed to the backend `Function` constructor.
+    Remaining arguments are passed to the :class:`firedrake.function.Function`
+    constructor.
     """
 
     def __init__(self, *args, space_type="primal", static=False, cache=None,
@@ -292,9 +293,9 @@ class Function(backend_Function):
 
 
 class ZeroFunction(Function, Zero):
-    """A :class:`Function` which is flagged as having a value of zero.
+    """A :class:`.Function` which is flagged as having a value of zero.
 
-    Arguments are passed to the :class:`Function` constructor, together with
+    Arguments are passed to the :class:`.Function` constructor, together with
     `static=True` and `cache=True`.
     """
 
@@ -389,17 +390,18 @@ class CofunctionInterface(FunctionInterfaceBase):
 
 
 class Cofunction(backend_Cofunction):
-    """Extends the backend `Cofunction` class.
+    """Extends the :class:`firedrake.cofunction.Cofunction` class.
 
-    :arg space_type: The space type for the :class:`Cofunction`. `'conjugate'`
-        or `'conjugate_dual'`.
-    :arg static: Defines whether the :class:`Cofunction` is static, meaning
+    :arg space_type: The space type for the :class:`.Cofunction`.
+        `'conjugate'` or `'conjugate_dual'`.
+    :arg static: Defines whether the :class:`.Cofunction` is static, meaning
         that it is stored by reference in checkpointing/replay, and an
         associated tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`Cofunction` may
+    :arg cache: Defines whether results involving the :class:`.Cofunction` may
         be cached. Default `static`.
 
-    Remaining arguments are passed to the backend `Cofunction` constructor.
+    Remaining arguments are passed to the
+    :class:`firedrake.cofunction.Cofunction` constructor.
     """
 
     def __init__(self, *args, space_type="conjugate_dual", static=False,
@@ -446,7 +448,8 @@ def Cofunction_riesz_representation(self, orig, orig_args,
 
 
 class ReplacementCofunction(ufl.classes.Cofunction):
-    """Represents a symbolic Firedrake `Cofunction`, but has no value.
+    """Represents a symbolic :class:`firedrake.cofunction.Cofunction`, but has
+    no value.
     """
 
     def __init__(self, x):
@@ -469,12 +472,14 @@ class ReplacementCofunction(ufl.classes.Cofunction):
 
 
 def to_firedrake(y, space, *, name=None):
-    """Convert a variable to a Firedrake `Function`.
+    """Convert a variable to a :class:`firedrake.function.Function` or
+    :class:`firedrake.cofunction.Cofunction`.
 
     :arg y: A variable.
     :arg space: The space for the return value.
     :arg name: A :class:`str` name.
-    :returns: The Firedrake `Function`.
+    :returns: The :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction`.
     """
 
     space_type = var_space_type(y)

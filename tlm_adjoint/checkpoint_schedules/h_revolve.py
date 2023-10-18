@@ -35,11 +35,11 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
     :arg bf: The cost of advancing the forward one step, storing non-linear
         dependency data, and then advancing the adjoint over that step.
 
-    Remaining keyword arguments are passed to :func:`hrevolve.hrevolve`.
+    Remaining keyword arguments are passed to `hrevolve.hrevolve`.
 
     The argument names `snaps_in_ram` and `snaps_on_disk` originate from the
-    corresponding arguments for the :func:`adj_checkpointing` function in
-    dolfin-adjoint (see e.g. version 2017.1.0).
+    corresponding arguments for the `dolfin_adjoint.solving.adj_checkpointing`
+    function in dolfin-adjoint (see e.g. version 2017.1.0).
     """
 
     def __init__(self, max_n, snapshots_in_ram, snapshots_on_disk, *,

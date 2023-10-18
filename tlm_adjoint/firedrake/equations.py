@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """This module implements finite element calculations. In particular the
-:class:`EquationSolver` class implements the solution of finite element
+:class:`.EquationSolver` class implements the solution of finite element
 variational problems.
 """
 
@@ -270,12 +270,13 @@ class EquationSolver(ExprEquation):
           10.1016/j.cma.2014.03.010
 
     The arguments `eq`, `x`, `bcs`, `J`, `form_compiler_parameters`, and
-    `solver_parameters` are based on the interface for the FEniCS :func:`solve`
-    function (see e.g. FEniCS 2017.1.0).
+    `solver_parameters` are based on the interface for the DOLFIN
+    `dolfin.solve` function (see e.g. FEniCS 2017.1.0).
 
     :arg eq: A :class:`ufl.equation.Equation` defining the finite element
         variational problem.
-    :arg x: A backend `Function` defining the forward solution.
+    :arg x: A :class:`firedrake.function.Function` defining the forward
+        solution.
     :arg bcs: Dirichlet boundary conditions.
     :arg J: A :class:`ufl.Form` defining a Jacobian matrix approximation to use
         in a non-linear forward solve.
@@ -736,8 +737,8 @@ def expr_new_x(expr, x, *,
 
     :arg expr: A :class:`ufl.core.expr.Expr`.
     :arg x: Defines `x`.
-    :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
-        should record the solution of equations.
+    :arg annotate: Whether the :class:`.EquationManager` should record the
+        solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
     :returns: A :class:`ufl.core.expr.Expr` with `x` replaced with `x_old`, or
         `expr` if the expression does not depend on `x`.
@@ -763,10 +764,10 @@ def linear_equation_new_x(eq, x, *,
 
     :arg eq: A :class:`ufl.equation.Equation` defining the finite element
         variational problem.
-    :arg x: A backend `Function` defining the solution to the finite element
-        variational problem.
-    :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
-        should record the solution of equations.
+    :arg x: A :class:`firedrake.function.Function` defining the solution to the
+        finite element variational problem.
+    :arg annotate: Whether the :class:`.EquationManager` should record the
+        solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
     :returns: A :class:`ufl.equation.Equation` with `x` replaced with `x_old`,
         or `eq` if the symbolic expression does not depend on `x`.
@@ -791,13 +792,14 @@ class Projection(EquationSolver):
     """Represents the solution of a finite element variational problem
     performing a projection onto the space for `x`.
 
-    :arg x: A backend `Function` defining the forward solution.
+    :arg x: A :class:`firedrake.function.Function` defining the forward
+        solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 
-    Remaining arguments are passed to the :class:`EquationSolver` constructor.
+    Remaining arguments are passed to the :class:`.EquationSolver` constructor.
     """
 
     def __init__(self, x, rhs, *args, **kwargs):
@@ -811,7 +813,7 @@ class Projection(EquationSolver):
 
 class DirichletBCApplication(Equation):
     r"""Represents the application of a Dirichlet boundary condition to a zero
-    valued backend `Function`. Specifically this represents:
+    valued :class:`firedrake.function.Function`. Specifically this represents:
 
     .. code-block:: python
 
@@ -821,10 +823,13 @@ class DirichletBCApplication(Equation):
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg x: A backend `Function`, updated by the above operations.
-    :arg y: A backend `Function`, defines the Dirichet boundary condition.
+    :arg x: A :class:`firedrake.function.Function`, updated by the above
+        operations.
+    :arg y: A :class:`firedrake.function.Function`, defines the Dirichet
+        boundary condition.
 
-    Remaining arguments are passed to `DirichletBC`.
+    Remaining arguments are pass to the :class:`firedrake.bcs.DirichletBC`
+    constructor.
     """
 
     def __init__(self, x, y, *args, **kwargs):

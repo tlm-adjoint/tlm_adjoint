@@ -3,8 +3,8 @@
 
 r"""This module defines an interface for interaction with backend data types.
 This is implemented via runtime binding of mixins. The
-:class:`VariableInterface` adds methods to 'variables' which can be used to
-interact with backend variables. The :class:`SpaceInterface` adds methods to
+:class:`.VariableInterface` adds methods to 'variables' which can be used to
+interact with backend variables. The :class:`.SpaceInterface` adds methods to
 'spaces' which define the vector spaces in which those 'variables' are defined.
 
 The extra methods are accessed using the callables defined in this module
@@ -35,7 +35,7 @@ the primal space.
 
 This module defines a default communicator `DEFAULT_COMM`, which is
 `mpi4py.MPI.COMM_WORLD` if mpi4py is available. If mpi4py is not available a
-dummy 'serial' communicator is used, of type :class:`SerialComm`.
+dummy 'serial' communicator is used, of type :class:`.SerialComm`.
 """
 
 from collections.abc import Mapping, Sequence
@@ -257,7 +257,7 @@ def comm_parent(dup_comm):
 
 def comm_dup_cached(comm, *, key=None):
     """If the communicator `comm` with key `key` has previously been duplicated
-    using :func:`comm_dup_cached`, then return the previous result. Otherwise
+    using :func:`.comm_dup_cached`, then return the previous result. Otherwise
     duplicate the communicator and cache the result. The duplicated
     communicator is freed when the original base communicator is freed.
 
@@ -395,12 +395,12 @@ def add_interface(obj, interface_cls, attrs=None):
     """Attach a mixin `interface_cls`, defining an interface, to `obj`.
 
     :arg obj: An object to which the mixin should be attached.
-    :arg interface_cls: A subclass of :class:`SpaceInterface` or
-        :class:`VariableInterface` defining the interface.
+    :arg interface_cls: A subclass of :class:`.SpaceInterface` or
+        :class:`.VariableInterface` defining the interface.
     :arg attrs: A :class:`Mapping` defining any attributes. Used to set an
         attribute `_tlm_adjoint__space_interface_attrs` (for a
-        :class:`SpaceInterface`) or `_tlm_adjoint__var_interface_attrs`
-        (for a :class:`VariableInterface`).
+        :class:`.SpaceInterface`) or `_tlm_adjoint__var_interface_attrs`
+        (for a :class:`.VariableInterface`).
     """
 
     if attrs is None:
@@ -424,8 +424,8 @@ def add_interface(obj, interface_cls, attrs=None):
 class SpaceInterface:
     """A mixin defining an interface for spaces. Space types do not inherit
     from this class -- instead an interface is defined by a
-    :class:`SpaceInterface` subclass, and methods are bound dynamically at
-    runtime using :func:`add_interface`.
+    :class:`.SpaceInterface` subclass, and methods are bound dynamically at
+    runtime using :func:`.add_interface`.
     """
 
     prefix = "_tlm_adjoint__space_interface"
@@ -450,7 +450,7 @@ class SpaceInterface:
 
 def is_space(space):
     """Return whether `space` is a space -- i.e. has had a
-    :class:`SpaceInterface` attached.
+    :class:`.SpaceInterface` attached.
 
     :arg space: An arbitrary :class:`object`.
     :returns: `True` if `space` is a space, and `False` otherwise.
@@ -699,8 +699,8 @@ def check_space_types_conjugate_dual(x, y):
 class VariableInterface:
     """A mixin defining an interface for variables. Variables types do not
     inherit from this class -- instead an interface is defined by a
-    :class:`VariableInterface` subclass, and methods are bound dynamically at
-    runtime using :func:`add_interface`.
+    :class:`.VariableInterface` subclass, and methods are bound dynamically at
+    runtime using :func:`.add_interface`.
     """
 
     prefix = "_tlm_adjoint__var_interface"
@@ -813,7 +813,7 @@ class VariableInterface:
 
 def is_var(x):
     """Return whether `x` is a variable -- i.e. has had a
-    :class:`VariableInterface` added.
+    :class:`.VariableInterface` added.
 
     :arg x: An arbitrary :class:`object`.
     :returns: `True` if `x` is a variable, and `False` otherwise.
@@ -962,12 +962,10 @@ def var_is_checkpointed(x):
 
 
 def var_caches(x):
-    """Return the :class:`tlm_adjoint.caches.Caches` associated with a
-    variable.
+    """Return the :class:`.Caches` associated with a variable.
 
     :arg x: The variable.
-    :returns: The :class:`tlm_adjoint.caches.Caches` associated with the
-        variable.
+    :returns: The :class:`.Caches` associated with the variable.
     """
 
     return x._tlm_adjoint__var_interface_caches()
@@ -1162,7 +1160,7 @@ def var_new(x, *, name=None, static=False, cache=None, checkpoint=None,
 
 
 def var_new_conjugate(x, *, name=None, static=False, cache=None):
-    """Return a new conjugate variable. See :func:`var_new`.
+    """Return a new conjugate variable. See :func:`.var_new`.
 
     :returns: A new variable defined using the same space as `x`, with space
         type conjugate to the space type for `x`.
@@ -1173,7 +1171,7 @@ def var_new_conjugate(x, *, name=None, static=False, cache=None):
 
 
 def var_new_dual(x, *, name=None, static=False, cache=None):
-    """Return a new dual variable. See :func:`var_new`.
+    """Return a new dual variable. See :func:`.var_new`.
 
     :returns: A new variable defined using the same space as `x`, with space
         type dual to the space type for `x`.
@@ -1184,7 +1182,7 @@ def var_new_dual(x, *, name=None, static=False, cache=None):
 
 
 def var_new_conjugate_dual(x, *, name=None, static=False, cache=None):
-    """Return a new conjugate dual variable. See :func:`var_new`.
+    """Return a new conjugate dual variable. See :func:`.var_new`.
 
     :returns: A new variable defined using the same space as `x`, with space
         type conjugate dual to the space type for `x`.
@@ -1195,7 +1193,7 @@ def var_new_conjugate_dual(x, *, name=None, static=False, cache=None):
 
 
 def var_copy(x, *, name=None, static=False, cache=None):
-    """Copy a variable. See :func:`var_new`.
+    """Copy a variable. See :func:`.var_new`.
 
     :returns: The copied variable.
     """
@@ -1332,11 +1330,11 @@ def subtract_adjoint_derivative_action(x, y):
 
     :arg x: A variable storing the adjoint right-hand-side.
     :arg y: A contribution to subtract from the adjoint right-hand-side. An
-        :meth:`tlm_adjoint.equation.Equation.adjoint_derivative_action` return
-        value. Valid types depend upon the backend used. Typically this will be
-        a variable, or a two element :class:`tuple` `(alpha, F)`, where `alpha`
-        is a scalar and `F` a variable, with the value to subtract defined by
-        the product of `alpha` and `F`.
+        :meth:`.Equation.adjoint_derivative_action` return value. Valid types
+        depend upon the backend used. Typically this will be a variable, or a
+        two element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and
+        `F` a variable, with the value to subtract defined by the product of
+        `alpha` and `F`.
     """
 
     raise NotImplementedError("Unexpected case encountered")

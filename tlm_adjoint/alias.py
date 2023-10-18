@@ -71,9 +71,9 @@ class WeakAlias:
     """An alias to an object. Does *not* hold a reference to the original
     object.
 
-    Intended to be used in combination with :func:`weakref.finalize`, so that
-    object attributes may be updated when the original object is destroyed, but
-    object methods may still be called after it is destroyed.
+    Intended to be used in combination with `weakref.finalize`, so that object
+    attributes may be updated when the original object is destroyed, but object
+    methods may still be called after it is destroyed.
 
     :arg obj: Object to alias.
     """

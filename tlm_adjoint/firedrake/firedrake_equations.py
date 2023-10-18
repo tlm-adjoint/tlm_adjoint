@@ -67,8 +67,8 @@ def LocalSolver(form, *,
 
 
 class LocalSolverCache(Cache):
-    """A :class:`tlm_adjoint.caches.Cache` for element-wise local block
-    diagonal linear solver data.
+    """A :class:`.Cache` for element-wise local block diagonal linear solver
+    data.
     """
 
     def local_solver(self, form, *,
@@ -81,10 +81,10 @@ class LocalSolverCache(Cache):
         :arg form_compiler_parameters: Form compiler parameters.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
-        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a Firedrake
-            :class:`Matrix` storing the assembled inverse matrix, and
-            `value_ref` is a :class:`tlm_adjoint.caches.CacheRef` storing a
-            reference to `value`.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
+            :class:`firedrake.matrix.Matrix` storing the assembled inverse
+            matrix, and `value_ref` is a :class:`.CacheRef` storing a reference
+            to `value`.
         """
 
         if form_compiler_parameters is None:
@@ -111,16 +111,16 @@ _local_solver_cache = LocalSolverCache()
 
 def local_solver_cache():
     """
-    :returns: The default :class:`LocalSolverCache`.
+    :returns: The default :class:`.LocalSolverCache`.
     """
 
     return _local_solver_cache
 
 
 def set_local_solver_cache(local_solver_cache):
-    """Set the default :class:`LocalSolverCache`.
+    """Set the default :class:`.LocalSolverCache`.
 
-    :arg local_solver_cache: The new default :class:`LocalSolverCache`.
+    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
     """
 
     global _local_solver_cache
@@ -132,13 +132,15 @@ class LocalProjection(EquationSolver):
     performing a projection onto the space for `x`, for the case where the mass
     matrix is element-wise local block diagonal.
 
-    :arg x: A Firedrake `Function` defining the forward solution.
+    :arg x: A :class:`firedrake.function.Function` defining the forward
+        solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 
-    Remaining arguments are passed to the :class:`EquationSolver` constructor.
+    Remaining arguments are passed to the
+    :class:`tlm_adjoint.firedrake.equations.EquationSolver` constructor.
     """
 
     def __init__(self, x, rhs, *,
@@ -259,12 +261,13 @@ class PointInterpolation(Equation):
 
     :arg X: A scalar variable, or a :class:`Sequence` of scalar variables,
         defining the forward solution.
-    :arg y: A scalar-valued Firedrake `Function` to interpolate.
+    :arg y: A scalar-valued :class:`firedrake.function.Function` to
+        interpolate.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
-    :arg tolerance: :class:`VertexOnlyMesh` tolerance.
+    :arg tolerance: :class:`firedrake.mesh.VertexOnlyMesh` tolerance.
     """
 
     def __init__(self, X, y, X_coords=None, *, tolerance=None,
@@ -356,12 +359,14 @@ class PointInterpolation(Equation):
 
 class ExprAssignment(ExprEquation):
     r"""Represents an evaluation of `rhs`, storing the result in `x`. Uses
-    `Function.assign` to perform the evaluation.
+    :meth:`firedrake.function.Function.assign` or
+    :meth:`firedrake.cofunction.Cofunction.assign` to perform the evaluation.
 
     The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
     \mathcal{F} / \partial x` is the identity.
 
-    :arg x: A Firedrake `Function` defining the forward solution.
+    :arg x: A :class:`firedrake.function.Function` or
+        :class:`firedrake.cofunction.Cofunction` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
         evaluate. Should not depend on `x`.
     :arg subset: A :class:`pyop2.types.set.Subset`. If provided then defines a

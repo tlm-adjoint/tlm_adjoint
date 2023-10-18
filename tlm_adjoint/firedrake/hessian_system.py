@@ -101,14 +101,14 @@ class HessianSystem(System):
 
         H u = b.
 
-    :arg H: A :class:`~.Hessian` defining :math:`H`.
+    :arg H: A :class:`.Hessian` defining :math:`H`.
     :arg M: A :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction`, or a :class:`Sequence` of
         :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction` objects, defining the control.
-    :arg nullspace: A :class:`~.Nullspace` or a :class:`Sequence` of
-        :class:`~.Nullspace` objects defining the nullspace and left nullspace
-        of the Hessian matrix. `None` indicates a :class:`~.NoneNullspace`.
+    :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
+        :class:`.Nullspace` objects defining the nullspace and left nullspace
+        of the Hessian matrix. `None` indicates a :class:`.NoneNullspace`.
     :arg comm: MPI communicator.
     """
 
@@ -155,7 +155,7 @@ class HessianSystem(System):
             conjugate of the right-hand-side :math:`b`.
 
         Remaining arguments are handed to the base class
-        :meth:`~.System.solve` method.
+        :meth:`.System.solve` method.
         """
 
         if is_var(b):
@@ -181,7 +181,7 @@ def hessian_eigendecompose(
     Despite the notation :math:`B^{-1}` may be singular, defining an inverse
     operator only on an appropriate subspace.
 
-    :arg H: A :class:`~.Hessian`.
+    :arg H: A :class:`.Hessian`.
     :arg m: A :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction` defining the control.
     :arg B_inv_action: A callable accepting a
@@ -195,20 +195,20 @@ def hessian_eigendecompose(
         computing the action of :math:`B` on the conjugate of :math:`v`,
         returning the result as a :class:`firedrake.function.Function` or
         :class:`firedrake.cofunction.Cofunction`.
-    :arg nullspace: A :class:`~.Nullspace` defining the nullspace and left
+    :arg nullspace: A :class:`.Nullspace` defining the nullspace and left
         nullspace of :math:`H` and :math:`B^{-1}`.
     :arg problem_type: The eigenproblem type -- see
-        :class:`slepc4py.SLEPc.EPS.ProblemType`. Defaults to
+        `slepc4py.SLEPc.EPS.ProblemType`. Defaults to
         `slepc4py.SLEPc.EPS.ProblemType.GHEP` in the real case and
         `slepc4py.SLEPc.EPS.ProblemType.GNHEP` in the complex case.
-    :arg pre_callback: A callable accepting a single
-        :class:`slepc4py.SLEPc.EPS` argument. Used for detailed manual
-        configuration. Called after all other configuration options are set,
-        but before the :meth:`slepc4py.SLEPc.EPS.setUp` method is called.
+    :arg pre_callback: A callable accepting a single `slepc4py.SLEPc.EPS`
+        argument. Used for detailed manual configuration. Called after all
+        other configuration options are set, but before the
+        `slepc4py.SLEPc.EPS.setUp` method is called.
     :arg correct_eigenvectors: Whether to apply a nullspace correction to the
         eigenvectors.
 
-    Remaining keyword arguments are passed to :func:`~.eigendecompose`.
+    Remaining keyword arguments are passed to :func:`.eigendecompose`.
     """
 
     space = var_space(m)
@@ -416,7 +416,7 @@ def hessian_eigendecomposition_pc(B_action, Lam, V):
         :class:`firedrake.cofunction.Cofunction` objects defining the columns
         of :math:`V`.
     :returns: A callable suitable for use as the `pc_fn` argument to
-        :meth:`HessianSystem.solve`.
+        :meth:`.HessianSystem.solve`.
     """
 
     if len(V) == 2 \

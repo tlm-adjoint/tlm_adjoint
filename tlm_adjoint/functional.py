@@ -20,7 +20,7 @@ __all__ = \
 class Functional(Float):
     """A convenience class for defining functionals.
 
-    Arguments are as for the :class:`Float` class.
+    Arguments are as for the :class:`.Float` class.
     """
 
     def __init__(self, *args, space=None, **kwargs):
@@ -30,14 +30,13 @@ class Functional(Float):
         super().__init__(*args, **kwargs)
 
     def assign(self, y, *, annotate=None, tlm=None):
-        """Assign to the :class:`Functional`.
+        """Assign to the :class:`.Functional`.
 
         :arg y: The value.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
-        :returns: The :class:`Functional`.
+        :returns: The :class:`.Functional`.
         """
 
         if is_var(y) and var_is_scalar(y):
@@ -53,11 +52,10 @@ class Functional(Float):
             return self
 
     def addto(self, y, *, annotate=None, tlm=None):
-        """Add to the :class:`Functional`.
+        """Add to the :class:`.Functional`.
 
         :arg y: The value to add.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
