@@ -459,7 +459,6 @@ def test_ExprAssignment(setup_test, test_leaks,
 @pytest.mark.parametrize("c0", [lambda mesh: 2,
                                 lambda mesh: Constant(2.0),
                                 lambda mesh: Function(FunctionSpace(mesh, "R", 0)).assign(2.0)])  # noqa: E501
-@pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_ExprAssignment_vector(setup_test, test_leaks,
                                c0):
@@ -477,8 +476,14 @@ def test_ExprAssignment_vector(setup_test, test_leaks,
 
     c = c0(mesh)
     m0 = Function(space, name="m0")
-    interpolate_expression(
-        m0, as_vector((cos(pi * X[0]), X[1] * exp(X[0]))))
+    if complex_mode:
+        interpolate_expression(
+            m0, as_vector((cos(pi * X[0]) + 1.0j * cos(2.0 * pi * X[1]),
+                           X[1] * exp(X[0]))))
+    else:
+        interpolate_expression(
+            m0, as_vector((cos(pi * X[0]),
+                           X[1] * exp(X[0]))))
     m = Function(space, name="m").assign(m0)
 
     if is_var(c):

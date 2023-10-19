@@ -10,11 +10,11 @@ from .backend import (
     VertexOnlyMesh, backend_Cofunction, backend_Constant, backend_Function,
     backend_assemble, complex_mode)
 from ..interface import (
-    check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
-    var_id, var_inner, var_is_scalar, var_new, var_new_conjugate_dual,
-    var_replacement, var_scalar_value, var_space, var_space_type, var_zero,
-    weakref_method)
+    check_space_type, comm_dup_cached, is_var, space_new, var_comm, var_id,
+    var_inner, var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
+    var_scalar_value, var_space_type, var_zero, weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
+from .backend_interface import ReplacementCofunction, ReplacementFunction
 
 from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
@@ -22,7 +22,7 @@ from ..equation import Equation, ZeroAssignment
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
-from .functions import eliminate_zeros
+from .functions import ReplacementConstant, eliminate_zeros
 
 import itertools
 import numpy as np
@@ -150,7 +150,7 @@ class LocalProjection(EquationSolver):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
-        space = var_space(x)
+        space = x.function_space()
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
         if not isinstance(rhs, ufl.classes.Form):
@@ -295,7 +295,7 @@ class PointInterpolation(Equation):
 
         interp = _interp
         if interp is None:
-            y_space = var_space(y)
+            y_space = y.function_space()
             vmesh = VertexOnlyMesh(y_space.mesh(), X_coords,
                                    tolerance=tolerance)
             vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
@@ -318,7 +318,7 @@ class PointInterpolation(Equation):
         vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
         for x_val, index in zip(itertools.chain(*X_values),
                                 itertools.chain(*vmesh_coords_map)):
-            var_assign(X[index], x_val)
+            X[index].assign(x_val)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_var(adj_X):
@@ -413,36 +413,58 @@ class ExprAssignment(ExprEquation):
 
         dep = eq_deps[dep_index]
         if len(dep.ufl_shape) > 0:
-            if complex_mode:
-                raise NotImplementedError("Case not implemented")
-            F = var_new(dep)
-            if isinstance(F, backend_Constant):
+            if not isinstance(dep, (backend_Cofunction, ReplacementCofunction,
+                                    backend_Function, ReplacementFunction)):
                 raise NotImplementedError("Case not implemented")
 
-            # This works so long as the assignment is defined in terms of a
-            # linear combination but is subtly the wrong thing to do, since dep
-            # and adj_x are in spaces which are relatively antidual
-            dF = derivative(self._rhs, dep, adj_x.riesz_representation("l2"))
+            if complex_mode:
+                # Used to work around a missing conjugate, see below
+                adj_x_ = var_new_conjugate_dual(adj_x)
+                adj_x_.dat.data[:] = adj_x.dat.data_ro.conjugate()
+                adj_x = adj_x_
+                del adj_x_
+            else:
+                adj_x = adj_x.riesz_representation("l2")
+
+            test = TestFunction(dep)
+            # dF = derivative(action(cotest, self._rhs), dep, argument=trial)
+            dF = derivative(self._rhs, dep, argument=test)
+            # dF = action(adjoint(dF), adj_x)
+            # Missing a conjugate, see below
+            dF = ufl.replace(dF, {test: adj_x})
             dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = self._nonlinear_replace(dF, nl_deps)
 
+            # F = assemble(dF)
+            F = var_new(dep)
             F.assign(dF, subset=self._subset)
-            F = F.riesz_representation("l2")
-        else:
-            F = var_new_conjugate_dual(dep)
 
+            if complex_mode:
+                # The conjugate which would be introduced by adjoint(...).
+                # Above we take the conjugate of the adj_x dofs, and this is
+                # reversed here, so we have the required action of the adjoint
+                # of the derivative on adj_x.
+                F_ = var_new_conjugate_dual(F)
+                F_.dat.data[:] = F.dat.data_ro.conjugate()
+                F = F_
+            else:
+                F = F.riesz_representation("l2")
+        else:
             dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
             dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = self._nonlinear_replace(dF, nl_deps)
 
-            if isinstance(F, backend_Constant):
+            if isinstance(dep, (backend_Constant, ReplacementConstant)):
                 dF = var_new_conjugate_dual(adj_x).assign(
                     dF, subset=self._subset)
+                F = var_new_conjugate_dual(dep)
                 F.assign(var_inner(adj_x, dF))
-            elif isinstance(F, (backend_Cofunction, backend_Function)):
-                e = F.function_space().ufl_element()
+            elif isinstance(dep, (backend_Cofunction, ReplacementCofunction,
+                                  backend_Function, ReplacementFunction)):
+                e = dep.function_space().ufl_element()
+                F = var_new_conjugate_dual(dep)
                 if (e.family(), e.degree(), e.value_shape()) == ("Real", 0, ()):  # noqa: E501
                     dF = var_new_conjugate_dual(adj_x).assign(
                         dF, subset=self._subset)

@@ -915,8 +915,6 @@ class ExprInterpolation(ExprEquation):
 
         dep = eq_deps[dep_index]
 
-        F = var_new_conjugate_dual(dep)
-
         if isinstance(dep, (backend_Constant, ReplacementConstant)):
             if len(dep.ufl_shape) > 0:
                 raise NotImplementedError("Case not implemented")
@@ -927,6 +925,7 @@ class ExprInterpolation(ExprEquation):
         dF = eliminate_zeros(dF)
         dF = self._nonlinear_replace(dF, nl_deps)
 
+        F = var_new_conjugate_dual(dep)
         interpolate_expression(F, dF, adj_x=adj_x)
         return (-1.0, F)
 
