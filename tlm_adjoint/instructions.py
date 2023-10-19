@@ -25,7 +25,7 @@ class Instruction(EmptyEquation):
 
 
 class GarbageCollection(Instruction):
-    """An :class:`Instruction` which indicates that garbage collection should
+    """An :class:`.Instruction` which indicates that garbage collection should
     be performed during forward and adjoint calculations.
 
     :arg comm: Communicator to use for PETSc garbage cleanup.

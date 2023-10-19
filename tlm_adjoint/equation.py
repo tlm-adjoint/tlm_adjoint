@@ -81,9 +81,8 @@ class Referrer:
 
 
 class Equation(Referrer):
-    r"""Core equation class. Defines an adjoint tape record, and provides
-    information required to solve forward equations, perform adjoint
-    calculations, and define tangent-linear equations.
+    r"""Core equation class. Defines a differentiable operation for use as an
+    adjoint tape record.
 
     The equation is defined via a residual function :math:`\mathcal{F}`. The
     forward solution is defined implicitly as the value :math:`x` for which
@@ -392,7 +391,7 @@ class Equation(Referrer):
             guess, and should be set by this method. Subclasses may replace
             this argument with `x` if the forward solution has a single
             component.
-        :arg deps: A :class:`tuple` of variables, defining values of
+        :arg deps: A :class:`tuple` of variables, defining values for
             dependencies. Only the elements corresponding to `X` may be
             modified. `self.dependencies()` should be used if not supplied.
         """
@@ -407,14 +406,14 @@ class Equation(Referrer):
         :arg adj_X: Either `None`, or a :class:`Sequence` of variables defining
             the initial guess for an iterative solve. May be modified or
             returned.
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg B: A sequence of variables defining the right-hand-side of the
             adjoint equation. May be modified or returned.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
-            subtracting derivative information computed by differentiating with
-            respect to `self.dependencies()[dep_index]`.
+            subtracting adjoint derivative information computed by
+            differentiating with respect to `self.dependencies()[dep_index]`.
 
         :returns: A :class:`tuple` of variables defining the adjoint solution,
             or `None` to indicate that the solution is zero.
@@ -446,13 +445,13 @@ class Equation(Referrer):
 
         :arg J: The variable defining the forward functional.
         :arg adj_X: A :class:`Sequence` of variables defining the adjoint
-            solution.
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
+            solution. Should not be modified.
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
-            subtracting derivative information computed by differentiating with
-            respect to `self.dependencies()[dep_index]`.
+            subtracting adjoint derivative information computed by
+            differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
@@ -466,7 +465,7 @@ class Equation(Referrer):
         residual on the adjoint solution. This is the *negative* of an adjoint
         right-hand-side term.
 
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg dep_index: An :class:`int`. The derivative is defined by
             differentiation of the forward residual with respect to
@@ -478,10 +477,10 @@ class Equation(Referrer):
         :returns: The action of the adjoint of a derivative on the adjoint
             solution. Will be passed to
             :func:`.subtract_adjoint_derivative_action`, and valid types depend
-            upon the backend used. Typically this will be a variable, or a two
-            element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and
-            `F` a variable, with the value defined by the product of `alpha`
-            and `F`.
+            upon the adjoint variable type. Typically this will be a variable,
+            or a two element :class:`tuple` `(alpha, F)`, where `alpha` is a
+            scalar and `F` a variable, with the value defined by the product of
+            `alpha` and `F`.
         """
 
         raise NotImplementedError("Method not overridden")
@@ -496,12 +495,12 @@ class Equation(Referrer):
             has a single component, otherwise a :class:`Sequence` of variables.
             Should not be modified. Subclasses may replace this argument with
             `adj_x` if the adjoint solution has a single component.
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg dep_Bs: A :class:`Mapping` whose items are `(dep_index, dep_B)`.
             Each `dep_B` is an :class:`.AdjointRHS` which should be updated by
-            subtracting derivative information computed by differentiating with
-            respect to `self.dependencies()[dep_index]`.
+            subtracting adjoint derivative information computed by
+            differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
         for dep_index, dep_B in dep_Bs.items():
@@ -516,7 +515,7 @@ class Equation(Referrer):
             defining the initial guess for an iterative solve. May be modified
             or returned. Subclasses may replace this argument with `adj_x` if
             the adjoint solution has a single component.
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg B: The right-hand-side. A variable (if the adjoint solution has a
             single component) or :class:`Sequence` of variables (otherwise)
@@ -531,18 +530,18 @@ class Equation(Referrer):
         raise NotImplementedError("Method not overridden")
 
     def tangent_linear(self, M, dM, tlm_map):
-        """Derive an :class:`.Equation` corresponding to an associated equation
-        in a tangent-linear model.
+        """Derive an :class:`.Equation` corresponding to a tangent-linear
+        operation.
 
         :arg M: A :class:`Sequence` of variables defining the control.
         :arg dM: A :class:`Sequence` of variables defining the derivative
-            direction. The tangent-linear model computes directional
-            derivatives with respect to the control defined by `M` and with
-            direction defined by `dM`.
+            direction. The tangent-linear computes directional derivatives with
+            respect to the control defined by `M` and with direction defined by
+            `dM`.
         :arg tlm_map: A :class:`.TangentLinearMap` storing values for
             tangent-linear variables.
         :returns: An :class:`.Equation`, corresponding to the tangent-linear
-            equation.
+            operation.
         """
 
         raise NotImplementedError("Method not overridden")

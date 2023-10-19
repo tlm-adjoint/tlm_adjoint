@@ -52,10 +52,9 @@ class Storage(Equation):
         self._key = key
         self._save = save
 
+    @property
     def key(self):
-        """Return the key associated with saved or loaded data.
-
-        :returns: The :class:`str` key.
+        """The key associated with saved or loaded data.
         """
 
         return self._key
@@ -119,13 +118,13 @@ class MemoryStorage(Storage):
         self._d = d
 
     def is_saved(self):
-        return self.key() in self._d
+        return self.key in self._d
 
     def load(self, x):
-        var_set_values(x, self._d[self.key()])
+        var_set_values(x, self._d[self.key])
 
     def save(self, x):
-        self._d[self.key()] = var_get_values(x)
+        self._d[self.key] = var_get_values(x)
 
 
 class HDF5Storage(Storage):
@@ -134,7 +133,7 @@ class HDF5Storage(Storage):
 
     :arg x: A variable defining the forward solution, whose value is saved or
         loaded.
-    :arg h: An h5py :class:`h5py.File`.
+    :arg h: An :class:`h5py.File`.
     :arg key: A :class:`str` key for the saved or loaded data.
     :arg save: If `True` then the first forward solve saves the value of `x`.
         If `False` then the first forward solve loads the value of `x`
@@ -145,14 +144,14 @@ class HDF5Storage(Storage):
         self._h = h
 
     def is_saved(self):
-        return self.key() in self._h
+        return self.key in self._h
 
     def load(self, x):
-        d = self._h[self.key()]["value"]
+        d = self._h[self.key]["value"]
         var_set_values(x, d[var_local_indices(x)])
 
     def save(self, x):
-        key = self.key()
+        key = self.key
         self._h.create_group(key)
         values = var_get_values(x)
         d = self._h[key].create_dataset("value",

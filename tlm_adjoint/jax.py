@@ -55,9 +55,9 @@ except ImportError:
 
 
 def set_default_jax_dtype(dtype):
-    """Set the default dtype used by :class:`.Vector` objects.
+    """Set the default data type used by :class:`.Vector` objects.
 
-    :arg dtype: The default dtype.
+    :arg dtype: The default data type.
     """
 
     global _default_dtype
@@ -118,7 +118,7 @@ class VectorSpace:
 
     @property
     def dtype(self):
-        """The dtype associated with the space.
+        """The data type associated with the space.
         """
 
         return self._dtype
@@ -761,7 +761,7 @@ class VectorEquation(Equation):
                 manager=manager, annotate=annotate, tlm=False)
         else:
             eq = VectorEquation(X, Y, self._fn)
-            if not manager._cp.store_data():
+            if not manager._cp.store_data:
                 eq._annotate = False
             try:
                 return super(type(eq), eq).solve(manager=manager,

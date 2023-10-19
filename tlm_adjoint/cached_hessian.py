@@ -134,14 +134,13 @@ class HessianOptimization:
 
 
 class CachedHessian(Hessian, HessianOptimization):
-    """Represents a Hessian matrix associated with a given forward model. Uses
-    a cached forward calculation.
+    """Represents a Hessian associated with a given forward. Uses a cached
+    forward calculation.
 
-    :arg J: A variable defining the Hessian matrix.
-    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
-        record the forward. This must have used `'memory'` checkpointing with
-        automatic dropping of variable references disabled. `manager()` is used
-        if not supplied.
+    :arg J: A variable defining the Hessian.
+    :arg manager: The :class:`.EquationManager` used to record the forward.
+        This must have used `'memory'` checkpointing with automatic dropping of
+        variable references disabled. `manager()` is used if not supplied.
     :arg cache_adjoint: Whether to cache the first order adjoint calculation.
     """
 
@@ -204,16 +203,15 @@ class CachedHessian(Hessian, HessianOptimization):
 
 
 class CachedGaussNewton(GaussNewton, HessianOptimization):
-    """Represents a Gauss-Newton approximation to a Hessian matrix associated
-    with a given forward model. Uses a cached forward calculation.
+    """Represents a Gauss-Newton approximation to a Hessian associated with a
+    given forward. Uses a cached forward calculation.
 
     :arg X: A variable or a :class:`Sequence` of variables defining the state.
-    :arg R_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
-    :arg B_inv_action: See :class:`tlm_adjoint.hessian.GaussNewton`.
-    :arg manager: The :class:`tlm_adjoint.tlm_adjoint.EquationManager` used to
-        record the forward. This must have used `'memory'` checkpointing with
-        automatic dropping of variable references disabled. `manager()` is used
-        if not supplied.
+    :arg R_inv_action: See :class:`.GaussNewton`.
+    :arg B_inv_action: See :class:`.GaussNewton`.
+    :arg manager: The :class:`.EquationManager` used to record the forward.
+        This must have used `'memory'` checkpointing with automatic dropping of
+        variable references disabled. `manager()` is used if not supplied.
     """
 
     def __init__(self, X, R_inv_action, B_inv_action=None, *,

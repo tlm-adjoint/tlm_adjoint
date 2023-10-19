@@ -48,7 +48,7 @@ class CheckpointStorage:
     Non-linear dependency data has an associated key `(n, i)`, where `n` is an
     :class:`int` indicating the block index and `i` is an :class:`int`
     indicating the equation index within that block. Non-linear-dependency data
-    for a :class:`.Equation` can be accessed via, e.g.
+    for an :class:`.Equation` can be accessed via, e.g.
 
     .. code-block:: python
 
@@ -92,20 +92,16 @@ class CheckpointStorage:
         self._store_ics = store_ics
         self._store_data = store_data
 
+    @property
     def store_ics(self):
-        """Return whether storage of forward restart data is enabled.
-
-        :returns: `True` if storage of forward restart data is enabled, and
-            `False` otherwise.
+        """Whether storage of forward restart data is enabled.
         """
 
         return self._store_ics
 
+    @property
     def store_data(self):
-        """Return whether storage of non-linear dependency data is enabled.
-
-        :returns: `True` if storage of non-linear dependency data is enabled,
-            and `False` otherwise.
+        """Whether storage of non-linear dependency data is enabled.
         """
 
         return self._store_data
@@ -172,8 +168,9 @@ class CheckpointStorage:
 
         :arg cp: Whether to include forward restart data that is stored by
             value.
-        :arg refs: Whether to include forward restart data that is stored by
-            reference.
+        :arg refs: Whether to include data that is stored by reference. May
+            include non-linear dependency data that is not forward restart
+            data.
         :arg copy: If `True` then a copy of the stored data is returned. If
             `False` then internal variables storing the data are returned.
         :returns: A :class:`dict`, with items `(x_id: x_value)`, where `x_id`
@@ -215,7 +212,7 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: A :class:`.Equation`, equation `i` in block `n`.
+        :arg eq: An :class:`.Equation`, equation `i` in block `n`.
         """
 
         for m, x in enumerate(eq.X()):
@@ -257,7 +254,7 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: A :class:`.Equation`, equation `i` in block `n`.
+        :arg eq: An :class:`.Equation`, equation `i` in block `n`.
         :arg deps: Equation dependency values. `eq.dependencies()` is used if
             not supplied.
         :arg nl_deps: Equation non-linear dependency values. Extracted from
@@ -290,7 +287,7 @@ class CheckpointStorage:
 
         :arg n: The :class:`int` index of the block.
         :arg i: The :class:`int` index of the equation.
-        :arg eq: A :class:`.Equation`, equation `i` in block `n`.
+        :arg eq: An :class:`.Equation`, equation `i` in block `n`.
         :arg nl_deps: Equation non-linear dependency values.
             `eq.nonlinear_dependencies()` is used if not supplied.
         """
@@ -613,12 +610,12 @@ class ReplayStorage:
                 self[key] = var_copy(value) if copy else value
 
     def popleft(self):
-        """Remove the first equation from consideration. Used to deallocate
-        forward variables which are no longer needed as the solution of
-        forward equations progresses.
+        """Remove the first equation. Used to deallocate forward variables
+        which are no longer needed as the solution of forward equations
+        progresses.
 
         :returns: A :class:`tuple` `(n, i)`, indicating that equation `i` in
-            block `n` has been removed from consideration.
+            block `n` has been removed.
         """
 
         n, i, dep_ids = self._eq_last.popleft()

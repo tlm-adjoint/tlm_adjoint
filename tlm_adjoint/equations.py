@@ -95,7 +95,7 @@ class Conversion(Equation):
 
     where :math:`\tilde{x}` and :math:`\tilde{y}` are vectors of degrees of
     freedom for :math:`x` and :math:`y` respectively. Can be used to convert
-    between different backends.
+    between different variable types.
 
     The forward residual is defined
 

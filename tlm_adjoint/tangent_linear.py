@@ -29,9 +29,9 @@ def tlm_key(M, dM):
         dM = tuple(dM)
 
     if len(set(M)) != len(M):
-        raise ValueError("Invalid tangent-linear model")
+        raise ValueError("Invalid tangent-linear")
     if len(M) != len(dM):
-        raise ValueError("Invalid tangent-linear model")
+        raise ValueError("Invalid tangent-linear")
     for m, dm in zip(M, dM):
         check_space_types(m, dm)
 
@@ -140,8 +140,8 @@ class TangentLinearMap:
 
     where `x` is a forward variable.
 
-        - If `x` is defines a component of the control, then `tau_x` is a
-          variable defining the associated component of the direction.
+        - If `x` defines a component of the control, then `tau_x` is a variable
+          defining the associated component of the direction.
         - If `x` does not define a component of the control and is not
           'static', then `tau_x` is a tangent-linear variable. A new variable
           is instantiated if needed.
@@ -155,12 +155,12 @@ class TangentLinearMap:
         if x in tlm_map:
             [...]
 
-    and returns `True` if `x` defines a component or control, or a
+    and returns `True` if `x` defines a component of the control, or a
     tangent-linear variable associated with `x` has been instantiated.
 
     :arg M: A variable or :class:`Sequence` of variables defining the control.
     :arg dM: A variable or :class:`Sequence` of variables defining the
-        derivative direction. The tangent-linear model computes directional
+        derivative direction. The tangent-linear computes directional
         derivatives with respect to the control defined by `M` and with
         direction defined by `dM`.
     """

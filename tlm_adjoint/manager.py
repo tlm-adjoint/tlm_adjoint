@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module provides a simple
-:class:`tlm_adjoint.tlm_adjoint.EquationManager` interface. Functions defined
-here access and interact with the default manager.
-
-Documentation provided here indicates the
-:class:`tlm_adjoint.tlm_adjoint.EquationManager` methods where more complete
-documentation can be found.
+"""This module provides a simple :class:`.EquationManager` interface. Functions
+defined here access and interact with the default manager.
 """
 
 import functools
@@ -41,8 +36,7 @@ _manager = None
 
 def manager():
     """
-    :returns: A :class:`tlm_adjoint.tlm_adjoint.EquationManager`, the current
-        default manager.
+    :returns: An :class:`.EquationManager`, the current default manager.
     """
 
     return _manager
@@ -51,8 +45,7 @@ def manager():
 def set_manager(manager):
     """Set the default manager.
 
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` to use as
-        the default manager.
+    :arg manager: An :class:`.EquationManager` to use as the default manager.
     """
 
     global _manager
@@ -86,50 +79,49 @@ def restore_manager(fn):
 
 
 def configure_checkpointing(cp_method, cp_parameters):
-    """See
-    :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_checkpointing`.
+    """See :meth:`.EquationManager.configure_checkpointing`.
     """
 
     manager().configure_checkpointing(cp_method, cp_parameters=cp_parameters)
 
 
 def manager_info(*, info=print):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.info`.
+    """See :meth:`.EquationManager.info`.
     """
 
     manager().info(info=info)
 
 
 def reset_manager(cp_method=None, cp_parameters=None):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.reset`.
+    """See :meth:`.EquationManager.reset`.
     """
 
     manager().reset(cp_method=cp_method, cp_parameters=cp_parameters)
 
 
 def annotation_enabled():
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.annotation_enabled`.
+    """See :meth:`.EquationManager.annotation_enabled`.
     """
 
     return manager().annotation_enabled()
 
 
 def start_manager(*, annotate=True, tlm=True):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.start`.
+    """See :meth:`.EquationManager.start`.
     """
 
     manager().start(annotate=annotate, tlm=tlm)
 
 
 def stop_manager(*, annotate=True, tlm=True):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.stop`.
+    """See :meth:`.EquationManager.stop`.
     """
 
     return manager().stop(annotate=annotate, tlm=tlm)
 
 
 def paused_manager(*, annotate=True, tlm=True):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.paused`.
+    """See :meth:`.EquationManager.paused`.
     """
 
     return manager().paused(annotate=annotate, tlm=tlm)
@@ -156,7 +148,7 @@ def manager_disabled(*, annotate=True, tlm=True):
 
 
 def configure_tlm(*args, annotate=None, tlm=True):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.configure_tlm`.
+    """See :meth:`.EquationManager.configure_tlm`.
     """
 
     manager().configure_tlm(*args, annotate=annotate, tlm=tlm)
@@ -170,14 +162,14 @@ def add_tlm(M, dM, max_depth=1):
 
 
 def tlm_enabled():
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.tlm_enabled`.
+    """See :meth:`.EquationManager.tlm_enabled`.
     """
 
     return manager().tlm_enabled()
 
 
 def var_tlm(x, *args):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.var_tlm`.
+    """See :meth:`.EquationManager.var_tlm`.
     """
 
     return manager().var_tlm(x, *args)
@@ -196,7 +188,7 @@ def compute_gradient(Js, M, *, callback=None, prune_forward=True,
                      prune_adjoint=True, prune_replay=True,
                      cache_adjoint_degree=None, store_adjoint=False,
                      adj_ics=None):
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.compute_gradient`.
+    """See :meth:`.EquationManager.compute_gradient`.
     """
 
     return manager().compute_gradient(
@@ -207,7 +199,7 @@ def compute_gradient(Js, M, *, callback=None, prune_forward=True,
 
 
 def new_block():
-    """See :meth:`tlm_adjoint.tlm_adjoint.EquationManager.new_block`.
+    """See :meth:`.EquationManager.new_block`.
     """
 
     manager().new_block()

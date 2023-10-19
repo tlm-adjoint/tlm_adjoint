@@ -26,8 +26,8 @@ __all__ = \
 
 
 class Hessian(ABC):
-    r"""Represents a Hessian matrix associated with a given forward model.
-    Abstract base class.
+    r"""Represents a Hessian associated with a given forward. Abstract base
+    class.
     """
 
     def __init__(self):
@@ -36,23 +36,23 @@ class Hessian(ABC):
     @abstractmethod
     def compute_gradient(self, M, M0=None):
         r"""Compute the (conjugate of the) derivative of a functional with
-        respect to a control using an adjoint model.
+        respect to a control using an adjoint.
 
         :arg M: A variable or a :class:`Sequence` of variables defining the
             control.
         :arg M0: A variable or a :class:`Sequence` of variables defining the
             control value. `M` is used if not supplied.
-        :returns: The derivative. A variable or :class:`Sequence` of variables,
-            depending on the type of `M`.
+        :returns: The (conjugate of the) derivative. A variable or
+            :class:`Sequence` of variables, depending on the type of `M`.
         """
 
         raise NotImplementedError
 
     @abstractmethod
     def action(self, M, dM, M0=None):
-        r"""Compute (the conjugate of) a Hessian matrix action on some
-        :math:`\zeta` using an adjoint of a tangent-linear model. i.e.
-        considering derivatives to be row vectors, compute
+        r"""Compute (the conjugate of) a Hessian action on some :math:`\zeta`
+        using an adjoint of a tangent-linear. i.e. considering derivatives to
+        be row vectors, compute
 
         .. math::
 
@@ -62,30 +62,29 @@ class Hessian(ABC):
         :arg M: A variable or a :class:`Sequence` of variables defining the
             control.
         :arg dM: A variable or a :class:`Sequence` of variables defining
-            :math:`\zeta`. The (conjugate of the) Hessian matrix action on
+            :math:`\zeta`. The (conjugate of the) Hessian action on
             :math:`\zeta` is computed.
         :arg M0: A variable or a :class:`Sequence` of variables defining the
             control value. `M` is used if not supplied.
         :returns: A tuple `(J, dJ, ddJ)`. `J` is the value of the functional.
             `dJ` is the value of :math:`\left( d \mathcal{J} / d m \right)
             \zeta`. `ddJ` stores the (conjugate of the) result of the Hessian
-            matrix action on :math:`\zeta`, and is a variable or a
-            :class:`Sequence` of variables depending on the type of `M`.
+            action on :math:`\zeta`, and is a variable or a :class:`Sequence`
+            of variables depending on the type of `M`.
         """
 
         raise NotImplementedError
 
     def action_fn(self, m, m0=None):
-        """Return a callable which can be used to compute Hessian matrix
-        actions.
+        """Return a callable which can be used to compute Hessian actions.
 
         :arg m: A variable defining the control.
         :arg m0: A variable defining the control value. `m` is used if not
             supplied.
         :returns: A callable which accepts a single variable argument, and
-            returns the result of the Hessian matrix action on that argument as
-            a variable. Note that the result is *not* the conjugate of the
-            Hessian matrix action on the input argument.
+            returns the result of the Hessian action on that argument as a
+            variable. Note that the result is *not* the conjugate of the
+            Hessian action on the input argument.
         """
 
         def action(dm):
@@ -96,13 +95,14 @@ class Hessian(ABC):
 
 
 class GeneralHessian(Hessian):
-    """Represents a Hessian matrix associated with a given forward model. Calls
-    to :meth:`compute_gradient` or :meth:`action` re-run the forward.
+    """Represents a Hessian associated with a given forward. Calls to
+    :meth:`.GeneralHessian.compute_gradient` or :meth:`.GeneralHessian.action`
+    re-run the forward.
 
     :arg forward: A callable which accepts one or more variable arguments, and
         which returns a variable defining the forward functional.
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
-        should be used internally. `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` which should be used internally.
+        `manager().new()` is used if not supplied.
     """
 
     def __init__(self, forward, *, manager=None):
@@ -181,10 +181,10 @@ class GeneralHessian(Hessian):
 
 
 class GaussNewton(ABC):
-    r"""Represents a Gauss-Newton approximation for a Hessian matrix. Abstract
-    base class.
+    r"""Represents a Gauss-Newton approximation for a Hessian. Abstract base
+    class.
 
-    In terms of matrices this defines a Hessian matrix approximation
+    In terms of matrices this defines a Hessian approximation
 
     .. math::
 
@@ -215,9 +215,8 @@ class GaussNewton(ABC):
 
     @restore_manager
     def action(self, M, dM, M0=None):
-        r"""Compute (the conjugate of) a Hessian matrix action on some
-        :math:`\zeta`, using the Gauss-Newton approximation for the Hessian
-        matrix. i.e. compute
+        r"""Compute (the conjugate of) a Hessian action on some :math:`\zeta`,
+        using the Gauss-Newton approximation for the Hessian. i.e. compute
 
         .. math::
 
@@ -226,13 +225,13 @@ class GaussNewton(ABC):
         :arg M: A variable or a :class:`Sequence` of variables defining the
             control.
         :arg dM: A variable or a :class:`Sequence` of variables defining
-            :math:`\zeta`. The (conjugate of the) approximated Hessian matrix
-            action on :math:`\zeta` is computed.
+            :math:`\zeta`. The (conjugate of the) approximated Hessian action
+            on :math:`\zeta` is computed.
         :arg M0: A variable or a :class:`Sequence` of variables defining the
             control value. `M` is used if not supplied.
         :returns: The (conjugate of the) result of the approximated Hessian
-            matrix action on :math:`\zeta`. A variable or a :class:`Sequence`
-            of variables depending on the type of `M`.
+            action on :math:`\zeta`. A variable or a :class:`Sequence` of
+            variables depending on the type of `M`.
         """
 
         if not isinstance(M, Sequence):
@@ -283,17 +282,16 @@ class GaussNewton(ABC):
         return ddJ
 
     def action_fn(self, m, m0=None):
-        """Return a callable which can be used to compute Hessian matrix
-        actions using the Gauss-Newton approximation.
+        """Return a callable which can be used to compute Hessian actions using
+        the Gauss-Newton approximation.
 
         :arg m: A variable defining the control.
         :arg m0: A variable defining the control value. `m` is used if not
             supplied.
         :returns: A callable which accepts a single variable argument, and
-            returns the result of the approximated Hessian matrix action on
-            that argument as a variable. Note that the result is *not* the
-            conjugate of the approximated Hessian matrix action on the input
-            argument.
+            returns the result of the approximated Hessian action on that
+            argument as a variable. Note that the result is *not* the conjugate
+            of the approximated Hessian action on the input argument.
         """
 
         def action(dm):
@@ -303,17 +301,16 @@ class GaussNewton(ABC):
 
 
 class GeneralGaussNewton(GaussNewton):
-    """Represents a Gauss-Newton approximation to a Hessian matrix associated
-    with a given forward model. Calls to :meth:`GaussNewton.action` re-run the
-    forward.
+    """Represents a Gauss-Newton approximation to a Hessian associated with a
+    given forward. Calls to :meth:`.GaussNewton.action` re-run the forward.
 
     :arg forward: A callable which accepts one or more variable arguments, and
         which returns a variable or :class:`Sequence` of variables defining the
         state.
-    :arg R_inv_action: See :class:`GaussNewton`.
-    :arg B_inv_action: See :class:`GaussNewton`.
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
-        should be used internally. `manager().new()` is used if not supplied.
+    :arg R_inv_action: See :class:`.GaussNewton`.
+    :arg B_inv_action: See :class:`.GaussNewton`.
+    :arg manager: An :class:`.EquationManager` which should be used internally.
+        `manager().new()` is used if not supplied.
     """
 
     def __init__(self, forward, R_inv_action, B_inv_action=None, *,

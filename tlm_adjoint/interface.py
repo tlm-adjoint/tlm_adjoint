@@ -884,7 +884,7 @@ def new_var_id():
 
 
 def var_id(x):
-    """Return the :class:`int` ID associated with a variable.
+    """Return the unique :class:`int` ID associated with a variable.
 
     Note that two variables share the same ID if they represent the same
     symbolic variable -- for example if one variable represents both a variable
@@ -1106,7 +1106,8 @@ def var_get_values(x):
     with a variable.
 
     :arg x: The variable.
-    :returns: A :class:`numpy.ndarray` containing the degrees of freedom.
+    :returns: A :class:`numpy.ndarray` containing a copy of the degrees of
+        freedom.
     """
 
     return x._tlm_adjoint__var_interface_get_values()
@@ -1331,7 +1332,7 @@ def subtract_adjoint_derivative_action(x, y):
     :arg x: A variable storing the adjoint right-hand-side.
     :arg y: A contribution to subtract from the adjoint right-hand-side. An
         :meth:`.Equation.adjoint_derivative_action` return value. Valid types
-        depend upon the backend used. Typically this will be a variable, or a
+        depend upon the variable type. Typically this will be a variable, or a
         two element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and
         `F` a variable, with the value to subtract defined by the product of
         `alpha` and `F`.
