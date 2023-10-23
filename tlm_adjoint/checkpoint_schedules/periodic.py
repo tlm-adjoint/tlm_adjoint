@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .schedule import CheckpointSchedule, Clear, Configure, Forward, Reverse, \
-    Read, Write, EndForward, EndReverse
+from .schedule import (
+    CheckpointSchedule, Clear, Configure, Forward, Reverse, Read, Write,
+    EndForward, EndReverse)
 
 __all__ = \
     [

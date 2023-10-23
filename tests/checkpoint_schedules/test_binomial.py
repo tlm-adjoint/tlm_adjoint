@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint.checkpoint_schedules import MultistageCheckpointSchedule, \
-    Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse
+from tlm_adjoint.checkpoint_schedules import (
+    MultistageCheckpointSchedule, Clear, Configure, Forward, Reverse, Read,
+    Write, EndForward, EndReverse)
 from tlm_adjoint.checkpoint_schedules.binomial import optimal_steps
 
 import functools
