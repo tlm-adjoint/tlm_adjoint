@@ -298,7 +298,7 @@ def assemble_key(form, bcs, assemble_kwargs):
 
 
 class AssemblyCache(Cache):
-    """A :class:`tlm_adjoint.caches.Cache` for finite element assembly data.
+    """A :class:`.Cache` for finite element assembly data.
     """
 
     def assemble(self, form, *,
@@ -316,8 +316,7 @@ class AssemblyCache(Cache):
             variables to values.
         :returns: A :class:`tuple` `(value_ref, value)`, where `value` is the
             result of the finite element assembly, and `value_ref` is a
-            :class:`tlm_adjoint.caches.CacheRef` storing a reference to
-            `value`.
+            :class:`.CacheRef` storing a reference to `value`.
 
                 - For an arity zero or arity one form `value_ref` stores the
                   assembled value.
@@ -375,7 +374,7 @@ def linear_solver_key(form, bcs, linear_solver_parameters,
 
 
 class LinearSolverCache(Cache):
-    """A :class:`tlm_adjoint.caches.Cache` for linear solver data.
+    """A :class:`.Cache` for linear solver data.
     """
 
     def linear_solver(self, form, *,
@@ -391,7 +390,7 @@ class LinearSolverCache(Cache):
         :arg linear_solver_parameters: Linear solver parameters.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
-        :arg assembly_cache: :class:`AssemblyCache` to use for finite element
+        :arg assembly_cache: :class:`.AssemblyCache` to use for finite element
             assembly. Defaults to `assembly_cache()`.
         :returns: A :class:`tuple` `(value_ref, value)`. `value` is a tuple
             `(solver, A, b_bc)`, where `solver` is the linear solver, `A` is
@@ -399,8 +398,7 @@ class LinearSolverCache(Cache):
             right-hand-side term which should be added after assembling a
             right-hand-side with homogeneous boundary conditions applied.
             `b_bc` may be `None` to indicate that this term is zero.
-            `value_ref` is a :class:`tlm_adjoint.caches.CacheRef` storing a
-            reference to `value`.
+            `value_ref` is a :class:`.CacheRef` storing a reference to `value`.
         """
 
         if bcs is None:
@@ -438,16 +436,16 @@ _assembly_cache = AssemblyCache()
 
 def assembly_cache():
     """
-    :returns: The default :class:`AssemblyCache`.
+    :returns: The default :class:`.AssemblyCache`.
     """
 
     return _assembly_cache
 
 
 def set_assembly_cache(assembly_cache):
-    """Set the default :class:`AssemblyCache`.
+    """Set the default :class:`.AssemblyCache`.
 
-    :arg assembly_cache: The new default :class:`AssemblyCache`.
+    :arg assembly_cache: The new default :class:`.AssemblyCache`.
     """
 
     global _assembly_cache
@@ -459,16 +457,16 @@ _linear_solver_cache = LinearSolverCache()
 
 def linear_solver_cache():
     """
-    :returns: The default :class:`LinearSolverCache`.
+    :returns: The default :class:`.LinearSolverCache`.
     """
 
     return _linear_solver_cache
 
 
 def set_linear_solver_cache(linear_solver_cache):
-    """Set the default :class:`LinearSolverCache`.
+    """Set the default :class:`.LinearSolverCache`.
 
-    :arg linear_solver_cache: The new default :class:`LinearSolverCache`.
+    :arg linear_solver_cache: The new default :class:`.LinearSolverCache`.
     """
 
     global _linear_solver_cache

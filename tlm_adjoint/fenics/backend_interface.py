@@ -261,17 +261,17 @@ class FunctionInterface(_VariableInterface):
 
 
 class Function(backend_Function):
-    """Extends the backend `Function` class.
+    """Extends the DOLFIN `Function` class.
 
-    :arg space_type: The space type for the :class:`Function`. `'primal'`,
+    :arg space_type: The space type for the :class:`.Function`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines whether the :class:`Function` is static, meaning that
+    :arg static: Defines whether the :class:`.Function` is static, meaning that
         it is stored by reference in checkpointing/replay, and an associated
         tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`Function` may be
+    :arg cache: Defines whether results involving the :class:`.Function` may be
         cached. Default `static`.
 
-    Remaining arguments are passed to the backend `Function` constructor.
+    Remaining arguments are passed to the DOLFIN `Function` constructor.
     """
 
     def __init__(self, *args, space_type="primal", static=False, cache=None,
@@ -288,9 +288,9 @@ class Function(backend_Function):
 
 
 class ZeroFunction(Function, Zero):
-    """A :class:`Function` which is flagged as having a value of zero.
+    """A :class:`.Function` which is flagged as having a value of zero.
 
-    Arguments are passed to the :class:`Function` constructor, together with
+    Arguments are passed to the :class:`.Function` constructor, together with
     `static=True` and `cache=True`.
     """
 
@@ -374,12 +374,12 @@ def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
 
 
 def to_fenics(y, space, *, name=None):
-    """Convert a variable to a FEniCS `Function`.
+    """Convert a variable to a DOLFIN `Function`.
 
     :arg y: A variable.
     :arg space: The space for the return value.
     :arg name: A :class:`str` name.
-    :returns: The FEniCS `Function`.
+    :returns: The DOLFIN `Function`.
     """
 
     x = Function(space, space_type=var_space_type(y), name=name)

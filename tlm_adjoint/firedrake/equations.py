@@ -120,7 +120,7 @@ class Assembly(ExprEquation):
 
     :arg x: A variable defining the forward solution.
     :arg rhs: A :class:`ufl.Form` to assemble. Should have arity 0 or 1, and
-        should not depend on the forward solution.
+        should not depend on `x`.
     :arg form_compiler_parameters: Form compiler parameters.
     :arg match_quadrature: Whether to set quadrature parameters consistently in
         the forward, adjoint, and tangent-linears. Defaults to
@@ -754,13 +754,10 @@ def expr_new_x(expr, x, *,
 
 def linear_equation_new_x(eq, x, *,
                           annotate=None, tlm=None):
-    """If a symbolic expression for a linear finite element variational
-    problem depends on the symbolic variable representing the problem solution,
+    """If a symbolic expression for a linear finite element variational problem
+    depends on the symbolic variable representing the problem solution `x`,
     then record the assignment `x_old = x`, and replace `x` with `x_old` in the
     symbolic expression.
-
-    Required for the case where a 'new' value is computed by solving a linear
-    finite element variational problem depending on the 'old' value.
 
     :arg eq: A :class:`ufl.equation.Equation` defining the finite element
         variational problem.
@@ -828,7 +825,7 @@ class DirichletBCApplication(Equation):
     :arg y: A :class:`firedrake.function.Function`, defines the Dirichet
         boundary condition.
 
-    Remaining arguments are pass to the :class:`firedrake.bcs.DirichletBC`
+    Remaining arguments are passed to the :class:`firedrake.bcs.DirichletBC`
     constructor.
     """
 

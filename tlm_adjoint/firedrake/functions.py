@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module includes functionality for handling :class:`ufl.Coefficient`
-objects and boundary conditions.
+"""This module includes functionality for interacting with Firedrake variables
+and Dirichlet boundary conditions.
 """
 
 from .backend import (
@@ -251,24 +251,25 @@ def constant_value(value=None, shape=None):
 
 
 class Constant(backend_Constant):
-    """Extends the backend `Constant` class.
+    """Extends the :class:`firedrake.constant.Constant` class.
 
     :arg value: The initial value. `None` indicates a value of zero.
     :arg name: A :class:`str` name.
-    :arg domain: The domain on which the :class:`Constant` is defined.
-    :arg space: The space on which the :class:`Constant` is defined.
-    :arg space_type: The space type for the :class:`Constant`. `'primal'`,
+    :arg domain: The domain on which the :class:`.Constant` is defined.
+    :arg space: The space on which the :class:`.Constant` is defined.
+    :arg space_type: The space type for the :class:`.Constant`. `'primal'`,
         `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
     :arg shape: A :class:`tuple` of :class:`int` objects defining the shape of
         the value.
-    :arg comm: The communicator for the :class:`Constant`.
-    :arg static: Defines whether the :class:`Constant` is static, meaning that
+    :arg comm: The communicator for the :class:`.Constant`.
+    :arg static: Defines whether the :class:`.Constant` is static, meaning that
         it is stored by reference in checkpointing/replay, and an associated
         tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`Constant` may be
+    :arg cache: Defines whether results involving the :class:`.Constant` may be
         cached. Default `static`.
 
-    Remaining arguments are passed to the backend `Constant` constructor.
+    Remaining arguments are passed to the :class:`firedrake.constant.Constant`
+    constructor.
     """
 
     def __init__(self, value=None, *args, name=None, domain=None, space=None,
@@ -349,9 +350,9 @@ class Zero:
 
 
 class ZeroConstant(Constant, Zero):
-    """A :class:`Constant` which is flagged as having a value of zero.
+    """A :class:`.Constant` which is flagged as having a value of zero.
 
-    Arguments are passed to the :class:`Constant` constructor, together with
+    Arguments are passed to the :class:`.Constant` constructor, together with
     `static=True` and `cache=True`.
     """
 
@@ -478,8 +479,8 @@ def derivative(expr, x, argument=None, *,
 
 
 def eliminate_zeros(expr, *, force_non_empty_form=False):
-    """Apply zero elimination for :class:`tlm_adjoint.firedrake.functions.Zero`
-    objects in the supplied :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
+    """Apply zero elimination for :class:`.Zero` objects in the supplied
+    :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
 
     :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
     :arg force_non_empty_form: If `True` and if `expr` is a :class:`ufl.Form`,
@@ -534,14 +535,15 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
 
 
 class DirichletBC(backend_DirichletBC):
-    """Extends the backend `DirichletBC`.
+    """Extends the :class:`firedrake.bcs.DirichletBC` class.
 
     :arg static: A flag that indicates that the value for the
-        :class:`DirichletBC` will not change, and which determines whether
-        calculations involving this :class:`DirichletBC` can be cached. If
+        :class:`.DirichletBC` will not change, and which determines whether
+        calculations involving this :class:`.DirichletBC` can be cached. If
         `None` then autodetected from the value.
 
-    Remaining arguments are passed to the backend `DirichletBC` constructor.
+    Remaining arguments are passed to the :class:`firedrake.bcs.DirichletBC`
+    constructor.
     """
 
     # Based on FEniCS 2019.1.0 DirichletBC API
@@ -564,7 +566,7 @@ class DirichletBC(backend_DirichletBC):
         self._tlm_adjoint__homogeneous = _homogeneous
 
     def homogenize(self):
-        """Homogenize the :class:`DirichletBC`, setting its value to zero.
+        """Homogenize the :class:`.DirichletBC`, setting its value to zero.
         """
 
         if self._tlm_adjoint__static:
@@ -575,9 +577,9 @@ class DirichletBC(backend_DirichletBC):
             self._tlm_adjoint__homogeneous = True
 
     def set_value(self, *args, **kwargs):
-        """Set the :class:`DirichletBC` value.
+        """Set the :class:`.DirichletBC` value.
 
-        Arguments are passed to the base class `set_value` method.
+        Arguments are passed to :meth:`firedrake.bcs.DirichletBC.set_value`.
         """
 
         if self._tlm_adjoint__static:
@@ -587,10 +589,10 @@ class DirichletBC(backend_DirichletBC):
 
 
 class HomogeneousDirichletBC(DirichletBC):
-    """A :class:`DirichletBC` whose value is zero.
+    """A :class:`.DirichletBC` whose value is zero.
 
-    Arguments are passed to the :class:`DirichletBC` constructor, together with
-    `static=True`.
+    Arguments are passed to the :class:`.DirichletBC` constructor, together
+    with `static=True`.
     """
 
     # Based on FEniCS 2019.1.0 DirichletBC API
@@ -702,7 +704,8 @@ class Replacement(ufl.classes.Coefficient):
 
 
 class ReplacementConstant(Replacement):
-    """Represents a symbolic constant, but has no value.
+    """Represents a symbolic :class:`firedrake.constant.Constant`, but has no
+    value.
     """
 
     def __init__(self, x):
@@ -712,7 +715,8 @@ class ReplacementConstant(Replacement):
 
 
 class ReplacementFunction(Replacement):
-    """Represents a symbolic backend `Function`, but has no value.
+    """Represents a symbolic :class:`firedrake.function.Function`, but has no
+    value.
     """
 
     def function_space(self):

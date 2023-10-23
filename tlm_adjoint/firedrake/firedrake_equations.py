@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module includes functionality for use with the tlm_adjoint Firedrake
-backend.
+"""This module includes additional functionality for use with Firedrake.
 """
 
 from .backend import (
