@@ -145,8 +145,9 @@ def minimize_scipy(forward, M0, *,
         which returns a variable defining the forward functional.
     :arg M0: A variable or :class:`Sequence` of variables defining the control,
         and the initial guess for the optimization.
-    :arg manager: An :class:`.EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
     :returns: A :class:`tuple` `(M, return_value)`. `M` is variable or a
         :class:`Sequence` of variables depending on the type of `M0`, and
         stores the result. `return_value` is the return value of
@@ -159,7 +160,8 @@ def minimize_scipy(forward, M0, *,
         return M, return_value
 
     if manager is None:
-        manager = _manager().new()
+        manager = _manager()
+    manager = manager.new()
     comm = manager.comm()
 
     N = [0]
@@ -884,8 +886,9 @@ def minimize_l_bfgs(forward, M0, *,
         which returns a variable defining the forward functional.
     :arg M0: A variable or :class:`Sequence` of variables defining the control,
         and the initial guess for the optimization.
-    :arg manager: An :class:`.EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
 
     Remaining arguments and the return value are described in the
     :func:`.l_bfgs` documentation.
@@ -902,7 +905,8 @@ def minimize_l_bfgs(forward, M0, *,
             raise ValueError("Invalid dtype")
 
     if manager is None:
-        manager = _manager().new()
+        manager = _manager()
+    manager = manager.new()
     comm = manager.comm()
 
     J_hat = ReducedFunctional(forward, manager=manager)
@@ -949,8 +953,9 @@ def minimize_tao(forward, M0, *,
     :arg post_callback: A callable accepting a single
         :class:`petsc4py.PETSc.TAO` argument. Called after the
         :meth:`petsc4py.PETSc.TAO.solve` method has been called.
-    :arg manager: An :class:`.EquationManager` which
-        should be used internally. `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
     :returns: A variable or a :class:`Sequence` of variables storing the
         result.
     """
@@ -1024,7 +1029,8 @@ def minimize_tao(forward, M0, *,
         x.setArray(x_a)
 
     if manager is None:
-        manager = _manager().new()
+        manager = _manager()
+    manager = manager.new()
     comm = manager.comm()
     comm = comm_dup_cached(comm, key="minimize_tao")
 

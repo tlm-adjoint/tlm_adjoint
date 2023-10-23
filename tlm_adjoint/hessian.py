@@ -101,13 +101,15 @@ class GeneralHessian(Hessian):
 
     :arg forward: A callable which accepts one or more variable arguments, and
         which returns a variable defining the forward functional.
-    :arg manager: An :class:`.EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
     """
 
     def __init__(self, forward, *, manager=None):
         if manager is None:
-            manager = _manager().new()
+            manager = _manager()
+        manager = manager.new()
 
         super().__init__()
         self._forward = forward
@@ -309,14 +311,16 @@ class GeneralGaussNewton(GaussNewton):
         state.
     :arg R_inv_action: See :class:`.GaussNewton`.
     :arg B_inv_action: See :class:`.GaussNewton`.
-    :arg manager: An :class:`.EquationManager` which should be used internally.
-        `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
     """
 
     def __init__(self, forward, R_inv_action, B_inv_action=None, *,
                  manager=None):
         if manager is None:
-            manager = _manager().new()
+            manager = _manager()
+        manager = manager.new()
 
         super().__init__(R_inv_action, B_inv_action=B_inv_action)
         self._forward = forward
