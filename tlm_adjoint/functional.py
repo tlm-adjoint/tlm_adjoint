@@ -61,7 +61,7 @@ class Functional(Float):
         """
 
         if is_var(y) and var_is_scalar(y):
-            J_old = self.new().assign(self)
+            J_old = self.new(self, annotate=annotate, tlm=tlm)
             Axpy(self, J_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
         elif isinstance(y, (int, np.integer, sp.Integer,
                             float, np.floating, sp.Float,
@@ -69,7 +69,7 @@ class Functional(Float):
                             sp.Expr)):
             super().addto(y, annotate=annotate, tlm=tlm)
         else:
-            J_old = self.new().assign(self)
+            J_old = self.new(self, annotate=annotate, tlm=tlm)
             b = self.new()
             functional_term_eq(b, y).solve(annotate=annotate, tlm=tlm)
             Axpy(self, J_old, 1.0, b).solve(annotate=annotate, tlm=tlm)
