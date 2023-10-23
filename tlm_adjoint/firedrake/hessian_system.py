@@ -55,8 +55,8 @@ class MixedSpace(_MixedSpace):
                          self.split_space)
 
 
-# Complex note: It is convenient to define a Hessian matrix action in terms of
-# the *conjugate* of the action, i.e. (H \zeta)^{*,T}, e.g. this is the form
+# Complex note: It is convenient to define a Hessian action in terms of the
+# *conjugate* of the action, i.e. (H \zeta)^{*,T}, e.g. this is the form
 # returned by reverse-over-forward AD. However complex conjugation is then
 # needed in a number of places (e.g. one cannot define an eigenproblem directly
 # in terms of the conjugate of an action, as this is antilinear, rather than
@@ -109,7 +109,7 @@ class HessianSystem(System):
     :arg nullspace: A :class:`.Nullspace` or a :class:`Sequence` of
         :class:`.Nullspace` objects defining the nullspace and left nullspace
         of the Hessian matrix. `None` indicates a :class:`.NoneNullspace`.
-    :arg comm: MPI communicator.
+    :arg comm: A communicator.
     """
 
     def __init__(self, H, M, *,

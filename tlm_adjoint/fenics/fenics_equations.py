@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This module includes functionality for use with the tlm_adjoint FEniCS
-backend.
+"""This module includes additional functionality for use with FEniCS.
 """
 
 from .backend import (
@@ -214,7 +213,7 @@ class LocalSolverCache(Cache):
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
         :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
-            `dolfin.LocalSolver` and `value_ref` is a :class:`.CacheRef`
+            DOLFIN `LocalSolver` and `value_ref` is a :class:`.CacheRef`
             storing a reference to `value`.
         """
 
@@ -263,7 +262,7 @@ class LocalProjection(EquationSolver):
     performing a projection onto the space for `x`, for the case where the mass
     matrix is element-wise local block diagonal.
 
-    :arg x: A `dolfin.Function` defining the forward solution.
+    :arg x: A DOLFIN `Function` defining the forward solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
         onto the space for `x`, or a :class:`ufl.Form` defining the
         right-hand-side of the finite element variational problem. Should not
@@ -486,8 +485,8 @@ class Interpolation(LinearEquation):
     between owned and non-owned nodes in the degree of freedom graph associated
     with the discrete function space for `y`.
 
-    :arg x: A scalar-valued `dolfin.Function` defining the forward solution.
-    :arg y: A scalar-valued `dolfin.Function` to interpolate onto the space for
+    :arg x: A scalar-valued DOLFIN `Function` defining the forward solution.
+    :arg y: A scalar-valued DOLFIN `Function` to interpolate onto the space for
         `x`.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
@@ -495,8 +494,9 @@ class Interpolation(LinearEquation):
         dimension. Defaults to the process local degree of freedom locations
         for `x`. Ignored if `P` is supplied.
     :arg P: The interpolation matrix. A :class:`scipy.sparse.spmatrix`.
-    :arg tolerance: Maximum permitted distance of an interpolation point from
-        a cell in the mesh for `y`. Ignored if `P` is supplied.
+    :arg tolerance: Maximum permitted distance (as returned by the DOLFIN
+        `BoundingBoxTree.compute_closest_entity` method) of an interpolation
+        point from a cell in the mesh for `y`. Ignored if `P` is supplied.
     """
 
     def __init__(self, x, y, *, x_coords=None, P=None,
@@ -547,14 +547,15 @@ class PointInterpolation(Equation):
 
     :arg X: A scalar variable, or a :class:`Sequence` of scalar variables,
         defining the forward solution.
-    :arg y: A scalar-valued `dolfin.Function` to interpolate.
+    :arg y: A scalar-valued DOLFIN `Function` to interpolate.
     :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
         to interpolate `y`. Shape is `(n, d)` where `n` is the number of
         interpolation points and `d` is the geometric dimension. Ignored if `P`
         is supplied.
     :arg P: The interpolation matrix. A :class:`scipy.sparse.spmatrix`.
-    :arg tolerance: Maximum permitted distance of an interpolation point from
-        a cell in the mesh for `y`. Ignored if `P` is supplied.
+    :arg tolerance: Maximum permitted distance (as returned by the DOLFIN
+        `BoundingBoxTree.compute_closest_entity` method) of an interpolation
+        point from a cell in the mesh for `y`. Ignored if `P` is supplied.
     """
 
     def __init__(self, X, y, X_coords=None, *,

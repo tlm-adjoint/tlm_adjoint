@@ -3,9 +3,9 @@
 
 r"""This module implements solvers for linear systems defined in mixed spaces.
 
-The :class:`System` class defines the block structure of the linear system, and
-solves the system using an outer Krylov solver. A custom preconditioner can be
-defined via the `pc_fn` callback to :meth:`System.solve`, and this
+The :class:`.System` class defines the block structure of the linear system,
+and solves the system using an outer Krylov solver. A custom preconditioner can
+be defined via the `pc_fn` callback to :meth:`.System.solve`, and this
 preconditioner can itself e.g. make use of further Krylov solvers. This
 provides a Python interface for custom block preconditioners.
 
@@ -15,7 +15,7 @@ Given a linear problem with a potentially singular matrix :math:`A`
 
     A u = b,
 
-a :class:`System` instead solves the linear problem
+a :class:`.System` instead solves the linear problem
 
 .. math::
 
@@ -49,9 +49,9 @@ This has two primary use cases:
     2. Where the matrix :math:`A` is singular and :math:`b` is orthogonal to
        the left nullspace of :math:`A`. Typically one would then choose
        :math:`U` and :math:`V` so that their columns respectively span the left
-       nullspace and nullspace of :math:`A`, and the :class:`System` then seeks
-       a solution to the original problem subject to the linear constraints
-       :math:`V^* C u = 0`.
+       nullspace and nullspace of :math:`A`, and the :class:`.System` then
+       seeks a solution to the original problem subject to the linear
+       constraints :math:`V^* C u = 0`.
 
 Function spaces are defined via Firedrake function spaces, and
 :class:`Sequence` objects containing Firedrake function spaces or similar
@@ -644,9 +644,9 @@ class DirichletBCNullspace(Nullspace):
 class BlockNullspace(Nullspace):
     """Nullspaces for a mixed space.
 
-    :arg nullspaces: A :class:`Nullspace` or a :class:`Sequence` of
-        :class:`Nullspace` objects defining the nullspace. `None` indicates a
-        :class:`NoneNullspace`.
+    :arg nullspaces: A :class:`.Nullspace` or a :class:`Sequence` of
+        :class:`.Nullspace` objects defining the nullspace. `None` indicates a
+        :class:`.NoneNullspace`.
     """
 
     def __init__(self, nullspaces):
@@ -749,8 +749,8 @@ class Matrix(ABC):
 
 
 class PETScMatrix(Matrix):
-    r"""A :class:`Matrix` associated with a :class:`petsc4py.PETSc.Mat`
-    :math:`A` mapping :math:`V \rightarrow W`.
+    r"""A :class:`tlm_adjoint.firedrake.block_system.Matrix` associated with a
+    :class:`petsc4py.PETSc.Mat` :math:`A` mapping :math:`V \rightarrow W`.
 
     :arg arg_space: Defines the space `V`.
     :arg action_space: Defines the space `W`.
@@ -768,11 +768,11 @@ class PETScMatrix(Matrix):
 
 
 def form_matrix(a, *args, **kwargs):
-    """Construct a :class:`PETScMatrix` associated with a given sesquilinear
+    """Construct a :class:`.PETScMatrix` associated with a given sesquilinear
     form.
 
     :arg a: A :class:`ufl.Form` defining the sesquilinear form.
-    :returns: The :class:`PETScMatrix`.
+    :returns: The :class:`.PETScMatrix`.
 
     Remaining arguments are passed to the :func:`firedrake.assemble.assemble`
     function.
@@ -793,9 +793,10 @@ class BlockMatrix(Matrix):
     :arg arg_spaces: Defines the space `V`.
     :arg action_spaces: Defines the space `W`.
     :arg block: A :class:`Mapping` defining the blocks of the matrix. Items are
-        `((i, j), block)` defining a :class:`ufl.Form` or :class:`Matrix` for
-        the block in row `i` and column `j`. A value for `block` of `None`
-        indicates a zero block.
+        `((i, j), block)` where the block in the `i` th and `j` th column is
+        defined by `block`. Each `block` is a
+        :class:`tlm_adjoint.firedrake.block_system.Matrix` or
+        :class:`ufl.Form`, or `None` to indicate a zero block.
     """
 
     def __init__(self, arg_spaces, action_spaces, blocks=None):
@@ -944,15 +945,17 @@ class System:
     :arg action_spaces: Defines the space for `b`.
     :arg blocks: One of
 
-        - A :class:`Matrix` or :class:`ufl.Form` defining :math:`A`.
+        - A :class:`tlm_adjoint.firedrake.block_system.Matrix` or
+          :class:`ufl.Form` defining :math:`A`.
         - A :class:`Mapping` with items `((i, j), block)` where the matrix
           associated with the block in the `i` th and `j` th column is defined
-          by `block`. Each `block` is a :class:`Matrix` or :class:`ufl.Form`,
-          or `None` to indicate a zero block.
+          by `block`. Each `block` is a
+          :class:`tlm_adjoint.firedrake.block_system.Matrix` or
+          :class:`ufl.Form`, or `None` to indicate a zero block.
 
-    :arg nullspaces: A :class:`Nullspace` or a :class:`Sequence` of
-        :class:`Nullspace` objects defining the nullspace and left nullspace of
-        :math:`A`. `None` indicates a :class:`NoneNullspace`.
+    :arg nullspaces: A :class:`.Nullspace` or a :class:`Sequence` of
+        :class:`.Nullspace` objects defining the nullspace and left nullspace
+        of :math:`A`. `None` indicates a :class:`.NoneNullspace`.
     :arg comm: Communicator.
     """
 
