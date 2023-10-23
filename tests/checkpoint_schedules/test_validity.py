@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint.checkpoint_schedules import \
-    Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse
-from tlm_adjoint.checkpoint_schedules import \
-    (MemoryCheckpointSchedule,
-     PeriodicDiskCheckpointSchedule,
-     MultistageCheckpointSchedule,
-     TwoLevelCheckpointSchedule,
-     HRevolveCheckpointSchedule,
-     MixedCheckpointSchedule)
+from tlm_adjoint.checkpoint_schedules import (
+    Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse)
+from tlm_adjoint.checkpoint_schedules import (
+    MemoryCheckpointSchedule,
+    PeriodicDiskCheckpointSchedule,
+    MultistageCheckpointSchedule,
+    TwoLevelCheckpointSchedule,
+    HRevolveCheckpointSchedule,
+    MixedCheckpointSchedule)
 
 import functools
 import pytest

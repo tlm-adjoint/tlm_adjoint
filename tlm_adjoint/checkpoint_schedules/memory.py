@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .schedule import CheckpointSchedule, Configure, Forward, Reverse, \
-    EndForward, EndReverse
+from .schedule import (
+    CheckpointSchedule, Configure, Forward, Reverse, EndForward, EndReverse)
 
 import sys
 

@@ -23,12 +23,10 @@ __all__ = \
 
 class CheckpointAction:
     """A checkpointing action.
-
-    Parameters can be accessed via the `args` attribute.
     """
 
     def __init__(self, *args):
-        self.args = args
+        self._args = args
 
     def __repr__(self):
         return f"{type(self).__name__}{self.args!r}"
@@ -36,14 +34,18 @@ class CheckpointAction:
     def __eq__(self, other):
         return type(self) is type(other) and self.args == other.args
 
+    @property
+    def args(self):
+        """Action parameters."""
+
+        return self._args
+
 
 class Clear(CheckpointAction):
     """A checkpointing action which clears the intermediate storage.
 
-    :arg clear_ics: Whether to clear stored forward restart data. Accessed
-        via the `clear_ics` attribute.
+    :arg clear_ics: Whether to clear stored forward restart data.
     :arg clear_data: Whether to clear stored non-linear dependency data.
-        Accessed via the `clear_data` attribute.
     """
 
     def __init__(self, clear_ics, clear_data):
@@ -51,20 +53,22 @@ class Clear(CheckpointAction):
 
     @property
     def clear_ics(self):
+        """Whether to clear stored forward restart data."""
+
         return self.args[0]
 
     @property
     def clear_data(self):
+        """Whether to clear stored non-linear dependency data."""
+
         return self.args[1]
 
 
 class Configure(CheckpointAction):
     """A checkpointing action which configures the intermediate storage.
 
-    :arg store_ics: Whether to store forward restart data. Accessed via the
-        `store_ics` attribute.
-    :arg store_data: Whether to store non-linear dependency data. Accessed
-        via the `store_data` attribute.
+    :arg store_ics: Whether to store forward restart data.
+    :arg store_data: Whether to store non-linear dependency data.
     """
 
     def __init__(self, store_ics, store_data):
@@ -72,20 +76,22 @@ class Configure(CheckpointAction):
 
     @property
     def store_ics(self):
+        """Whether to store forward restart data."""
+
         return self.args[0]
 
     @property
     def store_data(self):
+        """Whether to store non-linear dependency data."""
+
         return self.args[1]
 
 
 class Forward(CheckpointAction):
     """A checkpointing action which indicates forward advancement.
 
-    :arg n0: The forward should start from the start of this step. Accessed via
-        the `n0` attribute.
-    :arg n1: The forward should advance to the start of this step. Accessed via
-        the `n1` attribute.
+    :arg n0: The forward should advance from the start of this step.
+    :arg n1: The forward should advance to the start of this step.
     """
 
     def __init__(self, n0, n1):
@@ -102,20 +108,22 @@ class Forward(CheckpointAction):
 
     @property
     def n0(self):
+        """The forward should advance from the start of this step."""
+
         return self.args[0]
 
     @property
     def n1(self):
+        """The forward should advance to the start of this step."""
+
         return self.args[1]
 
 
 class Reverse(CheckpointAction):
     """A checkpointing action which indicates adjoint advancement.
 
-    :arg n1: The adjoint should advance from the start of this step. Accessed
-        via the `n1` attribute.
-    :arg n0: The adjoint should to the start of this step. Accessed via the
-        `n0` attribute.
+    :arg n1: The adjoint should advance from the start of this step.
+    :arg n0: The adjoint should advance to the start of this step.
     """
 
     def __init__(self, n1, n0):
@@ -132,10 +140,14 @@ class Reverse(CheckpointAction):
 
     @property
     def n0(self):
+        """The adjoint should advance to the start of this step."""
+
         return self.args[1]
 
     @property
     def n1(self):
+        """The adjoint should advance from the start of this step."""
+
         return self.args[0]
 
 
@@ -143,12 +155,11 @@ class Read(CheckpointAction):
     """A checkpointing action which indicates loading of data from a
     checkpointing unit.
 
-    :arg n: The step with which the loaded data is associated. Accessed via the
-        `n` attribute.
+    :arg n: The step with which the loaded data is associated.
     :arg storage: The storage from which the data should be loaded. Either
-        `'RAM'` or `'disk'`. Accessed via the `storage` attribute.
+        `'RAM'` or `'disk'`.
     :arg delete: Whether the data should be deleted from the indicated storage
-        after it has been loaded. Accessed via the `delete` attribute.
+        after it has been loaded.
     """
 
     def __init__(self, n, storage, delete):
@@ -156,14 +167,22 @@ class Read(CheckpointAction):
 
     @property
     def n(self):
+        """The step with which the loaded data is associated."""
+
         return self.args[0]
 
     @property
     def storage(self):
+        """The storage from which the data should be loaded. Either `'RAM'` or
+        `'disk'`."""
+
         return self.args[1]
 
     @property
     def delete(self):
+        """Whether the data should be deleted from the indicated storage after
+        it has been loaded."""
+
         return self.args[2]
 
 
@@ -171,10 +190,9 @@ class Write(CheckpointAction):
     """A checkpointing action which indicates saving of data to a checkpointing
     unit.
 
-    :arg n: The step with which the saved data is associated. Accessed via the
-        `n` attribute.
+    :arg n: The step with which the saved data is associated.
     :arg storage: The storage to which the data should be saved. Either `'RAM'`
-        or `'disk'`. Accessed via the `storage` attribute.
+        or `'disk'`.
     """
 
     def __init__(self, n, storage):
@@ -182,10 +200,15 @@ class Write(CheckpointAction):
 
     @property
     def n(self):
+        """The step with which the saved data is associated."""
+
         return self.args[0]
 
     @property
     def storage(self):
+        """The storage to which the data should be saved. Either `'RAM'` or
+        `'disk'`."""
+
         return self.args[1]
 
 
@@ -194,7 +217,8 @@ class EndForward(CheckpointAction):
     calculation.
     """
 
-    pass
+    def __init__(self):
+        super().__init__()
 
 
 class EndReverse(CheckpointAction):
@@ -202,8 +226,7 @@ class EndReverse(CheckpointAction):
     calculation.
 
     :arg exhausted: Indicates whether the schedule has concluded. If `True`
-        then this action should be the last action in the schedule. Accessed
-        via the `exhausted` attribute.
+        then this action should be the last action in the schedule.
     """
 
     def __init__(self, exhausted):
@@ -211,6 +234,9 @@ class EndReverse(CheckpointAction):
 
     @property
     def exhausted(self):
+        """Indicates whether the schedule has concluded. If `True` then this
+        action should be the last action in the schedule."""
+
         return self.args[0]
 
 
@@ -250,11 +276,12 @@ class CheckpointSchedule(ABC):
     calculation is initially known, this should be provided using the `max_n`
     argument on instantiation. In 'online' schedules, where the number of steps
     in the forward calculation is initially unknown, the number of forward
-    steps should later be provided using the :meth:`finalize` method.
+    steps should later be provided using the
+    :meth:`.CheckpointSchedule.finalize` method.
 
     :arg max_n: The number of steps in the initial forward calculation. If not
         supplied then this should later be provided by calling the
-        :meth:`finalize` method.
+        :meth:`.CheckpointSchedule.finalize` method.
     """
 
     def __init__(self, max_n=None):

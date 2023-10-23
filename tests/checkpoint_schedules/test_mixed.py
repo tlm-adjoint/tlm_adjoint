@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tlm_adjoint.checkpoint_schedules import MixedCheckpointSchedule, Clear, \
-    Configure, Forward, Reverse, Read, Write, EndForward, EndReverse
-from tlm_adjoint.checkpoint_schedules.mixed import mixed_step_memoization, \
-    optimal_steps
+from tlm_adjoint.checkpoint_schedules import (
+    MixedCheckpointSchedule, Clear, Configure, Forward, Reverse, Read, Write,
+    EndForward, EndReverse)
+from tlm_adjoint.checkpoint_schedules.mixed import (
+    mixed_step_memoization, optimal_steps)
 
 import functools
 import pytest
