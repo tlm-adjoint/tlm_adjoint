@@ -145,8 +145,9 @@ def minimize_scipy(forward, M0, *,
         which returns a variable defining the forward functional.
     :arg M0: A variable or :class:`Sequence` of variables defining the control,
         and the initial guess for the optimization.
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
-        should be used internally. `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
     :returns: A :class:`tuple` `(M, return_value)`. `M` is variable or a
         :class:`Sequence` of variables depending on the type of `M0`, and
         stores the result. `return_value` is the return value of
@@ -159,7 +160,8 @@ def minimize_scipy(forward, M0, *,
         return M, return_value
 
     if manager is None:
-        manager = _manager().new()
+        manager = _manager()
+    manager = manager.new()
     comm = manager.comm()
 
     N = [0]
@@ -294,10 +296,10 @@ def wrapped_action(M, *, copy=True):
 
 
 class LBFGSHessianApproximation:
-    """L-BFGS Hessian matrix approximation.
+    """L-BFGS Hessian approximation.
 
     :arg m: Maximum number of vector pairs to retain in the L-BFGS Hessian
-        matrix approximation.
+        approximation.
     """
 
     def __init__(self, m):
@@ -335,10 +337,10 @@ class LBFGSHessianApproximation:
 
     def inverse_action(self, X, *,
                        H_0_action=None, theta=1.0):
-        """Compute the action of the approximate Hessian matrix inverse on some
-        given direction.
+        """Compute the action of the approximate Hessian inverse on some given
+        direction.
 
-        Implements the L-BFGS Hessian matrix inverse action approximation as in
+        Implements the L-BFGS Hessian inverse action approximation as in
         Algorithm 7.4 of
 
             - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
@@ -353,14 +355,14 @@ class LBFGSHessianApproximation:
               doi: 10.1137/0916069
 
         :arg X: A variable or a :class:`Sequence` of variables defining the
-            direction on which to compute the approximate Hessian matrix
-            inverse action.
+            direction on which to compute the approximate Hessian inverse
+            action.
         :arg H_0_action: A callable defining the action of the non-updated
-            Hessian matrix inverse approximation on some direction. Accepts one
-            or more variables as arguments, defining the direction, and returns
-            a variable or a :class:`Sequence` of variables defining the action
-            on this direction. Should correspond to a positive definite
-            operator. An identity is used if not supplied.
+            Hessian inverse approximation on some direction. Accepts one or
+            more variables as arguments, defining the direction, and returns a
+            variable or a :class:`Sequence` of variables defining the action on
+            this direction. Should correspond to a positive definite operator.
+            An identity is used if not supplied.
         :returns: A variable or a :class:`Sequence` of variables storing the
             result.
         """
@@ -572,9 +574,9 @@ def l_bfgs(F, Fp, X0, *,
 
     in a more general inner product space.
 
-    By default uses 'theta scaling' to define the initial Hessian matrix
-    inverse approximation, based on the approach in equation (3.7) and point 7
-    on p. 1204 of
+    By default uses 'theta scaling' to define the initial Hessian inverse
+    approximation, based on the approach in equation (3.7) and point 7 on p.
+    1204 of
 
         - Richard H. Byrd, Peihuang Lu, and Jorge Nocedal, and Ciyou Zhu, 'A
           limited memory algorithm for bound constrained optimization', SIAM
@@ -588,8 +590,8 @@ def l_bfgs(F, Fp, X0, *,
           Springer, New York, NY, 2006, Second edition,
           doi: 10.1007/978-0-387-40065-5
 
-    Precisely the Hessian matrix inverse approximation, before being updated,
-    is scaled by :math:`1 / \theta` with, on the first iteration,
+    Precisely the Hessian inverse approximation, before being updated, is
+    scaled by :math:`1 / \theta` with, on the first iteration,
 
     .. math::
 
@@ -615,7 +617,7 @@ def l_bfgs(F, Fp, X0, *,
     :arg X0: A variable or a :class:`Sequence` of variables defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
-        Hessian matrix inverse approximation.
+        Hessian inverse approximation.
     :arg s_atol: Absolute tolerance for the step change norm convergence
         criterion.
     :arg g_atol: Absolute tolerance for the gradient norm convergence
@@ -645,11 +647,11 @@ def l_bfgs(F, Fp, X0, *,
         indicating whether the optimization has converged.
     :arg max_its: The maximum number of iterations.
     :arg H_0_action: A callable defining the action of the non-updated Hessian
-        matrix inverse approximation on some direction. Accepts one or more
-        variables as arguments, defining the direction, and returns a variable
-        or a :class:`Sequence` of variables defining the action on this
-        direction. Should correspond to a positive definite operator. An
-        identity is used if not supplied.
+        inverse approximation on some direction. Accepts one or more variables
+        as arguments, defining the direction, and returns a variable or a
+        :class:`Sequence` of variables defining the action on this direction.
+        Should correspond to a positive definite operator. An identity is used
+        if not supplied.
     :arg theta_scale: Whether to apply 'theta scaling', discussed above.
     :arg delta: Controls the initial value of :math:`\theta` in 'theta
         scaling'. If `None` then on the first iteration :math:`\theta` is set
@@ -700,7 +702,7 @@ def l_bfgs(F, Fp, X0, *,
         - `it`: The number of iterations.
         - `F_calls`: The number of functional evaluations.
         - `Fp_calls`: The number of gradient evaluations.
-        - `hessian_approx`: The :class:`LBFGSHessianApproximation`.
+        - `hessian_approx`: The :class:`.LBFGSHessianApproximation`.
     """
 
     logger = logging.getLogger("tlm_adjoint.l_bfgs")
@@ -884,11 +886,12 @@ def minimize_l_bfgs(forward, M0, *,
         which returns a variable defining the forward functional.
     :arg M0: A variable or :class:`Sequence` of variables defining the control,
         and the initial guess for the optimization.
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
-        should be used internally. `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
 
     Remaining arguments and the return value are described in the
-    :func:`l_bfgs` documentation.
+    :func:`.l_bfgs` documentation.
     """
 
     if not isinstance(M0, Sequence):
@@ -902,7 +905,8 @@ def minimize_l_bfgs(forward, M0, *,
             raise ValueError("Invalid dtype")
 
     if manager is None:
-        manager = _manager().new()
+        manager = _manager()
+    manager = manager.new()
     comm = manager.comm()
 
     J_hat = ReducedFunctional(forward, manager=manager)
@@ -949,8 +953,9 @@ def minimize_tao(forward, M0, *,
     :arg post_callback: A callable accepting a single
         :class:`petsc4py.PETSc.TAO` argument. Called after the
         :meth:`petsc4py.PETSc.TAO.solve` method has been called.
-    :arg manager: A :class:`tlm_adjoint.tlm_adjoint.EquationManager` which
-        should be used internally. `manager().new()` is used if not supplied.
+    :arg manager: An :class:`.EquationManager` used to create an internal
+        manager via :meth:`.EquationManager.new`. `manager()` is used if not
+        supplied.
     :returns: A variable or a :class:`Sequence` of variables storing the
         result.
     """
@@ -1024,7 +1029,8 @@ def minimize_tao(forward, M0, *,
         x.setArray(x_a)
 
     if manager is None:
-        manager = _manager().new()
+        manager = _manager()
+    manager = manager.new()
     comm = manager.comm()
     comm = comm_dup_cached(comm, key="minimize_tao")
 

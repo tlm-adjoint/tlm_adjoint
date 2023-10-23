@@ -32,17 +32,18 @@ class LinearEquation(Equation):
 
     .. math::
 
-        \mathcal{F} \left( x, y_1, y_2, \ldots \right) = A x - b.
+        \mathcal{F} \left( x, y_1, y_2, \ldots \right) = A x - \sum_i b_i.
 
     :arg X: A variable or a :class:`Sequence` of variables defining the forward
         solution `x`.
-    :arg B: A :class:`tlm_adjoint.linear_equation.RHS` or a :class:`Sequence`
-        of :class:`tlm_adjoint.linear_equation.RHS` objects defining the
-        right-hand-side terms.
-    :arg A: A :class:`Matrix` defining the left-hand-side matrix. Defaults to
-        an identity matrix if not supplied.
+    :arg B: A :class:`.RHS` or a :class:`Sequence` of :class:`.RHS` objects
+        defining the right-hand-side terms.
+    :arg A: A :class:`tlm_adjoint.linear_equation.Matrix` defining the
+        left-hand-side matrix. Defaults to an identity matrix if not supplied.
     :arg adj_type: The space type relative to `X` of adjoint variables.
         `'primal'` or `'conjugate_dual'`, or a :class:`Sequence` of these.
+        Defaults to `'primal'` if `A` is supplied and `'conjugate_dual'`
+        otherwise.
     """
 
     def __init__(self, X, B, *, A=None, adj_type=None):
@@ -276,7 +277,7 @@ class Matrix(Referrer):
         if nl_deps is None:
             nl_deps = []
         if len({var_id(dep) for dep in nl_deps}) != len(nl_deps):
-            raise ValueError("Duplicate non-linear dependency")
+            raise ValueError("Duplicate dependency")
 
         super().__init__()
         self._nl_deps = tuple(nl_deps)
@@ -287,7 +288,8 @@ class Matrix(Referrer):
         self._nl_deps = tuple(map(var_replacement, self._nl_deps))
 
     def nonlinear_dependencies(self):
-        """Return dependencies of the :class:`Matrix`.
+        """Return dependencies of the
+        :class:`tlm_adjoint.linear_equation.Matrix`.
 
         :returns: A :class:`Sequence` of variables defining dependencies.
         """
@@ -317,8 +319,8 @@ class Matrix(Referrer):
         the result to `B`, or adds the result to or subtracts the result from
         `B`.
 
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
-            non-linear dependencies. Should not be modified.
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
+            dependencies. Should not be modified.
         :arg X: Defines :math:`x`. A variable if it has a single component, and
             a :class:`Sequence` of variables otherwise. Should not be modified.
             Subclasses may replace this argument with `x` if there is a single
@@ -340,8 +342,8 @@ class Matrix(Referrer):
         component to `b`, or adds the `b_index` th component to or subtracts
         the `b_index` th component from `b`.
 
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
-            non-linear dependencies. Should not be modified.
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
+            dependencies. Should not be modified.
         :arg adj_X: Defines :math:`\lambda`. A variable if it has a single
             component, and a :class:`Sequence` of variables otherwise. Should
             not be modified. Subclasses may replace this argument with `adj_x`
@@ -366,8 +368,8 @@ class Matrix(Referrer):
             component, and a :class:`Sequence` of variables otherwise. May
             define an initial guess. Subclasses may replace this argument with
             `x` if there is a single component.
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
-            non-linear dependencies. Should not be modified.
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
+            dependencies. Should not be modified.
         :arg B: The right-hand-side :math:`b`. A variable if it has a single
             component, and a :class:`Sequence` of variables otherwise. Should
             not be modified. Subclasses may replace this argument with `b` if
@@ -382,8 +384,8 @@ class Matrix(Referrer):
         an adjoint variable. Assigns the result to `b`, or adds the result to
         or subtracts the result from `b`.
 
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
-            non-linear dependencies. Should not be modified.
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
+            dependencies. Should not be modified.
         :arg nl_deps_index: An :class:`int`. The derivative is defined by
             differentiation of :math:`A x` with respect to
             `self.nonlinear_dependencies()[nl_dep_index]`.
@@ -413,8 +415,8 @@ class Matrix(Referrer):
             component, and a :class:`Sequence` of variables otherwise. May
             define an initial guess. Subclasses may replace this argument with
             `adj_x` if there is a single component.
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
-            non-linear dependencies. Should not be modified.
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
+            dependencies. Should not be modified.
         :arg B: The right-hand-side :math:`b`. A variable if it has a single
             component, and a :class:`Sequence` of variables otherwise. Should
             not be modified. Subclasses may replace this argument with `b` if
@@ -444,16 +446,15 @@ class Matrix(Referrer):
 
         :arg M: A :class:`Sequence` of variables defining the control.
         :arg dM: A :class:`Sequence` of variables defining the derivative
-            direction. The tangent-linear model computes directional
-            derivatives with respect to the control defined by `M` and with
-            direction defined by `dM`.
-        :arg tlm_map: A :class:`tlm_adjoint.tangent_linear.TangentLinearMap`
-            storing values for tangent-linear variables.
+            direction. The tangent-linear computes directional derivatives with
+            respect to the control defined by `M` and with direction defined by
+            `dM`.
+        :arg tlm_map: A :class:`.TangentLinearMap` storing values for
+            tangent-linear variables.
         :arg X: Defines :math:`x`. A variable if it has a single component, and
             a :class:`Sequence` of variables otherwise. Subclasses may replace
             this argument with `x` if there is a single component.
-        :returns: A :class:`tlm_adjoint.linear_equation.RHS`, or a
-            :class:`Sequence` of :class:`tlm_adjoint.linear_equation.RHS`
+        :returns: A :class:`.RHS`, or a :class:`Sequence` of :class:`.RHS`
             objects, defining the right-hand-side terms. Returning `None`
             indicates that there are no terms.
         """
@@ -496,7 +497,7 @@ class RHS(Referrer):
         self._nl_deps = tuple(map(var_replacement, self._nl_deps))
 
     def dependencies(self):
-        """Return dependencies of the :class:`tlm_adjoint.linear_equation.RHS`.
+        """Return dependencies of the :class:`.RHS`.
 
         :returns: A :class:`Sequence` of variables defining dependencies.
         """
@@ -504,8 +505,7 @@ class RHS(Referrer):
         return self._deps
 
     def nonlinear_dependencies(self):
-        """Return non-linear dependencies of the
-        :class:`tlm_adjoint.linear_equation.RHS`.
+        """Return non-linear dependencies of the :class:`.RHS`.
 
         :returns: A :class:`Sequence` of variables defining non-linear
             dependencies.
@@ -518,10 +518,9 @@ class RHS(Referrer):
 
         :arg B: A variable if it has a single component, and a
             :class:`Sequence` of variables otherwise. Should be updated by the
-            addition of this :class:`tlm_adjoint.linear_equation.RHS`.
-            Subclasses may replace this argument with `b` if there is a single
-            component.
-        :arg deps: A :class:`Sequence` of variables defining values of
+            addition of this :class:`.RHS`. Subclasses may replace this
+            argument with `b` if there is a single component.
+        :arg deps: A :class:`Sequence` of variables defining values for
             dependencies. Should not be modified.
         """
 
@@ -531,7 +530,7 @@ class RHS(Referrer):
         """Subtract the action of the adjoint of a derivative of the
         right-hand-side term, on an adjoint variable, from `b`.
 
-        :arg nl_deps: A :class:`Sequence` of variables defining values of
+        :arg nl_deps: A :class:`Sequence` of variables defining values for
             non-linear dependencies. Should not be modified.
         :arg deps_index: An :class:`int`. The derivative is defined by
             differentiation of the right-hand-side term with respect to
@@ -560,13 +559,12 @@ class RHS(Referrer):
 
         :arg M: A :class:`Sequence` of variables defining the control.
         :arg dM: A :class:`Sequence` of variables defining the derivative
-            direction. The tangent-linear model computes directional
-            derivatives with respect to the control defined by `M` and with
-            direction defined by `dM`.
-        :arg tlm_map: A :class:`tlm_adjoint.tangent_linear.TangentLinearMap`
-            storing values for tangent-linear variables.
-        :returns: A :class:`tlm_adjoint.linear_equation.RHS`, or a
-            :class:`Sequence` of :class:`tlm_adjoint.linear_equation.RHS`
+            direction. The tangent-linear computes directional derivatives with
+            respect to the control defined by `M` and with direction defined by
+            `dM`.
+        :arg tlm_map: A :class:`.TangentLinearMap` storing values for
+            tangent-linear variables.
+        :returns: A :class:`.RHS`, or a :class:`Sequence` of :class:`.RHS`
             objects, defining the right-hand-side terms. Returning `None`
             indicates that there are no terms.
         """

@@ -82,9 +82,9 @@ except ImportError:
 
 
 def set_default_float_dtype(dtype):
-    """Set the default dtype used by :class:`SymbolicFloat` objects.
+    """Set the default data type used by :class:`.SymbolicFloat` objects.
 
-    :arg dtype: The default dtype.
+    :arg dtype: The default data type.
     """
 
     global _default_dtype
@@ -116,12 +116,11 @@ class FloatSpaceInterface(SpaceInterface):
 class FloatSpace:
     """Defines the real or complex space.
 
-    :arg float_cls: The :class:`SymbolicFloat` class, in particular used to
-        instantiate new variables in :func:`tlm_adjoint.interface.space_new`.
-        Defaults to :class:`SymbolicFloat`.
+    :arg float_cls: The :class:`.SymbolicFloat` class, in particular used to
+        instantiate new variables in :func:`.space_new`. Defaults to
+        :class:`.SymbolicFloat`.
     :arg dtype: The data type associated with the space. Typically
-        :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
-        :class:`numpy.cdouble`.
+        :class:`numpy.double` or :class:`numpy.cdouble`.
     :arg comm: The communicator associated with the space.
     """
 
@@ -142,7 +141,7 @@ class FloatSpace:
 
     @property
     def dtype(self):
-        """The dtype associated with the space.
+        """The data type associated with the space.
         """
 
         return self._dtype
@@ -156,7 +155,7 @@ class FloatSpace:
 
     @property
     def float_cls(self):
-        """The :class:`SymbolicFloat` class associated with the space.
+        """The :class:`.SymbolicFloat` class associated with the space.
         """
 
         return self._float_cls
@@ -166,11 +165,11 @@ _overloading = True
 
 
 def no_float_overloading(fn):
-    """Decorator to disable :class:`OverloadedFloat` operator overloading.
+    """Decorator to disable :class:`.OverloadedFloat` operator overloading.
 
-    :arg fn: A callable for which :class:`OverloadedFloat` operator overloading
-        should be disabled.
-    :returns: A callable for which :class:`OverloadedFloat` operator
+    :arg fn: A callable for which :class:`.OverloadedFloat` operator
+        overloading should be disabled.
+    :returns: A callable for which :class:`.OverloadedFloat` operator
         overloading is disabled.
     """
 
@@ -184,10 +183,10 @@ def no_float_overloading(fn):
 @contextlib.contextmanager
 def paused_float_overloading():
     """Construct a context manager which can be used to temporarily disable
-    :class:`OverloadedFloat` operator overloading.
+    :class:`.OverloadedFloat` operator overloading.
 
     :returns: A context manager which can be used to temporarily disable
-        :class:`OverloadedFloat` operator overloading.
+        :class:`.OverloadedFloat` operator overloading.
     """
 
     global _overloading
@@ -323,29 +322,27 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     """A :class:`sympy.core.symbol.Symbol` which is also a 'variable', defining
     a scalar variable.
 
-    If constructing SymPy expressions then the :class:`SymbolicFloat` class
-    should be used instead of the :class:`OverloadedFloat` subclass, or else
-    :class:`OverloadedFloat` operator overloading should be disabled.
+    If constructing SymPy expressions then the :class:`.SymbolicFloat` class
+    should be used instead of the :class:`.OverloadedFloat` subclass, or else
+    :class:`.OverloadedFloat` operator overloading should be disabled.
 
     :arg value: A scalar or :class:`sympy.core.expr.Expr` defining the initial
         value. If a :class:`sympy.core.expr.Expr` then, if annotation or
         derivation and solution of tangent-linear equations is enabled, an
-        assignment is processed by the
-        :class:`tlm_adjoint.tlm_adjoint.EquationManager` `manager`.
-    :arg name: A :class:`str` name for the :class:`SymbolicFloat`.
-    :arg space_type: The space type for the :class:`SymbolicFloat`. `'primal'`,
-        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines whether the :class:`SymbolicFloat` is static, meaning
+        assignment is processed by the :class:`.EquationManager` `manager`.
+    :arg name: A :class:`str` name for the :class:`.SymbolicFloat`.
+    :arg space_type: The space type for the :class:`.SymbolicFloat`.
+        `'primal'`, `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
+    :arg static: Defines whether the :class:`.SymbolicFloat` is static, meaning
         that it is stored by reference in checkpointing/replay, and an
         associated tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`SymbolicFloat`
+    :arg cache: Defines whether results involving the :class:`.SymbolicFloat`
         may be cached. Default `static`.
-    :arg dtype: The data type associated with the :class:`SymbolicFloat`.
-        Typically :class:`numpy.double` or :class:`numpy.cdouble`. Defaults to
-        :class:`numpy.cdouble`.
-    :arg comm: The communicator associated with the :class:`SymbolicFloat`.
-    :arg annotate: Whether the :class:`tlm_adjoint.tlm_adjoint.EquationManager`
-        should record the solution of equations.
+    :arg dtype: The data type associated with the :class:`.SymbolicFloat`.
+        Typically :class:`numpy.double` or :class:`numpy.cdouble`.
+    :arg comm: The communicator associated with the :class:`.SymbolicFloat`.
+    :arg annotate: Whether the :class:`.EquationManager` should record the
+        solution of equations.
     :arg tlm: Whether tangent-linear equations should be solved.
     """
 
@@ -379,7 +376,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         else:
             self.assign(value, annotate=annotate, tlm=tlm)
 
-    def __new__(cls, value=0.0, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         return super().__new__(cls, new_symbol_name())
 
     def new(self, value=0.0, *,
@@ -387,11 +384,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             static=False, cache=None,
             annotate=None, tlm=None):
         """Return a new object, which same type and space type as this
-        :class:`SymbolicFloat`.
+        :class:`.SymbolicFloat`.
 
-        :returns: The new :class:`SymbolicFloat`.
+        :returns: The new :class:`.SymbolicFloat`.
 
-        Arguments are as for the :class:`SymbolicFloat` constructor.
+        Arguments are as for the :class:`.SymbolicFloat` constructor.
         """
 
         x = var_new(self, name=name, static=static, cache=cache)
@@ -414,7 +411,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
     @property
     def space(self):
-        """The :class:`FloatSpace` for the :class:`SymbolicFloat`.
+        """The :class:`.FloatSpace` for the :class:`.SymbolicFloat`.
         """
 
         class CallableProperty(Alias):
@@ -427,20 +424,19 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
     @property
     def space_type(self):
-        """The space type for the :class:`SymbolicFloat`.
+        """The space type for the :class:`.SymbolicFloat`.
         """
 
         return self._space_type
 
     def assign(self, y, *, annotate=None, tlm=None):
-        """:class:`SymbolicFloat` assignment.
+        """:class:`.SymbolicFloat` assignment.
 
         :arg y: A scalar or :class:`sympy.core.expr.Expr` defining the value.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
-        :returns: The :class:`SymbolicFloat`.
+        :returns: The :class:`.SymbolicFloat`.
         """
 
         if annotate is None or annotate:
@@ -473,12 +469,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         return self
 
     def addto(self, y, *, annotate=None, tlm=None):
-        """:class:`SymbolicFloat` in-place addition.
+        """:class:`.SymbolicFloat` in-place addition.
 
         :arg y: A scalar or :class:`sympy.core.expr.Expr` defining the value to
             add.
-        :arg annotate: Whether the
-            :class:`tlm_adjoint.tlm_adjoint.EquationManager` should record the
+        :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
@@ -489,7 +484,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
     @property
     def value(self):
-        """Return the current value associated with the :class:`SymbolicFloat`.
+        """Return the current value associated with the
+        :class:`.SymbolicFloat`.
 
         The value may also be accessed by casting using :class:`float` or
         :class:`complex`.
@@ -508,12 +504,19 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
 # Required by Sphinx
 class SymbolicFloat(_tlm_adjoint__SymbolicFloat):
+    def new(self, value=0.0, *,
+            name=None,
+            static=False, cache=None,
+            annotate=None, tlm=None):
+        pass
+
     def assign(self, y, *, annotate=None, tlm=None):
         pass
 
     def addto(self, y, *, annotate=None, tlm=None):
         pass
 
+    @property
     def value(self):
         pass
 
@@ -574,13 +577,13 @@ class _tlm_adjoint__expm1(sp.Function):  # noqa: N801
 
 class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa: E501,N801
                                     SymbolicFloat):
-    """A subclass of :class:`SymbolicFloat` with operator overloading.
+    """A subclass of :class:`.SymbolicFloat` with operator overloading.
 
-    If constructing SymPy expressions then the :class:`SymbolicFloat` class
-    should be used instead of the :class:`OverloadedFloat` subclass, or else
-    :class:`OverloadedFloat` operator overloading should be disabled.
+    If constructing SymPy expressions then the :class:`.SymbolicFloat` class
+    should be used instead of the :class:`.OverloadedFloat` subclass, or else
+    :class:`.OverloadedFloat` operator overloading should be disabled.
 
-    For argument documentation see :class:`SymbolicFloat`.
+    For argument documentation see :class:`.SymbolicFloat`.
     """
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
@@ -790,7 +793,7 @@ def lambdify(expr, deps):
 
 
 class FloatEquation(Equation):
-    r"""Represents an assignment to a :class:`SymbolicFloat` `x`,
+    r"""Represents an assignment to a :class:`.SymbolicFloat` `x`,
 
     .. math::
 
@@ -804,7 +807,7 @@ class FloatEquation(Equation):
         \mathcal{F} \left( x, y_1, y_2, \ldots \right)
             = x - \mathcal{G} \left( y_1, y_2, \ldots \right).
 
-    :arg x: A :class:`SymbolicFloat` defining the forward solution :math:`x`
+    :arg x: A :class:`.SymbolicFloat` defining the forward solution :math:`x`
     :arg expr: A :class:`sympy.core.expr.Expr` defining the right-hand-side.
     """
 
@@ -873,12 +876,12 @@ class FloatEquation(Equation):
 
 
 def to_float(y, *, name=None, cls=None):
-    """Convert a variable to a :class:`Float`.
+    """Convert a variable to a :class:`.SymbolicFloat`.
 
     :arg y: A scalar-valued variable.
     :arg name: A :class:`str` name.
-    :arg cls: Float class. Default :class:`Float`.
-    :returns: The :class:`Float`.
+    :arg cls: Float class. Default :class:`.Float`.
+    :returns: The :class:`.SymbolicFloat`.
     """
 
     if cls is None:

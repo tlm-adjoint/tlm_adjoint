@@ -75,14 +75,14 @@ class EquationManager:
     checkpointing schedule configuration details see
     :meth:`.EquationManager.configure_checkpointing`.
 
-    The configuration of tangent-linear models is defined by a tangent-linear
-    tree. The root node of this tree corresponds to the forward model.
-    Following :math:`n` edges from the root node leads to a node associated
-    with an :math:`n` th order tangent-linear model. For tangent-linear
-    configuration details see :meth:`.EquationManager.configure_tlm`.
+    The configuration of tangent-linears is defined by a tangent-linear tree.
+    The root node of this tree corresponds to the forward. Following :math:`n`
+    edges from the root node leads to a node associated with an :math:`n` th
+    order tangent-linear. For tangent-linear configuration details see
+    :meth:`.EquationManager.configure_tlm`.
 
     On instantiation both equation annotation and tangent-linear derivation and
-    solution are *enabled*.
+    solution are *disabled*.
 
     :arg comm: The communicator associated with the manager.
     :arg cp_method: See :meth:`.EquationManager.configure_checkpointing`.
@@ -164,8 +164,8 @@ class EquationManager:
                           ", replaced" if var_is_replacement(dep) else "",
                           "non-linear" if var_id(dep) in nl_dep_ids else "linear"))  # noqa: E501
         info("Storage:")
-        info(f'  Storing initial conditions: {"yes" if self._cp.store_ics() else "no":s}')  # noqa: E501
-        info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data() else "no":s}')  # noqa: E501
+        info(f'  Storing initial conditions: {"yes" if self._cp.store_ics else "no":s}')  # noqa: E501
+        info(f'  Storing equation non-linear dependencies: {"yes" if self._cp.store_data else "no":s}')  # noqa: E501
         info(f"  Initial conditions stored: {len(self._cp._cp):d}")
         info(f"  Initial conditions referenced: {len(self._cp._refs):d}")
         info("Checkpointing:")
@@ -182,7 +182,7 @@ class EquationManager:
         overridden with the arguments `cp_method` and `cp_parameters`.
 
         Both equation annotation and tangent-linear derivation and solution are
-        *enabled* for the new :class:`.EquationManager`.
+        *disabled* for the new :class:`.EquationManager`.
 
         :arg cp_method: See :meth:`.EquationManager.configure_checkpointing`.
         :arg cp_parameters: See
@@ -205,14 +205,14 @@ class EquationManager:
     @gc_disabled
     def reset(self, cp_method=None, cp_parameters=None):
         """Reset the :class:`.EquationManager`. Clears all recorded equations,
-        and all configured tangent-linear models.
+        and all configured tangent-linears.
 
         By default the :class:`.EquationManager` *retains* its previous
         checkpointing schedule configuration, but this may be overridden with
         the arguments `cp_method` and `cp_parameters`.
 
         Both equation annotation and tangent-linear derivation and solution are
-        *enabled* after calling this method.
+        *disabled* after calling this method.
 
         :arg cp_method: See :meth:`.EquationManager.configure_checkpointing`.
         :arg cp_parameters: See
@@ -410,23 +410,22 @@ class EquationManager:
             or a :class:`Sequence` of variables defining a control. `dM_i` is a
             variable or a :class:`Sequence` of variables defining a derivative
             direction. Identifies a node in the tree (and hence identifies a
-            tangent-linear model) corresponding to differentation, in order,
-            with respect to the each control defined by `M_i` and with each
+            tangent-linear) corresponding to differentation, in order, with
+            respect to the each control defined by `M_i` and with each
             direction defined by `dM_i`.
         :arg annotate: If `True` then enable annotation for the identified
-            tangent-linear model, and enable annotation for all tangent-linear
-            models on which it depends. If `False` then disable annotation for
-            the identified tangent-linear model, all tangent-linear models
-            which depend on it, and any newly added tangent-linear models.
-            Defaults to `tlm`.
-        :arg tlm: If `True` then add (or retain) the identified tangent-linear
-            model, and add all tangent-linear models on which it depends. If
-            `False` then remove the identified tangent-linear model, and remove
-            all tangent-linear models which depend on it.
+            tangent-linear, and enable annotation for all tangent-linears on
+            which it depends. If `False` then disable annotation for the
+            identified tangent-linear, all tangent-linears which depend on it,
+            and any newly added tangent-linears. Defaults to `tlm`.
+        :arg tlm: If `True` then add (or retain) the identified tangent-linear,
+            and add all tangent-linears on which it depends. If `False` then
+            remove the identified tangent-linear, and remove all
+            tangent-linears which depend on it.
         """
 
         if self._tlm_state == TangentLinearState.FINAL:
-            raise RuntimeError("Cannot configure tangent-linear models after "
+            raise RuntimeError("Cannot configure tangent-linears after "
                                "finalization")
 
         if annotate is None:
@@ -488,7 +487,7 @@ class EquationManager:
                           DeprecationWarning, stacklevel=2)
 
         if self._tlm_state == TangentLinearState.FINAL:
-            raise RuntimeError("Cannot configure tangent-linear models after "
+            raise RuntimeError("Cannot configure tangent-linear after "
                                "finalization")
 
         (M, dM), key = tlm_key(M, dM)
@@ -515,7 +514,7 @@ class EquationManager:
         """Return a tangent-linear variable.
 
         :arg x: A variable whose tangent-linear variable should be returned.
-        :arg args: Identifies the tangent-linear model. See
+        :arg args: Identifies the tangent-linear. See
             :meth:`.EquationManager.configure_tlm`.
         :returns: The tangent-linear variable.
         """
@@ -535,16 +534,16 @@ class EquationManager:
 
     def annotation_enabled(self):
         """
-        :returns: Whether processing of equations is enabled.
+        :returns: Whether recording of equations is enabled.
         """
 
         return self._annotation_state == AnnotationState.ANNOTATING
 
     def start(self, *, annotate=True, tlm=True):
-        """Start processing of equations and derivation and solution of
+        """Start recording of equations and derivation and solution of
         tangent-linear equations.
 
-        :arg annotate: Whether processing of equations should be enabled.
+        :arg annotate: Whether recording of equations should be enabled.
         :arg tlm: Whether derivation and solution of tangent-linear equations
             should be enabled.
         """
@@ -560,14 +559,14 @@ class EquationManager:
                    TangentLinearState.DERIVING: TangentLinearState.DERIVING}[self._tlm_state]  # noqa: E501
 
     def stop(self, *, annotate=True, tlm=True):
-        """Stop processing of equations and derivation and solution of
+        """Stop recording of equations and derivation and solution of
         tangent-linear equations.
 
-        :arg annotate: Whether processing of equations should be disabled.
+        :arg annotate: Whether recording of equations should be disabled.
         :arg tlm: Whether derivation and solution of tangent-linear equations
             should be disabled.
         :returns: A :class:`tuple` `(annotation_state, tlm_state)`.
-            `annotation_state` is a :class:`bool` indicating whether processing
+            `annotation_state` is a :class:`bool` indicating whether recording
             of equations was enabled prior to the call to
             :meth:`.EquationManager.stop`. `tlm_state` is a :class:`bool`
             indicating whether derivation and solution of tangent-linear
@@ -594,15 +593,15 @@ class EquationManager:
     @contextlib.contextmanager
     def paused(self, *, annotate=True, tlm=True):
         """Construct a context manager which can be used to temporarily disable
-        processing of equations and derivation and solution of tangent-linear
+        recording of equations and derivation and solution of tangent-linear
         equations.
 
-        :arg annotate: Whether processing of equations should be temporarily
+        :arg annotate: Whether recording of equations should be temporarily
             disabled.
         :arg tlm: Whether derivation and solution of tangent-linear equations
             should be temporarily disabled.
         :returns: A context manager which can be used to temporarily disable
-            processing of equations and derivation and solution of
+            recording of equations and derivation and solution of
             tangent-linear equations.
         """
 
@@ -615,7 +614,7 @@ class EquationManager:
         is needed prior to solving an equation.
 
         :arg x: A variable defining the initial condition.
-        :arg annotate: Whether the initial condition should be processed.
+        :arg annotate: Whether the initial condition should be recorded.
         """
 
         if annotate is None or annotate:
@@ -628,7 +627,7 @@ class EquationManager:
             self._cp.add_initial_condition(x)
 
     def add_equation(self, eq, *, annotate=None, tlm=None):
-        """Process a :class:`.Equation` after it has been solved.
+        """Process an :class:`.Equation` after it has been solved.
 
         :arg eq: The :class:`.Equation`.
         :arg annotate: Whether solution of this equation, and any
@@ -1038,7 +1037,7 @@ class EquationManager:
         self._checkpoint(final=False)
 
     def finalize(self):
-        """End the final block of equations. Equations cannot be processed, and
+        """End the final block of equations. Equations cannot be recorded, and
         new tangent-linear equations cannot be derived and solved, after a call
         to this method.
 
@@ -1074,8 +1073,8 @@ class EquationManager:
                          adj_ics=None):
         """Core adjoint driver method.
 
-        Compute the derivative of one or more functionals with respect to
-        one or model controls, using an adjoint approach.
+        Compute the derivative of one or more functionals with respect to one
+        or more controls, using an adjoint approach.
 
         :arg Js: A variable or a sequence of variables defining the functionals
             to differentiate.
@@ -1089,10 +1088,10 @@ class EquationManager:
 
             with
 
-                - `J_i`: A :class:`int` defining the index of the functional.
-                - `n`: A :class:`int` definining the index of the block of
+                - `J_i`: An :class:`int` defining the index of the functional.
+                - `n`: An :class:`int` definining the index of the block of
                   equations.
-                - `i`: A :class:`int` defining the index of the considered
+                - `i`: An :class:`int` defining the index of the considered
                   equation in block `n`.
                 - `eq`: The :class:`.Equation`, equation `i` in block `n`.
                 - `adj_X`: The adjoint solution associated with equation `i` in
@@ -1111,20 +1110,20 @@ class EquationManager:
             analysis should be applied when solving forward equations during
             checkpointing/replay.
         :arg cache_adjoint_degree: Adjoint solutions can be cached and reused
-            across adjoint models where the solution is the same -- e.g. first
-            order adjoint solutions associated with the same functional and
-            same block and equation indices are equal. A value of `None`
-            indicates that caching should be applied at all degrees, a value of
-            0 indicates that no caching should be applied, and any positive
-            :class:`int` indicates that caching should be applied for adjoint
-            models up to and including degree `cache_adjoint_degree`.
+            across adjoints where the solution is the same -- e.g. first order
+            adjoint solutions associated with the same functional and same
+            block and equation indices are equal. A value of `None` indicates
+            that caching should be applied at all degrees, a value of 0
+            indicates that no caching should be applied, and any positive
+            :class:`int` indicates that caching should be applied for adjoints
+            up to and including degree `cache_adjoint_degree`.
         :arg store_adjoint: Whether cached adjoint solutions should be retained
             after the call to this method. Can be used to cache and reuse first
             order adjoint solutions in multiple calls to this method.
         :arg adj_ics: A :class:`Mapping`. Items are `(x, value)` where `x` is a
             variable or variable ID identifying a forward variable. The adjoint
-            variable associated with the final equation solving for `x` should
-            be initialized to the value stored by the variable `value`.
+            variable associated with the final equation solving for `x` is
+            initialized to the value stored by the variable `value`.
         :returns: The conjugate of the derivatives. The return type depends on
             the type of `Js` and `M`.
 
@@ -1230,7 +1229,7 @@ class EquationManager:
 
             cp_block = n >= 0 and n < blocks_N
             if cp_block:
-                # Load/restore forward model data
+                # Load/restore forward data
                 self._restore_checkpoint(
                     n, transpose_deps=transpose_deps if prune_replay else None)
 

@@ -22,7 +22,7 @@ __all__ = \
 
 class CacheRef:
     """A cache entry. Stores a reference to a cached value, which can later be
-    cleared. Calling a :class:`CacheRef` returns the cached object, or `None`
+    cleared. Calling a :class:`.CacheRef` returns the cached object, or `None`
     if no object is referenced.
 
     :arg value: The object to reference. `None` may be supplied to indicate an
@@ -37,7 +37,7 @@ class CacheRef:
 
     def clear(self):
         """Clear the cache entry. After calling this method, calling the
-        :class:`CacheRef` will return `None`.
+        :class:`.CacheRef` will return `None`.
         """
 
         self._value = None
@@ -83,7 +83,7 @@ def local_caches(fn):
 class Cache:
     """Stores cache entries.
 
-    Cleared cache entries are removed from the :class:`Cache`.
+    Cleared cache entries are removed from the :class:`.Cache`.
     """
 
     _id_counter = [0]
@@ -195,7 +195,7 @@ class Cache:
         :arg deps: A :class:`Sequence` of variables, defining dependencies of
             the cache entry.
         :returns: A :class:`tuple` `(value_ref, value)`, where `value` is the
-            cache entry value and `value_ref` is a :class:`CacheRef` storing a
+            cache entry value and `value_ref` is a :class:`.CacheRef` storing a
             reference to the value.
         """
 
@@ -233,8 +233,7 @@ class Cache:
         """Return the cache entry associated with a given key.
 
         :arg key: The key.
-        :returns: The cache entry, or `default` if there is no cache entry
-            associated with the key.
+        :returns: The cache entry or, if supplied, a default value.
 
         `args` should contain zero or one elements and defines the default
         value. If there is no entry associated with the key then:
@@ -251,7 +250,7 @@ class Cache:
 
 
 class Caches:
-    """Multiple :class:`Cache` objects, associated with a variable.
+    """Multiple :class:`.Cache` objects, associated with a variable.
 
     Cache entries may depend on the variable. The variable also defines an
     initial value, and the value is indicated by the variable ID and variable
@@ -259,9 +258,9 @@ class Caches:
     (changing the ID), or by changing the value of the current variable
     defining the value (which should be indicated by a change to the variable
     state value). Either change invalidates cache entries, in the
-    :class:`Cache` objects, which depend on the original variable.
+    :class:`.Cache` objects, which depend on the original variable.
 
-    The :meth:`update` method can be used to check for cache entry
+    The :meth:`.Caches.update` method can be used to check for cache entry
     invalidation, and to clear invalid cache entries.
 
     :arg x: The variable defining a possible cache entry dependency, and an
@@ -288,17 +287,17 @@ class Caches:
                 assert not cache.id() in self._caches
 
     def add(self, cache):
-        """Add a new :class:`Cache` to the :class:`Caches`.
+        """Add a new :class:`.Cache` to the :class:`.Caches`.
 
-        :arg cache: The :class:`Cache` to add to the :class:`Caches`.
+        :arg cache: The :class:`.Cache` to add to the :class:`.Caches`.
         """
 
         self._caches.setdefault(cache.id(), cache)
 
     def remove(self, cache):
-        """Remove a :class:`Cache` from the :class:`Caches`.
+        """Remove a :class:`.Cache` from the :class:`.Caches`.
 
-        :arg cache: The :class:`Cache` to remove from the :class:`Caches`.
+        :arg cache: The :class:`.Cache` to remove from the :class:`.Caches`.
         """
 
         del self._caches[cache.id()]

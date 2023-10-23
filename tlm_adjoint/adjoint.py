@@ -40,7 +40,7 @@ class AdjointRHS:
     def b(self, *, copy=False):
         """Return the right-hand-side, as a variable. Note that any deferred
         contributions *are* added to the variable before it is returned -- see
-        :meth:`finalize`.
+        :meth:`.AdjointRHS.finalize`.
 
         :arg copy: If `True` then a copy of the internal variable storing the
             right-hand-side value is returned. If `False` the internal variable
@@ -56,8 +56,8 @@ class AdjointRHS:
 
     def initialize(self):
         """Allocate an internal variable to store the right-hand-side. Called
-        by the :meth:`finalize` and :meth:`sub` methods, and typically need not
-        be called manually.
+        by the :meth:`.AdjointRHS.finalize` and :meth:`.AdjointRHS.sub`
+        methods, and typically need not be called manually.
         """
 
         if self._b is None:
@@ -78,8 +78,8 @@ class AdjointRHS:
         """Subtract a term from the right-hand-side.
 
         :arg b: The term to subtract.
-            :func:`tlm_adjoint.interface.subtract_adjoint_derivative_action` is
-            used to subtract the term.
+            :func:`.subtract_adjoint_derivative_action` is used to subtract the
+            term.
         """
 
         if b is not None:
@@ -88,10 +88,10 @@ class AdjointRHS:
 
     def is_empty(self):
         """Return whether the right-hand-side is 'empty', meaning that the
-        :meth:`initialize` method has not been called.
+        :meth:`.AdjointRHS.initialize` method has not been called.
 
-        :returns: `True` if the :meth:`initialize` method has not been called,
-            and `False` otherwise.
+        :returns: `True` if the :meth:`.AdjointRHS.initialize` method has not
+            been called, and `False` otherwise.
         """
 
         return self._b is None
@@ -101,7 +101,7 @@ class AdjointEquationRHS:
     """The right-hand-side of an adjoint equation, for adjoint variables
     associated with an equation solving for multiple forward variables `X`.
 
-    Multiple :class:`AdjointRHS` objects. The :class:`AdjointRHS` objects may
+    Multiple :class:`.AdjointRHS` objects. The :class:`.AdjointRHS` objects may
     be accessed by index, e.g.
 
     .. code-block:: python
@@ -109,8 +109,7 @@ class AdjointEquationRHS:
         adj_eq_rhs = AdjointEquationRHS(eq)
         adj_rhs = adj_eq_rhs[m]
 
-    :arg eq: A :class:`tlm_adjoint.equation.Equation`. `eq.X()` defines the
-        forward variables.
+    :arg eq: An :class:`.Equation`. `eq.X()` defines the forward variables.
     """
 
     def __init__(self, eq):
@@ -145,20 +144,20 @@ class AdjointEquationRHS:
         return tuple(B.b(copy=copy) for B in self._B)
 
     def finalize(self):
-        """Call the :meth:`AdjointRHS.finalize` methods of all
-        :class:`AdjointRHS` objects.
+        """Call the :meth:`.AdjointRHS.finalize` methods of all
+        :class:`.AdjointRHS` objects.
         """
 
         for b in self._B:
             b.finalize()
 
     def is_empty(self):
-        """Return whether all of the :class:`AdjointRHS` objects are 'empty',
-        meaning that the :meth:`AdjointRHS.initialize` method has not been
-        called for any :class:`AdjointRHS`.
+        """Return whether all of the :class:`.AdjointRHS` objects are 'empty',
+        meaning that the :meth:`.AdjointRHS.initialize` method has not been
+        called for any :class:`.AdjointRHS`.
 
-        :returns: `True` if the :meth:`AdjointRHS.initialize` method has not
-            been called for any :class:`AdjointRHS`, and `False` otherwise.
+        :returns: `True` if the :meth:`.AdjointRHS.initialize` method has not
+            been called for any :class:`.AdjointRHS`, and `False` otherwise.
         """
 
         for b in self._B:
@@ -170,22 +169,21 @@ class AdjointEquationRHS:
 class AdjointBlockRHS:
     """The right-hand-side of multiple adjoint equations.
 
-    Multiple :class:`AdjointEquationRHS` objects. The
-    :class:`AdjointEquationRHS` objects may be accessed by index, e.g.
+    Multiple :class:`.AdjointEquationRHS` objects. The
+    :class:`.AdjointEquationRHS` objects may be accessed by index, e.g.
 
     .. code-block:: python
 
         adj_block_rhs = AdjointBlockRHS(block)
         adj_eq_rhs = adj_block_rhs[k]
 
-    :class:`AdjointRHS` objects may be accessed e.g.
+    :class:`.AdjointRHS` objects may be accessed e.g.
 
     .. code-block:: python
 
         adj_rhs = adj_block_rhs[(k, m)]
 
-    :arg block: A :class:`Sequence` of :class:`tlm_adjoint.equation.Equation`
-        objects.
+    :arg block: A :class:`Sequence` of :class:`.Equation` objects.
     """
 
     def __init__(self, block):
@@ -199,29 +197,29 @@ class AdjointBlockRHS:
             return self._B[k][m]
 
     def pop(self):
-        """Remove and return the last :class:`AdjointEquationRHS` in the
-        :class:`AdjointBlockRHS`.
+        """Remove and return the last :class:`.AdjointEquationRHS` in the
+        :class:`.AdjointBlockRHS`.
 
         :returns: A :class:`tuple` `(n, B)`. `B` is the removed
-            :class:`AdjointEquationRHS`, associated with block `n`.
+            :class:`.AdjointEquationRHS`, associated with block `n`.
         """
 
         return len(self._B) - 1, self._B.pop()
 
     def finalize(self):
-        """Call the :meth:`AdjointEquationRHS.finalize` methods of all
-        :class:`AdjointEquationRHS` objects.
+        """Call the :meth:`.AdjointEquationRHS.finalize` methods of all
+        :class:`.AdjointEquationRHS` objects.
         """
 
         for B in self._B:
             B.finalize()
 
     def is_empty(self):
-        """Return whether there are no :class:`AdjointEquationRHS` objects in
-        the :class:`AdjointBlockRHS`.
+        """Return whether there are no :class:`.AdjointEquationRHS` objects in
+        the :class:`.AdjointBlockRHS`.
 
-        :returns: `True` if there are no :class:`AdjointEquationRHS` objects in
-            the :class:`AdjointBlockRHS`, and `False` otherwise.
+        :returns: `True` if there are no :class:`.AdjointEquationRHS` objects
+            in the :class:`.AdjointBlockRHS`, and `False` otherwise.
         """
 
         return len(self._B) == 0
@@ -230,7 +228,7 @@ class AdjointBlockRHS:
 class AdjointModelRHS:
     """The right-hand-side of multiple blocks of adjoint equations.
 
-    Multiple :class:`AdjointBlockRHS` objects. The :class:`AdjointBlockRHS`
+    Multiple :class:`.AdjointBlockRHS` objects. The :class:`.AdjointBlockRHS`
     objects may be accessed by index, e.g.
 
     .. code-block:: python
@@ -238,26 +236,25 @@ class AdjointModelRHS:
         adj_model_rhs = AdjointModelRHS(block)
         adj_block_rhs = adj_block_rhs[p]
 
-    :class:`AdjointEquationRHS` objects may be accessed e.g.
+    :class:`.AdjointEquationRHS` objects may be accessed e.g.
 
     .. code-block:: python
 
         adj_eq_rhs = adj_block_rhs[(p, k)]
 
-    :class:`AdjointRHS` objects may be accessed e.g.
+    :class:`.AdjointRHS` objects may be accessed e.g.
 
     .. code-block:: python
 
         adj_rhs = adj_block_rhs[(p, k, m)]
 
     If the last block of adjoint equations contains no equations then it is
-    automatically removed from the :class:`AdjointModelRHS`.
+    automatically removed from the :class:`.AdjointModelRHS`.
 
     :arg blocks: A :class:`Sequence` of :class:`Sequence` objects each
-        containing :class:`tlm_adjoint.equation.Equation` objects, or a
-        :class:`Mapping` with items `(index, block)` where `index` is an
-        :class:`int` and `block` a :class:`Sequence` of
-        :class:`tlm_adjoint.equation.Equation` objects. In the latter case
+        containing :class:`.Equation` objects, or a :class:`Mapping` with items
+        `(index, block)` where `index` is an :class:`int` and `block` a
+        :class:`Sequence` of :class:`.Equation` objects. In the latter case
         blocks are ordered by `index`.
     """
 
@@ -282,11 +279,11 @@ class AdjointModelRHS:
             return self._B[p][k][m]
 
     def pop(self):
-        """Remove and return the last :class:`AdjointEquationRHS` in the last
-        :class:`AdjointBlockRHS` in the :class:`AdjointModelRHS`.
+        """Remove and return the last :class:`.AdjointEquationRHS` in the last
+        :class:`.AdjointBlockRHS` in the :class:`.AdjointModelRHS`.
 
         :returns: A :class:`tuple` `((n, i), B)`. `B` is the removed
-            :class:`AdjointEquationRHS`, associated with equation `i` in block
+            :class:`.AdjointEquationRHS`, associated with equation `i` in block
             `n`.
         """
 
@@ -300,11 +297,11 @@ class AdjointModelRHS:
             del self._B[self._blocks_n.pop()]
 
     def is_empty(self):
-        """Return whether there are no :class:`AdjointBlockRHS` objects in the
-        :class:`AdjointModelRHS`.
+        """Return whether there are no :class:`.AdjointBlockRHS` objects in the
+        :class:`.AdjointModelRHS`.
 
-        :returns: `True` if there are no :class:`AdjointBlockRHS` objects in
-            the :class:`AdjointModelRHS`, and `False` otherwise.
+        :returns: `True` if there are no :class:`.AdjointBlockRHS` objects in
+            the :class:`.AdjointModelRHS`, and `False` otherwise.
         """
 
         return len(self._B) == 0
