@@ -376,8 +376,13 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         else:
             self.assign(value, annotate=annotate, tlm=tlm)
 
-    def __new__(cls, *args, **kwargs):
-        return super().__new__(cls, new_symbol_name())
+    def __new__(cls, *args, dtype=None, **kwargs):
+        if dtype is None:
+            dtype = _default_dtype
+        if issubclass(dtype, (float, np.floating)):
+            return super().__new__(cls, new_symbol_name(), real=True)
+        else:
+            return super().__new__(cls, new_symbol_name(), complex=True)
 
     def new(self, value=0.0, *,
             name=None,
