@@ -132,6 +132,10 @@ class FloatSpace:
         if comm is None:
             comm = DEFAULT_COMM
 
+        if not issubclass(dtype, (float, np.floating,
+                                  complex, np.complexfloating)):
+            raise TypeError("Invalid dtype")
+
         self._comm = comm_dup_cached(comm)
         self._dtype = dtype
         self._float_cls = float_cls
