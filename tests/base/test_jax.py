@@ -98,10 +98,16 @@ def test_jax_assignment(setup_test, jax_tlm_config,  # noqa: F811
                                 np.arccosh,
                                 np.arctanh,
                                 np.exp,
+                                np.exp2,
                                 np.expm1,
                                 np.log,
+                                np.log2,
                                 np.log10,
-                                np.sqrt])
+                                np.log1p,
+                                np.sqrt,
+                                np.square,
+                                np.cbrt,
+                                np.reciprocal])
 @seed_test
 def test_jax_unary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                op):
@@ -119,7 +125,7 @@ def test_jax_unary_overloading(setup_test, jax_tlm_config,  # noqa: F811
 
         return (c - 1.0) ** 4
 
-    if op is np.arccosh:
+    if op in {np.arccosh, np.reciprocal}:
         y = np.array([1.1, 1.2], dtype=np.double)
     else:
         y = np.array([0.1, 0.2], dtype=np.double)
@@ -160,15 +166,16 @@ def test_jax_unary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                 operator.mul,
                                 operator.truediv,
                                 operator.pow,
-                                np.arctan2])
+                                np.arctan2,
+                                np.hypot])
 @seed_test
 def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                 dtype, op):
+    if op in {np.arctan2, np.hypot} \
+            and issubclass(dtype, (complex, np.complexfloating)):
+        pytest.skip()
     set_default_float_dtype(dtype)
     set_default_jax_dtype(dtype)
-
-    if op is np.arctan2 and issubclass(dtype, (complex, np.complexfloating)):
-        pytest.skip()
 
     def forward(y):
         x = y * y
