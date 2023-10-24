@@ -580,6 +580,24 @@ class _tlm_adjoint__expm1(sp.Function):  # noqa: N801
             return sp.exp(self.args[0])
 
 
+@register_function(np.log1p, "numpy.log1p")
+class _tlm_adjoint__log1p(sp.Function):  # noqa: N801
+    def fdiff(self, argindex=1):
+        if argindex == 1:
+            return sp.Integer(1) / (sp.Integer(1) + self.args[0])
+
+
+@register_function(np.hypot, "numpy.hypot")
+class _tlm_adjoint__hypot(sp.Function):  # noqa: N801
+    def fdiff(self, argindex=1):
+        if argindex == 1:
+            return self.args[0] / _tlm_adjoint__hypot(self.args[0],
+                                                      self.args[1])
+        elif argindex == 2:
+            return self.args[1] / _tlm_adjoint__hypot(self.args[0],
+                                                      self.args[1])
+
+
 class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa: E501,N801
                                     SymbolicFloat):
     """A subclass of :class:`.SymbolicFloat` with operator overloading.
@@ -703,6 +721,11 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         return sp.atan2(x1, x2)
 
     @staticmethod
+    @register_operation(np.hypot)
+    def hypot(x1, x2):
+        return _tlm_adjoint__hypot(x1, x2)
+
+    @staticmethod
     @register_operation(np.sinh)
     def sinh(x):
         return sp.sinh(x)
@@ -738,6 +761,11 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         return sp.exp(x)
 
     @staticmethod
+    @register_operation(np.exp2)
+    def exp2(x):
+        return 2 ** x
+
+    @staticmethod
     @register_operation(np.expm1)
     def expm1(x):
         return _tlm_adjoint__expm1(x)
@@ -748,14 +776,39 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
         return sp.log(x)
 
     @staticmethod
+    @register_operation(np.log2)
+    def log2(x):
+        return sp.log(x, 2)
+
+    @staticmethod
     @register_operation(np.log10)
     def log10(x):
         return sp.log(x, 10)
 
     @staticmethod
+    @register_operation(np.log1p)
+    def log1p(x):
+        return _tlm_adjoint__log1p(x)
+
+    @staticmethod
     @register_operation(np.sqrt)
     def sqrt(x):
         return sp.sqrt(x)
+
+    @staticmethod
+    @register_operation(np.square)
+    def square(x):
+        return x ** 2
+
+    @staticmethod
+    @register_operation(np.cbrt)
+    def cbrt(x):
+        return x ** sp.Rational(1, 3)
+
+    @staticmethod
+    @register_operation(np.reciprocal)
+    def reciprocal(x):
+        return sp.Integer(1) / x
 
 
 # Required by Sphinx
