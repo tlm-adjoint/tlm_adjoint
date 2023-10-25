@@ -53,8 +53,8 @@ def clear_caches(*deps):
     """
 
     if len(deps) == 0:
-        for cache in tuple(Cache._caches.valuerefs()):
-            cache = cache()
+        for cache_id in sorted(tuple(Cache._caches)):
+            cache = Cache._caches.get(cache_id, None)
             if cache is not None:
                 cache.clear()
     else:
@@ -279,8 +279,8 @@ class Caches:
         """Clear cache entries which depend on the associated variable.
         """
 
-        for cache in tuple(self._caches.valuerefs()):
-            cache = cache()
+        for cache_id in sorted(tuple(self._caches)):
+            cache = self._caches.get(cache_id, None)
             if cache is not None:
                 cache.clear(self._id)
                 assert cache.id not in self._caches

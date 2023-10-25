@@ -184,11 +184,11 @@ class TangentLinearMap:
         self._X = weakref.WeakValueDictionary()
 
         @gc_disabled
-        def weakref_finalize(X, id):
-            for x in tuple(X.valuerefs()):
-                x = x()
+        def weakref_finalize(X, tlm_map_id):
+            for x_id in sorted(tuple(X)):
+                x = X.get(x_id, None)
                 if x is not None:
-                    getattr(x, "_tlm_adjoint__tangent_linears", {}).pop(id, None)  # noqa: E501
+                    getattr(x, "_tlm_adjoint__tangent_linears", {}).pop(tlm_map_id, None)  # noqa: E501
 
         weakref.finalize(self, weakref_finalize,
                          self._X, self._id)
