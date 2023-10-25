@@ -30,10 +30,16 @@ def tlm_key(M, dM):
     else:
         dM = tuple(dM)
 
+    if any(map(var_is_replacement, M)):
+        raise ValueError("Invalid tangent-linear")
+    if any(map(var_is_replacement, dM)):
+        raise ValueError("Invalid tangent-linear")
+
     if len(set(M)) != len(M):
         raise ValueError("Invalid tangent-linear")
     if len(M) != len(dM):
         raise ValueError("Invalid tangent-linear")
+
     for m, dm in zip(M, dM):
         check_space_types(m, dm)
 
