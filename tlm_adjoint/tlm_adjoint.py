@@ -118,7 +118,7 @@ class EquationManager:
         if MPI is not None:
             self._id_counter[0] = self._comm.allreduce(
                 self._id_counter[0], op=MPI.MAX)
-        self._id = self._id_counter[0]
+        self._id, = self._id_counter
         self._id_counter[0] += 1
 
         self.reset(cp_method=cp_method, cp_parameters=cp_parameters)
@@ -514,10 +514,14 @@ class EquationManager:
         """Return a tangent-linear variable.
 
         :arg x: A variable whose tangent-linear variable should be returned.
+            Cannot not be a replacement.
         :arg args: Identifies the tangent-linear. See
             :meth:`.EquationManager.configure_tlm`.
         :returns: The tangent-linear variable.
         """
+
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
 
         tau = x
         for _, key in map(lambda arg: tlm_key(*arg), args):
@@ -685,7 +689,7 @@ class EquationManager:
         if not X_ids.isdisjoint(set(key[1])):
             raise ValueError("Invalid tangent-linear direction")
 
-        eq_id = eq.id()
+        eq_id = eq.id
         eq_tlm_eqs = self._tlm_eqs.setdefault(eq_id, {})
 
         tlm_map = self._tlm_map[key]
@@ -714,7 +718,7 @@ class EquationManager:
     def _add_equation_finalizes(self, eq):
         for referrer in eq.referrers():
             assert not isinstance(referrer, WeakAlias)
-            referrer_id = referrer.id()
+            referrer_id = referrer.id
             if referrer_id not in self._finalizes:
                 @gc_disabled
                 def finalize_callback(self_ref, referrer_alias, referrer_id):
@@ -739,7 +743,7 @@ class EquationManager:
             referrer = self._to_drop_references.pop()
             referrer._drop_references()
             if isinstance(referrer, Equation):
-                referrer_id = referrer.id()
+                referrer_id = referrer.id
                 if referrer_id in self._tlm_eqs:
                     del self._tlm_eqs[referrer_id]
 

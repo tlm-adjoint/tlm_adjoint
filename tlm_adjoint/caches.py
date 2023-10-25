@@ -53,8 +53,8 @@ def clear_caches(*deps):
     """
 
     if len(deps) == 0:
-        for cache in tuple(Cache._caches.valuerefs()):
-            cache = cache()
+        for cache_id in sorted(tuple(Cache._caches)):
+            cache = Cache._caches.get(cache_id, None)
             if cache is not None:
                 cache.clear()
     else:
@@ -94,7 +94,7 @@ class Cache:
         self._deps_map = {}
         self._dep_caches = {}
 
-        self._id = self._id_counter[0]
+        self._id, = self._id_counter
         self._id_counter[0] += 1
         self._caches[self._id] = self
 
@@ -108,10 +108,9 @@ class Cache:
     def __len__(self):
         return len(self._cache)
 
+    @property
     def id(self):
-        """Return the unique :class:`int` ID associated with this cache.
-
-        :returns: The unique :class:`int` ID.
+        """A unique :class:`int` ID associated with this :class:`.Cache`.
         """
 
         return self._id
@@ -280,11 +279,11 @@ class Caches:
         """Clear cache entries which depend on the associated variable.
         """
 
-        for cache in tuple(self._caches.valuerefs()):
-            cache = cache()
+        for cache_id in sorted(tuple(self._caches)):
+            cache = self._caches.get(cache_id, None)
             if cache is not None:
                 cache.clear(self._id)
-                assert not cache.id() in self._caches
+                assert cache.id not in self._caches
 
     def add(self, cache):
         """Add a new :class:`.Cache` to the :class:`.Caches`.
@@ -292,7 +291,7 @@ class Caches:
         :arg cache: The :class:`.Cache` to add to the :class:`.Caches`.
         """
 
-        self._caches.setdefault(cache.id(), cache)
+        self._caches.setdefault(cache.id, cache)
 
     def remove(self, cache):
         """Remove a :class:`.Cache` from the :class:`.Caches`.
@@ -300,7 +299,7 @@ class Caches:
         :arg cache: The :class:`.Cache` to remove from the :class:`.Caches`.
         """
 
-        del self._caches[cache.id()]
+        del self._caches[cache.id]
 
     def update(self, x):
         """Check for cache invalidation associated with a possible change in

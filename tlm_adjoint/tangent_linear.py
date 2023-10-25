@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types, is_var, var_id, var_name, var_new_tangent_linear)
+    check_space_types, is_var, var_id, var_is_replacement, var_name,
+    var_new_tangent_linear)
 
+from .alias import gc_disabled
 from .markers import ControlsMarker, FunctionalMarker
 
 from collections import defaultdict
@@ -28,10 +30,16 @@ def tlm_key(M, dM):
     else:
         dM = tuple(dM)
 
+    if any(map(var_is_replacement, M)):
+        raise ValueError("Invalid tangent-linear")
+    if any(map(var_is_replacement, dM)):
+        raise ValueError("Invalid tangent-linear")
+
     if len(set(M)) != len(M):
         raise ValueError("Invalid tangent-linear")
     if len(M) != len(dM):
         raise ValueError("Invalid tangent-linear")
+
     for m, dm in zip(M, dM):
         check_space_types(m, dm)
 
@@ -165,8 +173,25 @@ class TangentLinearMap:
         direction defined by `dM`.
     """
 
+    _id_counter = [0]
+
     def __init__(self, M, dM):
         (M, dM), _ = tlm_key(M, dM)
+
+        self._id, = self._id_counter
+        self._id_counter[0] += 1
+
+        self._X = weakref.WeakValueDictionary()
+
+        @gc_disabled
+        def weakref_finalize(X, tlm_map_id):
+            for x_id in sorted(tuple(X)):
+                x = X.get(x_id, None)
+                if x is not None:
+                    getattr(x, "_tlm_adjoint__tangent_linears", {}).pop(tlm_map_id, None)  # noqa: E501
+
+        weakref.finalize(self, weakref_finalize,
+                         self._X, self._id)
 
         if len(M) == 1:
             self._name_suffix = \
@@ -180,32 +205,46 @@ class TangentLinearMap:
         assert len(M) == len(dM)
         for m, dm in zip(M, dM):
             if not hasattr(m, "_tlm_adjoint__tangent_linears"):
-                m._tlm_adjoint__tangent_linears = weakref.WeakKeyDictionary()
+                self._X[var_id(m)] = m
+                m._tlm_adjoint__tangent_linears = {}
             # Do not set _tlm_adjoint__tlm_root_id, as dm cannot appear as the
             # solution to an Equation
-            m._tlm_adjoint__tangent_linears[self] = dm
+            m._tlm_adjoint__tangent_linears[self.id] = dm
 
     def __contains__(self, x):
-        if hasattr(x, "_tlm_adjoint__tangent_linears"):
-            return self in x._tlm_adjoint__tangent_linears
-        else:
-            return False
+        if not is_var(x):
+            raise TypeError("x must be a variable")
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
+
+        return self.id in getattr(x, "_tlm_adjoint__tangent_linears", {})
 
     def __getitem__(self, x):
         if not is_var(x):
             raise TypeError("x must be a variable")
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
 
         if not hasattr(x, "_tlm_adjoint__tangent_linears"):
-            x._tlm_adjoint__tangent_linears = weakref.WeakKeyDictionary()
-        if self not in x._tlm_adjoint__tangent_linears:
+            self._X[var_id(x)] = x
+            x._tlm_adjoint__tangent_linears = {}
+        if self.id not in x._tlm_adjoint__tangent_linears:
             tau_x = var_new_tangent_linear(
                 x, name=f"{var_name(x):s}{self._name_suffix:s}")
             if tau_x is not None:
                 tau_x._tlm_adjoint__tlm_root_id = getattr(
                     x, "_tlm_adjoint__tlm_root_id", var_id(x))
-            x._tlm_adjoint__tangent_linears[self] = tau_x
+            x._tlm_adjoint__tangent_linears[self.id] = tau_x
 
-        return x._tlm_adjoint__tangent_linears[self]
+        return x._tlm_adjoint__tangent_linears[self.id]
+
+    @property
+    def id(self):
+        """A unique :class:`int` ID associated with this
+        :class:`.TangentLinearMap`.
+        """
+
+        return self._id
 
 
 def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):

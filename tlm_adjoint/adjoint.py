@@ -588,7 +588,7 @@ class AdjointCache:
                     if isinstance(eq, (ControlsMarker, FunctionalMarker)):
                         continue
 
-                    eq_id = eq.id()
+                    eq_id = eq.id
                     eq_tlm_root_id = getattr(eq, "_tlm_adjoint__tlm_root_id", eq_id)  # noqa: E501
                     eq_tlm_key = getattr(eq, "_tlm_adjoint__tlm_key", ())
 

@@ -182,7 +182,7 @@ if MPI is None:
         def __init__(self, *, _id=None):
             self._id = _id
             if self._id is None:
-                self._id = self._id_counter[0]
+                self._id, = self._id_counter
                 self._id_counter[0] -= 1
 
         @property
@@ -489,7 +489,7 @@ def new_space_id():
 
 
 def space_id(space):
-    """Return the unique :class:`int` ID associated with a space.
+    """Return a unique :class:`int` ID associated with a space.
 
     :arg space: The space.
     :returns: The unique :class:`int` ID.
@@ -884,7 +884,7 @@ def new_var_id():
 
 
 def var_id(x):
-    """Return the unique :class:`int` ID associated with a variable.
+    """Return a unique :class:`int` ID associated with a variable.
 
     Note that two variables share the same ID if they represent the same
     symbolic variable -- for example if one variable represents both a variable
