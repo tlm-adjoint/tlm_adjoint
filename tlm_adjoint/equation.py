@@ -31,13 +31,14 @@ class Referrer:
         if referrers is None:
             referrers = ()
 
-        self._id = self._id_counter[0]
+        self._id, = self._id_counter
         self._id_counter[0] += 1
         self._referrers = weakref.WeakValueDictionary()
         self._references_dropped = False
 
         self.add_referrer(*referrers)
 
+    @property
     def id(self):
         return self._id
 
@@ -47,14 +48,14 @@ class Referrer:
             raise RuntimeError("Cannot call add_referrer method after "
                                "_drop_references method has been called")
         for referrer in referrers:
-            referrer_id = referrer.id()
+            referrer_id = referrer.id
             assert self._referrers.get(referrer_id, referrer) is referrer
             self._referrers[referrer_id] = referrer
 
     @gc_disabled
     def referrers(self):
         referrers = {}
-        remaining_referrers = {self.id(): self}
+        remaining_referrers = {self.id: self}
         while len(remaining_referrers) > 0:
             referrer_id, referrer = remaining_referrers.popitem()
             if referrer_id not in referrers:
@@ -62,7 +63,7 @@ class Referrer:
                 for child in tuple(referrer._referrers.valuerefs()):
                     child = child()
                     if child is not None:
-                        child_id = child.id()
+                        child_id = child.id
                         if child_id not in referrers and child_id not in remaining_referrers:  # noqa: E501
                             remaining_referrers[child_id] = child
         return tuple(e for _, e in sorted(tuple(referrers.items()),
