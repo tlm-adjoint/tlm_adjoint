@@ -11,7 +11,7 @@ from ..interface import (
     register_subtract_adjoint_derivative_action, space_id,
     subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
-    var_scalar_value, var_space, var_space_type)
+    var_lock_state, var_scalar_value, var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
@@ -298,17 +298,9 @@ class ZeroFunction(Function, Zero):
         Function.__init__(
             self, *args, **kwargs,
             static=True, cache=True)
+        var_lock_state(self)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroFunction is not zero-valued")
-
-    def assign(self, *args, **kwargs):
-        raise RuntimeError("Cannot call assign method of ZeroFunction")
-
-    def interpolate(self, *args, **kwargs):
-        raise RuntimeError("Cannot call interpolate method of ZeroFunction")
-
-    def project(self, *args, **kwargs):
-        raise RuntimeError("Cannot call project method of ZeroFunction")
 
 
 # Aim for compatibility with FEniCS 2019.1.0 API

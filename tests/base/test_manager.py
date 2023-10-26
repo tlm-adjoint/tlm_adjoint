@@ -16,7 +16,8 @@ import numpy as np
 import pytest
 
 pytestmark = pytest.mark.skipif(
-    DEFAULT_COMM.size > 1, reason="serial only")
+    DEFAULT_COMM.size not in {1, 4},
+    reason="tests must be run in serial, or with 4 processes")
 
 
 @pytest.mark.base
@@ -207,6 +208,7 @@ def test_tlm_annotation(setup_test):  # noqa: F811
 
 @pytest.mark.base
 @pytest.mark.parametrize("cp_method", ["memory", "multistage"])
+@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @seed_test
 def test_random_computational_graph(setup_test,  # noqa: F811
                                     tmp_path, cp_method):

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import var_id, var_new, var_scalar_value, var_state
+from .interface import (
+    StateLockDictionary, var_id, var_new, var_scalar_value, var_state)
 
 from .caches import clear_caches
 from .hessian import GaussNewton, Hessian
@@ -29,10 +30,10 @@ class HessianOptimization:
 
         blocks = list(manager._blocks) + [list(manager._block)]
 
-        ics = dict(manager._cp.initial_conditions(cp=True, refs=True,
-                                                  copy=False))
+        ics = StateLockDictionary(
+            manager._cp.initial_conditions(cp=True, refs=True, copy=False))
 
-        nl_deps = {}
+        nl_deps = StateLockDictionary()
         for n, block in enumerate(blocks):
             for i, eq in enumerate(block):
                 nl_deps[(n, i)] = manager._cp[(n, i)]

@@ -431,6 +431,7 @@ class Equation(Referrer):
 
             if is_var(adj_X):
                 adj_X = (adj_X,)
+            var_update_state(*adj_X)
 
             for m, adj_x in enumerate(adj_X):
                 check_space_types(adj_x, self.X(m),
