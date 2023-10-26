@@ -980,25 +980,26 @@ def minimize_tao(forward, M0, *,
         M_inv_action = wrapped_action(M_inv_action, copy=False)
 
     def from_petsc(y, X):
-        with y as y_a:
-            if not issubclass(y_a.dtype.type, (float, np.floating)):
-                raise ValueError("Invalid dtype")
-            if len(y_a.shape) != 1:
-                raise ValueError("Invalid shape")
+        y_a = y.getArray(True)
 
-            i0 = 0
-            if len(X) != len(indices):
-                raise ValueError("Invalid length")
-            for j, x in enumerate(X):
-                i1 = i0 + var_local_size(x)
-                if i1 > y_a.shape[0]:
-                    raise ValueError("Invalid shape")
-                if (i0, i1) != indices[j]:
-                    raise ValueError("Invalid shape")
-                var_set_values(x, y_a[i0:i1])
-                i0 = i1
-            if i0 != y_a.shape[0]:
+        if not issubclass(y_a.dtype.type, (float, np.floating)):
+            raise ValueError("Invalid dtype")
+        if len(y_a.shape) != 1:
+            raise ValueError("Invalid shape")
+
+        i0 = 0
+        if len(X) != len(indices):
+            raise ValueError("Invalid length")
+        for j, x in enumerate(X):
+            i1 = i0 + var_local_size(x)
+            if i1 > y_a.shape[0]:
                 raise ValueError("Invalid shape")
+            if (i0, i1) != indices[j]:
+                raise ValueError("Invalid shape")
+            var_set_values(x, y_a[i0:i1])
+            i0 = i1
+        if i0 != y_a.shape[0]:
+            raise ValueError("Invalid shape")
 
     def to_petsc(x, Y):
         x_a = np.zeros(n, dtype=PETSc.ScalarType)

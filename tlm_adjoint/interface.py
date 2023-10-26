@@ -1045,10 +1045,14 @@ class StateLockDictionary(MutableMapping):
 
 
 def var_update_state(*X):
-    """Update the state counter for zero of more variables. Invalidates cache
-    entries.
+    """Ensure that variable state is updated, and check for cache invalidation.
 
-    :arg X: A :class:`tuple` of variables whose state value should be updated.
+    May delegate updating of the state to a backend library, in which case this
+    function checks that the state has been updated since the last
+    :func:`.var_update_state` call (or since instantiation on the first call),
+    and updates the backend state again only if needed.
+
+    :arg X: A :class:`tuple` of variables.
     """
 
     for x in X:
