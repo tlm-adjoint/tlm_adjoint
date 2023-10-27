@@ -5,8 +5,8 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     comm_dup_cached, new_var_id, new_space_id,
     register_subtract_adjoint_derivative_action,
-    subtract_adjoint_derivative_action_base, var_axpy, var_caches, var_comm,
-    var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
+    subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_caches,
+    var_comm, var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
     var_local_size, var_name, var_space, var_space_type, var_state)
 
 from .alias import WeakAlias
@@ -192,9 +192,16 @@ class VectorInterface(VariableInterface):
     def _assign(self, y):
         if isinstance(y, (int, np.integer,
                           float, np.floating,
-                          complex, np.complexfloating,
-                          Vector)):
-            self.assign(y)
+                          complex, np.complexfloating)):
+            self._vector = jax.numpy.full(self.space.local_size, y,
+                                          dtype=self.space.dtype)
+        elif isinstance(y, (np.ndarray, jax.Array)):
+            self._vector = jax.numpy.array(y, dtype=self.space.dtype)
+        elif isinstance(y, Vector):
+            if y.space.local_size != self.space.local_size:
+                raise ValueError("Invalid shape")
+            self._vector = jax.numpy.array(y.vector,
+                                           dtype=self.space.dtype)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
@@ -469,20 +476,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
             Assignment(self, y).solve(annotate=annotate, tlm=tlm)
         else:
-            if isinstance(y, (int, np.integer,
-                              float, np.floating,
-                              complex, np.complexfloating)):
-                self._vector = jax.numpy.full(self.space.local_size, y,
-                                              dtype=self.space.dtype)
-            elif isinstance(y, (np.ndarray, jax.Array)):
-                self._vector = jax.numpy.array(y, dtype=self.space.dtype)
-            elif isinstance(y, Vector):
-                if y.space.local_size != self.space.local_size:
-                    raise ValueError("Invalid shape")
-                self._vector = jax.numpy.array(y.vector,
-                                               dtype=self.space.dtype)
-            else:
-                raise TypeError(f"Unexpected type: {type(y)}")
+            var_assign(self, y)
         return self
 
     def addto(self, y, *, annotate=None, tlm=None):
