@@ -11,7 +11,8 @@ from .test_base import seed_test, setup_test  # noqa: F401
 import pytest
 
 pytestmark = pytest.mark.skipif(
-    DEFAULT_COMM.size > 1, reason="serial only")
+    DEFAULT_COMM.size not in {1, 4},
+    reason="tests must be run in serial, or with 4 processes")
 
 
 @pytest.mark.base

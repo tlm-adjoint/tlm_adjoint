@@ -11,8 +11,9 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
     space_comm, var_caches, var_comm, var_dtype, var_derivative_space, var_id,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm, var_name,
-    var_replacement, var_scalar_value, var_space, var_space_type)
+    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
+    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
+    var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -361,6 +362,7 @@ class ZeroConstant(Constant, Zero):
         Constant.__init__(
             self, name=name, domain=domain, space=space, space_type=space_type,
             shape=shape, comm=comm, static=True, cache=True)
+        var_lock_state(self)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroConstant is not zero-valued")
 
@@ -368,9 +370,6 @@ class ZeroConstant(Constant, Zero):
         return Constant.__new__(
             cls, constant_value(shape=shape), *args,
             shape=shape, static=True, cache=True, **kwargs)
-
-    def assign(self, *args, **kwargs):
-        raise RuntimeError("Cannot call assign method of ZeroConstant")
 
 
 def as_coefficient(x):

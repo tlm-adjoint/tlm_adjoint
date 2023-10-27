@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, space_id, space_new, var_assign, var_copy,
-    var_get_values, var_global_size, var_id, var_is_scalar, var_is_static,
-    var_local_indices, var_new, var_scalar_value, var_set_values, var_space,
-    var_space_type)
+    DEFAULT_COMM, StateLockDictionary, comm_dup_cached, space_id, space_new,
+    var_assign, var_copy, var_get_values, var_global_size, var_id,
+    var_is_scalar, var_is_static, var_local_indices, var_new, var_scalar_value,
+    var_set_values, var_space, var_space_type)
 
 from .instructions import Instruction
 
@@ -74,7 +74,7 @@ class CheckpointStorage:
         self._data_keys = {}  # self._data_keys = set()
         self._data = {}
 
-        self._storage = {}
+        self._storage = StateLockDictionary()
 
         self.configure(store_ics=store_ics,
                        store_data=store_data)
@@ -173,12 +173,12 @@ class CheckpointStorage:
             data.
         :arg copy: If `True` then a copy of the stored data is returned. If
             `False` then internal variables storing the data are returned.
-        :returns: A :class:`dict`, with items `(x_id: x_value)`, where `x_id`
-            is the :class:`int` variable ID and `x_value` is a variable storing
-            the data.
+        :returns: A :class:`.StateLockDictionary`, with items `(x_id:
+            x_value)`, where `x_id` is the :class:`int` variable ID and
+            `x_value` is a variable storing the data.
         """
 
-        cp_d = {}
+        cp_d = StateLockDictionary()
         if cp:
             for x_id, x_key in self._cp.items():
                 x = self._storage[x_key]
@@ -346,7 +346,8 @@ class CheckpointStorage:
             `False` then internal variables storing the data are returned.
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
-            :meth:`.CheckpointStorage.update` method.
+            :meth:`.CheckpointStorage.update` method, and here `storage` is a
+            :class:`.StateLockDictionary`.
         """
 
         if ics:
@@ -357,7 +358,7 @@ class CheckpointStorage:
             cp_data = dict(self._data)
         else:
             cp_data = {}
-        cp_storage = {}
+        cp_storage = StateLockDictionary()
 
         if ics:
             for key in cp_cp:
@@ -382,7 +383,7 @@ class CheckpointStorage:
         :arg data: A :class:`dict`. Items are `((n, i), keys)`, indicating
             that non-linear dependency data for equation `i` in block `n` is
             `(storage[key] for key in keys)`.
-        :arg storage: The stored data. A :class:`dict` with items `((x_id,
+        :arg storage: The stored data. A :class:`Mapping` with items `((x_id,
             x_indices), x_value)`. `x_id` is the :class:`int` ID for a variable
             whose value `x_value` is stored. `x_indices` is either `None`, if
             the variable value has not been computed by solving equations with

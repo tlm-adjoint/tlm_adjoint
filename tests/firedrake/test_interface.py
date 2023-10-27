@@ -85,13 +85,13 @@ def test_Function_alias(setup_test, test_leaks,
         state = var_state(F_i)
         assert var_state(F_i) == var_state(F)
         var_update_state(F)
-        assert var_state(F_i) == state + 1
+        assert var_state(F_i) > state
         assert var_state(F_i) == var_state(F)
 
         state = var_state(F_i)
         assert var_state(F_i) == var_state(F)
         var_update_state(F_i)
-        assert var_state(F_i) == state + 1
+        assert var_state(F_i) > state
         assert var_state(F_i) == var_state(F)
 
     F = Function(space, name="F")

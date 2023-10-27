@@ -25,8 +25,8 @@ class PythonMatrix:
     def mult(self, A, x, y):
         import petsc4py.PETSc as PETSc
 
-        with x as x_a:
-            y_a = self._action(x_a)
+        x_a = x.getArray(True).copy()
+        y_a = self._action(x_a)
 
         if not np.can_cast(y_a, PETSc.ScalarType):
             raise ValueError("Invalid dtype")
@@ -239,20 +239,18 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
             assert lam_i.imag == 0.0
             lam[i] = lam_i.real
             if v_i is not None:
-                with v_i as v_i_a:
-                    assert len(v_i_a) == 0 or abs(v_i_a).max() == 0.0
+                v_i_a = v_i.getArray()
+                assert len(v_i_a) == 0 or abs(v_i_a).max() == 0.0
+                del v_i_a
             # else:
             #     # Complex note: If v_i is None then v_r may be non-real
             #     pass
-            with v_r as v_r_a:
-                var_set_values(V_r[i], v_r_a)
+            var_set_values(V_r[i], v_r.getArray(True))
         else:
             lam[i] = lam_i
-            with v_r as v_r_a:
-                var_set_values(V_r[i], v_r_a)
+            var_set_values(V_r[i], v_r.getArray(True))
             if v_i is not None:
-                with v_i as v_i_a:
-                    var_set_values(V_i[i], v_i_a)
+                var_set_values(V_i[i], v_i.getArray(True))
 
     esolver.destroy()
     A_matrix.destroy()

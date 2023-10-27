@@ -11,8 +11,8 @@ from ..interface import (
     register_subtract_adjoint_derivative_action, relative_space_type,
     space_type_warning, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
-    var_is_cached, var_is_static, var_linf_norm, var_name, var_space,
-    var_space_type)
+    var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
+    var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
@@ -143,10 +143,19 @@ class FunctionInterfaceBase(_VariableInterface):
         return self.name()
 
     def _state(self):
-        return self._tlm_adjoint__var_interface_attrs["state"][0]
+        dat, count = self._tlm_adjoint__var_interface_attrs["state"]
+        if count is not None and count > dat.dat_version:
+            raise RuntimeError("Invalid state")
+        return dat.dat_version
 
     def _update_state(self):
-        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
+        dat, count = self._tlm_adjoint__var_interface_attrs["state"]
+        if count is None or count == dat.dat_version:
+            # Make sure that the dat version has been incremented at least once
+            dat.increment_dat_version()
+        elif count > dat.dat_version:
+            raise RuntimeError("Invalid state")
+        self._tlm_adjoint__var_interface_attrs["state"][1] = dat.dat_version
 
     def _is_static(self):
         return self._tlm_adjoint__var_interface_attrs["static"]
@@ -211,14 +220,10 @@ class FunctionInterfaceBase(_VariableInterface):
         return slice(*local_range)
 
     def _get_values(self):
-        with self.dat.vec_ro as x_v:
-            with x_v as x_v_a:
-                values = x_v_a.copy()
-        return values
+        return self.dat.data_ro.flatten().copy()
 
     def _set_values(self, values):
-        with self.dat.vec_wo as x_v:
-            x_v.setArray(values)
+        self.dat.data[:] = values.reshape(self.dat.data_ro.shape)[:]
 
     def _is_replacement(self):
         return False
@@ -303,17 +308,9 @@ class ZeroFunction(Function, Zero):
         Function.__init__(
             self, *args, **kwargs,
             static=True, cache=True)
+        var_lock_state(self)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroFunction is not zero-valued")
-
-    def assign(self, *args, **kwargs):
-        raise RuntimeError("Cannot call assign method of ZeroFunction")
-
-    def interpolate(self, *args, **kwargs):
-        raise RuntimeError("Cannot call interpolate method of ZeroFunction")
-
-    def project(self, *args, **kwargs):
-        raise RuntimeError("Cannot call project method of ZeroFunction")
 
 
 @override_method(backend_Function, "__init__")
@@ -326,8 +323,8 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
         comm = self.function_space().comm
     add_interface(self, FunctionInterface,
                   {"comm": comm_dup_cached(comm), "id": new_var_id(),
-                   "state": [0], "space_type": "primal", "static": False,
-                   "cache": False})
+                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
+                   "space_type": "primal", "static": False, "cache": False})
     if isinstance(val, backend_Function):
         define_var_alias(self, val, key=("Function__init__",))
 
@@ -425,8 +422,9 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
     orig_args()
     add_interface(self, CofunctionInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
-                   "state": [0], "space_type": "conjugate_dual",
-                   "static": False, "cache": False})
+                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
+                   "space_type": "conjugate_dual", "static": False,
+                   "cache": False})
     if isinstance(val, backend_Cofunction):
         define_var_alias(self, val, key=("Cofunction__init__",))
 

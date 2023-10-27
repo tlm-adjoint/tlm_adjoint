@@ -288,32 +288,33 @@ class MixedSpace(ABC):
         :arg u: An element of the split space.
         """
 
-        with u_petsc as u_a:
-            if not np.can_cast(u_a, PETSc.ScalarType):
-                raise ValueError("Invalid dtype")
-            if len(u_a.shape) != 1:
-                raise ValueError("Invalid shape")
+        u_a = u_petsc.getArray(True)
 
-            i0 = 0
-            for j, u_i in zip_sub(range(len(self._indices)), u):
-                with u_i.dat.vec_ro as u_i_v:
-                    i1 = i0 + u_i_v.getLocalSize()
-                if i1 > u_a.shape[0]:
-                    raise ValueError("Invalid shape")
-                if (i0, i1) != self._indices[j]:
-                    raise ValueError("Invalid shape")
-                with u_i.dat.vec_wo as u_i_v:
-                    u_i_v.setArray(u_a[i0:i1])
-                i0 = i1
-            if i0 != u_a.shape[0]:
+        if not np.can_cast(u_a, PETSc.ScalarType):
+            raise ValueError("Invalid dtype")
+        if len(u_a.shape) != 1:
+            raise ValueError("Invalid shape")
+
+        i0 = 0
+        for j, u_i in zip_sub(range(len(self._indices)), u):
+            with u_i.dat.vec_ro as u_i_v:
+                i1 = i0 + u_i_v.getLocalSize()
+            if i1 > u_a.shape[0]:
                 raise ValueError("Invalid shape")
+            if (i0, i1) != self._indices[j]:
+                raise ValueError("Invalid shape")
+            with u_i.dat.vec_wo as u_i_v:
+                u_i_v.setArray(u_a[i0:i1])
+            i0 = i1
+        if i0 != u_a.shape[0]:
+            raise ValueError("Invalid shape")
 
     def to_petsc(self, u_petsc, u):
         """Copy data to a compatible :class:`petsc4py.PETSc.Vec`. Does not
         update the ghost.
 
         :arg u_petsc: The :class:`petsc4py.PETSc.Vec`.
-        :arg u: An elmeent of the split space.
+        :arg u: An element of the split space.
         """
 
         u_a = np.zeros(self.local_size, dtype=PETSc.ScalarType)
@@ -321,18 +322,19 @@ class MixedSpace(ABC):
         i0 = 0
         for j, u_i in zip_sub(range(len(self._indices)), iter_sub(u)):
             with u_i.dat.vec_ro as u_i_v:
-                with u_i_v as u_i_a:
-                    if not np.can_cast(u_i_a, PETSc.ScalarType):
-                        raise ValueError("Invalid dtype")
-                    if len(u_i_a.shape) != 1:
-                        raise ValueError("Invalid shape")
+                u_i_a = u_i_v.getArray(True)
 
-                    i1 = i0 + u_i_a.shape[0]
-                    if i1 > u_a.shape[0]:
-                        raise ValueError("Invalid shape")
-                    if (i0, i1) != self._indices[j]:
-                        raise ValueError("Invalid shape")
-                    u_a[i0:i1] = u_i_a
+                if not np.can_cast(u_i_a, PETSc.ScalarType):
+                    raise ValueError("Invalid dtype")
+                if len(u_i_a.shape) != 1:
+                    raise ValueError("Invalid shape")
+
+                i1 = i0 + u_i_a.shape[0]
+                if i1 > u_a.shape[0]:
+                    raise ValueError("Invalid shape")
+                if (i0, i1) != self._indices[j]:
+                    raise ValueError("Invalid shape")
+                u_a[i0:i1] = u_i_a
             i0 = i1
         if i0 != u_a.shape[0]:
             raise ValueError("Invalid shape")

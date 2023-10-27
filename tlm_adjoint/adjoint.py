@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    finalize_adjoint_derivative_action, space_new,
+    StateLockDictionary, finalize_adjoint_derivative_action, space_new,
     subtract_adjoint_derivative_action, var_copy, var_id, var_space,
     var_space_type)
 
@@ -502,7 +502,7 @@ class TransposeComputationalGraph:
 
 class AdjointCache:
     def __init__(self):
-        self._cache = {}
+        self._cache = StateLockDictionary()
         self._keys = {}
         self._cache_key = None
 

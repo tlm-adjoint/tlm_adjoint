@@ -11,8 +11,9 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
     space_comm, var_caches, var_comm, var_dtype, var_derivative_space, var_id,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm, var_name,
-    var_replacement, var_scalar_value, var_space, var_space_type)
+    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
+    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
+    var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -318,15 +319,6 @@ class Zero:
     variables for which UFL zero elimination should not be applied.
     """
 
-    def _tlm_adjoint__var_interface_assign(self, y):
-        raise RuntimeError("Cannot call _assign interface of Zero")
-
-    def _tlm_adjoint__var_interface_axpy(self, alpha, x, /):
-        raise RuntimeError("Cannot call _axpy interface of Zero")
-
-    def _tlm_adjoint__var_interface_set_values(self, values):
-        raise RuntimeError("Cannot call _set_values interface of Zero")
-
     def _tlm_adjoint__var_interface_update_state(self):
         raise RuntimeError("Cannot call _update_state interface of Zero")
 
@@ -343,11 +335,9 @@ class ZeroConstant(Constant, Zero):
         Constant.__init__(
             self, name=name, domain=domain, space=space, space_type=space_type,
             shape=shape, comm=comm, static=True, cache=True)
+        var_lock_state(self)
         if var_linf_norm(self) != 0.0:
             raise RuntimeError("ZeroConstant is not zero-valued")
-
-    def assign(self, *args, **kwargs):
-        raise RuntimeError("Cannot call assign method of ZeroConstant")
 
 
 def extract_coefficients(expr):
