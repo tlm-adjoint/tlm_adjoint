@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    StateLockDictionary, var_id, var_new, var_scalar_value, var_state)
+    StateLockDictionary, var_check_state_lock, var_id,
+    var_increment_state_lock, var_new, var_scalar_value)
 
 from .caches import clear_caches
 from .hessian import GaussNewton, Hessian
@@ -146,10 +147,11 @@ class CachedHessian(Hessian, HessianOptimization):
     """
 
     def __init__(self, J, *, manager=None, cache_adjoint=True):
+        var_increment_state_lock(J, self)
+
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=cache_adjoint)
         Hessian.__init__(self)
-        self._J_state = var_state(J)
         self._J = J
 
     @restore_manager
@@ -160,8 +162,7 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ
 
-        if var_state(self._J) != self._J_state:
-            raise RuntimeError("State has changed")
+        var_check_state_lock(self._J)
 
         dM = tuple(map(var_new, M))
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=False)
@@ -185,8 +186,7 @@ class CachedHessian(Hessian, HessianOptimization):
                 M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
 
-        if var_state(self._J) != self._J_state:
-            raise RuntimeError("State has changed")
+        var_check_state_lock(self._J)
 
         manager, M, dM = self._setup_manager(M, dM, M0=M0, solve_tlm=True)
         set_manager(manager)
@@ -220,12 +220,14 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         if not isinstance(X, Sequence):
             X = (X,)
 
+        for x in X:
+            var_increment_state_lock(x, self)
+
         HessianOptimization.__init__(self, manager=manager,
                                      cache_adjoint=False)
         GaussNewton.__init__(
             self, R_inv_action, B_inv_action=B_inv_action)
         self._X = tuple(X)
-        self._X_state = tuple(map(var_state, X))
 
     def _setup_manager(self, M, dM, M0=None, *,
                        annotate_tlm=False, solve_tlm=True):
@@ -235,7 +237,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
         return manager, M, dM, self._X
 
     def action(self, M, dM, M0=None):
-        if tuple(map(var_state, self._X)) != self._X_state:
-            raise RuntimeError("State has changed")
+        for x in self._X:
+            var_check_state_lock(x)
 
         return GaussNewton.action(self, M, dM, M0=M0)
