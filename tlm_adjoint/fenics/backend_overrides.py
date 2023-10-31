@@ -8,8 +8,8 @@ from .backend import (
     backend_Vector, backend_project, backend_solve, cpp_Assembler,
     cpp_SystemAssembler, parameters)
 from ..interface import (
-    space_id, space_new, var_assign, var_comm, var_new, var_space,
-    var_update_state)
+    VariableStateChangeError, is_var, space_id, space_new, var_assign,
+    var_comm, var_new, var_space, var_state_is_locked, var_update_state)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
@@ -316,8 +316,26 @@ def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
     return return_value
 
 
+@override_method(backend_DirichletBC, "homogenize")
+def DirichletBC_homogenize(self, orig, orig_args, *args, **kwargs):
+    bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
+    if is_var(bc_value) and var_state_is_locked(bc_value):
+        raise VariableStateChangeError("Cannot change DirichletBC if the "
+                                       "value state is locked")
+    return orig_args()
+
+
+@override_method(backend_DirichletBC, "set_value")
+def DirichletBC_set_value(self, orig, orig_args, *args, **kwargs):
+    bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
+    if is_var(bc_value) and var_state_is_locked(bc_value):
+        raise VariableStateChangeError("Cannot change DirichletBC if the "
+                                       "value state is locked")
+    return orig_args()
+
+
 @override_method(backend_DirichletBC, "apply")
-def _DirichletBC_apply(self, orig, orig_args, *args):
+def DirichletBC_apply(self, orig, orig_args, *args):
     A = None
     b = None
     x = None

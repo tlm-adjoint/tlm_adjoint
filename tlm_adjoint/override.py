@@ -29,17 +29,29 @@ def override_method(cls, name):
 
 
 def override_property(cls, name, *,
-                      cached=False):
+                      fset=None, cached=False):
     orig = getattr(cls, name)
 
     def wrapper(override):
-        property_decorator = functools.cached_property if cached else property
+        if fset is not None:
+            @functools.wraps(fset)
+            def wrapped_fset(self, *args, **kwargs):
+                return fset(self, orig.fset,
+                            lambda: orig.fset(self, *args, **kwargs),
+                            *args, **kwargs)
+
+        if cached:
+            if fset is not None:
+                raise TypeError("Cannot use fset with a cached_property")
+            property_decorator = functools.cached_property
+        else:
+            def property_decorator(arg):
+                return property(arg, fset=wrapped_fset)
 
         @property_decorator
         @functools.wraps(orig)
-        def wrapped_override(self, *args, **kwargs):
-            return override(self, lambda: orig.__get__(self, type(self)),
-                            *args, **kwargs)
+        def wrapped_override(self):
+            return override(self, lambda: orig.__get__(self, type(self)))
 
         setattr(cls, name, wrapped_override)
         if cached:

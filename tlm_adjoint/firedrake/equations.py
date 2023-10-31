@@ -10,9 +10,9 @@ from .backend import (
     TestFunction, TrialFunction, adjoint, backend_Constant,
     backend_DirichletBC, backend_Function, parameters)
 from ..interface import (
-    check_space_type, is_var, var_assign, var_id, var_is_scalar, var_new,
-    var_new_conjugate_dual, var_replacement, var_scalar_value, var_space,
-    var_zero)
+    check_space_type, is_var, var_assign, var_id, var_increment_state_lock,
+    var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
+    var_scalar_value, var_space, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
@@ -29,6 +29,7 @@ from .functions import (
     ReplacementConstant, bcs_is_cached, bcs_is_homogeneous, bcs_is_static,
     derivative, eliminate_zeros, extract_coefficients)
 
+import itertools
 import numpy as np
 import ufl
 
@@ -389,6 +390,15 @@ class EquationSolver(ExprEquation):
 
         hbcs = tuple(map(homogenized_bc, bcs))
 
+        class DirichletBCLock:
+            pass
+
+        bc_lock = DirichletBCLock()
+        for bc in itertools.chain(bcs, hbcs):
+            bc_value = bc.function_arg
+            if is_var(bc_value):
+                var_increment_state_lock(bc_value, bc_lock)
+
         if cache_jacobian is None:
             cache_jacobian = is_cached(J) and bcs_is_cached(bcs)
         if cache_adjoint_jacobian is None:
@@ -427,6 +437,7 @@ class EquationSolver(ExprEquation):
         self._rhs = rhs
         self._bcs = bcs
         self._hbcs = hbcs
+        self._bc_lock = bc_lock
         self._J = J
         self._nl_solve_J = nl_solve_J
         self._form_compiler_parameters = form_compiler_parameters

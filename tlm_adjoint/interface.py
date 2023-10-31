@@ -974,6 +974,10 @@ def var_decrement_state_lock(x, obj):
         del obj._tlm_adjoint__state_locks[x_id]
 
 
+class VariableStateChangeError(RuntimeError):
+    pass
+
+
 def var_lock_state(x):
     """Lock the state of a variable.
 
@@ -997,7 +1001,7 @@ def var_state_is_locked(x):
 def var_check_state_lock(x):
     if var_state_is_locked(x) \
             and x._tlm_adjoint__state_lock_state != var_state(x):
-        raise RuntimeError("State change while locked")
+        raise VariableStateChangeError("State change while locked")
 
 
 class StateLockDictionary(MutableMapping):
@@ -1060,7 +1064,8 @@ def var_update_state(*X):
             raise ValueError("x cannot be a replacement")
         var_check_state_lock(x)
         if var_state_is_locked(x):
-            raise RuntimeError("Cannot update state for locked variable")
+            raise VariableStateChangeError("Cannot update state for locked "
+                                           "variable")
         x._tlm_adjoint__var_interface_update_state()
     var_update_caches(*X)
 
