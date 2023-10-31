@@ -1252,7 +1252,12 @@ def var_get_values(x):
         freedom.
     """
 
-    return x._tlm_adjoint__var_interface_get_values()
+    values = x._tlm_adjoint__var_interface_get_values()
+    if not np.can_cast(values, var_dtype(x)):
+        raise ValueError("Invalid dtype")
+    if values.shape != (var_local_size(x),):
+        raise ValueError("Invalid shape")
+    return values
 
 
 def var_set_values(x, values):
@@ -1266,7 +1271,7 @@ def var_set_values(x, values):
 
     if not np.can_cast(values, var_dtype(x)):
         raise ValueError("Invalid dtype")
-    if not values.shape == (var_local_size(x),):
+    if values.shape != (var_local_size(x),):
         raise ValueError("Invalid shape")
     x._tlm_adjoint__var_interface_set_values(values)
     var_update_state(x)
