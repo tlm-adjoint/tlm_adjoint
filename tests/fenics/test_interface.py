@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from fenics import *
+from tlm_adjoint.alias import WeakAlias
+from tlm_adjoint.interface import VariableStateChangeError
 from tlm_adjoint.fenics import *
 
 from .test_base import *
 
+import gc
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -103,3 +106,73 @@ def test_scalar_var(setup_test, test_leaks):
     test_scalar(Constant(0.0), True)
     test_scalar(Constant((0.0, 0.0)), False)
     test_scalar(Function(space), False)
+
+
+@pytest.mark.fenics
+@seed_test
+def test_DirichletBC_locking(setup_test, test_leaks):
+    def new_bc(space_cls):
+        mesh = UnitSquareMesh(10, 10)
+        space = space_cls(mesh, "Lagrange", 1)
+        bc_value = Function(space, name="bc_value")
+        bc = DirichletBC(space, bc_value, "on_boundary", static=True)
+        return space, bc
+
+    def new_hbc(space_cls):
+        mesh = UnitSquareMesh(10, 10)
+        space = space_cls(mesh, "Lagrange", 1)
+        bc = HomogeneousDirichletBC(space, "on_boundary")
+        return space, bc
+
+    for space_cls in (FunctionSpace,
+                      VectorFunctionSpace,
+                      TensorFunctionSpace):
+        _, bc = new_bc(space_cls)
+        try:
+            bc.homogenize()
+            assert False
+        except VariableStateChangeError:
+            pass
+        del bc
+
+        space, bc = new_bc(space_cls)
+        try:
+            bc.set_value(Function(space))
+            assert False
+        except VariableStateChangeError:
+            pass
+        del space, bc
+
+        _, bc = new_hbc(space_cls)
+        bc.homogenize()
+        del bc
+
+    def new_eq():
+        mesh = UnitSquareMesh(10, 10)
+        space = FunctionSpace(mesh, "Lagrange", 1)
+        bc_value = Function(space, name="bc_value")
+        bc = DirichletBC(space, bc_value, "on_boundary")
+        test, trial = TestFunction(space), TrialFunction(space)
+        u = Function(space, name="u")
+        eq = EquationSolver(inner(trial, test) * dx
+                            == inner(Constant(1.0), test) * dx, u, bc)
+        return space, bc, eq
+
+    _, bc, eq = new_eq()
+    try:
+        bc.homogenize()
+        assert False
+    except VariableStateChangeError:
+        pass
+    del bc, eq
+
+    _, bc, eq = new_eq()
+    eq = WeakAlias(eq)
+    gc.collect()
+    garbage_cleanup()
+    try:
+        bc.homogenize()
+        assert False
+    except VariableStateChangeError:
+        pass
+    del bc, eq

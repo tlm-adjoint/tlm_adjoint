@@ -7,14 +7,15 @@ from .backend import (
     backend_Function, backend_Vector, backend_assemble, backend_interpolate,
     backend_project, backend_solve, parameters)
 from ..interface import (
-    is_var, space_id, var_comm, var_new, var_space, var_update_state)
+    VariableStateChangeError, is_var, space_id, var_comm, var_new, var_space,
+    var_state_is_locked, var_update_state)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment
 from ..override import (
-    add_manager_controls, manager_method, override_method)
+    add_manager_controls, manager_method, override_method, override_property)
 
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
@@ -107,6 +108,23 @@ def FormAssembler_assemble(self, orig, orig_args, *args,
 def var_update_state_post_call(self, return_value, *args, **kwargs):
     var_update_state(self)
     return return_value
+
+
+def DirichletBC_function_arg_fset(self, orig, orig_args, g):
+    if getattr(self, "_tlm_adjoint__function_arg_set", False) \
+            and is_var(self.function_arg) \
+            and var_state_is_locked(self.function_arg):
+        raise VariableStateChangeError("Cannot change DirichletBC if the "
+                                       "value state is locked")
+    return_value = orig_args()
+    self._tlm_adjoint__function_arg_set = True
+    return return_value
+
+
+@override_property(backend_DirichletBC, "function_arg",
+                   fset=DirichletBC_function_arg_fset)
+def DirichletBC_function_arg(self, orig):
+    return orig()
 
 
 @manager_method(backend_Constant, "assign",

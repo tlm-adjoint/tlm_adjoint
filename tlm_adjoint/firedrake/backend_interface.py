@@ -220,10 +220,13 @@ class FunctionInterfaceBase(_VariableInterface):
         return slice(*local_range)
 
     def _get_values(self):
-        return self.dat.data_ro.flatten().copy()
+        with self.dat.vec_ro as x_v:
+            x_a = x_v.getArray(True)
+        return x_a.copy()
 
     def _set_values(self, values):
-        self.dat.data[:] = values.reshape(self.dat.data_ro.shape)[:]
+        with self.dat.vec_wo as x_v:
+            x_v.setArray(values)
 
     def _is_replacement(self):
         return False

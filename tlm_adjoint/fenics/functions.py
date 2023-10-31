@@ -9,11 +9,11 @@ from .backend import (
     TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
     backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
-    space_comm, var_caches, var_comm, var_dtype, var_derivative_space, var_id,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
-    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
-    var_space_type)
+    DEFAULT_COMM, SpaceInterface, VariableStateChangeError, add_interface,
+    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype,
+    var_derivative_space, var_id, var_increment_state_lock, var_is_cached,
+    var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
+    var_replacement, var_scalar_value, var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -320,7 +320,8 @@ class Zero:
     """
 
     def _tlm_adjoint__var_interface_update_state(self):
-        raise RuntimeError("Cannot call _update_state interface of Zero")
+        raise VariableStateChangeError("Cannot call _update_state interface "
+                                       "of Zero")
 
 
 class ZeroConstant(Constant, Zero):
@@ -449,31 +450,13 @@ class DirichletBC(backend_DirichletBC):
             else:
                 static = True
 
+        if static and is_var(g):
+            var_increment_state_lock(g, self)
+
+        self._tlm_adjoint__bc_value = g
         self._tlm_adjoint__static = static
         self._tlm_adjoint__cache = static
         self._tlm_adjoint__homogeneous = _homogeneous
-
-    def homogenize(self):
-        """Homogenize the :class:`.DirichletBC`, setting its value to zero.
-        """
-
-        if self._tlm_adjoint__static:
-            raise RuntimeError("Cannot call homogenize method for static "
-                               "DirichletBC")
-        if not self._tlm_adjoint__homogeneous:
-            super().homogenize()
-            self._tlm_adjoint__homogeneous = True
-
-    def set_value(self, *args, **kwargs):
-        """Set the :class:`.DirichletBC` value.
-
-        Arguments are passed to the DOLFIN `DirichletBC.set_value` method.
-        """
-
-        if self._tlm_adjoint__static:
-            raise RuntimeError("Cannot call set_value method for static "
-                               "DirichletBC")
-        super().set_value(*args, **kwargs)
 
 
 class HomogeneousDirichletBC(DirichletBC):

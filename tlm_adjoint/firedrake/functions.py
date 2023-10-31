@@ -9,11 +9,11 @@ from .backend import (
     TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
     backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_interface, comm_parent, is_var,
-    space_comm, var_caches, var_comm, var_dtype, var_derivative_space, var_id,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
-    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
-    var_space_type)
+    DEFAULT_COMM, SpaceInterface, VariableStateChangeError, add_interface,
+    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype,
+    var_derivative_space, var_id, var_increment_state_lock, var_is_cached,
+    var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
+    var_replacement, var_scalar_value, var_space, var_space_type)
 from ..interface import VariableInterface as _VariableInterface
 
 from ..caches import Caches
@@ -337,17 +337,9 @@ class Zero:
     variables for which UFL zero elimination should not be applied.
     """
 
-    def _tlm_adjoint__var_interface_assign(self, y):
-        raise RuntimeError("Cannot call _assign interface of Zero")
-
-    def _tlm_adjoint__var_interface_axpy(self, alpha, x, /):
-        raise RuntimeError("Cannot call _axpy interface of Zero")
-
-    def _tlm_adjoint__var_interface_set_values(self, values):
-        raise RuntimeError("Cannot call _set_values interface of Zero")
-
     def _tlm_adjoint__var_interface_update_state(self):
-        raise RuntimeError("Cannot call _update_state interface of Zero")
+        raise VariableStateChangeError("Cannot call _update_state interface "
+                                       "of Zero")
 
 
 class ZeroConstant(Constant, Zero):
@@ -560,31 +552,12 @@ class DirichletBC(backend_DirichletBC):
             else:
                 static = True
 
+        if static and is_var(self.function_arg):
+            var_increment_state_lock(self.function_arg, self)
+
         self._tlm_adjoint__static = static
         self._tlm_adjoint__cache = static
         self._tlm_adjoint__homogeneous = _homogeneous
-
-    def homogenize(self):
-        """Homogenize the :class:`.DirichletBC`, setting its value to zero.
-        """
-
-        if self._tlm_adjoint__static:
-            raise RuntimeError("Cannot call homogenize method for static "
-                               "DirichletBC")
-        if not self._tlm_adjoint__homogeneous:
-            super().homogenize()
-            self._tlm_adjoint__homogeneous = True
-
-    def set_value(self, *args, **kwargs):
-        """Set the :class:`.DirichletBC` value.
-
-        Arguments are passed to :meth:`firedrake.bcs.DirichletBC.set_value`.
-        """
-
-        if self._tlm_adjoint__static:
-            raise RuntimeError("Cannot call set_value method for static "
-                               "DirichletBC")
-        super().set_value(*args, **kwargs)
 
 
 class HomogeneousDirichletBC(DirichletBC):
