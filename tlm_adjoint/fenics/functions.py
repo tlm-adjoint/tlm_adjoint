@@ -9,12 +9,12 @@ from .backend import (
     TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
     backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, VariableStateChangeError, add_interface,
-    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype,
-    var_derivative_space, var_id, var_increment_state_lock, var_is_cached,
-    var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
-    var_replacement, var_scalar_value, var_space, var_space_type)
-from ..interface import VariableInterface as _VariableInterface
+    DEFAULT_COMM, SpaceInterface, VariableInterface, VariableStateChangeError,
+    add_interface, comm_parent, is_var, space_comm, var_caches, var_comm,
+    var_dtype, var_derivative_space, var_id, var_increment_state_lock,
+    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
+    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
+    var_space_type)
 
 from ..caches import Caches
 from ..manager import manager_disabled
@@ -62,7 +62,7 @@ class ConstantSpaceInterface(SpaceInterface):
                         space_type=space_type, static=static, cache=cache)
 
 
-class ConstantInterface(_VariableInterface):
+class ConstantInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
 
@@ -504,7 +504,7 @@ def bcs_is_homogeneous(bcs):
     return True
 
 
-class ReplacementInterface(_VariableInterface):
+class ReplacementInterface(VariableInterface):
     def _space(self):
         return self.ufl_function_space()
 
