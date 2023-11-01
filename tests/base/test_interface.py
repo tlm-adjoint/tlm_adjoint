@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from tlm_adjoint import (
-    DEFAULT_COMM, Float, StateLockDictionary, Vector, var_lock_state, var_name)
+    DEFAULT_COMM, Float, VariableStateLockDictionary, Vector, var_lock_state,
+    var_name)
 from tlm_adjoint.interface import (
     var_decrement_state_lock, var_increment_state_lock, var_state_is_locked)
 
@@ -96,7 +97,7 @@ def test_state_lock(setup_test):  # noqa: F811
 
 @pytest.mark.base
 @seed_test
-def test_StateLockDictionary(setup_test):  # noqa: F811
+def test_VariableStateLockDictionary(setup_test):  # noqa: F811
     f = Float(1.0)
     assert not var_state_is_locked(f)
 
@@ -152,7 +153,7 @@ def test_StateLockDictionary(setup_test):  # noqa: F811
 
     # Add items, delete items with del and pop
     for delfn in (delfn_del, delfn_pop):
-        d = StateLockDictionary()
+        d = VariableStateLockDictionary()
         assert not var_state_is_locked(f)
         for i, key in enumerate(keys):
             test_setitem(d, key, f, i)
@@ -164,7 +165,7 @@ def test_StateLockDictionary(setup_test):  # noqa: F811
         assert not var_state_is_locked(f)
 
     # Add items, replace items with None
-    d = StateLockDictionary()
+    d = VariableStateLockDictionary()
     assert not var_state_is_locked(f)
     for i, key in enumerate(keys):
         test_setitem(d, key, f, i)
@@ -176,7 +177,7 @@ def test_StateLockDictionary(setup_test):  # noqa: F811
     assert not var_state_is_locked(f)
 
     # Add items, clear
-    d = StateLockDictionary()
+    d = VariableStateLockDictionary()
     assert not var_state_is_locked(f)
     for i, key in enumerate(keys):
         test_setitem(d, key, f, i)
@@ -185,8 +186,8 @@ def test_StateLockDictionary(setup_test):  # noqa: F811
     assert len(d) == 0
     assert not var_state_is_locked(f)
 
-    # Add items, destroy the StateLockDictionary
-    d = StateLockDictionary()
+    # Add items, destroy the VariableStateLockDictionary
+    d = VariableStateLockDictionary()
     assert not var_state_is_locked(f)
     for i, key in enumerate(keys):
         test_setitem(d, key, f, i)

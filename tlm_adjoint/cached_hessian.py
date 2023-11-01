@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    StateLockDictionary, is_var, var_check_state_lock, var_id,
+    VariableStateLockDictionary, is_var, var_check_state_lock, var_id,
     var_increment_state_lock, var_new, var_scalar_value)
 
 from .caches import clear_caches
@@ -29,10 +29,10 @@ class HessianOptimization:
 
         blocks = list(manager._blocks) + [list(manager._block)]
 
-        ics = StateLockDictionary(
+        ics = VariableStateLockDictionary(
             manager._cp.initial_conditions(cp=True, refs=True, copy=False))
 
-        nl_deps = StateLockDictionary()
+        nl_deps = VariableStateLockDictionary()
         for n, block in enumerate(blocks):
             for i, eq in enumerate(block):
                 nl_deps[(n, i)] = manager._cp[(n, i)]

@@ -133,7 +133,7 @@ __all__ = \
 
         "var_is_alias",
 
-        "StateLockDictionary",
+        "VariableStateLockDictionary",
         "var_lock_state",
 
         "is_function",
@@ -1005,15 +1005,16 @@ def var_check_state_lock(x):
         raise VariableStateChangeError("State change while locked")
 
 
-class StateLockDictionary(MutableMapping):
+class VariableStateLockDictionary(MutableMapping):
     """A dictionary-like class. If a value is a variable and not a replacement
     then the variable state is 'locked' so that a state update, with the lock
     active, will raise an exception.
 
     State locks are automatically released when the
-    :class:`.StateLockDictionary` is destroyed. Consequently objects of this
-    type should be used with caution. In particular object destruction via the
-    garbage collector may lead to non-deterministic release of the state lock.
+    :class:`.VariableStateLockDictionary` is destroyed. Consequently objects of
+    this type should be used with caution. In particular object destruction via
+    the garbage collector may lead to non-deterministic release of the state
+    lock.
     """
 
     def __init__(self, *args, **kwargs):
