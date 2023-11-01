@@ -591,7 +591,7 @@ def conjugate_dual_space_type(space_type):
             "dual": "conjugate", "conjugate_dual": "primal"}[space_type]
 
 
-_check_space_types = 0
+_check_space_types = True
 
 
 def no_space_type_checking(fn):
@@ -618,13 +618,14 @@ def paused_space_type_checking():
     """
 
     global _check_space_types
-    _check_space_types += 1
+    check_space_types = _check_space_types
+    _check_space_types = False
     yield
-    _check_space_types -= 1
+    _check_space_types = check_space_types
 
 
 def space_type_warning(msg, *, stacklevel=1):
-    if _check_space_types == 0:
+    if _check_space_types:
         warnings.warn(msg, stacklevel=stacklevel + 1)
 
 
