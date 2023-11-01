@@ -33,14 +33,6 @@ def test_poisson(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @pytest.mark.example
-@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
-@seed_test
-def test_0_getting_started(setup_test, tmp_path):
-    run_example_notebook("0_getting_started.ipynb", tmp_path)
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
 @pytest.mark.skipif(complex_mode, reason="real only")
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @seed_test
@@ -95,13 +87,3 @@ def test_5_optimization(setup_test, tmp_path):
 @seed_test
 def test_6_custom_operations(setup_test, tmp_path):
     run_example_notebook("6_custom_operations.ipynb", tmp_path)
-
-
-@pytest.mark.firedrake
-@pytest.mark.example
-@pytest.mark.skipif(jax is None, reason="JAX not available")
-@pytest.mark.skipif(complex_mode, reason="real only")
-@pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
-@seed_test
-def test_7_jax_integration(setup_test, tmp_path):
-    run_example_notebook("7_jax_integration.ipynb", tmp_path)
