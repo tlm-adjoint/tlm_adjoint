@@ -368,7 +368,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             manager = _manager()
 
             assert len(manager._to_drop_references) == 0
-            for eq in [fp_eq, eq0, eq1]:
+            for eq in (fp_eq, eq0, eq1):
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
                     assert not var_is_replacement(dep)
@@ -377,7 +377,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             fp_eq = WeakAlias(fp_eq)
 
             assert len(manager._to_drop_references) == 1
-            for eq in [fp_eq, eq0, eq1]:
+            for eq in (fp_eq, eq0, eq1):
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
                     assert not var_is_replacement(dep)
@@ -389,7 +389,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             assert fp_eq._references_dropped
             for dep in fp_eq.dependencies():
                 assert var_is_replacement(dep)
-            for eq in [eq0, eq1]:
+            for eq in (eq0, eq1):
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
                     assert not var_is_replacement(dep)
@@ -400,7 +400,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
 
         if forward_run:
             assert len(manager._to_drop_references) == 0
-            for eq in [eq0, eq1]:
+            for eq in (eq0, eq1):
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
                     assert not var_is_replacement(dep)
@@ -410,7 +410,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             eq1 = WeakAlias(eq1)
 
             assert len(manager._to_drop_references) == 2
-            for eq in [eq0, eq1]:
+            for eq in (eq0, eq1):
                 assert not eq._references_dropped
                 for dep in eq.dependencies():
                     assert not var_is_replacement(dep)
@@ -419,7 +419,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
             manager.drop_references()
 
             assert len(manager._to_drop_references) == 0
-            for eq in [eq0, eq1]:
+            for eq in (eq0, eq1):
                 assert eq._references_dropped
                 for dep in eq.dependencies():
                     assert var_is_replacement(dep)

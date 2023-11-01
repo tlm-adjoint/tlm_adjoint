@@ -437,7 +437,7 @@ def test_ExprAssignment(setup_test, test_leaks,
         _, J = forward(c, y, z)
         return J
 
-    for m, dJ, forward_J in [(c, dJ_c, forward_J_c), (y, dJ_y, forward_J_y)]:
+    for m, dJ, forward_J in ((c, dJ_c, forward_J_c), (y, dJ_y, forward_J_y)):
         min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
         assert min_order > 1.98
 

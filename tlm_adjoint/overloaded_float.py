@@ -879,7 +879,7 @@ class FloatEquation(Equation):
         deps = expr_dependencies(expr)
         for dep in deps:
             check_space_type(dep, "primal")
-        if var_id(x) in {var_id(dep) for dep in deps}:
+        if var_id(x) in set(map(var_id, deps)):
             raise ValueError("Invalid dependency")
         deps.insert(0, x)
 

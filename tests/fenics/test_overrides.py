@@ -109,12 +109,12 @@ def test_overrides(setup_test, test_leaks):
 
         return G
 
-    for project_fn in [project_project,
+    for project_fn in (project_project,
                        project_assemble_system_KrylovSolver,
                        project_assemble_KrylovSolver,
                        project_assemble_mult_KrylovSolver,
                        project_LinearVariationalSolver,
-                       project_NonlinearVariationalSolver]:
+                       project_NonlinearVariationalSolver):
         def forward(F):
             G = project_fn(F)
 

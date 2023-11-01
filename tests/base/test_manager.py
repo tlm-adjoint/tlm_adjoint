@@ -223,7 +223,7 @@ def test_random_computational_graph(setup_test,  # noqa: F811
                                  "snaps_in_ram": 5,
                                  "path": str(tmp_path / "checkpoints~")})
 
-    for max_N_terms in [5, 8, 11] * {"memory": 2, "multistage": 1}[cp_method]:
+    for max_N_terms in (5, 8, 11) * {"memory": 2, "multistage": 1}[cp_method]:
         state = None
         Cs = []
 

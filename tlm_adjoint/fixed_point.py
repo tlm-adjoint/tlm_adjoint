@@ -159,9 +159,9 @@ class FixedPointSolver(Equation, CustomNormSq):
 
         solver_parameters = dict(solver_parameters)
         # Based on KrylovSolver parameters in FEniCS 2017.2.0
-        for key, default_value in [("maximum_iterations", 1000),
+        for key, default_value in (("maximum_iterations", 1000),
                                    ("nonzero_initial_guess", True),
-                                   ("adjoint_nonzero_initial_guess", True)]:
+                                   ("adjoint_nonzero_initial_guess", True)):
             solver_parameters.setdefault(key, default_value)
 
         nonzero_initial_guess = solver_parameters["nonzero_initial_guess"]

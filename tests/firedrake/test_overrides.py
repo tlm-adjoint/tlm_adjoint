@@ -70,10 +70,10 @@ def test_overrides(setup_test, test_leaks):
 
         return G
 
-    for project_fn in [project_project,
+    for project_fn in (project_project,
                        project_assemble_LinearSolver,
                        project_LinearVariationalSolver,
-                       project_NonlinearVariationalSolver]:
+                       project_NonlinearVariationalSolver):
         def forward(F):
             G = project_fn(F)
 
@@ -268,10 +268,10 @@ def test_interpolate(setup_test, test_leaks,
         interp.interpolate(v, output=x)
         return x
 
-    for interpolate_fn in [interpolate_interpolate,
+    for interpolate_fn in (interpolate_interpolate,
                            interpolate_Function_interpolate,
                            interpolate_Interpolator_function,
-                           interpolate_Interpolator_test]:
+                           interpolate_Interpolator_test):
         def forward(y_2):
             y_1 = interpolate_fn(y_2, space_1)
 
