@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    StateLockDictionary, var_check_state_lock, var_id,
+    StateLockDictionary, is_var, var_check_state_lock, var_id,
     var_increment_state_lock, var_new, var_scalar_value)
 
 from .caches import clear_caches
@@ -10,8 +10,6 @@ from .hessian import GaussNewton, Hessian
 from .manager import manager as _manager
 from .manager import compute_gradient, set_manager, restore_manager, var_tlm
 from .tlm_adjoint import AdjointCache, EquationManager
-
-from collections.abc import Sequence
 
 __all__ = \
     [
@@ -156,7 +154,7 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def compute_gradient(self, M, M0=None):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             J_val, (dJ,) = self.compute_gradient(
                 (M,),
                 M0=None if M0 is None else (M0,))
@@ -180,7 +178,7 @@ class CachedHessian(Hessian, HessianOptimization):
 
     @restore_manager
     def action(self, M, dM, M0=None):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             J_val, dJ_val, (ddJ,) = self.action(
                 (M,), (dM,),
                 M0=None if M0 is None else (M0,))
@@ -217,7 +215,7 @@ class CachedGaussNewton(GaussNewton, HessianOptimization):
 
     def __init__(self, X, R_inv_action, B_inv_action=None, *,
                  manager=None):
-        if not isinstance(X, Sequence):
+        if is_var(X):
             X = (X,)
 
         for x in X:

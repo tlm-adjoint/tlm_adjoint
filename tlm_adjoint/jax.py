@@ -3,7 +3,7 @@
 
 from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    comm_dup_cached, new_var_id, new_space_id,
+    comm_dup_cached, is_var, new_var_id, new_space_id,
     register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_caches,
     var_comm, var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
@@ -672,9 +672,9 @@ class VectorEquation(Equation):
     """
 
     def __init__(self, X, Y, fn, *, with_tlm=True, _forward_eq=None):
-        if not isinstance(X, Sequence):
+        if is_var(X):
             X = (X,)
-        if not isinstance(Y, Sequence):
+        if is_var(Y):
             Y = (Y,)
         if len(X) != len(set(X)):
             raise ValueError("Duplicate solution")
@@ -768,7 +768,7 @@ class VectorEquation(Equation):
                 eq._annotate = True
 
     def forward_solve(self, X, deps=None):
-        if not isinstance(X, Sequence):
+        if is_var(X):
             X = (X,)
         if deps is None:
             deps = self.dependencies()
@@ -788,7 +788,7 @@ class VectorEquation(Equation):
         return B
 
     def subtract_adjoint_derivative_actions(self, adj_X, nl_deps, dep_Bs):
-        if not isinstance(adj_X, Sequence):
+        if is_var(adj_X):
             adj_X = (adj_X,)
         _, vjp = self._jax_reverse(*nl_deps)
         dF = vjp(tuple(adj_x.vector.conjugate() for adj_x in adj_X))

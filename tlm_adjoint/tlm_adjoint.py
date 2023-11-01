@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    DEFAULT_COMM, comm_dup_cached, garbage_cleanup, var_assign, var_copy,
-    var_id, var_is_replacement, var_name)
+    DEFAULT_COMM, comm_dup_cached, garbage_cleanup, is_var, var_assign,
+    var_copy, var_id, var_is_replacement, var_name)
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
 from .alias import WeakAlias, gc_disabled
@@ -20,7 +20,6 @@ from .manager import restore_manager, set_manager
 from .tangent_linear import TangentLinear, TangentLinearMap, tlm_key, tlm_keys
 
 from collections import deque
-from collections.abc import Sequence
 import contextlib
 import enum
 import functools
@@ -1148,8 +1147,8 @@ class EquationManager:
                 with respect to the :math:`j` th control.
         """
 
-        if not isinstance(M, Sequence):
-            if not isinstance(Js, Sequence):
+        if is_var(M):
+            if is_var(Js):
                 ((dJ,),) = self.compute_gradient(
                     (Js,), (M,), callback=callback,
                     prune_forward=prune_forward, prune_adjoint=prune_adjoint,
@@ -1167,7 +1166,7 @@ class EquationManager:
                     store_adjoint=store_adjoint,
                     adj_ics=adj_ics)
                 return tuple(dJ for dJ, in dJs)
-        elif not isinstance(Js, Sequence):
+        elif is_var(Js):
             dJ, = self.compute_gradient(
                 (Js,), M, callback=callback,
                 prune_forward=prune_forward, prune_adjoint=prune_adjoint,
