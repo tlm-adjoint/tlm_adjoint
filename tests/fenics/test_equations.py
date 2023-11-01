@@ -578,7 +578,6 @@ def test_Assembly_arity_0(setup_test, test_leaks):
 
     def forward(F):
         x = Constant(name="x")
-
         Assembly(x, (F ** 4) * dx).solve()
 
         J = Functional(name="J")
