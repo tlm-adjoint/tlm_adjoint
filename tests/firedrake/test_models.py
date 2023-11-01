@@ -101,7 +101,7 @@ def test_oscillator(setup_test, test_leaks,
         cp_parameters["path"] = str(tmp_path / "checkpoints~")
     if cp_method == "multistage":
         cp_parameters["blocks"] = n_steps
-    if cp_method in ["memory", "periodic_disk", "multistage"]:
+    if cp_method in {"memory", "periodic_disk", "multistage"}:
         configure_checkpointing(cp_method, cp_parameters)
     elif cp_method == "H-Revolve":
         from tlm_adjoint.checkpoint_schedules import HRevolveCheckpointSchedule

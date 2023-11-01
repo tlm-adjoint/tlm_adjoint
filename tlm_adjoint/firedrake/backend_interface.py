@@ -5,15 +5,15 @@ from .backend import (
     backend_Cofunction, backend_CofunctionSpace, backend_Constant,
     backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    comm_dup_cached, new_space_id, new_var_id, register_garbage_cleanup,
-    register_finalize_adjoint_derivative_action, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, relative_space_type,
-    space_type_warning, subtract_adjoint_derivative_action,
+    DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
+    check_space_type, comm_dup_cached, new_space_id, new_var_id,
+    register_garbage_cleanup, register_finalize_adjoint_derivative_action,
+    register_functional_term_eq, register_subtract_adjoint_derivative_action,
+    relative_space_type, space_type_warning,
+    subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
     var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
     var_space, var_space_type)
-from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from ..equations import Conversion
@@ -123,7 +123,7 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
-class FunctionInterfaceBase(_VariableInterface):
+class FunctionInterfaceBase(VariableInterface):
     def _comm(self):
         return self._tlm_adjoint__var_interface_attrs["comm"]
 

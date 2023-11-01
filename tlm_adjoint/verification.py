@@ -87,8 +87,8 @@ e.g. to verify Hessian calculations
 """
 
 from .interface import (
-    garbage_cleanup, space_comm, var_assign, var_axpy, var_copy, var_dtype,
-    var_is_cached, var_is_static, var_local_size, var_name, var_new,
+    garbage_cleanup, is_var, space_comm, var_assign, var_axpy, var_copy,
+    var_dtype, var_is_cached, var_is_static, var_local_size, var_name, var_new,
     var_set_values, vars_inner, vars_linf_norm, var_scalar_value)
 
 from .caches import clear_caches, local_caches
@@ -97,7 +97,6 @@ from .manager import (
     configure_tlm, manager_disabled, reset_manager, restore_manager,
     set_manager, start_manager, stop_manager, var_tlm)
 
-from collections.abc import Sequence
 import functools
 import logging
 import numpy as np
@@ -183,7 +182,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         close to 3 if `ddJ` is supplied.
     """
 
-    if not isinstance(M, Sequence):
+    if is_var(M):
         if dJ is not None:
             dJ = (dJ,)
         if dM is not None:
@@ -291,7 +290,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         verification this should be close to 2.
     """
 
-    if not isinstance(M, Sequence):
+    if is_var(M):
         if dMs is not None:
             dMs = tuple((dM,) for dM in dMs)
         return taylor_test_tlm(forward, (M,), tlm_order, seed=seed, dMs=dMs,
@@ -402,7 +401,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         verification this should be close to 2.
     """
 
-    if not isinstance(M, Sequence):
+    if is_var(M):
         if dMs is not None:
             dMs = tuple((dM,) for dM in dMs)
         return taylor_test_tlm_adjoint(

@@ -233,7 +233,7 @@ class MixedCheckpointSchedule(CheckpointSchedule):
     def __init__(self, max_n, snapshots, *, storage="disk"):
         if snapshots < min(1, max_n - 1):
             raise ValueError("Invalid number of snapshots")
-        if storage not in ["RAM", "disk"]:
+        if storage not in {"RAM", "disk"}:
             raise ValueError("Invalid storage")
 
         super().__init__(max_n)

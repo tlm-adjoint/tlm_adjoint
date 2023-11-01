@@ -5,14 +5,13 @@ from .backend import (
     as_backend_type, backend_Constant, backend_Function, backend_FunctionSpace,
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, add_interface, check_space_type,
-    check_space_types, comm_dup_cached, new_space_id, new_var_id,
-    register_finalize_adjoint_derivative_action, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, space_id,
-    subtract_adjoint_derivative_action,
+    DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
+    check_space_type, check_space_types, comm_dup_cached, new_space_id,
+    new_var_id, register_finalize_adjoint_derivative_action,
+    register_functional_term_eq, register_subtract_adjoint_derivative_action,
+    space_id, subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
     var_lock_state, var_scalar_value, var_space, var_space_type)
-from ..interface import VariableInterface as _VariableInterface
 from .backend_code_generator_interface import assemble, r0_space
 
 from ..equations import Conversion
@@ -115,7 +114,7 @@ def check_vector_size(fn):
     return wrapped_fn
 
 
-class FunctionInterface(_VariableInterface):
+class FunctionInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
 

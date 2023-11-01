@@ -141,7 +141,7 @@ def test_cached_rhs(setup_test, test_leaks,
                         solver_parameters=ls_parameters_cg)
     eq.solve()
 
-    if static_bc in [None, True]:
+    if static_bc in {None, True}:
         assert tuple(len(cache) for cache in caches) == (4, 1, 0)
         assert eq._cache_jacobian
     else:

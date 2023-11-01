@@ -16,7 +16,6 @@ from .manager import (
     start_manager, stop_manager)
 
 from collections import deque
-from collections.abc import Sequence
 import functools
 import logging
 import numpy as np
@@ -46,7 +45,7 @@ class ReducedFunctional:
     @restore_manager
     def objective(self, M, *,
                   force=False):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             M = (M,)
         if self._M is not None and len(M) != len(self._M):
             raise ValueError("Invalid control")
@@ -94,7 +93,7 @@ class ReducedFunctional:
 
     @restore_manager
     def gradient(self, M):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             dJ, = self.gradient((M,))
             return dJ
 
@@ -109,7 +108,7 @@ class ReducedFunctional:
         return dJ
 
     def hessian_action(self, M, dM):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             ddJ, = self.hessian_action((M,), (dM,))
             return ddJ
 
@@ -154,7 +153,7 @@ def minimize_scipy(forward, M0, *,
         :func:`scipy.optimize.minimize`.
     """
 
-    if not isinstance(M0, Sequence):
+    if is_var(M0):
         (M,), return_value = minimize_scipy(forward, (M0,),
                                             manager=manager, **kwargs)
         return M, return_value
@@ -894,7 +893,7 @@ def minimize_l_bfgs(forward, M0, *,
     :func:`.l_bfgs` documentation.
     """
 
-    if not isinstance(M0, Sequence):
+    if is_var(M0):
         (x,), optimization_data = minimize_l_bfgs(
             forward, (M0,),
             m=m, manager=manager, **kwargs)
@@ -960,7 +959,7 @@ def minimize_tao(forward, M0, *,
         result.
     """
 
-    if not isinstance(M0, Sequence):
+    if is_var(M0):
         m, = minimize_tao(
             forward, (M0,),
             method=method, gatol=gatol, grtol=grtol, gttol=gttol,

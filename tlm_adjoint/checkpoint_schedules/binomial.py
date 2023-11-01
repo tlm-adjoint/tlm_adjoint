@@ -431,7 +431,7 @@ class TwoLevelCheckpointSchedule(CheckpointSchedule):
                  binomial_trajectory="maximum"):
         if period < 1:
             raise ValueError("period must be positive")
-        if binomial_storage not in ["RAM", "disk"]:
+        if binomial_storage not in {"RAM", "disk"}:
             raise ValueError("Invalid storage")
 
         super().__init__()

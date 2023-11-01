@@ -53,8 +53,8 @@ def test_Assignment(setup_test):  # noqa: F811
 
     dm = Float(1.0, name="dm")
 
-    for forward_J, J_val, dJ in [(lambda x: forward(x)[0], J.value, dJs[0]),
-                                 (lambda x: forward(x)[1], K.value, dJs[1])]:
+    for forward_J, J_val, dJ in ((lambda x: forward(x)[0], J.value, dJs[0]),
+                                 (lambda x: forward(x)[1], K.value, dJs[1])):
         min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, dM=dm)
         assert min_order > 2.00
 

@@ -79,7 +79,7 @@ class HRevolveCheckpointSchedule(CheckpointSchedule):
                 n_0 = action.index
                 n_1 = None
                 storage = None
-            elif cp_action in ["Read", "Write", "Discard"]:
+            elif cp_action in {"Read", "Write", "Discard"}:
                 storage, n_0 = action.index
                 n_1 = None
                 storage = {0: "RAM", 1: "disk"}[storage]

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    DEFAULT_COMM, StateLockDictionary, comm_dup_cached, space_id, space_new,
-    var_assign, var_copy, var_get_values, var_global_size, var_id,
+    DEFAULT_COMM, VariableStateLockDictionary, comm_dup_cached, space_id,
+    space_new, var_assign, var_copy, var_get_values, var_global_size, var_id,
     var_is_scalar, var_is_static, var_local_indices, var_new, var_scalar_value,
     var_set_values, var_space, var_space_type)
 
@@ -74,7 +74,7 @@ class CheckpointStorage:
         self._data_keys = {}  # self._data_keys = set()
         self._data = {}
 
-        self._storage = StateLockDictionary()
+        self._storage = VariableStateLockDictionary()
 
         self.configure(store_ics=store_ics,
                        store_data=store_data)
@@ -173,12 +173,12 @@ class CheckpointStorage:
             data.
         :arg copy: If `True` then a copy of the stored data is returned. If
             `False` then internal variables storing the data are returned.
-        :returns: A :class:`.StateLockDictionary`, with items `(x_id:
+        :returns: A :class:`.VariableStateLockDictionary`, with items `(x_id:
             x_value)`, where `x_id` is the :class:`int` variable ID and
             `x_value` is a variable storing the data.
         """
 
-        cp_d = StateLockDictionary()
+        cp_d = VariableStateLockDictionary()
         if cp:
             for x_id, x_key in self._cp.items():
                 x = self._storage[x_key]
@@ -347,7 +347,7 @@ class CheckpointStorage:
         :returns: A :class:`tuple` `(cp, data, storage)`. Elements of this
             :class:`tuple` are as for the three arguments for the
             :meth:`.CheckpointStorage.update` method, and here `storage` is a
-            :class:`.StateLockDictionary`.
+            :class:`.VariableStateLockDictionary`.
         """
 
         if ics:
@@ -358,7 +358,7 @@ class CheckpointStorage:
             cp_data = dict(self._data)
         else:
             cp_data = {}
-        cp_storage = StateLockDictionary()
+        cp_storage = VariableStateLockDictionary()
 
         if ics:
             for key in cp_cp:

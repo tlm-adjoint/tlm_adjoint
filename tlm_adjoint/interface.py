@@ -133,7 +133,7 @@ __all__ = \
 
         "var_is_alias",
 
-        "StateLockDictionary",
+        "VariableStateLockDictionary",
         "var_lock_state",
 
         "is_function",
@@ -591,7 +591,7 @@ def conjugate_dual_space_type(space_type):
             "dual": "conjugate", "conjugate_dual": "primal"}[space_type]
 
 
-_check_space_types = 0
+_check_space_types = True
 
 
 def no_space_type_checking(fn):
@@ -618,13 +618,14 @@ def paused_space_type_checking():
     """
 
     global _check_space_types
-    _check_space_types += 1
+    check_space_types = _check_space_types
+    _check_space_types = False
     yield
-    _check_space_types -= 1
+    _check_space_types = check_space_types
 
 
 def space_type_warning(msg, *, stacklevel=1):
-    if _check_space_types == 0:
+    if _check_space_types:
         warnings.warn(msg, stacklevel=stacklevel + 1)
 
 
@@ -1004,15 +1005,16 @@ def var_check_state_lock(x):
         raise VariableStateChangeError("State change while locked")
 
 
-class StateLockDictionary(MutableMapping):
+class VariableStateLockDictionary(MutableMapping):
     """A dictionary-like class. If a value is a variable and not a replacement
     then the variable state is 'locked' so that a state update, with the lock
     active, will raise an exception.
 
     State locks are automatically released when the
-    :class:`.StateLockDictionary` is destroyed. Consequently objects of this
-    type should be used with caution. In particular object destruction via the
-    garbage collector may lead to non-deterministic release of the state lock.
+    :class:`.VariableStateLockDictionary` is destroyed. Consequently objects of
+    this type should be used with caution. In particular object destruction via
+    the garbage collector may lead to non-deterministic release of the state
+    lock.
     """
 
     def __init__(self, *args, **kwargs):

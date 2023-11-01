@@ -413,15 +413,14 @@ def test_ExprAssignment(setup_test, test_leaks,
                                cos(3.0 * pi * X[0]))
         interpolate_expression(z,
                                cos(7.0 * pi * X[0]))
+    x_ref = Function(space, name="x_ref")
+    interpolate_expression(x_ref, test_expression(c, y, z))
 
     start_manager()
     x, J = forward(c, y, z)
     stop_manager()
 
-    error_norm = abs(var_get_values(x)
-                     - test_expression(var_scalar_value(c),
-                                       var_get_values(y),
-                                       var_get_values(z))).max()
+    error_norm = np.sqrt(abs(assemble(inner(x - x_ref, x - x_ref) * dx)))
     info(f"Error norm = {error_norm:.16e}")
     assert error_norm < 1.0e-14
 
@@ -437,7 +436,7 @@ def test_ExprAssignment(setup_test, test_leaks,
         _, J = forward(c, y, z)
         return J
 
-    for m, dJ, forward_J in [(c, dJ_c, forward_J_c), (y, dJ_y, forward_J_y)]:
+    for m, dJ, forward_J in ((c, dJ_c, forward_J_c), (y, dJ_y, forward_J_y)):
         min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
         assert min_order > 1.98
 
@@ -531,7 +530,7 @@ def test_ExprInterpolation(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def test_expression(y, y_int):
-        return (y_int * y * (sin if is_var(y) else np.sin)(y)
+        return (y_int * y * sin(y)
                 + 2.0 + (y ** 2) + y / (1.0 + (y ** 2)))
 
     def forward(y):
@@ -546,15 +545,17 @@ def test_ExprInterpolation(setup_test, test_leaks):
 
     y = Function(space, name="y")
     interpolate_expression(y, cos(3.0 * pi * X[0]))
+    x_ref = Function(space, name="x_ref")
+    interpolate_expression(x_ref,
+                           test_expression(y, Constant(assemble(y * dx))))
+
     start_manager()
     x, J = forward(y)
     stop_manager()
 
-    error_norm = abs(var_get_values(x)
-                     - test_expression(var_get_values(y),
-                                       assemble(y * dx))).max()
+    error_norm = np.sqrt(abs(assemble(inner(x - x_ref, x - x_ref) * dx)))
     info(f"Error norm = {error_norm:.16e}")
-    assert error_norm < 1.0e-15
+    assert error_norm == 0.0
 
     J_val = J.value
 
@@ -767,7 +768,6 @@ def test_Assembly_arity_0(setup_test, test_leaks):
 
     def forward(F):
         x = Constant(name="x")
-
         Assembly(x, (F ** 4) * dx).solve()
 
         J = Functional(name="J")

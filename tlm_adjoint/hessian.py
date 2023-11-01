@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    check_space_types_conjugate_dual, var_axpy, var_copy, var_is_cached,
-    var_is_static, var_name, var_new, var_copy_conjugate, var_scalar_value)
+    check_space_types_conjugate_dual, is_var, var_axpy, var_copy,
+    var_copy_conjugate, var_is_cached, var_is_static, var_name, var_new,
+    var_scalar_value)
 
 from .caches import local_caches
 from .equations import InnerProduct
@@ -14,7 +15,6 @@ from .manager import (
     reset_manager, restore_manager, set_manager, start_manager, stop_manager)
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 
 __all__ = \
     [
@@ -118,7 +118,7 @@ class GeneralHessian(Hessian):
     @local_caches
     @restore_manager
     def compute_gradient(self, M, M0=None):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             J, (dJ,) = self.compute_gradient(
                 (M,), M0=None if M0 is None else (M0,))
             return J, dJ
@@ -147,7 +147,7 @@ class GeneralHessian(Hessian):
     @local_caches
     @restore_manager
     def action(self, M, dM, M0=None):
-        if not isinstance(M, Sequence):
+        if is_var(M):
             J_val, dJ_val, (ddJ,) = self.action(
                 (M,), (dM,), M0=None if M0 is None else (M0,))
             return J_val, dJ_val, ddJ
@@ -236,7 +236,7 @@ class GaussNewton(ABC):
             variables depending on the type of `M`.
         """
 
-        if not isinstance(M, Sequence):
+        if is_var(M):
             ddJ, = self.action(
                 (M,), (dM,), M0=None if M0 is None else (M0,))
             return ddJ
@@ -248,7 +248,7 @@ class GaussNewton(ABC):
         tau_X = tuple(var_tlm(x, (M, dM)) for x in X)
         # conj[ R^{-1} J dM ]
         R_inv_tau_X = self._R_inv_action(*tuple(map(var_copy, tau_X)))
-        if not isinstance(R_inv_tau_X, Sequence):
+        if is_var(R_inv_tau_X):
             R_inv_tau_X = (R_inv_tau_X,)
         assert len(tau_X) == len(R_inv_tau_X)
         for tau_x, R_inv_tau_x in zip(tau_X, R_inv_tau_X):
@@ -272,7 +272,7 @@ class GaussNewton(ABC):
         # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
             B_inv_dM = self._B_inv_action(*tuple(map(var_copy, dM)))
-            if not isinstance(B_inv_dM, Sequence):
+            if is_var(B_inv_dM):
                 B_inv_dM = (B_inv_dM,)
             assert len(dM) == len(B_inv_dM)
             for dm, B_inv_dm in zip(dM, B_inv_dM):
@@ -349,7 +349,7 @@ class GeneralGaussNewton(GaussNewton):
         configure_tlm((M, dM), annotate=False)
         start_manager()
         X = self._forward(*M)
-        if not isinstance(X, Sequence):
+        if is_var(X):
             X = (X,)
         stop_manager()
 

@@ -24,7 +24,7 @@ __all__ = \
 
 
 def space_type_error(orig, orig_args, msg, *, stacklevel=1):
-    if tlm_adjoint.interface._check_space_types == 0:
+    if tlm_adjoint.interface._check_space_types:
         raise RuntimeError(f"{msg}")
 
 
