@@ -24,6 +24,7 @@ from .functions import Constant, define_var_alias
 from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numpy as np
+import operator
 import ufl
 
 __all__ = \
@@ -151,6 +152,24 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
     if eq is not None:
         eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
+
+
+def register_in_place(cls, name, op):
+    @manager_method(cls, name,
+                    post_call=var_update_state_post_call)
+    def wrapped_op(self, orig, orig_args, other, *, annotate, tlm):
+        expr = expr_new_x(op(self, other), self, annotate=annotate, tlm=tlm)
+        eq = ExprAssignment(self, expr)
+        assert len(eq.initial_condition_dependencies()) == 0
+        return_value = orig_args()
+        eq._post_process(annotate=annotate, tlm=tlm)
+        return return_value
+
+
+register_in_place(backend_Function, "__iadd__", operator.add)
+register_in_place(backend_Function, "__isub__", operator.sub)
+register_in_place(backend_Function, "__imul__", operator.mul)
+register_in_place(backend_Function, "__itruediv__", operator.truediv)
 
 
 @manager_method(backend_Function, "assign",
