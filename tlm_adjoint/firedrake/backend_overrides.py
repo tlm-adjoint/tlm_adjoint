@@ -402,6 +402,7 @@ def SameMeshInterpolator_interpolate(
     if len(args) != len(function):
         raise TypeError("Unexpected number of functions")
     expr = ufl.replace(self.expr, dict(zip(args, function)))
+    expr = expr_new_x(expr, return_value, annotate=annotate, tlm=tlm)
     eq = ExprInterpolation(return_value, expr)
 
     assert len(eq.initial_condition_dependencies()) == 0

@@ -461,10 +461,19 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     return F
 
 
-@override_method(backend_Function, "interpolate")
-def Function_interpolate(self, orig, orig_args, *args, **kwargs):
+@manager_method(backend_Function, "interpolate",
+                post_call=var_update_state_post_call)
+def Function_interpolate(self, orig, orig_args, u, *, annotate, tlm):
+    if u is self:
+        eq = None
+    else:
+        eq = ExprInterpolation(self, u)
+
+    if eq is not None:
+        assert len(eq.initial_condition_dependencies()) == 0
     return_value = orig_args()
-    var_update_state(self)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
 
 
