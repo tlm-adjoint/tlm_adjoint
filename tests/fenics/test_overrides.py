@@ -158,8 +158,11 @@ def test_overrides(setup_test, test_leaks):
 
 
 @pytest.mark.fenics
+@pytest.mark.parametrize("assign_fn", [lambda x, y: x.assign(y),
+                                       lambda x, y: x.interpolate(y)])
 @seed_test
-def test_Function_assign(setup_test, test_leaks):
+def test_Function_assign(setup_test, test_leaks,
+                         assign_fn):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
 
@@ -170,22 +173,22 @@ def test_Function_assign(setup_test, test_leaks):
         u.assign(u + 2.0 * m)
 
         m_ = Function(space, name="m")
-        m_.assign(m)
+        assign_fn(m_, m)
         m = m_
         del m_
 
         u_ = Function(space, name="u")
-        u_.assign(u)
+        assign_fn(u_, u)
         u = u_
         del u_
 
         one = Function(space, name="one")
-        one.assign(Constant(1.0))
+        assign_fn(one, Constant(1.0))
 
         v = Function(space, name="v")
-        v.assign(u)
+        assign_fn(v, u)
         v.assign(u + one)
-        v.assign(Constant(0.0))
+        assign_fn(v, Constant(0.0))
         v.assign(u + v + one)
         v.assign(2.5 * u + 3.6 * v + 4.7 * m)
 

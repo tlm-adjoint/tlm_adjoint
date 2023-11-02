@@ -152,6 +152,8 @@ def greedy_coloring(space):
         cell_nodes = dofmap.cell_dofs(i)
         for j in cell_nodes:
             for k in cell_nodes:
+                if j < 0 or j >= N:
+                    raise IndexError("Node index out of range")
                 if j != k:
                     node_node_graph[j].add(k)
     node_node_graph = tuple(sorted(nodes, reverse=True)
