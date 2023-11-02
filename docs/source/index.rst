@@ -2,8 +2,7 @@ tlm_adjoint
 ===========
 
 tlm_adjoint is a high-level algorithmic differentiation tool, principally for
-use with `FEniCS <https://fenicsproject.org>`_ or `Firedrake
-<https://firedrakeproject.org>`_.
+use with `Firedrake <https://firedrakeproject.org>`_.
 
 The primary aim of tlm_adjoint is to enable higher order adjoint calculations
 -- and in particular to compute Hessian information -- while also using adjoint
@@ -13,9 +12,9 @@ data, and caching of linear solver data.
 Features
 --------
 
-    - Integrates with the FEniCS or Firedrake automated code generation
-      libraries, and applies a high-level algorithmic differentiation approach
-      to enable tangent-linear and adjoint calculations.
+    - Integrates with the Firedrake automated code generation library, and
+      applies a high-level algorithmic differentiation approach to enable
+      tangent-linear and adjoint calculations.
     - Applies a *reverse-over-multiple-forward* approach for higher order
       adjoint calculations. For example a Hessian action on some given
       direction is computed by deriving an adjoint associated with a combined
