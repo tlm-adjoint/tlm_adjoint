@@ -176,6 +176,79 @@ def test_Function_assign(setup_test, test_leaks,
 
 @pytest.mark.firedrake
 @seed_test
+def test_Function_in_place(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(m_0, m_1, c_0, c_1=None):
+        u = Function(space, name="u")
+        u += m_0
+        u -= 0.5 * m_1
+        u *= c_0
+        if c_1 is not None:
+            # Complex mode verification failure due to Firedrake issue #2376
+            u /= c_1
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(1.0)) ** 4) * dx)
+        return u, J
+
+    c_0 = Constant(np.sqrt(2.0))
+    c_1 = Constant(np.sqrt(5.0))
+    m_0 = Function(space, name="m_0")
+    m_1 = Function(space, name="m_1")
+    if complex_mode:
+        interpolate_expression(m_0, cos(pi * X[0]) + 1.0j * cos(2 * pi * X[0]))
+        interpolate_expression(m_1, -exp(X[0]) + 1.0j * exp(2 * X[0]))
+    else:
+        interpolate_expression(m_0, cos(pi * X[0]))
+        interpolate_expression(m_1, -exp(X[0]))
+
+    u_ref = Function(space, name="u")
+    if complex_mode:
+        M = (m_0, m_1, c_0)
+        interpolate_expression(u_ref, c_0 * (m_0 - 0.5 * m_1))
+    else:
+        M = (m_0, m_1, c_0, c_1)
+        interpolate_expression(u_ref, (c_0 / c_1) * (m_0 - 0.5 * m_1))
+
+    start_manager()
+    u, J = forward(*M)
+    stop_manager()
+
+    error_norm = np.sqrt(abs(assemble(inner(u - u_ref, u - u_ref) * dx)))
+    assert error_norm < 1.0e-16
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, M)
+
+    def forward_J(*M):
+        _, J = forward(*M)
+        return J
+
+    min_order = taylor_test(forward_J, M, J_val=J_val, dJ=dJ, seed=1.0e-4)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, M, tlm_order=1, seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=1,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@seed_test
 def test_Nullspace(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
