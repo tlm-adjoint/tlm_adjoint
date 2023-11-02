@@ -2,8 +2,7 @@ tlm_adjoint
 ===========
 
 `tlm_adjoint <https://tlm-adjoint.github.io>`_ is a high-level algorithmic
-differentiation tool, principally for use with
-`FEniCS <https://fenicsproject.org>`_ or `Firedrake
+differentiation tool, principally for use with `Firedrake
 <https://firedrakeproject.org>`_.
 
 The primary aim of tlm_adjoint is to enable higher order adjoint calculations
