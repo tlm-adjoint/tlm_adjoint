@@ -275,8 +275,10 @@ def paused_vector_overloading():
     global _overloading
     overloading = _overloading
     _overloading = False
-    yield
-    _overloading = overloading
+    try:
+        yield
+    finally:
+        _overloading = overloading
 
 
 def unary_operation(op, x):

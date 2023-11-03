@@ -609,8 +609,10 @@ class EquationManager:
         """
 
         annotate, tlm = self.stop(annotate=annotate, tlm=tlm)
-        yield
-        self.start(annotate=annotate, tlm=tlm)
+        try:
+            yield
+        finally:
+            self.start(annotate=annotate, tlm=tlm)
 
     def add_initial_condition(self, x, *, annotate=None):
         """Process an 'initial condition' -- a variable whose associated value
