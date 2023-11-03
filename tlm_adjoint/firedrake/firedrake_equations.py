@@ -476,7 +476,10 @@ class ExprAssignment(ExprEquation):
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
+        if self._subset is None:
+            return b
+        else:
+            return var_new(b).assign(b, subset=self._subset)
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()

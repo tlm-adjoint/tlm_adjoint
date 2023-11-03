@@ -174,6 +174,66 @@ def test_Function_assign(setup_test, test_leaks,
     assert min_order > 2.00
 
 
+def subset_assign_assign(x, bc):
+    x.assign(bc.function_arg, subset=bc.node_set)
+
+
+def subset_assign_apply(x, bc):
+    bc.apply(x)
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("subset_assign", [subset_assign_assign,
+                                           subset_assign_apply])
+@seed_test
+def test_Function_assign_subset(setup_test, test_leaks,
+                                subset_assign):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(m):
+        # The following is a questionable forward calulation (we should not
+        # usually set just the boundary dofs and then compute domain integrals)
+        # but for this test we need the functional to depend on the interior
+        # degrees of freedom
+        m_0 = Function(space, name="m_0")
+        subset_assign(m_0, DirichletBC(space, m, "on_boundary"))
+        J = Functional(name="J")
+        J.assign(((m_0 - Constant(1.0)) ** 4) * dx)
+        return J
+
+    m = Function(space, name="m")
+    if complex_mode:
+        interpolate_expression(m, sin(pi * X[0]) + 1.0j * cos(pi * X[0]))
+    else:
+        interpolate_expression(m, sin(pi * X[0]))
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 1.98
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 1.99
+
+
 @pytest.mark.firedrake
 @seed_test
 def test_Function_in_place(setup_test, test_leaks):
