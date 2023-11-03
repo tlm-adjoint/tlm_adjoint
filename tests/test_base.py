@@ -35,6 +35,11 @@ tlm_adjoint.interface.space_type_warning = override_function(
 def seed_test(fn):
     @override_function(fn)
     def wrapped_fn(orig, orig_args, *args, **kwargs):
+        args_ = list(args)
+        for i, arg in enumerate(args_):
+            if callable(arg):
+                args_[i] = arg.__name__
+        args = tuple(args)
         if "tmp_path" in inspect.signature(fn).parameters:
             # Raises an error if tmp_path is a positional argument
             del kwargs["tmp_path"]
