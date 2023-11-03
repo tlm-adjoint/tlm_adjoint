@@ -620,8 +620,10 @@ def paused_space_type_checking():
     global _check_space_types
     check_space_types = _check_space_types
     _check_space_types = False
-    yield
-    _check_space_types = check_space_types
+    try:
+        yield
+    finally:
+        _check_space_types = check_space_types
 
 
 def space_type_warning(msg, *, stacklevel=1):
