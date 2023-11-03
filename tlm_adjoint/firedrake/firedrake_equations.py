@@ -469,17 +469,14 @@ class ExprAssignment(ExprEquation):
                         dF, subset=self._subset)
                     F.dat.data[:] = var_inner(adj_x, dF)
                 else:
-                    dF = dF(()).conjugate()
-                    F.assign(dF * adj_x, subset=self._subset)
+                    F.assign(adj_x, subset=self._subset)
+                    F *= dF(()).conjugate()
             else:
                 raise TypeError(f"Unexpected type: {type(F)}")
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        if self._subset is None:
-            return b
-        else:
-            return var_new(b).assign(b, subset=self._subset)
+        return b
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
