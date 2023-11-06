@@ -33,7 +33,9 @@ def override_property(cls, name, *,
     orig = getattr(cls, name)
 
     def wrapper(override):
-        if fset is not None:
+        if fset is None:
+            wrapped_fset = None
+        else:
             @functools.wraps(fset)
             def wrapped_fset(self, *args, **kwargs):
                 return fset(self, orig.fset,
