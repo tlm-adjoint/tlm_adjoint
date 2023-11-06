@@ -419,6 +419,9 @@ class Equation(Referrer):
             or `None` to indicate that the solution is zero.
         """
 
+        if adj_X is not None:
+            var_update_caches(*adj_X)
+        var_update_caches(*B)
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         if adj_X is not None and len(adj_X) == 1:
@@ -454,6 +457,7 @@ class Equation(Referrer):
             differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
+        var_update_caches(*adj_X)
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         if len(adj_X) == 1:
