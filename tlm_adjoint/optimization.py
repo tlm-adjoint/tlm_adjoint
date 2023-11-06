@@ -40,6 +40,7 @@ class ReducedFunctional:
         self._manager = manager
         self._forward = forward
         self._M = None
+        self._M_val = None
         self._J = None
 
     @restore_manager
@@ -55,16 +56,18 @@ class ReducedFunctional:
 
         set_manager(self._manager)
 
-        if force or self._M is None or self._J is None:
+        if force or self._M is None or self._M_val is None or self._J is None:
             self._M = None
+            self._M_val = None
             self._J = None
         else:
-            assert len(M) == len(self._M)
-            for m, m_val in zip(M, self._M):
+            assert len(M) == len(self._M_val)
+            for m, m_val in zip(M, self._M_val):
                 m_error = var_copy(m)
                 var_axpy(m_error, -1.0, m_val)
                 if var_linf_norm(m_error) != 0.0:
                     self._M = None
+                    self._M_val = None
                     self._J = None
                     break
 
@@ -72,6 +75,7 @@ class ReducedFunctional:
             M = tuple(var_copy(m, static=var_is_static(m),
                                cache=var_is_cached(m))
                       for m in M)
+            M_val = tuple(map(var_copy, M))
 
             reset_manager()
             clear_caches()
@@ -81,9 +85,11 @@ class ReducedFunctional:
             stop_manager()
 
             self._M = M
+            self._M_val = M_val
             self._J = J
 
         assert self._M is not None
+        assert self._M_val is not None
         assert self._J is not None
 
         J_val = var_scalar_value(self._J)
