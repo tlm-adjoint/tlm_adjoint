@@ -39,7 +39,7 @@ def seed_test(fn):
         for i, arg in enumerate(args_):
             if callable(arg):
                 args_[i] = arg.__name__
-        args = tuple(args)
+        args = tuple(args_)
         if "tmp_path" in inspect.signature(fn).parameters:
             # Raises an error if tmp_path is a positional argument
             del kwargs["tmp_path"]
