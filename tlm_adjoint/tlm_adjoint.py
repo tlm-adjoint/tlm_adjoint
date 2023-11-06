@@ -1283,7 +1283,7 @@ class EquationManager:
                         # Solve adjoint equation, add terms to adjoint
                         # equations
                         adj_X = eq.adjoint(
-                            J, adj_X, nl_deps,
+                            adj_X, nl_deps,
                             eq_B.B(),
                             transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     elif transpose_deps.is_active(J_i, n, i):
@@ -1300,7 +1300,7 @@ class EquationManager:
 
                         # Add terms to adjoint equations
                         eq.adjoint_cached(
-                            J, adj_X, nl_deps,
+                            adj_X, nl_deps,
                             transpose_deps.adj_Bs(J_i, n, i, eq, Bs[J_i]))
                     else:
                         if not store_adjoint \
