@@ -276,8 +276,7 @@ class LocalProjection(EquationSolver):
 
     def __init__(self, x, rhs, *,
                  form_compiler_parameters=None, cache_jacobian=None,
-                 cache_rhs_assembly=None, match_quadrature=None,
-                 defer_adjoint_assembly=None):
+                 cache_rhs_assembly=None, match_quadrature=None):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
@@ -295,8 +294,7 @@ class LocalProjection(EquationSolver):
             solver_parameters={"linear_solver": "direct"},
             cache_jacobian=cache_jacobian,
             cache_rhs_assembly=cache_rhs_assembly,
-            match_quadrature=match_quadrature,
-            defer_adjoint_assembly=defer_adjoint_assembly)
+            match_quadrature=match_quadrature)
         self._local_solver_type = local_solver_type
 
     def forward_solve(self, x, deps=None):
@@ -354,8 +352,7 @@ class LocalProjection(EquationSolver):
                 tlm_map[x], tlm_rhs,
                 form_compiler_parameters=self._form_compiler_parameters,
                 cache_jacobian=self._cache_jacobian,
-                cache_rhs_assembly=self._cache_rhs_assembly,
-                defer_adjoint_assembly=self._defer_adjoint_assembly)
+                cache_rhs_assembly=self._cache_rhs_assembly)
 
 
 def point_owners(x_coords, y_space, *,

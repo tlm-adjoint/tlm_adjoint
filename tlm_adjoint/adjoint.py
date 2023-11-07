@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .interface import (
-    VariableStateLockDictionary, finalize_adjoint_derivative_action, space_new,
-    subtract_adjoint_derivative_action, var_copy, var_id, var_space,
-    var_space_type)
+    VariableStateLockDictionary, space_new, subtract_adjoint_derivative_action,
+    var_copy, var_id, var_space, var_space_type)
 
 from .instructions import Instruction
 from .markers import ControlsMarker, FunctionalMarker
@@ -38,9 +37,7 @@ class AdjointRHS:
         self._b = None
 
     def b(self, *, copy=False):
-        """Return the right-hand-side, as a variable. Note that any deferred
-        contributions *are* added to the variable before it is returned -- see
-        :meth:`.AdjointRHS.finalize`.
+        """Return the right-hand-side, as a variable.
 
         :arg copy: If `True` then a copy of the internal variable storing the
             right-hand-side value is returned. If `False` the internal variable
@@ -48,31 +45,19 @@ class AdjointRHS:
         :returns: A variable storing the right-hand-side value.
         """
 
-        self.finalize()
+        self.initialize()
         if copy:
             return var_copy(self._b)
         else:
             return self._b
 
     def initialize(self):
-        """Allocate an internal variable to store the right-hand-side. Called
-        by the :meth:`.AdjointRHS.finalize` and :meth:`.AdjointRHS.sub`
-        methods, and typically need not be called manually.
+        """Allocate an internal variable to store the right-hand-side.
+        Typically need not be called manually.
         """
 
         if self._b is None:
             self._b = space_new(self._space, space_type=self._space_type)
-
-    def finalize(self):
-        """Subtracting of terms from the internal variable storing the
-        right-hand-side may be deferred. In particular finite element assembly
-        may be deferred until a more complete expression, consisting of
-        multiple terms, has been constructed. This method updates the internal
-        variable so that all deferred contributions are subtracted.
-        """
-
-        self.initialize()
-        finalize_adjoint_derivative_action(self._b)
 
     def sub(self, b):
         """Subtract a term from the right-hand-side.
@@ -143,14 +128,6 @@ class AdjointEquationRHS:
 
         return tuple(B.b(copy=copy) for B in self._B)
 
-    def finalize(self):
-        """Call the :meth:`.AdjointRHS.finalize` methods of all
-        :class:`.AdjointRHS` objects.
-        """
-
-        for b in self._B:
-            b.finalize()
-
     def is_empty(self):
         """Return whether all of the :class:`.AdjointRHS` objects are 'empty',
         meaning that the :meth:`.AdjointRHS.initialize` method has not been
@@ -205,14 +182,6 @@ class AdjointBlockRHS:
         """
 
         return len(self._B) - 1, self._B.pop()
-
-    def finalize(self):
-        """Call the :meth:`.AdjointEquationRHS.finalize` methods of all
-        :class:`.AdjointEquationRHS` objects.
-        """
-
-        for B in self._B:
-            B.finalize()
 
     def is_empty(self):
         """Return whether there are no :class:`.AdjointEquationRHS` objects in

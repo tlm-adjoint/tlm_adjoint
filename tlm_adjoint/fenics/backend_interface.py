@@ -7,12 +7,11 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, check_space_types, comm_dup_cached, new_space_id,
-    new_var_id, register_finalize_adjoint_derivative_action,
-    register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    space_id, subtract_adjoint_derivative_action,
+    new_var_id, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, space_id,
     subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
     var_lock_state, var_scalar_value, var_space, var_space_type)
-from .backend_code_generator_interface import assemble, r0_space
+from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
 from ..manager import manager_disabled
@@ -410,16 +409,6 @@ register_subtract_adjoint_derivative_action(
 register_subtract_adjoint_derivative_action(
     (backend_Constant, backend_Function), ufl.classes.Form,
     subtract_adjoint_derivative_action_function_form)
-
-
-def finalize_adjoint_derivative_action(x):
-    if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-        y = assemble(x._tlm_adjoint__fenics_adj_b)
-        subtract_adjoint_derivative_action(x, (-1.0, y))
-        delattr(x, "_tlm_adjoint__fenics_adj_b")
-
-
-register_finalize_adjoint_derivative_action(finalize_adjoint_derivative_action)
 
 
 def functional_term_eq_form(x, term):
