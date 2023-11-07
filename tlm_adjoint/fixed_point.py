@@ -421,23 +421,14 @@ class FixedPointSolver(Equation, CustomNormSq):
             it += 1
 
             for i in range(len(self._eqs) - 1, - 1, -1):
-                # Copy required here, as adjoint_jacobian_solve may return the
-                # RHS variable itself
+                # Copy required here, as the adjoint method is allowed to
+                # modify the adjoint RHS
                 eq_B = adj_B[0][i].B(copy=True)
 
-                eq_adj_X[i] = self._eqs[i].adjoint_jacobian_solve(
-                    eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],
-                    eq_nl_deps[i],
-                    eq_B[0] if len(eq_B) == 1 else eq_B)
-
+                eq_adj_X[i] = self._eqs[i].adjoint(
+                    eq_adj_X[i], eq_nl_deps[i], eq_B, dep_Bs[i])
                 if eq_adj_X[i] is None:
                     eq_adj_X[i] = self._eqs[i].new_adj_X()
-                else:
-                    if is_var(eq_adj_X[i]):
-                        eq_adj_X[i] = (eq_adj_X[i],)
-                    self._eqs[i].subtract_adjoint_derivative_actions(
-                        eq_adj_X[i][0] if len(eq_adj_X[i]) == 1 else eq_adj_X[i],  # noqa: E501
-                        eq_nl_deps[i], dep_Bs[i])
 
                 assert len(self._eq_X_indices[i]) == len(eq_adj_X[i])
                 for j, x in zip(self._eq_X_indices[i], eq_adj_X[i]):

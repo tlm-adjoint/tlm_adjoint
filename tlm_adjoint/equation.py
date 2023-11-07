@@ -399,11 +399,10 @@ class Equation(Referrer):
 
         raise NotImplementedError("Method not overridden")
 
-    def adjoint(self, J, adj_X, nl_deps, B, dep_Bs):
+    def adjoint(self, adj_X, nl_deps, B, dep_Bs):
         """Compute the adjoint solution, and subtract terms from other adjoint
         right-hand-sides.
 
-        :arg J: The variable defining the forward functional.
         :arg adj_X: Either `None`, or a :class:`Sequence` of variables defining
             the initial guess for an iterative solve. May be modified or
             returned.
@@ -420,6 +419,9 @@ class Equation(Referrer):
             or `None` to indicate that the solution is zero.
         """
 
+        if adj_X is not None:
+            var_update_caches(*adj_X)
+        var_update_caches(*B)
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         if adj_X is not None and len(adj_X) == 1:
@@ -427,25 +429,24 @@ class Equation(Referrer):
         adj_X = self.adjoint_jacobian_solve(
             adj_X, nl_deps, B[0] if len(B) == 1 else B)
         if adj_X is not None:
-            self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
-
             if is_var(adj_X):
                 adj_X = (adj_X,)
             var_update_state(*adj_X)
-
             for m, adj_x in enumerate(adj_X):
                 check_space_types(adj_x, self.X(m),
                                   rel_space_type=self.adj_X_type(m))
+
+            self.subtract_adjoint_derivative_actions(
+                adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
 
         if adj_X is None:
             return None
         else:
             return tuple(adj_X)
 
-    def adjoint_cached(self, J, adj_X, nl_deps, dep_Bs):
+    def adjoint_cached(self, adj_X, nl_deps, dep_Bs):
         """Subtract terms from other adjoint right-hand-sides.
 
-        :arg J: The variable defining the forward functional.
         :arg adj_X: A :class:`Sequence` of variables defining the adjoint
             solution. Should not be modified.
         :arg nl_deps: A :class:`Sequence` of variables defining values for
@@ -456,6 +457,7 @@ class Equation(Referrer):
             differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
+        var_update_caches(*adj_X)
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
         if len(adj_X) == 1:
