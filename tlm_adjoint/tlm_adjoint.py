@@ -1340,9 +1340,6 @@ class EquationManager:
                             dJ[J_i] = eq.new_adj_X()
                         else:
                             dJ[J_i] = tuple(map(var_copy, adj_X))
-                    else:
-                        # Finalize right-hand-sides in the control block
-                        Bs[J_i][-1].finalize()
 
                 self.drop_references()
             garbage_cleanup(self._comm)

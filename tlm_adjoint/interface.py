@@ -1539,19 +1539,6 @@ def subtract_adjoint_derivative_action_base(x, alpha, y):
         raise NotImplementedError("Unexpected case encountered")
 
 
-_finalize_adjoint_derivative_action = []
-
-
-def finalize_adjoint_derivative_action(x):
-    for fn in _finalize_adjoint_derivative_action:
-        fn(x)
-        var_update_state(x)
-
-
-def register_finalize_adjoint_derivative_action(fn):
-    _finalize_adjoint_derivative_action.append(fn)
-
-
 @functools.singledispatch
 def _functional_term_eq(term, x):
     raise NotImplementedError("Unexpected case encountered")

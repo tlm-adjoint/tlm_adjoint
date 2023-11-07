@@ -7,14 +7,12 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, new_space_id, new_var_id,
-    register_garbage_cleanup, register_finalize_adjoint_derivative_action,
-    register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    relative_space_type, space_type_warning,
-    subtract_adjoint_derivative_action,
-    subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
-    var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
-    var_space, var_space_type)
-from .backend_code_generator_interface import assemble, r0_space
+    register_garbage_cleanup, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, relative_space_type,
+    space_type_warning, subtract_adjoint_derivative_action_base, var_caches,
+    var_id, var_is_alias, var_is_cached, var_is_static, var_linf_norm,
+    var_lock_state, var_name, var_space, var_space_type)
+from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
 from ..manager import manager_disabled
@@ -532,16 +530,6 @@ register_subtract_adjoint_derivative_action(
 register_subtract_adjoint_derivative_action(
     (backend_Constant, backend_Cofunction), ufl.classes.Form,
     subtract_adjoint_derivative_action_cofunction_form)
-
-
-def finalize_adjoint_derivative_action(x):
-    if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
-        y = assemble(x._tlm_adjoint__firedrake_adj_b)
-        subtract_adjoint_derivative_action(x, (-1.0, y))
-        delattr(x, "_tlm_adjoint__firedrake_adj_b")
-
-
-register_finalize_adjoint_derivative_action(finalize_adjoint_derivative_action)
 
 
 def functional_term_eq_form(x, term):

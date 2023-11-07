@@ -58,8 +58,6 @@ if "cache_rhs_assembly" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("cache_rhs_assembly", True)
 if "match_quadrature" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("match_quadrature", False)
-if "defer_adjoint_assembly" not in _parameters["EquationSolver"]:
-    _parameters["EquationSolver"].add("defer_adjoint_assembly", False)
 if "assembly_verification" not in _parameters:
     _parameters.add(Parameters("assembly_verification"))
 if "jacobian_tolerance" not in _parameters["assembly_verification"]:

@@ -60,8 +60,6 @@ def setup_test():
         = True
     parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"] = True
     parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"] = False
-    parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"] \
-        = False
     # parameters["tlm_adjoint"]["assembly_verification"]["jacobian_tolerance"] = 1.0e-15  # noqa: E501
     # parameters["tlm_adjoint"]["assembly_verification"]["rhs_tolerance"] \
     #     = 1.0e-12
@@ -84,21 +82,13 @@ def setup_test():
         gc.enable()
 
 
-@pytest.fixture(params=[{"enable_caching": True,
-                         "defer_adjoint_assembly": True},
-                        {"enable_caching": True,
-                         "defer_adjoint_assembly": False},
-                        {"enable_caching": False,
-                         "defer_adjoint_assembly": True},
-                        {"enable_caching": False,
-                         "defer_adjoint_assembly": False}])
+@pytest.fixture(params=[{"enable_caching": True},
+                        {"enable_caching": False}])
 def test_configurations(request):
     parameters["tlm_adjoint"]["EquationSolver"]["enable_jacobian_caching"] \
         = request.param["enable_caching"]
     parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"] \
         = request.param["enable_caching"]
-    parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"] \
-        = request.param["defer_adjoint_assembly"]
 
 
 @pytest.fixture(

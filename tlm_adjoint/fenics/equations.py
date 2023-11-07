@@ -306,12 +306,6 @@ class EquationSolver(ExprEquation):
     :arg match_quadrature: Whether to set quadrature parameters consistently in
         the forward, adjoint, and tangent-linears. Defaults to
         `parameters['tlm_adjoint']['EquationSolver']['match_quadrature']`.
-    :arg defer_adjoint_assembly: Whether to use 'deferred' adjoint assembly. If
-        adjoint assembly is deferred then initially only symbolic expressions
-        for adjoint right-hand-side terms are constructed. Finite element
-        assembly can occur later (with default form compiler parameters), when
-        further adjoint right-hand-side terms are available. Defaults to
-        `parameters['tlm_adjoint']['EquationSolver']['defer_adjoint_assembly']`.
     """
 
     def __init__(self, eq, x, bcs=None, *,
@@ -319,7 +313,7 @@ class EquationSolver(ExprEquation):
                  adjoint_solver_parameters=None, tlm_solver_parameters=None,
                  cache_jacobian=None, cache_adjoint_jacobian=None,
                  cache_tlm_jacobian=None, cache_rhs_assembly=None,
-                 match_quadrature=None, defer_adjoint_assembly=None):
+                 match_quadrature=None):
         if bcs is None:
             bcs = []
         if form_compiler_parameters is None:
@@ -338,11 +332,6 @@ class EquationSolver(ExprEquation):
             cache_rhs_assembly = parameters["tlm_adjoint"]["EquationSolver"]["cache_rhs_assembly"]  # noqa: E501
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["EquationSolver"]["match_quadrature"]  # noqa: E501
-        if defer_adjoint_assembly is None:
-            defer_adjoint_assembly = parameters["tlm_adjoint"]["EquationSolver"]["defer_adjoint_assembly"]  # noqa: E501
-        if match_quadrature and defer_adjoint_assembly:
-            raise ValueError("Cannot both match quadrature and defer adjoint "
-                             "assembly")
 
         check_space_type(x, "primal")
 
@@ -453,7 +442,6 @@ class EquationSolver(ExprEquation):
         self._cache_adjoint_jacobian = cache_adjoint_jacobian
         self._cache_tlm_jacobian = cache_tlm_jacobian
         self._cache_rhs_assembly = cache_rhs_assembly
-        self._defer_adjoint_assembly = defer_adjoint_assembly
 
         self._forward_J_solver = CacheRef()
         self._forward_b_pa = None
@@ -673,9 +661,7 @@ class EquationSolver(ExprEquation):
                     # Cached form
                     dF = ufl.action(self._nonlinear_replace(dF, nl_deps),
                                     coefficient=adj_x)
-                    if not self._defer_adjoint_assembly:
-                        # Immediate assembly
-                        dF = assemble(dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                    dF = assemble(dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
                     dep_B.sub(dF)
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
@@ -739,8 +725,7 @@ class EquationSolver(ExprEquation):
                 cache_jacobian=self._cache_tlm_jacobian,
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,
-                cache_rhs_assembly=self._cache_rhs_assembly,
-                defer_adjoint_assembly=self._defer_adjoint_assembly)
+                cache_rhs_assembly=self._cache_rhs_assembly)
 
 
 def expr_new_x(expr, x, *,
