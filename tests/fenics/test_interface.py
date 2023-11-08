@@ -16,20 +16,41 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial, or with 4 processes")
 
 
+@pytest.fixture(params=[{"cls": lambda **kwargs: Constant(**kwargs)},
+                        {"cls": lambda **kwargs: Constant(domain=UnitIntervalMesh(20), **kwargs)},  # noqa: E501
+                        {"cls": lambda **kwargs: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1), **kwargs)}])  # noqa: E501
+def var_cls(request):
+    return request.param["cls"]
+
+
 @pytest.mark.fenics
-@pytest.mark.parametrize(
-    "cls",
-    [lambda name: Float(name=name),
-     lambda name: Constant(name=name),
-     lambda name: Constant(domain=UnitIntervalMesh(20), name=name),
-     lambda name: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1),
-                           name=name)])
 @seed_test
 def test_name(setup_test,
-              cls):
+              var_cls):
     name = "_tlm_adjoint__test_name"
-    F = cls(name=name)
+    F = var_cls(name=name)
     assert var_name(F) == name
+
+
+@pytest.mark.fenics
+@pytest.mark.parametrize("static", [False, True])
+@pytest.mark.parametrize("cache", [False, True, None])
+@seed_test
+def test_replacement(setup_test,  # noqa: F811
+                     var_cls, cache, static):
+    name = "_tlm_adjoint__test_name"
+    F = var_cls(name=name, static=static, cache=cache)
+    F_id = var_id(F)
+    F_caches = var_caches(F)
+
+    for var in (F, var_replacement(F)):
+        assert var_id(var) == F_id
+        assert var_name(var) == name
+        assert var_is_static(var) is not None
+        assert var_is_static(var) == static
+        assert var_is_cached(var) is not None
+        assert var_is_cached(var) == (static if cache is None else cache)
+        assert var_caches(var) is F_caches
 
 
 @pytest.mark.fenics
