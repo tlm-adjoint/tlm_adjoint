@@ -222,12 +222,12 @@ def split_terms(terms, base_integral,
             mat_dep = None
             for dep in extract_coefficients(term):
                 if not is_cached(dep):
-                    if isinstance(dep, (backend_Function, ReplacementFunction)) and mat_dep is None:  # noqa: E501
-                        mat_dep = dep
-                    else:
+                    if mat_dep is not None:
                         mat_dep = None
                         break
-            if mat_dep is None:
+                    mat_dep = dep
+            if not isinstance(mat_dep, (backend_Function,
+                                        ReplacementFunction)):
                 non_cached_terms.append(term)
             else:
                 term_form = ufl.classes.Form(
