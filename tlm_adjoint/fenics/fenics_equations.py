@@ -195,10 +195,6 @@ def greedy_coloring(space):
     return colors
 
 
-def local_solver_key(form, solver_type):
-    return (form_key(form), solver_type)
-
-
 class LocalSolverCache(Cache):
     """A :class:`.Cache` for element-wise local block diagonal linear solvers.
     """
@@ -223,19 +219,21 @@ class LocalSolverCache(Cache):
             solver_type = LocalSolver.SolverType.LU
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        key = local_solver_key(form, solver_type)
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               solver_type)
 
         def value():
-            if replace_map is None:
-                assemble_form = form
-            else:
-                assemble_form = ufl.replace(form, replace_map)
             local_solver = LocalSolver(assemble_form, solver_type=solver_type)
             local_solver.factorize()
             return local_solver
 
         return self.add(key, value,
-                        deps=tuple(form_dependencies(form).values()))
+                        deps=form_dependencies(form, assemble_form))
 
 
 _local_solver_cache = LocalSolverCache()

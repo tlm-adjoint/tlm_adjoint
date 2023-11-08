@@ -40,11 +40,6 @@ __all__ = \
     ]
 
 
-def local_solver_key(form, form_compiler_parameters):
-    return (form_key(form),
-            parameters_key(form_compiler_parameters))
-
-
 def LocalSolver(form, *,
                 form_compiler_parameters=None):
     if form_compiler_parameters is None:
@@ -90,19 +85,21 @@ class LocalSolverCache(Cache):
             form_compiler_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        key = local_solver_key(form, form_compiler_parameters)
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               parameters_key(form_compiler_parameters))
 
         def value():
-            if replace_map is None:
-                assemble_form = form
-            else:
-                assemble_form = ufl.replace(form, replace_map)
             return LocalSolver(
                 assemble_form,
                 form_compiler_parameters=form_compiler_parameters)
 
         return self.add(key, value,
-                        deps=tuple(form_dependencies(form).values()))
+                        deps=form_dependencies(form, assemble_form))
 
 
 _local_solver_cache = LocalSolverCache()
