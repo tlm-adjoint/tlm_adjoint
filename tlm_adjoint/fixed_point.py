@@ -3,7 +3,7 @@
 
 from .interface import (
     is_var, no_space_type_checking, var_assign, var_axpy, var_copy, var_id,
-    var_inner, var_update_caches, var_zero)
+    var_inner, var_zero)
 
 from .adjoint import AdjointModelRHS
 from .alias import WeakAlias
@@ -327,7 +327,6 @@ class FixedPointSolver(Equation, CustomNormSq):
         if not nonzero_initial_guess:
             for x in X:
                 var_zero(x)
-            var_update_caches(*self.X(), value=X)
 
         it = 0
         X_0 = tuple(tuple(map(var_copy, eq_X[i]))
