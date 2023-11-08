@@ -48,7 +48,7 @@ __all__ = \
     ]
 
 
-def derivative_dependencies(expr, dep):
+def extract_derivative_coefficients(expr, dep):
     dexpr = derivative(expr, dep, enable_automatic_argument=False)
     dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return extract_coefficients(dexpr)
@@ -61,7 +61,7 @@ def extract_dependencies(expr, *,
     for dep in extract_coefficients(expr):
         if is_var(dep):
             deps.setdefault(var_id(dep), dep)
-            for nl_dep in derivative_dependencies(expr, dep):
+            for nl_dep in extract_derivative_coefficients(expr, dep):
                 if is_var(nl_dep):
                     nl_deps.setdefault(var_id(dep), dep)
                     nl_deps.setdefault(var_id(nl_dep), nl_dep)
