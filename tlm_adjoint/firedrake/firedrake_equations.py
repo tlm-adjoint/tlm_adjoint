@@ -160,6 +160,8 @@ class LocalProjection(EquationSolver):
             match_quadrature=match_quadrature)
 
     def forward_solve(self, x, deps=None):
+        eq_deps = self.dependencies()
+
         if self._cache_rhs_assembly:
             b = self._cached_rhs(deps)
         elif deps is None:
@@ -172,6 +174,7 @@ class LocalProjection(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         if self._cache_jacobian:
+            var_update_caches(*eq_deps, value=deps)
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
@@ -187,7 +190,10 @@ class LocalProjection(EquationSolver):
         local_solver._tlm_adjoint__solve_local(x, b)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        eq_nl_deps = self.nonlinear_dependencies()
+
         if self._cache_jacobian:
+            var_update_caches(*eq_nl_deps, value=nl_deps)
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \

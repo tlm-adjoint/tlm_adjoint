@@ -517,6 +517,7 @@ class EquationSolver(ExprEquation):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         for dep_index, (mat_form, mat_cache) in mat_forms.items():
+            var_update_caches(*eq_deps, value=deps)
             mat_bc = mat_cache()
             if mat_bc is None:
                 mat_forms[dep_index][1], mat_bc = assembly_cache().assemble(
@@ -532,6 +533,7 @@ class EquationSolver(ExprEquation):
                 matrix_multiply(mat, dep, tensor=b, addto=True)
 
         if cached_form is not None:
+            var_update_caches(*eq_deps, value=deps)
             cached_b = cached_form[1]()
             if cached_b is None:
                 cached_form[1], cached_b = assembly_cache().assemble(
@@ -550,11 +552,14 @@ class EquationSolver(ExprEquation):
         return b
 
     def forward_solve(self, x, deps=None):
+        eq_deps = self.dependencies()
+
         if self._linear:
             if self._cache_jacobian:
                 # Cases 1 and 2: Linear, Jacobian cached, with or without RHS
                 # assembly caching
 
+                var_update_caches(*eq_deps, value=deps)
                 J_solver_mat_bc = self._forward_J_solver()
                 if J_solver_mat_bc is None:
                     # Assemble and cache the Jacobian, construct and cache the
@@ -627,6 +632,8 @@ class EquationSolver(ExprEquation):
                   solver_parameters=self._solver_parameters)
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
+        eq_nl_deps = self.nonlinear_dependencies()
+
         for dep_index, dep_B in dep_Bs.items():
             if dep_index not in self._adjoint_dF_cache:
                 dep = self.dependencies()[dep_index]
@@ -651,6 +658,7 @@ class EquationSolver(ExprEquation):
 
                 if self._adjoint_action_cache[dep_index] is not None:
                     # Cached matrix action
+                    var_update_caches(*eq_nl_deps, value=nl_deps)
                     mat_bc = self._adjoint_action_cache[dep_index]()
                     if mat_bc is None:
                         self._adjoint_action_cache[dep_index], mat_bc = \
@@ -678,8 +686,10 @@ class EquationSolver(ExprEquation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if adj_x is None:
             adj_x = self.new_adj_x()
+        eq_nl_deps = self.nonlinear_dependencies()
 
         if self._cache_adjoint_jacobian:
+            var_update_caches(*eq_nl_deps, value=nl_deps)
             J_solver_mat_bc = self._adjoint_J_solver()
             if J_solver_mat_bc is None:
                 self._adjoint_J_solver, J_solver_mat_bc = \
