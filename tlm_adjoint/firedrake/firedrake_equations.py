@@ -11,7 +11,8 @@ from .backend import (
 from ..interface import (
     check_space_type, comm_dup_cached, is_var, space_new, var_comm, var_id,
     var_inner, var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space_type, var_zero, weakref_method)
+    var_scalar_value, var_space_type, var_update_caches, var_zero,
+    weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 

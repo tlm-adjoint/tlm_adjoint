@@ -12,7 +12,7 @@ from .backend import (
 from ..interface import (
     check_space_type, is_var, var_assign, var_id, var_increment_state_lock,
     var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space, var_zero)
+    var_scalar_value, var_space, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,

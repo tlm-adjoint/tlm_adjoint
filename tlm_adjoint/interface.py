@@ -1132,6 +1132,7 @@ def var_update_caches(*X, value=None):
     else:
         if is_var(value):
             value = (value,)
+        var_update_caches(*value)
         assert len(X) == len(value)
         for x, x_value in zip(X, value):
             var_check_state_lock(x_value)

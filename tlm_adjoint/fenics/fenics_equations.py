@@ -10,7 +10,7 @@ from .backend import (
 from ..interface import (
     check_space_type, is_var, space_comm, var_assign, var_comm, var_get_values,
     var_is_scalar, var_local_size, var_new, var_new_conjugate_dual,
-    var_scalar_value, var_set_values)
+    var_scalar_value, var_set_values, var_update_caches)
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
