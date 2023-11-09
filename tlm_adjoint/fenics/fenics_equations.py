@@ -307,8 +307,9 @@ class LocalProjection(EquationSolver):
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(self._lhs,
-                                                      self._local_solver_type)
+                    local_solver_cache().local_solver(
+                        self._lhs, self._local_solver_type,
+                        replace_map=self._replace_map(deps))
         else:
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)
@@ -320,8 +321,9 @@ class LocalProjection(EquationSolver):
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(self._lhs,
-                                                      self._local_solver_type)
+                    local_solver_cache().local_solver(
+                        self._lhs, self._local_solver_type,
+                        replace_map=self._nonlinear_replace_map(nl_deps))
         else:
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)

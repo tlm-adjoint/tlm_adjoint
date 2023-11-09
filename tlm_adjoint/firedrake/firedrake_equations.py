@@ -177,7 +177,8 @@ class LocalProjection(EquationSolver):
                 self._forward_J_solver, local_solver = \
                     local_solver_cache().local_solver(
                         self._lhs,
-                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        replace_map=self._replace_map(deps))
         else:
             local_solver = LocalSolver(
                 self._lhs,
@@ -192,7 +193,8 @@ class LocalProjection(EquationSolver):
                 self._forward_J_solver, local_solver = \
                     local_solver_cache().local_solver(
                         self._lhs,
-                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        replace_map=self._nonlinear_replace_map(nl_deps))
         else:
             local_solver = LocalSolver(
                 self._lhs,

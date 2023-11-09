@@ -84,11 +84,14 @@ def apply_rhs_bcs(b, hbcs, *, b_bc=None):
 
 class ExprEquation(Equation):
     def _replace_map(self, deps):
-        eq_deps = self.dependencies()
-        assert len(eq_deps) == len(deps)
-        return {eq_dep: dep
-                for eq_dep, dep in zip(eq_deps, deps)
-                if isinstance(eq_dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
+        if deps is None:
+            return None
+        else:
+            eq_deps = self.dependencies()
+            assert len(eq_deps) == len(deps)
+            return {eq_dep: dep
+                    for eq_dep, dep in zip(eq_deps, deps)
+                    if isinstance(eq_dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
 
     def _replace(self, expr, deps):
         if deps is None:
@@ -518,7 +521,7 @@ class EquationSolver(ExprEquation):
                     mat_form,
                     form_compiler_parameters=self._form_compiler_parameters,
                     linear_solver_parameters=self._linear_solver_parameters,
-                    replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
+                    replace_map=self._replace_map(deps))
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
@@ -532,7 +535,7 @@ class EquationSolver(ExprEquation):
                 cached_form[1], cached_b = assembly_cache().assemble(
                     cached_form[0],
                     form_compiler_parameters=self._form_compiler_parameters,
-                    replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
+                    replace_map=self._replace_map(deps))
             if b is None:
                 b = rhs_copy(cached_b)
             else:
@@ -559,7 +562,7 @@ class EquationSolver(ExprEquation):
                             self._J, bcs=self._bcs,
                             form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                             linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
-                            replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
+                            replace_map=self._replace_map(deps))
                 J_solver, J_mat, b_bc = J_solver_mat_bc
 
                 if self._cache_rhs_assembly:
