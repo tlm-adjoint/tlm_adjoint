@@ -131,7 +131,7 @@ def iter_sub(iterable, *, expand=None):
 
 
 def zip_sub(*iterables):
-    iterators = map(iter_sub, iterables)
+    iterators = tuple(map(iter_sub, iterables))
     yield from zip(*iterators)
 
     for iterator in iterators:
