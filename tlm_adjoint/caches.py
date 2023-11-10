@@ -6,6 +6,7 @@ from .interface import var_caches, var_id, var_is_replacement, var_state
 from .alias import gc_disabled
 
 import functools
+from operator import itemgetter
 import weakref
 
 __all__ = \
@@ -217,7 +218,7 @@ class Cache:
         self._cache[key] = value_ref
 
         assert len(deps) == len(dep_ids)
-        for dep, dep_id in zip(deps, dep_ids):
+        for dep_id, dep in sorted(zip(dep_ids, deps), key=itemgetter(0)):
             dep_caches = var_caches(dep)
             dep_caches.add(self)
 
