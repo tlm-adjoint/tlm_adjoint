@@ -247,7 +247,7 @@ class GaussNewton(ABC):
         # J dM
         tau_X = tuple(var_tlm(x, (M, dM)) for x in X)
         # conj[ R^{-1} J dM ]
-        R_inv_tau_X = self._R_inv_action(*tuple(map(var_copy, tau_X)))
+        R_inv_tau_X = self._R_inv_action(*map(var_copy, tau_X))
         if is_var(R_inv_tau_X):
             R_inv_tau_X = (R_inv_tau_X,)
         assert len(tau_X) == len(R_inv_tau_X)
@@ -271,7 +271,7 @@ class GaussNewton(ABC):
 
         # Prior term: conj[ B^{-1} dM ]
         if self._B_inv_action is not None:
-            B_inv_dM = self._B_inv_action(*tuple(map(var_copy, dM)))
+            B_inv_dM = self._B_inv_action(*map(var_copy, dM))
             if is_var(B_inv_dM):
                 B_inv_dM = (B_inv_dM,)
             assert len(dM) == len(B_inv_dM)
