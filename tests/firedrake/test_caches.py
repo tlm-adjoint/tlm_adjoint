@@ -24,20 +24,25 @@ def test_clear_caches(setup_test, test_leaks):
     space = FunctionSpace(mesh, "Lagrange", 1)
     F = Function(space, name="F", cache=True)
 
-    def cache_item(F):
+    def cache_item(F, F_value=None):
         form = inner(F, TestFunction(F.function_space())) * dx
-        cached_form, _ = assembly_cache().assemble(form)
+        cached_form, _ = assembly_cache().assemble(
+            form, replace_map=None if F_value is None else {F: F_value})
         return cached_form
 
-    def test_not_cleared(F, cached_form):
+    def test_not_cleared(F, cached_form, F_value=None):
         assert len(assembly_cache()) == 1
         assert cached_form() is not None
         assert len(var_caches(F)) == 1
+        if F_value is not None:
+            assert len(var_caches(F_value)) == 1
 
-    def test_cleared(F, cached_form):
+    def test_cleared(F, cached_form, F_value=None):
         assert len(assembly_cache()) == 0
         assert cached_form() is None
         assert len(var_caches(F)) == 0
+        if F_value is not None:
+            assert len(var_caches(F_value)) == 0
 
     assert len(assembly_cache()) == 0
 
@@ -70,6 +75,20 @@ def test_clear_caches(setup_test, test_leaks):
     test_not_cleared(F, cached_form)
     var_update_caches(var_replacement(F), value=Function(space))
     test_cleared(F, cached_form)
+
+    F_value = Function(space, name="F_value")
+
+    # Clear on state update of value
+    cached_form = cache_item(F, F_value)
+    test_not_cleared(F, cached_form, F_value)
+    var_update_state(F_value)
+    test_cleared(F, cached_form, F_value)
+
+    # Clear on state update of value, replacement
+    cached_form = cache_item(var_replacement(F), F_value)
+    test_not_cleared(F, cached_form, F_value)
+    var_update_state(F_value)
+    test_cleared(F, cached_form, F_value)
 
 
 @pytest.mark.firedrake

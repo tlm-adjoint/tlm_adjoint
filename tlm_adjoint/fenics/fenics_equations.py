@@ -10,7 +10,7 @@ from .backend import (
 from ..interface import (
     check_space_type, is_var, space_comm, var_assign, var_comm, var_get_values,
     var_is_scalar, var_local_size, var_new, var_new_conjugate_dual,
-    var_scalar_value, var_set_values)
+    var_scalar_value, var_set_values, var_update_caches)
 from .backend_code_generator_interface import assemble
 
 from ..caches import Cache
@@ -195,10 +195,6 @@ def greedy_coloring(space):
     return colors
 
 
-def local_solver_key(form, solver_type):
-    return (form_key(form), solver_type)
-
-
 class LocalSolverCache(Cache):
     """A :class:`.Cache` for element-wise local block diagonal linear solvers.
     """
@@ -223,19 +219,21 @@ class LocalSolverCache(Cache):
             solver_type = LocalSolver.SolverType.LU
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        key = local_solver_key(form, solver_type)
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               solver_type)
 
         def value():
-            if replace_map is None:
-                assemble_form = form
-            else:
-                assemble_form = ufl.replace(form, replace_map)
             local_solver = LocalSolver(assemble_form, solver_type=solver_type)
             local_solver.factorize()
             return local_solver
 
         return self.add(key, value,
-                        deps=tuple(form_dependencies(form).values()))
+                        deps=form_dependencies(form, assemble_form))
 
 
 _local_solver_cache = LocalSolverCache()
@@ -298,6 +296,8 @@ class LocalProjection(EquationSolver):
         self._local_solver_type = local_solver_type
 
     def forward_solve(self, x, deps=None):
+        eq_deps = self.dependencies()
+
         if self._cache_rhs_assembly:
             b = self._cached_rhs(deps)
         else:
@@ -306,11 +306,13 @@ class LocalProjection(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         if self._cache_jacobian:
+            var_update_caches(*eq_deps, value=deps)
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(self._lhs,
-                                                      self._local_solver_type)
+                    local_solver_cache().local_solver(
+                        self._lhs, self._local_solver_type,
+                        replace_map=self._replace_map(deps))
         else:
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)
@@ -318,12 +320,16 @@ class LocalProjection(EquationSolver):
         local_solver.solve_local(x.vector(), b, x.function_space().dofmap())
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        eq_nl_deps = self.nonlinear_dependencies()
+
         if self._cache_jacobian:
+            var_update_caches(*eq_nl_deps, value=nl_deps)
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(self._lhs,
-                                                      self._local_solver_type)
+                    local_solver_cache().local_solver(
+                        self._lhs, self._local_solver_type,
+                        replace_map=self._nonlinear_replace_map(nl_deps))
         else:
             local_solver = LocalSolver(self._lhs,
                                        solver_type=self._local_solver_type)

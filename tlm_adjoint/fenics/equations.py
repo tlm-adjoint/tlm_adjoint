@@ -12,7 +12,7 @@ from .backend import (
 from ..interface import (
     check_space_type, is_var, var_assign, var_id, var_increment_state_lock,
     var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space, var_zero)
+    var_scalar_value, var_space, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
@@ -48,7 +48,7 @@ __all__ = \
     ]
 
 
-def derivative_dependencies(expr, dep):
+def extract_derivative_coefficients(expr, dep):
     dexpr = derivative(expr, dep, enable_automatic_argument=False)
     dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return extract_coefficients(dexpr)
@@ -61,7 +61,7 @@ def extract_dependencies(expr, *,
     for dep in extract_coefficients(expr):
         if is_var(dep):
             deps.setdefault(var_id(dep), dep)
-            for nl_dep in derivative_dependencies(expr, dep):
+            for nl_dep in extract_derivative_coefficients(expr, dep):
                 if is_var(nl_dep):
                     nl_deps.setdefault(var_id(dep), dep)
                     nl_deps.setdefault(var_id(nl_dep), nl_dep)
@@ -87,11 +87,14 @@ def apply_rhs_bcs(b, hbcs, *, b_bc=None):
 
 class ExprEquation(Equation):
     def _replace_map(self, deps):
-        eq_deps = self.dependencies()
-        assert len(eq_deps) == len(deps)
-        return {eq_dep: dep
-                for eq_dep, dep in zip(eq_deps, deps)
-                if isinstance(eq_dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
+        if deps is None:
+            return None
+        else:
+            eq_deps = self.dependencies()
+            assert len(eq_deps) == len(deps)
+            return {eq_dep: dep
+                    for eq_dep, dep in zip(eq_deps, deps)
+                    if isinstance(eq_dep, ufl.classes.Expr)}
 
     def _replace(self, expr, deps):
         if deps is None:
@@ -105,7 +108,7 @@ class ExprEquation(Equation):
         assert len(eq_nl_deps) == len(nl_deps)
         return {eq_nl_dep: nl_dep
                 for eq_nl_dep, nl_dep in zip(eq_nl_deps, nl_deps)
-                if isinstance(eq_nl_dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
+                if isinstance(eq_nl_dep, ufl.classes.Expr)}
 
     def _nonlinear_replace(self, expr, nl_deps):
         replace_map = self._nonlinear_replace_map(nl_deps)
@@ -176,7 +179,7 @@ class Assembly(ExprEquation):
     def drop_references(self):
         replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()
-                       if isinstance(dep, (ufl.classes.ConstantValue, ufl.classes.Coefficient))}  # noqa: E501
+                       if isinstance(dep, ufl.classes.Expr)}
 
         super().drop_references()
         self._rhs = ufl.replace(self._rhs, replace_map)
@@ -514,13 +517,14 @@ class EquationSolver(ExprEquation):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         for dep_index, (mat_form, mat_cache) in mat_forms.items():
+            var_update_caches(*eq_deps, value=deps)
             mat_bc = mat_cache()
             if mat_bc is None:
                 mat_forms[dep_index][1], mat_bc = assembly_cache().assemble(
                     mat_form,
                     form_compiler_parameters=self._form_compiler_parameters,
                     linear_solver_parameters=self._linear_solver_parameters,
-                    replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
+                    replace_map=self._replace_map(deps))
             mat, _ = mat_bc
             dep = (eq_deps if deps is None else deps)[dep_index]
             if b is None:
@@ -529,12 +533,13 @@ class EquationSolver(ExprEquation):
                 matrix_multiply(mat, dep, tensor=b, addto=True)
 
         if cached_form is not None:
+            var_update_caches(*eq_deps, value=deps)
             cached_b = cached_form[1]()
             if cached_b is None:
                 cached_form[1], cached_b = assembly_cache().assemble(
                     cached_form[0],
                     form_compiler_parameters=self._form_compiler_parameters,
-                    replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
+                    replace_map=self._replace_map(deps))
             if b is None:
                 b = rhs_copy(cached_b)
             else:
@@ -547,11 +552,14 @@ class EquationSolver(ExprEquation):
         return b
 
     def forward_solve(self, x, deps=None):
+        eq_deps = self.dependencies()
+
         if self._linear:
             if self._cache_jacobian:
                 # Cases 1 and 2: Linear, Jacobian cached, with or without RHS
                 # assembly caching
 
+                var_update_caches(*eq_deps, value=deps)
                 J_solver_mat_bc = self._forward_J_solver()
                 if J_solver_mat_bc is None:
                     # Assemble and cache the Jacobian, construct and cache the
@@ -561,7 +569,7 @@ class EquationSolver(ExprEquation):
                             self._J, bcs=self._bcs,
                             form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                             linear_solver_parameters=self._linear_solver_parameters,  # noqa: E501
-                            replace_map=None if deps is None else self._replace_map(deps))  # noqa: E501
+                            replace_map=self._replace_map(deps))
                 J_solver, J_mat, b_bc = J_solver_mat_bc
 
                 if self._cache_rhs_assembly:
@@ -624,6 +632,8 @@ class EquationSolver(ExprEquation):
                   solver_parameters=self._solver_parameters)
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
+        eq_nl_deps = self.nonlinear_dependencies()
+
         for dep_index, dep_B in dep_Bs.items():
             if dep_index not in self._adjoint_dF_cache:
                 dep = self.dependencies()[dep_index]
@@ -648,6 +658,7 @@ class EquationSolver(ExprEquation):
 
                 if self._adjoint_action_cache[dep_index] is not None:
                     # Cached matrix action
+                    var_update_caches(*eq_nl_deps, value=nl_deps)
                     mat_bc = self._adjoint_action_cache[dep_index]()
                     if mat_bc is None:
                         self._adjoint_action_cache[dep_index], mat_bc = \
@@ -675,8 +686,10 @@ class EquationSolver(ExprEquation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if adj_x is None:
             adj_x = self.new_adj_x()
+        eq_nl_deps = self.nonlinear_dependencies()
 
         if self._cache_adjoint_jacobian:
+            var_update_caches(*eq_nl_deps, value=nl_deps)
             J_solver_mat_bc = self._adjoint_J_solver()
             if J_solver_mat_bc is None:
                 self._adjoint_J_solver, J_solver_mat_bc = \

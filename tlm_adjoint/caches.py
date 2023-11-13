@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from .interface import var_caches, var_id, var_state
+from .interface import var_caches, var_id, var_is_replacement, var_state
 
 from .alias import gc_disabled
 
 import functools
+from operator import itemgetter
 import weakref
 
 __all__ = \
@@ -211,11 +212,13 @@ class Cache:
         value = value()
         value_ref = CacheRef(value)
         dep_ids = tuple(map(var_id, deps))
+        if len(set(dep_ids)) != len(dep_ids):
+            raise ValueError("Duplicate dependency")
 
         self._cache[key] = value_ref
 
         assert len(deps) == len(dep_ids)
-        for dep, dep_id in zip(deps, dep_ids):
+        for dep_id, dep in sorted(zip(dep_ids, deps), key=itemgetter(0)):
             dep_caches = var_caches(dep)
             dep_caches.add(self)
 
@@ -267,6 +270,9 @@ class Caches:
     """
 
     def __init__(self, x):
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
+
         self._caches = weakref.WeakValueDictionary()
         self._id = var_id(x)
         self._state = (self._id, var_state(x))
@@ -307,6 +313,9 @@ class Caches:
 
         :arg x: A variable which defines a potentially new value.
         """
+
+        if var_is_replacement(x):
+            raise ValueError("x cannot be a replacement")
 
         state = (var_id(x), var_state(x))
         if state != self._state:

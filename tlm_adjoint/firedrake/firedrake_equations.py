@@ -11,7 +11,8 @@ from .backend import (
 from ..interface import (
     check_space_type, comm_dup_cached, is_var, space_new, var_comm, var_id,
     var_inner, var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space_type, var_zero, weakref_method)
+    var_scalar_value, var_space_type, var_update_caches, var_zero,
+    weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 
@@ -38,11 +39,6 @@ __all__ = \
         "LocalProjection",
         "PointInterpolation"
     ]
-
-
-def local_solver_key(form, form_compiler_parameters):
-    return (form_key(form),
-            parameters_key(form_compiler_parameters))
 
 
 def LocalSolver(form, *,
@@ -90,19 +86,21 @@ class LocalSolverCache(Cache):
             form_compiler_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        key = local_solver_key(form, form_compiler_parameters)
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               parameters_key(form_compiler_parameters))
 
         def value():
-            if replace_map is None:
-                assemble_form = form
-            else:
-                assemble_form = ufl.replace(form, replace_map)
             return LocalSolver(
                 assemble_form,
                 form_compiler_parameters=form_compiler_parameters)
 
         return self.add(key, value,
-                        deps=tuple(form_dependencies(form).values()))
+                        deps=form_dependencies(form, assemble_form))
 
 
 _local_solver_cache = LocalSolverCache()
@@ -163,6 +161,8 @@ class LocalProjection(EquationSolver):
             match_quadrature=match_quadrature)
 
     def forward_solve(self, x, deps=None):
+        eq_deps = self.dependencies()
+
         if self._cache_rhs_assembly:
             b = self._cached_rhs(deps)
         elif deps is None:
@@ -175,12 +175,14 @@ class LocalProjection(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters)
 
         if self._cache_jacobian:
+            var_update_caches(*eq_deps, value=deps)
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
                     local_solver_cache().local_solver(
                         self._lhs,
-                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        replace_map=self._replace_map(deps))
         else:
             local_solver = LocalSolver(
                 self._lhs,
@@ -189,13 +191,17 @@ class LocalProjection(EquationSolver):
         local_solver._tlm_adjoint__solve_local(x, b)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        eq_nl_deps = self.nonlinear_dependencies()
+
         if self._cache_jacobian:
+            var_update_caches(*eq_nl_deps, value=nl_deps)
             local_solver = self._forward_J_solver()
             if local_solver is None:
                 self._forward_J_solver, local_solver = \
                     local_solver_cache().local_solver(
                         self._lhs,
-                        form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
+                        replace_map=self._nonlinear_replace_map(nl_deps))
         else:
             local_solver = LocalSolver(
                 self._lhs,

@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from tlm_adjoint import (
-    DEFAULT_COMM, Float, VariableStateLockDictionary, Vector, var_lock_state,
-    var_name)
+    DEFAULT_COMM, Float, VariableStateLockDictionary, Vector, var_caches,
+    var_id, var_is_cached, var_is_static, var_lock_state, var_name,
+    var_replacement)
 from tlm_adjoint.interface import (
     var_decrement_state_lock, var_increment_state_lock, var_state_is_locked)
 
@@ -17,17 +18,40 @@ pytestmark = pytest.mark.skipif(
     reason="tests must be run in serial, or with 4 processes")
 
 
+@pytest.fixture(params=[{"cls": lambda **kwargs: Float(**kwargs)},
+                        {"cls": lambda **kwargs: Vector(1, **kwargs)}])
+def var_cls(request):
+    return request.param["cls"]
+
+
 @pytest.mark.base
-@pytest.mark.parametrize(
-    "cls",
-    [lambda name: Float(name=name),
-     lambda name: Vector(1, name=name)])
 @seed_test
 def test_name(setup_test,  # noqa: F811
-              cls):
+              var_cls):
     name = "_tlm_adjoint__test_name"
-    F = cls(name=name)
+    F = var_cls(name=name)
     assert var_name(F) == name
+
+
+@pytest.mark.base
+@pytest.mark.parametrize("static", [False, True])
+@pytest.mark.parametrize("cache", [False, True, None])
+@seed_test
+def test_replacement(setup_test,  # noqa: F811
+                     var_cls, cache, static):
+    name = "_tlm_adjoint__test_name"
+    F = var_cls(name=name, static=static, cache=cache)
+    F_id = var_id(F)
+    F_caches = var_caches(F)
+
+    for var in (F, var_replacement(F)):
+        assert var_id(var) == F_id
+        assert var_name(var) == name
+        assert var_is_static(var) is not None
+        assert var_is_static(var) == static
+        assert var_is_cached(var) is not None
+        assert var_is_cached(var) == (static if cache is None else cache)
+        assert var_caches(var) is F_caches
 
 
 @pytest.mark.base

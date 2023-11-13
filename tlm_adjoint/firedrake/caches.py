@@ -6,7 +6,9 @@ caching.
 """
 
 from .backend import TrialFunction, backend_DirichletBC, backend_Function
-from ..interface import is_var, var_id, var_is_cached, var_space
+from ..interface import (
+    is_var, var_caches, var_id, var_is_cached, var_is_replacement,
+    var_replacement, var_space, var_state)
 from .backend_code_generator_interface import (
     assemble, assemble_arguments, assemble_matrix, complex_mode, linear_solver,
     matrix_copy, parameters_key)
@@ -18,6 +20,7 @@ from .functions import (
     replaced_form)
 
 from collections import defaultdict
+import itertools
 import ufl
 
 __all__ = \
@@ -219,12 +222,12 @@ def split_terms(terms, base_integral,
             mat_dep = None
             for dep in extract_coefficients(term):
                 if not is_cached(dep):
-                    if isinstance(dep, (backend_Function, ReplacementFunction)) and mat_dep is None:  # noqa: E501
-                        mat_dep = dep
-                    else:
+                    if mat_dep is not None:
                         mat_dep = None
                         break
-            if mat_dep is None:
+                    mat_dep = dep
+            if not isinstance(mat_dep, (backend_Function,
+                                        ReplacementFunction)):
                 non_cached_terms.append(term)
             else:
                 term_form = ufl.classes.Form(
@@ -275,26 +278,44 @@ def split_form(form):
     return cached_form, mat_forms, non_cached_forms
 
 
-def form_dependencies(form):
+def form_key(*forms):
+    key = []
+
+    for form in forms:
+        deps = [dep for dep in extract_coefficients(form) if is_var(dep)]
+        deps = sorted(deps, key=var_id)
+        deps_key = tuple((var_id(dep), var_state(dep)) for dep in deps)
+
+        form = replaced_form(form)
+        form = ufl.algorithms.expand_derivatives(form)
+        form = ufl.algorithms.apply_algebra_lowering.apply_algebra_lowering(form)  # noqa: E501
+        form = ufl.algorithms.expand_indices(form)
+        form = form_simplify_conj(form)
+        form = form_simplify_sign(form)
+
+        key.extend((form, deps_key))
+
+    return tuple(key)
+
+
+def form_dependencies(*forms):
     deps = {}
-    for dep in extract_coefficients(form):
+
+    for dep in itertools.chain.from_iterable(map(extract_coefficients, forms)):
         if is_var(dep):
-            deps.setdefault(var_id(dep), dep)
-    return deps
+            dep_id = var_id(dep)
+            if dep_id in deps:
+                dep_old = deps[dep_id]
+                assert (dep is dep_old
+                        or dep is var_replacement(dep_old)
+                        or var_replacement(dep) is dep_old)
+                assert var_caches(dep) is var_caches(dep_old)
+                if var_is_replacement(dep_old):
+                    deps[dep_id] = dep
+            else:
+                deps[dep_id] = dep
 
-
-def form_key(form):
-    form = replaced_form(form)
-    form = ufl.algorithms.expand_derivatives(form)
-    form = ufl.algorithms.apply_algebra_lowering.apply_algebra_lowering(form)
-    form = ufl.algorithms.expand_indices(form)
-    form = form_simplify_conj(form)
-    form = form_simplify_sign(form)
-    return form
-
-
-def assemble_key(form, bcs, assemble_kwargs):
-    return (form_key(form), tuple(bcs), parameters_key(assemble_kwargs))
+    return tuple(sorted(deps.values(), key=var_id))
 
 
 class AssemblyCache(Cache):
@@ -337,16 +358,19 @@ class AssemblyCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
         arity = len(form.arguments())
         assemble_kwargs = assemble_arguments(arity, form_compiler_parameters,
                                              linear_solver_parameters)
-        key = assemble_key(form, bcs, assemble_kwargs)
+
+        key = (form_key(form, assemble_form),
+               tuple(bcs),
+               parameters_key(assemble_kwargs))
 
         def value():
-            if replace_map is None:
-                assemble_form = form
-            else:
-                assemble_form = ufl.replace(form, replace_map)
             if arity == 0:
                 if len(bcs) > 0:
                     raise TypeError("Unexpected boundary conditions for arity "
@@ -363,14 +387,7 @@ class AssemblyCache(Cache):
             return b
 
         return self.add(key, value,
-                        deps=tuple(form_dependencies(form).values()))
-
-
-def linear_solver_key(form, bcs, linear_solver_parameters,
-                      form_compiler_parameters):
-    return (form_key(form), tuple(bcs),
-            parameters_key(linear_solver_parameters),
-            parameters_key(form_compiler_parameters))
+                        deps=form_dependencies(form, assemble_form))
 
 
 class LinearSolverCache(Cache):
@@ -411,8 +428,15 @@ class LinearSolverCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form, force_non_empty_form=True)
-        key = linear_solver_key(form, bcs, linear_solver_parameters,
-                                form_compiler_parameters)
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               tuple(bcs),
+               parameters_key(form_compiler_parameters),
+               parameters_key(linear_solver_parameters))
 
         if assembly_cache is None:
             assembly_cache = globals()["assembly_cache"]()
@@ -428,7 +452,7 @@ class LinearSolverCache(Cache):
             return solver, A, b_bc
 
         return self.add(key, value,
-                        deps=tuple(form_dependencies(form).values()))
+                        deps=form_dependencies(form, assemble_form))
 
 
 _assembly_cache = AssemblyCache()

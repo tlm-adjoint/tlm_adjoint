@@ -966,7 +966,7 @@ def var_decrement_state_lock(x, obj):
     var_check_state_lock(x)
     x_id = var_id(x)
 
-    if x._tlm_adjoint__state_lock < 1:
+    if x._tlm_adjoint__state_lock < obj._tlm_adjoint__state_locks[x_id][1]:
         raise RuntimeError("Invalid state lock")
     if obj._tlm_adjoint__state_locks[x_id][1] < 1:
         raise RuntimeError("Invalid state lock")
@@ -1132,6 +1132,7 @@ def var_update_caches(*X, value=None):
     else:
         if is_var(value):
             value = (value,)
+        var_update_caches(*value)
         assert len(X) == len(value)
         for x, x_value in zip(X, value):
             var_check_state_lock(x_value)
