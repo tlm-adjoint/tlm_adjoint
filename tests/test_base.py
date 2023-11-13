@@ -43,6 +43,9 @@ def seed_test(fn):
         if "tmp_path" in inspect.signature(fn).parameters:
             # Raises an error if tmp_path is a positional argument
             del kwargs["tmp_path"]
+        for key, value in kwargs.items():
+            if callable(value):
+                kwargs[key] = value.__name__
 
         h = hashlib.sha256()
         h.update(fn.__name__.encode("utf-8"))
