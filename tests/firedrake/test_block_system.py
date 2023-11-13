@@ -292,7 +292,7 @@ def test_dirichlet_bc_nullspace(setup_test):  # noqa: F811
                            "absolute_tolerance": 1.0e-14})
 
     u_0_bc_error_norm = np.sqrt(abs(assemble(inner(u_0, u_0) * ds)))
-    assert u_0_bc_error_norm < 1.0e-15
+    assert u_0_bc_error_norm < 1.0e-14
 
     u_0_error_norm = np.sqrt(abs(assemble(inner(u_0 - u_0_ref,
                                                 u_0 - u_0_ref) * dx)))

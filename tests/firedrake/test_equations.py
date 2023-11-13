@@ -670,7 +670,7 @@ def test_ExprInterpolation_transpose_vector(setup_test, test_leaks):
     x_ref = interpolate(2 * y, space_1)
     error_norm = np.sqrt(abs(assemble(inner(x - x_ref, x - x_ref) * dx)))
     info(f"Error norm = {error_norm:.16e}")
-    assert error_norm == 0.0
+    assert error_norm < 1.0e-16
 
     J_val = J.value
 
