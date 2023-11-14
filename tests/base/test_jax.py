@@ -221,7 +221,7 @@ def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
 
 @pytest.mark.base

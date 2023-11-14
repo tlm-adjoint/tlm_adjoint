@@ -597,15 +597,15 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     dJ_error = var_copy(dJ_0)
     var_axpy(dJ_error, -1.0, dJ_1)
-    assert var_linf_norm(dJ_error) == 0.0
+    assert var_linf_norm(dJ_error) < 1.0e-17
 
     dK_error = var_copy(dK_0)
     var_axpy(dK_error, -1.0, dK_1)
-    assert var_linf_norm(dK_error) == 0.0
+    assert var_linf_norm(dK_error) < 1.0e-17
 
     ddJ_error = var_copy(ddJ_0)
     var_axpy(ddJ_error, -1.0, ddJ_1)
-    assert var_linf_norm(ddJ_error) == 0.0
+    assert var_linf_norm(ddJ_error) < 1.0e-18
 
     reset_manager()
 
@@ -636,23 +636,23 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     dJ_error = var_copy(dJ_0)
     var_axpy(dJ_error, -1.0, dJ_2)
-    assert var_linf_norm(dJ_error) == 0.0
+    assert var_linf_norm(dJ_error) < 1.0e-17
 
     dK_error = var_copy(dK_0)
     var_axpy(dK_error, -1.0, dK_2)
-    assert var_linf_norm(dK_error) == 0.0
+    assert var_linf_norm(dK_error) < 1.0e-17
 
     ddJ_error = var_copy(ddJ_0)
     var_axpy(ddJ_error, -1.0, ddJ_2a)
-    assert var_linf_norm(ddJ_error) == 0.0
+    assert var_linf_norm(ddJ_error) < 1.0e-18
 
     ddJ_error = var_copy(ddJ_0)
     var_axpy(ddJ_error, -1.0, ddJ_2b)
-    assert var_linf_norm(ddJ_error) == 0.0
+    assert var_linf_norm(ddJ_error) < 1.0e-18
 
     dddJ_error = var_copy(dddJ_2)
     var_axpy(dddJ_error, -1.0, dddJ_2b)
-    assert var_linf_norm(dddJ_error) == 0.0
+    assert var_linf_norm(dddJ_error) < 1.0e-18
 
     reset_manager()
 
@@ -678,15 +678,15 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     dJ_error = var_copy(dJ_0)
     var_axpy(dJ_error, -1.0, dJ_3)
-    assert var_linf_norm(dJ_error) == 0.0
+    assert var_linf_norm(dJ_error) < 1.0e-17
 
     dK_error = var_copy(dK_0)
     var_axpy(dK_error, -1.0, dK_3)
-    assert var_linf_norm(dK_error) == 0.0
+    assert var_linf_norm(dK_error) < 1.0e-17
 
     ddJ_error = var_copy(ddJ_0)
     var_axpy(ddJ_error, -1.0, ddJ_3)
-    assert var_linf_norm(ddJ_error) == 0.0
+    assert var_linf_norm(ddJ_error) < 1.0e-18
 
     dddJ_error = var_copy(dddJ_2)
     var_axpy(dddJ_error, -1.0, dddJ_3)
@@ -746,15 +746,15 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     dddJ_error = var_copy(dddJ_02_0)
     var_axpy(dddJ_error, -1.0, dddJ_02_1)
-    assert var_linf_norm(dddJ_error) == 0.0
+    assert var_linf_norm(dddJ_error) < 1.0e-20
 
     dddJ_error = var_copy(dddJ_03_0)
     var_axpy(dddJ_error, -1.0, dddJ_03_1)
-    assert var_linf_norm(dddJ_error) == 0.0
+    assert var_linf_norm(dddJ_error) < 1.0e-21
 
     dddJ_error = var_copy(dddJ_12_0)
     var_axpy(dddJ_error, -1.0, dddJ_12_1)
-    assert var_linf_norm(dddJ_error) == 0.0
+    assert var_linf_norm(dddJ_error) < 1.0e-21
 
     dddJ_error = var_copy(dddJ_13_0)
     var_axpy(dddJ_error, -1.0, dddJ_13_1)

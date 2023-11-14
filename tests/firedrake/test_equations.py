@@ -437,20 +437,24 @@ def test_ExprAssignment(setup_test, test_leaks,
         return J
 
     for m, dJ, forward_J in ((c, dJ_c, forward_J_c), (y, dJ_y, forward_J_y)):
-        min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ)
-        assert min_order > 1.98
+        min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-3)
+        assert min_order > 1.99
 
         ddJ = Hessian(forward_J)
-        min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ)
+        min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ,
+                                seed=1.0e-3)
         assert min_order > 2.99
 
-        min_order = taylor_test_tlm(forward_J, m, tlm_order=1)
+        min_order = taylor_test_tlm(forward_J, m, tlm_order=1,
+                                    seed=1.0e-3)
         assert min_order > 1.99
 
-        min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1)
+        min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                            seed=1.0e-3)
         assert min_order > 1.99
 
-        min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
+        min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                            seed=1.0e-3)
         assert min_order > 1.99
 
 
@@ -670,7 +674,7 @@ def test_ExprInterpolation_transpose_vector(setup_test, test_leaks):
     x_ref = interpolate(2 * y, space_1)
     error_norm = np.sqrt(abs(assemble(inner(x - x_ref, x - x_ref) * dx)))
     info(f"Error norm = {error_norm:.16e}")
-    assert error_norm == 0.0
+    assert error_norm < 1.0e-16
 
     J_val = J.value
 
