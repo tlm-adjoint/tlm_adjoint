@@ -192,11 +192,6 @@ class FunctionInterfaceBase(VariableInterface):
             raise TypeError(f"Unexpected type: {type(y)}")
         return inner
 
-    def _sum(self):
-        with self.dat.vec_ro as x_v:
-            sum = x_v.sum()
-        return sum
-
     def _linf_norm(self):
         with self.dat.vec_ro as x_v:
             linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)

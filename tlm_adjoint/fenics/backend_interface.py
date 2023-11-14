@@ -193,10 +193,6 @@ class FunctionInterface(VariableInterface):
         return inner
 
     @check_vector_size
-    def _sum(self):
-        return self.vector().sum()
-
-    @check_vector_size
     def _linf_norm(self):
         return self.vector().norm("linf")
 

@@ -339,7 +339,9 @@ def test_Nullspace(setup_test, test_leaks):
     psi, J = forward(F)
     stop_manager()
 
-    assert abs(var_sum(psi)) < 1.0e-15
+    with psi.dat.vec_ro as psi_v:
+        psi_sum = psi_v.sum()
+    assert abs(psi_sum) < 1.0e-15
 
     J_val = J.value
 

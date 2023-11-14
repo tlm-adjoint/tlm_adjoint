@@ -226,12 +226,6 @@ class VectorInterface(VariableInterface):
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
-    def _sum(self):
-        s = sum(self.vector)
-        if MPI is not None:
-            s = self.space.comm.allreduce(s, op=MPI.SUM)
-        return s
-
     def _linf_norm(self):
         norm = abs(self.vector).max(initial=0.0)
         if MPI is not None:

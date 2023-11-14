@@ -121,7 +121,6 @@ __all__ = \
         "var_space",
         "var_space_type",
         "var_state",
-        "var_sum",
         "var_update_caches",
         "var_update_state",
         "var_zero",
@@ -165,7 +164,6 @@ __all__ = \
         "function_space",
         "function_space_type",
         "function_state",
-        "function_sum",
         "function_update_caches",
         "function_update_state",
         "function_zero",
@@ -718,10 +716,9 @@ class VariableInterface:
     names = ("_comm", "_space", "_derivative_space", "_space_type", "_dtype",
              "_id", "_name", "_state", "_update_state", "_is_static",
              "_is_cached", "_caches", "_zero", "_assign", "_axpy", "_inner",
-             "_sum", "_linf_norm", "_local_size", "_global_size",
-             "_local_indices", "_get_values", "_set_values", "_new", "_copy",
-             "_replacement", "_is_replacement", "_is_scalar", "_scalar_value",
-             "_is_alias")
+             "_linf_norm", "_local_size", "_global_size", "_local_indices",
+             "_get_values", "_set_values", "_new", "_copy", "_replacement",
+             "_is_replacement", "_is_scalar", "_scalar_value", "_is_alias")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate VariableInterface object")
@@ -772,9 +769,6 @@ class VariableInterface:
         raise NotImplementedError("Method not overridden")
 
     def _inner(self, y):
-        raise NotImplementedError("Method not overridden")
-
-    def _sum(self):
         raise NotImplementedError("Method not overridden")
 
     def _linf_norm(self):
@@ -1190,16 +1184,6 @@ def var_inner(x, y):
     if is_var(y):
         check_space_types_conjugate_dual(x, y)
     return x._tlm_adjoint__var_interface_inner(y)
-
-
-def var_sum(x):
-    """Compute the sum of all degrees of freedom associated with a variable.
-
-    :arg x: The variable.
-    :returns: The sum of the degrees of freedom associated with `x`.
-    """
-
-    return x._tlm_adjoint__var_interface_sum()
 
 
 def var_linf_norm(x):
@@ -1618,7 +1602,6 @@ function_set_values = _function_warning(var_set_values)
 function_space = _function_warning(var_space)
 function_space_type = _function_warning(var_space_type)
 function_state = _function_warning(var_state)
-function_sum = _function_warning(var_sum)
 function_update_caches = _function_warning(var_update_caches)
 function_update_state = _function_warning(var_update_state)
 function_zero = _function_warning(var_zero)

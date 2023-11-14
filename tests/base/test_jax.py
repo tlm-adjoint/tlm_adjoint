@@ -6,7 +6,7 @@ from tlm_adjoint import (
     compute_gradient, new_jax_float, set_default_float_dtype,
     set_default_jax_dtype, start_manager, stop_manager, taylor_test,
     taylor_test_tlm, taylor_test_tlm_adjoint, var_get_values, var_global_size,
-    var_is_scalar, var_linf_norm, var_local_size, var_scalar_value, var_sum)
+    var_is_scalar, var_linf_norm, var_local_size, var_scalar_value)
 
 from .test_base import jax_tlm_config, seed_test, setup_test  # noqa: F401
 
@@ -242,7 +242,7 @@ def test_jax_float(setup_test, jax_tlm_config,  # noqa: F811
     if not issubclass(dtype, (complex, np.complexfloating)):
         assert float(x) == x_val
     assert complex(x) == x_val
-    assert var_sum(x) == x_val
+    assert x.value == x_val
     assert abs(var_linf_norm(x) - abs(x_val)) < 1.0e-15
     assert var_local_size(x) == (1 if DEFAULT_COMM.rank == 0 else 0)
     assert var_global_size(x) == 1
