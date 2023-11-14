@@ -319,7 +319,7 @@ class CheckpointStorage:
 
         if self._store_data:
             if (n, i) in self._data:
-                raise KeyError("Non-linear dependency data already stored")
+                raise RuntimeError("Non-linear dependency data already stored")
 
             if nl_deps is None:
                 assert len(eq_deps) == len(deps)
@@ -401,24 +401,24 @@ class CheckpointStorage:
         for key, value in storage.items():
             if key in keys:
                 if key in self._storage:
-                    raise KeyError("Duplicate key")
+                    raise RuntimeError("Duplicate key")
                 self._store(key=key, value=value, refs=False, copy=copy)
 
         for key in cp:
             if key in self._cp_keys or key in self._refs_keys:
-                raise KeyError("Duplicate key")
+                raise RuntimeError("Duplicate key")
             if key not in self._storage:
-                raise KeyError("Invalid key")
+                raise ValueError("Invalid key")
             self._cp_keys.add(key)
             self._cp[key[0]] = key
             self._seen_ics.add(key[0])
 
         for (n, i), eq_data in data.items():
             if (n, i) in self._data:
-                raise KeyError("Non-linear dependency data already stored")
+                raise RuntimeError("Non-linear dependency data already stored")
             for key in eq_data:
                 if key not in self._storage:
-                    raise KeyError("Invalid key")
+                    raise ValueError("Invalid key")
                 self._data_keys[key] = None  # self._data_keys.add(key)
             self._data[(n, i)] = tuple(eq_data)
 
@@ -583,7 +583,7 @@ class ReplayStorage:
         else:
             x_id = var_id(x)
         if self._map[x_id] is not None:  # KeyError if unexpected id
-            raise KeyError(f"Key '{x_id:d}' already set")
+            raise RuntimeError(f"Key '{x_id:d}' already set")
         self._map[x_id] = y
 
     def is_active(self, n, i):
