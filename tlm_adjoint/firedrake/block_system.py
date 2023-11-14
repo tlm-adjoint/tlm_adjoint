@@ -161,7 +161,7 @@ def tuple_sub(iterable, sequence):
     return t
 
 
-class MixedSpace(ABC):
+class MixedSpace:
     """Used to map between different versions of a mixed space.
 
     This class defines two representations for the space:
