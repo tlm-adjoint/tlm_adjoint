@@ -508,23 +508,10 @@ def garbage_cleanup_internal_comm(comm):
 register_garbage_cleanup(garbage_cleanup_internal_comm)
 
 
-def subtract_adjoint_derivative_action_cofunction_form(x, alpha, y):
-    check_space_type(x, "conjugate_dual")
-    if alpha != 1.0:
-        y = backend_Constant(alpha) * y
-    if hasattr(x, "_tlm_adjoint__firedrake_adj_b"):
-        x._tlm_adjoint__firedrake_adj_b = x._tlm_adjoint__firedrake_adj_b - y
-    else:
-        x._tlm_adjoint__firedrake_adj_b = -y
-
-
 register_subtract_adjoint_derivative_action(
     (backend_Constant, backend_Cofunction, backend_Function), object,
     subtract_adjoint_derivative_action_base,
     replace=True)
-register_subtract_adjoint_derivative_action(
-    (backend_Constant, backend_Cofunction), ufl.classes.Form,
-    subtract_adjoint_derivative_action_cofunction_form)
 
 
 def functional_term_eq_form(x, term):
