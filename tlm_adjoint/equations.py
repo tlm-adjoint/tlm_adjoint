@@ -4,8 +4,9 @@
 from .interface import (
     check_space_types, check_space_types_conjugate_dual,
     check_space_types_dual, is_var, var_assign, var_axpy, var_comm, var_dtype,
-    var_get_values, var_id, var_inner, var_local_size, var_new_conjugate_dual,
-    var_replacement, var_set_values, var_sum, var_zero)
+    var_get_values, var_id, var_is_scalar, var_inner, var_local_size,
+    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values,
+    var_zero)
 
 from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
@@ -405,6 +406,9 @@ class DotProductRHS(RHS):
         self._y = var_replacement(self._y)
 
     def add_forward(self, b, deps):
+        if not var_is_scalar(b):
+            raise ValueError("Scalar variable required")
+
         if self._x_equals_y:
             (x,), (y,) = deps, deps
         else:
@@ -420,13 +424,16 @@ class DotProductRHS(RHS):
             import mpi4py.MPI as MPI
             d = comm.allreduce(d, op=MPI.SUM)
 
-        var_set_values(b, var_get_values(b) + self._alpha * d)
+        var_assign(b, var_scalar_value(b) + self._alpha * d)
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
+        if not var_is_scalar(adj_x):
+            raise ValueError("Scalar variable required")
+
         if self._x_equals_y:
             if dep_index == 0:
                 x, = nl_deps
-                alpha = -2.0 * self._alpha.conjugate() * var_sum(adj_x)
+                alpha = -2.0 * self._alpha.conjugate() * var_scalar_value(adj_x)  # noqa: E501
                 var_set_values(
                     b,
                     var_get_values(b)
@@ -435,14 +442,14 @@ class DotProductRHS(RHS):
                 raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps
-            alpha = -self._alpha.conjugate() * var_sum(adj_x)
+            alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
             var_set_values(
                 b,
                 var_get_values(b)
                 + alpha * var_get_values(y).conjugate())
         elif dep_index == 1:
             x, y = nl_deps
-            alpha = -self._alpha.conjugate() * var_sum(adj_x)
+            alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
             var_set_values(
                 b,
                 var_get_values(b)
@@ -521,6 +528,9 @@ class InnerProductRHS(RHS):
             self._M = WeakAlias(self._M)
 
     def add_forward(self, b, deps):
+        if not var_is_scalar(b):
+            raise ValueError("Scalar variable required")
+
         if self._norm_sq:
             x, y = deps[0], deps[0]
             M_deps = deps[1:]
@@ -535,9 +545,12 @@ class InnerProductRHS(RHS):
             self._M.adjoint_action(M_deps, y, Y, method="assign")
         check_space_types_conjugate_dual(x, Y)
 
-        var_set_values(b, var_get_values(b) + self._alpha * var_inner(x, Y))
+        var_assign(b, var_scalar_value(b) + self._alpha * var_inner(x, Y))
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
+        if not var_is_scalar(adj_x):
+            raise ValueError("Scalar variable required")
+
         if self._norm_sq:
             if dep_index == 0:
                 x = nl_deps[0]
@@ -552,7 +565,7 @@ class InnerProductRHS(RHS):
                     self._M.adjoint_action(M_deps, x, X, method="assign")
 
                 var_axpy(
-                    b, -self._alpha.conjugate() * var_sum(adj_x), X)
+                    b, -self._alpha.conjugate() * var_scalar_value(adj_x), X)
 
                 if self._M is None:
                     X = x
@@ -561,7 +574,7 @@ class InnerProductRHS(RHS):
                     self._M.forward_action(M_deps, x, X, method="assign")
 
                 var_axpy(
-                    b, -self._alpha.conjugate() * var_sum(adj_x), X)
+                    b, -self._alpha.conjugate() * var_scalar_value(adj_x), X)
             else:
                 raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
@@ -574,7 +587,7 @@ class InnerProductRHS(RHS):
                 Y = var_new_conjugate_dual(x)
                 self._M.adjoint_action(M_deps, y, Y, method="assign")
 
-            var_axpy(b, -self._alpha.conjugate() * var_sum(adj_x), Y)
+            var_axpy(b, -self._alpha.conjugate() * var_scalar_value(adj_x), Y)
         elif dep_index == 1:
             x, y = nl_deps[:2]
             if not issubclass(var_dtype(y), (float, np.floating)):
@@ -587,7 +600,7 @@ class InnerProductRHS(RHS):
                 X = var_new_conjugate_dual(y)
                 self._M.forward_action(M_deps, x, X, method="assign")
 
-            var_axpy(b, -self._alpha.conjugate() * var_sum(adj_x), X)
+            var_axpy(b, -self._alpha.conjugate() * var_scalar_value(adj_x), X)
         else:
             raise IndexError("dep_index out of bounds")
 

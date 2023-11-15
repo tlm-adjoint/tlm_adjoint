@@ -255,9 +255,6 @@ class FloatInterface(VariableInterface):
     def _inner(self, y):
         return var_scalar_value(y).conjugate() * self.value
 
-    def _sum(self):
-        return self.value
-
     def _linf_norm(self):
         return abs(self.value)
 

@@ -157,9 +157,6 @@ class ConstantInterface(VariableInterface):
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
-    def _sum(self):
-        return self.values().sum()
-
     def _linf_norm(self):
         return abs(self.values()).max(initial=0.0)
 
