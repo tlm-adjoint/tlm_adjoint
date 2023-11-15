@@ -10,7 +10,6 @@ from .test_base import *
 
 import gc
 import pytest
-import ufl
 
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
@@ -102,7 +101,7 @@ def test_Function_alias(setup_test, test_leaks,
         assert var_is_alias(F_i)
 
     space = FunctionSpace(mesh, "Lagrange", 1)
-    space = FunctionSpace(mesh, ufl.classes.MixedElement(
+    space = FunctionSpace(mesh, MixedElement(
         *[space.ufl_element() for _ in range(dim)]))
 
     def test_state(F, F_i):
