@@ -6,10 +6,9 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    check_space_type, check_space_types, comm_dup_cached, new_space_id,
-    new_var_id, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, space_id,
-    subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
+    check_space_types, comm_dup_cached, new_space_id, new_var_id,
+    register_functional_term_eq, register_subtract_adjoint_derivative_action,
+    space_id, subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
     var_lock_state, var_scalar_value, var_space, var_space_type)
 from .backend_code_generator_interface import r0_space
 
@@ -382,16 +381,6 @@ def subtract_adjoint_derivative_action_backend_function_vector(x, alpha, y):
     x.vector().axpy(-alpha, y)
 
 
-def subtract_adjoint_derivative_action_function_form(x, alpha, y):
-    check_space_type(x, "conjugate_dual")
-    if alpha != 1.0:
-        y = backend_Constant(alpha) * y
-    if hasattr(x, "_tlm_adjoint__fenics_adj_b"):
-        x._tlm_adjoint__fenics_adj_b = x._tlm_adjoint__fenics_adj_b - y
-    else:
-        x._tlm_adjoint__fenics_adj_b = -y
-
-
 register_subtract_adjoint_derivative_action(
     (backend_Constant, backend_Function), object,
     subtract_adjoint_derivative_action_base,
@@ -402,9 +391,6 @@ register_subtract_adjoint_derivative_action(
 register_subtract_adjoint_derivative_action(
     backend_Function, backend_Vector,
     subtract_adjoint_derivative_action_backend_function_vector)
-register_subtract_adjoint_derivative_action(
-    (backend_Constant, backend_Function), ufl.classes.Form,
-    subtract_adjoint_derivative_action_function_form)
 
 
 def functional_term_eq_form(x, term):
