@@ -1415,13 +1415,12 @@ def var_copy_conjugate(x):
 
 def var_assign_conjugate(x, y):
     check_space_types_conjugate(x, y)
-    var_set_values(x, var_get_values(y).conjugate())
+    var_assign(x, var_copy_conjugate(y))
 
 
 def var_axpy_conjugate(y, alpha, x, /):
     check_space_types_conjugate(y, x)
-    var_set_values(
-        y, var_get_values(y) + alpha * var_get_values(x).conjugate())
+    var_axpy(y, alpha, var_copy_conjugate(x))
 
 
 def vars_assign(X, Y):
