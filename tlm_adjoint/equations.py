@@ -3,10 +3,10 @@
 
 from .interface import (
     check_space_types, check_space_types_conjugate_dual,
-    check_space_types_dual, is_var, var_assign, var_axpy, var_comm, var_dtype,
-    var_get_values, var_id, var_is_scalar, var_inner, var_local_size,
-    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values,
-    var_zero)
+    check_space_types_dual, is_var, var_assign, var_axpy, var_axpy_conjugate,
+    var_comm, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
+    var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
+    var_set_values, var_zero)
 
 from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
@@ -434,26 +434,17 @@ class DotProductRHS(RHS):
             if dep_index == 0:
                 x, = nl_deps
                 alpha = -2.0 * self._alpha.conjugate() * var_scalar_value(adj_x)  # noqa: E501
-                var_set_values(
-                    b,
-                    var_get_values(b)
-                    + alpha * var_get_values(x).conjugate())
+                var_axpy_conjugate(b, alpha, x)
             else:
                 raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps
             alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
-            var_set_values(
-                b,
-                var_get_values(b)
-                + alpha * var_get_values(y).conjugate())
+            var_axpy_conjugate(b, alpha, y)
         elif dep_index == 1:
             x, y = nl_deps
             alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
-            var_set_values(
-                b,
-                var_get_values(b)
-                + alpha * var_get_values(x).conjugate())
+            var_axpy_conjugate(b, alpha, x)
         else:
             raise IndexError("dep_index out of bounds")
 
