@@ -30,7 +30,7 @@ from .interface import (
 from .alias import Alias
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
-from .equations import Assignment, Axpy, Conversion
+from .equations import Assignment, Axpy
 from .manager import annotation_enabled, tlm_enabled
 
 import contextlib
@@ -951,7 +951,7 @@ def to_float(y, *, name=None, cls=None):
     if not var_is_scalar(y):
         raise ValueError("Invalid variable")
     x = cls(name=name, space_type=var_space_type(y))
-    Conversion(x, y).solve()
+    Assignment(x, y).solve()
     return x
 
 
