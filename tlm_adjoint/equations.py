@@ -4,7 +4,7 @@
 from .interface import (
     check_space_types, check_space_types_conjugate_dual,
     check_space_types_dual, is_var, var_assign, var_axpy, var_axpy_conjugate,
-    var_comm, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
+    var_dot, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
     var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
     var_set_values, var_zero)
 
@@ -418,13 +418,7 @@ class DotProductRHS(RHS):
             raise ValueError("Invalid space")
         check_space_types_dual(x, y)
 
-        d = (var_get_values(y) * var_get_values(x)).sum()
-        comm = var_comm(b)
-        if comm.size > 1:
-            import mpi4py.MPI as MPI
-            d = comm.allreduce(d, op=MPI.SUM)
-
-        var_assign(b, var_scalar_value(b) + self._alpha * d)
+        var_assign(b, var_scalar_value(b) + self._alpha * var_dot(x, y))
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if not var_is_scalar(adj_x):

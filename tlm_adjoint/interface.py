@@ -1423,6 +1423,10 @@ def var_axpy_conjugate(y, alpha, x, /):
     var_axpy(y, alpha, var_copy_conjugate(x))
 
 
+def var_dot(x, y):
+    return var_inner(x, var_copy_conjugate(y))
+
+
 def vars_assign(X, Y):
     if len(X) != len(Y):
         raise ValueError("Incompatible lengths")
