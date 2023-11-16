@@ -6,8 +6,8 @@ and Dirichlet boundary conditions.
 """
 
 from .backend import (
-    TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
-    backend_ScalarType)
+    FiniteElement, TensorElement, TestFunction, TrialFunction, VectorElement,
+    backend_Constant, backend_DirichletBC, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, VariableStateChangeError,
     add_interface, comm_parent, is_var, space_comm, var_caches, var_comm,
@@ -285,8 +285,8 @@ class Constant(backend_Constant):
         # Shape initialization / checking
         if space is not None:
             if shape is None:
-                shape = space.ufl_element().value_shape()
-            elif shape != space.ufl_element().value_shape():
+                shape = space.ufl_element().value_shape
+            elif shape != space.ufl_element().value_shape:
                 raise ValueError("Invalid shape")
 
         value = constant_value(value, shape)
@@ -373,13 +373,11 @@ def as_coefficient(x):
             space = var_space(x)
         else:
             if len(x.ufl_shape) == 0:
-                element = ufl.classes.FiniteElement("R", None, 0)
+                element = FiniteElement("R", None, 0)
             elif len(x.ufl_shape) == 1:
-                element = ufl.classes.VectorElement("R", None, 0,
-                                                    dim=x.ufl_shape[0])
+                element = VectorElement("R", None, 0, dim=x.ufl_shape[0])
             else:
-                element = ufl.classes.TensorElement("R", None, 0,
-                                                    shape=x.ufl_shape)
+                element = TensorElement("R", None, 0, shape=x.ufl_shape)
             space = ufl.classes.FunctionSpace(None, element)
 
         x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space)
@@ -566,7 +564,7 @@ class HomogeneousDirichletBC(DirichletBC):
 
     # Based on FEniCS 2019.1.0 DirichletBC API
     def __init__(self, V, sub_domain, *args, **kwargs):
-        shape = V.ufl_element().value_shape()
+        shape = V.ufl_element().value_shape
         if len(shape) == 0:
             g = 0.0
         else:

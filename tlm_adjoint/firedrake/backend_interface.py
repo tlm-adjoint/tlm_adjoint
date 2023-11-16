@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
-    backend_Function, backend_FunctionSpace, backend_ScalarType)
+    FiniteElement, TensorElement, VectorElement, backend_Cofunction,
+    backend_CofunctionSpace, backend_Constant, backend_Function,
+    backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, new_space_id, new_var_id,
@@ -63,13 +64,11 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
         else:
             cell = domain.ufl_cell()
         if len(self.ufl_shape) == 0:
-            element = ufl.classes.FiniteElement("R", cell, 0)
+            element = FiniteElement("R", cell, 0)
         elif len(self.ufl_shape) == 1:
-            element = ufl.classes.VectorElement("R", cell, 0,
-                                                dim=self.ufl_shape[0])
+            element = VectorElement("R", cell, 0, dim=self.ufl_shape[0])
         else:
-            element = ufl.classes.TensorElement("R", cell, 0,
-                                                shape=self.ufl_shape)
+            element = TensorElement("R", cell, 0, shape=self.ufl_shape)
         space = ufl.classes.FunctionSpace(domain, element)
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm_dup_cached(comm), "domain": domain,

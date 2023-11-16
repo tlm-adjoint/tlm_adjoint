@@ -467,7 +467,7 @@ class ExprAssignment(ExprEquation):
                                   backend_Function, ReplacementFunction)):
                 e = dep.function_space().ufl_element()
                 F = var_new_conjugate_dual(dep)
-                if (e.family(), e.degree(), e.value_shape()) == ("Real", 0, ()):  # noqa: E501
+                if (e.family(), e.degree(), e.value_shape) == ("Real", 0, ()):
                     dF = var_new_conjugate_dual(adj_x).assign(
                         dF, subset=self._subset)
                     F.dat.data[:] = var_inner(adj_x, dF)
