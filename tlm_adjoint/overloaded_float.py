@@ -23,8 +23,8 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    subtract_adjoint_derivative_action_base, var_assign, var_id, var_is_scalar,
-    var_new, var_new_conjugate_dual, var_scalar_value, var_space_type)
+    subtract_adjoint_derivative_action_base, var_assign, var_id, var_new,
+    var_new_conjugate_dual, var_scalar_value, var_space_type)
 
 from .alias import Alias
 from .caches import Caches
@@ -929,21 +929,15 @@ class FloatEquation(Equation):
             return FloatEquation(tlm_map[x], expr)
 
 
-def to_float(y, *, name=None, cls=None):
-    """Convert a variable to a :class:`.SymbolicFloat`.
+def to_float(y, *, name=None):
+    """Convert a variable to a :class:`.Float`.
 
     :arg y: A scalar-valued variable.
     :arg name: A :class:`str` name.
-    :arg cls: Float class. Default :class:`.Float`.
     :returns: The :class:`.SymbolicFloat`.
     """
 
-    if cls is None:
-        cls = Float
-
-    if not var_is_scalar(y):
-        raise ValueError("Invalid variable")
-    x = cls(name=name, space_type=var_space_type(y))
+    x = Float(name=name, space_type=var_space_type(y))
     Assignment(x, y).solve()
     return x
 
