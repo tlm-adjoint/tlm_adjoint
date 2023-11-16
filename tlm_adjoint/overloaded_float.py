@@ -23,9 +23,8 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_id,
-    var_is_scalar, var_new, var_new_conjugate_dual, var_scalar_value,
-    var_space_type)
+    subtract_adjoint_derivative_action_base, var_assign, var_id, var_is_scalar,
+    var_new, var_new_conjugate_dual, var_scalar_value, var_space_type)
 
 from .alias import Alias
 from .caches import Caches
@@ -234,33 +233,31 @@ class FloatInterface(VariableInterface):
         var_assign(self, 0.0)
 
     def _assign(self, y):
-        dtype = self.space.dtype
-
-        if isinstance(y, SymbolicFloat):
-            y = y.value
-        elif isinstance(y, (sp.Integer, sp.Float)):
-            y = dtype(y)
-        if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
-            if not np.can_cast(y, dtype):
+        if isinstance(y, (sp.Integer, sp.Float)):
+            self._value = self.space.dtype(y)
+        elif isinstance(y, (int, np.integer,
+                            float, np.floating,
+                            complex, np.complexfloating)):
+            if not np.can_cast(y, self.space.dtype):
                 raise ValueError("Invalid dtype")
-            self._value = dtype(y)
+            self._value = self.space.dtype(y)
         else:
-            var_assign(self, var_scalar_value(y))
+            self._value = self.space.dtype(var_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
         var_assign(self, self.value + alpha * var_scalar_value(x))
 
     def _inner(self, y):
-        return var_scalar_value(y).conjugate() * self.value
+        if isinstance(y, SymbolicFloat):
+            return y.value.conjugate() * self.value
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
 
     def _linf_norm(self):
         return abs(self.value)
 
     def _local_size(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
+        if self.space.comm.rank == 0:
             return 1
         else:
             return 0
@@ -269,21 +266,17 @@ class FloatInterface(VariableInterface):
         return 1
 
     def _local_indices(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
+        if self.space.comm.rank == 0:
             return slice(0, 1)
         else:
             return slice(0, 0)
 
     def _get_values(self):
-        comm = var_comm(self)
-        dtype = self.space.dtype
-        value = dtype(self.value)
-        values = np.array([value] if comm.rank == 0 else [], dtype=dtype)
-        return values
+        return np.array([self.value] if self.space.comm.rank == 0 else [],
+                        dtype=self.space.dtype)
 
     def _set_values(self, values):
-        comm = var_comm(self)
+        comm = self.space.comm
         if comm.rank == 0:
             if values.shape != (1,):
                 raise ValueError("Invalid shape")
@@ -306,7 +299,7 @@ class FloatInterface(VariableInterface):
 
     def _scalar_value(self):
         # assert var_is_scalar(self)
-        return self.value
+        return self.space.dtype(self.value)
 
 
 @no_float_overloading

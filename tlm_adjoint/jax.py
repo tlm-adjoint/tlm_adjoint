@@ -7,7 +7,8 @@ from .interface import (
     register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_caches,
     var_comm, var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
-    var_local_size, var_name, var_space, var_space_type, var_state)
+    var_local_size, var_name, var_set_values, var_space, var_space_type,
+    var_state)
 
 from .alias import WeakAlias
 from .caches import Caches
@@ -188,20 +189,16 @@ class VectorInterface(VariableInterface):
     def _zero(self):
         self._vector = None
 
-    @manager_disabled()
     def _assign(self, y):
         if isinstance(y, (int, np.integer,
                           float, np.floating,
                           complex, np.complexfloating)):
             self._vector = jax.numpy.full(self.space.local_size, y,
                                           dtype=self.space.dtype)
-        elif isinstance(y, (np.ndarray, jax.Array)):
-            self._vector = jax.numpy.array(y, dtype=self.space.dtype)
         elif isinstance(y, Vector):
             if y.space.local_size != self.space.local_size:
                 raise ValueError("Invalid shape")
-            self._vector = jax.numpy.array(y.vector,
-                                           dtype=self.space.dtype)
+            self._vector = jax.numpy.array(y.vector, dtype=self.space.dtype)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
@@ -219,7 +216,7 @@ class VectorInterface(VariableInterface):
         if isinstance(y, Vector):
             if y.space.local_size != self.space.local_size:
                 raise ValueError("Invalid shape")
-            inner = sum(y.vector.conjugate() * self.vector)
+            inner = self.space.dtype(sum(y.vector.conjugate() * self.vector))
             if MPI is not None:
                 inner = self.space.comm.allreduce(inner, op=MPI.SUM)
             return inner
@@ -227,7 +224,7 @@ class VectorInterface(VariableInterface):
             raise TypeError(f"Unexpected type: {type(y)}")
 
     def _linf_norm(self):
-        norm = abs(self.vector).max(initial=0.0)
+        norm = self.space.dtype(abs(self.vector).max(initial=0.0))
         if MPI is not None:
             norm = self.space.comm.allreduce(norm, op=MPI.MAX)
         return norm
@@ -244,9 +241,8 @@ class VectorInterface(VariableInterface):
     def _get_values(self):
         return np.array(self.vector, dtype=self.space.dtype)
 
-    @manager_disabled()
     def _set_values(self, values):
-        self.assign(values)
+        self._vector = jax.numpy.array(values, dtype=self.space.dtype)
 
     def _replacement(self):
         return ReplacementVector(self)
@@ -362,8 +358,6 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         elif isinstance(V, (np.ndarray, jax.Array)):
             if dtype is None:
                 dtype = V.dtype.type
-            if not jax.numpy.can_cast(V, dtype):
-                raise ValueError("Invalid dtype")
             vector = jax.numpy.array(V, dtype=dtype)
             n, = V.shape
             V = VectorSpace(n, dtype=dtype, comm=comm)
@@ -472,7 +466,15 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
             Assignment(self, y).solve(annotate=annotate, tlm=tlm)
         else:
-            var_assign(self, y)
+            if isinstance(y, (int, np.integer,
+                              float, np.floating,
+                              complex, np.complexfloating,
+                              Vector)):
+                var_assign(self, y)
+            elif isinstance(y, (np.ndarray, jax.Array)):
+                var_set_values(self, y)
+            else:
+                raise TypeError(f"Unexpected type: {type(y)}")
         return self
 
     def addto(self, y, *, annotate=None, tlm=None):
@@ -506,6 +508,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             if self.vector.shape != (1,):
                 raise RuntimeError("Invalid parallel decomposition")
             value, = self.vector
+            value = self.space.dtype(value)
         else:
             if self.vector.shape != (0,):
                 raise RuntimeError("Invalid parallel decomposition")

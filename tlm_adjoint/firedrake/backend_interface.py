@@ -9,7 +9,7 @@ from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, new_space_id, new_var_id,
     register_garbage_cleanup, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, relative_space_type,
+    register_subtract_adjoint_derivative_action, relative_space_type, space_id,
     space_type_warning, subtract_adjoint_derivative_action_base, var_caches,
     var_id, var_is_alias, var_is_cached, var_is_static, var_linf_norm,
     var_lock_state, var_name, var_space, var_space_type)
@@ -18,7 +18,6 @@ from .backend_code_generator_interface import r0_space
 from ..equations import Conversion
 from ..manager import manager_disabled
 from ..override import override_method, override_property
-from ..overloaded_float import SymbolicFloat
 
 from .equations import Assembly
 from .functions import (
@@ -93,12 +92,19 @@ class FunctionSpaceInterface(SpaceInterface):
 
     def _new(self, *, name=None, space_type="primal", static=False,
              cache=None):
-        space = self._tlm_adjoint__space_interface_attrs["space"]
         if space_type in {"primal", "conjugate"}:
+            if "space" in self._tlm_adjoint__space_interface_attrs:
+                space = self._tlm_adjoint__space_interface_attrs["space"]
+            else:
+                space = self._tlm_adjoint__space_interface_attrs["space_dual"].dual()  # noqa: E501
             return Function(space, name=name, space_type=space_type,
                             static=static, cache=cache)
         elif space_type in {"dual", "conjugate_dual"}:
-            return Cofunction(space.dual(), name=name, space_type=space_type,
+            if "space_dual" in self._tlm_adjoint__space_interface_attrs:
+                space_dual = self._tlm_adjoint__space_interface_attrs["space_dual"]  # noqa: E501
+            else:
+                space_dual = self._tlm_adjoint__space_interface_attrs["space"].dual()  # noqa: E501
+            return Cofunction(space_dual, name=name, space_type=space_type,
                               static=static, cache=cache)
         else:
             raise ValueError("Invalid space type")
@@ -112,12 +118,32 @@ def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
+@override_method(backend_FunctionSpace, "dual")
+def FunctionSpace_dual(self, orig, orig_args):
+    if "space_dual" not in self._tlm_adjoint__space_interface_attrs:
+        self._tlm_adjoint__space_interface_attrs["space_dual"] = orig_args()
+    space_dual = self._tlm_adjoint__space_interface_attrs["space_dual"]
+    if "space" not in space_dual._tlm_adjoint__space_interface_attrs:
+        space_dual._tlm_adjoint__space_interface_attrs["space"] = self
+    return space_dual
+
+
 @override_method(backend_CofunctionSpace, "__init__")
 def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
-                  {"space": self.dual(), "comm": comm_dup_cached(self.comm),
+                  {"space_dual": self, "comm": comm_dup_cached(self.comm),
                    "id": new_space_id()})
+
+
+@override_method(backend_CofunctionSpace, "dual")
+def CofunctionSpace_dual(self, orig, orig_args):
+    if "space" not in self._tlm_adjoint__space_interface_attrs:
+        self._tlm_adjoint__space_interface_attrs["space"] = orig_args()
+    space = self._tlm_adjoint__space_interface_attrs["space"]
+    if "space_dual" not in space._tlm_adjoint__space_interface_attrs:
+        space._tlm_adjoint__space_interface_attrs["space_dual"] = self
+    return space
 
 
 class FunctionInterfaceBase(VariableInterface):
@@ -170,27 +196,6 @@ class FunctionInterfaceBase(VariableInterface):
         with self.dat.vec_wo as x_v:
             x_v.zeroEntries()
 
-    @manager_disabled()
-    def _axpy(self, alpha, x, /):
-        if isinstance(x, (backend_Cofunction, backend_Function)):
-            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                if y_v.getLocalSize() != x_v.getLocalSize():
-                    raise ValueError("Invalid function space")
-                y_v.axpy(alpha, x_v)
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-
-    @manager_disabled()
-    def _inner(self, y):
-        if isinstance(y, (backend_Cofunction, backend_Function)):
-            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
-                if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise ValueError("Invalid function space")
-                inner = x_v.dot(y_v)
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-        return inner
-
     def _linf_norm(self):
         with self.dat.vec_ro as x_v:
             linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
@@ -236,23 +241,42 @@ class FunctionInterface(FunctionInterfaceBase):
 
     @manager_disabled()
     def _assign(self, y):
-        if isinstance(y, SymbolicFloat):
-            y = y.value
-        if isinstance(y, (backend_Cofunction, backend_Function)):
-            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise ValueError("Invalid function space")
+        if isinstance(y, backend_Cofunction):
+            y = y.riesz_representation("l2")
+        if isinstance(y, (int, np.integer,
+                          float, np.floating,
+                          complex, np.complexfloating)):
+            if len(self.ufl_shape) != 0:
+                raise ValueError("Invalid shape")
+            self.assign(backend_Constant(y))
+        elif isinstance(y, backend_Function):
+            if space_id(y.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
-        elif isinstance(y, (int, np.integer,
-                            float, np.floating,
-                            complex, np.complexfloating)):
-            if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(y))
-            else:
-                y_arr = np.full(self.ufl_shape, y, dtype=self.dat.dtype.type)
-                self.assign(backend_Constant(y_arr))
-        elif isinstance(y, backend_Constant):
-            self.assign(y)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
+
+    def _axpy(self, alpha, x, /):
+        if isinstance(x, backend_Cofunction):
+            x = x.riesz_representation("l2")
+        if isinstance(x, backend_Function):
+            if space_id(x.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
+                y_v.axpy(alpha, x_v)
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+
+    def _inner(self, y):
+        if isinstance(y, backend_Function):
+            y = y.riesz_representation("l2")
+        if isinstance(y, backend_Cofunction):
+            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
+                raise ValueError("Invalid function space")
+            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
+                inner = x_v.dot(y_v)
+            return inner
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
@@ -365,13 +389,37 @@ def Function_sub(self, orig, orig_args, i):
 
 
 class CofunctionInterface(FunctionInterfaceBase):
-    @manager_disabled()
     def _assign(self, y):
-        if isinstance(y, (backend_Cofunction, backend_Function)):
-            with self.dat.vec as x_v, y.dat.vec_ro as y_v:
-                if x_v.getLocalSize() != y_v.getLocalSize():
-                    raise ValueError("Invalid function space")
+        if isinstance(y, backend_Function):
+            y = y.riesz_representation("l2")
+        if isinstance(y, backend_Cofunction):
+            if space_id(y.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
                 y_v.copy(result=x_v)
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
+
+    def _axpy(self, alpha, x, /):
+        if isinstance(x, backend_Function):
+            x = x.riesz_representation("l2")
+        if isinstance(x, backend_Cofunction):
+            if space_id(x.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
+                y_v.axpy(alpha, x_v)
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+
+    def _inner(self, y):
+        if isinstance(y, backend_Cofunction):
+            y = y.riesz_representation("l2")
+        if isinstance(y, backend_Function):
+            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
+                raise ValueError("Invalid function space")
+            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
+                inner = x_v.dot(y_v)
+            return inner
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 

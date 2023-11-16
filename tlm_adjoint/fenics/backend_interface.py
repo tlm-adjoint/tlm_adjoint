@@ -14,7 +14,6 @@ from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
 from ..manager import manager_disabled
-from ..overloaded_float import SymbolicFloat
 from ..override import override_method
 
 from .equations import Assembly
@@ -103,12 +102,32 @@ def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                        "id": new_space_id()})
 
 
-def check_vector_size(fn):
+def check_vector(fn):
     @functools.wraps(fn)
     def wrapped_fn(self, *args, **kwargs):
-        if self.vector().size() != self.function_space().dofmap().global_dimension():  # noqa: E501
+        def space_sizes(self):
+            dofmap = self.function_space().dofmap()
+            n0, n1 = dofmap.ownership_range()
+            return (n1 - n0, dofmap.global_dimension())
+
+        def vector_sizes(self):
+            return (self.vector().local_size(), self.vector().size())
+
+        space = self.function_space()
+        vector = self.vector()
+        if vector_sizes(self) != space_sizes(self):
             raise RuntimeError("Unexpected vector size")
-        return fn(self, *args, **kwargs)
+
+        return_value = fn(self, *args, **kwargs)
+
+        if self.function_space() is not space:
+            raise RuntimeError("Unexpected space")
+        if self.vector() is not vector:
+            raise RuntimeError("Unexpected vector")
+        if vector_sizes(self) != space_sizes(self):
+            raise RuntimeError("Unexpected vector size")
+
+        return return_value
     return wrapped_fn
 
 
@@ -145,78 +164,70 @@ class FunctionInterface(VariableInterface):
             self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
         return self._tlm_adjoint__var_interface_attrs["caches"]
 
-    @check_vector_size
+    @check_vector
     def _zero(self):
         self.vector().zero()
 
     @manager_disabled()
-    @check_vector_size
+    @check_vector
     def _assign(self, y):
-        if isinstance(y, SymbolicFloat):
-            y = y.value
-        if isinstance(y, backend_Function):
-            if self.vector().local_size() != y.vector().local_size():
+        if isinstance(y, (int, np.integer,
+                          float, np.floating)):
+            if len(self.ufl_shape) != 0:
+                raise ValueError("Invalid shape")
+            self.assign(backend_Constant(y))
+        elif isinstance(y, backend_Function):
+            if space_id(y.function_space()) != space_id(self.function_space()):
                 raise ValueError("Invalid function space")
             self.vector().zero()
             self.vector().axpy(1.0, y.vector())
-        elif isinstance(y, (int, np.integer, float, np.floating)):
-            if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(y))
-            else:
-                y_arr = np.full(self.ufl_shape, y, dtype=backend_ScalarType)
-                self.assign(backend_Constant(y_arr))
-        elif isinstance(y, backend_Constant):
-            self.assign(y)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
-    @manager_disabled()
-    @check_vector_size
+    @check_vector
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Function):
-            if self.vector().local_size() != x.vector().local_size():
+            if space_id(x.function_space()) != space_id(self.function_space()):
                 raise ValueError("Invalid function space")
             self.vector().axpy(alpha, x.vector())
         else:
             raise TypeError(f"Unexpected type: {type(x)}")
 
-    @manager_disabled()
-    @check_vector_size
+    @check_vector
     def _inner(self, y):
         if isinstance(y, backend_Function):
-            if self.vector().local_size() != y.vector().local_size():
+            if space_id(y.function_space()) != space_id(self.function_space()):
                 raise ValueError("Invalid function space")
-            inner = y.vector().inner(self.vector())
+            return y.vector().inner(self.vector())
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
-        return inner
 
-    @check_vector_size
+    @check_vector
     def _linf_norm(self):
         return self.vector().norm("linf")
 
-    @check_vector_size
+    @check_vector
     def _local_size(self):
         return self.vector().local_size()
 
-    @check_vector_size
+    @check_vector
     def _global_size(self):
         return self.function_space().dofmap().global_dimension()
 
-    @check_vector_size
+    @check_vector
     def _local_indices(self):
         return slice(*self.function_space().dofmap().ownership_range())
 
-    @check_vector_size
+    @check_vector
     def _get_values(self):
         return self.vector().get_local().copy()  # copy likely not required
 
-    @check_vector_size
+    @check_vector
     def _set_values(self, values):
         self.vector().set_local(values)
         self.vector().apply("insert")
 
-    @check_vector_size
+    @check_vector
     def _new(self, *, name=None, static=False, cache=None,
              rel_space_type="primal"):
         y = var_copy(self, name=name, static=static, cache=cache)
@@ -226,7 +237,7 @@ class FunctionInterface(VariableInterface):
         return y
 
     @manager_disabled()
-    @check_vector_size
+    @check_vector
     def _copy(self, *, name=None, static=False, cache=None):
         y = self.copy(deepcopy=True)
         if name is not None:

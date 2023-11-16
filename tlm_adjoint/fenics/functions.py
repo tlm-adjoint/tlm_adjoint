@@ -18,7 +18,6 @@ from ..interface import (
 
 from ..caches import Caches
 from ..manager import manager_disabled
-from ..overloaded_float import SymbolicFloat
 
 import numpy as np
 try:
@@ -110,58 +109,53 @@ class ConstantInterface(VariableInterface):
 
     @manager_disabled()
     def _assign(self, y):
-        if isinstance(y, SymbolicFloat):
-            y = y.value
         if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
-            if len(self.ufl_shape) == 0:
-                value = y
-            else:
-                value = np.full(self.ufl_shape, y, dtype=var_dtype(self))
-                value = backend_Constant(value)
+                          float, np.floating)):
+            if len(self.ufl_shape) != 0:
+                raise ValueError("Invalid shape")
+            self.assign(backend_Constant(y))
         elif isinstance(y, backend_Constant):
-            value = y
+            if y.ufl_shape != self.ufl_shape:
+                raise ValueError("Invalid shape")
+            self.assign(y)
         else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-        self.assign(value)
+            if len(self.ufl_shape) != 0:
+                raise ValueError("Invalid shape")
+            self.assign(backend_Constant(var_scalar_value(y)))
 
     @manager_disabled()
     def _axpy(self, alpha, x, /):
-        if isinstance(x, SymbolicFloat):
-            x = x.value
-        if isinstance(x, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
+        if isinstance(x, backend_Constant):
             if len(self.ufl_shape) == 0:
-                value = (var_scalar_value(self) + alpha * x)
+                self.assign(self + alpha * x)
             else:
-                value = self.values() + alpha * x
-                value.shape = self.ufl_shape
-                value = backend_Constant(value)
-        elif isinstance(x, backend_Constant):
-            if len(self.ufl_shape) == 0:
-                value = (var_scalar_value(self)
-                         + alpha * var_scalar_value(x))
-            else:
+                if x.ufl_shape != self.ufl_shape:
+                    raise ValueError("Invalid shape")
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
-        elif is_var(x):
-            value = (var_scalar_value(self)
-                     + alpha * var_scalar_value(x))
+                self.assign(value)
         else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-        self.assign(value)
+            if len(self.ufl_shape) == 0:
+                self.assign(backend_Constant(var_scalar_value(self)
+                                             + alpha * var_scalar_value(x)))
+            else:
+                raise ValueError("Invalid shape")
 
     def _inner(self, y):
         if isinstance(y, backend_Constant):
+            if y.ufl_shape != self.ufl_shape:
+                raise ValueError("Invalid shape")
             return y.values().conjugate().dot(self.values())
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
     def _linf_norm(self):
-        return abs(self.values()).max(initial=0.0)
+        values = self.values()
+        if len(values) == 0:
+            return var_dtype(self)(0.0).real.dtype.type(0.0)
+        else:
+            return abs(values).max()
 
     def _local_size(self):
         comm = var_comm(self)
@@ -223,7 +217,8 @@ class ConstantInterface(VariableInterface):
 
     def _scalar_value(self):
         # assert var_is_scalar(self)
-        return var_dtype(self)(self)
+        value, = self.values()
+        return var_dtype(self)(value)
 
     def _is_alias(self):
         return "alias" in self._tlm_adjoint__var_interface_attrs
