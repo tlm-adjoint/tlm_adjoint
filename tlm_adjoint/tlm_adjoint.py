@@ -3,7 +3,7 @@
 
 from .interface import (
     DEFAULT_COMM, comm_dup_cached, garbage_cleanup, is_var, var_assign,
-    var_copy, var_id, var_is_replacement, var_name)
+    var_copy, var_id, var_is_replacement, var_is_scalar, var_name)
 
 from .adjoint import AdjointCache, AdjointModelRHS, TransposeComputationalGraph
 from .alias import WeakAlias, gc_disabled
@@ -1186,6 +1186,8 @@ class EquationManager:
 
         # Functionals
         Js = tuple(Js)
+        if not all(map(var_is_scalar, Js)):
+            raise ValueError("Functional must be a scalar")
 
         # Controls
         M = tuple(M)
