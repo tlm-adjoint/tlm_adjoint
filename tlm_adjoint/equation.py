@@ -479,8 +479,8 @@ class Equation(Referrer):
             :func:`.subtract_adjoint_derivative_action`, and valid types depend
             upon the adjoint variable type. Typically this will be a variable,
             or a two element :class:`tuple` `(alpha, F)`, where `alpha` is a
-            scalar and `F` a variable, with the value defined by the product of
-            `alpha` and `F`.
+            :class:`numbers.Complex` and `F` a variable, with the value defined
+            by the product of `alpha` and `F`.
         """
 
         raise NotImplementedError("Method not overridden")

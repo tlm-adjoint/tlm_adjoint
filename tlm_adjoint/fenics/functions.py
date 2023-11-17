@@ -18,6 +18,7 @@ from ..interface import (
 
 from ..caches import Caches
 
+import numbers
 import numpy as np
 try:
     import ufl_legacy as ufl
@@ -106,8 +107,7 @@ class ConstantInterface(VariableInterface):
         self.assign(value)
 
     def _assign(self, y):
-        if isinstance(y, (int, np.integer,
-                          float, np.floating)):
+        if isinstance(y, numbers.Real):
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))

@@ -14,6 +14,7 @@ try:
     import jax
 except ImportError:
     jax = None
+import numbers
 import numpy as np
 import operator
 import pytest
@@ -50,7 +51,7 @@ def test_jax_assignment(setup_test, jax_tlm_config,  # noqa: F811
         return (c - 1.0) ** 4
 
     y = Vector(10, dtype=dtype)
-    if issubclass(dtype, (complex, np.complexfloating)):
+    if issubclass(dtype, np.complexfloating):
         y.assign(np.arange(1, 11, dtype=dtype)
                  + 1.0j * np.arange(11, 12, dtype=dtype))
     else:
@@ -172,7 +173,7 @@ def test_jax_unary_overloading(setup_test, jax_tlm_config,  # noqa: F811
 def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                 dtype, op):
     if op in {np.arctan2, np.hypot} \
-            and issubclass(dtype, (complex, np.complexfloating)):
+            and issubclass(dtype, np.complexfloating):
         pytest.skip()
     set_default_float_dtype(dtype)
     set_default_jax_dtype(dtype)
@@ -193,7 +194,7 @@ def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
         y = np.array([1.1, 1.2], dtype=dtype)
     else:
         y = np.array([0.1, 0.2], dtype=dtype)
-    if issubclass(dtype, (complex, np.complexfloating)):
+    if issubclass(dtype, np.complexfloating):
         y += np.array([0.4j, 0.5j], dtype=dtype)
     y = Vector(y)
 
@@ -232,14 +233,15 @@ def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
 @seed_test
 def test_jax_float(setup_test, jax_tlm_config,  # noqa: F811
                    dtype, x_val):
-    if isinstance(x_val, (complex, np.complexfloating)) \
-            and not issubclass(dtype, (complex, np.complexfloating)):
+    if not isinstance(x_val, numbers.Real) \
+            and isinstance(x_val, numbers.Complex) \
+            and not issubclass(dtype, np.complexfloating):
         pytest.skip()
     set_default_jax_dtype(dtype)
 
     x = new_jax_float().assign(x_val)
 
-    if not issubclass(dtype, (complex, np.complexfloating)):
+    if issubclass(dtype, np.floating):
         assert float(x) == x_val
     assert complex(x) == x_val
     assert x.value == x_val

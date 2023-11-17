@@ -145,7 +145,7 @@ class Assembly(ExprEquation):
             check_space_type(x, "primal")
             if not var_is_scalar(x):
                 raise ValueError("Arity 0 forms can only be assigned to "
-                                 "scalars")
+                                 "scalar variables")
         elif arity == 1:
             check_space_type(x, "conjugate_dual")
         else:

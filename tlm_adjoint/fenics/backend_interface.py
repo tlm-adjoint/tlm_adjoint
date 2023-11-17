@@ -21,7 +21,7 @@ from .functions import (
     Zero, define_var_alias)
 
 import functools
-import numpy as np
+import numbers
 try:
     import ufl_legacy as ufl
 except ImportError:
@@ -169,8 +169,7 @@ class FunctionInterface(VariableInterface):
 
     @check_vector
     def _assign(self, y):
-        if isinstance(y, (int, np.integer,
-                          float, np.floating)):
+        if isinstance(y, numbers.Real):
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))

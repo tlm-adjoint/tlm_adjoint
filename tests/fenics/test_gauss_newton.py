@@ -64,7 +64,7 @@ def test_GaussNewton(setup_test, test_leaks):
     for i in range(20):
         dm = Function(space, static=True)
         dm_arr = np.random.random(var_local_size(dm))
-        if issubclass(var_dtype(dm), (complex, np.complexfloating)):
+        if issubclass(var_dtype(dm), np.complexfloating):
             dm_arr = dm_arr + 1.0j * np.random.random(var_local_size(dm))
         var_set_values(dm, dm_arr)
         del dm_arr
@@ -128,7 +128,7 @@ def test_CachedGaussNewton(setup_test):
     for i in range(20):
         dm = Function(space, static=True)
         dm_arr = np.random.random(var_local_size(dm))
-        if issubclass(var_dtype(dm), (complex, np.complexfloating)):
+        if issubclass(var_dtype(dm), np.complexfloating):
             dm_arr = dm_arr + 1.0j * np.random.random(var_local_size(dm))
         var_set_values(dm, dm_arr)
         del dm_arr

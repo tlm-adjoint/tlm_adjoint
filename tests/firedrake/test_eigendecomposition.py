@@ -43,7 +43,7 @@ def test_HEP(setup_test, test_leaks):
         space, M_action, action_space_type="conjugate_dual",
         problem_type=SLEPc.EPS.ProblemType.HEP)
 
-    assert issubclass(lam.dtype.type, (float, np.floating))
+    assert issubclass(lam.dtype.type, np.floating)
     assert (lam > 0.0).all()
 
     diff = Function(space)
@@ -72,17 +72,11 @@ def test_NHEP(setup_test, test_leaks):
     lam, V = eigendecompose(
         space, N_action, action_space_type="conjugate_dual")
 
-    assert issubclass(lam.dtype.type, (complex, np.complexfloating))
+    assert issubclass(lam.dtype.type, np.complexfloating)
     assert abs(lam.real).max() < 1.0e-14
 
     diff = Function(space)
-    if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
-        assert len(lam) == len(V)
-        for lam_val, v in zip(lam, V):
-            matrix_multiply(N, v, tensor=diff)
-            var_axpy(diff, -lam_val, v)
-            assert var_linf_norm(diff) < 1.0e-14
-    else:
+    if issubclass(PETSc.ScalarType, np.floating):
         V_r, V_i = V
         assert len(lam) == len(V_r)
         assert len(lam) == len(V_i)
@@ -95,6 +89,14 @@ def test_NHEP(setup_test, test_leaks):
             var_axpy(diff, -lam_val.real, v_i)
             var_axpy(diff, -lam_val.imag, v_r)
             assert var_linf_norm(diff) < 1.0e-14
+    elif issubclass(PETSc.ScalarType, np.complexfloating):
+        assert len(lam) == len(V)
+        for lam_val, v in zip(lam, V):
+            matrix_multiply(N, v, tensor=diff)
+            var_axpy(diff, -lam_val, v)
+            assert var_linf_norm(diff) < 1.0e-14
+    else:
+        raise TypeError(f"Unexpected Petsc.ScalarType: {PETSc.ScalarType}")
 
 
 @pytest.mark.firedrake
@@ -135,7 +137,7 @@ def test_CachedHessian(setup_test):
     zeta = Function(space, name="zeta", static=True)
     for i in range(5):
         zeta_arr = np.random.random(var_local_size(zeta))
-        if issubclass(var_dtype(zeta), (complex, np.complexfloating)):
+        if issubclass(var_dtype(zeta), np.complexfloating):
             zeta_arr = zeta_arr \
                 + 1.0j * np.random.random(var_local_size(zeta))
         var_set_values(zeta, zeta_arr)
@@ -155,7 +157,7 @@ def test_CachedHessian(setup_test):
         lam, V = eigendecompose(space, H.action_fn(F),
                                 problem_type=SLEPc.EPS.ProblemType.HEP)
 
-    assert issubclass(lam.dtype.type, (float, np.floating))
+    assert issubclass(lam.dtype.type, np.floating)
 
     assert len(lam) == len(V)
     for lam_i, v_i in zip(lam, V):
@@ -171,7 +173,7 @@ def test_CachedHessian(setup_test):
         lam_opt, V_opt = eigendecompose(space, H_opt.action_fn(F),
                                         problem_type=SLEPc.EPS.ProblemType.HEP)
 
-    assert issubclass(lam.dtype.type, (float, np.floating))
+    assert issubclass(lam.dtype.type, np.floating)
     error = (np.array(sorted(lam.real), dtype=float)
              - np.array(sorted(lam_opt.real), dtype=float))
     assert abs(error).max() == 0.0

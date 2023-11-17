@@ -856,7 +856,7 @@ def test_initial_guess(setup_test, test_leaks,
         return x_0, x, adj_x_0, J
 
     y = Function(space_2, name="y", static=True)
-    if issubclass(var_dtype(y), (complex, np.complexfloating)):
+    if issubclass(var_dtype(y), np.complexfloating):
         interpolate_expression(y, exp(X[0]) * (1.0 + 1.0j + X[1] * X[1]))
     else:
         interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))

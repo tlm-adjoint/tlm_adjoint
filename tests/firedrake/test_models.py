@@ -243,10 +243,10 @@ def test_diffusion_1d(setup_test, test_leaks,
 
     dJs = compute_gradient(J, [T_0, kappa])
 
-    if issubclass(var_dtype(kappa), (complex, np.complexfloating)):
-        dm_kappa = None
-    else:
+    if issubclass(var_dtype(kappa), np.floating):
         dm_kappa = constant(1.0, name="dm_kappa", static=True)
+    else:
+        dm_kappa = None
     for m, forward_J, dJ, dm in \
             [(T_0, lambda T_0: forward(T_0, kappa), dJs[0], None),
              (kappa, lambda kappa: forward(T_0, kappa), dJs[1], dm_kappa)]:

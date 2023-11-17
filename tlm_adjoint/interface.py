@@ -51,6 +51,7 @@ try:
     import mpi4py.MPI as MPI
 except ImportError:
     MPI = None
+import numbers
 import numpy as np
 try:
     from operator import call
@@ -1484,9 +1485,9 @@ def subtract_adjoint_derivative_action(x, y):
     :arg y: A contribution to subtract from the adjoint right-hand-side. An
         :meth:`.Equation.adjoint_derivative_action` return value. Valid types
         depend upon the variable type. Typically this will be a variable, or a
-        two element :class:`tuple` `(alpha, F)`, where `alpha` is a scalar and
-        `F` a variable, with the value to subtract defined by the product of
-        `alpha` and `F`.
+        two element :class:`tuple` `(alpha, F)`, where `alpha` is a
+        :class:`numbers.Complex` and `F` a variable, with the value to subtract
+        defined by the product of `alpha` and `F`.
     """
 
     raise NotImplementedError("Unexpected case encountered")
@@ -1508,9 +1509,7 @@ def register_subtract_adjoint_derivative_action(x_cls, y_cls, fn, *,
             def x_fn(x, y):
                 if isinstance(y, tuple) \
                         and len(y) == 2 \
-                        and isinstance(y[0], (int, np.integer,
-                                              float, np.floating,
-                                              complex, np.complexfloating)):
+                        and isinstance(y[0], numbers.Complex):
                     alpha, y = y
                 else:
                     alpha = 1.0

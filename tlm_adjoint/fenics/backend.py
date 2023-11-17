@@ -10,8 +10,9 @@ backend = "FEniCS"
 
 backend_RealType = PETSc.RealType
 backend_ScalarType = PETSc.ScalarType
-
-if not issubclass(backend_ScalarType, (float, np.floating)):
+if not issubclass(backend_RealType, np.floating):
+    raise ImportError(f"Invalid backend real type: {backend_RealType}")
+if not issubclass(backend_ScalarType, np.floating):
     raise ImportError(f"Invalid backend scalar type: {backend_ScalarType}")
 complex_mode = False
 

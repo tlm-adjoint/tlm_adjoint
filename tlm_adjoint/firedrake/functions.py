@@ -18,6 +18,7 @@ from ..interface import (
 
 from ..caches import Caches
 
+import numbers
 import numpy as np
 import ufl
 import weakref
@@ -103,9 +104,7 @@ class ConstantInterface(VariableInterface):
         self.assign(value)
 
     def _assign(self, y):
-        if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
+        if isinstance(y, numbers.Complex):
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))

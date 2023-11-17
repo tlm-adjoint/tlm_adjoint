@@ -1187,7 +1187,7 @@ class EquationManager:
         # Functionals
         Js = tuple(Js)
         if not all(map(var_is_scalar, Js)):
-            raise ValueError("Functional must be a scalar")
+            raise ValueError("Functional must be a scalar variable")
 
         # Controls
         M = tuple(M)

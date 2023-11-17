@@ -49,7 +49,7 @@ def test_float_assignment(setup_test,  # noqa: F811
 
         return (c - 1.0) ** 4
 
-    if issubclass(dtype, (complex, np.complexfloating)):
+    if issubclass(dtype, np.complexfloating):
         y = Float(2.0 + 3.0j)
     else:
         y = Float(2.0)
@@ -61,7 +61,7 @@ def test_float_assignment(setup_test,  # noqa: F811
     dJ = compute_gradient(J, y)
 
     J_val = complex(J)
-    if issubclass(dtype, (float, np.floating)):
+    if issubclass(dtype, np.floating):
         dm = Float(1.0)
     else:
         dm = None
@@ -177,14 +177,14 @@ def test_float_unary_overloading(setup_test,  # noqa: F811
 def test_float_binary_overloading(setup_test,  # noqa: F811
                                   dtype, op):
     if op in {np.arctan2, np.hypot} \
-            and issubclass(dtype, (complex, np.complexfloating)):
+            and issubclass(dtype, np.complexfloating):
         pytest.skip()
     set_default_float_dtype(dtype)
 
     def forward(y):
         x = y * y
         x = op(x, y)
-        if issubclass(dtype, (complex, np.complexfloating)):
+        if issubclass(dtype, np.complexfloating):
             assert abs(complex(x) - op(complex(y) ** 2, complex(y))) < 1.0e-16
         else:
             assert abs(float(x) - op(float(y) ** 2, float(y))) < 1.0e-16
@@ -199,7 +199,7 @@ def test_float_binary_overloading(setup_test,  # noqa: F811
         y = 1.0
     else:
         y = 0.1
-    if issubclass(dtype, (complex, np.complexfloating)):
+    if issubclass(dtype, np.complexfloating):
         y += 0.4j
     y = Float(y)
 
@@ -210,7 +210,7 @@ def test_float_binary_overloading(setup_test,  # noqa: F811
     dJ = compute_gradient(J, y)
 
     J_val = complex(J)
-    if issubclass(dtype, (float, np.floating)):
+    if issubclass(dtype, np.floating):
         dm = Float(1.0)
     else:
         dm = None

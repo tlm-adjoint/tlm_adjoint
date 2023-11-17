@@ -208,8 +208,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         dM = tuple(var_new(m1, static=True) for m1 in M1)
         for dm in dM:
             dm_arr = np.random.random(var_local_size(dm))
-            if issubclass(var_dtype(dm),
-                          (complex, np.complexfloating)):
+            if issubclass(var_dtype(dm), np.complexfloating):
                 dm_arr = dm_arr \
                     + 1.0j * np.random.random(var_local_size(dm))
             var_set_values(dm, dm_arr)
@@ -318,8 +317,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         for dM in dMs:
             for dm in dM:
                 dm_arr = np.random.random(var_local_size(dm))
-                if issubclass(var_dtype(dm),
-                              (complex, np.complexfloating)):
+                if issubclass(var_dtype(dm), np.complexfloating):
                     dm_arr = dm_arr \
                         + 1.0j * np.random.random(var_local_size(dm))
                 var_set_values(dm, dm_arr)
@@ -425,8 +423,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         for dM in dMs:
             for dm in dM:
                 dm_arr = np.random.random(var_local_size(dm))
-                if issubclass(var_dtype(dm),
-                              (complex, np.complexfloating)):
+                if issubclass(var_dtype(dm), np.complexfloating):
                     dm_arr = dm_arr \
                         + 1.0j * np.random.random(var_local_size(dm))
                 var_set_values(dm, dm_arr)

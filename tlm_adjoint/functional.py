@@ -7,7 +7,7 @@ from .equations import Assignment, Axpy
 from .manager import var_tlm
 from .overloaded_float import Float
 
-import numpy as np
+import numbers
 import sympy as sp
 import warnings
 
@@ -42,10 +42,7 @@ class Functional(Float):
         if is_var(y) and var_is_scalar(y):
             Assignment(self, y).solve(annotate=annotate, tlm=tlm)
             return self
-        elif isinstance(y, (int, np.integer, sp.Integer,
-                            float, np.floating, sp.Float,
-                            complex, np.complexfloating,
-                            sp.Expr)):
+        elif isinstance(y, (numbers.Complex, sp.Expr)):
             return super().assign(y, annotate=annotate, tlm=tlm)
         else:
             functional_term_eq(self, y).solve(annotate=annotate, tlm=tlm)
@@ -63,10 +60,7 @@ class Functional(Float):
         if is_var(y) and var_is_scalar(y):
             J_old = self.new(self, annotate=annotate, tlm=tlm)
             Axpy(self, J_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
-        elif isinstance(y, (int, np.integer, sp.Integer,
-                            float, np.floating, sp.Float,
-                            complex, np.complexfloating,
-                            sp.Expr)):
+        elif isinstance(y, (numbers.Complex, sp.Expr)):
             super().addto(y, annotate=annotate, tlm=tlm)
         else:
             J_old = self.new(self, annotate=annotate, tlm=tlm)

@@ -539,7 +539,7 @@ class InnerProductRHS(RHS):
         if self._norm_sq:
             if dep_index == 0:
                 x = nl_deps[0]
-                if not issubclass(var_dtype(x), (float, np.floating)):
+                if not issubclass(var_dtype(x), np.floating):
                     raise RuntimeError("Not complex differentiable")
                 M_deps = nl_deps[1:]
 
@@ -575,7 +575,7 @@ class InnerProductRHS(RHS):
             var_axpy(b, -self._alpha.conjugate() * var_scalar_value(adj_x), Y)
         elif dep_index == 1:
             x, y = nl_deps[:2]
-            if not issubclass(var_dtype(y), (float, np.floating)):
+            if not issubclass(var_dtype(y), np.floating):
                 raise RuntimeError("Not complex differentiable")
             M_deps = nl_deps[2:]
 
@@ -596,7 +596,7 @@ class InnerProductRHS(RHS):
             x = self.dependencies()[0]
             tlm_x = tlm_map[x]
             if tlm_x is not None:
-                if not issubclass(var_dtype(x), (float, np.floating)):
+                if not issubclass(var_dtype(x), np.floating):
                     raise RuntimeError("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(tlm_x, x, alpha=self._alpha,
                                              M=self._M))
@@ -612,7 +612,7 @@ class InnerProductRHS(RHS):
 
             tlm_y = tlm_map[y]
             if tlm_y is not None:
-                if not issubclass(var_dtype(y), (float, np.floating)):
+                if not issubclass(var_dtype(y), np.floating):
                     raise RuntimeError("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(x, tlm_y, alpha=self._alpha,
                                              M=self._M))

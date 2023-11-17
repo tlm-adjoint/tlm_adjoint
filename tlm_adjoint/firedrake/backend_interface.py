@@ -24,7 +24,7 @@ from .functions import (
     ReplacementInterface, Zero, define_var_alias)
 
 import mpi4py.MPI as MPI
-import numpy as np
+import numbers
 import petsc4py.PETSc as PETSc
 import pyop2
 import ufl
@@ -241,9 +241,7 @@ class FunctionInterface(FunctionInterfaceBase):
     def _assign(self, y):
         if isinstance(y, backend_Cofunction):
             y = y.riesz_representation("l2")
-        if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
+        if isinstance(y, numbers.Complex):
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(y))

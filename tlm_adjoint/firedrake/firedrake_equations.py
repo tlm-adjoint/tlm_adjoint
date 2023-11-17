@@ -280,8 +280,8 @@ class PointInterpolation(Equation):
         for x in X:
             check_space_type(x, "primal")
             if not var_is_scalar(x):
-                raise ValueError("Solution must be a scalar, or a sequence of "
-                                 "scalars")
+                raise ValueError("Solution must be a scalar variable, or a "
+                                 "Sequence of scalar variables")
         check_space_type(y, "primal")
 
         if X_coords is None:

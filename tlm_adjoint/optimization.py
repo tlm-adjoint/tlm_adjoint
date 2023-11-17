@@ -18,6 +18,7 @@ from .manager import (
 from collections import deque
 import functools
 import logging
+import numbers
 import numpy as np
 
 __all__ = \
@@ -51,7 +52,7 @@ class ReducedFunctional:
         if self._M is not None and len(M) != len(self._M):
             raise ValueError("Invalid control")
         for m in M:
-            if not issubclass(var_dtype(m), (float, np.floating)):
+            if not issubclass(var_dtype(m), np.floating):
                 raise ValueError("Invalid dtype")
 
         set_manager(self._manager)
@@ -93,7 +94,8 @@ class ReducedFunctional:
         assert self._J is not None
 
         J_val = var_scalar_value(self._J)
-        if not isinstance(J_val, (float, np.floating)):
+        if isinstance(J_val, numbers.Integral) \
+                or not isinstance(J_val, numbers.Real):
             raise ValueError("Invalid dtype")
         return J_val
 
@@ -109,7 +111,7 @@ class ReducedFunctional:
         dJ = compute_gradient(self._J, self._M)
 
         for dJ_i in dJ:
-            if not issubclass(var_dtype(dJ_i), (float, np.floating)):
+            if not issubclass(var_dtype(dJ_i), np.floating):
                 raise ValueError("Invalid dtype")
         return dJ
 
@@ -119,17 +121,17 @@ class ReducedFunctional:
             return ddJ
 
         for m in M:
-            if not issubclass(var_dtype(m), (float, np.floating)):
+            if not issubclass(var_dtype(m), np.floating):
                 raise ValueError("Invalid dtype")
         for dm in dM:
-            if not issubclass(var_dtype(dm), (float, np.floating)):
+            if not issubclass(var_dtype(dm), np.floating):
                 raise ValueError("Invalid dtype")
 
         ddJ = Hessian(self._forward, manager=self._manager.new())
         _, _, ddJ = ddJ.action(M, dM)
 
         for ddJ_i in ddJ:
-            if not issubclass(var_dtype(ddJ_i), (float, np.floating)):
+            if not issubclass(var_dtype(ddJ_i), np.floating):
                 raise ValueError("Invalid dtype")
         return ddJ
 
@@ -329,10 +331,10 @@ class LBFGSHessianApproximation:
         if len(S) != len(Y):
             raise ValueError("Incompatible shape")
         for s in S:
-            if not issubclass(var_dtype(s), (float, np.floating)):
+            if not issubclass(var_dtype(s), np.floating):
                 raise ValueError("Invalid dtype")
         for y in Y:
-            if not issubclass(var_dtype(y), (float, np.floating)):
+            if not issubclass(var_dtype(y), np.floating):
                 raise ValueError("Invalid dtype")
         if S_inner_Y <= 0.0:
             raise ValueError("Invalid S_inner_Y")
@@ -720,7 +722,8 @@ def l_bfgs(F, Fp, X0, *,
 
         F_calls += 1
         F_val = F_arg(*X)
-        if not isinstance(F_val, (float, np.floating)):
+        if isinstance(F_val, numbers.Integral) \
+                or not isinstance(F_val, numbers.Real):
             raise TypeError("Invalid type")
         return F_val
 
@@ -906,7 +909,7 @@ def minimize_l_bfgs(forward, M0, *,
         return x, optimization_data
 
     for m0 in M0:
-        if not issubclass(var_dtype(m0), (float, np.floating)):
+        if not issubclass(var_dtype(m0), np.floating):
             raise ValueError("Invalid dtype")
 
     if manager is None:
@@ -979,7 +982,7 @@ def minimize_tao(forward, M0, *,
     if method is None:
         method = PETSc.TAO.Type.LMVM
     for m0 in M0:
-        if not issubclass(var_dtype(m0), (float, np.floating)):
+        if not issubclass(var_dtype(m0), np.floating):
             raise ValueError("Invalid dtype")
     if M_inv_action is not None:
         M_inv_action = wrapped_action(M_inv_action, copy=False)
@@ -987,7 +990,7 @@ def minimize_tao(forward, M0, *,
     def from_petsc(y, X):
         y_a = y.getArray(True)
 
-        if not issubclass(y_a.dtype.type, (float, np.floating)):
+        if not issubclass(y_a.dtype.type, np.floating):
             raise ValueError("Invalid dtype")
         if len(y_a.shape) != 1:
             raise ValueError("Invalid shape")
@@ -1015,7 +1018,7 @@ def minimize_tao(forward, M0, *,
         for j, y in enumerate(Y):
             y_a = var_get_values(y)
 
-            if not issubclass(y_a.dtype.type, (float, np.floating)):
+            if not issubclass(y_a.dtype.type, np.floating):
                 raise ValueError("Invalid dtype")
             if not np.can_cast(y_a, x_a.dtype):
                 raise ValueError("Invalid dtype")

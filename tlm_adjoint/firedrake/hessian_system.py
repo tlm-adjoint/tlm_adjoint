@@ -165,6 +165,16 @@ class HessianSystem(System):
         return super().solve(u, b, **kwargs)
 
 
+def _default_hessian_eigenproblem_type(dtype):
+    import slepc4py.SLEPc as SLEPc
+    if issubclass(dtype, np.floating):
+        return SLEPc.EPS.ProblemType.GHEP
+    elif issubclass(dtype, np.complexfloating):
+        return SLEPc.EPS.ProblemType.GNHEP
+    else:
+        raise TypeError(f"Unexpected dtype: {dtype}")
+
+
 def hessian_eigendecompose(
         H, m, B_inv_action, B_action, *,
         nullspace=None, problem_type=None, pre_callback=None,
@@ -281,11 +291,7 @@ def hessian_eigendecompose(
             pre_callback_arg(eps)
 
     if problem_type is None:
-        import slepc4py.SLEPc as SLEPc
-        if issubclass(space_dtype(space), (float, np.floating)):
-            problem_type = SLEPc.EPS.ProblemType.GHEP
-        else:
-            problem_type = SLEPc.EPS.ProblemType.GNHEP
+        problem_type = _default_hessian_eigenproblem_type(space_dtype(space))
 
     Lam, V = eigendecompose(
         space, H_action, B_action=B_inv_action, arg_space_type=arg_space_type,
@@ -340,10 +346,10 @@ def B_inv_orthonormality_test(V, B_inv_action):
 
     B_inv_V = []
     for v in V:
-        if not issubclass(var_dtype(v), (float, np.floating)):
+        if not issubclass(var_dtype(v), np.floating):
             raise ValueError("Real dtype required")
         B_inv_V.append(B_inv_action(var_copy(v)))
-        if not issubclass(var_dtype(B_inv_V[-1]), (float, np.floating)):
+        if not issubclass(var_dtype(B_inv_V[-1]), np.floating):
             raise ValueError("Real dtype required")
 
     max_diagonal_error_norm = 0.0

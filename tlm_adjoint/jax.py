@@ -24,6 +24,7 @@ try:
     import mpi4py.MPI as MPI
 except ImportError:
     MPI = None
+import numbers
 import numpy as np
 
 try:
@@ -52,6 +53,9 @@ try:
     _default_dtype = PETSc.ScalarType
 except ImportError:
     _default_dtype = np.double
+_default_dtype = np.dtype(_default_dtype).type
+if not issubclass(_default_dtype, (np.floating, np.complexfloating)):
+    raise ImportError("Invalid default dtype")
 
 
 def set_default_jax_dtype(dtype):
@@ -62,8 +66,8 @@ def set_default_jax_dtype(dtype):
 
     global _default_dtype
 
-    if not issubclass(dtype, (float, np.floating,
-                              complex, np.complexfloating)):
+    dtype = np.dtype(dtype).type
+    if not issubclass(dtype, (np.floating, np.complexfloating)):
         raise TypeError("Invalid dtype")
     _default_dtype = dtype
 
@@ -98,8 +102,8 @@ class VectorSpace:
         if comm is None:
             comm = DEFAULT_COMM
 
-        if not issubclass(dtype, (float, np.floating,
-                                  complex, np.complexfloating)):
+        dtype = np.dtype(dtype).type
+        if not issubclass(dtype, (np.floating, np.complexfloating)):
             raise TypeError("Invalid dtype")
 
         self._n = n
@@ -126,6 +130,13 @@ class VectorSpace:
         """
 
         return self._dtype
+
+    @functools.cached_property
+    def rdtype(self):
+        """The real data type associated with the space.
+        """
+
+        return self._dtype(0.0).real.dtype.type
 
     @property
     def comm(self):
@@ -189,9 +200,7 @@ class VectorInterface(VariableInterface):
         self._vector = None
 
     def _assign(self, y):
-        if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
+        if isinstance(y, numbers.Complex):
             self._vector = jax.numpy.full(self.space.local_size, y,
                                           dtype=self.space.dtype)
         elif isinstance(y, Vector):
@@ -222,7 +231,7 @@ class VectorInterface(VariableInterface):
             raise TypeError(f"Unexpected type: {type(y)}")
 
     def _linf_norm(self):
-        norm = self.space.dtype(abs(self.vector).max(initial=0.0))
+        norm = self.space.rdtype(abs(self.vector).max(initial=0.0))
         if MPI is not None:
             norm = self.space.comm.allreduce(norm, op=MPI.MAX)
         return norm
@@ -285,15 +294,9 @@ def unary_operation(op, x):
 
 
 def binary_operation(op, x, y):
-    if not isinstance(x, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating,
-                          Vector)):
+    if not isinstance(x, (numbers.Complex, Vector)):
         return NotImplemented
-    if not isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating,
-                          Vector)):
+    if not isinstance(y, (numbers.Complex, Vector)):
         return NotImplemented
     if not isinstance(x, Vector) and not isinstance(y, Vector):
         return NotImplemented
@@ -439,7 +442,8 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     def assign(self, y, *, annotate=None, tlm=None):
         """:class:`.Vector` assignment.
 
-        :arg y: A scalar, :class:`.Vector`, or ndim 1 array defining the value.
+        :arg y: A :class:`numbers.Complex`, :class:`.Vector`, or ndim 1 array
+            defining the value.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
@@ -452,10 +456,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             tlm = tlm_enabled()
         if annotate or tlm:
             with paused_manager():
-                if isinstance(y, (int, np.integer,
-                                  float, np.floating,
-                                  complex, np.complexfloating,
-                                  np.ndarray, jax.Array)):
+                if isinstance(y, (numbers.Complex, np.ndarray, jax.Array)):
                     y = self.new(y)
                 elif isinstance(y, Vector):
                     pass
@@ -464,10 +465,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
             Assignment(self, y).solve(annotate=annotate, tlm=tlm)
         else:
-            if isinstance(y, (int, np.integer,
-                              float, np.floating,
-                              complex, np.complexfloating,
-                              Vector)):
+            if isinstance(y, (numbers.Complex, Vector)):
                 var_assign(self, y)
             elif isinstance(y, (np.ndarray, jax.Array)):
                 var_set_values(self, y)
@@ -478,8 +476,8 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     def addto(self, y, *, annotate=None, tlm=None):
         """:class:`.Vector` in-place addition.
 
-        :arg y: A scalar, :class:`.Vector`, or ndim 1 array defining the value
-            to add.
+        :arg y: A :class:`numbers.Complex`, :class:`.Vector`, or ndim 1 array
+            defining the value to add.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
@@ -886,7 +884,7 @@ def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
         space = VectorSpace(1 if comm.rank == 0 else 0, dtype=dtype, comm=comm)
     x = Vector(space, name=name)
     if not var_is_scalar(x):
-        raise RuntimeError("Vector does not have a scalar value")
+        raise RuntimeError("Vector is not a scalar variable")
     return x
 
 

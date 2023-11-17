@@ -223,16 +223,18 @@ def eigendecompose(space, A_action, *, B_action=None, arg_space_type="primal",
     v_r = A_matrix.getVecRight()
     V_r = tuple(space_new(space, space_type=arg_space_type)
                 for _ in range(N_ev))
-    if issubclass(PETSc.ScalarType, (complex, np.complexfloating)):
-        v_i = None
-        V_i = None
-    else:
+    if issubclass(PETSc.ScalarType, np.floating):
         v_i = A_matrix.getVecRight()
         if esolver.isHermitian():
             V_i = None
         else:
             V_i = tuple(space_new(space, space_type=arg_space_type)
                         for _ in range(N_ev))
+    elif issubclass(PETSc.ScalarType, np.complexfloating):
+        v_i = None
+        V_i = None
+    else:
+        raise TypeError(f"Unexpected Petsc.ScalarType: {PETSc.ScalarType}")
     for i in range(lam.shape[0]):
         lam_i = esolver.getEigenpair(i, v_r, v_i)
         if esolver.isHermitian():
