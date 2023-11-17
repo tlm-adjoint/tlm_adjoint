@@ -15,8 +15,7 @@ from .caches import Caches
 from .equation import Equation
 from .equations import Assignment, Axpy, Conversion
 from .manager import (
-    annotation_enabled, manager as _manager, manager_disabled, paused_manager,
-    tlm_enabled)
+    annotation_enabled, manager as _manager, paused_manager, tlm_enabled)
 
 from collections.abc import Sequence
 import contextlib
@@ -202,7 +201,6 @@ class VectorInterface(VariableInterface):
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
-    @manager_disabled()
     def _axpy(self, alpha, x, /):
         if isinstance(x, Vector):
             if x.space.local_size != self.space.local_size:

@@ -16,7 +16,6 @@ from ..interface import (
 from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
-from ..manager import manager_disabled
 from ..override import override_method, override_property
 
 from .equations import Assembly
@@ -239,7 +238,6 @@ class FunctionInterface(FunctionInterfaceBase):
     def _derivative_space(self):
         return self.function_space()
 
-    @manager_disabled()
     def _assign(self, y):
         if isinstance(y, backend_Cofunction):
             y = y.riesz_representation("l2")

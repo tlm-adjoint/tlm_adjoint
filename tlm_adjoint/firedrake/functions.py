@@ -17,7 +17,6 @@ from ..interface import (
     var_space_type)
 
 from ..caches import Caches
-from ..manager import manager_disabled
 
 import numpy as np
 import ufl
@@ -95,7 +94,6 @@ class ConstantInterface(VariableInterface):
                 = Caches(self)
         return self._tlm_adjoint__var_interface_attrs["caches"]
 
-    @manager_disabled()
     def _zero(self):
         if len(self.ufl_shape) == 0:
             value = 0.0
@@ -104,7 +102,6 @@ class ConstantInterface(VariableInterface):
             value = backend_Constant(value)
         self.assign(value)
 
-    @manager_disabled()
     def _assign(self, y):
         if isinstance(y, (int, np.integer,
                           float, np.floating,
@@ -121,7 +118,6 @@ class ConstantInterface(VariableInterface):
                 raise ValueError("Invalid shape")
             self.assign(backend_Constant(var_scalar_value(y)))
 
-    @manager_disabled()
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Constant):
             if len(self.ufl_shape) == 0:
@@ -189,7 +185,6 @@ class ConstantInterface(VariableInterface):
             values = np.array([], dtype=var_dtype(self))
         return values
 
-    @manager_disabled()
     def _set_values(self, values):
         comm = var_comm(self)
         if comm.rank != 0:

@@ -38,6 +38,8 @@ This module defines a default communicator `DEFAULT_COMM`, which is
 dummy 'serial' communicator is used, of type :class:`.SerialComm`.
 """
 
+from .manager import manager_disabled
+
 from collections.abc import MutableMapping, Sequence
 from collections import deque
 import contextlib
@@ -1133,6 +1135,7 @@ def var_update_caches(*X, value=None):
             var_caches(x).update(x_value)
 
 
+@manager_disabled()
 def var_zero(x):
     """Zero a variable.
 
@@ -1143,6 +1146,7 @@ def var_zero(x):
     var_update_state(x)
 
 
+@manager_disabled()
 def var_assign(x, y):
     """Perform an assignment `x = y`.
 
@@ -1156,6 +1160,7 @@ def var_assign(x, y):
     var_update_state(x)
 
 
+@manager_disabled()
 def var_axpy(y, alpha, x, /):
     """Perform an in-place addition `y += alpha * x`.
 
@@ -1170,6 +1175,7 @@ def var_axpy(y, alpha, x, /):
     var_update_state(y)
 
 
+@manager_disabled()
 def var_inner(x, y):
     """Compute the :math:`l_2` inner product of the degrees of freedom vectors
     associated with `x` and `y`. By convention if `y` is in the conjugate dual
@@ -1186,6 +1192,7 @@ def var_inner(x, y):
     return x._tlm_adjoint__var_interface_inner(y)
 
 
+@manager_disabled()
 def var_linf_norm(x):
     r"""Compute the :math:`l_\infty` norm of the degrees of freedom vector
     associated with a variable.
@@ -1232,6 +1239,7 @@ def var_local_indices(x):
     return x._tlm_adjoint__var_interface_local_indices()
 
 
+@manager_disabled()
 def var_get_values(x):
     """Return a copy of the process local degrees of freedom vector associated
     with a variable.
@@ -1249,6 +1257,7 @@ def var_get_values(x):
     return values
 
 
+@manager_disabled()
 def var_set_values(x, values):
     """Set the process local degrees of freedom vector associated with a
     variable.
@@ -1266,6 +1275,7 @@ def var_set_values(x, values):
     var_update_state(x)
 
 
+@manager_disabled()
 def var_new(x, *, name=None, static=False, cache=None, checkpoint=None,
             rel_space_type="primal"):
     """Return a new variable defined using the same space as `x`.
@@ -1329,6 +1339,7 @@ def var_new_conjugate_dual(x, *, name=None, static=False, cache=None):
                    rel_space_type="conjugate_dual")
 
 
+@manager_disabled()
 def var_copy(x, *, name=None, static=False, cache=None):
     """Copy a variable. See :func:`.var_new`.
 
@@ -1382,6 +1393,7 @@ def var_is_scalar(x):
     return x._tlm_adjoint__var_interface_is_scalar()
 
 
+@manager_disabled()
 def var_scalar_value(x):
     """If `x` defines a scalar variable, returns its value.
 

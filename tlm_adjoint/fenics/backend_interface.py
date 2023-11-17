@@ -13,7 +13,6 @@ from ..interface import (
 from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
-from ..manager import manager_disabled
 from ..override import override_method
 
 from .equations import Assembly
@@ -168,7 +167,6 @@ class FunctionInterface(VariableInterface):
     def _zero(self):
         self.vector().zero()
 
-    @manager_disabled()
     @check_vector
     def _assign(self, y):
         if isinstance(y, (int, np.integer,
@@ -236,7 +234,6 @@ class FunctionInterface(VariableInterface):
         y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         return y
 
-    @manager_disabled()
     @check_vector
     def _copy(self, *, name=None, static=False, cache=None):
         y = self.copy(deepcopy=True)
