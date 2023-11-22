@@ -122,7 +122,7 @@ def test_CachedHessian(setup_test):
         return J
 
     F = Function(space, name="F", static=True)
-    var_assign(F, 1.0)
+    F.interpolate(Constant(1.0))
 
     start_manager()
     J = forward(F)

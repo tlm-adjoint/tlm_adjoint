@@ -200,7 +200,7 @@ def test_cached_adjoint(setup_test, test_leaks,
 
     alpha = Constant(1.0, name="alpha", static=True)
     beta = Function(space_2, name="beta", static=True)
-    var_assign(beta, 1.0)
+    beta.interpolate(Constant(1.0))
     bc = DirichletBC(space_1, 1.0, "on_boundary")
 
     def forward(G):

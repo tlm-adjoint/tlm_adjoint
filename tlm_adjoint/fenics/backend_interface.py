@@ -8,8 +8,8 @@ from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_types, comm_dup_cached, new_space_id, new_var_id,
     register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    space_id, subtract_adjoint_derivative_action_base, var_copy, var_linf_norm,
-    var_lock_state, var_scalar_value, var_space, var_space_type)
+    space_id, subtract_adjoint_derivative_action_base, var_axpy, var_copy,
+    var_linf_norm, var_lock_state, var_new, var_space, var_space_type)
 from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
@@ -22,6 +22,7 @@ from .functions import (
 
 import functools
 import numbers
+import numpy as np
 try:
     import ufl_legacy as ufl
 except ImportError:
@@ -354,15 +355,19 @@ def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
         check_space_types(x, y._tlm_adjoint__function)
 
     if len(x.ufl_shape) == 0:
-        x.assign(var_scalar_value(x) - alpha * y.max())
+        value = y.max()
     else:
-        value = x.values()
+        value = np.zeros_like(x.values()).flatten()
         y_fn = backend_Function(r0_space(x))
         y_fn.vector().axpy(1.0, y)
         for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-            value[i] -= alpha * y_fn_c.vector().max()
+            value[i] = y_fn_c.vector().max()
         value.shape = x.ufl_shape
-        x.assign(backend_Constant(value))
+        value = backend_Constant(value)
+
+    y = var_new(x)
+    y.assign(value)
+    var_axpy(x, -alpha, y)
 
 
 def to_fenics(y, space, *, name=None):

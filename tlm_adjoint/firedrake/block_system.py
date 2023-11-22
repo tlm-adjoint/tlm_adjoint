@@ -554,7 +554,7 @@ class UnityNullspace(Nullspace):
 
     def __init__(self, space, *, alpha=1.0):
         U = Function(space, name="U")
-        U.assign(Constant(1.0))
+        U.interpolate(Constant(1.0))
         MU = assemble(ufl.inner(U, TestFunction(space)) * ufl.dx)
         UMU = assemble(ufl.inner(U, U) * ufl.dx)
 

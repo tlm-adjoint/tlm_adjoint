@@ -107,7 +107,7 @@ class ConstantInterface(VariableInterface):
         if isinstance(y, numbers.Complex):
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
-            self.assign(backend_Constant(y))
+            self.assign(y)
         elif isinstance(y, backend_Constant):
             if y.ufl_shape != self.ufl_shape:
                 raise ValueError("Invalid shape")
@@ -115,7 +115,7 @@ class ConstantInterface(VariableInterface):
         else:
             if len(self.ufl_shape) != 0:
                 raise ValueError("Invalid shape")
-            self.assign(backend_Constant(var_scalar_value(y)))
+            self.assign(var_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Constant):
@@ -130,8 +130,8 @@ class ConstantInterface(VariableInterface):
                 self.assign(value)
         else:
             if len(self.ufl_shape) == 0:
-                self.assign(backend_Constant(var_scalar_value(self)
-                                             + alpha * var_scalar_value(x)))
+                self.assign(
+                    var_scalar_value(self) + alpha * var_scalar_value(x))
             else:
                 raise ValueError("Invalid shape")
 
