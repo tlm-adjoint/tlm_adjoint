@@ -142,6 +142,7 @@ class GeneralHessian(Hessian):
         J_val = var_scalar_value(J)
         dJ = compute_gradient(J, M)
 
+        reset_manager()
         return J_val, dJ
 
     @local_caches
@@ -179,6 +180,7 @@ class GeneralHessian(Hessian):
         dJ_val = var_scalar_value(dJ)
         ddJ = compute_gradient(dJ, M)
 
+        reset_manager()
         return J_val, dJ_val, ddJ
 
 
@@ -281,6 +283,7 @@ class GaussNewton(ABC):
             for i, B_inv_dm in enumerate(B_inv_dM):
                 var_axpy(ddJ[i], 1.0, B_inv_dm)
 
+        reset_manager()
         return ddJ
 
     def action_fn(self, m, m0=None):

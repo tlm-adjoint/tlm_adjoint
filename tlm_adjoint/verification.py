@@ -336,6 +336,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         for dM in dMs:
             J = var_tlm(J, (M, dM))
 
+        reset_manager()
         return J
 
     J_val = var_scalar_value(forward_tlm(dMs[:-1], *M))
@@ -452,5 +453,6 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     J_val = var_scalar_value(J)
     dJ = tlm_manager.compute_gradient(J, M)
 
+    tlm_manager.reset()
     return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, dM=dM_test,
                        size=size)
