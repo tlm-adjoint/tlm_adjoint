@@ -122,11 +122,11 @@ class ConstantInterface(VariableInterface):
 
     def _axpy(self, alpha, x, /):
         if isinstance(x, backend_Constant):
+            if x.ufl_shape != self.ufl_shape:
+                raise ValueError("Invalid shape")
             if len(self.ufl_shape) == 0:
                 self.assign(self + alpha * x)
             else:
-                if x.ufl_shape != self.ufl_shape:
-                    raise ValueError("Invalid shape")
                 value = self.values() + alpha * x.values()
                 value.shape = self.ufl_shape
                 value = backend_Constant(value)
