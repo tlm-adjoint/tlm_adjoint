@@ -23,7 +23,7 @@ from .equations import (
     linear_equation_new_x)
 from .functions import Constant, define_var_alias
 
-import numpy as np
+import numbers
 try:
     import ufl_legacy as ufl
 except ImportError:
@@ -393,8 +393,7 @@ def var_update_state_post_call(self, return_value, *args, **kwargs):
 @manager_method(backend_Constant, "assign",
                 post_call=var_update_state_post_call)
 def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
-    if isinstance(x, (int, np.integer,
-                      float, np.floating)):
+    if isinstance(x, numbers.Real):
         eq = Assignment(self, Constant(x, comm=var_comm(self)))
     elif isinstance(x, backend_Constant):
         if x is not self:

@@ -200,7 +200,7 @@ def test_cached_adjoint(setup_test, test_leaks,
 
     alpha = Constant(1.0, name="alpha", static=True)
     beta = Function(space_2, name="beta", static=True)
-    var_assign(beta, 1.0)
+    beta.interpolate(Constant(1.0))
     bc = DirichletBC(space_1, 1.0, "on_boundary")
 
     def forward(G):
@@ -260,7 +260,7 @@ def test_mat_terms(setup_test, test_leaks,
 
     x = Function(space, name="x")
     x_expr = exp(X[0]) * X[1]
-    if issubclass(var_dtype(x), (complex, np.complexfloating)):
+    if issubclass(var_dtype(x), np.complexfloating):
         x_expr = x_expr + X[0] * sin(X[1]) * 1.0j
     interpolate_expression(x, x_expr)
 

@@ -94,8 +94,8 @@ from .interface import (
 from .caches import clear_caches, local_caches
 from .manager import manager as _manager
 from .manager import (
-    configure_tlm, manager_disabled, reset_manager, restore_manager,
-    set_manager, start_manager, stop_manager, var_tlm)
+    compute_gradient, configure_tlm, manager_disabled, reset_manager,
+    restore_manager, set_manager, start_manager, stop_manager, var_tlm)
 
 import functools
 import logging
@@ -208,8 +208,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
         dM = tuple(var_new(m1, static=True) for m1 in M1)
         for dm in dM:
             dm_arr = np.random.random(var_local_size(dm))
-            if issubclass(var_dtype(dm),
-                          (complex, np.complexfloating)):
+            if issubclass(var_dtype(dm), np.complexfloating):
                 dm_arr = dm_arr \
                     + 1.0j * np.random.random(var_local_size(dm))
             var_set_values(dm, dm_arr)
@@ -253,6 +252,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
 
 @local_caches
+@restore_manager
 def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                     manager=None):
     r"""Perform a Taylor remainder convergence test for a functional :math:`J`
@@ -300,8 +300,8 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     forward = wrapped_forward(forward)
     if manager is None:
         manager = _manager()
-    tlm_manager = manager.new("memory", {})
-    tlm_manager.stop()
+    manager = manager.new("memory", {})
+    set_manager(manager)
 
     M = tuple(var_copy(m, name=var_name(m),
                        static=var_is_static(m),
@@ -318,16 +318,13 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         for dM in dMs:
             for dm in dM:
                 dm_arr = np.random.random(var_local_size(dm))
-                if issubclass(var_dtype(dm),
-                              (complex, np.complexfloating)):
+                if issubclass(var_dtype(dm), np.complexfloating):
                     dm_arr = dm_arr \
                         + 1.0j * np.random.random(var_local_size(dm))
                 var_set_values(dm, dm_arr)
                 del dm_arr
 
-    @restore_manager
     def forward_tlm(dMs, *M):
-        set_manager(tlm_manager)
         reset_manager()
         clear_caches()
 
@@ -361,10 +358,13 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
     orders_1 = np.log(error_norms_1[1:] / error_norms_1[:-1]) / np.log(0.5)
     logger.info(f"Error norms, with tangent-linear = {error_norms_1}")
     logger.info(f"Orders,      with tangent-linear = {orders_1}")
+
+    reset_manager()
     return orders_1.min()
 
 
 @local_caches
+@restore_manager
 def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
                             dMs=None, size=5, manager=None):
     r"""Perform a Taylor remainder convergence test for a functional :math:`J`
@@ -411,8 +411,8 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
     forward = wrapped_forward(forward)
     if manager is None:
         manager = _manager()
-    tlm_manager = manager.new()
-    tlm_manager.stop()
+    manager = manager.new()
+    set_manager(manager)
 
     M = tuple(var_copy(m, name=var_name(m),
                        static=var_is_static(m),
@@ -425,8 +425,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         for dM in dMs:
             for dm in dM:
                 dm_arr = np.random.random(var_local_size(dm))
-                if issubclass(var_dtype(dm),
-                              (complex, np.complexfloating)):
+                if issubclass(var_dtype(dm), np.complexfloating):
                     dm_arr = dm_arr \
                         + 1.0j * np.random.random(var_local_size(dm))
                 var_set_values(dm, dm_arr)
@@ -435,9 +434,7 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         dM_test = dMs[-1]
         dMs = dMs[:-1]
 
-    @restore_manager
     def forward_tlm(*M, annotate=False):
-        set_manager(tlm_manager)
         reset_manager()
         clear_caches()
 
@@ -453,7 +450,8 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
 
     J = forward_tlm(*M, annotate=True)
     J_val = var_scalar_value(J)
-    dJ = tlm_manager.compute_gradient(J, M)
+    dJ = compute_gradient(J, M)
 
+    reset_manager()
     return taylor_test(forward_tlm, M, J_val, dJ=dJ, seed=seed, dM=dM_test,
                        size=size)

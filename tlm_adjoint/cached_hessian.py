@@ -8,7 +8,8 @@ from .interface import (
 from .caches import clear_caches
 from .hessian import GaussNewton, Hessian
 from .manager import manager as _manager
-from .manager import compute_gradient, set_manager, restore_manager, var_tlm
+from .manager import (
+    compute_gradient, set_manager, reset_manager, restore_manager, var_tlm)
 from .tlm_adjoint import AdjointCache, EquationManager
 
 __all__ = \
@@ -174,6 +175,7 @@ class CachedHessian(Hessian, HessianOptimization):
             cache_adjoint_degree=1 if self._cache_adjoint else 0,
             store_adjoint=self._cache_adjoint)
 
+        reset_manager()
         return J_val, dJ
 
     @restore_manager
@@ -198,6 +200,7 @@ class CachedHessian(Hessian, HessianOptimization):
             cache_adjoint_degree=1 if self._cache_adjoint else 0,
             store_adjoint=self._cache_adjoint)
 
+        reset_manager()
         return J_val, dJ_val, ddJ
 
 

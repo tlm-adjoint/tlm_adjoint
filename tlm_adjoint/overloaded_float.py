@@ -23,18 +23,18 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_id,
-    var_is_scalar, var_new, var_new_conjugate_dual, var_scalar_value,
-    var_space_type)
+    subtract_adjoint_derivative_action_base, var_assign, var_id, var_new,
+    var_new_conjugate_dual, var_scalar_value, var_space_type)
 
 from .alias import Alias
 from .caches import Caches
 from .equation import Equation, ZeroAssignment
-from .equations import Assignment, Axpy, Conversion
+from .equations import Assignment, Axpy
 from .manager import annotation_enabled, tlm_enabled
 
 import contextlib
 import functools
+import numbers
 import numpy as np
 import sympy as sp
 from sympy.utilities.lambdify import lambdastr
@@ -79,6 +79,9 @@ try:
     _default_dtype = PETSc.ScalarType
 except ImportError:
     _default_dtype = np.double
+_default_dtype = np.dtype(_default_dtype).type
+if not issubclass(_default_dtype, (np.floating, np.complexfloating)):
+    raise ImportError("Invalid default dtype")
 
 
 def set_default_float_dtype(dtype):
@@ -89,8 +92,8 @@ def set_default_float_dtype(dtype):
 
     global _default_dtype
 
-    if not issubclass(dtype, (float, np.floating,
-                              complex, np.complexfloating)):
+    dtype = np.dtype(dtype).type
+    if not issubclass(dtype, (np.floating, np.complexfloating)):
         raise TypeError("Invalid dtype")
     _default_dtype = dtype
 
@@ -132,8 +135,8 @@ class FloatSpace:
         if comm is None:
             comm = DEFAULT_COMM
 
-        if not issubclass(dtype, (float, np.floating,
-                                  complex, np.complexfloating)):
+        dtype = np.dtype(dtype).type
+        if not issubclass(dtype, (np.floating, np.complexfloating)):
             raise TypeError("Invalid dtype")
 
         self._comm = comm_dup_cached(comm)
@@ -149,6 +152,13 @@ class FloatSpace:
         """
 
         return self._dtype
+
+    @functools.cached_property
+    def rdtype(self):
+        """The real data type associated with the space.
+        """
+
+        return self._dtype(0.0).real.dtype.type
 
     @property
     def comm(self):
@@ -234,33 +244,25 @@ class FloatInterface(VariableInterface):
         var_assign(self, 0.0)
 
     def _assign(self, y):
-        dtype = self.space.dtype
-
-        if isinstance(y, SymbolicFloat):
-            y = y.value
-        elif isinstance(y, (sp.Integer, sp.Float)):
-            y = dtype(y)
-        if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
-            if not np.can_cast(y, dtype):
-                raise ValueError("Invalid dtype")
-            self._value = dtype(y)
+        if isinstance(y, numbers.Complex):
+            self._value = self.space.dtype(y)
         else:
-            var_assign(self, var_scalar_value(y))
+            self._value = self.space.dtype(var_scalar_value(y))
 
     def _axpy(self, alpha, x, /):
         var_assign(self, self.value + alpha * var_scalar_value(x))
 
     def _inner(self, y):
-        return var_scalar_value(y).conjugate() * self.value
+        if isinstance(y, SymbolicFloat):
+            return y.value.conjugate() * self.value
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
 
     def _linf_norm(self):
-        return abs(self.value)
+        return self.space.rdtype(abs(self.value))
 
     def _local_size(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
+        if self.space.comm.rank == 0:
             return 1
         else:
             return 0
@@ -269,21 +271,17 @@ class FloatInterface(VariableInterface):
         return 1
 
     def _local_indices(self):
-        comm = var_comm(self)
-        if comm.rank == 0:
+        if self.space.comm.rank == 0:
             return slice(0, 1)
         else:
             return slice(0, 0)
 
     def _get_values(self):
-        comm = var_comm(self)
-        dtype = self.space.dtype
-        value = dtype(self.value)
-        values = np.array([value] if comm.rank == 0 else [], dtype=dtype)
-        return values
+        return np.array([self.value] if self.space.comm.rank == 0 else [],
+                        dtype=self.space.dtype)
 
     def _set_values(self, values):
-        comm = var_comm(self)
+        comm = self.space.comm
         if comm.rank == 0:
             if values.shape != (1,):
                 raise ValueError("Invalid shape")
@@ -306,7 +304,7 @@ class FloatInterface(VariableInterface):
 
     def _scalar_value(self):
         # assert var_is_scalar(self)
-        return self.value
+        return self.space.dtype(self.value)
 
 
 @no_float_overloading
@@ -329,10 +327,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     should be used instead of the :class:`.OverloadedFloat` subclass, or else
     :class:`.OverloadedFloat` operator overloading should be disabled.
 
-    :arg value: A scalar or :class:`sympy.core.expr.Expr` defining the initial
-        value. If a :class:`sympy.core.expr.Expr` then, if annotation or
-        derivation and solution of tangent-linear equations is enabled, an
-        assignment is processed by the :class:`.EquationManager` `manager`.
+    :arg value: A :class:`numbers.Complex` or :class:`sympy.core.expr.Expr`
+        defining the initial value. If a :class:`sympy.core.expr.Expr` then, if
+        annotation or derivation and solution of tangent-linear equations is
+        enabled, an assignment is processed by the :class:`.EquationManager`
+        `manager`.
     :arg name: A :class:`str` name for the :class:`.SymbolicFloat`.
     :arg space_type: The space type for the :class:`.SymbolicFloat`.
         `'primal'`, `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
@@ -371,9 +370,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                        "static": static})
         self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
 
-        if isinstance(value, (int, np.integer, sp.Integer,
-                              float, np.floating, sp.Float,
-                              complex, np.complexfloating)):
+        if isinstance(value, numbers.Complex):
             if value != 0.0:
                 var_assign(self, value)
         else:
@@ -382,7 +379,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def __new__(cls, *args, dtype=None, **kwargs):
         if dtype is None:
             dtype = _default_dtype
-        if issubclass(dtype, (float, np.floating)):
+        if issubclass(dtype, numbers.Real):
             return super().__new__(cls, new_symbol_name(), real=True)
         else:
             return super().__new__(cls, new_symbol_name(), complex=True)
@@ -400,9 +397,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         """
 
         x = var_new(self, name=name, static=static, cache=cache)
-        if isinstance(value, (int, np.integer, sp.Integer,
-                              float, np.floating, sp.Float,
-                              complex, np.complexfloating)):
+        if isinstance(value, numbers.Complex):
             if value != 0.0:
                 var_assign(x, value)
         else:
@@ -440,7 +435,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def assign(self, y, *, annotate=None, tlm=None):
         """:class:`.SymbolicFloat` assignment.
 
-        :arg y: A scalar or :class:`sympy.core.expr.Expr` defining the value.
+        :arg y: A :class:`numbers.Complex` or :class:`sympy.core.expr.Expr`
+            defining the value.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
@@ -452,9 +448,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         if tlm is None or tlm:
             tlm = tlm_enabled()
         if annotate or tlm:
-            if isinstance(y, (int, np.integer, sp.Integer,
-                              float, np.floating, sp.Float,
-                              complex, np.complexfloating)):
+            if isinstance(y, numbers.Complex):
                 Assignment(self, self.new(y)).solve(
                     annotate=annotate, tlm=tlm)
             elif isinstance(y, sp.Expr):
@@ -463,9 +457,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         else:
-            if isinstance(y, (int, np.integer, sp.Integer,
-                              float, np.floating, sp.Float,
-                              complex, np.complexfloating)):
+            if isinstance(y, numbers.Complex):
                 var_assign(self, y)
             elif isinstance(y, sp.Expr):
                 deps = expr_dependencies(y)
@@ -479,8 +471,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     def addto(self, y, *, annotate=None, tlm=None):
         """:class:`.SymbolicFloat` in-place addition.
 
-        :arg y: A scalar or :class:`sympy.core.expr.Expr` defining the value to
-            add.
+        :arg y: A :class:`numbers.Complex` or :class:`sympy.core.expr.Expr`
+            defining the value to add.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
@@ -534,10 +526,7 @@ SymbolicFloat = _tlm_adjoint__SymbolicFloat  # noqa: F811
 
 def operation(op, *args):
     for arg in args:
-        if not isinstance(arg, (int, np.integer,
-                                float, np.floating,
-                                complex, np.complexfloating,
-                                sp.Expr)):
+        if not isinstance(arg, (numbers.Complex, sp.Expr)):
             # e.g. we don't want to allow 'Float + str'
             return NotImplemented
     for arg in args:
@@ -635,7 +624,7 @@ class _tlm_adjoint__OverloadedFloat(np.lib.mixins.NDArrayOperatorsMixin,  # noqa
     def abs(x):
         if not isinstance(x, SymbolicFloat):
             return NotImplemented
-        if not issubclass(x.space.dtype, (float, np.floating)):
+        if not issubclass(x.space.dtype, numbers.Real):
             return NotImplemented
 
         if x.value >= 0.0:
@@ -936,22 +925,16 @@ class FloatEquation(Equation):
             return FloatEquation(tlm_map[x], expr)
 
 
-def to_float(y, *, name=None, cls=None):
-    """Convert a variable to a :class:`.SymbolicFloat`.
+def to_float(y, *, name=None):
+    """Convert a variable to a :class:`.Float`.
 
-    :arg y: A scalar-valued variable.
+    :arg y: A scalar variable.
     :arg name: A :class:`str` name.
-    :arg cls: Float class. Default :class:`.Float`.
     :returns: The :class:`.SymbolicFloat`.
     """
 
-    if cls is None:
-        cls = Float
-
-    if not var_is_scalar(y):
-        raise ValueError("Invalid variable")
-    x = cls(name=name, space_type=var_space_type(y))
-    Conversion(x, y).solve()
+    x = Float(name=name, space_type=var_space_type(y))
+    Assignment(x, y).solve()
     return x
 
 

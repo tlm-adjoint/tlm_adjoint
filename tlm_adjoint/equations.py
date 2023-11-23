@@ -3,10 +3,10 @@
 
 from .interface import (
     check_space_types, check_space_types_conjugate_dual,
-    check_space_types_dual, is_var, var_assign, var_axpy, var_comm, var_dtype,
-    var_get_values, var_id, var_is_scalar, var_inner, var_local_size,
-    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values,
-    var_zero)
+    check_space_types_dual, is_var, var_assign, var_axpy, var_axpy_conjugate,
+    var_dot, var_dtype, var_get_values, var_id, var_is_scalar, var_inner,
+    var_local_size, var_new_conjugate_dual, var_replacement, var_scalar_value,
+    var_set_values, var_zero)
 
 from .alias import WeakAlias
 from .equation import Equation, ZeroAssignment
@@ -418,13 +418,7 @@ class DotProductRHS(RHS):
             raise ValueError("Invalid space")
         check_space_types_dual(x, y)
 
-        d = (var_get_values(y) * var_get_values(x)).sum()
-        comm = var_comm(b)
-        if comm.size > 1:
-            import mpi4py.MPI as MPI
-            d = comm.allreduce(d, op=MPI.SUM)
-
-        var_assign(b, var_scalar_value(b) + self._alpha * d)
+        var_assign(b, var_scalar_value(b) + self._alpha * var_dot(x, y))
 
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_x, b):
         if not var_is_scalar(adj_x):
@@ -434,26 +428,17 @@ class DotProductRHS(RHS):
             if dep_index == 0:
                 x, = nl_deps
                 alpha = -2.0 * self._alpha.conjugate() * var_scalar_value(adj_x)  # noqa: E501
-                var_set_values(
-                    b,
-                    var_get_values(b)
-                    + alpha * var_get_values(x).conjugate())
+                var_axpy_conjugate(b, alpha, x)
             else:
                 raise IndexError("dep_index out of bounds")
         elif dep_index == 0:
             x, y = nl_deps
             alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
-            var_set_values(
-                b,
-                var_get_values(b)
-                + alpha * var_get_values(y).conjugate())
+            var_axpy_conjugate(b, alpha, y)
         elif dep_index == 1:
             x, y = nl_deps
             alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
-            var_set_values(
-                b,
-                var_get_values(b)
-                + alpha * var_get_values(x).conjugate())
+            var_axpy_conjugate(b, alpha, x)
         else:
             raise IndexError("dep_index out of bounds")
 
@@ -554,7 +539,7 @@ class InnerProductRHS(RHS):
         if self._norm_sq:
             if dep_index == 0:
                 x = nl_deps[0]
-                if not issubclass(var_dtype(x), (float, np.floating)):
+                if not issubclass(var_dtype(x), np.floating):
                     raise RuntimeError("Not complex differentiable")
                 M_deps = nl_deps[1:]
 
@@ -590,7 +575,7 @@ class InnerProductRHS(RHS):
             var_axpy(b, -self._alpha.conjugate() * var_scalar_value(adj_x), Y)
         elif dep_index == 1:
             x, y = nl_deps[:2]
-            if not issubclass(var_dtype(y), (float, np.floating)):
+            if not issubclass(var_dtype(y), np.floating):
                 raise RuntimeError("Not complex differentiable")
             M_deps = nl_deps[2:]
 
@@ -611,7 +596,7 @@ class InnerProductRHS(RHS):
             x = self.dependencies()[0]
             tlm_x = tlm_map[x]
             if tlm_x is not None:
-                if not issubclass(var_dtype(x), (float, np.floating)):
+                if not issubclass(var_dtype(x), np.floating):
                     raise RuntimeError("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(tlm_x, x, alpha=self._alpha,
                                              M=self._M))
@@ -627,7 +612,7 @@ class InnerProductRHS(RHS):
 
             tlm_y = tlm_map[y]
             if tlm_y is not None:
-                if not issubclass(var_dtype(y), (float, np.floating)):
+                if not issubclass(var_dtype(y), np.floating):
                     raise RuntimeError("Not complex differentiable")
                 tlm_B.append(InnerProductRHS(x, tlm_y, alpha=self._alpha,
                                              M=self._M))

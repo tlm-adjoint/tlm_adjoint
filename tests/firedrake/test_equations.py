@@ -94,7 +94,7 @@ def test_Axpy(setup_test, test_leaks,
         Assignment(y_0, x).solve()
 
         y_1 = Function(x.function_space())
-        y_1.assign(Constant(2.0))
+        y_1.interpolate(Constant(2.0))
 
         y_2 = Function(x.function_space())
         Axpy(y_2, y_0, c, y_1).solve()
@@ -122,7 +122,7 @@ def test_Axpy(setup_test, test_leaks,
     y_error = var_copy(y)
     var_axpy(y_error, -1.0, x)
     y_1 = Function(space)
-    y_1.assign(Constant(2.0))
+    y_1.interpolate(Constant(2.0))
     var_axpy(y_error, -c, y_1)
     del y_1
     assert var_linf_norm(y_error) == 0.0
@@ -183,7 +183,7 @@ def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
         return x, J
 
     bc = Function(space, name="bc", static=True)
-    var_assign(bc, 1.0)
+    bc.interpolate(Constant(1.0))
 
     start_manager()
     x, J = forward(bc)
@@ -461,7 +461,7 @@ def test_ExprAssignment(setup_test, test_leaks,
 @pytest.mark.firedrake
 @pytest.mark.parametrize("c0", [lambda mesh: 2,
                                 lambda mesh: Constant(2.0),
-                                lambda mesh: Function(FunctionSpace(mesh, "R", 0)).assign(2.0)])  # noqa: E501
+                                lambda mesh: Function(FunctionSpace(mesh, "R", 0)).assign(Constant(2.0))])  # noqa: E501
 @seed_test
 def test_ExprAssignment_vector(setup_test, test_leaks,
                                c0):
@@ -1050,7 +1050,7 @@ def test_initial_guess(setup_test, test_leaks,
         return x_0, x, adj_x_0, J
 
     y = Function(space_2, name="y", static=True)
-    if issubclass(var_dtype(y), (complex, np.complexfloating)):
+    if issubclass(var_dtype(y), np.complexfloating):
         interpolate_expression(y, exp(X[0]) * (1.0 + 1.0j + X[1] * X[1]))
     else:
         interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
@@ -1116,7 +1116,7 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
 
     # m should not be static for this test
     m = Function(space, name="m")
-    var_assign(m, 1.0)
+    m.interpolate(Constant(1.0))
 
     start_manager()
     J = forward(m)

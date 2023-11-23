@@ -35,7 +35,7 @@ def oscillator_ref():
     T_np1 = Function(space, name="T_np1")
     T_s = 0.5 * (T_n + T_np1)
 
-    T_n.assign(T_0)
+    T_n.interpolate(T_0)
     for n in range(nsteps):
         solve(
             inner((T_np1 - T_n) / dt, test) * dx
@@ -120,7 +120,7 @@ def test_oscillator(setup_test, test_leaks,
     space = VectorFunctionSpace(mesh, r0)
     test = TestFunction(space)
     T_0 = Function(space, name="T_0", static=True)
-    T_0.assign(Constant((1.0, 0.0)))
+    T_0.interpolate(Constant((1.0, 0.0)))
     dt = Constant(0.01, static=True)
 
     def forward(T_0):
@@ -195,7 +195,7 @@ def test_diffusion_1d(setup_test, test_leaks,
     @manager_disabled()
     def constant(value, *args, **kwargs):
         F = Function(const_space, *args, **kwargs)
-        F.assign(value)
+        F.assign(Constant(value))
         return F
 
     T_0 = Function(space, name="T_0", static=True)
@@ -243,10 +243,10 @@ def test_diffusion_1d(setup_test, test_leaks,
 
     dJs = compute_gradient(J, [T_0, kappa])
 
-    if issubclass(var_dtype(kappa), (complex, np.complexfloating)):
-        dm_kappa = None
-    else:
+    if issubclass(var_dtype(kappa), np.floating):
         dm_kappa = constant(1.0, name="dm_kappa", static=True)
+    else:
+        dm_kappa = None
     for m, forward_J, dJ, dm in \
             [(T_0, lambda T_0: forward(T_0, kappa), dJs[0], None),
              (kappa, lambda kappa: forward(T_0, kappa), dJs[1], dm_kappa)]:
@@ -297,7 +297,7 @@ def test_diffusion_2d(setup_test, test_leaks,
     @manager_disabled()
     def constant(value, *args, **kwargs):
         F = Function(const_space, *args, **kwargs)
-        F.assign(value)
+        F.assign(Constant(value))
         return F
 
     T_0 = Function(space, name="T_0", static=True)

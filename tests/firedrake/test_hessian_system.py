@@ -114,7 +114,7 @@ def test_hessian_solve(setup_test,
             which=SLEPc.EPS.Which.LARGEST_MAGNITUDE,
             tolerance=1.0e-14)
 
-        assert issubclass(Lam.dtype.type, (float, np.floating))
+        assert issubclass(Lam.dtype.type, np.floating)
 
         assert len(Lam) == len(V)
         for lam_i, v_i in zip(Lam, V):

@@ -23,7 +23,7 @@ from .equations import (
 from .functions import Constant, define_var_alias
 from .firedrake_equations import ExprAssignment, LocalProjection
 
-import numpy as np
+import numbers
 import operator
 import ufl
 
@@ -131,9 +131,7 @@ def DirichletBC_function_arg(self, orig):
 @manager_method(backend_Constant, "assign",
                 post_call=var_update_state_post_call)
 def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
-    if isinstance(value, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
+    if isinstance(value, numbers.Complex):
         eq = Assignment(self, Constant(value, comm=var_comm(self)))
     elif isinstance(value, backend_Constant):
         if value is not self:
@@ -176,9 +174,7 @@ register_in_place(backend_Function, "__itruediv__", operator.truediv)
                 post_call=var_update_state_post_call)
 def Function_assign(self, orig, orig_args, expr, subset=None, *,
                     annotate, tlm):
-    if isinstance(expr, (int, np.integer,
-                         float, np.floating,
-                         complex, np.complexfloating)):
+    if isinstance(expr, numbers.Complex):
         expr = Constant(expr, comm=var_comm(self))
 
     def assign(x, y, *,

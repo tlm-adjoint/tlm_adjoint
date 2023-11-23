@@ -178,7 +178,7 @@ def test_constant_nullspace(setup_test):  # noqa: F811
     b_1 = assemble(inner(u_1_ref, test_1) * dx)
 
     u_0 = Function(space_0)
-    u_0.assign(Constant(1.0))
+    u_0.interpolate(Constant(1.0))
     u_1 = Function(space_1)
 
     _ = system.solve(
@@ -230,7 +230,7 @@ def test_unity_nullspace(setup_test):  # noqa: F811
     b_1 = assemble(inner(u_1_ref, test_1) * dx)
 
     u_0 = Function(space_0)
-    u_0.assign(Constant(1.0))
+    u_0.interpolate(Constant(1.0))
     u_1 = Function(space_1)
 
     _ = system.solve(
@@ -282,7 +282,7 @@ def test_dirichlet_bc_nullspace(setup_test):  # noqa: F811
     b_1 = assemble(inner(u_1_ref, test_1) * dx)
 
     u_0 = Function(space_0)
-    u_0.assign(Constant(1.0))
+    u_0.interpolate(Constant(1.0))
     u_1 = Function(space_1)
 
     _ = system.solve(

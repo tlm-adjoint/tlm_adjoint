@@ -9,10 +9,10 @@ from .backend import (
     VertexOnlyMesh, backend_Cofunction, backend_Constant, backend_Function,
     backend_assemble, complex_mode)
 from ..interface import (
-    check_space_type, comm_dup_cached, is_var, space_new, var_comm, var_id,
-    var_inner, var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space_type, var_update_caches, var_zero,
-    weakref_method)
+    check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
+    var_id, var_inner, var_is_scalar, var_new, var_new_conjugate_dual,
+    var_replacement, var_scalar_value, var_space_type, var_update_caches,
+    var_zero, weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 
@@ -280,8 +280,8 @@ class PointInterpolation(Equation):
         for x in X:
             check_space_type(x, "primal")
             if not var_is_scalar(x):
-                raise ValueError("Solution must be a scalar, or a sequence of "
-                                 "scalars")
+                raise ValueError("Solution must be a scalar variable, or a "
+                                 "Sequence of scalar variables")
         check_space_type(y, "primal")
 
         if X_coords is None:
@@ -462,7 +462,7 @@ class ExprAssignment(ExprEquation):
                 dF = var_new_conjugate_dual(adj_x).assign(
                     dF, subset=self._subset)
                 F = var_new_conjugate_dual(dep)
-                F.assign(var_inner(adj_x, dF))
+                var_assign(F, var_inner(adj_x, dF))
             elif isinstance(dep, (backend_Cofunction, ReplacementCofunction,
                                   backend_Function, ReplacementFunction)):
                 e = dep.function_space().ufl_element()

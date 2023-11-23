@@ -19,7 +19,7 @@ bc = HomogeneousDirichletBC(space, "on_boundary")
 dt = Constant(0.01, static=True)
 N = 10
 kappa = Function(space, name="kappa", static=True)
-var_assign(kappa, 1.0)
+kappa.interpolate(Constant(1.0))
 Psi_0 = Function(space, name="Psi_0", static=True)
 Psi_0.interpolate(Expression("exp(x[0]) * sin(pi * x[0])"
                              + " * sin(10.0 * pi * x[0])"

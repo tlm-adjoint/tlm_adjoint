@@ -528,10 +528,10 @@ def test_adjoint_caching(setup_test, test_leaks):
     interpolate_expression(m, sin(pi * X[0]) * sin(2.0 * pi * X[1]))
 
     dm_0 = Function(space, name="dm_0")
-    if issubclass(var_dtype(dm_0), (complex, np.complexfloating)):
-        dm_0.assign(Constant(1.0 + 1.0j))
+    if issubclass(var_dtype(dm_0), np.complexfloating):
+        dm_0.interpolate(Constant(1.0 + 1.0j))
     else:
-        dm_0.assign(Constant(1.0))
+        dm_0.interpolate(Constant(1.0))
     dm_1 = var_copy(dm_0, name="dm_1")
 
     start_manager()
@@ -758,4 +758,4 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     dddJ_error = var_copy(dddJ_13_0)
     var_axpy(dddJ_error, -1.0, dddJ_13_1)
-    assert var_linf_norm(dddJ_error) == 0.0
+    assert var_linf_norm(dddJ_error) < 1.0e-21

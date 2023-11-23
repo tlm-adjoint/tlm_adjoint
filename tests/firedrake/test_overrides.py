@@ -517,7 +517,7 @@ def test_assemble_ZeroFunction(setup_test, test_leaks,
     b = assemble(form)
     assert abs(b) == 0.0
 
-    G.assign(np.sqrt(2.0))
+    G.interpolate(Constant(np.sqrt(2.0)))
     b_ref = backend_assemble(form)
     assert abs(b_ref - np.sqrt(2.0)) < 1.0e-15
 
@@ -533,7 +533,7 @@ def test_assemble_ZeroFunction(setup_test, test_leaks,
     b = assemble(form)
     assert abs(b) == 0.0
 
-    G.assign(np.sqrt(2.0))
+    G.interpolate(Constant(np.sqrt(2.0)))
     b_ref = backend_assemble(form)
     assert abs(b_ref - np.sqrt(2.0)) < 1.0e-15
 

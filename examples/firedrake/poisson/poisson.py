@@ -60,7 +60,7 @@ x0, _ = forward(F0)
 
 # Set F to one everywhere ...
 F = Function(space, name="F", static=True)
-var_assign(F, 1.0)
+F.interpolate(Constant(1.0))
 # ... and re-run the forward with this value of F, now obtaining a mis-match
 # functional, and processing equations using the manager
 start_manager()

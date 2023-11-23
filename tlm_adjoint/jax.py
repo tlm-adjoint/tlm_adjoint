@@ -7,15 +7,15 @@ from .interface import (
     register_subtract_adjoint_derivative_action,
     subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_caches,
     var_comm, var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
-    var_local_size, var_name, var_space, var_space_type, var_state)
+    var_local_size, var_name, var_set_values, var_space, var_space_type,
+    var_state)
 
 from .alias import WeakAlias
 from .caches import Caches
 from .equation import Equation
 from .equations import Assignment, Axpy, Conversion
 from .manager import (
-    annotation_enabled, manager as _manager, manager_disabled, paused_manager,
-    tlm_enabled)
+    annotation_enabled, manager as _manager, paused_manager, tlm_enabled)
 
 from collections.abc import Sequence
 import contextlib
@@ -24,6 +24,7 @@ try:
     import mpi4py.MPI as MPI
 except ImportError:
     MPI = None
+import numbers
 import numpy as np
 
 try:
@@ -52,6 +53,9 @@ try:
     _default_dtype = PETSc.ScalarType
 except ImportError:
     _default_dtype = np.double
+_default_dtype = np.dtype(_default_dtype).type
+if not issubclass(_default_dtype, (np.floating, np.complexfloating)):
+    raise ImportError("Invalid default dtype")
 
 
 def set_default_jax_dtype(dtype):
@@ -62,8 +66,8 @@ def set_default_jax_dtype(dtype):
 
     global _default_dtype
 
-    if not issubclass(dtype, (float, np.floating,
-                              complex, np.complexfloating)):
+    dtype = np.dtype(dtype).type
+    if not issubclass(dtype, (np.floating, np.complexfloating)):
         raise TypeError("Invalid dtype")
     _default_dtype = dtype
 
@@ -98,8 +102,8 @@ class VectorSpace:
         if comm is None:
             comm = DEFAULT_COMM
 
-        if not issubclass(dtype, (float, np.floating,
-                                  complex, np.complexfloating)):
+        dtype = np.dtype(dtype).type
+        if not issubclass(dtype, (np.floating, np.complexfloating)):
             raise TypeError("Invalid dtype")
 
         self._n = n
@@ -126,6 +130,13 @@ class VectorSpace:
         """
 
         return self._dtype
+
+    @functools.cached_property
+    def rdtype(self):
+        """The real data type associated with the space.
+        """
+
+        return self._dtype(0.0).real.dtype.type
 
     @property
     def comm(self):
@@ -188,24 +199,17 @@ class VectorInterface(VariableInterface):
     def _zero(self):
         self._vector = None
 
-    @manager_disabled()
     def _assign(self, y):
-        if isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating)):
+        if isinstance(y, numbers.Complex):
             self._vector = jax.numpy.full(self.space.local_size, y,
                                           dtype=self.space.dtype)
-        elif isinstance(y, (np.ndarray, jax.Array)):
-            self._vector = jax.numpy.array(y, dtype=self.space.dtype)
         elif isinstance(y, Vector):
             if y.space.local_size != self.space.local_size:
                 raise ValueError("Invalid shape")
-            self._vector = jax.numpy.array(y.vector,
-                                           dtype=self.space.dtype)
+            self._vector = jax.numpy.array(y.vector, dtype=self.space.dtype)
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
-    @manager_disabled()
     def _axpy(self, alpha, x, /):
         if isinstance(x, Vector):
             if x.space.local_size != self.space.local_size:
@@ -219,7 +223,7 @@ class VectorInterface(VariableInterface):
         if isinstance(y, Vector):
             if y.space.local_size != self.space.local_size:
                 raise ValueError("Invalid shape")
-            inner = sum(y.vector.conjugate() * self.vector)
+            inner = self.space.dtype(sum(y.vector.conjugate() * self.vector))
             if MPI is not None:
                 inner = self.space.comm.allreduce(inner, op=MPI.SUM)
             return inner
@@ -227,7 +231,7 @@ class VectorInterface(VariableInterface):
             raise TypeError(f"Unexpected type: {type(y)}")
 
     def _linf_norm(self):
-        norm = abs(self.vector).max(initial=0.0)
+        norm = self.space.rdtype(abs(self.vector).max(initial=0.0))
         if MPI is not None:
             norm = self.space.comm.allreduce(norm, op=MPI.MAX)
         return norm
@@ -244,9 +248,8 @@ class VectorInterface(VariableInterface):
     def _get_values(self):
         return np.array(self.vector, dtype=self.space.dtype)
 
-    @manager_disabled()
     def _set_values(self, values):
-        self.assign(values)
+        self._vector = jax.numpy.array(values, dtype=self.space.dtype)
 
     def _replacement(self):
         return ReplacementVector(self)
@@ -291,15 +294,9 @@ def unary_operation(op, x):
 
 
 def binary_operation(op, x, y):
-    if not isinstance(x, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating,
-                          Vector)):
+    if not isinstance(x, (numbers.Complex, Vector)):
         return NotImplemented
-    if not isinstance(y, (int, np.integer,
-                          float, np.floating,
-                          complex, np.complexfloating,
-                          Vector)):
+    if not isinstance(y, (numbers.Complex, Vector)):
         return NotImplemented
     if not isinstance(x, Vector) and not isinstance(y, Vector):
         return NotImplemented
@@ -362,8 +359,6 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         elif isinstance(V, (np.ndarray, jax.Array)):
             if dtype is None:
                 dtype = V.dtype.type
-            if not jax.numpy.can_cast(V, dtype):
-                raise ValueError("Invalid dtype")
             vector = jax.numpy.array(V, dtype=dtype)
             n, = V.shape
             V = VectorSpace(n, dtype=dtype, comm=comm)
@@ -447,7 +442,8 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     def assign(self, y, *, annotate=None, tlm=None):
         """:class:`.Vector` assignment.
 
-        :arg y: A scalar, :class:`.Vector`, or ndim 1 array defining the value.
+        :arg y: A :class:`numbers.Complex`, :class:`.Vector`, or ndim 1 array
+            defining the value.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
@@ -460,10 +456,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             tlm = tlm_enabled()
         if annotate or tlm:
             with paused_manager():
-                if isinstance(y, (int, np.integer,
-                                  float, np.floating,
-                                  complex, np.complexfloating,
-                                  np.ndarray, jax.Array)):
+                if isinstance(y, (numbers.Complex, np.ndarray, jax.Array)):
                     y = self.new(y)
                 elif isinstance(y, Vector):
                     pass
@@ -472,14 +465,19 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
             Assignment(self, y).solve(annotate=annotate, tlm=tlm)
         else:
-            var_assign(self, y)
+            if isinstance(y, (numbers.Complex, Vector)):
+                var_assign(self, y)
+            elif isinstance(y, (np.ndarray, jax.Array)):
+                var_set_values(self, y)
+            else:
+                raise TypeError(f"Unexpected type: {type(y)}")
         return self
 
     def addto(self, y, *, annotate=None, tlm=None):
         """:class:`.Vector` in-place addition.
 
-        :arg y: A scalar, :class:`.Vector`, or ndim 1 array defining the value
-            to add.
+        :arg y: A :class:`numbers.Complex`, :class:`.Vector`, or ndim 1 array
+            defining the value to add.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
@@ -506,6 +504,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             if self.vector.shape != (1,):
                 raise RuntimeError("Invalid parallel decomposition")
             value, = self.vector
+            value = self.space.dtype(value)
         else:
             if self.vector.shape != (0,):
                 raise RuntimeError("Invalid parallel decomposition")
@@ -885,7 +884,7 @@ def new_jax_float(space=None, *, name=None, dtype=None, comm=None):
         space = VectorSpace(1 if comm.rank == 0 else 0, dtype=dtype, comm=comm)
     x = Vector(space, name=name)
     if not var_is_scalar(x):
-        raise RuntimeError("Vector does not have a scalar value")
+        raise RuntimeError("Vector is not a scalar variable")
     return x
 
 
