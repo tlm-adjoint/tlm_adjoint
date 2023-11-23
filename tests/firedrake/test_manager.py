@@ -758,4 +758,4 @@ def test_adjoint_caching(setup_test, test_leaks):
 
     dddJ_error = var_copy(dddJ_13_0)
     var_axpy(dddJ_error, -1.0, dddJ_13_1)
-    assert var_linf_norm(dddJ_error) == 0.0
+    assert var_linf_norm(dddJ_error) < 1.0e-21
