@@ -10,9 +10,9 @@ from ..interface import (
     check_space_type, comm_dup_cached, new_space_id, new_var_id,
     register_garbage_cleanup, register_functional_term_eq,
     register_subtract_adjoint_derivative_action, relative_space_type, space_id,
-    space_type_warning, subtract_adjoint_derivative_action_base, var_caches,
-    var_id, var_is_alias, var_is_cached, var_is_static, var_linf_norm,
-    var_lock_state, var_name, var_space, var_space_type)
+    subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
+    var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
+    var_space, var_space_type)
 from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
@@ -299,10 +299,8 @@ class Function(backend_Function):
 
     def __init__(self, *args, space_type="primal", static=False, cache=None,
                  **kwargs):
-        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
-            raise ValueError("Invalid space type")
         if space_type not in {"primal", "conjugate"}:
-            space_type_warning("Unexpected space type")
+            raise ValueError("Invalid space type")
         if cache is None:
             cache = static
 
@@ -442,10 +440,8 @@ class Cofunction(backend_Cofunction):
 
     def __init__(self, *args, space_type="conjugate_dual", static=False,
                  cache=None, **kwargs):
-        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
-            raise ValueError("Invalid space type")
         if space_type not in {"dual", "conjugate_dual"}:
-            space_type_warning("Unexpected space type")
+            raise ValueError("Invalid space type")
         if cache is None:
             cache = static
 

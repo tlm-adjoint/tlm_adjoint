@@ -83,6 +83,7 @@ __all__ = \
         "space_id",
         "space_new",
 
+        "SpaceTypeError",
         "check_space_type",
         "check_space_types",
         "check_space_types_conjugate",
@@ -627,9 +628,10 @@ def paused_space_type_checking():
         _check_space_types = check_space_types
 
 
-def space_type_warning(msg, *, stacklevel=1):
-    if _check_space_types:
-        warnings.warn(msg, stacklevel=stacklevel + 1)
+class SpaceTypeError(RuntimeError):
+    """Raised when an unexpected space type is encountered with space type
+    checking enabled.
+    """
 
 
 def check_space_type(x, space_type):
@@ -644,8 +646,11 @@ def check_space_type(x, space_type):
 
     if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
         raise ValueError("Invalid space type")
-    if var_space_type(x) != space_type:
-        space_type_warning("Unexpected space type", stacklevel=2)
+    if _check_space_types:
+        x_space_type = var_space_type(x)
+        if x_space_type != space_type:
+            raise SpaceTypeError(f"Unexpected space type '{x_space_type}', "
+                                 f"expected '{space_type}'")
 
 
 def check_space_types(x, y, *, rel_space_type="primal"):
@@ -661,9 +666,7 @@ def check_space_types(x, y, *, rel_space_type="primal"):
         `x` is `'conjugate'`.
     """
 
-    if var_space_type(x) != \
-            var_space_type(y, rel_space_type=rel_space_type):
-        space_type_warning("Unexpected space type", stacklevel=2)
+    check_space_type(x, var_space_type(y, rel_space_type=rel_space_type))
 
 
 def check_space_types_conjugate(x, y):
@@ -675,9 +678,7 @@ def check_space_types_conjugate(x, y):
     :arg y: A variable.
     """
 
-    if var_space_type(x) != \
-            var_space_type(y, rel_space_type="conjugate"):
-        space_type_warning("Unexpected space type", stacklevel=2)
+    check_space_type(x, var_space_type(y, rel_space_type="conjugate"))
 
 
 def check_space_types_dual(x, y):
@@ -689,9 +690,7 @@ def check_space_types_dual(x, y):
     :arg y: A variable.
     """
 
-    if var_space_type(x) != \
-            var_space_type(y, rel_space_type="dual"):
-        space_type_warning("Unexpected space type", stacklevel=2)
+    check_space_type(x, var_space_type(y, rel_space_type="dual"))
 
 
 def check_space_types_conjugate_dual(x, y):
@@ -703,9 +702,7 @@ def check_space_types_conjugate_dual(x, y):
     :arg y: A variable.
     """
 
-    if var_space_type(x) != \
-            var_space_type(y, rel_space_type="conjugate_dual"):
-        space_type_warning("Unexpected space type", stacklevel=2)
+    check_space_type(x, var_space_type(y, rel_space_type="conjugate_dual"))
 
 
 class VariableInterface:

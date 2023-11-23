@@ -3,7 +3,6 @@
 
 from tlm_adjoint import DEFAULT_COMM, VectorEquation
 from tlm_adjoint.override import override_function, override_method
-import tlm_adjoint.interface
 
 import hashlib
 import inspect
@@ -21,15 +20,6 @@ __all__ = \
         "seed_test",
         "tmp_path"
     ]
-
-
-def space_type_error(orig, orig_args, msg, *, stacklevel=1):
-    if tlm_adjoint.interface._check_space_types:
-        raise RuntimeError(f"{msg}")
-
-
-tlm_adjoint.interface.space_type_warning = override_function(
-    tlm_adjoint.interface.space_type_warning)(space_type_error)
 
 
 def seed_test(fn):
