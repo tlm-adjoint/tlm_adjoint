@@ -7,7 +7,7 @@ and Dirichlet boundary conditions.
 
 from .backend import (
     TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
-    backend_ScalarType)
+    backend_ScalarType, cpp_Constant)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, VariableStateChangeError,
     add_interface, comm_parent, is_var, space_comm, var_caches, var_comm,
@@ -200,9 +200,17 @@ class ConstantInterface(VariableInterface):
             self.assign(backend_Constant(values))
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementConstant(self)
-        return self._tlm_adjoint__replacement
+        replacement = self._tlm_adjoint__var_interface_attrs["replacement"]
+        if not is_var(replacement):
+            add_interface(replacement, ReplacementInterface,
+                          {"id": var_id(self), "name": var_name(self),
+                           "space": var_space(self),
+                           "derivative_space": self._tlm_adjoint__var_interface_attrs["derivative_space"],  # noqa: E501
+                           "space_type": var_space_type(self),
+                           "static": var_is_static(self),
+                           "cache": var_is_cached(self),
+                           "caches": var_caches(self)})
+        return replacement
 
     def _is_replacement(self):
         return False
@@ -527,56 +535,33 @@ class ReplacementInterface(VariableInterface):
         return True
 
 
-class Replacement(ufl.classes.Coefficient):
-    """A :class:`ufl.Coefficient` representing a symbolic variable but with no
-    value.
+class Replacement:
+    """Represents a symbolic variable but with no value.
     """
 
-    def __init__(self, x):
-        space = var_space(x)
-
-        x_domains = x.ufl_domains()
-        if len(x_domains) == 0:
-            domain = None
-        else:
-            domain, = x_domains
-
-        super().__init__(space, count=x.count())
-        self._tlm_adjoint__domain = domain
-        add_interface(self, ReplacementInterface,
-                      {"id": var_id(x), "name": var_name(x),
-                       "space": space,
-                       "space_type": var_space_type(x),
-                       "static": var_is_static(x),
-                       "cache": var_is_cached(x),
-                       "caches": var_caches(x)})
-
-    def ufl_domain(self):
-        return self._tlm_adjoint__domain
-
-    def ufl_domains(self):
-        if self._tlm_adjoint__domain is None:
-            return ()
-        else:
-            return (self._tlm_adjoint__domain,)
+    pass
 
 
-class ReplacementConstant(Replacement):
+def new_count():
+    return cpp_Constant(0.0).id()
+
+
+class ReplacementConstant(Replacement, ufl.classes.Coefficient):
     """Represents a symbolic DOLFIN `Constant`, but has no value.
     """
 
-    def __init__(self, x):
-        super().__init__(x)
-        self._tlm_adjoint__var_interface_attrs["derivative_space"] \
-            = x._tlm_adjoint__var_interface_attrs["derivative_space"]
+    def __init__(self, space):
+        Replacement.__init__(self)
+        ufl.classes.Coefficient.__init__(self, space, count=new_count())
 
 
-class ReplacementFunction(Replacement):
+class ReplacementFunction(Replacement, ufl.classes.Coefficient):
     """Represents a symbolic DOLFIN `Function`, but has no value.
     """
 
-    def function_space(self):
-        return var_space(self)
+    def __init__(self, space):
+        Replacement.__init__(self)
+        ufl.classes.Coefficient.__init__(self, space, count=new_count())
 
 
 def replaced_form(form):

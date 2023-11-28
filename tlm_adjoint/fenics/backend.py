@@ -30,5 +30,6 @@ backend_project = project
 backend_solve = solve
 
 cpp_Assembler = fenics.cpp.fem.Assembler
+cpp_Constant = fenics.cpp.function.Constant
 cpp_PETScVector = fenics.cpp.la.PETScVector
 cpp_SystemAssembler = fenics.cpp.fem.SystemAssembler

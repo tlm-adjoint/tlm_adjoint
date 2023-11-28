@@ -6,10 +6,11 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    check_space_types, comm_dup_cached, new_space_id, new_var_id,
+    check_space_types, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    space_id, subtract_adjoint_derivative_action_base, var_axpy, var_copy,
-    var_linf_norm, var_lock_state, var_new, var_space, var_space_type)
+    space_id, subtract_adjoint_derivative_action_base, var_axpy, var_caches,
+    var_copy, var_id, var_is_cached, var_is_static, var_linf_norm,
+    var_lock_state, var_name, var_new, var_space, var_space_type)
 from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
@@ -17,8 +18,8 @@ from ..override import override_method
 
 from .equations import Assembly
 from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    Zero, define_var_alias)
+    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementConstant,
+    ReplacementFunction, ReplacementInterface, Zero, define_var_alias)
 
 import functools
 import numbers
@@ -58,7 +59,8 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
                    "state": [0], "space": space,
                    "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.values().dtype.type,
-                   "static": False, "cache": False})
+                   "static": False, "cache": False,
+                   "replacement": ReplacementConstant(space)})
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -247,9 +249,16 @@ class FunctionInterface(VariableInterface):
         return y
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementFunction(self)
-        return self._tlm_adjoint__replacement
+        replacement = self._tlm_adjoint__var_interface_attrs["replacement"]
+        if not is_var(replacement):
+            add_interface(replacement, ReplacementInterface,
+                          {"id": var_id(self), "name": var_name(self),
+                           "space": var_space(self),
+                           "space_type": var_space_type(self),
+                           "static": var_is_static(self),
+                           "cache": var_is_cached(self),
+                           "caches": var_caches(self)})
+        return replacement
 
     def _is_replacement(self):
         return False
@@ -318,18 +327,18 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
     if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
         raise RuntimeError("PETSc backend required")
 
-    add_interface(self, FunctionInterface,
-                  {"id": new_var_id(), "state": [0],
-                   "space_type": "primal", "static": False, "cache": False})
-
     space = self.function_space()
+    add_interface(self, FunctionInterface,
+                  {"id": new_var_id(), "state": [0], "space": space,
+                   "space_type": "primal", "static": False, "cache": False,
+                   "replacement": ReplacementFunction(space)})
+
     if isinstance(args[0], backend_FunctionSpace) and args[0].id() == space.id():  # noqa: E501
         id = space_id(args[0])
     else:
         id = new_space_id()
     add_interface(space, FunctionSpaceInterface,
                   {"comm": comm_dup_cached(space.mesh().mpi_comm()), "id": id})
-    self._tlm_adjoint__var_interface_attrs["space"] = space
 
 
 @override_method(backend_Function, "function_space")

@@ -11,8 +11,8 @@ from .backend import (
 from ..interface import (
     check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
     var_id, var_inner, var_is_scalar, var_new, var_new_conjugate_dual,
-    var_replacement, var_scalar_value, var_space_type, var_update_caches,
-    var_zero, weakref_method)
+    var_replacement, var_scalar_value, var_space, var_space_type,
+    var_update_caches, var_zero, weakref_method)
 from .backend_code_generator_interface import assemble, matrix_multiply
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 
@@ -465,7 +465,7 @@ class ExprAssignment(ExprEquation):
                 var_assign(F, var_inner(adj_x, dF))
             elif isinstance(dep, (backend_Cofunction, ReplacementCofunction,
                                   backend_Function, ReplacementFunction)):
-                e = dep.function_space().ufl_element()
+                e = var_space(dep).ufl_element()
                 F = var_new_conjugate_dual(dep)
                 if (e.family(), e.degree(), e.value_shape) == ("Real", 0, ()):
                     dF = var_new_conjugate_dual(adj_x).assign(
