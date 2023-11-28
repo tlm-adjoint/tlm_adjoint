@@ -357,8 +357,10 @@ def derivative(expr, x, argument=None, *,
     for expr_argument in expr_arguments:
         if expr_argument.number() >= arity:
             raise ValueError("Unexpected argument")
-    if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
-        raise ValueError("Invalid argument")
+    if argument is not None:
+        for expr_argument in ufl.algorithms.extract_arguments(argument):
+            if expr_argument.number() < arity:
+                raise ValueError("Invalid argument")
 
     return ufl.derivative(expr, x, argument=argument)
 
@@ -501,7 +503,7 @@ def bcs_is_homogeneous(bcs):
 
 class ReplacementInterface(VariableInterface):
     def _space(self):
-        return self.ufl_function_space()
+        return self._tlm_adjoint__var_interface_attrs["space"]
 
     def _derivative_space(self):
         return self._tlm_adjoint__var_interface_attrs.get(

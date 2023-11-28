@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FiniteElement, TensorElement, VectorElement, backend_Cofunction,
-    backend_CofunctionSpace, backend_Constant, backend_Function,
-    backend_FunctionSpace, backend_ScalarType)
+    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
+    backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
@@ -22,7 +21,7 @@ from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
     ReplacementConstant, ReplacementFunction, ReplacementInterface, Zero,
-    define_var_alias)
+    constant_space, define_var_alias)
 
 import mpi4py.MPI as MPI
 import numbers
@@ -58,17 +57,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
         comm = DEFAULT_COMM
 
     if space is None:
-        if domain is None:
-            cell = None
-        else:
-            cell = domain.ufl_cell()
-        if len(self.ufl_shape) == 0:
-            element = FiniteElement("R", cell, 0)
-        elif len(self.ufl_shape) == 1:
-            element = VectorElement("R", cell, 0, dim=self.ufl_shape[0])
-        else:
-            element = TensorElement("R", cell, 0, shape=self.ufl_shape)
-        space = ufl.classes.FunctionSpace(domain, element)
+        space = constant_space(self.ufl_shape, domain=domain)
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
@@ -78,7 +67,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
                    "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
                    "static": False, "cache": False,
-                   "replacement": ReplacementConstant(space)})
+                   "replacement": ReplacementConstant(self.ufl_shape)})
 
 
 class FunctionSpaceInterface(SpaceInterface):

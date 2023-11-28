@@ -309,7 +309,6 @@ class Constant(backend_Constant):
     def __new__(cls, value=None, *args, name=None, domain=None,
                 space_type="primal", shape=None, static=False, cache=None,
                 **kwargs):
-        assert not issubclass(cls, ufl.classes.Coefficient)
         if domain is None:
             return object().__new__(cls)
         else:
@@ -359,57 +358,21 @@ class ZeroConstant(Constant, Zero):
             shape=shape, static=True, cache=True, **kwargs)
 
 
-def as_coefficient(x):
-    if isinstance(x, ufl.classes.Coefficient):
-        return x
-
-    if not isinstance(x, backend_Constant):
-        raise TypeError("Unexpected type")
-
-    if not hasattr(x, "_tlm_adjoint__Coefficient"):
-        if is_var(x):
-            space = var_space(x)
-        else:
-            if len(x.ufl_shape) == 0:
-                element = FiniteElement("R", None, 0)
-            elif len(x.ufl_shape) == 1:
-                element = VectorElement("R", None, 0, dim=x.ufl_shape[0])
-            else:
-                element = TensorElement("R", None, 0, shape=x.ufl_shape)
-            space = ufl.classes.FunctionSpace(None, element)
-
-        x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space)
-
-    return x._tlm_adjoint__Coefficient
-
-
-def with_coefficient(expr, x):
-    x_coeff = as_coefficient(x)
-    if x_coeff is x:
-        return expr, {}, {}
+def constant_space(shape, *, domain=None):
+    if domain is None:
+        cell = None
     else:
-        replace_map = {x: x_coeff}
-        replace_map_inverse = {x_coeff: x}
-        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
+        cell = domain.ufl_cell()
 
+    if len(shape) == 0:
+        element = FiniteElement("R", cell, 0)
+    elif len(shape) == 1:
+        dim, = shape
+        element = VectorElement("R", cell, 0, dim=dim)
+    else:
+        element = TensorElement("R", cell, 0, shape=shape)
 
-def with_coefficients(expr):
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__form_with_coefficients" in expr._cache:
-        return expr._cache["_tlm_adjoint__form_with_coefficients"]
-
-    assert not issubclass(backend_Constant, ufl.classes.Coefficient)
-    constants = tuple(sorted(ufl.algorithms.extract_type(expr, backend_Constant),  # noqa: E501
-                      key=lambda c: c.count()))
-    replace_map = dict(zip(constants, map(as_coefficient, constants)))
-    replace_map_inverse = {c_coeff: c
-                           for c, c_coeff in replace_map.items()}
-
-    expr_with_coeffs = ufl.replace(expr, replace_map)
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__form_with_coefficients"] = \
-            (expr_with_coeffs, replace_map, replace_map_inverse)
-    return expr_with_coeffs, replace_map, replace_map_inverse
+    return ufl.classes.FunctionSpace(domain, element)
 
 
 def extract_coefficients(expr):
@@ -422,16 +385,24 @@ def extract_coefficients(expr):
             and "_tlm_adjoint__form_coefficients" in expr._cache:
         return expr._cache["_tlm_adjoint__form_coefficients"]
 
-    assert not issubclass(backend_Constant, ufl.classes.Coefficient)
-    cls = (ufl.classes.Coefficient, backend_Constant)
     deps = []
-    for c in cls:
+    for c in (ufl.classes.Coefficient, backend_Constant):
         deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
                            key=lambda dep: dep.count()))
 
     if isinstance(expr, ufl.classes.Form):
         expr._cache["_tlm_adjoint__form_coefficients"] = deps
     return deps
+
+
+def with_coefficient(expr, x):
+    if isinstance(x, ufl.classes.Coefficient):
+        return expr, {}, {}
+    else:
+        x_coeff = ufl.classes.Coefficient(var_space(x))
+        replace_map = {x: x_coeff}
+        replace_map_inverse = {x_coeff: x}
+        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
 
 
 def derivative(expr, x, argument=None, *,
@@ -446,18 +417,14 @@ def derivative(expr, x, argument=None, *,
     for expr_argument in expr_arguments:
         if expr_argument.number() >= arity:
             raise ValueError("Unexpected argument")
-    if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
-        raise ValueError("Invalid argument")
-
-    if isinstance(expr, ufl.classes.Expr):
-        expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
-    else:
-        expr, replace_map, replace_map_inverse = with_coefficients(expr)
-
     if argument is not None:
-        argument, _, argument_replace_map_inverse = with_coefficients(argument)
-        replace_map_inverse.update(argument_replace_map_inverse)
+        for expr_argument in ufl.algorithms.extract_arguments(argument):
+            if expr_argument.number() < arity:
+                raise ValueError("Invalid argument")
 
+    expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
+    if argument is not None:
+        argument = ufl.replace(argument, replace_map)
     dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
     return ufl.replace(dexpr, replace_map_inverse)
 
@@ -600,7 +567,7 @@ def bcs_is_homogeneous(bcs):
 
 class ReplacementInterface(VariableInterface):
     def _space(self):
-        return self.ufl_function_space()
+        return self._tlm_adjoint__var_interface_attrs["space"]
 
     def _derivative_space(self):
         return self._tlm_adjoint__var_interface_attrs.get(
@@ -641,14 +608,25 @@ class Replacement:
     pass
 
 
-class ReplacementConstant(Replacement, ufl.classes.Coefficient):
+class ReplacementConstant(Replacement, ufl.classes.ConstantValue,
+                          ufl.utils.counted.Counted):
     """Represents a symbolic :class:`firedrake.constant.Constant`, but has no
     value.
     """
 
-    def __init__(self, space):
+    def __init__(self, shape):
         Replacement.__init__(self)
-        ufl.classes.Coefficient.__init__(self, space)
+        ufl.classes.ConstantValue.__init__(self)
+        ufl.utils.counted.Counted.__init__(
+            self, counted_class=ufl.utils.counted.Counted)
+        self._tlm_adjoint__ufl_shape = tuple(shape)
+
+    def __repr__(self):
+        return f"<{type(self)} with count {self.count()}>"
+
+    @property
+    def ufl_shape(self):
+        return self._tlm_adjoint__ufl_shape
 
 
 class ReplacementFunction(Replacement, ufl.classes.Coefficient):
