@@ -63,6 +63,11 @@ def test_replacement_eq_hash(setup_test,  # noqa: F811
         pytest.skip()
     F_replacement = var_replacement(F)
 
+    assert F == F
+    assert not (F != F)
+    assert F_replacement == F_replacement
+    assert not (F_replacement != F_replacement)
+
     assert F != F_replacement
     assert F_replacement != F
     assert not (F == F_replacement)

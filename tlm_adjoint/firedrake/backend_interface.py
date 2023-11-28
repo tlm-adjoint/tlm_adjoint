@@ -455,6 +455,12 @@ class Cofunction(backend_Cofunction):
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
 
+    def equals(self, other):
+        if self is other:
+            return True
+        else:
+            return ufl.classes.Cofunction.equals(self, other)
+
 
 @override_method(backend_Cofunction, "__init__")
 def Cofunction__init__(self, orig, orig_args, function_space, val=None,
@@ -494,6 +500,12 @@ class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
     def __init__(self, space):
         Replacement.__init__(self)
         ufl.classes.Cofunction.__init__(self, space)
+
+    def equals(self, other):
+        if self is other:
+            return True
+        else:
+            return ufl.classes.Cofunction.equals(self, other)
 
 
 def to_firedrake(y, space, *, name=None):
