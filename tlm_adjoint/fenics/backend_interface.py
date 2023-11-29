@@ -11,7 +11,6 @@ from ..interface import (
     space_id, subtract_adjoint_derivative_action_base, var_axpy, var_caches,
     var_copy, var_id, var_is_cached, var_is_static, var_linf_norm,
     var_lock_state, var_name, var_new, var_space, var_space_type)
-from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
 from ..override import override_method
@@ -19,7 +18,8 @@ from ..override import override_method
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, ReplacementConstant,
-    ReplacementFunction, ReplacementInterface, Zero, define_var_alias)
+    ReplacementFunction, ReplacementInterface, Zero, define_var_alias,
+    r0_space)
 
 import functools
 import numbers
@@ -60,7 +60,6 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
     add_interface(self, ConstantInterface,
                   {"id": new_var_id(), "name": lambda x: x.name(),
                    "state": [0], "space": space,
-                   "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.values().dtype.type,
                    "static": False, "cache": False,
                    "replacement": ReplacementConstant(space)})
@@ -139,9 +138,6 @@ def check_vector(fn):
 class FunctionInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return var_space(self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]

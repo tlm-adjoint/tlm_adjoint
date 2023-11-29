@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FunctionSpace, LUSolver, KrylovSolver, Parameters, TensorFunctionSpace,
-    TestFunction, UserExpression, VectorFunctionSpace, as_backend_type,
-    backend_Constant, backend_DirichletBC, backend_Function,
+    LUSolver, KrylovSolver, Parameters, TestFunction, UserExpression,
+    as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
     backend_ScalarType, backend_Vector, backend_assemble,
     backend_assemble_system, backend_solve as solve, complex_mode,
     has_lu_solver_method, parameters)
@@ -260,50 +259,6 @@ def matrix_multiply(A, x, *,
     tensor.apply("insert")
 
     return tensor
-
-
-@manager_disabled()
-def is_valid_r0_space(space):
-    if not hasattr(space, "_tlm_adjoint__is_valid_r0_space"):
-        e = space.ufl_element()
-        if e.family() != "Real" or e.degree() != 0:
-            valid = False
-        elif len(e.value_shape()) == 0:
-            r = backend_Function(space)
-            r.assign(backend_Constant(1.0))
-            valid = (r.vector().max() == 1.0)
-        else:
-            r = backend_Function(space)
-            r_arr = np.arange(1, np.prod(r.ufl_shape) + 1,
-                              dtype=backend_ScalarType)
-            r_arr.shape = r.ufl_shape
-            r.assign(backend_Constant(r_arr))
-            for i, r_c in enumerate(r.split(deepcopy=True)):
-                if r_c.vector().max() != i + 1:
-                    valid = False
-                    break
-            else:
-                valid = True
-        space._tlm_adjoint__is_valid_r0_space = valid
-    return space._tlm_adjoint__is_valid_r0_space
-
-
-def r0_space(x):
-    if not hasattr(x, "_tlm_adjoint__r0_space"):
-        domain = var_space(x)._tlm_adjoint__space_interface_attrs["domain"]
-        domain = domain.ufl_cargo()
-        if len(x.ufl_shape) == 0:
-            space = FunctionSpace(domain, "R", 0)
-        elif len(x.ufl_shape) == 1:
-            space = VectorFunctionSpace(domain, "R", 0,
-                                        dim=ufl.shape[0])
-        else:
-            space = TensorFunctionSpace(domain, "R", degree=0,
-                                        shape=x.ufl_shape)
-        if not is_valid_r0_space(space):
-            raise RuntimeError("Invalid space")
-        x._tlm_adjoint__r0_space = space
-    return x._tlm_adjoint__r0_space
 
 
 def rhs_copy(x):

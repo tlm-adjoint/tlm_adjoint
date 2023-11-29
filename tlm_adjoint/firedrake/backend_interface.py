@@ -12,7 +12,6 @@ from ..interface import (
     subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
     var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
     var_space, var_space_type)
-from .backend_code_generator_interface import r0_space
 
 from ..equations import Conversion
 from ..override import override_method, override_property
@@ -67,7 +66,6 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
     add_interface(self, ConstantInterface,
                   {"id": new_var_id(), "name": lambda x: name,
                    "state": [0], "space": space,
-                   "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
                    "static": False, "cache": False,
                    "replacement": ReplacementConstant(self.ufl_shape)})
@@ -241,9 +239,6 @@ class FunctionInterfaceBase(VariableInterface):
 
 
 class FunctionInterface(FunctionInterfaceBase):
-    def _derivative_space(self):
-        return self.function_space()
-
     def _assign(self, y):
         if isinstance(y, backend_Cofunction):
             y = y.riesz_representation("l2")

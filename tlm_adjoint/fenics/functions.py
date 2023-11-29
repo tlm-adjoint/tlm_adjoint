@@ -6,12 +6,13 @@ and Dirichlet boundary conditions.
 """
 
 from .backend import (
-    TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
-    backend_ScalarType, cpp_Constant)
+    FunctionSpace, TensorFunctionSpace, TestFunction, TrialFunction,
+    VectorFunctionSpace, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_ScalarType, cpp_Constant)
 from ..interface import (
     SpaceInterface, VariableInterface, VariableStateChangeError, add_interface,
-    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype,
-    var_derivative_space, var_id, var_increment_state_lock, var_is_cached,
+    comm_parent, is_var, manager_disabled, space_comm, var_caches, var_comm,
+    var_dtype, var_id, var_increment_state_lock, var_is_cached,
     var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
     var_replacement, var_scalar_value, var_space, var_space_type)
 
@@ -63,9 +64,6 @@ class ConstantSpaceInterface(SpaceInterface):
 class ConstantInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs["derivative_space"](self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -204,7 +202,6 @@ class ConstantInterface(VariableInterface):
             add_interface(replacement, ReplacementInterface,
                           {"id": var_id(self), "name": var_name(self),
                            "space": var_space(self),
-                           "derivative_space": self._tlm_adjoint__var_interface_attrs["derivative_space"],  # noqa: E501
                            "space_type": var_space_type(self),
                            "static": var_is_static(self),
                            "cache": var_is_cached(self),
@@ -341,6 +338,53 @@ def extract_coefficients(expr):
     return ufl.algorithms.extract_coefficients(expr)
 
 
+@manager_disabled()
+def is_valid_r0_space(space):
+    e = space.ufl_element()
+    if (e.family(), e.degree()) != ("Real", 0):
+        return False
+    elif len(e.value_shape()) == 0:
+        r = backend_Function(space)
+        r.assign(backend_Constant(-1.0))
+        return (r.vector().max() == -1.0)
+    else:
+        r = backend_Function(space)
+        r_arr = -np.arange(1, np.prod(r.ufl_shape) + 1,
+                           dtype=backend_ScalarType)
+        r_arr.shape = r.ufl_shape
+        r.assign(backend_Constant(r_arr))
+        for i, r_c in enumerate(r.split(deepcopy=True)):
+            if r_c.vector().max() != -(i + 1):
+                return False
+        else:
+            return True
+
+
+def r0_space(x):
+    domain = var_space(x)._tlm_adjoint__space_interface_attrs["domain"]
+    domain = domain.ufl_cargo()
+    if not hasattr(domain, "_tlm_adjoint__r0_space"):
+        if len(x.ufl_shape) == 0:
+            space = FunctionSpace(domain, "R", 0)
+        elif len(x.ufl_shape) == 1:
+            dim, = ufl.shape
+            space = VectorFunctionSpace(domain, "R", 0, dim=dim)
+        else:
+            space = TensorFunctionSpace(domain, "R", degree=0,
+                                        shape=x.ufl_shape)
+        if not is_valid_r0_space(space):
+            raise RuntimeError("Invalid space")
+        domain._tlm_adjoint__r0_space = space
+    return domain._tlm_adjoint__r0_space
+
+
+def derivative_space(x):
+    if isinstance(x, (backend_Constant, ReplacementConstant)):
+        return r0_space(x)
+    else:
+        return var_space(x)
+
+
 def derivative(expr, x, argument=None, *,
                enable_automatic_argument=True):
     expr_arguments = ufl.algorithms.extract_arguments(expr)
@@ -348,7 +392,7 @@ def derivative(expr, x, argument=None, *,
 
     if argument is None and enable_automatic_argument:
         Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(var_derivative_space(x))
+        argument = Argument(derivative_space(x))
 
     for expr_argument in expr_arguments:
         if expr_argument.number() >= arity:
@@ -500,10 +544,6 @@ def bcs_is_homogeneous(bcs):
 class ReplacementInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs.get(
-            "derivative_space", lambda x: var_space(x))(self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]

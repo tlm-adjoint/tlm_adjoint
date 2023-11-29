@@ -10,10 +10,10 @@ from .backend import (
     backend_Constant, backend_DirichletBC, backend_ScalarType)
 from ..interface import (
     SpaceInterface, VariableInterface, VariableStateChangeError, add_interface,
-    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype,
-    var_derivative_space, var_id, var_increment_state_lock, var_is_cached,
-    var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
-    var_replacement, var_scalar_value, var_space, var_space_type)
+    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype, var_id,
+    var_increment_state_lock, var_is_cached, var_is_replacement, var_is_static,
+    var_linf_norm, var_lock_state, var_name, var_replacement, var_scalar_value,
+    var_space, var_space_type)
 
 from ..caches import Caches
 
@@ -60,9 +60,6 @@ class ConstantSpaceInterface(SpaceInterface):
 class ConstantInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs["derivative_space"](self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -201,7 +198,6 @@ class ConstantInterface(VariableInterface):
             add_interface(replacement, ReplacementInterface,
                           {"id": var_id(self), "name": var_name(self),
                            "space": var_space(self),
-                           "derivative_space": self._tlm_adjoint__var_interface_attrs["derivative_space"],  # noqa: E501
                            "space_type": var_space_type(self),
                            "static": var_is_static(self),
                            "cache": var_is_cached(self),
@@ -408,7 +404,7 @@ def derivative(expr, x, argument=None, *,
 
     if argument is None and enable_automatic_argument:
         Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(var_derivative_space(x))
+        argument = Argument(var_space(x))
 
     for expr_argument in expr_arguments:
         if expr_argument.number() >= arity:
@@ -564,10 +560,6 @@ def bcs_is_homogeneous(bcs):
 class ReplacementInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs.get(
-            "derivative_space", lambda x: var_space(x))(self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
