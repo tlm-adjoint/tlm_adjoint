@@ -54,7 +54,10 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
     if name is None:
         name = self.name
     if comm is None:
-        comm = DEFAULT_COMM
+        if domain is None:
+            comm = DEFAULT_COMM
+        else:
+            comm = domain.comm
 
     if space is None:
         space = constant_space(self.ufl_shape, domain=domain)

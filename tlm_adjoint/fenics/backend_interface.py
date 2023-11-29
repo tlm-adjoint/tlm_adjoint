@@ -45,7 +45,10 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
     if domain is not None and hasattr(domain, "ufl_domain"):
         domain = domain.ufl_domain()
     if comm is None:
-        comm = DEFAULT_COMM
+        if domain is None:
+            comm = DEFAULT_COMM
+        else:
+            comm = domain.ufl_cargo().mpi_comm()
 
     orig(self, *args, **kwargs)
 

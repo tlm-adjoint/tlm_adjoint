@@ -9,12 +9,11 @@ from .backend import (
     FiniteElement, TensorElement, TestFunction, TrialFunction, VectorElement,
     backend_Constant, backend_DirichletBC, backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, VariableInterface, VariableStateChangeError,
-    add_interface, comm_parent, is_var, space_comm, var_caches, var_comm,
-    var_dtype, var_derivative_space, var_id, var_increment_state_lock,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
-    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
-    var_space_type)
+    SpaceInterface, VariableInterface, VariableStateChangeError, add_interface,
+    comm_parent, is_var, space_comm, var_caches, var_comm, var_dtype,
+    var_derivative_space, var_id, var_increment_state_lock, var_is_cached,
+    var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
+    var_replacement, var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
 
@@ -290,11 +289,8 @@ class Constant(backend_Constant):
         value = constant_value(value, shape)
 
         # Default comm
-        if comm is None:
-            if space is None:
-                comm = DEFAULT_COMM
-            else:
-                comm = comm_parent(space_comm(space))
+        if comm is None and space is not None:
+            comm = comm_parent(space_comm(space))
 
         if cache is None:
             cache = static
