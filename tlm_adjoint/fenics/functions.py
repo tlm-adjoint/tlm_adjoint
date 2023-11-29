@@ -10,10 +10,10 @@ from .backend import (
     VectorFunctionSpace, backend_Constant, backend_DirichletBC,
     backend_Function, backend_ScalarType, cpp_Constant)
 from ..interface import (
-    SpaceInterface, VariableInterface, VariableStateChangeError, add_interface,
-    comm_parent, is_var, manager_disabled, space_comm, var_caches, var_comm,
-    var_dtype, var_id, var_increment_state_lock, var_is_cached,
-    var_is_replacement, var_is_static, var_linf_norm, var_lock_state, var_name,
+    SpaceInterface, VariableInterface, VariableStateChangeError,
+    add_replacement_interface, comm_parent, is_var, manager_disabled,
+    space_comm, var_comm, var_dtype, var_increment_state_lock, var_is_cached,
+    var_is_replacement, var_is_static, var_linf_norm, var_lock_state,
     var_replacement, var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
@@ -197,16 +197,11 @@ class ConstantInterface(VariableInterface):
             self.assign(backend_Constant(values))
 
     def _replacement(self):
-        replacement = self._tlm_adjoint__var_interface_attrs["replacement"]
-        if not is_var(replacement):
-            add_interface(replacement, ReplacementInterface,
-                          {"id": var_id(self), "name": var_name(self),
-                           "space": var_space(self),
-                           "space_type": var_space_type(self),
-                           "static": var_is_static(self),
-                           "cache": var_is_cached(self),
-                           "caches": var_caches(self)})
-        return replacement
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementConstant(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
 
     def _is_replacement(self):
         return False
@@ -541,65 +536,31 @@ def bcs_is_homogeneous(bcs):
     return True
 
 
-class ReplacementInterface(VariableInterface):
-    def _space(self):
-        return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _space_type(self):
-        return self._tlm_adjoint__var_interface_attrs["space_type"]
-
-    def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
-
-    def _name(self):
-        return self._tlm_adjoint__var_interface_attrs["name"]
-
-    def _state(self):
-        return -1
-
-    def _is_static(self):
-        return self._tlm_adjoint__var_interface_attrs["static"]
-
-    def _is_cached(self):
-        return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _caches(self):
-        return self._tlm_adjoint__var_interface_attrs["caches"]
-
-    def _replacement(self):
-        return self
-
-    def _is_replacement(self):
-        return True
-
-
-class Replacement:
+class Replacement(ufl.classes.Coefficient):
     """Represents a symbolic variable but with no value.
     """
 
-    pass
+    def __init__(self, x, count):
+        super().__init__(var_space(x), count=count)
+        add_replacement_interface(self, x)
 
 
 def new_count():
     return cpp_Constant(0.0).id()
 
 
-class ReplacementConstant(Replacement, ufl.classes.Coefficient):
+class ReplacementConstant(Replacement):
     """Represents a symbolic DOLFIN `Constant`, but has no value.
     """
 
-    def __init__(self, space):
-        Replacement.__init__(self)
-        ufl.classes.Coefficient.__init__(self, space, count=new_count())
+    pass
 
 
-class ReplacementFunction(Replacement, ufl.classes.Coefficient):
+class ReplacementFunction(Replacement):
     """Represents a symbolic DOLFIN `Function`, but has no value.
     """
 
-    def __init__(self, space):
-        Replacement.__init__(self)
-        ufl.classes.Coefficient.__init__(self, space, count=new_count())
+    pass
 
 
 def replaced_form(form):

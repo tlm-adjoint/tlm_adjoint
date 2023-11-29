@@ -1459,6 +1459,48 @@ def vars_copy(X):
     return tuple(map(var_copy, X))
 
 
+class ReplacementInterface(VariableInterface):
+    def _space(self):
+        return self._tlm_adjoint__var_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
+
+    def _id(self):
+        return self._tlm_adjoint__var_interface_attrs["id"]
+
+    def _name(self):
+        return self._tlm_adjoint__var_interface_attrs["name"]
+
+    def _state(self):
+        return -1
+
+    def _is_static(self):
+        return self._tlm_adjoint__var_interface_attrs["static"]
+
+    def _is_cached(self):
+        return self._tlm_adjoint__var_interface_attrs["cache"]
+
+    def _caches(self):
+        return self._tlm_adjoint__var_interface_attrs["caches"]
+
+    def _replacement(self):
+        return self
+
+    def _is_replacement(self):
+        return True
+
+
+def add_replacement_interface(replacement, x):
+    add_interface(replacement, ReplacementInterface,
+                  {"id": var_id(x), "name": var_name(x),
+                   "space": var_space(x),
+                   "space_type": var_space_type(x),
+                   "static": var_is_static(x),
+                   "cache": var_is_cached(x),
+                   "caches": var_caches(x)})
+
+
 @functools.singledispatch
 def subtract_adjoint_derivative_action(x, y):
     """Subtract an adjoint right-hand-side contribution defined by `y` from

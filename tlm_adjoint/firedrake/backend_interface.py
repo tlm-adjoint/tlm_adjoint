@@ -6,12 +6,11 @@ from .backend import (
     backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
-    register_garbage_cleanup, register_functional_term_eq,
+    add_replacement_interface, check_space_type, comm_dup_cached, new_space_id,
+    new_var_id, register_garbage_cleanup, register_functional_term_eq,
     register_subtract_adjoint_derivative_action, relative_space_type, space_id,
-    subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
-    var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
-    var_space, var_space_type)
+    subtract_adjoint_derivative_action_base, var_is_alias, var_linf_norm,
+    var_lock_state, var_space, var_space_type)
 
 from ..equations import Conversion
 from ..override import override_method, override_property
@@ -19,8 +18,7 @@ from ..override import override_method, override_property
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
-    ReplacementConstant, ReplacementFunction, ReplacementInterface, Zero,
-    constant_space, define_var_alias)
+    ReplacementFunction, Zero, constant_space, define_var_alias, new_count)
 
 import mpi4py.MPI as MPI
 import numbers
@@ -68,7 +66,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
                    "state": [0], "space": space,
                    "space_type": "primal", "dtype": self.dat.dtype.type,
                    "static": False, "cache": False,
-                   "replacement": ReplacementConstant(self.ufl_shape)})
+                   "replacement_count": new_count(self._counted_class)})
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -216,18 +214,6 @@ class FunctionInterfaceBase(VariableInterface):
         with self.dat.vec_wo as x_v:
             x_v.setArray(values)
 
-    def _replacement(self):
-        replacement = self._tlm_adjoint__var_interface_attrs["replacement"]
-        if not is_var(replacement):
-            add_interface(replacement, ReplacementInterface,
-                          {"id": var_id(self), "name": var_name(self),
-                           "space": var_space(self),
-                           "space_type": var_space_type(self),
-                           "static": var_is_static(self),
-                           "cache": var_is_cached(self),
-                           "caches": var_caches(self)})
-        return replacement
-
     def _is_replacement(self):
         return False
 
@@ -276,6 +262,13 @@ class FunctionInterface(FunctionInterfaceBase):
             return inner
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
+
+    def _replacement(self):
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementFunction(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
 
 
 class Function(backend_Function):
@@ -334,7 +327,7 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
                   {"comm": comm_dup_cached(comm), "id": new_var_id(),
                    "state": [self.dat, getattr(self.dat, "dat_version", None)],
                    "space_type": "primal", "static": False, "cache": False,
-                   "replacement": ReplacementFunction(self.function_space())})
+                   "replacement_count": new_count(self._counted_class)})
     if isinstance(val, backend_Function):
         define_var_alias(self, val, key=("Function__init__",))
 
@@ -414,6 +407,13 @@ class CofunctionInterface(FunctionInterfaceBase):
         else:
             raise TypeError(f"Unexpected type: {type(y)}")
 
+    def _replacement(self):
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementCofunction(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
+
 
 class Cofunction(backend_Cofunction):
     """Extends the :class:`firedrake.cofunction.Cofunction` class.
@@ -458,7 +458,7 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
                    "state": [self.dat, getattr(self.dat, "dat_version", None)],
                    "space_type": "conjugate_dual", "static": False,
                    "cache": False,
-                   "replacement": ReplacementCofunction(self.function_space())})  # noqa: E501
+                   "replacement_count": new_count(self._counted_class)})
     if isinstance(val, backend_Cofunction):
         define_var_alias(self, val, key=("Cofunction__init__",))
 
@@ -484,9 +484,10 @@ class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
     no value.
     """
 
-    def __init__(self, space):
+    def __init__(self, x, count):
         Replacement.__init__(self)
-        ufl.classes.Cofunction.__init__(self, space)
+        ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
+        add_replacement_interface(self, x)
 
     def equals(self, other):
         if self is other:
