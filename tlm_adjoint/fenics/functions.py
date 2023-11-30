@@ -6,15 +6,15 @@ and Dirichlet boundary conditions.
 """
 
 from .backend import (
-    TestFunction, TrialFunction, backend_Constant, backend_DirichletBC,
-    backend_ScalarType)
+    FunctionSpace, TensorFunctionSpace, TestFunction, TrialFunction,
+    VectorFunctionSpace, backend_Constant, backend_DirichletBC,
+    backend_Function, backend_ScalarType, cpp_Constant)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, VariableInterface, VariableStateChangeError,
-    add_interface, comm_parent, is_var, space_comm, var_caches, var_comm,
-    var_dtype, var_derivative_space, var_id, var_increment_state_lock,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
-    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
-    var_space_type)
+    SpaceInterface, VariableInterface, VariableStateChangeError,
+    add_replacement_interface, comm_parent, is_var, manager_disabled,
+    space_comm, var_comm, var_dtype, var_increment_state_lock, var_is_cached,
+    var_is_replacement, var_is_static, var_linf_norm, var_lock_state,
+    var_replacement, var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
 
@@ -64,9 +64,6 @@ class ConstantSpaceInterface(SpaceInterface):
 class ConstantInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs["derivative_space"](self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -200,9 +197,11 @@ class ConstantInterface(VariableInterface):
             self.assign(backend_Constant(values))
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementConstant(self)
-        return self._tlm_adjoint__replacement
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementConstant(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
 
     def _is_replacement(self):
         return False
@@ -284,11 +283,8 @@ class Constant(backend_Constant):
         value = constant_value(value, shape)
 
         # Default comm
-        if comm is None:
-            if space is None:
-                comm = DEFAULT_COMM
-            else:
-                comm = comm_parent(space_comm(space))
+        if comm is None and space is not None:
+            comm = comm_parent(space_comm(space))
 
         if cache is None:
             cache = static
@@ -337,6 +333,53 @@ def extract_coefficients(expr):
     return ufl.algorithms.extract_coefficients(expr)
 
 
+@manager_disabled()
+def is_valid_r0_space(space):
+    e = space.ufl_element()
+    if (e.family(), e.degree()) != ("Real", 0):
+        return False
+    elif len(e.value_shape()) == 0:
+        r = backend_Function(space)
+        r.assign(backend_Constant(-1.0))
+        return (r.vector().max() == -1.0)
+    else:
+        r = backend_Function(space)
+        r_arr = -np.arange(1, np.prod(r.ufl_shape) + 1,
+                           dtype=backend_ScalarType)
+        r_arr.shape = r.ufl_shape
+        r.assign(backend_Constant(r_arr))
+        for i, r_c in enumerate(r.split(deepcopy=True)):
+            if r_c.vector().max() != -(i + 1):
+                return False
+        else:
+            return True
+
+
+def r0_space(x):
+    domain = var_space(x)._tlm_adjoint__space_interface_attrs["domain"]
+    domain = domain.ufl_cargo()
+    if not hasattr(domain, "_tlm_adjoint__r0_space"):
+        if len(x.ufl_shape) == 0:
+            space = FunctionSpace(domain, "R", 0)
+        elif len(x.ufl_shape) == 1:
+            dim, = ufl.shape
+            space = VectorFunctionSpace(domain, "R", 0, dim=dim)
+        else:
+            space = TensorFunctionSpace(domain, "R", degree=0,
+                                        shape=x.ufl_shape)
+        if not is_valid_r0_space(space):
+            raise RuntimeError("Invalid space")
+        domain._tlm_adjoint__r0_space = space
+    return domain._tlm_adjoint__r0_space
+
+
+def derivative_space(x):
+    if isinstance(x, (backend_Constant, ReplacementConstant)):
+        return r0_space(x)
+    else:
+        return var_space(x)
+
+
 def derivative(expr, x, argument=None, *,
                enable_automatic_argument=True):
     expr_arguments = ufl.algorithms.extract_arguments(expr)
@@ -344,13 +387,15 @@ def derivative(expr, x, argument=None, *,
 
     if argument is None and enable_automatic_argument:
         Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(var_derivative_space(x))
+        argument = Argument(derivative_space(x))
 
     for expr_argument in expr_arguments:
         if expr_argument.number() >= arity:
             raise ValueError("Unexpected argument")
-    if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
-        raise ValueError("Invalid argument")
+    if argument is not None:
+        for expr_argument in ufl.algorithms.extract_arguments(argument):
+            if expr_argument.number() < arity:
+                raise ValueError("Invalid argument")
 
     return ufl.derivative(expr, x, argument=argument)
 
@@ -491,92 +536,31 @@ def bcs_is_homogeneous(bcs):
     return True
 
 
-class ReplacementInterface(VariableInterface):
-    def _space(self):
-        return self.ufl_function_space()
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs.get(
-            "derivative_space", lambda x: var_space(x))(self)
-
-    def _space_type(self):
-        return self._tlm_adjoint__var_interface_attrs["space_type"]
-
-    def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
-
-    def _name(self):
-        return self._tlm_adjoint__var_interface_attrs["name"]
-
-    def _state(self):
-        return -1
-
-    def _is_static(self):
-        return self._tlm_adjoint__var_interface_attrs["static"]
-
-    def _is_cached(self):
-        return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _caches(self):
-        return self._tlm_adjoint__var_interface_attrs["caches"]
-
-    def _replacement(self):
-        return self
-
-    def _is_replacement(self):
-        return True
-
-
 class Replacement(ufl.classes.Coefficient):
-    """A :class:`ufl.Coefficient` representing a symbolic variable but with no
-    value.
+    """Represents a symbolic variable but with no value.
     """
 
-    def __init__(self, x):
-        space = var_space(x)
+    def __init__(self, x, count):
+        super().__init__(var_space(x), count=count)
+        add_replacement_interface(self, x)
 
-        x_domains = x.ufl_domains()
-        if len(x_domains) == 0:
-            domain = None
-        else:
-            domain, = x_domains
 
-        super().__init__(space, count=x.count())
-        self._tlm_adjoint__domain = domain
-        add_interface(self, ReplacementInterface,
-                      {"id": var_id(x), "name": var_name(x),
-                       "space": space,
-                       "space_type": var_space_type(x),
-                       "static": var_is_static(x),
-                       "cache": var_is_cached(x),
-                       "caches": var_caches(x)})
-
-    def ufl_domain(self):
-        return self._tlm_adjoint__domain
-
-    def ufl_domains(self):
-        if self._tlm_adjoint__domain is None:
-            return ()
-        else:
-            return (self._tlm_adjoint__domain,)
+def new_count():
+    return cpp_Constant(0.0).id()
 
 
 class ReplacementConstant(Replacement):
     """Represents a symbolic DOLFIN `Constant`, but has no value.
     """
 
-    def __init__(self, x):
-        super().__init__(x)
-        self._tlm_adjoint__var_interface_attrs["derivative_space"] \
-            = x._tlm_adjoint__var_interface_attrs["derivative_space"]
+    pass
 
 
 class ReplacementFunction(Replacement):
     """Represents a symbolic DOLFIN `Function`, but has no value.
     """
 
-    def function_space(self):
-        return var_space(self)
+    pass
 
 
 def replaced_form(form):

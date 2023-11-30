@@ -18,7 +18,8 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(params=[{"cls": lambda **kwargs: Constant(**kwargs)},
                         {"cls": lambda **kwargs: Constant(domain=UnitIntervalMesh(20), **kwargs)},  # noqa: E501
-                        {"cls": lambda **kwargs: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1), **kwargs)}])  # noqa: E501
+                        {"cls": lambda **kwargs: Function(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1), **kwargs)},  # noqa: E501
+                        {"cls": lambda **kwargs: Cofunction(FunctionSpace(UnitIntervalMesh(20), "Lagrange", 1).dual(), **kwargs)}])  # noqa: E501
 def var_cls(request):
     return request.param["cls"]
 
@@ -36,7 +37,7 @@ def test_name(setup_test,
 @pytest.mark.parametrize("static", [False, True])
 @pytest.mark.parametrize("cache", [False, True, None])
 @seed_test
-def test_replacement(setup_test,  # noqa: F811
+def test_replacement(setup_test,
                      var_cls, cache, static):
     name = "_tlm_adjoint__test_name"
     F = var_cls(name=name, static=static, cache=cache)
@@ -51,6 +52,28 @@ def test_replacement(setup_test,  # noqa: F811
         assert var_is_cached(var) is not None
         assert var_is_cached(var) == (static if cache is None else cache)
         assert var_caches(var) is F_caches
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_replacement_eq_hash(setup_test,
+                             var_cls):
+    F = var_cls()
+    F_replacement = var_replacement(F)
+
+    assert F == F
+    assert not (F != F)
+    assert F_replacement == F_replacement
+    assert not (F_replacement != F_replacement)
+
+    assert F != F_replacement
+    assert F_replacement != F
+    assert not (F == F_replacement)
+    assert not (F_replacement == F)
+
+    assert F.count() != F_replacement.count()
+    assert hash(F) != hash(F_replacement)
+    assert len(set((F, F_replacement))) == 2
 
 
 @pytest.mark.firedrake

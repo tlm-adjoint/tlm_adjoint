@@ -9,12 +9,11 @@ from .backend import (
     FiniteElement, TensorElement, TestFunction, TrialFunction, VectorElement,
     backend_Constant, backend_DirichletBC, backend_ScalarType)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, VariableInterface, VariableStateChangeError,
-    add_interface, comm_parent, is_var, space_comm, var_caches, var_comm,
-    var_dtype, var_derivative_space, var_id, var_increment_state_lock,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
-    var_lock_state, var_name, var_replacement, var_scalar_value, var_space,
-    var_space_type)
+    SpaceInterface, VariableInterface, VariableStateChangeError,
+    add_replacement_interface, comm_parent, is_var, space_comm, var_comm,
+    var_dtype, var_increment_state_lock, var_is_cached, var_is_replacement,
+    var_is_static, var_linf_norm, var_lock_state, var_replacement,
+    var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
 
@@ -61,9 +60,6 @@ class ConstantSpaceInterface(SpaceInterface):
 class ConstantInterface(VariableInterface):
     def _space(self):
         return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs["derivative_space"](self)
 
     def _space_type(self):
         return self._tlm_adjoint__var_interface_attrs["space_type"]
@@ -197,9 +193,11 @@ class ConstantInterface(VariableInterface):
             self.assign(backend_Constant(values))
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementConstant(self)
-        return self._tlm_adjoint__replacement
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementConstant(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
 
     def _is_replacement(self):
         return False
@@ -282,11 +280,8 @@ class Constant(backend_Constant):
         value = constant_value(value, shape)
 
         # Default comm
-        if comm is None:
-            if space is None:
-                comm = DEFAULT_COMM
-            else:
-                comm = comm_parent(space_comm(space))
+        if comm is None and space is not None:
+            comm = comm_parent(space_comm(space))
 
         if cache is None:
             cache = static
@@ -301,7 +296,6 @@ class Constant(backend_Constant):
     def __new__(cls, value=None, *args, name=None, domain=None,
                 space_type="primal", shape=None, static=False, cache=None,
                 **kwargs):
-        assert not issubclass(cls, ufl.classes.Coefficient)
         if domain is None:
             return object().__new__(cls)
         else:
@@ -351,57 +345,21 @@ class ZeroConstant(Constant, Zero):
             shape=shape, static=True, cache=True, **kwargs)
 
 
-def as_coefficient(x):
-    if isinstance(x, ufl.classes.Coefficient):
-        return x
-
-    if not isinstance(x, backend_Constant):
-        raise TypeError("Unexpected type")
-
-    if not hasattr(x, "_tlm_adjoint__Coefficient"):
-        if is_var(x):
-            space = var_space(x)
-        else:
-            if len(x.ufl_shape) == 0:
-                element = FiniteElement("R", None, 0)
-            elif len(x.ufl_shape) == 1:
-                element = VectorElement("R", None, 0, dim=x.ufl_shape[0])
-            else:
-                element = TensorElement("R", None, 0, shape=x.ufl_shape)
-            space = ufl.classes.FunctionSpace(None, element)
-
-        x._tlm_adjoint__Coefficient = ufl.classes.Coefficient(space)
-
-    return x._tlm_adjoint__Coefficient
-
-
-def with_coefficient(expr, x):
-    x_coeff = as_coefficient(x)
-    if x_coeff is x:
-        return expr, {}, {}
+def constant_space(shape, *, domain=None):
+    if domain is None:
+        cell = None
     else:
-        replace_map = {x: x_coeff}
-        replace_map_inverse = {x_coeff: x}
-        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
+        cell = domain.ufl_cell()
 
+    if len(shape) == 0:
+        element = FiniteElement("R", cell, 0)
+    elif len(shape) == 1:
+        dim, = shape
+        element = VectorElement("R", cell, 0, dim=dim)
+    else:
+        element = TensorElement("R", cell, 0, shape=shape)
 
-def with_coefficients(expr):
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__form_with_coefficients" in expr._cache:
-        return expr._cache["_tlm_adjoint__form_with_coefficients"]
-
-    assert not issubclass(backend_Constant, ufl.classes.Coefficient)
-    constants = tuple(sorted(ufl.algorithms.extract_type(expr, backend_Constant),  # noqa: E501
-                      key=lambda c: c.count()))
-    replace_map = dict(zip(constants, map(as_coefficient, constants)))
-    replace_map_inverse = {c_coeff: c
-                           for c, c_coeff in replace_map.items()}
-
-    expr_with_coeffs = ufl.replace(expr, replace_map)
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__form_with_coefficients"] = \
-            (expr_with_coeffs, replace_map, replace_map_inverse)
-    return expr_with_coeffs, replace_map, replace_map_inverse
+    return ufl.classes.FunctionSpace(domain, element)
 
 
 def extract_coefficients(expr):
@@ -414,16 +372,24 @@ def extract_coefficients(expr):
             and "_tlm_adjoint__form_coefficients" in expr._cache:
         return expr._cache["_tlm_adjoint__form_coefficients"]
 
-    assert not issubclass(backend_Constant, ufl.classes.Coefficient)
-    cls = (ufl.classes.Coefficient, backend_Constant)
     deps = []
-    for c in cls:
+    for c in (ufl.classes.Coefficient, backend_Constant):
         deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
                            key=lambda dep: dep.count()))
 
     if isinstance(expr, ufl.classes.Form):
         expr._cache["_tlm_adjoint__form_coefficients"] = deps
     return deps
+
+
+def with_coefficient(expr, x):
+    if isinstance(x, ufl.classes.Coefficient):
+        return expr, {}, {}
+    else:
+        x_coeff = ufl.classes.Coefficient(var_space(x))
+        replace_map = {x: x_coeff}
+        replace_map_inverse = {x_coeff: x}
+        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
 
 
 def derivative(expr, x, argument=None, *,
@@ -433,23 +399,19 @@ def derivative(expr, x, argument=None, *,
 
     if argument is None and enable_automatic_argument:
         Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(var_derivative_space(x))
+        argument = Argument(var_space(x))
 
     for expr_argument in expr_arguments:
         if expr_argument.number() >= arity:
             raise ValueError("Unexpected argument")
-    if isinstance(argument, ufl.classes.Argument) and argument.number() < arity:  # noqa: E501
-        raise ValueError("Invalid argument")
-
-    if isinstance(expr, ufl.classes.Expr):
-        expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
-    else:
-        expr, replace_map, replace_map_inverse = with_coefficients(expr)
-
     if argument is not None:
-        argument, _, argument_replace_map_inverse = with_coefficients(argument)
-        replace_map_inverse.update(argument_replace_map_inverse)
+        for expr_argument in ufl.algorithms.extract_arguments(argument):
+            if expr_argument.number() < arity:
+                raise ValueError("Invalid argument")
 
+    expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
+    if argument is not None:
+        argument = ufl.replace(argument, replace_map)
     dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
     return ufl.replace(dexpr, replace_map_inverse)
 
@@ -590,94 +552,56 @@ def bcs_is_homogeneous(bcs):
     return True
 
 
-class ReplacementInterface(VariableInterface):
-    def _space(self):
-        return self.ufl_function_space()
-
-    def _derivative_space(self):
-        return self._tlm_adjoint__var_interface_attrs.get(
-            "derivative_space", lambda x: var_space(x))(self)
-
-    def _space_type(self):
-        return self._tlm_adjoint__var_interface_attrs["space_type"]
-
-    def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
-
-    def _name(self):
-        return self._tlm_adjoint__var_interface_attrs["name"]
-
-    def _state(self):
-        return -1
-
-    def _is_static(self):
-        return self._tlm_adjoint__var_interface_attrs["static"]
-
-    def _is_cached(self):
-        return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _caches(self):
-        return self._tlm_adjoint__var_interface_attrs["caches"]
-
-    def _replacement(self):
-        return self
-
-    def _is_replacement(self):
-        return True
-
-
-class Replacement(ufl.classes.Coefficient):
-    """A :class:`ufl.Coefficient` representing a symbolic variable but with no
-    value.
+class Replacement:
+    """Represents a symbolic variable but with no value.
     """
 
-    def __init__(self, x):
-        space = var_space(x)
-
-        x_domains = x.ufl_domains()
-        if len(x_domains) == 0:
-            domain = None
-        else:
-            domain, = x_domains
-
-        super().__init__(space, count=x.count())
-        self._tlm_adjoint__domain = domain
-        add_interface(self, ReplacementInterface,
-                      {"id": var_id(x), "name": var_name(x),
-                       "space": space,
-                       "space_type": var_space_type(x),
-                       "static": var_is_static(x),
-                       "cache": var_is_cached(x),
-                       "caches": var_caches(x)})
-
-    def ufl_domain(self):
-        return self._tlm_adjoint__domain
-
-    def ufl_domains(self):
-        if self._tlm_adjoint__domain is None:
-            return ()
-        else:
-            return (self._tlm_adjoint__domain,)
+    pass
 
 
-class ReplacementConstant(Replacement):
+def new_count(counted_class):
+    # __slots__ workaround
+    class Counted(ufl.utils.counted.Counted):
+        pass
+
+    return Counted(counted_class=counted_class).count()
+
+
+class ReplacementConstant(Replacement, ufl.classes.ConstantValue,
+                          ufl.utils.counted.Counted):
     """Represents a symbolic :class:`firedrake.constant.Constant`, but has no
     value.
     """
 
-    def __init__(self, x):
-        super().__init__(x)
-        self._tlm_adjoint__var_interface_attrs["derivative_space"] \
-            = x._tlm_adjoint__var_interface_attrs["derivative_space"]
+    def __init__(self, x, count):
+        Replacement.__init__(self)
+        ufl.classes.ConstantValue.__init__(self)
+        ufl.utils.counted.Counted.__init__(
+            self, count=count, counted_class=x._counted_class)
+        self._tlm_adjoint__ufl_shape = tuple(x.ufl_shape)
+        add_replacement_interface(self, x)
+
+    def __repr__(self):
+        return f"<{type(self)} with count {self.count()}>"
+
+    @property
+    def ufl_shape(self):
+        return self._tlm_adjoint__ufl_shape
 
 
-class ReplacementFunction(Replacement):
+class ReplacementFunction(Replacement, ufl.classes.Coefficient):
     """Represents a symbolic :class:`firedrake.function.Function`, but has no
     value.
     """
 
-    def function_space(self):
-        return var_space(self)
+    def __init__(self, x, count):
+        Replacement.__init__(self)
+        ufl.classes.Coefficient.__init__(self, var_space(x), count=count)
+        add_replacement_interface(self, x)
+
+    def __new__(cls, x, *args, **kwargs):
+        return ufl.classes.Coefficient.__new__(cls, var_space(x),
+                                               *args, **kwargs)
 
 
 def replaced_form(form):

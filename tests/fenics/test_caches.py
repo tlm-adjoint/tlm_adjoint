@@ -28,7 +28,7 @@ def test_clear_caches(setup_test, test_leaks):
     F = Function(space, name="F", cache=True)
 
     def cache_item(F, F_value=None):
-        form = inner(F, TestFunction(F.function_space())) * dx
+        form = inner(F, TestFunction(var_space(F))) * dx
         cached_form, _ = assembly_cache().assemble(
             form, replace_map=None if F_value is None else {F: F_value})
         return cached_form

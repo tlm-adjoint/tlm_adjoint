@@ -3,12 +3,11 @@
 
 from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    comm_dup_cached, is_var, new_var_id, new_space_id,
-    register_subtract_adjoint_derivative_action,
-    subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_caches,
-    var_comm, var_dtype, var_id, var_is_cached, var_is_scalar, var_is_static,
-    var_local_size, var_name, var_set_values, var_space, var_space_type,
-    var_state)
+    add_replacement_interface, comm_dup_cached, is_var, new_space_id,
+    new_var_id, register_subtract_adjoint_derivative_action,
+    subtract_adjoint_derivative_action_base, var_assign, var_axpy, var_comm,
+    var_dtype, var_id, var_is_scalar, var_local_size, var_set_values,
+    var_space_type, var_state)
 
 from .alias import WeakAlias
 from .caches import Caches
@@ -407,6 +406,9 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
     def __eq__(self, other):
         return object.__eq__(self, other)
 
+    def __ne__(self, other):
+        return object.__ne__(self, other)
+
     def __hash__(self):
         return object.__hash__(self)
 
@@ -537,69 +539,9 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         return self._vector
 
 
-class ReplacementVectorInterface(VariableInterface):
-    def _space(self):
-        return self.space
-
-    def _space_type(self):
-        return self.space_type
-
-    def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
-
-    def _name(self):
-        return self.name
-
-    def _state(self):
-        return -1
-
-    def _is_static(self):
-        return self._tlm_adjoint__var_interface_attrs["static"]
-
-    def _is_cached(self):
-        return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _caches(self):
-        return self._tlm_adjoint__var_interface_attrs["caches"]
-
-    def _replacement(self):
-        return self
-
-    def _is_replacement(self):
-        return True
-
-
 class ReplacementVector:
     def __init__(self, x):
-        self._name = var_name(x)
-        self._space = var_space(x)
-        self._space_type = var_space_type(x)
-        add_interface(self, ReplacementVectorInterface,
-                      {"cache": var_is_cached(x),
-                       "caches": var_caches(x),
-                       "id": var_id(x),
-                       "static": var_is_static(x)})
-
-    @property
-    def name(self):
-        """The :class:`str` name of the :class:`.ReplacementVector`.
-        """
-
-        return self._name
-
-    @property
-    def space(self):
-        """The :class:`.VectorSpace` for the :class:`.ReplacementVector`.
-        """
-
-        return self._space
-
-    @property
-    def space_type(self):
-        """The space type for the :class:`.ReplacementVector`.
-        """
-
-        return self._space_type
+        add_replacement_interface(self, x)
 
 
 def jax_forward(fn, X, Y, *, manager=None):

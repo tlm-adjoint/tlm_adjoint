@@ -2,26 +2,23 @@
 # -*- coding: utf-8 -*-
 
 from .backend import (
-    FiniteElement, TensorElement, VectorElement, backend_Cofunction,
-    backend_CofunctionSpace, backend_Constant, backend_Function,
-    backend_FunctionSpace, backend_ScalarType)
+    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
+    backend_Function, backend_FunctionSpace, backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    check_space_type, comm_dup_cached, new_space_id, new_var_id,
-    register_garbage_cleanup, register_functional_term_eq,
+    add_replacement_interface, check_space_type, comm_dup_cached, new_space_id,
+    new_var_id, register_garbage_cleanup, register_functional_term_eq,
     register_subtract_adjoint_derivative_action, relative_space_type, space_id,
-    subtract_adjoint_derivative_action_base, var_caches, var_id, var_is_alias,
-    var_is_cached, var_is_static, var_linf_norm, var_lock_state, var_name,
-    var_space, var_space_type)
-from .backend_code_generator_interface import r0_space
+    subtract_adjoint_derivative_action_base, var_is_alias, var_linf_norm,
+    var_lock_state, var_space, var_space_type)
 
 from ..equations import Conversion
 from ..override import override_method, override_property
 
 from .equations import Assembly
 from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    ReplacementInterface, Zero, define_var_alias)
+    Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
+    ReplacementFunction, Zero, constant_space, define_var_alias, new_count)
 
 import mpi4py.MPI as MPI
 import numbers
@@ -54,29 +51,22 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
     if name is None:
         name = self.name
     if comm is None:
-        comm = DEFAULT_COMM
+        if domain is None:
+            comm = DEFAULT_COMM
+        else:
+            comm = domain.comm
 
     if space is None:
-        if domain is None:
-            cell = None
-        else:
-            cell = domain.ufl_cell()
-        if len(self.ufl_shape) == 0:
-            element = FiniteElement("R", cell, 0)
-        elif len(self.ufl_shape) == 1:
-            element = VectorElement("R", cell, 0, dim=self.ufl_shape[0])
-        else:
-            element = TensorElement("R", cell, 0, shape=self.ufl_shape)
-        space = ufl.classes.FunctionSpace(domain, element)
+        space = constant_space(self.ufl_shape, domain=domain)
         add_interface(space, ConstantSpaceInterface,
                       {"comm": comm_dup_cached(comm), "domain": domain,
                        "dtype": backend_ScalarType, "id": new_space_id()})
     add_interface(self, ConstantInterface,
                   {"id": new_var_id(), "name": lambda x: name,
                    "state": [0], "space": space,
-                   "derivative_space": lambda x: r0_space(x),
                    "space_type": "primal", "dtype": self.dat.dtype.type,
-                   "static": False, "cache": False})
+                   "static": False, "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
 
 
 class FunctionSpaceInterface(SpaceInterface):
@@ -235,9 +225,6 @@ class FunctionInterfaceBase(VariableInterface):
 
 
 class FunctionInterface(FunctionInterfaceBase):
-    def _derivative_space(self):
-        return self.function_space()
-
     def _assign(self, y):
         if isinstance(y, backend_Cofunction):
             y = y.riesz_representation("l2")
@@ -277,9 +264,11 @@ class FunctionInterface(FunctionInterfaceBase):
             raise TypeError(f"Unexpected type: {type(y)}")
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementFunction(self)
-        return self._tlm_adjoint__replacement
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementFunction(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
 
 
 class Function(backend_Function):
@@ -337,7 +326,8 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
     add_interface(self, FunctionInterface,
                   {"comm": comm_dup_cached(comm), "id": new_var_id(),
                    "state": [self.dat, getattr(self.dat, "dat_version", None)],
-                   "space_type": "primal", "static": False, "cache": False})
+                   "space_type": "primal", "static": False, "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
     if isinstance(val, backend_Function):
         define_var_alias(self, val, key=("Function__init__",))
 
@@ -418,9 +408,11 @@ class CofunctionInterface(FunctionInterfaceBase):
             raise TypeError(f"Unexpected type: {type(y)}")
 
     def _replacement(self):
-        if not hasattr(self, "_tlm_adjoint__replacement"):
-            self._tlm_adjoint__replacement = ReplacementCofunction(self)
-        return self._tlm_adjoint__replacement
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                ReplacementCofunction(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
 
 
 class Cofunction(backend_Cofunction):
@@ -450,6 +442,12 @@ class Cofunction(backend_Cofunction):
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
 
+    def equals(self, other):
+        if self is other:
+            return True
+        else:
+            return ufl.classes.Cofunction.equals(self, other)
+
 
 @override_method(backend_Cofunction, "__init__")
 def Cofunction__init__(self, orig, orig_args, function_space, val=None,
@@ -459,7 +457,8 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
                   {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
                    "state": [self.dat, getattr(self.dat, "dat_version", None)],
                    "space_type": "conjugate_dual", "static": False,
-                   "cache": False})
+                   "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
     if isinstance(val, backend_Cofunction):
         define_var_alias(self, val, key=("Cofunction__init__",))
 
@@ -480,28 +479,21 @@ def Cofunction_riesz_representation(self, orig, orig_args,
     return return_value
 
 
-class ReplacementCofunction(ufl.classes.Cofunction):
+class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
     """Represents a symbolic :class:`firedrake.cofunction.Cofunction`, but has
     no value.
     """
 
-    def __init__(self, x):
-        space = var_space(x)
+    def __init__(self, x, count):
+        Replacement.__init__(self)
+        ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
+        add_replacement_interface(self, x)
 
-        super().__init__(space, count=x.count())
-        add_interface(self, ReplacementInterface,
-                      {"id": var_id(x), "name": var_name(x),
-                       "space": space,
-                       "space_type": var_space_type(x),
-                       "static": var_is_static(x),
-                       "cache": var_is_cached(x),
-                       "caches": var_caches(x)})
-
-    def __new__(cls, x, *args, **kwargs):
-        return super().__new__(cls, var_space(x), *args, **kwargs)
-
-    def function_space(self):
-        return var_space(self)
+    def equals(self, other):
+        if self is other:
+            return True
+        else:
+            return ufl.classes.Cofunction.equals(self, other)
 
 
 def to_firedrake(y, space, *, name=None):

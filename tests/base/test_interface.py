@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from tlm_adjoint import (
-    DEFAULT_COMM, Float, VariableStateLockDictionary, Vector, var_caches,
-    var_id, var_is_cached, var_is_static, var_lock_state, var_name,
+    DEFAULT_COMM, Float, SymbolicFloat, VariableStateLockDictionary, Vector,
+    var_caches, var_id, var_is_cached, var_is_static, var_lock_state, var_name,
     var_replacement)
 from tlm_adjoint.interface import (
     var_decrement_state_lock, var_increment_state_lock, var_state_is_locked)
@@ -52,6 +52,29 @@ def test_replacement(setup_test,  # noqa: F811
         assert var_is_cached(var) is not None
         assert var_is_cached(var) == (static if cache is None else cache)
         assert var_caches(var) is F_caches
+
+
+@pytest.mark.base
+@seed_test
+def test_replacement_eq_hash(setup_test,  # noqa: F811
+                             var_cls):
+    F = var_cls()
+    if isinstance(F, SymbolicFloat):
+        pytest.skip()
+    F_replacement = var_replacement(F)
+
+    assert F == F
+    assert not (F != F)
+    assert F_replacement == F_replacement
+    assert not (F_replacement != F_replacement)
+
+    assert F != F_replacement
+    assert F_replacement != F
+    assert not (F == F_replacement)
+    assert not (F_replacement == F)
+
+    assert hash(F) != hash(F_replacement)
+    assert len(set((F, F_replacement))) == 2
 
 
 @pytest.mark.base

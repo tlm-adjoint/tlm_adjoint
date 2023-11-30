@@ -103,7 +103,6 @@ __all__ = \
         "var_caches",
         "var_comm",
         "var_copy",
-        "var_derivative_space",
         "var_dtype",
         "var_get_values",
         "var_global_size",
@@ -145,7 +144,6 @@ __all__ = \
         "function_caches",
         "function_comm",
         "function_copy",
-        "function_derivative_space",
         "function_dtype",
         "function_get_values",
         "function_global_size",
@@ -713,12 +711,12 @@ class VariableInterface:
     """
 
     prefix = "_tlm_adjoint__var_interface"
-    names = ("_comm", "_space", "_derivative_space", "_space_type", "_dtype",
-             "_id", "_name", "_state", "_update_state", "_is_static",
-             "_is_cached", "_caches", "_zero", "_assign", "_axpy", "_inner",
-             "_linf_norm", "_local_size", "_global_size", "_local_indices",
-             "_get_values", "_set_values", "_new", "_copy", "_replacement",
-             "_is_replacement", "_is_scalar", "_scalar_value", "_is_alias")
+    names = ("_comm", "_space", "_space_type", "_dtype", "_id", "_name",
+             "_state", "_update_state", "_is_static", "_is_cached", "_caches",
+             "_zero", "_assign", "_axpy", "_inner", "_linf_norm",
+             "_local_size", "_global_size", "_local_indices", "_get_values",
+             "_set_values", "_new", "_copy", "_replacement", "_is_replacement",
+             "_is_scalar", "_scalar_value", "_is_alias")
 
     def __init__(self):
         raise RuntimeError("Cannot instantiate VariableInterface object")
@@ -727,9 +725,6 @@ class VariableInterface:
         return space_comm(var_space(self))
 
     def _space(self):
-        raise NotImplementedError("Method not overridden")
-
-    def _derivative_space(self):
         raise NotImplementedError("Method not overridden")
 
     def _space_type(self):
@@ -843,15 +838,6 @@ def var_space(x):
     """
 
     return x._tlm_adjoint__var_interface_space()
-
-
-def var_derivative_space(x):
-    """
-    :returns: The space in which a derivative is defined when differentiating a
-        UFL expression with respect to the variable.
-    """
-
-    return x._tlm_adjoint__var_interface_derivative_space()
 
 
 def var_space_type(x, *, rel_space_type="primal"):
@@ -1473,6 +1459,48 @@ def vars_copy(X):
     return tuple(map(var_copy, X))
 
 
+class ReplacementInterface(VariableInterface):
+    def _space(self):
+        return self._tlm_adjoint__var_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
+
+    def _id(self):
+        return self._tlm_adjoint__var_interface_attrs["id"]
+
+    def _name(self):
+        return self._tlm_adjoint__var_interface_attrs["name"]
+
+    def _state(self):
+        return -1
+
+    def _is_static(self):
+        return self._tlm_adjoint__var_interface_attrs["static"]
+
+    def _is_cached(self):
+        return self._tlm_adjoint__var_interface_attrs["cache"]
+
+    def _caches(self):
+        return self._tlm_adjoint__var_interface_attrs["caches"]
+
+    def _replacement(self):
+        return self
+
+    def _is_replacement(self):
+        return True
+
+
+def add_replacement_interface(replacement, x):
+    add_interface(replacement, ReplacementInterface,
+                  {"id": var_id(x), "name": var_name(x),
+                   "space": var_space(x),
+                   "space_type": var_space_type(x),
+                   "static": var_is_static(x),
+                   "cache": var_is_cached(x),
+                   "caches": var_caches(x)})
+
+
 @functools.singledispatch
 def subtract_adjoint_derivative_action(x, y):
     """Subtract an adjoint right-hand-side contribution defined by `y` from
@@ -1591,7 +1619,6 @@ function_caches = _function_warning(var_caches)
 function_comm = _function_warning(var_comm)
 function_copy = _function_warning(var_copy)
 function_dtype = _function_warning(var_dtype)
-function_derivative_space = _function_warning(var_derivative_space)
 function_get_values = _function_warning(var_get_values)
 function_global_size = _function_warning(var_global_size)
 function_id = _function_warning(var_id)

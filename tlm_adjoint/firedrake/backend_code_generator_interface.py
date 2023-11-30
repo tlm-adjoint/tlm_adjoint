@@ -307,10 +307,6 @@ def matrix_multiply(A, x, *,
     return tensor
 
 
-def r0_space(x):
-    raise NotImplementedError("r0_space not implemented")
-
-
 def rhs_copy(x):
     check_space_type(x, "conjugate_dual")
     return var_copy(x)
