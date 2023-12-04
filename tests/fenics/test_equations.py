@@ -896,8 +896,8 @@ def test_initial_guess(setup_test, test_leaks,
 @pytest.mark.fenics
 @pytest.mark.parametrize("cache_rhs_assembly", [True, False])
 @seed_test
-def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
-                                        cache_rhs_assembly):
+def test_EquationSolver_forward_solve_deps(setup_test, test_leaks,
+                                           cache_rhs_assembly):
     mesh = UnitSquareMesh(20, 20)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
@@ -905,7 +905,6 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
     def forward(m):
         class CustomEquationSolver(EquationSolver):
             def forward_solve(self, x, deps=None):
-                # Force into form binding code paths
                 super().forward_solve(x, deps=self.dependencies())
 
         x = Function(space, name="x")
@@ -920,7 +919,6 @@ def test_EquationSolver_form_binding_bc(setup_test, test_leaks,
         J.assign(((1 + x) ** 3) * dx)
         return J
 
-    # m should not be static for this test
     m = Function(space, name="m")
     m.interpolate(Constant(1.0))
 
