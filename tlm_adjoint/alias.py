@@ -80,12 +80,12 @@ class WeakAlias:
 
     def __init__(self, obj):
         if hasattr(obj, "__slots__"):
-            # Weak references to obj not possible, has attributes not
-            # accessible via __dict__ attribute
             raise TypeError("Cannot alias object with __slots__ attribute")
         if isinstance(obj, WeakAlias):
             raise TypeError("Cannot alias WeakAlias")
-        super().__setattr__("_tlm_adjoint__alias__dict__", obj.__dict__)
+        if len(self.__dict__) > 0:
+            raise RuntimeError("Unexpected __dict__ entries")
+        self.__dict__ = obj.__dict__
 
     def __new__(cls, obj, *args, **kwargs):
         obj_cls = type(obj)
@@ -95,19 +95,3 @@ class WeakAlias:
 
         WeakAlias.__name__ = f"{obj_cls.__name__:s}WeakAlias"
         return super().__new__(WeakAlias)
-
-    def __getattr__(self, key):
-        if key not in self._tlm_adjoint__alias__dict__:
-            raise AttributeError(f"No attribute '{key:s}'")
-        return self._tlm_adjoint__alias__dict__[key]
-
-    def __setattr__(self, key, value):
-        self._tlm_adjoint__alias__dict__[key] = value
-
-    def __delattr__(self, key):
-        if key not in self._tlm_adjoint__alias__dict__:
-            raise AttributeError(f"No attribute '{key:s}'")
-        del self._tlm_adjoint__alias__dict__[key]
-
-    def __dir__(self):
-        return list(self._tlm_adjoint__alias__dict__.keys())
