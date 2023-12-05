@@ -30,12 +30,14 @@ jobs:
       - name: Install dependencies
         run: |
           . /home/firedrake/firedrake/bin/activate
-          python3 -m pip install jax jaxlib pytest-timeout pytest-xdist
+          python3 -m pip install jax jaxlib ruff pytest-timeout pytest-xdist
       - name: Lint
         run: |
           . /home/firedrake/firedrake/bin/activate
           cd tlm_adjoint
           flake8
+          ruff clean
+          ruff check
       - name: Run tests
         run: |
           . /home/firedrake/firedrake/bin/activate
@@ -58,12 +60,14 @@ jobs:
       - name: Install dependencies
         run: |
           . /home/firedrake/firedrake/bin/activate
-          python3 -m pip install jax jaxlib pytest-timeout pytest-xdist
+          python3 -m pip install jax jaxlib ruff pytest-timeout pytest-xdist
       - name: Lint
         run: |
           . /home/firedrake/firedrake/bin/activate
           cd tlm_adjoint
           flake8
+          ruff clean
+          ruff check
       - name: Run tests
         run: |
           . /home/firedrake/firedrake/bin/activate

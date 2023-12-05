@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 # 'eigendecompose' was originally developed by loosely following the slepc4py
 # 3.6.0 demo demo/ex3.py. slepc4py 3.6.0 license information can be found in
 # the 'eigendecompose' docstring.

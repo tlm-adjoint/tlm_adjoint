@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     VariableStateLockDictionary, is_var, var_check_state_lock, var_id,
     var_increment_state_lock, var_new, var_scalar_value)

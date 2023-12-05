@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import var_caches, var_id, var_is_replacement, var_state
 
 from .alias import gc_disabled

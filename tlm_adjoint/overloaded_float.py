@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module defines types which allow for basic floating point level
 algorithmic differentiation. The implementation is intended to be used for a
 small number of calculations, for example after the calculation of a functional
@@ -494,7 +491,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
         """
 
         class CallableProperty(type(self._value)):
-            def __call__(self):
+            def __call__(self):  # noqa: N804
                 warnings.warn("value is a property and should not be called",
                               DeprecationWarning, stacklevel=2)
                 return self

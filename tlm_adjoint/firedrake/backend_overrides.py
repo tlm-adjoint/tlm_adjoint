@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .backend import (
     FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
     Projector, SameMeshInterpolator, backend_Constant, backend_DirichletBC,

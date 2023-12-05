@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     var_get_values, var_global_size, var_local_indices, var_set_values)
 

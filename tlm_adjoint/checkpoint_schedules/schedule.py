@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from abc import ABC, abstractmethod
 import functools
 import warnings
@@ -323,7 +320,7 @@ class CheckpointSchedule(ABC):
             value = orig_is_exhausted.__get__(self, type(self))
             return CallableBool(value)
 
-        orig_is_exhausted = getattr(cls, "is_exhausted")
+        orig_is_exhausted = cls.is_exhausted
         cls.is_exhausted = is_exhausted
 
     def __iter__(self):

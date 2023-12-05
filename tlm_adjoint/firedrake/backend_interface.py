@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .backend import (
     backend_Cofunction, backend_CofunctionSpace, backend_Constant,
     backend_Function, backend_FunctionSpace, backend_ScalarType)

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .backend import (
     Form, KrylovSolver, LUSolver, LinearVariationalSolver,
     NonlinearVariationalProblem, NonlinearVariationalSolver, Parameters,

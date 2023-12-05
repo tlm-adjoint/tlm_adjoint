@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 r"""This module implements solvers for linear systems defined in mixed spaces.
 
 The :class:`.System` class defines the block structure of the linear system,

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
     var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_global_size,

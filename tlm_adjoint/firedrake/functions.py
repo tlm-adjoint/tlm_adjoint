@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module includes functionality for interacting with Firedrake variables
 and Dirichlet boundary conditions.
 """
@@ -555,8 +552,6 @@ def bcs_is_homogeneous(bcs):
 class Replacement:
     """Represents a symbolic variable but with no value.
     """
-
-    pass
 
 
 def new_count(counted_class):

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     VariableStateLockDictionary, space_new, subtract_adjoint_derivative_action,
     var_copy, var_id, var_space, var_space_type)
@@ -548,7 +545,7 @@ class AdjointCache:
                 # Mapping
                 blocks_n = tuple(sorted(blocks.keys()))
 
-            eqs = defaultdict(lambda: [])
+            eqs = defaultdict(list)
             for n in reversed(blocks_n):
                 block = blocks[n]
                 for i in range(len(block) - 1, -1, -1):

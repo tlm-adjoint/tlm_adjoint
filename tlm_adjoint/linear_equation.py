@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     conjugate_dual_space_type, is_var, space_new, var_id,
     var_new_conjugate_dual, var_replacement, var_space, var_space_type,

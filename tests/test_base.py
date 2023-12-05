@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint import DEFAULT_COMM, VectorEquation
 from tlm_adjoint.override import override_function, override_method
 
@@ -102,7 +99,7 @@ def run_example_notebook(filename, tmp_path):
 
     tmp_filename = os.path.join(tmp_path, "tmp.py")
 
-    with open(filename, "r") as nb_h, open(tmp_filename, "w") as py_h:
+    with open(filename) as nb_h, open(tmp_filename, "w") as py_h:
         nb = json.load(nb_h)
         if nb["metadata"]["language_info"]["name"] != "python":
             raise RuntimeError("Expected a Python notebook")

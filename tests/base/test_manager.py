@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint import (
     CachedHessian, DEFAULT_COMM, EmptyEquation, Float, Functional, Hessian,
     Instruction, compute_gradient, configure_checkpointing, configure_tlm,

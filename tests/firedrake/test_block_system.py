@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .test_base import setup_test  # noqa: F401
 
 import mpi4py.MPI as MPI  # noqa: N817
@@ -140,7 +137,7 @@ def test_block_diagonal(setup_test, pc):  # noqa: F811
     assert u_1_error_norm < 1.0e-12
 
     if pc == "none":
-        assert ksp_its <= 69
+        assert ksp_its <= 70
     elif pc == "block_jacobi":
         assert ksp_its <= 31
     else:

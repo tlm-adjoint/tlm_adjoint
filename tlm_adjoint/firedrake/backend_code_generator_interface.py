@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .backend import (
     LinearSolver, Interpolator, Parameters, backend_Cofunction,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
