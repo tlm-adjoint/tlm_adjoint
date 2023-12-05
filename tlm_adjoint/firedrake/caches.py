@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module implements finite element assembly and linear solver data
 caching.
 """
@@ -169,7 +166,7 @@ def split_terms(terms, base_integral,
     if cached_terms is None:
         cached_terms = []
     if mat_terms is None:
-        mat_terms = defaultdict(lambda: [])
+        mat_terms = defaultdict(list)
     if non_cached_terms is None:
         non_cached_terms = []
 
@@ -259,7 +256,7 @@ def split_form(form):
             integrals.append(integral)
 
     cached_integrals = []
-    mat_integrals = defaultdict(lambda: [])
+    mat_integrals = defaultdict(list)
     non_cached_integrals = []
     for integral in form.integrals():
         cached_terms, mat_terms, non_cached_terms = \

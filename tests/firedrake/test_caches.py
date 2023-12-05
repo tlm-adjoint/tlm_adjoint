@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.caches import split_form

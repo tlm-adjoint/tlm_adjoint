@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint import (
     DEFAULT_COMM, Float, SymbolicFloat, VariableStateLockDictionary, Vector,
     var_caches, var_id, var_is_cached, var_is_static, var_lock_state, var_name,

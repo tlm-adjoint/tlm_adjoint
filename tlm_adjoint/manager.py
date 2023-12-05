@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module provides a simple :class:`.EquationManager` interface. Functions
 defined here access and interact with the default manager.
 """

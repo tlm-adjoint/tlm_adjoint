@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .manager import (
     annotation_enabled, manager_disabled, paused_manager, tlm_enabled)
 

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import functional_term_eq, is_var, var_is_scalar
 
 from .equations import Assignment, Axpy

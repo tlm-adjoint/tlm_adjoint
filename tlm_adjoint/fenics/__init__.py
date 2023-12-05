@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .. import *  # noqa: E402,F401
 del adjoint, alias, cached_hessian, caches, checkpointing, \
     eigendecomposition, equation, equations, fixed_point, functional, \

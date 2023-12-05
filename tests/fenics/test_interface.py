@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from fenics import *
 from tlm_adjoint.alias import WeakAlias
 from tlm_adjoint.interface import VariableStateChangeError

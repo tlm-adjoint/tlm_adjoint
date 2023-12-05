@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from ..interface import (
     check_space_types, comm_dup_cached, is_var, space_dtype, space_new,
     var_assign, var_axpy, var_axpy_conjugate, var_copy, var_copy_conjugate,

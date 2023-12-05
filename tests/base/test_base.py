@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint import (
     clear_caches, set_default_float_dtype, set_default_jax_dtype,
     reset_manager)

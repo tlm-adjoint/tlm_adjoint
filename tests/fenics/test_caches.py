@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.caches import split_form

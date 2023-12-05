@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .cached_hessian import *      # noqa: F401
 from .caches import *              # noqa: F401
 from .eigendecomposition import *  # noqa: F401

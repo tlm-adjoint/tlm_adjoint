@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from firedrake import *
 from firedrake.assemble import FormAssembler  # noqa: F401
 from firedrake.projection import ProjectorBase  # noqa: F401

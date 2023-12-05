@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 r"""This module defines an interface for interaction with backend data types.
 This is implemented via runtime binding of mixins. The
 :class:`.VariableInterface` adds methods to 'variables' which can be used to

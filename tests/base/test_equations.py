@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint import (
     DEFAULT_COMM, Assignment, Axpy, Float, Functional, Hessian,
     compute_gradient, start_manager, stop_manager, taylor_test,

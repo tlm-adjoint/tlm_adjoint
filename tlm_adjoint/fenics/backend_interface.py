@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .backend import (
     as_backend_type, backend_Constant, backend_Function, backend_FunctionSpace,
     backend_ScalarType, backend_Vector, cpp_PETScVector)

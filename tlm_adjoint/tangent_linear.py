@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     check_space_types, is_var, var_id, var_is_replacement, var_name,
     var_new_tangent_linear)
@@ -195,11 +192,11 @@ class TangentLinearMap:
 
         if len(M) == 1:
             self._name_suffix = \
-                "_tlm(%s,%s)" % (var_name(M[0]),
+                "_tlm(%s,%s)" % (var_name(M[0]),  # noqa: UP031
                                  var_name(dM[0]))
         else:
             self._name_suffix = \
-                "_tlm((%s),(%s))" % (",".join(map(var_name, M)),
+                "_tlm((%s),(%s))" % (",".join(map(var_name, M)),  # noqa: UP031
                                      ",".join(map(var_name, dM)))
 
         assert len(M) == len(dM)
@@ -259,7 +256,7 @@ def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):
     J_roots = list(Js)
     J_root_ids = {J_id: J_id for J_id in map(var_id, Js)}
     remaining_Js = dict(enumerate(Js))
-    tlm_adj = defaultdict(lambda: [])
+    tlm_adj = defaultdict(list)
 
     for n in reversed(blocks_n):
         block = blocks[n]

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint import (
     DEFAULT_COMM, DotProduct, Float, Hessian, Vector, VectorEquation,
     compute_gradient, new_jax_float, set_default_float_dtype,

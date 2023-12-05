@@ -1,0 +1,19 @@
+[tool.pytest.ini_options]
+
+markers = [
+    "base: backend independent tests",
+    "checkpoint_schedules: checkpoint schedules tests",
+    "example: example scripts",
+    "fenics: tests using the FEniCS backend",
+    "firedrake: tests using the Firedrake backend"]
+
+[tool.ruff]
+
+# extend-include = ["*.ipynb"]
+line-length = 79
+
+[tool.ruff.lint]
+
+ignore = ["F403", "F405", "N802", "N803", "N806", "N816", "N817"]
+preview = true
+select = ["E", "EXE", "F", "N", "PIE", "UP", "W"]

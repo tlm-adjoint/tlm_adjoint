@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     DEFAULT_COMM, VariableStateLockDictionary, comm_dup_cached, space_id,
     space_new, var_assign, var_copy, var_get_values, var_global_size, var_id,
@@ -331,8 +328,8 @@ class CheckpointStorage:
             eq_data = []
             assert len(eq_nl_deps) == len(nl_deps)
             for eq_dep, dep in zip(eq_nl_deps, nl_deps):
-                key, value = self._store(x_id=var_id(eq_dep), value=dep,
-                                         refs=refs, copy=copy(eq_dep))
+                key, _ = self._store(x_id=var_id(eq_dep), value=dep,
+                                     refs=refs, copy=copy(eq_dep))
                 self._data_keys[key] = None  # self._data_keys.add(key)
                 eq_data.append(key)
             self._data[(n, i)] = tuple(eq_data)

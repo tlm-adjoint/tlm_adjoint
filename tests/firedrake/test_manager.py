@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
@@ -539,11 +536,11 @@ def test_adjoint_caching(setup_test, test_leaks):
     stop_manager()
 
     def forward_J(m):
-        J, K = forward(m)
+        J, _ = forward(m)
         return J
 
     def forward_K(m):
-        J, K = forward(m)
+        _, K = forward(m)
         return K
 
     J_val = J.value

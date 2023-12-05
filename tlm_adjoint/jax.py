@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     add_replacement_interface, comm_dup_cached, is_var, new_space_id,

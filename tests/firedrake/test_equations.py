@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
@@ -897,13 +894,13 @@ def test_Storage(setup_test, test_leaks,
 
         J = Functional(name="J")
         J.assign(((dot(y, y_s) + 1.0) ** 2) * dx)
-        return y, x_s, y_s, d, h, J
+        return d, h, J
 
     x = Function(space, name="x", static=True)
     interpolate_expression(x, cos(pi * X[0]) * exp(X[1]))
 
     start_manager()
-    y, x_s, y_s, d, h, J = forward(x)
+    d, h, J = forward(x)
     stop_manager()
 
     assert len(manager()._cp._refs) == 1
@@ -917,7 +914,8 @@ def test_Storage(setup_test, test_leaks,
     J_val = J.value
 
     def forward_J(x):
-        return forward(x, d=d, h=h)[5]
+        _, _, J = forward(x, d=d, h=h)
+        return J
 
     dJ = compute_gradient(J, x)
 
@@ -1056,7 +1054,7 @@ def test_initial_guess(setup_test, test_leaks,
         interpolate_expression(y, exp(X[0]) * (1.0 + X[1] * X[1]))
 
     start_manager()
-    x_0, x, adj_x_0, J = forward(y)
+    x_0, _, adj_x_0, J = forward(y)
     stop_manager()
 
     assert len(manager()._cp._refs) == 3

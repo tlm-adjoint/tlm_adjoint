@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .backend import (
     LUSolver, KrylovSolver, Parameters, TestFunction, UserExpression,
     as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,

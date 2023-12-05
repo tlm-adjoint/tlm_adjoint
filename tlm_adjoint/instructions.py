@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import DEFAULT_COMM, comm_dup_cached, garbage_cleanup
 
 from .equations import EmptyEquation

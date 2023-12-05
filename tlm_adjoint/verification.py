@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 r"""This module implements Taylor remainder convergence testing using the
 approach described in
 

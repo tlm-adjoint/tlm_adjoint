@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module includes additional functionality for use with Firedrake.
 """
 

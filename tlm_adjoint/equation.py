@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from .interface import (
     check_space_types, is_var, var_id, var_is_alias, var_is_static, var_new,
     var_replacement, var_update_caches, var_update_state, var_zero)

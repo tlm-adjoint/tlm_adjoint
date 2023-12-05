@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module includes functionality for interacting with FEniCS variables
 and Dirichlet boundary conditions.
 """
@@ -553,14 +550,10 @@ class ReplacementConstant(Replacement):
     """Represents a symbolic DOLFIN `Constant`, but has no value.
     """
 
-    pass
-
 
 class ReplacementFunction(Replacement):
     """Represents a symbolic DOLFIN `Function`, but has no value.
     """
-
-    pass
 
 
 def replaced_form(form):

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """This module implements finite element calculations. In particular the
 :class:`.EquationSolver` class implements the solution of finite element
 variational problems.

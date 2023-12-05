@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from tlm_adjoint.checkpoint_schedules import (
     Clear, Configure, Forward, Reverse, Read, Write, EndForward, EndReverse)
 from tlm_adjoint.checkpoint_schedules import (
