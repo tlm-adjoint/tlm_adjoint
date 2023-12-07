@@ -722,16 +722,16 @@ class Matrix(ABC):
         self._arg_space = arg_space
         self._action_space = action_space
 
+    @property
     def arg_space(self):
-        """
-        :returns: The space defining :math:`V`.
+        """The space defining :math:`V`.
         """
 
         return self._arg_space
 
+    @property
     def action_space(self):
-        """
-        :returns: The space defining :math:`W`.
+        """The space defining :math:`W`.
         """
 
         return self._action_space
@@ -827,9 +827,9 @@ class BlockMatrix(Matrix):
         else:
             if isinstance(value, ufl.classes.Form):
                 value = form_matrix(value)
-            if value.arg_space() != self._arg_space[j]:
+            if value.arg_space != self._arg_space[j]:
                 raise ValueError("Invalid space")
-            if value.action_space() != self._action_space[i]:
+            if value.action_space != self._action_space[i]:
                 raise ValueError("Invalid space")
             self._blocks[(i, j)] = value
 
@@ -895,9 +895,9 @@ class PETScInterface:
 
 class SystemMatrix(PETScInterface):
     def __init__(self, arg_space, action_space, matrix, nullspace):
-        if matrix.arg_space() != arg_space.split_space:
+        if matrix.arg_space != arg_space.split_space:
             raise ValueError("Invalid space")
-        if matrix.action_space() != action_space.split_space:
+        if matrix.action_space != action_space.split_space:
             raise ValueError("Invalid space")
 
         super().__init__(arg_space, action_space, nullspace)
