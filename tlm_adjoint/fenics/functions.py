@@ -14,6 +14,7 @@ from ..interface import (
     var_replacement, var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
+from ..manager import paused_manager
 
 import numbers
 import numpy as np
@@ -467,7 +468,8 @@ class DirichletBC(backend_DirichletBC):
     # Based on FEniCS 2019.1.0 DirichletBC API
     def __init__(self, V, g, sub_domain, *args,
                  static=None, _homogeneous=False, **kwargs):
-        super().__init__(V, g, sub_domain, *args, **kwargs)
+        with paused_manager():
+            super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
             for dep in extract_coefficients(

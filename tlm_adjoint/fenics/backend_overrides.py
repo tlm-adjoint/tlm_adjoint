@@ -382,6 +382,36 @@ def DirichletBC_apply(self, orig, orig_args, *args):
             b._tlm_adjoint__bcs.append(self)
 
 
+def Constant_init_assign(self, value, annotate, tlm):
+    if is_var(value):
+        eq = Assignment(self, value)
+    elif isinstance(value, ufl.classes.Expr):
+        eq = ExprInterpolation(self, value)
+    else:
+        eq = None
+
+    if eq is not None:
+        assert len(eq.initial_condition_dependencies()) == 0
+        eq._post_process(annotate=annotate, tlm=tlm)
+
+
+@manager_method(backend_Constant, "__init__")
+def backend_Constant__init__(self, orig, orig_args, value, *args,
+                             annotate, tlm, **kwargs):
+    orig_args()
+    Constant_init_assign(self, value, annotate, tlm)
+
+
+# Patch the subclass constructor separately so that all variable attributes are
+# set before annotation
+@manager_method(Constant, "__init__")
+def Constant__init__(self, orig, orig_args, value=None, *args,
+                     annotate, tlm, **kwargs):
+    orig_args()
+    if value is not None:
+        Constant_init_assign(self, value, annotate, tlm)
+
+
 def var_update_state_post_call(self, return_value, *args, **kwargs):
     var_update_state(self)
     return return_value

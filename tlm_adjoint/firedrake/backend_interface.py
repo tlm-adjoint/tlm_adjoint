@@ -11,6 +11,7 @@ from ..interface import (
 
 from ..equations import Conversion
 from ..override import override_method, override_property
+from ..manager import paused_manager
 
 from .equations import Assembly
 from .functions import (
@@ -43,7 +44,8 @@ __all__ = \
 def Constant__init__(self, orig, orig_args, value, domain=None, *,
                      name=None, space=None, comm=None,
                      **kwargs):
-    orig(self, value, domain=domain, name=name, **kwargs)
+    with paused_manager():
+        orig(self, value, domain=domain, name=name, **kwargs)
 
     if name is None:
         name = self.name
