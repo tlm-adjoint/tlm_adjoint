@@ -13,6 +13,7 @@ from ..interface import (
     var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
+from ..manager import paused_manager
 
 import numbers
 import numpy as np
@@ -283,9 +284,10 @@ class Constant(backend_Constant):
         if cache is None:
             cache = static
 
-        super().__init__(
-            value, *args, name=name, domain=domain, space=space,
-            comm=comm, **kwargs)
+        with paused_manager():
+            super().__init__(
+                value, *args, name=name, domain=domain, space=space,
+                comm=comm, **kwargs)
         self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
         self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)

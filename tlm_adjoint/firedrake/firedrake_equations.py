@@ -388,6 +388,7 @@ class ExprAssignment(ExprEquation):
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
         self._rhs = rhs
         self._subset = subset
+        self._subset_kwargs = {} if subset is None else {"subset": subset}
 
     def drop_references(self):
         replace_map = {dep: var_replacement(dep)
@@ -401,7 +402,7 @@ class ExprAssignment(ExprEquation):
         rhs = self._replace(self._rhs, deps)
         if self._subset is not None:
             var_zero(x)
-        x.assign(rhs, subset=self._subset)
+        x.assign(rhs, **self._subset_kwargs)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
@@ -437,7 +438,7 @@ class ExprAssignment(ExprEquation):
 
             # F = assemble(dF)
             F = var_new(dep)
-            F.assign(dF, subset=self._subset)
+            F.assign(dF, **self._subset_kwargs)
 
             if complex_mode:
                 # The conjugate which would be introduced by adjoint(...).
@@ -457,7 +458,7 @@ class ExprAssignment(ExprEquation):
 
             if isinstance(dep, (backend_Constant, ReplacementConstant)):
                 dF = var_new_conjugate_dual(adj_x).assign(
-                    dF, subset=self._subset)
+                    dF, **self._subset_kwargs)
                 F = var_new_conjugate_dual(dep)
                 var_assign(F, var_inner(adj_x, dF))
             elif isinstance(dep, (backend_Cofunction, ReplacementCofunction,
@@ -466,10 +467,10 @@ class ExprAssignment(ExprEquation):
                 F = var_new_conjugate_dual(dep)
                 if (e.family(), e.degree(), e.value_shape) == ("Real", 0, ()):
                     dF = var_new_conjugate_dual(adj_x).assign(
-                        dF, subset=self._subset)
+                        dF, **self._subset_kwargs)
                     F.dat.data[:] = var_inner(adj_x, dF)
                 else:
-                    F.assign(adj_x, subset=self._subset)
+                    F.assign(adj_x, **self._subset_kwargs)
                     F *= dF(()).conjugate()
             else:
                 raise TypeError(f"Unexpected type: {type(F)}")
