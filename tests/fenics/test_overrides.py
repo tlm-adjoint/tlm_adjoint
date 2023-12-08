@@ -1,6 +1,6 @@
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend import backend_assemble
+from tlm_adjoint.fenics.backend import backend_assemble, backend_Constant
 from tlm_adjoint.fenics.backend_code_generator_interface import (
     assemble as backend_code_generator_interface_assemble)
 
@@ -12,6 +12,51 @@ import pytest
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
+
+
+@pytest.mark.fenics
+@pytest.mark.parametrize("constant_cls", [backend_Constant, Constant])
+@pytest.mark.parametrize("p", [1, 2])
+@seed_test
+def test_Constant_init(setup_test,
+                       constant_cls, p):
+    def forward(m):
+        x = constant_cls(m if p == 1 else m ** p)
+        return to_float(x) ** (4 / p)
+
+    if complex_mode:
+        m = constant_cls(np.cbrt(2.0) + 1.0j * np.cbrt(3.0))
+        dm = constant_cls(np.sqrt(0.5) + 1.0j * np.sqrt(0.5))
+        dM = tuple(map(constant_cls, (complex(dm), complex(dm).conjugate())))
+    else:
+        m = constant_cls(np.cbrt(2.0))
+        dm = constant_cls(1.0)
+        dM = (dm, dm)
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+    assert abs(complex(dJ).conjugate() - 4.0 * (complex(m) ** 3)) < 1.0e-14
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, dM=dm)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(dm,))
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1, dMs=dM)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2, dMs=dM)
+    assert min_order > 2.00
 
 
 def project_project(F, space, bc):
