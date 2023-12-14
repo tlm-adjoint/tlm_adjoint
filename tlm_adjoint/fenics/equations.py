@@ -51,8 +51,7 @@ def extract_derivative_coefficients(expr, dep):
     return extract_coefficients(dexpr)
 
 
-def extract_dependencies(expr, *,
-                         space_type="primal"):
+def extract_dependencies(expr, *, space_type=None):
     deps = {}
     nl_deps = {}
     for dep in extract_coefficients(expr):
@@ -69,8 +68,9 @@ def extract_dependencies(expr, *,
                for nl_dep_id in sorted(nl_deps.keys())}
 
     assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
-    for dep in deps.values():
-        check_space_type(dep, space_type)
+    if space_type is not None:
+        for dep in deps.values():
+            check_space_type(dep, space_type)
 
     return deps, nl_deps
 
@@ -149,7 +149,7 @@ class Assembly(ExprEquation):
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -360,7 +360,7 @@ class EquationSolver(ExprEquation):
             J = derivative(F, x)
             J = ufl.algorithms.expand_derivatives(J)
 
-        deps, nl_deps = extract_dependencies(F)
+        deps, nl_deps = extract_dependencies(F, space_type="primal")
         if nl_solve_J is not None:
             for dep in extract_coefficients(nl_solve_J):
                 if is_var(dep):
@@ -882,7 +882,7 @@ class ExprInterpolation(ExprEquation):
     """
 
     def __init__(self, x, rhs):
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
