@@ -399,7 +399,7 @@ def derivative(expr, x, argument=None, *,
             raise ValueError("Unexpected argument")
     if argument is not None:
         for expr_argument in ufl.algorithms.extract_arguments(argument):
-            if expr_argument.number() < arity:
+            if expr_argument.number() < arity - int(isinstance(x, ufl.classes.Cofunction)):  # noqa: E501
                 raise ValueError("Invalid argument")
 
     expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
