@@ -1139,6 +1139,47 @@ def test_EquationSolver_forward_solve_deps(setup_test, test_leaks,
     assert min_order > 1.99
 
 
+def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
+    EquationSolver(eq, u, solver_parameters=solver_parameters).solve()
+
+
+def solve_eq_solve(eq, u, *, solver_parameters=None):
+    solve(eq, u, solver_parameters=solver_parameters)
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("solve_eq", [solve_eq_EquationSolver,
+                                      solve_eq_solve])
+def test_EquationSolver_dual(setup_test, test_leaks,
+                             solve_eq):
+    mesh = UnitIntervalMesh(10)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        b = assemble(inner(m, test) * dx)
+        u = Function(space, name="u")
+        solve_eq(inner(trial, test) * dx == b, u,
+                 solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        J.assign(((u + Constant(1.0)) ** 4) * dx)
+        return J
+
+    m = Function(space, name="m")
+    m.interpolate(Constant(1.0))
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+
 @pytest.mark.firedrake
 @seed_test
 def test_eliminate_zeros(setup_test, test_leaks):
