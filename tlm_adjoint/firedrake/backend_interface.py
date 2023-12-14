@@ -1,6 +1,7 @@
 from .backend import (
-    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
-    backend_Function, backend_FunctionSpace, backend_ScalarType)
+    TestFunction, backend_Cofunction, backend_CofunctionSpace,
+    backend_Constant, backend_Function, backend_FunctionSpace,
+    backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     add_replacement_interface, check_space_type, comm_dup_cached, new_space_id,
@@ -487,6 +488,10 @@ class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
         Replacement.__init__(self)
         ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
         add_replacement_interface(self, x)
+
+    def _analyze_form_arguments(self):
+        self._arguments = (TestFunction(var_space(self).dual()),)
+        self._coefficients = (self,)
 
     def equals(self, other):
         if self is other:
