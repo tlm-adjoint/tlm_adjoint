@@ -146,7 +146,7 @@ class LocalProjection(EquationSolver):
         space = x.function_space()
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
-        if not isinstance(rhs, ufl.classes.Form):
+        if not isinstance(rhs, ufl.classes.BaseForm):
             rhs = ufl.inner(rhs, test) * ufl.dx
 
         super().__init__(
@@ -216,7 +216,7 @@ class LocalProjection(EquationSolver):
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
+                    tlm_rhs = tlm_rhs + derivative(self._rhs, dep, argument=tau_dep)  # noqa: E501
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():

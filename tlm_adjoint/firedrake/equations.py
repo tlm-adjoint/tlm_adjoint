@@ -333,7 +333,7 @@ class EquationSolver(ExprEquation):
 
         lhs, rhs = eq.lhs, eq.rhs
         del eq
-        linear = isinstance(rhs, ufl.classes.Form)
+        linear = isinstance(rhs, ufl.classes.BaseForm)
 
         if linear:
             if len(lhs.arguments()) != 2:
@@ -450,7 +450,7 @@ class EquationSolver(ExprEquation):
 
         self._F = ufl.replace(self._F, replace_map)
         self._lhs = ufl.replace(self._lhs, replace_map)
-        if isinstance(self._rhs, ufl.classes.Form):
+        if isinstance(self._rhs, ufl.classes.BaseForm):
             self._rhs = ufl.replace(self._rhs, replace_map)
         self._J = ufl.replace(self._J, replace_map)
         if self._nl_solve_J is not None:
@@ -801,7 +801,7 @@ class Projection(EquationSolver):
     def __init__(self, x, rhs, *args, **kwargs):
         space = var_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
-        if not isinstance(rhs, ufl.classes.Form):
+        if not isinstance(rhs, ufl.classes.BaseForm):
             rhs = ufl.inner(rhs, test) * ufl.dx
         super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
                          *args, **kwargs)
