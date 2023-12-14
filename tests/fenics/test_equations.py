@@ -2,6 +2,7 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend_code_generator_interface import (
     assemble_linear_solver)
+from tlm_adjoint.fenics.functions import extract_coefficients
 
 from .test_base import *
 

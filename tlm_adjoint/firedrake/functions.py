@@ -23,7 +23,6 @@ import weakref
 __all__ = \
     [
         "Constant",
-        "extract_coefficients",
 
         "Zero",
         "ZeroConstant",
@@ -362,11 +361,6 @@ def constant_space(shape, *, domain=None):
 
 
 def extract_coefficients(expr):
-    """
-    :returns: Coefficients on which the supplied :class:`ufl.core.expr.Expr` or
-        :class:`ufl.Form` depends.
-    """
-
     if isinstance(expr, ufl.classes.Form) \
             and "_tlm_adjoint__form_coefficients" in expr._cache:
         return expr._cache["_tlm_adjoint__form_coefficients"]

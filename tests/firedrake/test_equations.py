@@ -2,6 +2,7 @@ from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
     assemble_linear_solver)
+from tlm_adjoint.firedrake.functions import extract_coefficients
 
 from .test_base import *
 
