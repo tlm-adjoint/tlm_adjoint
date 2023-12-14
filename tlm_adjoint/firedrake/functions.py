@@ -412,6 +412,7 @@ def derivative(expr, x, argument=None, *,
     if argument is not None:
         argument = ufl.replace(argument, replace_map)
     dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
+    dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return ufl.replace(dexpr, replace_map_inverse)
 
 
