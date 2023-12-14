@@ -324,7 +324,7 @@ class ZeroConstant(Constant, Zero):
 
 def extract_coefficients(expr):
     """
-    :returns: Variables on which the supplied :class:`ufl.core.expr.Expr` or
+    :returns: Coefficients on which the supplied :class:`ufl.core.expr.Expr` or
         :class:`ufl.Form` depends.
     """
 

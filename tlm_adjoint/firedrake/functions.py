@@ -363,7 +363,7 @@ def constant_space(shape, *, domain=None):
 
 def extract_coefficients(expr):
     """
-    :returns: Variables on which the supplied :class:`ufl.core.expr.Expr` or
+    :returns: Coefficients on which the supplied :class:`ufl.core.expr.Expr` or
         :class:`ufl.Form` depends.
     """
 
@@ -372,7 +372,7 @@ def extract_coefficients(expr):
         return expr._cache["_tlm_adjoint__form_coefficients"]
 
     deps = []
-    for c in (ufl.classes.Coefficient, backend_Constant):
+    for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
         deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
                            key=lambda dep: dep.count()))
 
