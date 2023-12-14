@@ -457,7 +457,7 @@ class EquationSolver(ExprEquation):
             self._nl_solve_J = ufl.replace(self._nl_solve_J, replace_map)
 
         if self._forward_b_pa is not None:
-            cached_form, mat_forms, non_cached_form = self._forward_b_pa
+            cached_form, mat_forms, non_cached_form, non_cached_expr = self._forward_b_pa  # noqa: E501
 
             if cached_form is not None:
                 cached_form[0] = ufl.replace(cached_form[0], replace_map)
@@ -465,8 +465,10 @@ class EquationSolver(ExprEquation):
                 mat_forms[dep_index][0] = ufl.replace(mat_form, replace_map)
             if non_cached_form is not None:
                 non_cached_form = ufl.replace(non_cached_form, replace_map)
+            if non_cached_expr is not None:
+                non_cached_expr = ufl.replace(non_cached_expr, replace_map)
 
-            self._forward_b_pa = (cached_form, mat_forms, non_cached_form)
+            self._forward_b_pa = (cached_form, mat_forms, non_cached_form, non_cached_expr)  # noqa: E501
 
         for dep_index, dF in self._adjoint_dF_cache.items():
             if dF is not None:
@@ -477,7 +479,7 @@ class EquationSolver(ExprEquation):
 
         if self._forward_b_pa is None:
             rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
-            cached_form, mat_forms_, non_cached_form = split_form(rhs)
+            cached_form, mat_forms_, non_cached_form, non_cached_expr = split_form(rhs)  # noqa: E501
 
             dep_indices = {var_id(dep): dep_index
                            for dep_index, dep in enumerate(eq_deps)}
@@ -493,9 +495,12 @@ class EquationSolver(ExprEquation):
             else:
                 cached_form = [cached_form, CacheRef()]
 
-            self._forward_b_pa = (cached_form, mat_forms, non_cached_form)
+            if isinstance(non_cached_expr, ufl.classes.ZeroBaseForm):
+                non_cached_expr = None
+
+            self._forward_b_pa = (cached_form, mat_forms, non_cached_form, non_cached_expr)  # noqa: E501
         else:
-            cached_form, mat_forms, non_cached_form = self._forward_b_pa
+            cached_form, mat_forms, non_cached_form, non_cached_expr = self._forward_b_pa  # noqa: E501
 
         b = None
 
@@ -532,6 +537,12 @@ class EquationSolver(ExprEquation):
                 b = rhs_copy(cached_b)
             else:
                 rhs_addto(b, cached_b)
+
+        if non_cached_expr is not None:
+            if b is None:
+                b = var_new_conjugate_dual(self.x()).assign(non_cached_expr)
+            else:
+                b = b.assign(b.copy(deepcopy=True) + non_cached_expr)
 
         if b is None:
             b = var_new_conjugate_dual(self.x())

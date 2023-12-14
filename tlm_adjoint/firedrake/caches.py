@@ -243,7 +243,34 @@ def split_terms(terms, base_integral,
     return cached_terms, dict(mat_terms), non_cached_terms
 
 
+def iter_form(form):
+    if isinstance(form, ufl.classes.FormSum):
+        yield from zip(form.weights(), form.components())
+    elif isinstance(form, (ufl.classes.Form, ufl.classes.Cofunction)):  # noqa: E501
+        yield (1.0, form)
+    else:
+        raise TypeError(f"Unexpected type: {type(form)}")
+
+
 def split_form(form):
+    forms = ufl.classes.Form([])
+    cofunctions = ufl.classes.ZeroBaseForm(form.arguments())
+    for weight, comp in iter_form(form):
+        if isinstance(comp, ufl.classes.Form):
+            forms = forms + weight * comp
+        elif isinstance(comp, ufl.classes.Cofunction):
+            cofunctions = cofunctions + weight * comp
+        else:
+            raise TypeError(f"Unexpected type: {type(comp)}")
+
+    return tuple(_split_form(forms)) + (cofunctions,)
+
+
+def _split_form(form):
+    assert isinstance(form, ufl.classes.Form)
+    if form.empty():
+        return ufl.classes.Form([]), {}, ufl.classes.Form([])
+
     if len(form.arguments()) != 1:
         raise ValueError("Arity 1 form required")
     if not complex_mode:
