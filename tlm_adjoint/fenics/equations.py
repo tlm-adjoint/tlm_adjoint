@@ -138,8 +138,6 @@ class Assembly(ExprEquation):
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
-        rhs = ufl.classes.Form(rhs.integrals())
-
         arity = len(rhs.arguments())
         if arity == 0:
             check_space_type(x, "primal")
@@ -337,12 +335,7 @@ class EquationSolver(ExprEquation):
 
         lhs, rhs = eq.lhs, eq.rhs
         del eq
-        lhs = ufl.classes.Form(lhs.integrals())
         linear = isinstance(rhs, ufl.classes.Form)
-        if linear:
-            rhs = ufl.classes.Form(rhs.integrals())
-        if J is not None:
-            J = ufl.classes.Form(J.integrals())
 
         if linear:
             if len(lhs.arguments()) != 2:
