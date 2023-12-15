@@ -21,7 +21,8 @@ from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
 from ..equations import Assignment
 
-from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
+from .caches import (
+    assembly_cache, is_cached, iter_form, linear_solver_cache, split_form)
 from .functions import (
     ReplacementConstant, bcs_is_cached, bcs_is_homogeneous, bcs_is_static,
     derivative, eliminate_zeros, extract_coefficients)
@@ -470,9 +471,8 @@ class EquationSolver(ExprEquation):
 
             self._forward_b_pa = (cached_form, mat_forms, non_cached_form, non_cached_expr)  # noqa: E501
 
-        for dep_index, dF in self._adjoint_dF_cache.items():
-            if dF is not None:
-                self._adjoint_dF_cache[dep_index] = ufl.replace(dF, replace_map)  # noqa: E501
+        for dep_index, (dF_forms, dF_cofunctions) in self._adjoint_dF_cache.items():  # noqa: E501
+            self._adjoint_dF_cache[dep_index] = (ufl.replace(dF_forms, replace_map), dF_cofunctions)  # noqa: E501
 
     def _cached_rhs(self, deps, *, b_bc=None):
         eq_deps = self.dependencies()
@@ -636,21 +636,29 @@ class EquationSolver(ExprEquation):
         for dep_index, dep_B in dep_Bs.items():
             if dep_index not in self._adjoint_dF_cache:
                 dep = self.dependencies()[dep_index]
-                dF = derivative(self._F, dep)
-                dF = ufl.algorithms.expand_derivatives(dF)
-                dF = eliminate_zeros(dF)
-                if dF.empty():
-                    dF = None
-                else:
-                    dF = adjoint(dF)
-                self._adjoint_dF_cache[dep_index] = dF
-            dF = self._adjoint_dF_cache[dep_index]
+                dF_forms = ufl.classes.Form([])
+                dF_cofunctions = 0
+                for weight, comp in iter_form(self._F):
+                    if isinstance(comp, ufl.classes.Form):
+                        if dep in extract_coefficients(comp):
+                            dF_term = derivative(comp, dep)
+                            dF_term = ufl.algorithms.expand_derivatives(dF_term)  # noqa: E501
+                            dF_term = eliminate_zeros(dF_term)
+                            if not dF_term.empty():
+                                dF_forms = dF_forms + weight * adjoint(dF_term)
+                    elif isinstance(comp, ufl.classes.Cofunction):
+                        if comp == dep:
+                            dF_cofunctions += weight
+                    else:
+                        raise TypeError(f"Unexpected type: {type(comp)}")
+                self._adjoint_dF_cache[dep_index] = (dF_forms, dF_cofunctions)
+            dF_forms, dF_cofunctions = self._adjoint_dF_cache[dep_index]
 
-            if dF is not None:
+            if not dF_forms.empty():
                 if dep_index not in self._adjoint_action_cache:
                     if self._cache_rhs_assembly \
                             and isinstance(adj_x, backend_Function) \
-                            and is_cached(dF):
+                            and is_cached(dF_forms):
                         self._adjoint_action_cache[dep_index] = CacheRef()
                     else:
                         self._adjoint_action_cache[dep_index] = None
@@ -662,17 +670,20 @@ class EquationSolver(ExprEquation):
                     if mat_bc is None:
                         self._adjoint_action_cache[dep_index], mat_bc = \
                             assembly_cache().assemble(
-                                dF,
+                                dF_forms,
                                 form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                                 replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     mat, _ = mat_bc
                     dep_B.sub(matrix_multiply(mat, adj_x))
                 else:
                     # Cached form
-                    dF = ufl.action(self._nonlinear_replace(dF, nl_deps),
-                                    coefficient=adj_x)
-                    dF = assemble(dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
-                    dep_B.sub(dF)
+                    dF_forms = ufl.action(self._nonlinear_replace(dF_forms, nl_deps),  # noqa: E501
+                                          coefficient=adj_x)
+                    dF_forms = assemble(dF_forms, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                    dep_B.sub(dF_forms)
+
+            if dF_cofunctions != 0:
+                dep_B.sub((dF_cofunctions, adj_x))
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     #     # Similar to 'RHS.derivative_action' and
