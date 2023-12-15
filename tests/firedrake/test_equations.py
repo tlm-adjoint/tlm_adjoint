@@ -1148,19 +1148,35 @@ def solve_eq_solve(eq, u, *, solver_parameters=None):
     solve(eq, u, solver_parameters=solver_parameters)
 
 
+def rhs_Form(m, test):
+    return inner(m, test) * dx
+
+
+def rhs_Cofunction(m, test):
+    return assemble(rhs_Form(m, test))
+
+
+def rhs_FormSum(alpha, m, test):
+    return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
+
+
 @pytest.mark.firedrake
 @pytest.mark.parametrize("solve_eq", [solve_eq_EquationSolver,
                                       solve_eq_solve])
-def test_EquationSolver_dual(setup_test, test_leaks,
-                             solve_eq):
+@pytest.mark.parametrize("rhs", [rhs_Form,
+                                 rhs_Cofunction,
+                                 functools.partial(rhs_FormSum, 1.5),
+                                 functools.partial(rhs_FormSum, 0.5),
+                                 functools.partial(rhs_FormSum, -0.5)])
+def test_EquationSolver_FormSum(setup_test, test_leaks,
+                                solve_eq, rhs):
     mesh = UnitIntervalMesh(10)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
     def forward(m):
-        b = assemble(inner(m, test) * dx)
         u = Function(space, name="u")
-        solve_eq(inner(trial, test) * dx == b, u,
+        solve_eq(inner(trial, test) * dx == rhs(m, test), u,
                  solver_parameters=ls_parameters_cg)
 
         J = Functional(name="J")
@@ -1178,6 +1194,19 @@ def test_EquationSolver_dual(setup_test, test_leaks,
     dJ = compute_gradient(J, m)
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 2.00
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 3.00
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 2.00
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
     assert min_order > 2.00
 
 

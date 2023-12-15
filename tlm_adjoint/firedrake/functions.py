@@ -360,6 +360,21 @@ def constant_space(shape, *, domain=None):
     return ufl.classes.FunctionSpace(domain, element)
 
 
+def iter_expr(expr, *, evaluate_weights=False):
+    if isinstance(expr, ufl.classes.FormSum):
+        for weight, comp in zip(expr.weights(), expr.components()):
+            if evaluate_weights:
+                weight = complex(weight)
+                if weight.imag == 0:
+                    weight = weight.real
+            yield (weight, comp)
+    elif isinstance(expr, (ufl.classes.Form, ufl.classes.Cofunction,
+                           ufl.classes.Expr)):
+        yield (1.0, expr)
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
+
+
 def extract_coefficients(expr):
     if isinstance(expr, ufl.classes.Form) \
             and "_tlm_adjoint__form_coefficients" in expr._cache:
@@ -369,6 +384,8 @@ def extract_coefficients(expr):
     for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
         deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
                            key=lambda dep: dep.count()))
+
+    # Note: Misses FormSum weight dependencies -- see Firedrake issue #3292
 
     if isinstance(expr, ufl.classes.Form):
         expr._cache["_tlm_adjoint__form_coefficients"] = deps

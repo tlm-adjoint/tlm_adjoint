@@ -14,7 +14,7 @@ from ..caches import Cache
 
 from .functions import (
     ReplacementFunction, derivative, eliminate_zeros, extract_coefficients,
-    replaced_form)
+    iter_expr, replaced_form)
 
 from collections import defaultdict
 import itertools
@@ -243,19 +243,10 @@ def split_terms(terms, base_integral,
     return cached_terms, dict(mat_terms), non_cached_terms
 
 
-def iter_form(form):
-    if isinstance(form, ufl.classes.FormSum):
-        yield from zip(form.weights(), form.components())
-    elif isinstance(form, (ufl.classes.Form, ufl.classes.Cofunction)):  # noqa: E501
-        yield (1.0, form)
-    else:
-        raise TypeError(f"Unexpected type: {type(form)}")
-
-
 def split_form(form):
     forms = ufl.classes.Form([])
     cofunctions = ufl.classes.ZeroBaseForm(form.arguments())
-    for weight, comp in iter_form(form):
+    for weight, comp in iter_expr(form):
         if isinstance(comp, ufl.classes.Form):
             forms = forms + weight * comp
         elif isinstance(comp, ufl.classes.Cofunction):

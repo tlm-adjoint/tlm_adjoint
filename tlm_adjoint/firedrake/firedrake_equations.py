@@ -19,7 +19,7 @@ from ..equation import Equation, ZeroAssignment
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
-from .functions import ReplacementConstant, eliminate_zeros
+from .functions import ReplacementConstant, eliminate_zeros, iter_expr
 
 import itertools
 import numpy as np
@@ -211,15 +211,18 @@ class LocalProjection(EquationSolver):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = ufl.classes.ZeroBaseForm(self._rhs.arguments())
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    tlm_rhs = tlm_rhs + derivative(self._rhs, dep, argument=tau_dep)  # noqa: E501
+                    for weight, comp in iter_expr(self._rhs):
+                        # Note: Ignores weight dependencies
+                        tlm_rhs = (tlm_rhs
+                                   + weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501 # noqa: E501
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if tlm_rhs.empty():
+        if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:
             return LocalProjection(
