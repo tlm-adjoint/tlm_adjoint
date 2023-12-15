@@ -14,8 +14,7 @@ from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
     matrix_multiply, process_adjoint_solver_parameters,
-    process_solver_parameters, rhs_addto, rhs_copy, solve,
-    update_parameters_dict, verify_assembly)
+    process_solver_parameters, solve, update_parameters_dict, verify_assembly)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
@@ -77,7 +76,7 @@ def apply_rhs_bcs(b, hbcs, *, b_bc=None):
     for bc in hbcs:
         bc.apply(b)
     if b_bc is not None:
-        rhs_addto(b, b_bc)
+        var_axpy(b, 1.0, b_bc)
 
 
 class ExprEquation(Equation):
@@ -544,9 +543,9 @@ class EquationSolver(ExprEquation):
                     form_compiler_parameters=self._form_compiler_parameters,
                     replace_map=self._replace_map(deps))
             if b is None:
-                b = rhs_copy(cached_b)
+                b = cached_b.copy(deepcopy=True)
             else:
-                rhs_addto(b, cached_b)
+                var_axpy(b, 1.0, cached_b)
 
         if non_cached_expr is not None:
             if b is None:

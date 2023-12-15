@@ -5,8 +5,7 @@ from .backend import (
     parameters)
 from ..interface import (
     check_space_type, check_space_types, is_var, space_new, var_assign,
-    var_axpy, var_copy, var_inner, var_new_conjugate_dual, var_space,
-    var_space_type)
+    var_copy, var_inner, var_new_conjugate_dual, var_space, var_space_type)
 
 from ..manager import manager_disabled
 from ..override import override_method
@@ -302,17 +301,6 @@ def matrix_multiply(A, x, *,
             A.petscmat.mult(x_v, tensor_v)
 
     return tensor
-
-
-def rhs_copy(x):
-    check_space_type(x, "conjugate_dual")
-    return var_copy(x)
-
-
-def rhs_addto(x, y):
-    check_space_type(x, "conjugate_dual")
-    check_space_type(y, "conjugate_dual")
-    var_axpy(x, 1.0, y)
 
 
 def parameters_key(parameters):
