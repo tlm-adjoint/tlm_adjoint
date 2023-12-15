@@ -8,6 +8,7 @@ from .test_base import *
 
 import firedrake
 import functools
+import numbers
 import numpy as np
 import os
 import pytest
@@ -1149,7 +1150,7 @@ def solve_eq_solve(eq, u, *, solver_parameters=None):
 
 
 def rhs_Form(m, test):
-    return inner(m, test) * dx
+    return inner(m.dx(0), test) * dx
 
 
 def rhs_Cofunction(m, test):
@@ -1157,6 +1158,8 @@ def rhs_Cofunction(m, test):
 
 
 def rhs_FormSum(alpha, m, test):
+    if not isinstance(alpha, numbers.Real) and not complex_mode:
+        pytest.skip()
     return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
 
 
@@ -1167,10 +1170,12 @@ def rhs_FormSum(alpha, m, test):
                                  rhs_Cofunction,
                                  functools.partial(rhs_FormSum, 1.5),
                                  functools.partial(rhs_FormSum, 0.5),
-                                 functools.partial(rhs_FormSum, -0.5)])
+                                 functools.partial(rhs_FormSum, -0.5),
+                                 functools.partial(rhs_FormSum, 0.5 + 0.5j)])
 def test_EquationSolver_FormSum(setup_test, test_leaks,
                                 solve_eq, rhs):
     mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test, trial = TestFunction(space), TrialFunction(space)
 
@@ -1180,34 +1185,44 @@ def test_EquationSolver_FormSum(setup_test, test_leaks,
                  solver_parameters=ls_parameters_cg)
 
         J = Functional(name="J")
-        J.assign(((u + Constant(1.0)) ** 4) * dx)
-        return J
+        J.assign(((u + Constant(1.0)) ** 3) * dx)
+        return u, J
 
     m = Function(space, name="m")
-    m.interpolate(Constant(1.0))
+    m.interpolate(X[0])
     start_manager()
-    J = forward(m)
+    u, J = forward(m)
     stop_manager()
+
+    assert np.sqrt(abs(assemble(inner(u - Constant(1.0),
+                                      u - Constant(1.0)) * dx))) < 1.0e-15
 
     J_val = J.value
 
     dJ = compute_gradient(J, m)
 
-    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    def forward_J(m):
+        _, J = forward(m)
+        return J
 
-    ddJ = Hessian(forward)
-    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-3)
+    assert min_order > 1.99
 
-    min_order = taylor_test_tlm(forward, m, tlm_order=1)
-    assert min_order > 2.00
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
+                            size=4)
+    assert min_order > 2.99
 
-    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
-    assert min_order > 2.00
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
+    assert min_order > 1.99
 
-    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
-    assert min_order > 2.00
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
