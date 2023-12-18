@@ -370,7 +370,7 @@ def iter_expr(expr, *, evaluate_weights=False):
             yield (weight, comp)
     elif isinstance(expr, (ufl.classes.Form, ufl.classes.Cofunction,
                            ufl.classes.Expr)):
-        yield (1.0, expr)
+        yield (1, expr)
     else:
         raise TypeError(f"Unexpected type: {type(expr)}")
 

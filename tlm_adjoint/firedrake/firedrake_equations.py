@@ -219,7 +219,7 @@ class LocalProjection(EquationSolver):
                     for weight, comp in iter_expr(self._rhs):
                         # Note: Ignores weight dependencies
                         tlm_rhs = (tlm_rhs
-                                   + weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501 # noqa: E501
+                                   + weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):

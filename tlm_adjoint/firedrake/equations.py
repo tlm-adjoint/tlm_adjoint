@@ -363,7 +363,7 @@ class EquationSolver(ExprEquation):
                     and len(tuple(c for c in extract_coefficients(weight)
                                   if is_var(c))) > 0:
                 # See Firedrake issue #3292
-                raise NotImplementedError("FormSum weights cannot depend on"
+                raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")
 
         deps, nl_deps = extract_dependencies(F)
