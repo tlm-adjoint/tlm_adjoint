@@ -16,6 +16,7 @@ from ..interface import (
 from ..caches import Caches
 from ..manager import paused_manager
 
+import functools
 import numbers
 import numpy as np
 try:
@@ -321,6 +322,23 @@ class ZeroConstant(Constant, Zero):
             raise RuntimeError("ZeroConstant is not zero-valued")
 
 
+def form_cached(key):
+    def wrapper(fn):
+        @functools.wraps(fn)
+        def wrapped(expr, *args, **kwargs):
+            if isinstance(expr, ufl.classes.Form) and key in expr._cache:
+                value = expr._cache[key]
+            else:
+                value = fn(expr, *args, **kwargs)
+                if isinstance(expr, ufl.classes.Form):
+                    assert key not in expr._cache
+                    expr._cache[key] = value
+            return value
+        return wrapped
+    return wrapper
+
+
+@form_cached("_tlm_adjoint__form_coefficients")
 def extract_coefficients(expr):
     return ufl.algorithms.extract_coefficients(expr)
 
@@ -404,47 +422,36 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
         elimination applied. May return `expr`.
     """
 
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__simplified_form" in expr._cache:
-        simplified_expr = expr._cache["_tlm_adjoint__simplified_form"]
-    else:
-        replace_map = {}
-        for c in extract_coefficients(expr):
-            if isinstance(c, Zero):
-                replace_map[c] = ufl.classes.Zero(shape=c.ufl_shape)
-
+    @form_cached("_tlm_adjoint__simplified_form")
+    def simplified(expr):
+        replace_map = {c: ufl.classes.Zero(shape=c.ufl_shape)
+                       for c in extract_coefficients(expr)
+                       if isinstance(c, Zero)}
         if len(replace_map) == 0:
-            simplified_expr = expr
+            return expr
         else:
-            simplified_expr = ufl.replace(expr, replace_map)
+            return ufl.replace(expr, replace_map)
 
-        if isinstance(expr, ufl.classes.Form):
-            expr._cache["_tlm_adjoint__simplified_form"] = simplified_expr
-
-    if force_non_empty_form \
-            and isinstance(simplified_expr, ufl.classes.Form) \
-            and simplified_expr.empty():
-        if "_tlm_adjoint__simplified_form_non_empty" in expr._cache:
-            simplified_expr = expr._cache["_tlm_adjoint__simplified_form_non_empty"]  # noqa: E501
+    @form_cached("_tlm_adjoint__simplified_form_non_empty")
+    def simplified_non_empty(base_expr, expr):
+        if not isinstance(expr, ufl.classes.Form) or not expr.empty():
+            return expr
+        arguments = base_expr.arguments()
+        zero = ZeroConstant()
+        if len(arguments) == 0:
+            domain, = base_expr.ufl_domains()
+            return zero * ufl.ds(domain)
+        elif len(arguments) == 1:
+            test, = arguments
+            return ufl.inner(zero, test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
         else:
-            # Inefficient, but it is very difficult to generate a non-empty but
-            # zero valued form
-            arguments = expr.arguments()
-            zero = ZeroConstant()
-            if len(arguments) == 0:
-                domain, = expr.ufl_domains()
-                simplified_expr = zero * ufl.ds(domain)
-            elif len(arguments) == 1:
-                test, = arguments
-                simplified_expr = ufl.inner(zero, test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
-            else:
-                test, trial = arguments
-                simplified_expr = zero * ufl.inner(trial[tuple(0 for _ in trial.ufl_shape)],  # noqa: E501
-                                                   test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
+            test, trial = arguments
+            return zero * ufl.inner(trial[tuple(0 for _ in trial.ufl_shape)],
+                                    test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
 
-            if isinstance(expr, ufl.classes.Form):
-                expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501
-
+    simplified_expr = simplified(expr)
+    if force_non_empty_form:
+        simplified_expr = simplified_non_empty(expr, simplified_expr)
     return simplified_expr
 
 
