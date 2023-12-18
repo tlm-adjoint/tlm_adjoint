@@ -254,7 +254,12 @@ def split_form(form):
         else:
             raise TypeError(f"Unexpected type: {type(comp)}")
 
-    return tuple(_split_form(forms)) + (cofunctions,)
+    cached_form, mat_forms, non_cached_form = _split_form(forms)
+    if non_cached_form.empty():
+        non_cached_form = cofunctions
+    else:
+        non_cached_form = non_cached_form + cofunctions
+    return cached_form, mat_forms, non_cached_form
 
 
 def _split_form(form):
@@ -288,9 +293,9 @@ def _split_form(form):
     mat_forms = {}
     for dep_id in mat_integrals:
         mat_forms[dep_id] = ufl.classes.Form(mat_integrals[dep_id])
-    non_cached_forms = ufl.classes.Form(non_cached_integrals)
+    non_cached_form = ufl.classes.Form(non_cached_integrals)
 
-    return cached_form, mat_forms, non_cached_forms
+    return cached_form, mat_forms, non_cached_form
 
 
 def form_key(*forms):

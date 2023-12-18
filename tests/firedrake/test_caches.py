@@ -263,13 +263,12 @@ def test_mat_terms(setup_test, test_leaks,
     b_ref = Cofunction(space.dual(), name="b_ref")
     assemble(form, tensor=b_ref)
 
-    cached_terms, mat_terms, non_cached_terms, non_cached_expr = split_form(form)  # noqa: E501
+    cached_terms, mat_terms, non_cached_terms = split_form(form)
 
     assert cached_terms.empty()
     if not complex_mode or not x_conjugate:
         assert len(mat_terms) == 1
-        assert non_cached_terms.empty()
-        assert isinstance(non_cached_expr, ufl.classes.ZeroBaseForm)
+        assert isinstance(non_cached_terms, ufl.classes.ZeroBaseForm)
 
         assert tuple(mat_terms.keys()) == (var_id(x),)
         A, = tuple(mat_terms.values())
@@ -279,8 +278,7 @@ def test_mat_terms(setup_test, test_leaks,
         assert b_bc is None
     else:
         assert len(mat_terms) == 0
-        assert not non_cached_terms.empty()
-        assert isinstance(non_cached_expr, ufl.classes.ZeroBaseForm)
+        assert not isinstance(non_cached_terms, ufl.classes.ZeroBaseForm)
 
         b = Cofunction(space.dual(), name="b")
         assemble(non_cached_terms, tensor=b)

@@ -163,7 +163,7 @@ class LinearCombination(Equation):
         alpha = []
         Y = []
         for a, y in args:
-            if a.imag == 0:
+            if a.imag == 0.0:
                 a = a.real
             check_space_types(x, y)
 
