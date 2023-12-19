@@ -410,6 +410,12 @@ def derivative(expr, x, argument=None, *,
     return ufl.derivative(expr, x, argument=argument)
 
 
+def expr_zero(expr):
+    return ufl.classes.Zero(shape=expr.ufl_shape,
+                            free_indices=expr.ufl_free_indices,
+                            index_dimensions=expr.ufl_index_dimensions)
+
+
 def eliminate_zeros(expr, *, force_non_empty_form=False):
     """Apply zero elimination for :class:`.Zero` objects in the supplied
     :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
@@ -424,7 +430,7 @@ def eliminate_zeros(expr, *, force_non_empty_form=False):
 
     @form_cached("_tlm_adjoint__simplified_form")
     def simplified(expr):
-        replace_map = {c: ufl.classes.Zero(shape=c.ufl_shape)
+        replace_map = {c: expr_zero(c)
                        for c in extract_coefficients(expr)
                        if isinstance(c, Zero)}
         if len(replace_map) == 0:

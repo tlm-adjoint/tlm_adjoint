@@ -17,7 +17,7 @@ from ..override import (
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
-from .functions import Constant, define_var_alias
+from .functions import Constant, define_var_alias, expr_zero
 from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numbers
@@ -237,7 +237,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
             x_0 = assign(None, self)
             expr = ufl.replace(expr, {self: x_0})
             x_1 = assign(None, self, subset=subset)
-            assign(self, ufl.classes.Zero(shape=self.ufl_shape))
+            assign(self, expr_zero(self))
             eq = ExprAssignment(self, expr, subset=subset)
         else:
             raise TypeError(f"Unexpected type: {type(expr)}")

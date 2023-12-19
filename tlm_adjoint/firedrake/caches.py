@@ -13,8 +13,8 @@ from .backend_code_generator_interface import (
 from ..caches import Cache
 
 from .functions import (
-    ReplacementFunction, derivative, eliminate_zeros, extract_coefficients,
-    iter_expr, replaced_form)
+    ReplacementFunction, derivative, eliminate_zeros, expr_zero,
+    extract_coefficients, iter_expr, replaced_form)
 
 from collections import defaultdict
 import itertools
@@ -87,7 +87,7 @@ def form_simplify_conj(form):
                 return expr_simplify_conj(x)
             elif isinstance(expr, ufl.classes.Sum):
                 return sum(map(expr_conj, expr.ufl_operands),
-                           ufl.classes.Zero(shape=expr.ufl_shape))
+                           expr_zero(expr))
             elif isinstance(expr, ufl.classes.Product):
                 x, y = expr.ufl_operands
                 return expr_conj(x) * expr_conj(y)
@@ -100,7 +100,7 @@ def form_simplify_conj(form):
                 return expr_conj(x)
             elif isinstance(expr, ufl.classes.Sum):
                 return sum(map(expr_simplify_conj, expr.ufl_operands),
-                           ufl.classes.Zero(shape=expr.ufl_shape))
+                           expr_zero(expr))
             elif isinstance(expr, ufl.classes.Product):
                 x, y = expr.ufl_operands
                 return expr_simplify_conj(x) * expr_simplify_conj(y)
@@ -282,7 +282,10 @@ def _split_form(form):
 
     def add_integral(integrals, base_integral, terms):
         if len(terms) > 0:
-            integrand = sum(terms, ufl.classes.Zero())
+            assert all(term.ufl_shape == () for term in terms)
+            assert all(term.ufl_free_indices == () for term in terms)
+            assert all(term.ufl_index_dimensions == () for term in terms)
+            integrand = sum(terms, expr_zero(terms[0]))
             integral = base_integral.reconstruct(integrand=integrand)
             integrals.append(integral)
 

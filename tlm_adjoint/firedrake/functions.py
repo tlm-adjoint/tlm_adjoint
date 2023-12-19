@@ -442,6 +442,12 @@ def derivative(expr, x, argument=None, *,
     return ufl.replace(dexpr, replace_map_inverse)
 
 
+def expr_zero(expr):
+    return ufl.classes.Zero(shape=expr.ufl_shape,
+                            free_indices=expr.ufl_free_indices,
+                            index_dimensions=expr.ufl_index_dimensions)
+
+
 @form_cached("_tlm_adjoint__simplified_form")
 def eliminate_zeros(expr):
     """Apply zero elimination for :class:`.Zero` objects in the supplied
@@ -452,7 +458,7 @@ def eliminate_zeros(expr):
         zero elimination applied. May return `expr`.
     """
 
-    replace_map = {c: ufl.classes.Zero(shape=c.ufl_shape)
+    replace_map = {c: expr_zero(c)
                    for c in extract_coefficients(expr)
                    if isinstance(c, Zero)}
     if len(replace_map) == 0:

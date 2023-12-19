@@ -23,7 +23,7 @@ from ..equations import Assignment
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
     ReplacementConstant, bcs_is_cached, bcs_is_homogeneous, bcs_is_static,
-    derivative, eliminate_zeros, extract_coefficients, iter_expr)
+    derivative, eliminate_zeros, expr_zero, extract_coefficients, iter_expr)
 
 import itertools
 import numbers
@@ -956,7 +956,7 @@ class ExprInterpolation(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
+        tlm_rhs = expr_zero(x)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]

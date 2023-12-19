@@ -19,7 +19,8 @@ from ..equation import Equation, ZeroAssignment
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
-from .functions import ReplacementConstant, eliminate_zeros, iter_expr
+from .functions import (
+    ReplacementConstant, eliminate_zeros, expr_zero, iter_expr)
 
 import itertools
 import numpy as np
@@ -482,7 +483,7 @@ class ExprAssignment(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
+        tlm_rhs = expr_zero(x)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
