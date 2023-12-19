@@ -1,8 +1,7 @@
 from .backend import (
     LinearSolver, Interpolator, Parameters, backend_Cofunction,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_assemble, backend_solve, complex_mode, extract_args, homogenize,
-    parameters)
+    backend_assemble, backend_solve, extract_args, homogenize, parameters)
 from ..interface import (
     check_space_type, check_space_types, is_var, space_new, var_assign,
     var_copy, var_inner, var_new_conjugate_dual, var_space, var_space_type)
@@ -19,8 +18,6 @@ import ufl
 
 __all__ = \
     [
-        "complex_mode",
-
         "assemble_linear_solver",
         "assemble_matrix",
         "linear_solver",

@@ -2,9 +2,9 @@ from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake import manager as _manager
 from tlm_adjoint.firedrake.backend import (
-    backend_Cofunction, backend_Constant, backend_Function)
+    backend_Cofunction, backend_Constant, backend_Function, complex_mode)
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
-    complex_mode, interpolate_expression)
+    interpolate_expression)
 from tlm_adjoint.alias import gc_disabled
 from tlm_adjoint.override import override_method
 

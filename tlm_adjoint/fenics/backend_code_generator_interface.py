@@ -2,7 +2,7 @@ from .backend import (
     LUSolver, KrylovSolver, Parameters, TestFunction, UserExpression,
     as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
     backend_ScalarType, backend_assemble, backend_assemble_system,
-    backend_solve as solve, complex_mode, has_lu_solver_method, parameters)
+    backend_solve as solve, has_lu_solver_method, parameters)
 from ..interface import (
     check_space_type, check_space_types, is_var, space_new, var_assign,
     var_get_values, var_inner, var_new_conjugate_dual, var_set_values,
@@ -22,8 +22,6 @@ except ImportError:
 
 __all__ = \
     [
-        "complex_mode",
-
         "assemble_linear_solver",
         "assemble_matrix",
         "linear_solver",

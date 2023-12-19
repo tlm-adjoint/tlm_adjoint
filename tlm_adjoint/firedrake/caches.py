@@ -2,13 +2,14 @@
 caching.
 """
 
-from .backend import TrialFunction, backend_DirichletBC, backend_Function
+from .backend import (
+    TrialFunction, backend_DirichletBC, backend_Function, complex_mode)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state)
 from .backend_code_generator_interface import (
-    assemble, assemble_arguments, assemble_matrix, complex_mode, linear_solver,
-    matrix_copy, parameters_key)
+    assemble, assemble_arguments, assemble_matrix, linear_solver, matrix_copy,
+    parameters_key)
 
 from ..caches import Cache
 
