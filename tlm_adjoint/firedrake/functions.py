@@ -372,6 +372,9 @@ def iter_expr(expr, *, evaluate_weights=False):
     elif isinstance(expr, (ufl.classes.Form, ufl.classes.Cofunction,
                            ufl.classes.Expr)):
         yield (1, expr)
+    elif isinstance(expr, ufl.classes.ZeroBaseForm):
+        return
+        yield
     else:
         raise TypeError(f"Unexpected type: {type(expr)}")
 
@@ -439,48 +442,31 @@ def derivative(expr, x, argument=None, *,
     return ufl.replace(dexpr, replace_map_inverse)
 
 
-def eliminate_zeros(expr, *, force_non_empty_form=False):
+@form_cached("_tlm_adjoint__simplified_form")
+def eliminate_zeros(expr):
     """Apply zero elimination for :class:`.Zero` objects in the supplied
-    :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
+    :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm`.
 
-    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
-    :arg force_non_empty_form: If `True` and if `expr` is a :class:`ufl.Form`,
-        then the returned form is guaranteed to be non-empty, and may be
-        assembled.
-    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form` with zero
-        elimination applied. May return `expr`.
+    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm`.
+    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm` with
+        zero elimination applied. May return `expr`.
     """
 
-    @form_cached("_tlm_adjoint__simplified_form")
-    def simplified(expr):
-        replace_map = {c: ufl.classes.Zero(shape=c.ufl_shape)
-                       for c in extract_coefficients(expr)
-                       if isinstance(c, Zero)}
-        if len(replace_map) == 0:
-            return expr
-        else:
-            return ufl.replace(expr, replace_map)
+    replace_map = {c: ufl.classes.Zero(shape=c.ufl_shape)
+                   for c in extract_coefficients(expr)
+                   if isinstance(c, Zero)}
+    if len(replace_map) == 0:
+        simplified_expr = expr
+    else:
+        simplified_expr = ufl.replace(expr, replace_map)
 
-    @form_cached("_tlm_adjoint__simplified_form_non_empty")
-    def simplified_non_empty(base_expr, expr):
-        if not isinstance(expr, ufl.classes.Form) or not expr.empty():
-            return expr
-        arguments = base_expr.arguments()
-        zero = ZeroConstant()
-        if len(arguments) == 0:
-            domain, = base_expr.ufl_domains()
-            return zero * ufl.ds(domain)
-        elif len(arguments) == 1:
-            test, = arguments
-            return ufl.inner(zero, test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
-        else:
-            test, trial = arguments
-            return zero * ufl.inner(trial[tuple(0 for _ in trial.ufl_shape)],
-                                    test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
+    if isinstance(simplified_expr, ufl.classes.BaseForm):
+        nonempty_expr = ufl.classes.ZeroBaseForm(expr.arguments())
+        for weight, comp in iter_expr(simplified_expr):
+            if not isinstance(comp, ufl.classes.Form) or not comp.empty():
+                nonempty_expr = nonempty_expr + weight * comp
+        simplified_expr = nonempty_expr
 
-    simplified_expr = simplified(expr)
-    if force_non_empty_form:
-        simplified_expr = simplified_non_empty(expr, simplified_expr)
     return simplified_expr
 
 

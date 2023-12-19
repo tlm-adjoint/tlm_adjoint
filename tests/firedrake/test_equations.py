@@ -1237,14 +1237,8 @@ def test_eliminate_zeros(setup_test, test_leaks):
     L = inner(F, test) * dx
 
     for i in range(3):
-        L_z = eliminate_zeros(L, force_non_empty_form=False)
-        assert L_z.empty()
-
-        L_z = eliminate_zeros(L, force_non_empty_form=True)
-        assert not L_z.empty()
-        b = Cofunction(space.dual())
-        assemble(L_z, tensor=b)
-        assert var_linf_norm(b) == 0.0
+        L_z = eliminate_zeros(L)
+        assert isinstance(L_z, ufl.classes.ZeroBaseForm)
 
 
 @pytest.mark.firedrake
@@ -1275,13 +1269,7 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
             + Constant(1.0) * inner(grad(F), grad(test)) * dx)
 
     zero_form = eliminate_zeros(form)
-    assert len(zero_form.integrals()) == 0
-
-    zero_form = eliminate_zeros(form, force_non_empty_form=True)
-    assert F not in extract_coefficients(zero_form)
-    b = Cofunction(space.dual())
-    assemble(zero_form, tensor=b)
-    assert var_linf_norm(b) == 0.0
+    assert isinstance(zero_form, ufl.classes.ZeroBaseForm)
 
 
 @pytest.mark.firedrake

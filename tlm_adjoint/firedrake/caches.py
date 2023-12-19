@@ -40,6 +40,9 @@ def is_cached(expr):
 
 
 def form_simplify_sign(form):
+    if not isinstance(form, ufl.classes.Form):
+        raise TypeError("form must be a Form")
+
     integrals = []
 
     for integral in form.integrals():
@@ -74,6 +77,9 @@ def form_simplify_sign(form):
 
 
 def form_simplify_conj(form):
+    if not isinstance(form, ufl.classes.Form):
+        raise TypeError("form must be a Form")
+
     if complex_mode:
         def expr_conj(expr):
             if isinstance(expr, ufl.classes.Conj):
@@ -263,7 +269,9 @@ def split_form(form):
 
 
 def _split_form(form):
-    assert isinstance(form, ufl.classes.Form)
+    if not isinstance(form, ufl.classes.Form):
+        raise TypeError("form must be a Form")
+
     if form.empty():
         return ufl.classes.Form([]), {}, ufl.classes.Form([])
 
@@ -310,8 +318,9 @@ def form_key(*forms):
         form = ufl.algorithms.expand_derivatives(form)
         form = ufl.algorithms.apply_algebra_lowering.apply_algebra_lowering(form)  # noqa: E501
         form = ufl.algorithms.expand_indices(form)
-        form = form_simplify_conj(form)
-        form = form_simplify_sign(form)
+        if isinstance(form, ufl.classes.Form):
+            form = form_simplify_conj(form)
+            form = form_simplify_sign(form)
 
         key.extend((form, deps_key))
 
@@ -377,7 +386,7 @@ class AssemblyCache(Cache):
         if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
         if replace_map is None:
             assemble_form = form
         else:
@@ -447,7 +456,7 @@ class LinearSolverCache(Cache):
         if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
         if replace_map is None:
             assemble_form = form
         else:

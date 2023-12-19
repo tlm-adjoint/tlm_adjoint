@@ -206,7 +206,7 @@ class Assembly(ExprEquation):
         dF = derivative(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
-        if dF.empty():
+        if isinstance(dF, ufl.classes.ZeroBaseForm):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
@@ -485,7 +485,7 @@ class EquationSolver(ExprEquation):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
-            rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
+            rhs = eliminate_zeros(self._rhs)
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
 
             dep_indices = {var_id(dep): dep_index
@@ -642,7 +642,7 @@ class EquationSolver(ExprEquation):
                             dF_term = derivative(comp, dep)
                             dF_term = ufl.algorithms.expand_derivatives(dF_term)  # noqa: E501
                             dF_term = eliminate_zeros(dF_term)
-                            if not dF_term.empty():
+                            if not isinstance(dF_term, ufl.classes.ZeroBaseForm):  # noqa: E501
                                 dF_forms = dF_forms + weight * adjoint(dF_term)
                     elif isinstance(comp, ufl.classes.Cofunction):
                         # Note: Ignores weight dependencies

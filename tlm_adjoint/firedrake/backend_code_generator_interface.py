@@ -121,10 +121,19 @@ def _assemble(form, tensor=None, bcs=None, *,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    form = eliminate_zeros(form, force_non_empty_form=True)
-    b = backend_assemble(
-        form, tensor=tensor, bcs=bcs,
-        form_compiler_parameters=form_compiler_parameters, mat_type=mat_type)
+    form = eliminate_zeros(form)
+    if len(form.arguments()) == 1:
+        b = backend_assemble(
+            form, tensor=tensor,
+            form_compiler_parameters=form_compiler_parameters,
+            mat_type=mat_type)
+        for bc in bcs:
+            bc.apply(b.riesz_representation("l2"))
+    else:
+        b = backend_assemble(
+            form, tensor=tensor, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters,
+            mat_type=mat_type)
 
     return b
 
