@@ -193,8 +193,12 @@ class ConstantInterface(VariableInterface):
     def _replacement(self):
         if "replacement" not in self._tlm_adjoint__var_interface_attrs:
             count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                ReplacementConstant(self, count=count)
+            if isinstance(self, Zero):
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementZeroConstant(self, count=count)
+            else:
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementConstant(self, count=count)
         return self._tlm_adjoint__var_interface_attrs["replacement"]
 
     def _is_replacement(self):
@@ -591,6 +595,12 @@ class ReplacementConstant(Replacement, ufl.classes.ConstantValue,
         return self._tlm_adjoint__ufl_shape
 
 
+class ReplacementZeroConstant(ReplacementConstant, Zero):
+    def __init__(self, *args, **kwargs):
+        ReplacementConstant.__init__(self, *args, **kwargs)
+        Zero.__init__(self)
+
+
 class ReplacementFunction(Replacement, ufl.classes.Coefficient):
     """Represents a symbolic :class:`firedrake.function.Function`, but has no
     value.
@@ -604,6 +614,12 @@ class ReplacementFunction(Replacement, ufl.classes.Coefficient):
     def __new__(cls, x, *args, **kwargs):
         return ufl.classes.Coefficient.__new__(cls, var_space(x),
                                                *args, **kwargs)
+
+
+class ReplacementZeroFunction(ReplacementFunction, Zero):
+    def __init__(self, *args, **kwargs):
+        ReplacementFunction.__init__(self, *args, **kwargs)
+        Zero.__init__(self)
 
 
 def replaced_form(form):

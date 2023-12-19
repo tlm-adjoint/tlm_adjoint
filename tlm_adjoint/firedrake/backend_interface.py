@@ -17,7 +17,8 @@ from ..manager import paused_manager
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
-    ReplacementFunction, Zero, constant_space, define_var_alias, new_count)
+    ReplacementFunction, ReplacementZeroFunction, Zero, constant_space,
+    define_var_alias, new_count)
 
 import mpi4py.MPI as MPI
 import numbers
@@ -266,8 +267,12 @@ class FunctionInterface(FunctionInterfaceBase):
     def _replacement(self):
         if "replacement" not in self._tlm_adjoint__var_interface_attrs:
             count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                ReplacementFunction(self, count=count)
+            if isinstance(self, Zero):
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementZeroFunction(self, count=count)
+            else:
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementFunction(self, count=count)
         return self._tlm_adjoint__var_interface_attrs["replacement"]
 
 
