@@ -420,48 +420,24 @@ def expr_zero(expr):
                             index_dimensions=expr.ufl_index_dimensions)
 
 
-def eliminate_zeros(expr, *, force_non_empty_form=False):
+@form_cached("_tlm_adjoint__simplified_form")
+def eliminate_zeros(expr):
     """Apply zero elimination for :class:`.Zero` objects in the supplied
     :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
 
     :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
-    :arg force_non_empty_form: If `True` and if `expr` is a :class:`ufl.Form`,
-        then the returned form is guaranteed to be non-empty, and may be
-        assembled.
     :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form` with zero
         elimination applied. May return `expr`.
     """
 
-    @form_cached("_tlm_adjoint__simplified_form")
-    def simplified(expr):
-        replace_map = {c: expr_zero(c)
-                       for c in extract_coefficients(expr)
-                       if isinstance(c, Zero)}
-        if len(replace_map) == 0:
-            return expr
-        else:
-            return ufl.replace(expr, replace_map)
+    replace_map = {c: expr_zero(c)
+                   for c in extract_coefficients(expr)
+                   if isinstance(c, Zero)}
+    if len(replace_map) == 0:
+        simplified_expr = expr
+    else:
+        simplified_expr = ufl.replace(expr, replace_map)
 
-    @form_cached("_tlm_adjoint__simplified_form_non_empty")
-    def simplified_non_empty(base_expr, expr):
-        if not isinstance(expr, ufl.classes.Form) or not expr.empty():
-            return expr
-        arguments = base_expr.arguments()
-        zero = ZeroConstant()
-        if len(arguments) == 0:
-            domain, = base_expr.ufl_domains()
-            return zero * ufl.ds(domain)
-        elif len(arguments) == 1:
-            test, = arguments
-            return ufl.inner(zero, test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
-        else:
-            test, trial = arguments
-            return zero * ufl.inner(trial[tuple(0 for _ in trial.ufl_shape)],
-                                    test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
-
-    simplified_expr = simplified(expr)
-    if force_non_empty_form:
-        simplified_expr = simplified_non_empty(expr, simplified_expr)
     return simplified_expr
 
 

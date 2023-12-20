@@ -151,8 +151,7 @@ def test_leaks():
 
     refs = 0
     for F in referenced_vars():
-        if not isinstance(F, ZeroConstant) \
-                and var_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
+        if var_name(F) != f"{DEFAULT_MESH_NAME:s}_coordinates":
             info(f"{var_name(F):s} referenced")
             refs += 1
     if refs == 0:

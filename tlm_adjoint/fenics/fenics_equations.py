@@ -215,7 +215,7 @@ class LocalSolverCache(Cache):
         if solver_type is None:
             solver_type = LocalSolver.SolverType.LU
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
         if replace_map is None:
             assemble_form = form
         else:

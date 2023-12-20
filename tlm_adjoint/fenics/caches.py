@@ -212,6 +212,9 @@ def split_terms(terms, base_integral,
 
 
 def split_form(form):
+    if form.empty():
+        return ufl.classes.Form([]), {}, ufl.classes.Form([])
+
     if len(form.arguments()) != 1:
         raise ValueError("Arity 1 form required")
     form = ufl.algorithms.remove_complex_nodes.remove_complex_nodes(form)
@@ -324,7 +327,7 @@ class AssemblyCache(Cache):
         if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
         if replace_map is None:
             assemble_form = form
         else:
@@ -394,7 +397,7 @@ class LinearSolverCache(Cache):
         if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
         if replace_map is None:
             assemble_form = form
         else:

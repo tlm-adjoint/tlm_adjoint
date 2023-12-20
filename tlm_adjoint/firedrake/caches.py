@@ -41,9 +41,6 @@ def is_cached(expr):
 
 
 def form_simplify_sign(form):
-    if not isinstance(form, ufl.classes.Form):
-        raise TypeError("form must be a Form")
-
     integrals = []
 
     for integral in form.integrals():
@@ -78,9 +75,6 @@ def form_simplify_sign(form):
 
 
 def form_simplify_conj(form):
-    if not isinstance(form, ufl.classes.Form):
-        raise TypeError("form must be a Form")
-
     if complex_mode:
         def expr_conj(expr):
             if isinstance(expr, ufl.classes.Conj):
@@ -270,9 +264,6 @@ def split_form(form):
 
 
 def _split_form(form):
-    if not isinstance(form, ufl.classes.Form):
-        raise TypeError("form must be a Form")
-
     if form.empty():
         return ufl.classes.Form([]), {}, ufl.classes.Form([])
 

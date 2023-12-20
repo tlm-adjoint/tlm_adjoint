@@ -155,9 +155,8 @@ def test_leaks():
 
     refs = 0
     for F in referenced_vars():
-        if not isinstance(F, ZeroConstant):
-            info(f"{var_name(F):s} referenced")
-            refs += 1
+        info(f"{var_name(F):s} referenced")
+        refs += 1
     if refs == 0:
         info("No references")
 
