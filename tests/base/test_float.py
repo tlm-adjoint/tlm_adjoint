@@ -32,7 +32,7 @@ def test_Float_new(setup_test,  # noqa: F811
 @pytest.mark.base
 @pytest.mark.parametrize("dtype", [np.double, np.cdouble])
 @seed_test
-def test_float_assignment(setup_test,  # noqa: F811
+def test_Float_assignment(setup_test,  # noqa: F811
                           dtype):
     set_default_float_dtype(dtype)
 
@@ -112,7 +112,7 @@ def test_float_assignment(setup_test,  # noqa: F811
                                 np.cbrt,
                                 np.reciprocal])
 @seed_test
-def test_float_unary_overloading(setup_test,  # noqa: F811
+def test_Float_unary_overloading(setup_test,  # noqa: F811
                                  op):
     set_default_float_dtype(np.double)
 
@@ -171,7 +171,7 @@ def test_float_unary_overloading(setup_test,  # noqa: F811
                                 np.arctan2,
                                 np.hypot])
 @seed_test
-def test_float_binary_overloading(setup_test,  # noqa: F811
+def test_Float_binary_overloading(setup_test,  # noqa: F811
                                   dtype, op):
     if op in {np.arctan2, np.hypot} \
             and issubclass(dtype, np.complexfloating):
