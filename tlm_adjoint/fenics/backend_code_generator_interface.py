@@ -1,9 +1,8 @@
 from .backend import (
     LUSolver, KrylovSolver, Parameters, TestFunction, UserExpression,
     as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
-    backend_ScalarType, backend_Vector, backend_assemble,
-    backend_assemble_system, backend_solve as solve, complex_mode,
-    has_lu_solver_method, parameters)
+    backend_ScalarType, backend_assemble, backend_assemble_system,
+    backend_solve as solve, has_lu_solver_method, parameters)
 from ..interface import (
     check_space_type, check_space_types, is_var, space_new, var_assign,
     var_get_values, var_inner, var_new_conjugate_dual, var_set_values,
@@ -23,8 +22,6 @@ except ImportError:
 
 __all__ = \
     [
-        "complex_mode",
-
         "assemble_linear_solver",
         "assemble_matrix",
         "linear_solver",
@@ -256,26 +253,6 @@ def matrix_multiply(A, x, *,
     tensor.apply("insert")
 
     return tensor
-
-
-def rhs_copy(x):
-    if not isinstance(x, backend_Vector):
-        raise TypeError("Invalid RHS")
-    if hasattr(x, "_tlm_adjoint__function"):
-        check_space_type(x._tlm_adjoint__function, "conjugate_dual")
-    return x.copy()
-
-
-def rhs_addto(x, y):
-    if not isinstance(x, backend_Vector):
-        raise TypeError("Invalid RHS")
-    if not isinstance(y, backend_Vector):
-        raise TypeError("Invalid RHS")
-    if hasattr(x, "_tlm_adjoint__function"):
-        check_space_type(x._tlm_adjoint__function, "conjugate_dual")
-    if hasattr(y, "_tlm_adjoint__function"):
-        check_space_type(y._tlm_adjoint__function, "conjugate_dual")
-    x.axpy(1.0, y)
 
 
 def parameters_key(parameters):

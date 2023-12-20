@@ -14,8 +14,7 @@ from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
     matrix_multiply, process_adjoint_solver_parameters,
-    process_solver_parameters, rhs_addto, rhs_copy, solve,
-    update_parameters_dict, verify_assembly)
+    process_solver_parameters, solve, update_parameters_dict, verify_assembly)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
@@ -24,7 +23,7 @@ from ..equations import Assignment
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
     ReplacementConstant, bcs_is_cached, bcs_is_homogeneous, bcs_is_static,
-    derivative, eliminate_zeros, extract_coefficients)
+    derivative, eliminate_zeros, expr_zero, extract_coefficients)
 
 import itertools
 import numpy as np
@@ -51,8 +50,7 @@ def extract_derivative_coefficients(expr, dep):
     return extract_coefficients(dexpr)
 
 
-def extract_dependencies(expr, *,
-                         space_type="primal"):
+def extract_dependencies(expr, *, space_type=None):
     deps = {}
     nl_deps = {}
     for dep in extract_coefficients(expr):
@@ -69,8 +67,9 @@ def extract_dependencies(expr, *,
                for nl_dep_id in sorted(nl_deps.keys())}
 
     assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
-    for dep in deps.values():
-        check_space_type(dep, space_type)
+    if space_type is not None:
+        for dep in deps.values():
+            check_space_type(dep, space_type)
 
     return deps, nl_deps
 
@@ -79,7 +78,7 @@ def apply_rhs_bcs(b, hbcs, *, b_bc=None):
     for bc in hbcs:
         bc.apply(b)
     if b_bc is not None:
-        rhs_addto(b, b_bc)
+        b.axpy(1.0, b_bc)
 
 
 class ExprEquation(Equation):
@@ -138,8 +137,6 @@ class Assembly(ExprEquation):
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
-        rhs = ufl.classes.Form(rhs.integrals())
-
         arity = len(rhs.arguments())
         if arity == 0:
             check_space_type(x, "primal")
@@ -151,7 +148,7 @@ class Assembly(ExprEquation):
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -337,12 +334,7 @@ class EquationSolver(ExprEquation):
 
         lhs, rhs = eq.lhs, eq.rhs
         del eq
-        lhs = ufl.classes.Form(lhs.integrals())
         linear = isinstance(rhs, ufl.classes.Form)
-        if linear:
-            rhs = ufl.classes.Form(rhs.integrals())
-        if J is not None:
-            J = ufl.classes.Form(J.integrals())
 
         if linear:
             if len(lhs.arguments()) != 2:
@@ -367,7 +359,7 @@ class EquationSolver(ExprEquation):
             J = derivative(F, x)
             J = ufl.algorithms.expand_derivatives(J)
 
-        deps, nl_deps = extract_dependencies(F)
+        deps, nl_deps = extract_dependencies(F, space_type="primal")
         if nl_solve_J is not None:
             for dep in extract_coefficients(nl_solve_J):
                 if is_var(dep):
@@ -485,7 +477,7 @@ class EquationSolver(ExprEquation):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
-            rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
+            rhs = eliminate_zeros(self._rhs)
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
 
             dep_indices = {var_id(dep): dep_index
@@ -538,12 +530,12 @@ class EquationSolver(ExprEquation):
                     form_compiler_parameters=self._form_compiler_parameters,
                     replace_map=self._replace_map(deps))
             if b is None:
-                b = rhs_copy(cached_b)
+                b = cached_b.copy()
             else:
-                rhs_addto(b, cached_b)
+                b.axpy(1.0, cached_b)
 
         if b is None:
-            b = var_new_conjugate_dual(self.x())
+            b = var_new_conjugate_dual(self.x()).vector()
 
         apply_rhs_bcs(b, self._hbcs, b_bc=b_bc)
         return b
@@ -889,7 +881,7 @@ class ExprInterpolation(ExprEquation):
     """
 
     def __init__(self, x, rhs):
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -937,7 +929,7 @@ class ExprInterpolation(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
+        tlm_rhs = expr_zero(x)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]

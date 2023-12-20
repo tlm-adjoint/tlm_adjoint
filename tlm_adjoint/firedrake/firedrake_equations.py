@@ -19,7 +19,8 @@ from ..equation import Equation, ZeroAssignment
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
-from .functions import ReplacementConstant, eliminate_zeros
+from .functions import (
+    ReplacementConstant, eliminate_zeros, expr_zero, iter_expr)
 
 import itertools
 import numpy as np
@@ -43,9 +44,9 @@ def LocalSolver(form, *,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    # Perform zero elimination here, rather than in overridden assemble, as
-    # Tensor(form).inv is not a Form
-    form = eliminate_zeros(form, force_non_empty_form=True)
+    form = eliminate_zeros(form)
+    if isinstance(form, ufl.classes.ZeroBaseForm):
+        raise ValueError("Form cannot be a ZeroBaseForm")
     local_solver = backend_assemble(
         Tensor(form).inv,
         form_compiler_parameters=form_compiler_parameters)
@@ -82,7 +83,9 @@ class LocalSolverCache(Cache):
         if form_compiler_parameters is None:
             form_compiler_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
         if replace_map is None:
             assemble_form = form
         else:
@@ -129,7 +132,7 @@ class LocalProjection(EquationSolver):
     :arg x: A :class:`firedrake.function.Function` defining the forward
         solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.Form` defining the
+        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 
@@ -146,7 +149,7 @@ class LocalProjection(EquationSolver):
         space = x.function_space()
         test, trial = TestFunction(space), TrialFunction(space)
         lhs = ufl.inner(trial, test) * ufl.dx
-        if not isinstance(rhs, ufl.classes.Form):
+        if not isinstance(rhs, ufl.classes.BaseForm):
             rhs = ufl.inner(rhs, test) * ufl.dx
 
         super().__init__(
@@ -211,15 +214,18 @@ class LocalProjection(EquationSolver):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = ufl.classes.ZeroBaseForm(self._rhs.arguments())
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    tlm_rhs += derivative(self._rhs, dep, argument=tau_dep)
+                    for weight, comp in iter_expr(self._rhs):
+                        # Note: Ignores weight dependencies
+                        tlm_rhs = (tlm_rhs
+                                   + weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if tlm_rhs.empty():
+        if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:
             return LocalProjection(
@@ -482,7 +488,7 @@ class ExprAssignment(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
+        tlm_rhs = expr_zero(x)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]

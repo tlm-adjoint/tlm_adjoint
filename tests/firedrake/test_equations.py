@@ -2,11 +2,13 @@ from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend_code_generator_interface import (
     assemble_linear_solver)
+from tlm_adjoint.firedrake.functions import extract_coefficients
 
 from .test_base import *
 
 import firedrake
 import functools
+import numbers
 import numpy as np
 import os
 import pytest
@@ -1139,6 +1141,91 @@ def test_EquationSolver_forward_solve_deps(setup_test, test_leaks,
     assert min_order > 1.99
 
 
+def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
+    EquationSolver(eq, u, solver_parameters=solver_parameters).solve()
+
+
+def solve_eq_solve(eq, u, *, solver_parameters=None):
+    solve(eq, u, solver_parameters=solver_parameters)
+
+
+def rhs_Form(m, test):
+    return inner(m.dx(0), test) * dx
+
+
+def rhs_Cofunction(m, test):
+    return assemble(rhs_Form(m, test))
+
+
+def rhs_FormSum(alpha, m, test):
+    if not isinstance(alpha, numbers.Real) and not complex_mode:
+        pytest.skip()
+    return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("solve_eq", [solve_eq_EquationSolver,
+                                      solve_eq_solve])
+@pytest.mark.parametrize("rhs", [rhs_Form,
+                                 rhs_Cofunction,
+                                 functools.partial(rhs_FormSum, 1.5),
+                                 functools.partial(rhs_FormSum, 0.5),
+                                 functools.partial(rhs_FormSum, -0.5),
+                                 functools.partial(rhs_FormSum, 0.5 + 0.5j)])
+@seed_test
+def test_EquationSolver_FormSum(setup_test, test_leaks, test_configurations,
+                                solve_eq, rhs):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        u = Function(space, name="u")
+        solve_eq(inner(trial, test) * dx == rhs(m, test), u,
+                 solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        J.assign(((u + Constant(1.0)) ** 3) * dx)
+        return u, J
+
+    m = Function(space, name="m")
+    m.interpolate(X[0])
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    assert np.sqrt(abs(assemble(inner(u - Constant(1.0),
+                                      u - Constant(1.0)) * dx))) < 1.0e-15
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-3)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
+                            size=4)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+
 @pytest.mark.firedrake
 @seed_test
 def test_eliminate_zeros(setup_test, test_leaks):
@@ -1151,14 +1238,8 @@ def test_eliminate_zeros(setup_test, test_leaks):
     L = inner(F, test) * dx
 
     for i in range(3):
-        L_z = eliminate_zeros(L, force_non_empty_form=False)
-        assert L_z.empty()
-
-        L_z = eliminate_zeros(L, force_non_empty_form=True)
-        assert not L_z.empty()
-        b = Cofunction(space.dual())
-        assemble(L_z, tensor=b)
-        assert var_linf_norm(b) == 0.0
+        L_z = eliminate_zeros(L)
+        assert isinstance(L_z, ufl.classes.ZeroBaseForm)
 
 
 @pytest.mark.firedrake
@@ -1189,13 +1270,7 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
             + Constant(1.0) * inner(grad(F), grad(test)) * dx)
 
     zero_form = eliminate_zeros(form)
-    assert len(zero_form.integrals()) == 0
-
-    zero_form = eliminate_zeros(form, force_non_empty_form=True)
-    assert F not in extract_coefficients(zero_form)
-    b = Cofunction(space.dual())
-    assemble(zero_form, tensor=b)
-    assert var_linf_norm(b) == 0.0
+    assert isinstance(zero_form, ufl.classes.ZeroBaseForm)
 
 
 @pytest.mark.firedrake

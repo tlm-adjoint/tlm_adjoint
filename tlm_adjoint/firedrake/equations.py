@@ -7,15 +7,14 @@ from .backend import (
     TestFunction, TrialFunction, adjoint, backend_Constant,
     backend_DirichletBC, backend_Function, parameters)
 from ..interface import (
-    check_space_type, is_var, var_assign, var_id, var_increment_state_lock,
-    var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space, var_update_caches, var_zero)
+    check_space_type, is_var, var_assign, var_axpy, var_id,
+    var_increment_state_lock, var_is_scalar, var_new, var_new_conjugate_dual,
+    var_replacement, var_scalar_value, var_space, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
     matrix_multiply, process_adjoint_solver_parameters,
-    process_solver_parameters, rhs_addto, rhs_copy, solve,
-    update_parameters_dict, verify_assembly)
+    process_solver_parameters, solve, update_parameters_dict, verify_assembly)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
@@ -24,9 +23,10 @@ from ..equations import Assignment
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
     ReplacementConstant, bcs_is_cached, bcs_is_homogeneous, bcs_is_static,
-    derivative, eliminate_zeros, extract_coefficients)
+    derivative, eliminate_zeros, expr_zero, extract_coefficients, iter_expr)
 
 import itertools
+import numbers
 import numpy as np
 import ufl
 
@@ -48,8 +48,7 @@ def extract_derivative_coefficients(expr, dep):
     return extract_coefficients(dexpr)
 
 
-def extract_dependencies(expr, *,
-                         space_type="primal"):
+def extract_dependencies(expr, *, space_type=None):
     deps = {}
     nl_deps = {}
     for dep in extract_coefficients(expr):
@@ -66,8 +65,9 @@ def extract_dependencies(expr, *,
                for nl_dep_id in sorted(nl_deps.keys())}
 
     assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
-    for dep in deps.values():
-        check_space_type(dep, space_type)
+    if space_type is not None:
+        for dep in deps.values():
+            check_space_type(dep, space_type)
 
     return deps, nl_deps
 
@@ -76,7 +76,7 @@ def apply_rhs_bcs(b, hbcs, *, b_bc=None):
     for bc in hbcs:
         bc.apply(b)
     if b_bc is not None:
-        rhs_addto(b, b_bc)
+        var_axpy(b, 1.0, b_bc)
 
 
 class ExprEquation(Equation):
@@ -135,8 +135,6 @@ class Assembly(ExprEquation):
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
-        rhs = ufl.classes.Form(rhs.integrals())
-
         arity = len(rhs.arguments())
         if arity == 0:
             check_space_type(x, "primal")
@@ -148,7 +146,7 @@ class Assembly(ExprEquation):
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -208,7 +206,7 @@ class Assembly(ExprEquation):
         dF = derivative(self._rhs, dep)
         dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
-        if dF.empty():
+        if isinstance(dF, ufl.classes.ZeroBaseForm):
             return None
 
         dF = self._nonlinear_replace(dF, nl_deps)
@@ -335,12 +333,7 @@ class EquationSolver(ExprEquation):
 
         lhs, rhs = eq.lhs, eq.rhs
         del eq
-        lhs = ufl.classes.Form(lhs.integrals())
-        linear = isinstance(rhs, ufl.classes.Form)
-        if linear:
-            rhs = ufl.classes.Form(rhs.integrals())
-        if J is not None:
-            J = ufl.classes.Form(J.integrals())
+        linear = isinstance(rhs, ufl.classes.BaseForm)
 
         if linear:
             if len(lhs.arguments()) != 2:
@@ -364,6 +357,14 @@ class EquationSolver(ExprEquation):
             nl_solve_J = J
             J = derivative(F, x)
             J = ufl.algorithms.expand_derivatives(J)
+
+        for weight, _ in iter_expr(F):
+            if not isinstance(weight, numbers.Complex) \
+                    and len(tuple(c for c in extract_coefficients(weight)
+                                  if is_var(c))) > 0:
+                # See Firedrake issue #3292
+                raise NotImplementedError("FormSum weights cannot depend on "
+                                          "variables")
 
         deps, nl_deps = extract_dependencies(F)
         if nl_solve_J is not None:
@@ -457,7 +458,7 @@ class EquationSolver(ExprEquation):
 
         self._F = ufl.replace(self._F, replace_map)
         self._lhs = ufl.replace(self._lhs, replace_map)
-        if isinstance(self._rhs, ufl.classes.Form):
+        if isinstance(self._rhs, ufl.classes.BaseForm):
             self._rhs = ufl.replace(self._rhs, replace_map)
         self._J = ufl.replace(self._J, replace_map)
         if self._nl_solve_J is not None:
@@ -475,15 +476,16 @@ class EquationSolver(ExprEquation):
 
             self._forward_b_pa = (cached_form, mat_forms, non_cached_form)
 
-        for dep_index, dF in self._adjoint_dF_cache.items():
-            if dF is not None:
-                self._adjoint_dF_cache[dep_index] = ufl.replace(dF, replace_map)  # noqa: E501
+        for dep_index, (dF_forms, dF_cofunctions) in self._adjoint_dF_cache.items():  # noqa: E501
+            self._adjoint_dF_cache[dep_index] = \
+                (ufl.replace(dF_forms, replace_map),
+                 ufl.replace(dF_cofunctions, replace_map))
 
     def _cached_rhs(self, deps, *, b_bc=None):
         eq_deps = self.dependencies()
 
         if self._forward_b_pa is None:
-            rhs = eliminate_zeros(self._rhs, force_non_empty_form=True)
+            rhs = eliminate_zeros(self._rhs)
             cached_form, mat_forms_, non_cached_form = split_form(rhs)
 
             dep_indices = {var_id(dep): dep_index
@@ -492,7 +494,7 @@ class EquationSolver(ExprEquation):
                          for dep_id in mat_forms_}
             del mat_forms_, dep_indices
 
-            if non_cached_form.empty():
+            if isinstance(non_cached_form, ufl.classes.ZeroBaseForm):
                 non_cached_form = None
 
             if cached_form.empty():
@@ -536,9 +538,9 @@ class EquationSolver(ExprEquation):
                     form_compiler_parameters=self._form_compiler_parameters,
                     replace_map=self._replace_map(deps))
             if b is None:
-                b = rhs_copy(cached_b)
+                b = cached_b.copy(deepcopy=True)
             else:
-                rhs_addto(b, cached_b)
+                var_axpy(b, 1.0, cached_b)
 
         if b is None:
             b = var_new_conjugate_dual(self.x())
@@ -632,21 +634,31 @@ class EquationSolver(ExprEquation):
         for dep_index, dep_B in dep_Bs.items():
             if dep_index not in self._adjoint_dF_cache:
                 dep = self.dependencies()[dep_index]
-                dF = derivative(self._F, dep)
-                dF = ufl.algorithms.expand_derivatives(dF)
-                dF = eliminate_zeros(dF)
-                if dF.empty():
-                    dF = None
-                else:
-                    dF = adjoint(dF)
-                self._adjoint_dF_cache[dep_index] = dF
-            dF = self._adjoint_dF_cache[dep_index]
+                dF_forms = ufl.classes.Form([])
+                dF_cofunctions = ufl.classes.ZeroBaseForm((TestFunction(var_space(self.x()).dual()),))  # noqa: E501
+                for weight, comp in iter_expr(self._F):
+                    if isinstance(comp, ufl.classes.Form):
+                        if dep in extract_coefficients(comp):
+                            dF_term = derivative(comp, dep)
+                            dF_term = ufl.algorithms.expand_derivatives(dF_term)  # noqa: E501
+                            dF_term = eliminate_zeros(dF_term)
+                            if not isinstance(dF_term, ufl.classes.ZeroBaseForm):  # noqa: E501
+                                dF_forms = dF_forms + weight * adjoint(dF_term)
+                    elif isinstance(comp, ufl.classes.Cofunction):
+                        # Note: Ignores weight dependencies
+                        dF_term = ufl.conj(weight) * derivative(comp, dep)
+                        if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
+                            dF_cofunctions = dF_cofunctions + dF_term
+                    else:
+                        raise TypeError(f"Unexpected type: {type(comp)}")
+                self._adjoint_dF_cache[dep_index] = (dF_forms, dF_cofunctions)
+            dF_forms, dF_cofunctions = self._adjoint_dF_cache[dep_index]
 
-            if dF is not None:
+            if not dF_forms.empty():
                 if dep_index not in self._adjoint_action_cache:
                     if self._cache_rhs_assembly \
                             and isinstance(adj_x, backend_Function) \
-                            and is_cached(dF):
+                            and is_cached(dF_forms):
                         self._adjoint_action_cache[dep_index] = CacheRef()
                     else:
                         self._adjoint_action_cache[dep_index] = None
@@ -658,17 +670,21 @@ class EquationSolver(ExprEquation):
                     if mat_bc is None:
                         self._adjoint_action_cache[dep_index], mat_bc = \
                             assembly_cache().assemble(
-                                dF,
+                                dF_forms,
                                 form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
                                 replace_map=self._nonlinear_replace_map(nl_deps))  # noqa: E501
                     mat, _ = mat_bc
                     dep_B.sub(matrix_multiply(mat, adj_x))
                 else:
                     # Cached form
-                    dF = ufl.action(self._nonlinear_replace(dF, nl_deps),
-                                    coefficient=adj_x)
-                    dF = assemble(dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
-                    dep_B.sub(dF)
+                    dF_forms = ufl.action(self._nonlinear_replace(dF_forms, nl_deps),  # noqa: E501
+                                          coefficient=adj_x)
+                    dF_forms = assemble(dF_forms, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                    dep_B.sub(dF_forms)
+
+            if not isinstance(dF_cofunctions, ufl.classes.ZeroBaseForm):
+                for weight, comp in iter_expr(dF_cofunctions, evaluate_weights=True):  # noqa: E501
+                    dep_B.sub((weight, adj_x))
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     #     # Similar to 'RHS.derivative_action' and
@@ -708,16 +724,18 @@ class EquationSolver(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = ufl.classes.ZeroBaseForm(self._F.arguments())
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    tlm_rhs = (tlm_rhs
-                               - derivative(self._F, dep, argument=tau_dep))
+                    for weight, comp in iter_expr(self._F):
+                        # Note: Ignores weight dependencies
+                        tlm_rhs = (tlm_rhs
+                                   - weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if tlm_rhs.empty():
+        if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:
             if self._tlm_solver_parameters is None:
@@ -798,7 +816,7 @@ class Projection(EquationSolver):
     :arg x: A :class:`firedrake.function.Function` defining the forward
         solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.Form` defining the
+        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 
@@ -808,7 +826,7 @@ class Projection(EquationSolver):
     def __init__(self, x, rhs, *args, **kwargs):
         space = var_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
-        if not isinstance(rhs, ufl.classes.Form):
+        if not isinstance(rhs, ufl.classes.BaseForm):
             rhs = ufl.inner(rhs, test) * ufl.dx
         super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
                          *args, **kwargs)
@@ -890,7 +908,7 @@ class ExprInterpolation(ExprEquation):
     """
 
     def __init__(self, x, rhs):
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -938,7 +956,7 @@ class ExprInterpolation(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Zero(shape=x.ufl_shape)
+        tlm_rhs = expr_zero(x)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]

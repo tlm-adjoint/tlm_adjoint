@@ -14,7 +14,7 @@ from ..override import override_method
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    Zero, define_var_alias, new_count, r0_space)
+    ReplacementZeroFunction, Zero, define_var_alias, new_count, r0_space)
 
 import functools
 import numbers
@@ -245,8 +245,12 @@ class FunctionInterface(VariableInterface):
     def _replacement(self):
         if "replacement" not in self._tlm_adjoint__var_interface_attrs:
             count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                ReplacementFunction(self, count=count)
+            if isinstance(self, Zero):
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementZeroFunction(self, count=count)
+            else:
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementFunction(self, count=count)
         return self._tlm_adjoint__var_interface_attrs["replacement"]
 
     def _is_replacement(self):

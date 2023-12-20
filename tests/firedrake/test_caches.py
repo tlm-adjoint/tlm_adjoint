@@ -268,7 +268,7 @@ def test_mat_terms(setup_test, test_leaks,
     assert cached_terms.empty()
     if not complex_mode or not x_conjugate:
         assert len(mat_terms) == 1
-        assert non_cached_terms.empty()
+        assert isinstance(non_cached_terms, ufl.classes.ZeroBaseForm)
 
         assert tuple(mat_terms.keys()) == (var_id(x),)
         A, = tuple(mat_terms.values())
@@ -278,7 +278,7 @@ def test_mat_terms(setup_test, test_leaks,
         assert b_bc is None
     else:
         assert len(mat_terms) == 0
-        assert not non_cached_terms.empty()
+        assert not isinstance(non_cached_terms, ufl.classes.ZeroBaseForm)
 
         b = Cofunction(space.dual(), name="b")
         assemble(non_cached_terms, tensor=b)

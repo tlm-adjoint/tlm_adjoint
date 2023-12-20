@@ -1,12 +1,10 @@
 from .backend import (
     LinearSolver, Interpolator, Parameters, backend_Cofunction,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_assemble, backend_solve, complex_mode, extract_args, homogenize,
-    parameters)
+    backend_assemble, backend_solve, extract_args, homogenize, parameters)
 from ..interface import (
     check_space_type, check_space_types, is_var, space_new, var_assign,
-    var_axpy, var_copy, var_inner, var_new_conjugate_dual, var_space,
-    var_space_type)
+    var_copy, var_inner, var_new_conjugate_dual, var_space, var_space_type)
 
 from ..manager import manager_disabled
 from ..override import override_method
@@ -20,8 +18,6 @@ import ufl
 
 __all__ = \
     [
-        "complex_mode",
-
         "assemble_linear_solver",
         "assemble_matrix",
         "linear_solver",
@@ -122,10 +118,21 @@ def _assemble(form, tensor=None, bcs=None, *,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
-    form = eliminate_zeros(form, force_non_empty_form=True)
-    b = backend_assemble(
-        form, tensor=tensor, bcs=bcs,
-        form_compiler_parameters=form_compiler_parameters, mat_type=mat_type)
+    form = eliminate_zeros(form)
+    if isinstance(form, ufl.classes.ZeroBaseForm):
+        raise ValueError("Form cannot be a ZeroBaseForm")
+    if len(form.arguments()) == 1:
+        b = backend_assemble(
+            form, tensor=tensor,
+            form_compiler_parameters=form_compiler_parameters,
+            mat_type=mat_type)
+        for bc in bcs:
+            bc.apply(b.riesz_representation("l2"))
+    else:
+        b = backend_assemble(
+            form, tensor=tensor, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters,
+            mat_type=mat_type)
 
     return b
 
@@ -302,17 +309,6 @@ def matrix_multiply(A, x, *,
             A.petscmat.mult(x_v, tensor_v)
 
     return tensor
-
-
-def rhs_copy(x):
-    check_space_type(x, "conjugate_dual")
-    return var_copy(x)
-
-
-def rhs_addto(x, y):
-    check_space_type(x, "conjugate_dual")
-    check_space_type(y, "conjugate_dual")
-    var_axpy(x, 1.0, y)
 
 
 def parameters_key(parameters):

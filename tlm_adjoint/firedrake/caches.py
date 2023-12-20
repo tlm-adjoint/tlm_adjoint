@@ -2,19 +2,20 @@
 caching.
 """
 
-from .backend import TrialFunction, backend_DirichletBC, backend_Function
+from .backend import (
+    TrialFunction, backend_DirichletBC, backend_Function, complex_mode)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state)
 from .backend_code_generator_interface import (
-    assemble, assemble_arguments, assemble_matrix, complex_mode, linear_solver,
-    matrix_copy, parameters_key)
+    assemble, assemble_arguments, assemble_matrix, linear_solver, matrix_copy,
+    parameters_key)
 
 from ..caches import Cache
 
 from .functions import (
-    ReplacementFunction, derivative, eliminate_zeros, extract_coefficients,
-    replaced_form)
+    ReplacementFunction, derivative, eliminate_zeros, expr_zero,
+    extract_coefficients, iter_expr, replaced_form)
 
 from collections import defaultdict
 import itertools
@@ -81,7 +82,7 @@ def form_simplify_conj(form):
                 return expr_simplify_conj(x)
             elif isinstance(expr, ufl.classes.Sum):
                 return sum(map(expr_conj, expr.ufl_operands),
-                           ufl.classes.Zero(shape=expr.ufl_shape))
+                           expr_zero(expr))
             elif isinstance(expr, ufl.classes.Product):
                 x, y = expr.ufl_operands
                 return expr_conj(x) * expr_conj(y)
@@ -94,7 +95,7 @@ def form_simplify_conj(form):
                 return expr_conj(x)
             elif isinstance(expr, ufl.classes.Sum):
                 return sum(map(expr_simplify_conj, expr.ufl_operands),
-                           ufl.classes.Zero(shape=expr.ufl_shape))
+                           expr_zero(expr))
             elif isinstance(expr, ufl.classes.Product):
                 x, y = expr.ufl_operands
                 return expr_simplify_conj(x) * expr_simplify_conj(y)
@@ -244,6 +245,28 @@ def split_terms(terms, base_integral,
 
 
 def split_form(form):
+    forms = ufl.classes.Form([])
+    cofunctions = ufl.classes.ZeroBaseForm(form.arguments())
+    for weight, comp in iter_expr(form):
+        if isinstance(comp, ufl.classes.Form):
+            forms = forms + weight * comp
+        elif isinstance(comp, ufl.classes.Cofunction):
+            cofunctions = cofunctions + weight * comp
+        else:
+            raise TypeError(f"Unexpected type: {type(comp)}")
+
+    cached_form, mat_forms, non_cached_form = _split_form(forms)
+    if non_cached_form.empty():
+        non_cached_form = cofunctions
+    else:
+        non_cached_form = non_cached_form + cofunctions
+    return cached_form, mat_forms, non_cached_form
+
+
+def _split_form(form):
+    if form.empty():
+        return ufl.classes.Form([]), {}, ufl.classes.Form([])
+
     if len(form.arguments()) != 1:
         raise ValueError("Arity 1 form required")
     if not complex_mode:
@@ -251,7 +274,7 @@ def split_form(form):
 
     def add_integral(integrals, base_integral, terms):
         if len(terms) > 0:
-            integrand = sum(terms, ufl.classes.Zero())
+            integrand = sum(terms, expr_zero(terms[0]))
             integral = base_integral.reconstruct(integrand=integrand)
             integrals.append(integral)
 
@@ -270,9 +293,9 @@ def split_form(form):
     mat_forms = {}
     for dep_id in mat_integrals:
         mat_forms[dep_id] = ufl.classes.Form(mat_integrals[dep_id])
-    non_cached_forms = ufl.classes.Form(non_cached_integrals)
+    non_cached_form = ufl.classes.Form(non_cached_integrals)
 
-    return cached_form, mat_forms, non_cached_forms
+    return cached_form, mat_forms, non_cached_form
 
 
 def form_key(*forms):
@@ -287,8 +310,9 @@ def form_key(*forms):
         form = ufl.algorithms.expand_derivatives(form)
         form = ufl.algorithms.apply_algebra_lowering.apply_algebra_lowering(form)  # noqa: E501
         form = ufl.algorithms.expand_indices(form)
-        form = form_simplify_conj(form)
-        form = form_simplify_sign(form)
+        if isinstance(form, ufl.classes.Form):
+            form = form_simplify_conj(form)
+            form = form_simplify_sign(form)
 
         key.extend((form, deps_key))
 
@@ -354,7 +378,9 @@ class AssemblyCache(Cache):
         if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
         if replace_map is None:
             assemble_form = form
         else:
@@ -424,7 +450,9 @@ class LinearSolverCache(Cache):
         if linear_solver_parameters is None:
             linear_solver_parameters = {}
 
-        form = eliminate_zeros(form, force_non_empty_form=True)
+        form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
         if replace_map is None:
             assemble_form = form
         else:

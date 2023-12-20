@@ -1,9 +1,10 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
-from tlm_adjoint.fenics.backend import backend_Constant, backend_Function
+from tlm_adjoint.fenics.backend import (
+    backend_Constant, backend_Function, complex_mode)
 from tlm_adjoint.fenics.backend_code_generator_interface import (
-    complex_mode, interpolate_expression)
+    interpolate_expression)
 from tlm_adjoint.alias import gc_disabled
 from tlm_adjoint.override import override_method
 
@@ -154,9 +155,8 @@ def test_leaks():
 
     refs = 0
     for F in referenced_vars():
-        if not isinstance(F, ZeroConstant):
-            info(f"{var_name(F):s} referenced")
-            refs += 1
+        info(f"{var_name(F):s} referenced")
+        refs += 1
     if refs == 0:
         info("No references")
 

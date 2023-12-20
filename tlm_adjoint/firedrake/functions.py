@@ -15,6 +15,7 @@ from ..interface import (
 from ..caches import Caches
 from ..manager import paused_manager
 
+import functools
 import numbers
 import numpy as np
 import ufl
@@ -23,7 +24,6 @@ import weakref
 __all__ = \
     [
         "Constant",
-        "extract_coefficients",
 
         "Zero",
         "ZeroConstant",
@@ -32,6 +32,8 @@ __all__ = \
         "Replacement",
         "ReplacementConstant",
         "ReplacementFunction",
+        "ReplacementZeroConstant",
+        "ReplacementZeroFunction",
 
         "DirichletBC",
         "HomogeneousDirichletBC"
@@ -193,8 +195,12 @@ class ConstantInterface(VariableInterface):
     def _replacement(self):
         if "replacement" not in self._tlm_adjoint__var_interface_attrs:
             count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                ReplacementConstant(self, count=count)
+            if isinstance(self, Zero):
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementZeroConstant(self, count=count)
+            else:
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementConstant(self, count=count)
         return self._tlm_adjoint__var_interface_attrs["replacement"]
 
     def _is_replacement(self):
@@ -361,23 +367,49 @@ def constant_space(shape, *, domain=None):
     return ufl.classes.FunctionSpace(domain, element)
 
 
+def iter_expr(expr, *, evaluate_weights=False):
+    if isinstance(expr, ufl.classes.FormSum):
+        for weight, comp in zip(expr.weights(), expr.components()):
+            if evaluate_weights:
+                weight = complex(weight)
+                if weight.imag == 0:
+                    weight = weight.real
+            yield (weight, comp)
+    elif isinstance(expr, (ufl.classes.Form, ufl.classes.Cofunction,
+                           ufl.classes.Expr)):
+        yield (1, expr)
+    elif isinstance(expr, ufl.classes.ZeroBaseForm):
+        return
+        yield
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
+
+
+def form_cached(key):
+    def wrapper(fn):
+        @functools.wraps(fn)
+        def wrapped(expr, *args, **kwargs):
+            if isinstance(expr, ufl.classes.Form) and key in expr._cache:
+                value = expr._cache[key]
+            else:
+                value = fn(expr, *args, **kwargs)
+                if isinstance(expr, ufl.classes.Form):
+                    assert key not in expr._cache
+                    expr._cache[key] = value
+            return value
+        return wrapped
+    return wrapper
+
+
+@form_cached("_tlm_adjoint__form_coefficients")
 def extract_coefficients(expr):
-    """
-    :returns: Variables on which the supplied :class:`ufl.core.expr.Expr` or
-        :class:`ufl.Form` depends.
-    """
-
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__form_coefficients" in expr._cache:
-        return expr._cache["_tlm_adjoint__form_coefficients"]
-
     deps = []
-    for c in (ufl.classes.Coefficient, backend_Constant):
+    for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
         deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
                            key=lambda dep: dep.count()))
 
-    if isinstance(expr, ufl.classes.Form):
-        expr._cache["_tlm_adjoint__form_coefficients"] = deps
+    # Note: Misses FormSum weight dependencies -- see Firedrake issue #3292
+
     return deps
 
 
@@ -405,68 +437,47 @@ def derivative(expr, x, argument=None, *,
             raise ValueError("Unexpected argument")
     if argument is not None:
         for expr_argument in ufl.algorithms.extract_arguments(argument):
-            if expr_argument.number() < arity:
+            if expr_argument.number() < arity - int(isinstance(x, ufl.classes.Cofunction)):  # noqa: E501
                 raise ValueError("Invalid argument")
 
     expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
     if argument is not None:
         argument = ufl.replace(argument, replace_map)
     dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
+    dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return ufl.replace(dexpr, replace_map_inverse)
 
 
-def eliminate_zeros(expr, *, force_non_empty_form=False):
-    """Apply zero elimination for :class:`.Zero` objects in the supplied
-    :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
+def expr_zero(expr):
+    return ufl.classes.Zero(shape=expr.ufl_shape,
+                            free_indices=expr.ufl_free_indices,
+                            index_dimensions=expr.ufl_index_dimensions)
 
-    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
-    :arg force_non_empty_form: If `True` and if `expr` is a :class:`ufl.Form`,
-        then the returned form is guaranteed to be non-empty, and may be
-        assembled.
-    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form` with zero
-        elimination applied. May return `expr`.
+
+@form_cached("_tlm_adjoint__simplified_form")
+def eliminate_zeros(expr):
+    """Apply zero elimination for :class:`.Zero` objects in the supplied
+    :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm`.
+
+    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm`.
+    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm` with
+        zero elimination applied. May return `expr`.
     """
 
-    if isinstance(expr, ufl.classes.Form) \
-            and "_tlm_adjoint__simplified_form" in expr._cache:
-        simplified_expr = expr._cache["_tlm_adjoint__simplified_form"]
+    replace_map = {c: expr_zero(c)
+                   for c in extract_coefficients(expr)
+                   if isinstance(c, Zero)}
+    if len(replace_map) == 0:
+        simplified_expr = expr
     else:
-        replace_map = {}
-        for c in extract_coefficients(expr):
-            if isinstance(c, Zero):
-                replace_map[c] = ufl.classes.Zero(shape=c.ufl_shape)
+        simplified_expr = ufl.replace(expr, replace_map)
 
-        if len(replace_map) == 0:
-            simplified_expr = expr
-        else:
-            simplified_expr = ufl.replace(expr, replace_map)
-
-        if isinstance(expr, ufl.classes.Form):
-            expr._cache["_tlm_adjoint__simplified_form"] = simplified_expr
-
-    if force_non_empty_form \
-            and isinstance(simplified_expr, ufl.classes.Form) \
-            and simplified_expr.empty():
-        if "_tlm_adjoint__simplified_form_non_empty" in expr._cache:
-            simplified_expr = expr._cache["_tlm_adjoint__simplified_form_non_empty"]  # noqa: E501
-        else:
-            # Inefficient, but it is very difficult to generate a non-empty but
-            # zero valued form
-            arguments = expr.arguments()
-            zero = ZeroConstant()
-            if len(arguments) == 0:
-                domain, = expr.ufl_domains()
-                simplified_expr = zero * ufl.ds(domain)
-            elif len(arguments) == 1:
-                test, = arguments
-                simplified_expr = ufl.inner(zero, test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
-            else:
-                test, trial = arguments
-                simplified_expr = zero * ufl.inner(trial[tuple(0 for _ in trial.ufl_shape)],  # noqa: E501
-                                                   test[tuple(0 for _ in test.ufl_shape)]) * ufl.ds  # noqa: E501
-
-            if isinstance(expr, ufl.classes.Form):
-                expr._cache["_tlm_adjoint__simplified_form_non_empty"] = simplified_expr  # noqa: E501
+    if isinstance(simplified_expr, ufl.classes.BaseForm):
+        nonempty_expr = ufl.classes.ZeroBaseForm(expr.arguments())
+        for weight, comp in iter_expr(simplified_expr):
+            if not isinstance(comp, ufl.classes.Form) or not comp.empty():
+                nonempty_expr = nonempty_expr + weight * comp
+        simplified_expr = nonempty_expr
 
     return simplified_expr
 
@@ -599,6 +610,26 @@ class ReplacementFunction(Replacement, ufl.classes.Coefficient):
     def __new__(cls, x, *args, **kwargs):
         return ufl.classes.Coefficient.__new__(cls, var_space(x),
                                                *args, **kwargs)
+
+
+class ReplacementZeroConstant(ReplacementConstant, Zero):
+    """Represents a symbolic :class:`firedrake.constant.Constant` which is
+    zero, but has no value.
+    """
+
+    def __init__(self, *args, **kwargs):
+        ReplacementConstant.__init__(self, *args, **kwargs)
+        Zero.__init__(self)
+
+
+class ReplacementZeroFunction(ReplacementFunction, Zero):
+    """Represents a symbolic :class:`firedrake.function.Function` which is
+    zero, but has no value.
+    """
+
+    def __init__(self, *args, **kwargs):
+        ReplacementFunction.__init__(self, *args, **kwargs)
+        Zero.__init__(self)
 
 
 def replaced_form(form):

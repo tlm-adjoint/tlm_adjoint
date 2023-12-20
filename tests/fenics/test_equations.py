@@ -2,6 +2,7 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend_code_generator_interface import (
     assemble_linear_solver)
+from tlm_adjoint.fenics.functions import extract_coefficients
 
 from .test_base import *
 
@@ -957,14 +958,8 @@ def test_eliminate_zeros(setup_test, test_leaks):
     L = inner(F, test) * dx
 
     for i in range(3):
-        L_z = eliminate_zeros(L, force_non_empty_form=False)
+        L_z = eliminate_zeros(L)
         assert L_z.empty()
-
-        L_z = eliminate_zeros(L, force_non_empty_form=True)
-        assert not L_z.empty()
-        b = Function(space, space_type="conjugate_dual")
-        assemble(L_z, tensor=b)
-        assert var_linf_norm(b) == 0.0
 
 
 @pytest.mark.fenics
@@ -995,13 +990,7 @@ def test_eliminate_zeros_arity_1(setup_test, test_leaks,
             + Constant(1.0) * inner(grad(F), grad(test)) * dx)
 
     zero_form = eliminate_zeros(form)
-    assert len(zero_form.integrals()) == 0
-
-    zero_form = eliminate_zeros(form, force_non_empty_form=True)
-    assert F not in extract_coefficients(zero_form)
-    b = Function(space, space_type="conjugate_dual")
-    assemble(zero_form, tensor=b)
-    assert var_linf_norm(b) == 0.0
+    assert zero_form.empty()
 
 
 @pytest.mark.fenics

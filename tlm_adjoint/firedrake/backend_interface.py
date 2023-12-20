@@ -1,6 +1,7 @@
 from .backend import (
-    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
-    backend_Function, backend_FunctionSpace, backend_ScalarType)
+    TestFunction, backend_Cofunction, backend_CofunctionSpace,
+    backend_Constant, backend_Function, backend_FunctionSpace,
+    backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     add_replacement_interface, check_space_type, comm_dup_cached, new_space_id,
@@ -16,7 +17,8 @@ from ..manager import paused_manager
 from .equations import Assembly
 from .functions import (
     Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
-    ReplacementFunction, Zero, constant_space, define_var_alias, new_count)
+    ReplacementFunction, ReplacementZeroFunction, Zero, constant_space,
+    define_var_alias, new_count)
 
 import mpi4py.MPI as MPI
 import numbers
@@ -265,8 +267,12 @@ class FunctionInterface(FunctionInterfaceBase):
     def _replacement(self):
         if "replacement" not in self._tlm_adjoint__var_interface_attrs:
             count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                ReplacementFunction(self, count=count)
+            if isinstance(self, Zero):
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementZeroFunction(self, count=count)
+            else:
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementFunction(self, count=count)
         return self._tlm_adjoint__var_interface_attrs["replacement"]
 
 
@@ -487,6 +493,10 @@ class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
         Replacement.__init__(self)
         ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
         add_replacement_interface(self, x)
+
+    def _analyze_form_arguments(self):
+        self._arguments = (TestFunction(var_space(self).dual()),)
+        self._coefficients = (self,)
 
     def equals(self, other):
         if self is other:
