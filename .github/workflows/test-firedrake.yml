@@ -36,7 +36,6 @@ jobs:
           . /home/firedrake/firedrake/bin/activate
           cd tlm_adjoint
           flake8
-          ruff clean
           ruff check
       - name: Run tests
         run: |
@@ -66,7 +65,6 @@ jobs:
           . /home/firedrake/firedrake/bin/activate
           cd tlm_adjoint
           flake8
-          ruff clean
           ruff check
       - name: Run tests
         run: |
