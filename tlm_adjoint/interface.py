@@ -632,7 +632,8 @@ class SpaceTypeError(RuntimeError):
 def check_space_type(x, space_type):
     """Check that a variable has a given space type.
 
-    Emits a warning if the check fails and space type checking is enabled.
+    Raises a :class:`.SpaceTypeError` if the check fails and space type
+    checking is enabled.
 
     :arg x: A variable, whose space type should be checked.
     :arg space_type: The space type. One of `'primal'`, `'conjugate'`,
@@ -651,7 +652,8 @@ def check_space_type(x, space_type):
 def check_space_types(x, y, *, rel_space_type="primal"):
     """Check that `x` and `y` have compatible space types.
 
-    Emits a warning if the check fails and space type checking is enabled.
+    Raises a :class:`.SpaceTypeError` if the check fails and space type
+    checking is enabled.
 
     :arg x: A variable.
     :arg y: A variable.
@@ -667,7 +669,8 @@ def check_space_types(x, y, *, rel_space_type="primal"):
 def check_space_types_conjugate(x, y):
     """Check that `x` has space type conjugate to the space type for `y`.
 
-    Emits a warning if the check fails and space type checking is enabled.
+    Raises a :class:`.SpaceTypeError` if the check fails and space type
+    checking is enabled.
 
     :arg x: A variable.
     :arg y: A variable.
@@ -679,7 +682,8 @@ def check_space_types_conjugate(x, y):
 def check_space_types_dual(x, y):
     """Check that `x` has space type dual to the space type for `y`.
 
-    Emits a warning if the check fails and space type checking is enabled.
+    Raises a :class:`.SpaceTypeError` if the check fails and space type
+    checking is enabled.
 
     :arg x: A variable.
     :arg y: A variable.
@@ -691,7 +695,8 @@ def check_space_types_dual(x, y):
 def check_space_types_conjugate_dual(x, y):
     """Check that `x` has space type conjugate dual to the space type for `y`.
 
-    Emits a warning if the check fails and space type checking is enabled.
+    Raises a :class:`.SpaceTypeError` if the check fails and space type
+    checking is enabled.
 
     :arg x: A variable.
     :arg y: A variable.
