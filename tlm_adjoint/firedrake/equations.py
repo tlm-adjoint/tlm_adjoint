@@ -4,7 +4,7 @@ variational problems.
 """
 
 from .backend import (
-    Coargument, TestFunction, TrialFunction, adjoint, backend_Constant,
+    TestFunction, TrialFunction, adjoint, backend_Constant,
     backend_DirichletBC, backend_Function, parameters)
 from ..interface import (
     check_space_type, is_var, var_assign, var_axpy, var_id,
@@ -146,7 +146,7 @@ class Assembly(ExprEquation):
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
-        deps, nl_deps = extract_dependencies(rhs)
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -635,7 +635,7 @@ class EquationSolver(ExprEquation):
             if dep_index not in self._adjoint_dF_cache:
                 dep = self.dependencies()[dep_index]
                 dF_forms = ufl.classes.Form([])
-                dF_cofunctions = ufl.classes.ZeroBaseForm((Coargument(var_space(self.x()).dual(), number=0),))  # noqa: E501
+                dF_cofunctions = ufl.classes.ZeroBaseForm((TestFunction(var_space(self.x()).dual()),))  # noqa: E501
                 for weight, comp in iter_expr(self._F):
                     if isinstance(comp, ufl.classes.Form):
                         if dep in extract_coefficients(comp):
@@ -816,7 +816,7 @@ class Projection(EquationSolver):
     :arg x: A :class:`firedrake.function.Function` defining the forward
         solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.Form` defining the
+        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 

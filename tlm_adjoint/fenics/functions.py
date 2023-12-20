@@ -36,6 +36,8 @@ __all__ = \
         "Replacement",
         "ReplacementConstant",
         "ReplacementFunction",
+        "ReplacementZeroConstant",
+        "ReplacementZeroFunction",
 
         "DirichletBC",
         "HomogeneousDirichletBC"
@@ -540,18 +542,24 @@ class ReplacementConstant(Replacement):
     """
 
 
-class ReplacementZeroConstant(ReplacementConstant, Zero):
-    def __init__(self, *args, **kwargs):
-        ReplacementConstant.__init__(self, *args, **kwargs)
-        Zero.__init__(self)
-
-
 class ReplacementFunction(Replacement):
     """Represents a symbolic DOLFIN `Function`, but has no value.
     """
 
 
+class ReplacementZeroConstant(ReplacementConstant, Zero):
+    """Represents a symbolic DOLFIN `Constant` which is zero, but has no value.
+    """
+
+    def __init__(self, *args, **kwargs):
+        ReplacementConstant.__init__(self, *args, **kwargs)
+        Zero.__init__(self)
+
+
 class ReplacementZeroFunction(ReplacementFunction, Zero):
+    """Represents a symbolic DOLFIN `Function` which is zero, but has no value.
+    """
+
     def __init__(self, *args, **kwargs):
         ReplacementFunction.__init__(self, *args, **kwargs)
         Zero.__init__(self)

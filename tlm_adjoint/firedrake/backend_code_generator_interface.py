@@ -119,6 +119,8 @@ def _assemble(form, tensor=None, bcs=None, *,
         form_compiler_parameters = {}
 
     form = eliminate_zeros(form)
+    if isinstance(form, ufl.classes.ZeroBaseForm):
+        raise ValueError("Form cannot be a ZeroBaseForm")
     if len(form.arguments()) == 1:
         b = backend_assemble(
             form, tensor=tensor,

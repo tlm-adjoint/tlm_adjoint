@@ -32,6 +32,8 @@ __all__ = \
         "Replacement",
         "ReplacementConstant",
         "ReplacementFunction",
+        "ReplacementZeroConstant",
+        "ReplacementZeroFunction",
 
         "DirichletBC",
         "HomogeneousDirichletBC"
@@ -595,12 +597,6 @@ class ReplacementConstant(Replacement, ufl.classes.ConstantValue,
         return self._tlm_adjoint__ufl_shape
 
 
-class ReplacementZeroConstant(ReplacementConstant, Zero):
-    def __init__(self, *args, **kwargs):
-        ReplacementConstant.__init__(self, *args, **kwargs)
-        Zero.__init__(self)
-
-
 class ReplacementFunction(Replacement, ufl.classes.Coefficient):
     """Represents a symbolic :class:`firedrake.function.Function`, but has no
     value.
@@ -616,7 +612,21 @@ class ReplacementFunction(Replacement, ufl.classes.Coefficient):
                                                *args, **kwargs)
 
 
+class ReplacementZeroConstant(ReplacementConstant, Zero):
+    """Represents a symbolic :class:`firedrake.constant.Constant` which is
+    zero, but has no value.
+    """
+
+    def __init__(self, *args, **kwargs):
+        ReplacementConstant.__init__(self, *args, **kwargs)
+        Zero.__init__(self)
+
+
 class ReplacementZeroFunction(ReplacementFunction, Zero):
+    """Represents a symbolic :class:`firedrake.function.Function` which is
+    zero, but has no value.
+    """
+
     def __init__(self, *args, **kwargs):
         ReplacementFunction.__init__(self, *args, **kwargs)
         Zero.__init__(self)

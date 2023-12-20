@@ -44,6 +44,9 @@ def LocalSolver(form, *,
     if form_compiler_parameters is None:
         form_compiler_parameters = {}
 
+    form = eliminate_zeros(form)
+    if isinstance(form, ufl.classes.ZeroBaseForm):
+        raise ValueError("Form cannot be a ZeroBaseForm")
     local_solver = backend_assemble(
         Tensor(form).inv,
         form_compiler_parameters=form_compiler_parameters)
@@ -81,6 +84,8 @@ class LocalSolverCache(Cache):
             form_compiler_parameters = {}
 
         form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
         if replace_map is None:
             assemble_form = form
         else:
@@ -127,7 +132,7 @@ class LocalProjection(EquationSolver):
     :arg x: A :class:`firedrake.function.Function` defining the forward
         solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.Form` defining the
+        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 

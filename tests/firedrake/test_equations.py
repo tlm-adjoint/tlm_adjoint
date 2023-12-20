@@ -1172,7 +1172,8 @@ def rhs_FormSum(alpha, m, test):
                                  functools.partial(rhs_FormSum, 0.5),
                                  functools.partial(rhs_FormSum, -0.5),
                                  functools.partial(rhs_FormSum, 0.5 + 0.5j)])
-def test_EquationSolver_FormSum(setup_test, test_leaks,
+@seed_test
+def test_EquationSolver_FormSum(setup_test, test_leaks, test_configurations,
                                 solve_eq, rhs):
     mesh = UnitIntervalMesh(10)
     X = SpatialCoordinate(mesh)

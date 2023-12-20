@@ -1,6 +1,7 @@
 from tlm_adjoint import DEFAULT_COMM, VectorEquation
 from tlm_adjoint.override import override_function, override_method
 
+import functools
 import hashlib
 import inspect
 import json
@@ -31,7 +32,9 @@ def seed_test(fn):
             # Raises an error if tmp_path is a positional argument
             del kwargs["tmp_path"]
         for key, value in kwargs.items():
-            if callable(value):
+            if isinstance(value, functools.partial):
+                kwargs[key] = ("partial", value.func.__name__)
+            elif callable(value):
                 kwargs[key] = value.__name__
 
         h = hashlib.sha256()

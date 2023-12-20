@@ -274,9 +274,6 @@ def _split_form(form):
 
     def add_integral(integrals, base_integral, terms):
         if len(terms) > 0:
-            assert all(term.ufl_shape == () for term in terms)
-            assert all(term.ufl_free_indices == () for term in terms)
-            assert all(term.ufl_index_dimensions == () for term in terms)
             integrand = sum(terms, expr_zero(terms[0]))
             integral = base_integral.reconstruct(integrand=integrand)
             integrals.append(integral)
@@ -382,6 +379,8 @@ class AssemblyCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
         if replace_map is None:
             assemble_form = form
         else:
@@ -452,6 +451,8 @@ class LinearSolverCache(Cache):
             linear_solver_parameters = {}
 
         form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
         if replace_map is None:
             assemble_form = form
         else:
