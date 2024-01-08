@@ -643,7 +643,7 @@ class EquationSolver(ExprEquation):
                             dF_term = ufl.algorithms.expand_derivatives(dF_term)  # noqa: E501
                             dF_term = eliminate_zeros(dF_term)
                             if not isinstance(dF_term, ufl.classes.ZeroBaseForm):  # noqa: E501
-                                dF_forms = dF_forms + weight * adjoint(dF_term)
+                                dF_forms = dF_forms + ufl.conj(weight) * adjoint(dF_term)  # noqa: E501
                     elif isinstance(comp, ufl.classes.Cofunction):
                         # Note: Ignores weight dependencies
                         dF_term = ufl.conj(weight) * derivative(comp, dep)
