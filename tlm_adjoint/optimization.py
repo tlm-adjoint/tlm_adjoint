@@ -794,6 +794,7 @@ def l_bfgs(F, Fp, X0, *,
 
     if comm is None:
         comm = var_comm(X0[0])
+    comm = comm_dup_cached(comm)
 
     X = vars_copy(X0)
     del X0

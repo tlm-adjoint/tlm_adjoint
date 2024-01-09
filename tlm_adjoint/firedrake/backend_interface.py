@@ -4,11 +4,11 @@ from .backend import (
     backend_ScalarType)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    add_replacement_interface, check_space_type, comm_dup_cached, new_space_id,
-    new_var_id, register_garbage_cleanup, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, relative_space_type, space_id,
-    subtract_adjoint_derivative_action_base, var_is_alias, var_linf_norm,
-    var_lock_state, var_space, var_space_type)
+    add_replacement_interface, check_space_type, comm_dup_cached, comm_parent,
+    new_space_id, new_var_id, register_functional_term_eq,
+    register_garbage_cleanup, register_subtract_adjoint_derivative_action,
+    relative_space_type, space_id, subtract_adjoint_derivative_action_base,
+    var_is_alias, var_linf_norm, var_lock_state, var_space, var_space_type)
 
 from ..equations import Conversion
 from ..override import override_method, override_property
@@ -56,6 +56,7 @@ def Constant__init__(self, orig, orig_args, value, domain=None, *,
             comm = DEFAULT_COMM
         else:
             comm = domain.comm
+    comm = comm_parent(comm)
 
     if space is None:
         space = constant_space(self.ufl_shape, domain=domain)

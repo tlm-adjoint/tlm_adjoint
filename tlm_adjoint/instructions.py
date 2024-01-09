@@ -34,9 +34,10 @@ class GarbageCollection(Instruction):
     def __init__(self, comm=None, *, generation=2, garbage_cleanup=True):
         if comm is None:
             comm = DEFAULT_COMM
+        comm = comm_dup_cached(comm)
 
         super().__init__()
-        self._comm = comm_dup_cached(comm)
+        self._comm = comm
         self._generation = generation
         self._garbage_cleanup = garbage_cleanup
 

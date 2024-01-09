@@ -97,6 +97,7 @@ class VectorSpace:
             dtype = _default_dtype
         if comm is None:
             comm = DEFAULT_COMM
+        comm = comm_dup_cached(comm)
 
         dtype = np.dtype(dtype).type
         if not issubclass(dtype, (np.floating, np.complexfloating)):
@@ -104,7 +105,7 @@ class VectorSpace:
 
         self._n = n
         self._dtype = dtype
-        self._comm = comm_dup_cached(comm)
+        self._comm = comm
 
         N = self._n
         if MPI is not None:
