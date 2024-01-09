@@ -7,10 +7,10 @@ from .backend import (
     backend_Constant, backend_DirichletBC, backend_ScalarType)
 from ..interface import (
     SpaceInterface, VariableInterface, VariableStateChangeError,
-    add_replacement_interface, comm_parent, is_var, space_comm, var_comm,
-    var_dtype, var_increment_state_lock, var_is_cached, var_is_replacement,
-    var_is_static, var_linf_norm, var_lock_state, var_replacement,
-    var_scalar_value, var_space, var_space_type)
+    add_replacement_interface, is_var, space_comm, var_comm, var_dtype,
+    var_increment_state_lock, var_is_cached, var_is_replacement, var_is_static,
+    var_linf_norm, var_lock_state, var_replacement, var_scalar_value,
+    var_space, var_space_type)
 
 from ..caches import Caches
 from ..manager import paused_manager
@@ -285,7 +285,7 @@ class Constant(backend_Constant):
 
         # Default comm
         if comm is None and space is not None:
-            comm = comm_parent(space_comm(space))
+            comm = space_comm(space)
 
         if cache is None:
             cache = static

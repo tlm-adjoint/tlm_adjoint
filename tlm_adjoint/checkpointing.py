@@ -701,8 +701,8 @@ class PickleCheckpoints(Checkpoints):
     def __init__(self, prefix, *, comm=None):
         if comm is None:
             comm = DEFAULT_COMM
-
         comm = comm_dup_cached(comm)
+
         cp_filenames = {}
 
         def finalize_callback(cp_filenames):
@@ -807,8 +807,8 @@ class HDF5Checkpoints(Checkpoints):
     def __init__(self, prefix, *, comm=None):
         if comm is None:
             comm = DEFAULT_COMM
-
         comm = comm_dup_cached(comm, key="HDF5Checkpoints")
+
         cp_filenames = {}
 
         def finalize_callback(comm, rank, cp_filenames):

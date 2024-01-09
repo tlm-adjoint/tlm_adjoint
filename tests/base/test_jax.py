@@ -1,9 +1,10 @@
 from tlm_adjoint import (
     DEFAULT_COMM, DotProduct, Float, Hessian, Vector, VectorEquation,
-    compute_gradient, new_jax_float, set_default_float_dtype,
+    comm_parent, compute_gradient, new_jax_float, set_default_float_dtype,
     set_default_jax_dtype, start_manager, stop_manager, taylor_test,
-    taylor_test_tlm, taylor_test_tlm_adjoint, var_get_values, var_global_size,
-    var_is_scalar, var_linf_norm, var_local_size, var_scalar_value)
+    taylor_test_tlm, taylor_test_tlm_adjoint, to_float, var_comm,
+    var_get_values, var_global_size, var_is_scalar, var_linf_norm,
+    var_local_size, var_scalar_value)
 
 from .test_base import jax_tlm_config, seed_test, setup_test  # noqa: F401
 
@@ -228,7 +229,7 @@ def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
                                    np.sqrt(3.0),
                                    np.sqrt(5.0) + 1.0j * np.sqrt(7.0)])
 @seed_test
-def test_jax_float(setup_test, jax_tlm_config,  # noqa: F811
+def test_jax_float(setup_test,  # noqa: F811
                    dtype, x_val):
     if not isinstance(x_val, numbers.Real) \
             and isinstance(x_val, numbers.Complex) \
@@ -249,3 +250,38 @@ def test_jax_float(setup_test, jax_tlm_config,  # noqa: F811
                                           else [], dtype=x.space.dtype)).all()
     assert var_is_scalar(x)
     assert var_scalar_value(x) == x_val
+
+
+@pytest.mark.base
+@pytest.mark.parametrize("dtype", [np.double, np.cdouble])
+@pytest.mark.parametrize("x_val", [-np.sqrt(2.0),
+                                   np.sqrt(3.0),
+                                   np.sqrt(5.0) + 1.0j * np.sqrt(7.0)])
+@seed_test
+def test_jax_to_float(setup_test,  # noqa: F811
+                      dtype, x_val):
+    if not isinstance(x_val, numbers.Real) \
+            and isinstance(x_val, numbers.Complex) \
+            and not issubclass(dtype, np.complexfloating):
+        pytest.skip()
+    # set_default_float_dtype(dtype)
+    set_default_jax_dtype(dtype)
+
+    comm = DEFAULT_COMM.Dup()
+    try:
+        x = to_float(new_jax_float(comm=comm).assign(x_val))
+
+        assert comm_parent(var_comm(x)).py2f() == comm.py2f()
+        if issubclass(dtype, np.floating):
+            assert float(x) == x_val
+        assert complex(x) == x_val
+        assert x.value == x_val
+        assert abs(var_linf_norm(x) - abs(x_val)) == 0.0
+        assert var_local_size(x) == (1 if comm.rank == 0 else 0)
+        assert var_global_size(x) == 1
+        assert (var_get_values(x) == np.array([x_val] if comm.rank == 0
+                                              else [], dtype=x.space.dtype)).all()  # noqa: E501
+        assert var_is_scalar(x)
+        assert var_scalar_value(x) == x_val
+    finally:
+        comm.Free()

@@ -3,10 +3,11 @@ from .backend import (
     backend_ScalarType, backend_Vector, cpp_PETScVector)
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    check_space_types, comm_dup_cached, is_var, new_space_id, new_var_id,
-    register_functional_term_eq, register_subtract_adjoint_derivative_action,
-    space_id, subtract_adjoint_derivative_action_base, var_axpy, var_copy,
-    var_linf_norm, var_lock_state, var_new, var_space, var_space_type)
+    check_space_types, comm_dup_cached, comm_parent, is_var, new_space_id,
+    new_var_id, register_functional_term_eq,
+    register_subtract_adjoint_derivative_action, space_id,
+    subtract_adjoint_derivative_action_base, var_axpy, var_copy, var_linf_norm,
+    var_lock_state, var_new, var_space, var_space_type)
 
 from ..equations import Conversion
 from ..override import override_method
@@ -44,6 +45,7 @@ def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
             comm = DEFAULT_COMM
         else:
             comm = domain.ufl_cargo().mpi_comm()
+    comm = comm_parent(comm)
 
     orig(self, *args, **kwargs)
 

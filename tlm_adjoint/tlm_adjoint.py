@@ -90,10 +90,9 @@ class EquationManager:
     def __init__(self, *, comm=None, cp_method="memory", cp_parameters=None):
         if comm is None:
             comm = DEFAULT_COMM
+        comm = comm_dup_cached(comm)
         if cp_parameters is None:
             cp_parameters = {}
-
-        comm = comm_dup_cached(comm)
 
         self._comm = comm
         self._to_drop_references = []

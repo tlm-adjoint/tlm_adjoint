@@ -252,30 +252,32 @@ _dupped_comms = {}
 
 
 def comm_parent(dup_comm):
-    return _parent_comms.get(dup_comm.py2f(), dup_comm)
+    while True:
+        parent_comm = _parent_comms.get(dup_comm.py2f(), dup_comm)
+        if MPI is None \
+                or parent_comm.py2f() == MPI.COMM_NULL.py2f() \
+                or parent_comm.py2f() == dup_comm.py2f():
+            return parent_comm
+        dup_comm = parent_comm
 
 
 def comm_dup_cached(comm, *, key=None):
-    """If the communicator `comm` with key `key` has previously been duplicated
-    using :func:`.comm_dup_cached`, then return the previous result. Otherwise
-    duplicate the communicator and cache the result. The duplicated
-    communicator is freed when the original base communicator is freed.
+    """Return an internal duplicated communicator with key `key`.
 
-    :arg comm: A communicator, the base communicator to be duplicated.
+    :arg comm: A communicator. Defines the base communicator.
     :arg key: The key.
-    :returns: A communicator. A duplicated MPI communicator, or a previously
-        cached duplicated MPI communicator, which is freed when the original
-        base communicator is freed.
+    :returns: An internal duplicated communicator. May be `comm` itself. Freed
+        when the original base communicator is freed.
     """
 
-    if MPI is not None and comm.py2f() == MPI.COMM_NULL.py2f():
+    if MPI is None:
         return comm
 
-    if key is None:
-        key = (comm.py2f(),)
-    else:
-        key = (comm.py2f(), key)
+    comm = comm_parent(comm)
+    if comm.py2f() == MPI.COMM_NULL.py2f():
+        return comm
 
+    key = (comm.py2f(), key)
     dup_comm = _dup_comms.get(key, None)
 
     if dup_comm is None:
@@ -322,20 +324,14 @@ def garbage_cleanup(comm=None):
     :arg comm: A communicator. Defaults to `DEFAULT_COMM`.
     """
 
-    if comm is None:
-        comm = DEFAULT_COMM
-    if MPI is None \
-            or MPI.Is_finalized() \
-            or comm.py2f() == MPI.COMM_NULL.py2f():
+    if MPI is None or MPI.Is_finalized():
         return
 
-    while True:
-        parent_comm = comm_parent(comm)
-        if MPI is None \
-                or parent_comm.py2f() == MPI.COMM_NULL.py2f() \
-                or parent_comm.py2f() == comm.py2f():
-            break
-        comm = parent_comm
+    if comm is None:
+        comm = DEFAULT_COMM
+    comm = comm_parent(comm)
+    if comm.py2f() == MPI.COMM_NULL.py2f():
+        return
 
     comm_stack = [comm]
     comms = {}

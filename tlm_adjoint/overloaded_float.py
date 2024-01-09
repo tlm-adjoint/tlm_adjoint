@@ -20,8 +20,8 @@ from .interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_type, comm_dup_cached, is_var, new_space_id, new_var_id,
     register_subtract_adjoint_derivative_action, space_comm, space_dtype,
-    subtract_adjoint_derivative_action_base, var_assign, var_id, var_new,
-    var_new_conjugate_dual, var_scalar_value, var_space_type)
+    subtract_adjoint_derivative_action_base, var_assign, var_comm, var_dtype,
+    var_id, var_new, var_new_conjugate_dual, var_scalar_value, var_space_type)
 
 from .alias import Alias
 from .caches import Caches
@@ -131,12 +131,13 @@ class FloatSpace:
             dtype = _default_dtype
         if comm is None:
             comm = DEFAULT_COMM
+        comm = comm_dup_cached(comm)
 
         dtype = np.dtype(dtype).type
         if not issubclass(dtype, (np.floating, np.complexfloating)):
             raise TypeError("Invalid dtype")
 
-        self._comm = comm_dup_cached(comm)
+        self._comm = comm
         self._dtype = dtype
         self._float_cls = float_cls
 
@@ -930,7 +931,8 @@ def to_float(y, *, name=None):
     :returns: The :class:`.SymbolicFloat`.
     """
 
-    x = Float(name=name, space_type=var_space_type(y))
+    x = Float(name=name, space_type=var_space_type(y), dtype=var_dtype(y),
+              comm=var_comm(y))
     Assignment(x, y).solve()
     return x
 
