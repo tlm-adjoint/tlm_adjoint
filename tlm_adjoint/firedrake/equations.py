@@ -26,7 +26,6 @@ from .functions import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, iter_expr)
 
 import itertools
-import numbers
 import numpy as np
 import ufl
 
@@ -88,7 +87,8 @@ class ExprEquation(Equation):
             assert len(eq_deps) == len(deps)
             return {eq_dep: dep
                     for eq_dep, dep in zip(eq_deps, deps)
-                    if isinstance(eq_dep, ufl.classes.Expr)}
+                    if isinstance(eq_dep, (ufl.classes.Expr,
+                                           ufl.classes.Cofunction))}
 
     def _replace(self, expr, deps):
         if deps is None:
@@ -102,7 +102,8 @@ class ExprEquation(Equation):
         assert len(eq_nl_deps) == len(nl_deps)
         return {eq_nl_dep: nl_dep
                 for eq_nl_dep, nl_dep in zip(eq_nl_deps, nl_deps)
-                if isinstance(eq_nl_dep, ufl.classes.Expr)}
+                if isinstance(eq_nl_dep, (ufl.classes.Expr,
+                                          ufl.classes.Cofunction))}
 
     def _nonlinear_replace(self, expr, nl_deps):
         replace_map = self._nonlinear_replace_map(nl_deps)
@@ -120,8 +121,8 @@ class Assembly(ExprEquation):
     \mathcal{F} / \partial x` is the identity.
 
     :arg x: A variable defining the forward solution.
-    :arg rhs: A :class:`ufl.Form` to assemble. Should have arity 0 or 1, and
-        should not depend on `x`.
+    :arg rhs: A :class:`ufl.form.BaseForm`` to assemble. Should have arity 0 or
+        1, and should not depend on `x`.
     :arg form_compiler_parameters: Form compiler parameters.
     :arg match_quadrature: Whether to set quadrature parameters consistently in
         the forward, adjoint, and tangent-linears. Defaults to
@@ -135,6 +136,13 @@ class Assembly(ExprEquation):
         if match_quadrature is None:
             match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
+        for weight, _ in iter_expr(rhs):
+            if len(tuple(c for c in extract_coefficients(weight)
+                         if is_var(c))) > 0:
+                # See Firedrake issue #3292
+                raise NotImplementedError("FormSum weights cannot depend on "
+                                          "variables")
+
         arity = len(rhs.arguments())
         if arity == 0:
             check_space_type(x, "primal")
@@ -146,7 +154,7 @@ class Assembly(ExprEquation):
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
-        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
+        deps, nl_deps = extract_dependencies(rhs)
         if var_id(x) in deps:
             raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
@@ -171,7 +179,8 @@ class Assembly(ExprEquation):
     def drop_references(self):
         replace_map = {dep: var_replacement(dep)
                        for dep in self.dependencies()
-                       if isinstance(dep, ufl.classes.Expr)}
+                       if isinstance(dep, (ufl.classes.Expr,
+                                           ufl.classes.Cofunction))}
 
         super().drop_references()
         self._rhs = ufl.replace(self._rhs, replace_map)
@@ -190,40 +199,64 @@ class Assembly(ExprEquation):
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
 
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        # Derived from EquationSolver.derivative_action (see dolfin-adjoint
-        # reference below). Code first added 2017-12-07.
-        # Re-written 2018-01-28
-        # Updated to adjoint only form 2018-01-29
-
-        eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            raise IndexError("dep_index out of bounds")
-        elif dep_index == 0:
-            return adj_x
-
-        dep = eq_deps[dep_index]
-        dF = derivative(self._rhs, dep)
-        dF = ufl.algorithms.expand_derivatives(dF)
-        dF = eliminate_zeros(dF)
-        if isinstance(dF, ufl.classes.ZeroBaseForm):
-            return None
-
-        dF = self._nonlinear_replace(dF, nl_deps)
+    def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
         if self._arity == 0:
-            dF = ufl.classes.Form(
-                [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
-                 for integral in dF.integrals()])  # dF = adjoint(dF)
-            dF = assemble(
-                dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-var_scalar_value(adj_x), dF)
+            for dep_index, dep_B in dep_Bs.items():
+                if dep_index == 0:
+                    dep_B.sub(adj_x)
+                    continue
+                dep = self.dependencies()[dep_index]
+
+                for weight, comp in iter_expr(self._rhs):
+                    if isinstance(comp, ufl.classes.Form):
+                        dF = derivative(weight * comp, dep)
+                        dF = ufl.algorithms.expand_derivatives(dF)
+                        dF = eliminate_zeros(dF)
+                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
+                            dF = ufl.classes.Form(
+                                [integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
+                                 for integral in dF.integrals()])
+                            dF = self._nonlinear_replace(dF, nl_deps)
+                            dF = assemble(
+                                dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                            dep_B.sub((-var_scalar_value(adj_x), dF))
+                    else:
+                        raise TypeError(f"Unexpected type: {type(comp)}")
         elif self._arity == 1:
-            dF = ufl.action(adjoint(dF), coefficient=adj_x)
-            dF = assemble(
-                dF, form_compiler_parameters=self._form_compiler_parameters)
-            return (-1.0, dF)
+            for dep_index, dep_B in dep_Bs.items():
+                if dep_index == 0:
+                    dep_B.sub(adj_x)
+                    continue
+                dep = self.dependencies()[dep_index]
+
+                # Note: Ignores weight dependencies
+                for weight, comp in iter_expr(self._rhs,
+                                              evaluate_weights=True):
+                    if isinstance(comp, ufl.classes.Form):
+                        dF = derivative(comp, dep)
+                        dF = ufl.algorithms.expand_derivatives(dF)
+                        dF = eliminate_zeros(dF)
+                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
+                            dF = adjoint(dF)
+                            dF = ufl.action(dF, coefficient=adj_x)
+                            dF = self._nonlinear_replace(dF, nl_deps)
+                            dF = assemble(
+                                dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                            dep_B.sub((-weight.conjugate(), dF))
+                    elif isinstance(comp, ufl.classes.Cofunction):
+                        dF = derivative(comp, dep)
+                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
+                            dep_B.sub((-weight.conjugate(), adj_x))
+                    else:
+                        raise TypeError(f"Unexpected type: {type(comp)}")
         else:
             raise ValueError("Must be an arity 0 or arity 1 form")
+
+    # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+    #     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
+    #     # reference below). Code first added 2017-12-07.
+    #     # Re-written 2018-01-28
+    #     # Updated to adjoint only form 2018-01-29
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -231,15 +264,19 @@ class Assembly(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = ufl.classes.ZeroBaseForm(self._rhs.arguments())
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    tlm_rhs = tlm_rhs + derivative(self._rhs, dep, argument=tau_dep)  # noqa: E501
+                    for weight, comp in iter_expr(self._rhs):
+                        # Note: Ignores weight dependencies
+                        tlm_rhs = (tlm_rhs
+                                   + weight * derivative(comp, dep,
+                                                         argument=tau_dep))
 
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if tlm_rhs.empty():
+        if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:
             return Assembly(
@@ -359,9 +396,8 @@ class EquationSolver(ExprEquation):
             J = ufl.algorithms.expand_derivatives(J)
 
         for weight, _ in iter_expr(F):
-            if not isinstance(weight, numbers.Complex) \
-                    and len(tuple(c for c in extract_coefficients(weight)
-                                  if is_var(c))) > 0:
+            if len(tuple(c for c in extract_coefficients(weight)
+                         if is_var(c))) > 0:
                 # See Firedrake issue #3292
                 raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")
@@ -638,12 +674,11 @@ class EquationSolver(ExprEquation):
                 dF_cofunctions = ufl.classes.ZeroBaseForm((TestFunction(var_space(self.x()).dual()),))  # noqa: E501
                 for weight, comp in iter_expr(self._F):
                     if isinstance(comp, ufl.classes.Form):
-                        if dep in extract_coefficients(comp):
-                            dF_term = derivative(comp, dep)
-                            dF_term = ufl.algorithms.expand_derivatives(dF_term)  # noqa: E501
-                            dF_term = eliminate_zeros(dF_term)
-                            if not isinstance(dF_term, ufl.classes.ZeroBaseForm):  # noqa: E501
-                                dF_forms = dF_forms + ufl.conj(weight) * adjoint(dF_term)  # noqa: E501
+                        dF_term = derivative(weight * comp, dep)
+                        dF_term = ufl.algorithms.expand_derivatives(dF_term)
+                        dF_term = eliminate_zeros(dF_term)
+                        if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
+                            dF_forms = dF_forms + adjoint(dF_term)
                     elif isinstance(comp, ufl.classes.Cofunction):
                         # Note: Ignores weight dependencies
                         dF_term = ufl.conj(weight) * derivative(comp, dep)
@@ -683,7 +718,8 @@ class EquationSolver(ExprEquation):
                     dep_B.sub(dF_forms)
 
             if not isinstance(dF_cofunctions, ufl.classes.ZeroBaseForm):
-                for weight, comp in iter_expr(dF_cofunctions, evaluate_weights=True):  # noqa: E501
+                for weight, _ in iter_expr(dF_cofunctions,
+                                           evaluate_weights=True):
                     dep_B.sub((weight, adj_x))
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):

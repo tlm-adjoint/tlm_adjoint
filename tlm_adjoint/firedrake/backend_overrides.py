@@ -81,8 +81,6 @@ def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
         form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
         update_parameters_dict(form_compiler_parameters,
                                self._form_compiler_params)
-
-        return_value._tlm_adjoint__form = self._form
         return_value._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value
@@ -95,8 +93,8 @@ def FormAssembler_assemble(self, orig, orig_args, *args,
     return_value = orig_args()
 
     if len(self._form.arguments()) == 1:
-        eq = Assembly(return_value, return_value._tlm_adjoint__form,
-                      form_compiler_parameters=return_value._tlm_adjoint__form_compiler_parameters)  # noqa: E501
+        eq = Assembly(return_value, self._form,
+                      form_compiler_parameters=self._form_compiler_params)
         assert len(eq.initial_condition_dependencies()) == 0
         eq._post_process(annotate=annotate, tlm=tlm)
 
@@ -339,13 +337,9 @@ def LinearSolver_solve(self, orig, orig_args, x, b, *, annotate, tlm):
         nullspace=self.nullspace, transpose_nullspace=self.transpose_nullspace,
         near_nullspace=self.near_nullspace)
     form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
-            b._tlm_adjoint__form_compiler_parameters,
-            form_compiler_parameters):
-        raise ValueError("Non-matching form compiler parameters")
 
     eq = EquationSolver(
-        linear_equation_new_x(A.a == b._tlm_adjoint__form, x,
+        linear_equation_new_x(A.a == b, x,
                               annotate=annotate, tlm=tlm),
         x, bcs, solver_parameters=solver_parameters,
         form_compiler_parameters=form_compiler_parameters,

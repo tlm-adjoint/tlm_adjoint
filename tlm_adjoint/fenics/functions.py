@@ -346,7 +346,13 @@ def form_cached(key):
 
 @form_cached("_tlm_adjoint__form_coefficients")
 def extract_coefficients(expr):
-    return ufl.algorithms.extract_coefficients(expr)
+    def as_ufl(expr):
+        if isinstance(expr, ufl.classes.Form):
+            return expr
+        else:
+            return ufl.as_ufl(expr)
+
+    return ufl.algorithms.extract_coefficients(as_ufl(expr))
 
 
 @manager_disabled()
@@ -461,9 +467,7 @@ class DirichletBC(backend_DirichletBC):
             super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
-            for dep in extract_coefficients(
-                    g if isinstance(g, ufl.classes.Expr)
-                    else Constant(g, static=True)):
+            for dep in extract_coefficients(g):
                 if not is_var(dep) or not var_is_static(dep):
                     static = False
                     break

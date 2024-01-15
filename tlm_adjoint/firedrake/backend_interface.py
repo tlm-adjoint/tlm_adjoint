@@ -562,5 +562,5 @@ def functional_term_eq_form(x, term):
 
 
 register_functional_term_eq(
-    ufl.classes.Form,
+    ufl.classes.BaseForm,
     functional_term_eq_form)
