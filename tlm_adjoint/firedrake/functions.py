@@ -16,6 +16,7 @@ from ..caches import Caches
 from ..manager import paused_manager
 
 import functools
+import itertools
 import numbers
 import numpy as np
 import ufl
@@ -375,8 +376,9 @@ def iter_expr(expr, *, evaluate_weights=False):
                 if weight.imag == 0:
                     weight = weight.real
             yield (weight, comp)
-    elif isinstance(expr, (ufl.classes.Form, ufl.classes.Cofunction,
-                           ufl.classes.Expr)):
+    elif isinstance(expr, (ufl.classes.Action, ufl.classes.Coargument,
+                           ufl.classes.Cofunction, ufl.classes.Expr,
+                           ufl.classes.Form)):
         yield (1, expr)
     elif isinstance(expr, ufl.classes.ZeroBaseForm):
         return
@@ -405,11 +407,12 @@ def form_cached(key):
 def extract_coefficients(expr):
     deps = []
     for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
-        deps.extend(sorted(ufl.algorithms.extract_type(expr, c),
-                           key=lambda dep: dep.count()))
-
-    # Note: Misses FormSum weight dependencies -- see Firedrake issue #3292
-
+        c_deps = {}
+        for dep in itertools.chain.from_iterable(map(
+                lambda expr: ufl.algorithms.extract_type(ufl.as_ufl(expr), c),
+                itertools.chain.from_iterable(iter_expr(ufl.as_ufl(expr))))):
+            c_deps[dep.count()] = dep
+        deps.extend(sorted(c_deps.values(), key=lambda dep: dep.count()))
     return deps
 
 
@@ -500,9 +503,7 @@ class DirichletBC(backend_DirichletBC):
         super().__init__(V, g, sub_domain, *args, **kwargs)
 
         if static is None:
-            for dep in extract_coefficients(
-                    g if isinstance(g, ufl.classes.Expr)
-                    else Constant(g, static=True)):
+            for dep in extract_coefficients(g):
                 if not is_var(dep) or not var_is_static(dep):
                     static = False
                     break

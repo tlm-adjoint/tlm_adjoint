@@ -852,6 +852,93 @@ def test_Assembly_arity_1(setup_test, test_leaks):
     assert min_order > 2.00
 
 
+def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
+    EquationSolver(eq, u, solver_parameters=solver_parameters).solve()
+
+
+def solve_eq_solve(eq, u, *, solver_parameters=None):
+    solve(eq, u, solver_parameters=solver_parameters)
+
+
+def rhs_Form(m, test):
+    return inner(m.dx(0), test) * dx
+
+
+def rhs_Cofunction(m, test):
+    return assemble(rhs_Form(m, test))
+
+
+def rhs_FormSum(alpha, m, test):
+    if not isinstance(alpha, numbers.Real) and not complex_mode:
+        pytest.skip()
+    return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("solve_eq", [solve_eq_EquationSolver,
+                                      solve_eq_solve])
+@pytest.mark.parametrize("rhs", [rhs_Form,
+                                 rhs_Cofunction,
+                                 functools.partial(rhs_FormSum, 1.5),
+                                 functools.partial(rhs_FormSum, 0.5),
+                                 functools.partial(rhs_FormSum, -0.5),
+                                 functools.partial(rhs_FormSum, 0.5 + 0.5j)])
+@seed_test
+def test_Assembly_arity_1_FormSum(setup_test, test_leaks,
+                                  solve_eq, rhs):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        u = Function(space, name="u")
+        b = Cofunction(space.dual(), name="b")
+        Assembly(b, rhs(m, test)).solve()
+        solve_eq(inner(trial, test) * dx == b, u,
+                 solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        J.assign(((u + Constant(1.0)) ** 3) * dx)
+        return u, J
+
+    m = Function(space, name="m")
+    m.interpolate(X[0])
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    assert np.sqrt(abs(assemble(inner(u - Constant(1.0),
+                                      u - Constant(1.0)) * dx))) < 1.0e-15
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-3)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
+                            size=4)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+
 @pytest.mark.firedrake
 @seed_test
 def test_Storage(setup_test, test_leaks,
@@ -1139,28 +1226,6 @@ def test_EquationSolver_forward_solve_deps(setup_test, test_leaks,
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
     assert min_order > 1.99
-
-
-def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
-    EquationSolver(eq, u, solver_parameters=solver_parameters).solve()
-
-
-def solve_eq_solve(eq, u, *, solver_parameters=None):
-    solve(eq, u, solver_parameters=solver_parameters)
-
-
-def rhs_Form(m, test):
-    return inner(m.dx(0), test) * dx
-
-
-def rhs_Cofunction(m, test):
-    return assemble(rhs_Form(m, test))
-
-
-def rhs_FormSum(alpha, m, test):
-    if not isinstance(alpha, numbers.Real) and not complex_mode:
-        pytest.skip()
-    return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
 
 
 @pytest.mark.firedrake
