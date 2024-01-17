@@ -325,12 +325,8 @@ class ZeroFunction(Function, Zero):
 def Function__init__(self, orig, orig_args, function_space, val=None,
                      *args, **kwargs):
     orig_args()
-    comm = self.comm
-    if pyop2.mpi.is_pyop2_comm(comm):
-        # Work around Firedrake issue #3043
-        comm = self.function_space().comm
     add_interface(self, FunctionInterface,
-                  {"comm": comm_dup_cached(comm), "id": new_var_id(),
+                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
                    "state": [self.dat, getattr(self.dat, "dat_version", None)],
                    "space_type": "primal", "static": False, "cache": False,
                    "replacement_count": new_count(self._counted_class)})
