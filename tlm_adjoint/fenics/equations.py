@@ -199,10 +199,8 @@ class Assembly(ExprEquation):
         # Updated to adjoint only form 2018-01-29
 
         eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            raise IndexError("dep_index out of bounds")
-        elif dep_index == 0:
-            return adj_x
+        if dep_index <= 0 or dep_index >= len(eq_deps):
+            raise ValueError("Unexpected dep_index")
 
         dep = eq_deps[dep_index]
         dF = derivative(self._rhs, dep)
@@ -842,17 +840,15 @@ class DirichletBCApplication(Equation):
             *self._bc_args, **self._bc_kwargs).apply(x)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        elif dep_index == 1:
-            _, y = self.dependencies()
-            F = var_new_conjugate_dual(y)
-            backend_DirichletBC(
-                var_space(y), adj_x,
-                *self._bc_args, **self._bc_kwargs).apply(F)
-            return (-1.0, F)
-        else:
-            raise IndexError("dep_index out of bounds")
+        if dep_index != 1:
+            raise ValueError("Unexpected dep_index")
+
+        _, y = self.dependencies()
+        F = var_new_conjugate_dual(y)
+        backend_DirichletBC(
+            var_space(y), adj_x,
+            *self._bc_args, **self._bc_kwargs).apply(F)
+        return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -902,10 +898,8 @@ class ExprInterpolation(ExprEquation):
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            raise IndexError("dep_index out of bounds")
-        elif dep_index == 0:
-            return adj_x
+        if dep_index <= 0 or dep_index >= len(eq_deps):
+            raise ValueError("Unexpected dep_index")
 
         dep = eq_deps[dep_index]
 

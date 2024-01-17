@@ -200,12 +200,12 @@ class Assembly(ExprEquation):
             raise ValueError("Must be an arity 0 or arity 1 form")
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
+        eq_deps = self.dependencies()
         if self._arity == 0:
             for dep_index, dep_B in dep_Bs.items():
-                if dep_index == 0:
-                    dep_B.sub(adj_x)
-                    continue
-                dep = self.dependencies()[dep_index]
+                if dep_index <= 0 or dep_index >= len(eq_deps):
+                    raise ValueError("Unexpected dep_index")
+                dep = eq_deps[dep_index]
 
                 for weight, comp in iter_expr(self._rhs):
                     if isinstance(comp, ufl.classes.Form):
@@ -224,10 +224,9 @@ class Assembly(ExprEquation):
                         raise TypeError(f"Unexpected type: {type(comp)}")
         elif self._arity == 1:
             for dep_index, dep_B in dep_Bs.items():
-                if dep_index == 0:
-                    dep_B.sub(adj_x)
-                    continue
-                dep = self.dependencies()[dep_index]
+                if dep_index <= 0 or dep_index >= len(eq_deps):
+                    raise ValueError("Unexpected dep_index")
+                dep = eq_deps[dep_index]
 
                 # Note: Ignores weight dependencies
                 for weight, comp in iter_expr(self._rhs,
@@ -905,17 +904,15 @@ class DirichletBCApplication(Equation):
             *self._bc_args, **self._bc_kwargs).apply(x)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        elif dep_index == 1:
-            _, y = self.dependencies()
-            F = var_new_conjugate_dual(y)
-            backend_DirichletBC(
-                var_space(y), adj_x,
-                *self._bc_args, **self._bc_kwargs).apply(F)
-            return (-1.0, F)
-        else:
-            raise IndexError("dep_index out of bounds")
+        if dep_index != 1:
+            raise ValueError("Unexpected dep_index")
+
+        _, y = self.dependencies()
+        F = var_new_conjugate_dual(y)
+        backend_DirichletBC(
+            var_space(y), adj_x,
+            *self._bc_args, **self._bc_kwargs).apply(F)
+        return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -965,10 +962,8 @@ class ExprInterpolation(ExprEquation):
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            raise IndexError("dep_index out of bounds")
-        elif dep_index == 0:
-            return adj_x
+        if dep_index <= 0 or dep_index >= len(eq_deps):
+            raise ValueError("Unexpected dep_index")
 
         dep = eq_deps[dep_index]
 

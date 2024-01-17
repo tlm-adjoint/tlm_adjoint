@@ -727,8 +727,11 @@ class VectorEquation(Equation):
             adj_X = (adj_X,)
         _, vjp = self._jax_reverse(*nl_deps)
         dF = vjp(tuple(adj_x.vector.conjugate() for adj_x in adj_X))
+        N_X = len(self.X())
         for dep_index, dep_B in dep_Bs.items():
-            dep_B.sub((-1.0, dF[dep_index - len(adj_X)].conjugate()))
+            if dep_index < N_X or dep_index >= len(dF) + N_X:
+                raise ValueError("Unexpected dep_index")
+            dep_B.sub((-1.0, dF[dep_index - N_X].conjugate()))
         self._vjp = None
 
     def tangent_linear(self, M, dM, tlm_map):

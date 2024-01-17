@@ -475,9 +475,10 @@ class FixedPointSolver(Equation, CustomNormSq):
         if is_var(adj_X):
             adj_X = (adj_X,)
 
+        eq_deps = self.dependencies()
         eq_dep_Bs = tuple({} for _ in self._eqs)
         for dep_index, B in dep_Bs.items():
-            dep = self.dependencies()[dep_index]
+            dep = eq_deps[dep_index]
             dep_id = var_id(dep)
             for i in self._dep_eq_index_map[dep_id]:
                 eq_dep_Bs[i][self._eq_dep_index_map[i][dep_id]] = B

@@ -313,7 +313,7 @@ def expr_dependencies(expr):
             deps.append(dep)
         elif is_var(dep):
             raise ValueError("Invalid dependency")
-    return sorted(deps, key=lambda dep: var_id(dep))
+    return sorted(deps, key=var_id)
 
 
 # Float class name already used by SymPy
@@ -869,21 +869,23 @@ class FloatEquation(Equation):
             raise ValueError("Invalid dependency")
         deps.insert(0, x)
 
+        rhs = expr
+        F = x - expr
+
         dF_expr = {}
         nl_deps = {}
-        for dep_index, dep in enumerate(deps[1:], start=1):
-            expr_diff = dF_expr[dep_index] = expr.diff(dep)
-            for dep2 in expr_dependencies(expr_diff):
+        for dep_index, dep in enumerate(deps):
+            dF = dF_expr[dep_index] = F.diff(dep)
+            for dep2 in expr_dependencies(dF):
                 nl_deps.setdefault(var_id(dep), dep)
                 nl_deps.setdefault(var_id(dep2), dep2)
-        nl_deps = sorted(nl_deps.values(), key=lambda dep: var_id(dep))
-        dF = {dep_index: lambdify(expr_diff, nl_deps)
-              for dep_index, expr_diff in dF_expr.items()}
+        nl_deps = sorted(nl_deps.values(), key=var_id)
+        dF = {dep_index: lambdify(dF, nl_deps)
+              for dep_index, dF in dF_expr.items()}
 
         super().__init__(x, deps, nl_deps=nl_deps,
                          ic=False, adj_ic=False)
-        self._F_expr = expr
-        self._F = lambdify(expr, deps)
+        self._rhs = lambdify(rhs, deps)
         self._dF_expr = dF_expr
         self._dF = dF
 
@@ -891,21 +893,19 @@ class FloatEquation(Equation):
         if deps is None:
             deps = self.dependencies()
         dep_vals = tuple(dep.value for dep in deps)
-        x_val = self._F(*dep_vals)
+        x_val = self._rhs(*dep_vals)
         var_assign(x, x_val)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
-        deps = self.dependencies()
+        eq_deps = self.dependencies()
         nl_dep_vals = tuple(nl_dep.value for nl_dep in nl_deps)
         for dep_index, dep_B in dep_Bs.items():
-            dep = deps[dep_index]
-            F = var_new_conjugate_dual(dep)
-            F_val = (-self._dF[dep_index](*nl_dep_vals).conjugate()
-                     * adj_x.value)
-            var_assign(F, F_val)
+            dep = eq_deps[dep_index]
+            F = var_new_conjugate_dual(dep).assign(
+                self._dF[dep_index](*nl_dep_vals).conjugate() * adj_x.value)
             dep_B.sub(F)
 
     @no_float_overloading
@@ -914,9 +914,11 @@ class FloatEquation(Equation):
         expr = 0
         deps = self.dependencies()
         for dep_index, dF_expr in self._dF_expr.items():
-            tau_dep = tlm_map[deps[dep_index]]
-            if tau_dep is not None:
-                expr = expr + dF_expr * tau_dep
+            dep = deps[dep_index]
+            if dep != x:
+                tau_dep = tlm_map[dep]
+                if tau_dep is not None:
+                    expr = expr - dF_expr * tau_dep
         if isinstance(expr, int) and expr == 0:
             return ZeroAssignment(tlm_map[x])
         else:

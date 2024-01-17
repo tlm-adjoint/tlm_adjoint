@@ -328,24 +328,21 @@ class PointInterpolation(Equation):
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_var(adj_X):
             adj_X = (adj_X,)
+        if dep_index != len(self.X()):
+            raise ValueError("Unexpected dep_index")
 
-        if dep_index < len(adj_X):
-            return adj_X[dep_index]
-        elif dep_index == len(adj_X):
-            adj_Xm = space_new(self._interp.V, space_type="conjugate_dual")
+        adj_Xm = space_new(self._interp.V, space_type="conjugate_dual")
 
-            vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
-            rank = var_comm(adj_Xm).rank
-            # This line must be outside the loop to avoid deadlocks
-            adj_Xm_data = adj_Xm.dat.data
-            for i, j in enumerate(vmesh_coords_map[rank]):
-                adj_Xm_data[i] = var_scalar_value(adj_X[j])
+        vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
+        rank = var_comm(adj_Xm).rank
+        # This line must be outside the loop to avoid deadlocks
+        adj_Xm_data = adj_Xm.dat.data
+        for i, j in enumerate(vmesh_coords_map[rank]):
+            adj_Xm_data[i] = var_scalar_value(adj_X[j])
 
-            F = var_new_conjugate_dual(self.dependencies()[-1])
-            self._interp.interpolate(adj_Xm, transpose=True, output=F)
-            return (-1.0, F)
-        else:
-            raise IndexError("dep_index out of bounds")
+        F = var_new_conjugate_dual(self.dependencies()[-1])
+        self._interp.interpolate(adj_Xm, transpose=True, output=F)
+        return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
@@ -412,10 +409,8 @@ class ExprAssignment(ExprEquation):
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            raise IndexError("dep_index out of bounds")
-        elif dep_index == 0:
-            return adj_x
+        if dep_index <= 0 or dep_index >= len(eq_deps):
+            raise ValueError("Unexpected dep_index")
 
         dep = eq_deps[dep_index]
         if len(dep.ufl_shape) > 0:
