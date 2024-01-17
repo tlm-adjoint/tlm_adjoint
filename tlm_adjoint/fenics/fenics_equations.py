@@ -150,7 +150,7 @@ def greedy_coloring(space):
         for j in cell_nodes:
             for k in cell_nodes:
                 if j < 0 or j >= N:
-                    raise IndexError("Node index out of range")
+                    raise ValueError("Node index out of range")
                 if j != k:
                     node_node_graph[j].add(k)
     node_node_graph = tuple(sorted(nodes, reverse=True)
@@ -465,7 +465,8 @@ class LocalMatrix(Matrix):
 
     def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *, method="assign"):
         if b_index != 0:
-            raise IndexError("Invalid index")
+            raise ValueError("Unexpected b_index")
+
         if method == "assign":
             var_set_values(
                 b, self._P_T.dot(var_get_values(adj_x)))
@@ -618,18 +619,16 @@ class PointInterpolation(Equation):
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_var(adj_X):
             adj_X = (adj_X,)
+        if dep_index != len(self.X()):
+            raise ValueError("Unexpected dep_index")
 
-        if dep_index < len(adj_X):
-            return adj_X[dep_index]
-        elif dep_index == len(adj_X):
-            adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
-            for i, adj_x in enumerate(adj_X):
-                adj_x_v[i] = var_scalar_value(adj_x)
-            F = var_new_conjugate_dual(self.dependencies()[-1])
-            var_set_values(F, self._P_T.dot(adj_x_v))
-            return (-1.0, F)
-        else:
-            raise IndexError("dep_index out of bounds")
+        adj_x_v = np.full(len(adj_X), np.NAN, dtype=backend_ScalarType)
+        for i, adj_x in enumerate(adj_X):
+            adj_x_v[i] = var_scalar_value(adj_x)
+
+        F = var_new_conjugate_dual(self.dependencies()[-1])
+        var_set_values(F, self._P_T.dot(adj_x_v))
+        return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B

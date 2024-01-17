@@ -453,9 +453,8 @@ class Equation(Referrer):
 
         var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
-        if len(adj_X) == 1:
-            adj_X = adj_X[0]
-        self.subtract_adjoint_derivative_actions(adj_X, nl_deps, dep_Bs)
+        self.subtract_adjoint_derivative_actions(
+            adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """Return the action of the adjoint of a derivative of the forward
@@ -501,8 +500,8 @@ class Equation(Referrer):
         """
 
         for dep_index, dep_B in dep_Bs.items():
-            dep_B.sub(self.adjoint_derivative_action(nl_deps, dep_index,
-                                                     adj_X))
+            dep_B.sub(
+                self.adjoint_derivative_action(nl_deps, dep_index, adj_X))
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         """Compute an adjoint solution.
@@ -571,14 +570,6 @@ class ZeroAssignment(Equation):
             X = (X,)
         for x in X:
             var_zero(x)
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
-        if dep_index < len(adj_X):
-            return adj_X[dep_index]
-        else:
-            raise IndexError("dep_index out of bounds")
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B

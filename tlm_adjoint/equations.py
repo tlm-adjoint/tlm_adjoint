@@ -65,12 +65,10 @@ class Assignment(Equation):
         var_assign(x, y)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        elif dep_index == 1:
-            return (-1.0, adj_x)
-        else:
-            raise IndexError("dep_index out of bounds")
+        if dep_index != 1:
+            raise ValueError("Unexpected dep_index")
+
+        return (-1.0, adj_x)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -116,15 +114,13 @@ class Conversion(Equation):
         var_set_values(x, var_get_values(y))
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        elif dep_index == 1:
-            _, y = self.dependencies()
-            F = var_new_conjugate_dual(y)
-            var_set_values(F, var_get_values(adj_x))
-            return (-1.0, F)
-        else:
-            raise IndexError("dep_index out of bounds")
+        if dep_index != 1:
+            raise ValueError("Unexpected dep_index")
+
+        _, y = self.dependencies()
+        F = var_new_conjugate_dual(y)
+        var_set_values(F, var_get_values(adj_x))
+        return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -181,12 +177,10 @@ class LinearCombination(Equation):
             var_axpy(x, alpha, y)
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        elif dep_index <= len(self._alpha):
-            return (-self._alpha[dep_index - 1].conjugate(), adj_x)
-        else:
-            raise IndexError("dep_index out of bounds")
+        if dep_index <= 0 or dep_index > len(self._alpha):
+            raise ValueError("Unexpected dep_index")
+
+        return (-self._alpha[dep_index - 1].conjugate(), adj_x)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
@@ -333,16 +327,16 @@ class MatrixActionRHS(RHS):
     def subtract_adjoint_derivative_action(self, nl_deps, dep_index, adj_X, b):
         if is_var(adj_X):
             adj_X = (adj_X,)
-        if dep_index < 0 or dep_index >= len(self.dependencies()):
-            raise IndexError("dep_index out of bounds")
+
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
         if dep_index < N_A_nl_deps:
-            X = [nl_deps[j] for j in self._x_indices]
+            X = tuple(nl_deps[j] for j in self._x_indices)
             self._A.adjoint_derivative_action(
                 nl_deps[:N_A_nl_deps], dep_index,
                 X[0] if len(X) == 1 else X,
                 adj_X[0] if len(adj_X) == 1 else adj_X,
                 b, method="sub")
+
         if dep_index in self._x_indices:
             self._A.adjoint_action(nl_deps[:N_A_nl_deps],
                                    adj_X[0] if len(adj_X) == 1 else adj_X,
@@ -427,7 +421,7 @@ class DotProductRHS(RHS):
                 alpha = -2.0 * self._alpha.conjugate() * var_scalar_value(adj_x)  # noqa: E501
                 var_axpy_conjugate(b, alpha, x)
             else:
-                raise IndexError("dep_index out of bounds")
+                raise ValueError("Unexpected dep_index")
         elif dep_index == 0:
             x, y = nl_deps
             alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
@@ -437,7 +431,7 @@ class DotProductRHS(RHS):
             alpha = -self._alpha.conjugate() * var_scalar_value(adj_x)
             var_axpy_conjugate(b, alpha, x)
         else:
-            raise IndexError("dep_index out of bounds")
+            raise ValueError("Unexpected dep_index")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         tlm_B = []
@@ -558,7 +552,7 @@ class InnerProductRHS(RHS):
                 var_axpy(
                     b, -self._alpha.conjugate() * var_scalar_value(adj_x), X)
             else:
-                raise IndexError("dep_index out of bounds")
+                raise ValueError("Unexpected dep_index")
         elif dep_index == 0:
             x, y = nl_deps[:2]
             M_deps = nl_deps[2:]
@@ -584,7 +578,7 @@ class InnerProductRHS(RHS):
 
             var_axpy(b, -self._alpha.conjugate() * var_scalar_value(adj_x), X)
         else:
-            raise IndexError("dep_index out of bounds")
+            raise ValueError("Unexpected dep_index")
 
     def tangent_linear_rhs(self, M, dM, tlm_map):
         tlm_B = []

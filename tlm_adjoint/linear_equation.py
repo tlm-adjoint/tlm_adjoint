@@ -185,46 +185,37 @@ class LinearEquation(Equation):
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         if is_var(adj_X):
             adj_X = (adj_X,)
-
         eq_deps = self.dependencies()
-        if dep_index < 0 or dep_index >= len(eq_deps):
-            raise IndexError("dep_index out of bounds")
-        elif dep_index < len(self.X()):
-            if self._A is None:
-                return adj_X[dep_index]
+        if dep_index < len(self.X()) or dep_index >= len(eq_deps):
+            raise ValueError("Unexpected dep_index")
+
+        dep = eq_deps[dep_index]
+        dep_id = var_id(dep)
+        F = var_new_conjugate_dual(dep)
+
+        assert len(self._B) == len(self._b_dep_ids)
+        for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
+            if dep_id in b_dep_ids:
+                b_dep_index = b_dep_ids[dep_id]
             else:
-                dep = eq_deps[dep_index]
-                F = var_new_conjugate_dual(dep)
-                self._A.adjoint_action([nl_deps[j]
-                                        for j in self._A_nl_dep_indices],
-                                       adj_X[0] if len(adj_X) == 1 else adj_X,
-                                       F, b_index=dep_index, method="assign")
-                return F
-        else:
-            dep = eq_deps[dep_index]
-            dep_id = var_id(dep)
-            F = var_new_conjugate_dual(dep)
-            assert len(self._B) == len(self._b_dep_ids)
-            for i, (b, b_dep_ids) in enumerate(zip(self._B, self._b_dep_ids)):
-                if dep_id in b_dep_ids:
-                    b_dep_index = b_dep_ids[dep_id]
-                else:
-                    continue
-                b_nl_deps = [nl_deps[j] for j in self._b_nl_dep_indices[i]]
-                b.subtract_adjoint_derivative_action(
-                    b_nl_deps, b_dep_index,
-                    adj_X[0] if len(adj_X) == 1 else adj_X,
-                    F)
-            if self._A is not None and dep_id in self._A_nl_dep_ids:
-                A_nl_dep_index = self._A_nl_dep_ids[dep_id]
-                A_nl_deps = [nl_deps[j] for j in self._A_nl_dep_indices]
-                X = [nl_deps[j] for j in self._A_x_indices]
-                self._A.adjoint_derivative_action(
-                    A_nl_deps, A_nl_dep_index,
-                    X[0] if len(X) == 1 else X,
-                    adj_X[0] if len(adj_X) == 1 else adj_X,
-                    F, method="add")
-            return F
+                continue
+            b_nl_deps = tuple(nl_deps[j] for j in self._b_nl_dep_indices[i])
+            b.subtract_adjoint_derivative_action(
+                b_nl_deps, b_dep_index,
+                adj_X[0] if len(adj_X) == 1 else adj_X,
+                F)
+
+        if self._A is not None and dep_id in self._A_nl_dep_ids:
+            A_nl_dep_index = self._A_nl_dep_ids[dep_id]
+            A_nl_deps = tuple(nl_deps[j] for j in self._A_nl_dep_indices)
+            X = tuple(nl_deps[j] for j in self._A_x_indices)
+            self._A.adjoint_derivative_action(
+                A_nl_deps, A_nl_dep_index,
+                X[0] if len(X) == 1 else X,
+                adj_X[0] if len(adj_X) == 1 else adj_X,
+                F, method="add")
+
+        return F
 
     def tangent_linear(self, M, dM, tlm_map):
         X = self.X()

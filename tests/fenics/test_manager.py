@@ -170,7 +170,8 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
             def adjoint_action(self, nl_deps, adj_x, b, b_index=0, *,
                                method="assign"):
                 if b_index != 0:
-                    raise IndexError("Invalid index")
+                    raise ValueError("Unexpected b_index")
+
                 if method == "assign":
                     var_assign(b, adj_x)
                 else:
@@ -347,7 +348,7 @@ def test_Referrers_FixedPointEquation(setup_test, test_leaks):
                          / var_scalar_value(x0)).conjugate())
                     return F
                 else:
-                    raise IndexError("Unexpected dep_index")
+                    raise ValueError("Unexpected dep_index")
 
         x0 = Constant(1.0, name="x0")
         x1 = Constant(0.0, name="x1")

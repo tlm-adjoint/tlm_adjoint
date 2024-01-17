@@ -67,7 +67,8 @@ class FunctionalMarker(Equation):
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
         if dep_index != 1:
-            raise IndexError("Unexpected dep_index")
+            raise ValueError("Unexpected dep_index")
+
         return (-1.0, adj_x)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):

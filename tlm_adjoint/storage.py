@@ -89,12 +89,6 @@ class Storage(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index == 0:
-            return adj_x
-        else:
-            raise IndexError("dep_index out of bounds")
-
     def tangent_linear(self, M, dM, tlm_map):
         return ZeroAssignment(tlm_map[self.x()])
 
