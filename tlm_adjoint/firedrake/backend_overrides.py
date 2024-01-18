@@ -1,8 +1,8 @@
 from .backend import (
     FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
-    Projector, SameMeshInterpolator, backend_Constant, backend_DirichletBC,
-    backend_Function, backend_Vector, backend_assemble, backend_interpolate,
-    backend_project, backend_solve, parameters)
+    Projector, SameMeshInterpolator, backend_Cofunction, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
+    backend_interpolate, backend_project, backend_solve, parameters)
 from ..interface import (
     VariableStateChangeError, is_var, space_id, var_comm, var_new, var_space,
     var_state_is_locked, var_update_state)
@@ -10,14 +10,15 @@ from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
 from ..equation import ZeroAssignment
-from ..equations import Assignment
+from ..equations import Assignment, LinearCombination
 from ..override import (
     add_manager_controls, manager_method, override_method, override_property)
 
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
-from .functions import Constant, define_var_alias, expr_zero
+from .functions import (
+    Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
 from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numbers
@@ -200,8 +201,7 @@ register_in_place(backend_Function, "__itruediv__", operator.truediv)
                 post_call=var_update_state_post_call)
 def Function_assign(self, orig, orig_args, expr, subset=None, *,
                     annotate, tlm):
-    if isinstance(expr, numbers.Complex):
-        expr = Constant(expr, comm=var_comm(self))
+    expr = ufl.as_ufl(expr)
 
     def assign(x, y, *,
                subset=None):
@@ -307,6 +307,46 @@ def Function_interpolate(self, orig, orig_args, expression, subset=None,
     return interpolate(
         expression, self, subset=subset, ad_block_tag=ad_block_tag,
         annotate=annotate, tlm=tlm)
+
+
+@manager_method(backend_Cofunction, "assign",
+                post_call=var_update_state_post_call)
+def Cofunction_assign(self, orig, orig_args, expr, subset=None, *,
+                      annotate, tlm):
+    if subset is not None:
+        raise NotImplementedError("subset not supported")
+
+    expr = ufl.as_ufl(expr)
+
+    if isinstance(expr, ufl.classes.Zero):
+        eq = ZeroAssignment(self)
+    elif isinstance(expr, backend_Cofunction):
+        if expr is not self:
+            eq = Assignment(self, expr)
+        else:
+            eq = None
+    elif isinstance(expr, ufl.classes.FormSum):
+        for weight, comp in iter_expr(expr):
+            if len(tuple(c for c in extract_coefficients(weight)
+                         if is_var(c))) > 0:
+                # See Firedrake issue #3292
+                raise NotImplementedError("FormSum weights cannot depend on "
+                                          "variables")
+            if not isinstance(comp, backend_Cofunction):
+                raise TypeError(f"Unexpected type: {type(comp)}")
+
+        expr = expr_new_x(expr, self, annotate=annotate, tlm=tlm)
+        # Note: Ignores weight dependencies
+        eq = LinearCombination(self, *iter_expr(expr, evaluate_weights=True))
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
+
+    if eq is not None:
+        assert len(eq.initial_condition_dependencies()) == 0
+    orig(self, expr, subset=subset)
+    if eq is not None:
+        eq._post_process(annotate=annotate, tlm=tlm)
+    return self
 
 
 def LinearSolver_solve_post_call(self, return_value, x, b):

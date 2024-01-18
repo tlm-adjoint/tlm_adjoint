@@ -370,6 +370,88 @@ def test_Function_in_place(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
+def test_Cofunction_assign(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        b = assemble(inner(m, test) * dx)
+
+        l0 = Cofunction(space.dual(), name="l0")
+        l0.assign(b)
+        l0_error = var_copy(l0)
+        var_axpy(l0_error, -1.0, b)
+        assert var_linf_norm(l0_error) == 0.0
+        l0.assign(0)
+        assert var_linf_norm(l0) == 0.0
+
+        l1 = Cofunction(space.dual(), name="l1")
+        l1.assign(b)
+        l1_error = var_copy(l1)
+        var_axpy(l1_error, -1.0, b)
+        assert var_linf_norm(l1_error) == 0.0
+
+        l2 = Cofunction(space.dual(), name="l2")
+        l2.assign(l1)
+        l2_error = var_copy(l2)
+        var_axpy(l2_error, -1.0, b)
+        assert var_linf_norm(l2_error) == 0.0
+
+        l3 = Cofunction(space.dual(), name="l3")
+        l3.assign(0.7 * l1 - 0.2 * l2)
+        l3_error = var_copy(l3)
+        var_axpy(l3_error, -0.5, b)
+        assert var_linf_norm(l3_error) < 1.0e-16
+
+        l4 = Cofunction(space.dual(), name="l4")
+        l4.assign(b)
+        l4.assign(l0 + 2.0 * l3 - 0.5 * l4)
+        l4_error = var_copy(l4)
+        var_axpy(l4_error, -0.5, b)
+        assert var_linf_norm(l4_error) < 1.0e-16
+
+        v = Function(space, name="v")
+        solve(inner(trial, test) * dx == l4, v,
+              solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        J.assign(((v - Constant(1.0)) ** 3) * dx)
+        return J
+
+    m = Function(space, name="m")
+    m.interpolate(Constant(-1.5) + exp(X[0]))
+    J_ref = assemble(((0.5 * m - Constant(1.0)) ** 3) * dx)
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+    assert abs(J_val - J_ref) < 1.0e-15
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@seed_test
 def test_Nullspace(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
@@ -515,7 +597,7 @@ def test_interpolate(setup_test, test_leaks,
 @pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
-def test_Assemble_arity_1(setup_test, test_leaks):
+def test_assemble_arity_1(setup_test, test_leaks):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
