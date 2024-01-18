@@ -381,11 +381,11 @@ def interpolate_expression(x, expr, *, adj_x=None):
         interpolate_expression(expr_val, expr)
         var_assign(x, var_inner(adj_x, expr_val))
     elif isinstance(x, backend_Cofunction):
-        adj_x_space = var_space(adj_x)
+        adj_x_space = var_space(adj_x).dual()
         interp = Interpolator(expr, adj_x_space)
         adj_x = var_copy(adj_x)
         adj_x.dat.data[:] = adj_x.dat.data_ro.conjugate()
-        interp.interpolate(adj_x, transpose=True, output=x)
+        interp._interpolate(adj_x, transpose=True, output=x)
         x.dat.data[:] = x.dat.data_ro.conjugate()
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
