@@ -301,14 +301,6 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     return F
 
 
-@manager_method(backend_Function, "interpolate")
-def Function_interpolate(self, orig, orig_args, expression, subset=None,
-                         ad_block_tag=None, *, annotate, tlm):
-    return interpolate(
-        expression, self, subset=subset, ad_block_tag=ad_block_tag,
-        annotate=annotate, tlm=tlm)
-
-
 @manager_method(backend_Cofunction, "assign",
                 post_call=var_update_state_post_call)
 def Cofunction_assign(self, orig, orig_args, expr, subset=None, *,
@@ -462,7 +454,7 @@ def SameMeshInterpolator_interpolate_post_call(
     return return_value
 
 
-@manager_method(SameMeshInterpolator, "interpolate",
+@manager_method(SameMeshInterpolator, "_interpolate",
                 post_call=SameMeshInterpolator_interpolate_post_call)
 def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None, transpose=False,

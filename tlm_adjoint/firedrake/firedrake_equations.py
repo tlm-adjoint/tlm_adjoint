@@ -317,7 +317,7 @@ class PointInterpolation(Equation):
         y = (self.dependencies() if deps is None else deps)[-1]
 
         Xm = space_new(self._interp.V)
-        self._interp.interpolate(y, output=Xm)
+        self._interp._interpolate(y, output=Xm)
 
         X_values = var_comm(Xm).allgather(Xm.dat.data_ro)
         vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
@@ -341,7 +341,7 @@ class PointInterpolation(Equation):
             adj_Xm_data[i] = var_scalar_value(adj_X[j])
 
         F = var_new_conjugate_dual(self.dependencies()[-1])
-        self._interp.interpolate(adj_Xm, transpose=True, output=F)
+        self._interp._interpolate(adj_Xm, transpose=True, output=F)
         return (-1.0, F)
 
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
