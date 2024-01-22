@@ -7,7 +7,7 @@ from ..interface import (
     var_copy, var_inner, var_new_conjugate_dual, var_space, var_space_type)
 
 from ..manager import manager_disabled
-from ..override import override_method
+from ..patch import patch_method
 
 from .functions import eliminate_zeros, extract_coefficients
 
@@ -183,7 +183,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
     return A, b
 
 
-@override_method(LinearSolver, "_lifted")
+@patch_method(LinearSolver, "_lifted")
 def LinearSolver_lifted(self, orig, orig_args, b):
     if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
         return orig_args()

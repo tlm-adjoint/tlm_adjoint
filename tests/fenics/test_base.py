@@ -6,7 +6,7 @@ from tlm_adjoint.fenics.backend import (
 from tlm_adjoint.fenics.backend_code_generator_interface import (
     interpolate_expression)
 from tlm_adjoint.alias import gc_disabled
-from tlm_adjoint.override import override_method
+from tlm_adjoint.patch import patch_method
 
 from ..test_base import chdir_tmp_path, jax_tlm_config, seed_test, tmp_path
 from ..test_base import run_example as _run_example
@@ -114,19 +114,19 @@ def referenced_vars():
                  if F_ref is not None)
 
 
-@override_method(Vector, "__init__")
+@patch_method(Vector, "__init__")
 def Vector__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     _var_ids[var_id(self)] = self
 
 
-@override_method(backend_Constant, "__init__")
+@patch_method(backend_Constant, "__init__")
 def Constant__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     _var_ids[var_id(self)] = self
 
 
-@override_method(backend_Function, "__init__")
+@patch_method(backend_Function, "__init__")
 def Function__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     _var_ids[var_id(self)] = self

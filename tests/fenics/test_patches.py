@@ -158,8 +158,8 @@ def project_NonlinearVariationalSolver(F, space, bc):
                                         project_LinearVariationalSolver,
                                         project_NonlinearVariationalSolver])
 @seed_test
-def test_project_overrides(setup_test, test_leaks,
-                           project_fn):
+def test_project_patches(setup_test, test_leaks,
+                         project_fn):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)

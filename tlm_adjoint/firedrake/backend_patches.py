@@ -12,9 +12,9 @@ from .backend_code_generator_interface import (
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
 from ..manager import annotation_enabled, tlm_enabled
-from ..override import (
-    add_manager_controls, manager_method, override_function, override_method,
-    override_property)
+from ..patch import (
+    add_manager_controls, manager_method, patch_function, patch_method,
+    patch_property)
 
 from .backend_interface import Cofunction
 from .equations import (
@@ -122,8 +122,8 @@ def DirichletBC_function_arg_fset(self, orig, orig_args, g):
     return return_value
 
 
-@override_property(backend_DirichletBC, "function_arg",
-                   fset=DirichletBC_function_arg_fset)
+@patch_property(backend_DirichletBC, "function_arg",
+                fset=DirichletBC_function_arg_fset)
 def DirichletBC_function_arg(self, orig):
     return orig()
 
@@ -183,7 +183,7 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
 
 
 def register_in_place(cls, name, op):
-    @override_method(cls, name)
+    @patch_method(cls, name)
     def wrapped_op(self, orig, orig_args, other):
         annotate = annotation_enabled()
         tlm = tlm_enabled()
@@ -294,7 +294,7 @@ def Function_project(self, orig, orig_args, b, bcs=None,
     return return_value
 
 
-@manager_method(backend_Function, "copy", override_without_manager=True)
+@manager_method(backend_Function, "copy", patch_without_manager=True)
 def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     if deepcopy:
         F = var_new(self)
@@ -393,7 +393,7 @@ def LinearSolver_solve(self, orig, orig_args, x, b, *, annotate, tlm):
     return return_value
 
 
-@override_method(NonlinearVariationalSolver, "__init__")
+@patch_method(NonlinearVariationalSolver, "__init__")
 def NonlinearVariationalSolver__init__(
         self, orig, orig_args, problem, *, appctx=None,
         pre_jacobian_callback=None, post_jacobian_callback=None,
@@ -407,7 +407,7 @@ def NonlinearVariationalSolver__init__(
     self._tlm_adjoint__transfer_manager = None
 
 
-@override_method(NonlinearVariationalSolver, "set_transfer_manager")
+@patch_method(NonlinearVariationalSolver, "set_transfer_manager")
 def NonlinearVariationalSolver_set_transfer_manager(
         self, orig, orig_args, manager):
     orig_args()
@@ -495,7 +495,7 @@ def fn_globals(fn):
     return fn.__globals__
 
 
-@override_function(fn_globals(backend_assemble)["base_form_assembly_visitor"])
+@patch_function(fn_globals(backend_assemble)["base_form_assembly_visitor"])
 def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
     annotate = annotation_enabled()
     tlm = tlm_enabled()

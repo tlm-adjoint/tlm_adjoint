@@ -12,8 +12,8 @@ from .backend_code_generator_interface import (
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
-from ..override import (
-    add_manager_controls, manager_method, override_function, override_method)
+from ..patch import (
+    add_manager_controls, manager_method, patch_function, patch_method)
 
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
@@ -96,7 +96,7 @@ def _setattr(self, key, value):
 # Aim for compatibility with FEniCS 2019.1.0 API
 
 
-@override_method(Form, "__init__")
+@patch_method(Form, "__init__")
 def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
                  **kwargs):
     if form_compiler_parameters is None:
@@ -108,7 +108,7 @@ def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
     self._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
 
-@manager_method(cpp_Assembler, "assemble", override_without_manager=True)
+@manager_method(cpp_Assembler, "assemble", patch_without_manager=True)
 def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
     if isinstance(tensor, backend_Function):
         tensor = tensor.vector()
@@ -150,7 +150,7 @@ def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
     return return_value
 
 
-@override_method(cpp_SystemAssembler, "__init__")
+@patch_method(cpp_SystemAssembler, "__init__")
 def SystemAssembler__init__(self, orig, orig_args, A_form, b_form, bcs=None):
     if bcs is None:
         bcs = ()
@@ -166,7 +166,7 @@ def SystemAssembler__init__(self, orig, orig_args, A_form, b_form, bcs=None):
     _setattr(self, "bcs", bcs)
 
 
-@override_method(cpp_SystemAssembler, "assemble")
+@patch_method(cpp_SystemAssembler, "assemble")
 def SystemAssembler_assemble(self, orig, orig_args, *args):
     return_value = orig_args()
 
@@ -255,7 +255,7 @@ def solve_linear(orig, orig_args, A, x, b,
 
 
 @add_manager_controls
-@override_function(backend_solve)
+@patch_function(backend_solve)
 def solve(orig, orig_args, *args, **kwargs):
     if isinstance(args[0], ufl.classes.Equation):
         return orig_args()
@@ -264,7 +264,7 @@ def solve(orig, orig_args, *args, **kwargs):
 
 
 @add_manager_controls
-@override_function(backend_project)
+@patch_function(backend_project)
 def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
             solver_type="lu", preconditioner_type="default",
             form_compiler_parameters=None, *, solver_parameters=None):
@@ -313,7 +313,7 @@ def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
     return return_value
 
 
-@override_method(backend_DirichletBC, "homogenize")
+@patch_method(backend_DirichletBC, "homogenize")
 def DirichletBC_homogenize(self, orig, orig_args, *args, **kwargs):
     bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
     if is_var(bc_value) and var_state_is_locked(bc_value):
@@ -322,7 +322,7 @@ def DirichletBC_homogenize(self, orig, orig_args, *args, **kwargs):
     return orig_args()
 
 
-@override_method(backend_DirichletBC, "set_value")
+@patch_method(backend_DirichletBC, "set_value")
 def DirichletBC_set_value(self, orig, orig_args, *args, **kwargs):
     bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
     if is_var(bc_value) and var_state_is_locked(bc_value):
@@ -331,7 +331,7 @@ def DirichletBC_set_value(self, orig, orig_args, *args, **kwargs):
     return orig_args()
 
 
-@override_method(backend_DirichletBC, "apply")
+@patch_method(backend_DirichletBC, "apply")
 def DirichletBC_apply(self, orig, orig_args, *args):
     A = None
     b = None
@@ -441,7 +441,7 @@ def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
     return return_value
 
 
-@manager_method(backend_Function, "assign", override_without_manager=True,
+@manager_method(backend_Function, "assign", patch_without_manager=True,
                 post_call=var_update_state_post_call)
 def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
     if isinstance(rhs, backend_Function):
@@ -474,7 +474,7 @@ def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
             eq._post_process(annotate=annotate, tlm=tlm)
 
 
-@manager_method(backend_Function, "copy", override_without_manager=True)
+@manager_method(backend_Function, "copy", patch_without_manager=True)
 def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     F = orig_args()
     if deepcopy:
@@ -503,7 +503,7 @@ def Function_interpolate(self, orig, orig_args, u, *, annotate, tlm):
     return return_value
 
 
-@override_method(backend_Function, "vector")
+@patch_method(backend_Function, "vector")
 def Function_vector(self, orig, orig_args):
     vector = orig_args()
     vector._tlm_adjoint__function = self
@@ -533,7 +533,7 @@ def Matrix__mul__(self, orig, orig_args, other, *, annotate, tlm):
     return return_value
 
 
-@override_method(LUSolver, "__init__")
+@patch_method(LUSolver, "__init__")
 def LUSolver__init__(self, orig, orig_args, *args):
     orig_args()
 
@@ -555,7 +555,7 @@ def LUSolver__init__(self, orig, orig_args, *args):
     _setattr(self, "linear_solver", linear_solver)
 
 
-@override_method(LUSolver, "set_operator")
+@patch_method(LUSolver, "set_operator")
 def LUSolver_set_operator(self, orig, orig_args, A):
     orig_args()
     _setattr(self, "A", A)
@@ -629,7 +629,7 @@ def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     return return_value
 
 
-@override_method(KrylovSolver, "__init__")
+@patch_method(KrylovSolver, "__init__")
 def KrylovSolver__init__(self, orig, orig_args, *args):
     orig_args()
 
@@ -660,13 +660,13 @@ def KrylovSolver__init__(self, orig, orig_args, *args):
     _setattr(self, "preconditioner", preconditioner)
 
 
-@override_method(KrylovSolver, "set_operator")
+@patch_method(KrylovSolver, "set_operator")
 def KrylovSolver_set_operator(self, orig, orig_args, A):
     orig_args()
     _setattr(self, "A", A)
 
 
-@override_method(KrylovSolver, "set_operators")
+@patch_method(KrylovSolver, "set_operators")
 def KrylovSolver_set_operators(self, orig, orig_args, A, P):
     orig_args()
     _setattr(self, "A", A)
@@ -712,7 +712,7 @@ def KrylovSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     return return_value
 
 
-@override_method(LinearVariationalSolver, "__init__")
+@patch_method(LinearVariationalSolver, "__init__")
 def LinearVariationalSolver__init__(self, orig, orig_args, problem):
     orig_args()
     _setattr(self, "problem", problem)
@@ -748,7 +748,7 @@ def LinearVariationalSolver_solve(self, orig, orig_args, *,
     return return_value
 
 
-@override_method(NonlinearVariationalProblem, "__init__")
+@patch_method(NonlinearVariationalProblem, "__init__")
 def NonlinearVariationalProblem__init__(
         self, orig, orig_args, F, u, bcs=None, J=None,
         form_compiler_parameters=None):
@@ -765,14 +765,14 @@ def NonlinearVariationalProblem__init__(
     self._tlm_adjoint__has_bounds = False
 
 
-@override_method(NonlinearVariationalProblem, "set_bounds")
+@patch_method(NonlinearVariationalProblem, "set_bounds")
 def NonlinearVariationalProblem_set_bounds(self, orig, orig_args,
                                            *args, **kwargs):
     orig_args()
     self._tlm_adjoint__has_bounds = True
 
 
-@override_method(NonlinearVariationalSolver, "__init__")
+@patch_method(NonlinearVariationalSolver, "__init__")
 def NonlinearVariationalSolver__init__(self, orig, orig_args, problem):
     orig_args()
     _setattr(self, "problem", problem)

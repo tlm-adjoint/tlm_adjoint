@@ -5,31 +5,31 @@ import functools
 
 __all__ = []
 
-_OVERRIDE_PROPERTY_NAME_KEY = "_tlm_adjoint__override_property_name_%i"
-_OVERRIDE_PROPERTY_COUNTER_KEY = "_tlm_adjoint__override_property_counter"
+_PATCH_PROPERTY_NAME_KEY = "_tlm_adjoint__patch_property_name_%i"
+_PATCH_PROPERTY_COUNTER_KEY = "_tlm_adjoint__patch_property_counter"
 
 
-def override_method(cls, name):
+def patch_method(cls, name):
     orig = getattr(cls, name)
 
-    def wrapper(override):
+    def wrapper(patch):
         @functools.wraps(orig)
-        def wrapped_override(self, *args, **kwargs):
-            return override(self, orig,
-                            lambda: orig(self, *args, **kwargs),
-                            *args, **kwargs)
+        def wrapped_patch(self, *args, **kwargs):
+            return patch(self, orig,
+                         lambda: orig(self, *args, **kwargs),
+                         *args, **kwargs)
 
-        setattr(cls, name, wrapped_override)
-        return wrapped_override
+        setattr(cls, name, wrapped_patch)
+        return wrapped_patch
 
     return wrapper
 
 
-def override_property(cls, name, *,
-                      fset=None, cached=False):
+def patch_property(cls, name, *,
+                   fset=None, cached=False):
     orig = getattr(cls, name)
 
-    def wrapper(override):
+    def wrapper(patch):
         if fset is None:
             wrapped_fset = None
         else:
@@ -49,30 +49,30 @@ def override_property(cls, name, *,
 
         @property_decorator
         @functools.wraps(orig)
-        def wrapped_override(self):
-            return override(self, lambda: orig.__get__(self, type(self)))
+        def wrapped_patch(self):
+            return patch(self, lambda: orig.__get__(self, type(self)))
 
-        setattr(cls, name, wrapped_override)
+        setattr(cls, name, wrapped_patch)
         if cached:
-            override_counter = getattr(cls, _OVERRIDE_PROPERTY_COUNTER_KEY, -1) + 1  # noqa: E501
-            setattr(cls, _OVERRIDE_PROPERTY_COUNTER_KEY, override_counter)
-            wrapped_override.__set_name__(
-                wrapped_override,
-                _OVERRIDE_PROPERTY_NAME_KEY % override_counter)
-        return wrapped_override
+            patch_counter = getattr(cls, _PATCH_PROPERTY_COUNTER_KEY, -1) + 1
+            setattr(cls, _PATCH_PROPERTY_COUNTER_KEY, patch_counter)
+            wrapped_patch.__set_name__(
+                wrapped_patch,
+                _PATCH_PROPERTY_NAME_KEY % patch_counter)
+        return wrapped_patch
 
     return wrapper
 
 
-def override_function(orig):
-    def wrapper(override):
+def patch_function(orig):
+    def wrapper(patch):
         @functools.wraps(orig)
-        def wrapped_override(*args, **kwargs):
-            return override(orig,
-                            lambda: orig(*args, **kwargs),
-                            *args, **kwargs)
+        def wrapped_patch(*args, **kwargs):
+            return patch(orig,
+                         lambda: orig(*args, **kwargs),
+                         *args, **kwargs)
 
-        return wrapped_override
+        return wrapped_patch
 
     return wrapper
 
@@ -90,11 +90,11 @@ def add_manager_controls(orig):
 
 
 def manager_method(cls, name, *,
-                   override_without_manager=False,
+                   patch_without_manager=False,
                    pre_call=None, post_call=None):
     orig = getattr(cls, name)
 
-    def wrapper(override):
+    def wrapper(patch):
         @manager_disabled()
         @functools.wraps(orig)
         def wrapped_orig(self, *args, **kwargs):
@@ -105,19 +105,19 @@ def manager_method(cls, name, *,
                 return_value = post_call(self, return_value, *args, **kwargs)
             return return_value
 
-        def wrapped_override(self, *args, annotate=None, tlm=None, **kwargs):
+        def wrapped_patch(self, *args, annotate=None, tlm=None, **kwargs):
             if annotate is None or annotate:
                 annotate = annotation_enabled()
             if tlm is None or tlm:
                 tlm = tlm_enabled()
-            if annotate or tlm or override_without_manager:
-                return override(self, wrapped_orig,
-                                lambda: wrapped_orig(self, *args, **kwargs),
-                                *args, annotate=annotate, tlm=tlm, **kwargs)
+            if annotate or tlm or patch_without_manager:
+                return patch(self, wrapped_orig,
+                             lambda: wrapped_orig(self, *args, **kwargs),
+                             *args, annotate=annotate, tlm=tlm, **kwargs)
             else:
                 return wrapped_orig(self, *args, **kwargs)
 
-        setattr(cls, name, wrapped_override)
-        return wrapped_override
+        setattr(cls, name, wrapped_patch)
+        return wrapped_patch
 
     return wrapper
