@@ -183,15 +183,16 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
 
 
 def register_in_place(cls, name, op):
-    @manager_method(cls, name,
-                    post_call=var_update_state_post_call)
-    def wrapped_op(self, orig, orig_args, other, *, annotate, tlm):
-        expr = expr_new_x(op(self, other), self, annotate=annotate, tlm=tlm)
-        eq = ExprAssignment(self, expr)
-        assert len(eq.initial_condition_dependencies()) == 0
-        return_value = orig_args()
-        eq._post_process(annotate=annotate, tlm=tlm)
-        return return_value
+    @override_method(cls, name)
+    def wrapped_op(self, orig, orig_args, other):
+        annotate = annotation_enabled()
+        tlm = tlm_enabled()
+        if annotate or tlm:
+            return self.assign(op(self, other))
+        else:
+            return_value = orig_args()
+            var_update_state(return_value)
+            return return_value
 
 
 register_in_place(backend_Function, "__iadd__", operator.add)
@@ -302,6 +303,12 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
         F = orig_args()
         define_var_alias(F, self, key=("copy",))
     return F
+
+
+register_in_place(backend_Cofunction, "__iadd__", operator.add)
+register_in_place(backend_Cofunction, "__isub__", operator.sub)
+register_in_place(backend_Cofunction, "__imul__",
+                  lambda self, other: operator.mul(other, self))
 
 
 @manager_method(backend_Cofunction, "assign",

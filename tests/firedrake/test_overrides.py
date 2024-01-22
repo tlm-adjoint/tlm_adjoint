@@ -370,6 +370,79 @@ def test_Function_in_place(setup_test, test_leaks):
 
 @pytest.mark.firedrake
 @seed_test
+def test_Cofunction_in_place(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+    if complex_mode:
+        c = 1.5 - 0.5j
+    else:
+        c = 1.5
+
+    def forward(m_0, m_1):
+        b = Cofunction(space.dual(), name="b")
+        b += assemble(inner(m_0, test) * dx)
+        b -= assemble(inner(m_1, test) * dx)
+        b *= c
+
+        u = Function(space, name="u")
+        solve(inner(trial, test) * dx == b, u,
+              solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(1.0)) ** 4) * dx)
+        return u, J
+
+    m_0 = Function(space, name="m_0")
+    m_1 = Function(space, name="m_1")
+    if complex_mode:
+        interpolate_expression(m_0, cos(pi * X[0]) + 1.0j * cos(2 * pi * X[0]))
+        interpolate_expression(m_1, -exp(X[0]) + 1.0j * exp(2 * X[0]))
+    else:
+        interpolate_expression(m_0, cos(pi * X[0]))
+        interpolate_expression(m_1, -exp(X[0]))
+    M = (m_0, m_1)
+
+    u_ref = Function(space, name="u")
+    interpolate_expression(u_ref, c * (m_0 - m_1))
+
+    start_manager()
+    u, J = forward(*M)
+    stop_manager()
+
+    error_norm = np.sqrt(abs(assemble(inner(u - u_ref, u - u_ref) * dx)))
+    assert error_norm < 1.0e-13
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, M)
+
+    def forward_J(*M):
+        _, J = forward(*M)
+        return J
+
+    min_order = taylor_test(forward_J, M, J_val=J_val, dJ=dJ, seed=1.0e-3)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, M, tlm_order=1, seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@seed_test
 def test_Cofunction_assign(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
     X = SpatialCoordinate(mesh)
