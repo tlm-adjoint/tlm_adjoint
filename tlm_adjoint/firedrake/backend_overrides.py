@@ -21,8 +21,7 @@ from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import (
-    Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr,
-    reconstruct_expr)
+    Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
 from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numbers
@@ -500,7 +499,12 @@ def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
             if tensor is None:
                 test, = expr.arguments()
                 tensor = Cofunction(test.function_space().dual())
-            return tensor.assign(reconstruct_expr(expr, *args))
+            rexpr = expr_zero(expr)
+            if len(expr.weights()) != len(args):
+                raise ValueError("Invalid args")
+            for weight, comp in zip(expr.weights(), args):
+                rexpr = rexpr + weight * comp
+            return tensor.assign(rexpr)
         elif isinstance(expr, (ufl.classes.Argument,
                                ufl.classes.Coargument,
                                ufl.classes.Coefficient,

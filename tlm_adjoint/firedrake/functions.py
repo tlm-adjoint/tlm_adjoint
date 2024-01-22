@@ -387,28 +387,6 @@ def iter_expr(expr, *, evaluate_weights=False):
         raise TypeError(f"Unexpected type: {type(expr)}")
 
 
-def reconstruct_expr(expr, *args):
-    weight_iter = (weight for weight, _ in iter_expr(expr))
-    comp_iter = iter(args)
-
-    rexpr = expr_zero(expr)
-    for weight, comp in zip(weight_iter, comp_iter):
-        rexpr = rexpr + weight * comp
-
-    try:
-        next(weight_iter)
-        raise ValueError("Incompatible lengths")
-    except StopIteration:
-        pass
-    try:
-        next(comp_iter)
-        raise ValueError("Incompatible lengths")
-    except StopIteration:
-        pass
-
-    return rexpr
-
-
 def form_cached(key):
     def wrapper(fn):
         @functools.wraps(fn)
