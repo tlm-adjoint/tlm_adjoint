@@ -17,7 +17,7 @@ from ..linear_equation import LinearEquation, Matrix
 
 from .caches import form_dependencies, form_key
 from .equations import EquationSolver, derivative
-from .functions import eliminate_zeros
+from .functions import eliminate_zeros, expr_zero
 
 import functools
 import mpi4py.MPI as MPI
@@ -341,7 +341,7 @@ class LocalProjection(EquationSolver):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = expr_zero(self._rhs)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]

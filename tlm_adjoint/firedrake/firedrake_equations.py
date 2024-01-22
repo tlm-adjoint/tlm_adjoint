@@ -214,7 +214,7 @@ class LocalProjection(EquationSolver):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.ZeroBaseForm(self._rhs.arguments())
+        tlm_rhs = expr_zero(self._rhs)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]

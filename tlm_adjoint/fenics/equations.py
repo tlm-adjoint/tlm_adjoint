@@ -231,7 +231,7 @@ class Assembly(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = expr_zero(self._rhs)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
@@ -700,7 +700,7 @@ class EquationSolver(ExprEquation):
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
 
-        tlm_rhs = ufl.classes.Form([])
+        tlm_rhs = expr_zero(self._F)
         for dep in self.dependencies():
             if dep != x:
                 tau_dep = tlm_map[dep]
