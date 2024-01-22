@@ -423,9 +423,14 @@ def derivative(expr, x, argument=None, *,
 
 
 def expr_zero(expr):
-    return ufl.classes.Zero(shape=expr.ufl_shape,
-                            free_indices=expr.ufl_free_indices,
-                            index_dimensions=expr.ufl_index_dimensions)
+    if isinstance(expr, ufl.classes.Form):
+        return ufl.classes.Form([])
+    elif isinstance(expr, ufl.classes.Expr):
+        return ufl.classes.Zero(shape=expr.ufl_shape,
+                                free_indices=expr.ufl_free_indices,
+                                index_dimensions=expr.ufl_index_dimensions)
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
 
 
 @form_cached("_tlm_adjoint__simplified_form")

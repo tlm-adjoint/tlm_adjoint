@@ -391,7 +391,7 @@ def reconstruct_expr(expr, *args):
     weight_iter = (weight for weight, _ in iter_expr(expr))
     comp_iter = iter(args)
 
-    rexpr = ufl.classes.ZeroBaseForm(expr.arguments())
+    rexpr = expr_zero(expr)
     for weight, comp in zip(weight_iter, comp_iter):
         rexpr = rexpr + weight * comp
 
@@ -474,9 +474,14 @@ def derivative(expr, x, argument=None, *,
 
 
 def expr_zero(expr):
-    return ufl.classes.Zero(shape=expr.ufl_shape,
-                            free_indices=expr.ufl_free_indices,
-                            index_dimensions=expr.ufl_index_dimensions)
+    if isinstance(expr, ufl.classes.BaseForm):
+        return ufl.classes.ZeroBaseForm(expr.arguments())
+    elif isinstance(expr, ufl.classes.Expr):
+        return ufl.classes.Zero(shape=expr.ufl_shape,
+                                free_indices=expr.ufl_free_indices,
+                                index_dimensions=expr.ufl_index_dimensions)
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
 
 
 @form_cached("_tlm_adjoint__simplified_form")
