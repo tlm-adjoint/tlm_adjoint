@@ -12,8 +12,10 @@ from ..test_base import chdir_tmp_path, jax_tlm_config, seed_test, tmp_path
 from ..test_base import (
     run_example as _run_example, run_example_notebook as _run_example_notebook)
 
+import functools
 import gc
 import logging
+import numbers
 try:
     from operator import call
 except ImportError:
@@ -39,6 +41,11 @@ __all__ = \
         "test_configurations",
         "test_leaks",
         "tmp_path",
+
+        "assemble_rhs",
+        "interpolate_expr",
+        "solve_eq",
+        "test_rhs",
 
         "ls_parameters_cg",
         "ns_parameters_newton_cg",
@@ -183,6 +190,108 @@ def run_example_notebook(example, tmp_path, *,
     else:
         filename = example
     _run_example_notebook(filename, tmp_path)
+
+
+def rhs_Form(m, test):
+    return inner(m, test) * dx
+
+
+def rhs_Cofunction(m, test):
+    return assemble(rhs_Form(m, test))
+
+
+def rhs_FormSum(alpha, m, test):
+    if isinstance(alpha, numbers.Complex) \
+            and not isinstance(alpha, numbers.Real) \
+            and not complex_mode:
+        pytest.skip()
+    return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
+
+
+@pytest.fixture(params=[{"test_rhs": rhs_Form},
+                        {"test_rhs": rhs_Cofunction},
+                        {"test_rhs": functools.partial(rhs_FormSum, 1.5)},
+                        {"test_rhs": functools.partial(rhs_FormSum, 0.5)},
+                        {"test_rhs": functools.partial(rhs_FormSum, -0.5)},
+                        {"test_rhs": functools.partial(rhs_FormSum, 0.5 + 0.5j)}])  # noqa: E501
+def test_rhs(request):
+    return request.param["test_rhs"]
+
+
+def assemble_Assembly(b, rhs):
+    Assembly(b, rhs).solve()
+    return b
+
+
+def assemble_assemble_assign(b, rhs):
+    return b.assign(assemble(rhs))
+
+
+def assemble_assemble_tensor(b, rhs):
+    return assemble(rhs, tensor=b)
+
+
+@pytest.fixture(params=[{"assemble_rhs": assemble_Assembly},
+                        {"assemble_rhs": assemble_assemble_assign},
+                        {"assemble_rhs": assemble_assemble_tensor}])
+def assemble_rhs(request):
+    return request.param["assemble_rhs"]
+
+
+def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
+    EquationSolver(eq, u, solver_parameters=solver_parameters).solve()
+
+
+def solve_eq_solve(eq, u, *, solver_parameters=None):
+    solve(eq, u, solver_parameters=solver_parameters)
+
+
+@pytest.fixture(params=[{"solve_eq": solve_eq_EquationSolver},
+                        {"solve_eq": solve_eq_solve}])
+def solve_eq(request):
+    return request.param["solve_eq"]
+
+
+def interpolate_interpolate(v, V):
+    return interpolate(v, V)
+
+
+def interpolate_Function_interpolate(v, V):
+    return space_new(V).interpolate(v)
+
+
+def interpolate_Interpolator_Function(v, V):
+    interp = Interpolator(v, V)
+    x = space_new(V)
+    interp.interpolate(output=x)
+    return x
+
+
+def interpolate_Interpolator_test(v, V):
+    interp = Interpolator(TestFunction(var_space(v)), V)
+    x = space_new(V)
+    interp.interpolate(v, output=x)
+    return x
+
+
+def interpolate_Interpolator_assemble(v, V):
+    return assemble(Interpolate(v, V))
+
+
+def interpolate_Interpolator_assemble_tensor(v, V):
+    x = space_new(V)
+    assemble(Interpolate(v, V), tensor=x)
+    return x
+
+
+@pytest.fixture(params=[{"interpolate_expr": interpolate_interpolate},
+                        {"interpolate_expr": interpolate_Function_interpolate},
+                        {"interpolate_expr": interpolate_Interpolator_Function},  # noqa: E501
+                        {"interpolate_expr": interpolate_Interpolator_test},
+                        {"interpolate_expr": interpolate_Interpolator_assemble},  # noqa: E501
+                        {"interpolate_expr": interpolate_Interpolator_assemble_tensor}])  # noqa: E501
+def interpolate_expr(request):
+    return request.param["interpolate_expr"]
 
 
 ls_parameters_cg = {"ksp_type": "cg",

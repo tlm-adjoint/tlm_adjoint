@@ -11,14 +11,18 @@ from .backend_code_generator_interface import (
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
+from ..manager import annotation_enabled, tlm_enabled
 from ..override import (
-    add_manager_controls, manager_method, override_method, override_property)
+    add_manager_controls, manager_method, override_function, override_method,
+    override_property)
 
+from .backend_interface import Cofunction
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import (
-    Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
+    Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr,
+    reconstruct_expr)
 from .firedrake_equations import ExprAssignment, LocalProjection
 
 import numbers
@@ -477,6 +481,45 @@ def SameMeshInterpolator_interpolate(
     assert len(eq.initial_condition_dependencies()) == 0
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
+
+
+def fn_globals(fn):
+    while hasattr(fn, "__wrapped__"):
+        fn = fn.__wrapped__
+    return fn.__globals__
+
+
+@override_function(fn_globals(backend_assemble)["base_form_assembly_visitor"])
+def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
+    annotate = annotation_enabled()
+    tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(expr, ufl.classes.FormSum) \
+                and all(isinstance(comp, backend_Cofunction)
+                        for comp in args):
+            if tensor is None:
+                test, = expr.arguments()
+                tensor = Cofunction(test.function_space().dual())
+            return tensor.assign(reconstruct_expr(expr, *args))
+        elif isinstance(expr, (ufl.classes.Argument,
+                               ufl.classes.Coargument,
+                               ufl.classes.Coefficient,
+                               ufl.classes.Cofunction,
+                               ufl.classes.Interpolate,
+                               ufl.classes.ZeroBaseForm)):
+            if tensor is None:
+                return orig_args()
+            else:
+                return tensor.assign(orig_args())
+        elif isinstance(expr, ufl.classes.Form):
+            # Handled via FormAssembler.assemble
+            pass
+        else:
+            raise NotImplementedError("Case not implemented")
+    return orig_args()
+
+
+fn_globals(backend_assemble)["base_form_assembly_visitor"] = base_form_assembly_visitor  # noqa: E501
 
 
 assemble = add_manager_controls(backend_assemble)

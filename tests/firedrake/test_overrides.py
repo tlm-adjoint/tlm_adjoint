@@ -512,7 +512,7 @@ def test_Nullspace(setup_test, test_leaks):
 @pytest.mark.parametrize("degree", [1, 2, 3])
 @seed_test
 def test_interpolate(setup_test, test_leaks,
-                     degree):
+                     interpolate_expr, degree):
     mesh = UnitIntervalMesh(20)
     X = SpatialCoordinate(mesh)
     space_1 = FunctionSpace(mesh, "Lagrange", 1)
@@ -529,82 +529,60 @@ def test_interpolate(setup_test, test_leaks,
     y_1_ref = Function(space_1, name="y_1_ref")
     y_1_ref.interpolate(y_2)
 
-    def interpolate_interpolate(v, V):
-        return interpolate(v, V)
+    def forward(y_2):
+        y_1 = interpolate_expr(y_2, space_1)
 
-    def interpolate_Function_interpolate(v, V):
-        x = space_new(V)
-        x.interpolate(v)
-        return x
+        J = Functional(name="J")
+        J.assign(((y_1 - Constant(1.0)) ** 4) * dx)
+        return y_1, J
 
-    def interpolate_Interpolator_function(v, V):
-        interp = Interpolator(v, V)
-        x = space_new(V)
-        interp.interpolate(output=x)
-        return x
+    reset_manager("memory", {"drop_references": True})
+    start_manager()
+    y_1, J = forward(y_2)
+    stop_manager()
 
-    def interpolate_Interpolator_test(v, V):
-        interp = Interpolator(TestFunction(var_space(v)), V)
-        x = space_new(V)
-        interp.interpolate(v, output=x)
-        return x
+    y_1_error = var_copy(y_1)
+    var_axpy(y_1_error, -1.0, y_1_ref)
+    assert var_linf_norm(y_1_error) < 1.0e-14
 
-    for interpolate_fn in (interpolate_interpolate,
-                           interpolate_Function_interpolate,
-                           interpolate_Interpolator_function,
-                           interpolate_Interpolator_test):
-        def forward(y_2):
-            y_1 = interpolate_fn(y_2, space_1)
+    J_val = J.value
 
-            J = Functional(name="J")
-            J.assign(((y_1 - Constant(1.0)) ** 4) * dx)
-            return y_1, J
+    dJ = compute_gradient(J, y_2)
 
-        reset_manager("memory", {"drop_references": True})
-        start_manager()
-        y_1, J = forward(y_2)
-        stop_manager()
+    def forward_J(y_2):
+        _, J = forward(y_2)
+        return J
 
-        y_1_error = var_copy(y_1)
-        var_axpy(y_1_error, -1.0, y_1_ref)
-        assert var_linf_norm(y_1_error) < 1.0e-14
+    min_order = taylor_test(forward_J, y_2, J_val=J_val, dJ=dJ)
+    assert min_order > 1.99
 
-        J_val = J.value
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, y_2, J_val=J_val, ddJ=ddJ)
+    assert min_order > 2.99
 
-        dJ = compute_gradient(J, y_2)
+    min_order = taylor_test_tlm(forward_J, y_2, tlm_order=1)
+    assert min_order > 1.99
 
-        def forward_J(y_2):
-            _, J = forward(y_2)
-            return J
+    min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=1)
+    assert min_order > 1.99
 
-        min_order = taylor_test(forward_J, y_2, J_val=J_val, dJ=dJ)
-        assert min_order > 1.99
-
-        ddJ = Hessian(forward_J)
-        min_order = taylor_test(forward_J, y_2, J_val=J_val, ddJ=ddJ)
-        assert min_order > 2.99
-
-        min_order = taylor_test_tlm(forward_J, y_2, tlm_order=1)
-        assert min_order > 1.99
-
-        min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=1)
-        assert min_order > 1.99
-
-        min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=2)
-        assert min_order > 1.99
+    min_order = taylor_test_tlm_adjoint(forward_J, y_2, adjoint_order=2)
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
-def test_assemble_arity_1(setup_test, test_leaks):
+def test_assemble_arity_1(setup_test, test_leaks,
+                          assemble_rhs, test_rhs):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
     test = TestFunction(space)
 
     def forward(F):
-        x = assemble(inner(ufl.conj(F ** 3), test) * dx)
+        x = Cofunction(space.dual(), name="x")
+        assemble_rhs(x, test_rhs(ufl.conj(F ** 3), test))
 
         J = Functional(name="J")
         InnerProduct(J, F, x).solve()

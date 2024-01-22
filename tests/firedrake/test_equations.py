@@ -8,7 +8,6 @@ from .test_base import *
 
 import firedrake
 import functools
-import numbers
 import numpy as np
 import os
 import pytest
@@ -852,40 +851,10 @@ def test_Assembly_arity_1(setup_test, test_leaks):
     assert min_order > 2.00
 
 
-def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
-    EquationSolver(eq, u, solver_parameters=solver_parameters).solve()
-
-
-def solve_eq_solve(eq, u, *, solver_parameters=None):
-    solve(eq, u, solver_parameters=solver_parameters)
-
-
-def rhs_Form(m, test):
-    return inner(m.dx(0), test) * dx
-
-
-def rhs_Cofunction(m, test):
-    return assemble(rhs_Form(m, test))
-
-
-def rhs_FormSum(alpha, m, test):
-    if not isinstance(alpha, numbers.Real) and not complex_mode:
-        pytest.skip()
-    return alpha * rhs_Form(m, test) + (1.0 - alpha) * rhs_Cofunction(m, test)
-
-
 @pytest.mark.firedrake
-@pytest.mark.parametrize("solve_eq", [solve_eq_EquationSolver,
-                                      solve_eq_solve])
-@pytest.mark.parametrize("rhs", [rhs_Form,
-                                 rhs_Cofunction,
-                                 functools.partial(rhs_FormSum, 1.5),
-                                 functools.partial(rhs_FormSum, 0.5),
-                                 functools.partial(rhs_FormSum, -0.5),
-                                 functools.partial(rhs_FormSum, 0.5 + 0.5j)])
 @seed_test
 def test_Assembly_arity_1_FormSum(setup_test, test_leaks,
-                                  solve_eq, rhs):
+                                  solve_eq, assemble_rhs, test_rhs):
     mesh = UnitIntervalMesh(10)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -894,7 +863,7 @@ def test_Assembly_arity_1_FormSum(setup_test, test_leaks,
     def forward(m):
         u = Function(space, name="u")
         b = Cofunction(space.dual(), name="b")
-        Assembly(b, rhs(m, test)).solve()
+        assemble_rhs(b, test_rhs(m.dx(0), test))
         solve_eq(inner(trial, test) * dx == b, u,
                  solver_parameters=ls_parameters_cg)
 
@@ -923,8 +892,7 @@ def test_Assembly_arity_1_FormSum(setup_test, test_leaks,
     assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
-                            size=4)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, size=4)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
@@ -1229,17 +1197,9 @@ def test_EquationSolver_forward_solve_deps(setup_test, test_leaks,
 
 
 @pytest.mark.firedrake
-@pytest.mark.parametrize("solve_eq", [solve_eq_EquationSolver,
-                                      solve_eq_solve])
-@pytest.mark.parametrize("rhs", [rhs_Form,
-                                 rhs_Cofunction,
-                                 functools.partial(rhs_FormSum, 1.5),
-                                 functools.partial(rhs_FormSum, 0.5),
-                                 functools.partial(rhs_FormSum, -0.5),
-                                 functools.partial(rhs_FormSum, 0.5 + 0.5j)])
 @seed_test
 def test_EquationSolver_FormSum(setup_test, test_leaks, test_configurations,
-                                solve_eq, rhs):
+                                solve_eq, test_rhs):
     mesh = UnitIntervalMesh(10)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -1247,7 +1207,7 @@ def test_EquationSolver_FormSum(setup_test, test_leaks, test_configurations,
 
     def forward(m):
         u = Function(space, name="u")
-        solve_eq(inner(trial, test) * dx == rhs(m, test), u,
+        solve_eq(inner(trial, test) * dx == test_rhs(m.dx(0), test), u,
                  solver_parameters=ls_parameters_cg)
 
         J = Functional(name="J")
