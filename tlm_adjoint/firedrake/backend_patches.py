@@ -104,12 +104,6 @@ def FormAssembler_assemble(self, orig, orig_args, *args,
     return return_value
 
 
-def var_update_state_post_call(self, return_value, *args, **kwargs):
-    if is_var(self):
-        var_update_state(self)
-    return return_value
-
-
 def DirichletBC_function_arg_fset(self, orig, orig_args, g):
     if getattr(self, "_tlm_adjoint__function_arg_set", False) \
             and is_var(self.function_arg) \
@@ -155,6 +149,12 @@ def Constant__init__(self, orig, orig_args, value=None, *args,
     orig_args()
     if value is not None:
         Constant_init_assign(self, value, annotate, tlm)
+
+
+def var_update_state_post_call(self, return_value, *args, **kwargs):
+    if is_var(self):
+        var_update_state(self)
+    return return_value
 
 
 @manager_method(backend_Constant, "assign",
