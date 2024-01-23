@@ -624,7 +624,7 @@ def test_Assembly_arity_1(setup_test, test_leaks):
 
     def forward(F):
         x = Function(space, name="x", space_type="conjugate_dual")
-        Assembly(x, inner(ufl.conj(F ** 3), test) * dx).solve()
+        Assembly(x, inner(F ** 3, test) * dx).solve()
 
         J = Functional(name="J")
         InnerProduct(J, F, x).solve()

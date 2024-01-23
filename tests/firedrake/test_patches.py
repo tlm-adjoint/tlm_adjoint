@@ -8,7 +8,6 @@ from .test_base import *
 
 import numpy as np
 import pytest
-import ufl
 
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
@@ -655,7 +654,7 @@ def test_assemble_arity_1(setup_test, test_leaks,
 
     def forward(F):
         x = Cofunction(space.dual(), name="x")
-        assemble_rhs(x, test_rhs(ufl.conj(F ** 3), test))
+        assemble_rhs(x, test_rhs(F ** 3, test))
 
         J = Functional(name="J")
         assemble_action(J, x, F)
