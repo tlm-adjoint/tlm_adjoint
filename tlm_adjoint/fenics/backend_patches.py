@@ -2,16 +2,15 @@ from .backend import (
     Form, KrylovSolver, LUSolver, LinearVariationalSolver,
     NonlinearVariationalProblem, NonlinearVariationalSolver, Parameters,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_Vector, backend_project, backend_solve, cpp_Assembler,
-    cpp_SystemAssembler, parameters)
+    backend_Vector, backend_assemble, backend_project, backend_solve,
+    cpp_Assembler, cpp_SystemAssembler, parameters)
 from ..interface import (
     VariableStateChangeError, is_var, space_id, space_new, var_assign,
     var_comm, var_new, var_space, var_state_is_locked, var_update_state)
 from .backend_code_generator_interface import (
-    copy_parameters_dict, update_parameters_dict)
+    copy_parameters_dict, linear_solver, update_parameters_dict)
 
 from ..equations import Assignment
-from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
@@ -20,6 +19,7 @@ from .equations import (
     linear_equation_new_x)
 from .functions import Constant, define_var_alias
 
+import fenics
 import numbers
 try:
     import ufl_legacy as ufl
@@ -30,6 +30,7 @@ import weakref
 
 __all__ = \
     [
+        "assemble",
         "project",
         "solve"
     ]
@@ -215,101 +216,6 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
                 tensor._tlm_adjoint__bcs = []
                 tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
-    return return_value
-
-
-def solve_linear(orig, orig_args, A, x, b,
-                 linear_solver="default", preconditioner="default", /):
-    annotate = annotation_enabled()
-    tlm = tlm_enabled()
-
-    bcs = A._tlm_adjoint__bcs
-    if bcs != b._tlm_adjoint__bcs:
-        raise ValueError("Non-matching boundary conditions")
-    solver_parameters = {"linear_solver": linear_solver,
-                         "preconditioner": preconditioner}
-    form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
-            b._tlm_adjoint__form_compiler_parameters,
-            form_compiler_parameters):
-        raise ValueError("Non-matching form compiler parameters")
-
-    A_form = A._tlm_adjoint__form
-    x = x._tlm_adjoint__function
-    b_form = b._tlm_adjoint__form
-
-    eq = EquationSolver(
-        linear_equation_new_x(A_form == b_form, x,
-                              annotate=annotate, tlm=tlm),
-        x, bcs, solver_parameters=solver_parameters,
-        form_compiler_parameters=form_compiler_parameters,
-        cache_jacobian=False, cache_rhs_assembly=False)
-
-    eq._pre_process(annotate=annotate)
-    return_value = orig_args()
-    var_update_state(x)
-    if hasattr(b, "_tlm_adjoint__function"):
-        var_update_state(b._tlm_adjoint__function)
-    eq._post_process(annotate=annotate, tlm=tlm)
-    return return_value
-
-
-@add_manager_controls
-@patch_function(backend_solve)
-def solve(orig, orig_args, *args, **kwargs):
-    if isinstance(args[0], ufl.classes.Equation):
-        return orig_args()
-    else:
-        return solve_linear(orig, orig_args, *args, **kwargs)
-
-
-@add_manager_controls
-@patch_function(backend_project)
-def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
-            solver_type="lu", preconditioner_type="default",
-            form_compiler_parameters=None, *, solver_parameters=None):
-    annotate = annotation_enabled()
-    tlm = tlm_enabled()
-
-    if annotate or tlm or solver_parameters is not None:
-        if function is None:
-            if V is None:
-                raise TypeError("V or function required")
-            x = space_new(V)
-        else:
-            x = function
-
-        if bcs is None:
-            bcs = ()
-        elif isinstance(bcs, backend_DirichletBC):
-            bcs = (bcs,)
-        else:
-            bcs = tuple(bcs)
-
-        solver_parameters_ = {"linear_solver": solver_type,
-                              "preconditioner": preconditioner_type}
-        if solver_parameters is not None:
-            solver_parameters_.update(solver_parameters)
-        solver_parameters = solver_parameters_
-        del solver_parameters_
-
-        eq = Projection(
-            x, expr_new_x(v, x, annotate=annotate, tlm=tlm), bcs,
-            solver_parameters=solver_parameters,
-            form_compiler_parameters=form_compiler_parameters,
-            cache_jacobian=False, cache_rhs_assembly=False)
-
-        if solver_parameters is None:
-            eq._pre_process(annotate=annotate)
-            return_value = orig_args()
-            var_update_state(return_value)
-            eq._post_process(annotate=annotate, tlm=tlm)
-        else:
-            eq.solve(annotate=annotate, tlm=tlm)
-            return_value = x
-    else:
-        return_value = orig_args()
-        var_update_state(return_value)
     return return_value
 
 
@@ -547,9 +453,10 @@ def LUSolver__init__(self, orig, orig_args, *args):
         A = args[1]
         if len(args) >= 3:
             linear_solver = args[2]
-    else:
-        if len(args) >= 1:
-            linear_solver = args[0]
+    elif len(args) >= 2 and not isinstance(args[0], str):
+        linear_solver = args[1]
+    elif len(args) >= 1:
+        linear_solver = args[0]
 
     _setattr(self, "A", A)
     _setattr(self, "linear_solver", linear_solver)
@@ -648,6 +555,10 @@ def KrylovSolver__init__(self, orig, orig_args, *args):
             linear_solver = args[2]
         if len(args) >= 4:
             preconditioner = args[3]
+    elif len(args) >= 2 and not isinstance(args[0], str):
+        linear_solver = args[1]
+        if len(args) >= 3:
+            preconditioner = args[2]
     else:
         if len(args) >= 1:
             linear_solver = args[0]
@@ -798,3 +709,67 @@ def NonlinearVariationalSolver_solve(self, orig, orig_args, *, annotate, tlm):
     return_value = orig_args()
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
+
+
+assemble = add_manager_controls(backend_assemble)
+solve = add_manager_controls(backend_solve)
+
+
+@patch_function(backend_project)
+def project(orig, orig_args, *args, solver_parameters=None, **kwargs):
+    if solver_parameters is None:
+        return_value = orig(*args, **kwargs)
+    else:
+        return_value = _project(*args, **kwargs,
+                                solver_parameters=solver_parameters)
+
+    var_update_state(return_value)
+    return return_value
+
+
+@add_manager_controls
+def _project(v, V=None, bcs=None, mesh=None, function=None,
+             solver_type="lu", preconditioner_type="default",
+             form_compiler_parameters=None, *, solver_parameters=None):
+    if function is None:
+        if V is None:
+            raise TypeError("V or function required")
+        function = space_new(V)
+
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    else:
+        bcs = tuple(bcs)
+
+    solver_parameters_ = {"linear_solver": solver_type,
+                          "preconditioner": preconditioner_type}
+    if solver_parameters is not None:
+        solver_parameters_.update(copy_parameters_dict(solver_parameters))
+    solver_parameters = solver_parameters_
+    del solver_parameters_
+
+    Projection(
+        function, expr_new_x(v, function), bcs,
+        solver_parameters=solver_parameters,
+        form_compiler_parameters=form_compiler_parameters,
+        cache_jacobian=False, cache_rhs_assembly=False).solve()
+    return function
+
+
+@patch_function(fenics.cpp.la.solve)
+def la_solve(orig, orig_args, A, x, b, method="lu", preconditioner="none"):
+    solver = linear_solver(A, {"linear_solver": method,
+                               "preconditioner": preconditioner},
+                           comm=x.mpi_comm())
+    return_value = solver.solve(x, b)
+
+    if hasattr(x, "_tlm_adjoint__function"):
+        var_update_state(x._tlm_adjoint__function)
+    if hasattr(b, "_tlm_adjoint__function"):
+        var_update_state(b._tlm_adjoint__function)
+    return return_value
+
+
+fenics.cpp.la.solve = la_solve

@@ -4,9 +4,9 @@ from .backend import (
     backend_ScalarType, backend_assemble, backend_assemble_system,
     backend_solve as solve, has_lu_solver_method, parameters)
 from ..interface import (
-    check_space_type, check_space_types, is_var, space_new, var_assign,
-    var_get_values, var_inner, var_new_conjugate_dual, var_set_values,
-    var_space, var_space_type)
+    DEFAULT_COMM, check_space_type, check_space_types, is_var, space_new,
+    var_assign, var_get_values, var_inner, var_new_conjugate_dual,
+    var_set_values, var_space, var_space_type)
 
 from ..manager import manager_disabled
 
@@ -180,7 +180,13 @@ def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
     return solver, A, b
 
 
-def linear_solver(A, linear_solver_parameters):
+def linear_solver(A, linear_solver_parameters, *, comm=None):
+    if comm is None:
+        if hasattr(A, "mpi_comm"):
+            comm = A.mpi_comm()
+        else:
+            comm = DEFAULT_COMM
+
     linear_solver = linear_solver_parameters.get("linear_solver", "default")
     if linear_solver in {"direct", "lu"}:
         linear_solver = "default"
@@ -189,13 +195,15 @@ def linear_solver(A, linear_solver_parameters):
     is_lu_linear_solver = linear_solver == "default" \
         or has_lu_solver_method(linear_solver)
     if is_lu_linear_solver:
-        solver = LUSolver(A, linear_solver)
+        solver = LUSolver(comm, linear_solver)
+        solver.set_operator(A)
         lu_parameters = linear_solver_parameters.get("lu_solver", {})
         update_parameters_dict(solver.parameters, lu_parameters)
     else:
         pc = linear_solver_parameters.get("preconditioner", "default")
         ks_parameters = linear_solver_parameters.get("krylov_solver", {})
-        solver = KrylovSolver(A, linear_solver, pc)
+        solver = KrylovSolver(comm, linear_solver, pc)
+        solver.set_operator(A)
         update_parameters_dict(solver.parameters, ks_parameters)
     return solver
 
