@@ -2,7 +2,7 @@ from .backend import (
     FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
     Projector, SameMeshInterpolator, backend_Cofunction, backend_Constant,
     backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
-    backend_interpolate, backend_project, backend_solve, parameters)
+    backend_project, backend_solve, parameters)
 from ..interface import (
     VariableStateChangeError, is_var, space_id, var_comm, var_new, var_space,
     var_state_is_locked, var_update_state)
@@ -31,7 +31,6 @@ import ufl
 __all__ = \
     [
         "assemble",
-        "interpolate",
         "project",
         "solve"
     ]
@@ -536,4 +535,3 @@ fn_globals(backend_assemble)["base_form_assembly_visitor"] = base_form_assembly_
 assemble = add_manager_controls(backend_assemble)
 solve = add_manager_controls(backend_solve)
 project = add_manager_controls(backend_project)
-interpolate = add_manager_controls(backend_interpolate)
