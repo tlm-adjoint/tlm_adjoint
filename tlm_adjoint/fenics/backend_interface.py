@@ -10,7 +10,7 @@ from ..interface import (
     var_lock_state, var_new, var_space, var_space_type)
 
 from ..equations import Conversion
-from ..override import override_method
+from ..patch import patch_method
 
 from .equations import Assembly
 from .functions import (
@@ -35,7 +35,7 @@ __all__ = \
     ]
 
 
-@override_method(backend_Constant, "__init__")
+@patch_method(backend_Constant, "__init__")
 def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
                      comm=None, **kwargs):
     if domain is not None and hasattr(domain, "ufl_domain"):
@@ -94,7 +94,7 @@ def FunctionSpace_add_interface_disabled(fn):
     return wrapped_fn
 
 
-@override_method(backend_FunctionSpace, "__init__")
+@patch_method(backend_FunctionSpace, "__init__")
 def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     if _FunctionSpace_add_interface:
@@ -311,7 +311,7 @@ class ZeroFunction(Function, Zero):
 # Aim for compatibility with FEniCS 2019.1.0 API
 
 
-@override_method(backend_Function, "__init__")
+@patch_method(backend_Function, "__init__")
 @FunctionSpace_add_interface_disabled
 def Function__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
@@ -336,7 +336,7 @@ def Function__init__(self, orig, orig_args, *args, **kwargs):
                   {"comm": comm_dup_cached(space.mesh().mpi_comm()), "id": id})
 
 
-@override_method(backend_Function, "function_space")
+@patch_method(backend_Function, "function_space")
 def Function_function_space(self, orig, orig_args):
     if is_var(self):
         return var_space(self)
@@ -344,7 +344,7 @@ def Function_function_space(self, orig, orig_args):
         return orig_args()
 
 
-@override_method(backend_Function, "split")
+@patch_method(backend_Function, "split")
 def Function_split(self, orig, orig_args, deepcopy=False):
     Y = orig_args()
     if not deepcopy:

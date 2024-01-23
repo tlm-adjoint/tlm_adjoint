@@ -11,8 +11,8 @@ from ..interface import (
     var_is_alias, var_linf_norm, var_lock_state, var_space, var_space_type)
 
 from ..equations import Conversion
-from ..override import override_method, override_property
 from ..manager import paused_manager
+from ..patch import patch_method, patch_property
 
 from .equations import Assembly
 from .functions import (
@@ -42,7 +42,7 @@ __all__ = \
 # Aim for compatibility with Firedrake API
 
 
-@override_method(backend_Constant, "__init__")
+@patch_method(backend_Constant, "__init__")
 def Constant__init__(self, orig, orig_args, value, domain=None, *,
                      name=None, space=None, comm=None,
                      **kwargs):
@@ -101,7 +101,7 @@ class FunctionSpaceInterface(SpaceInterface):
             raise ValueError("Invalid space type")
 
 
-@override_method(backend_FunctionSpace, "__init__")
+@patch_method(backend_FunctionSpace, "__init__")
 def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
@@ -109,7 +109,7 @@ def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
-@override_method(backend_FunctionSpace, "dual")
+@patch_method(backend_FunctionSpace, "dual")
 def FunctionSpace_dual(self, orig, orig_args):
     if "space_dual" not in self._tlm_adjoint__space_interface_attrs:
         self._tlm_adjoint__space_interface_attrs["space_dual"] = orig_args()
@@ -119,7 +119,7 @@ def FunctionSpace_dual(self, orig, orig_args):
     return space_dual
 
 
-@override_method(backend_CofunctionSpace, "__init__")
+@patch_method(backend_CofunctionSpace, "__init__")
 def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
@@ -127,7 +127,7 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
                    "id": new_space_id()})
 
 
-@override_method(backend_CofunctionSpace, "dual")
+@patch_method(backend_CofunctionSpace, "dual")
 def CofunctionSpace_dual(self, orig, orig_args):
     if "space" not in self._tlm_adjoint__space_interface_attrs:
         self._tlm_adjoint__space_interface_attrs["space"] = orig_args()
@@ -321,7 +321,7 @@ class ZeroFunction(Function, Zero):
             raise RuntimeError("ZeroFunction is not zero-valued")
 
 
-@override_method(backend_Function, "__init__")
+@patch_method(backend_Function, "__init__")
 def Function__init__(self, orig, orig_args, function_space, val=None,
                      *args, **kwargs):
     orig_args()
@@ -334,14 +334,14 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
         define_var_alias(self, val, key=("Function__init__",))
 
 
-@override_method(backend_Function, "__getattr__")
+@patch_method(backend_Function, "__getattr__")
 def Function__getattr__(self, orig, orig_args, key):
     if "_data" not in self.__dict__:
         raise AttributeError(f"No attribute '{key:s}'")
     return orig_args()
 
 
-@override_method(backend_Function, "riesz_representation")
+@patch_method(backend_Function, "riesz_representation")
 def Function_riesz_representation(self, orig, orig_args,
                                   riesz_map="L2", *args, **kwargs):
     if riesz_map != "l2":
@@ -357,7 +357,7 @@ def Function_riesz_representation(self, orig, orig_args,
     return return_value
 
 
-@override_property(backend_Function, "subfunctions", cached=True)
+@patch_property(backend_Function, "subfunctions", cached=True)
 def Function_subfunctions(self, orig):
     Y = orig()
     for i, y in enumerate(Y):
@@ -365,7 +365,7 @@ def Function_subfunctions(self, orig):
     return Y
 
 
-@override_method(backend_Function, "sub")
+@patch_method(backend_Function, "sub")
 def Function_sub(self, orig, orig_args, i):
     self.subfunctions
     y = orig_args()
@@ -451,7 +451,7 @@ class Cofunction(backend_Cofunction):
             return ufl.classes.Cofunction.equals(self, other)
 
 
-@override_method(backend_Cofunction, "__init__")
+@patch_method(backend_Cofunction, "__init__")
 def Cofunction__init__(self, orig, orig_args, function_space, val=None,
                        *args, **kwargs):
     orig_args()
@@ -465,7 +465,7 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
         define_var_alias(self, val, key=("Cofunction__init__",))
 
 
-@override_method(backend_Cofunction, "riesz_representation")
+@patch_method(backend_Cofunction, "riesz_representation")
 def Cofunction_riesz_representation(self, orig, orig_args,
                                     riesz_map="L2", *args, **kwargs):
     if riesz_map != "l2":

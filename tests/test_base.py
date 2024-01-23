@@ -1,5 +1,5 @@
 from tlm_adjoint import DEFAULT_COMM, VectorEquation
-from tlm_adjoint.override import override_function, override_method
+from tlm_adjoint.patch import patch_function, patch_method
 
 import functools
 import hashlib
@@ -21,7 +21,7 @@ __all__ = \
 
 
 def seed_test(fn):
-    @override_function(fn)
+    @patch_function(fn)
     def wrapped_fn(orig, orig_args, *args, **kwargs):
         args_ = list(args)
         for i, arg in enumerate(args_):
@@ -70,7 +70,7 @@ def chdir_tmp_path(tmp_path):
 _jax_with_tlm = True
 
 
-@override_method(VectorEquation, "__init__")
+@patch_method(VectorEquation, "__init__")
 def VectorEquation__init__(self, orig, orig_args, *args, with_tlm=None,
                            **kwargs):
     if with_tlm is None:

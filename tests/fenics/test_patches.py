@@ -2,7 +2,8 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend import backend_assemble, backend_Constant
 from tlm_adjoint.fenics.backend_code_generator_interface import (
-    assemble as backend_code_generator_interface_assemble)
+    assemble as backend_code_generator_interface_assemble,
+    copy_parameters_dict)
 
 from .test_base import *
 
@@ -60,10 +61,32 @@ def test_Constant_init(setup_test,
 
 
 def project_project(F, space, bc):
+    if DEFAULT_COMM.size > 1:
+        pytest.skip()
     G = Function(space, name="G")
+    project(F, space, bcs=bc, function=G, solver_type="lu")
+    return G
 
+
+def project_project_solver_parameters(F, space, bc):
+    G = Function(space, name="G")
     project(F, space, bcs=bc, function=G,
             solver_parameters=ls_parameters_cg)
+    return G
+
+
+def project_LUSolver(F, space, bc):
+    if DEFAULT_COMM.size > 1:
+        pytest.skip()
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+
+    A = assemble(inner(trial, test) * dx)
+    b = assemble(inner(F, test) * dx)
+    bc.apply(A, b)
+
+    solver = LUSolver(A)
+    solver.solve(G.vector(), b)
 
     return G
 
@@ -127,7 +150,7 @@ def project_LinearVariationalSolver(F, space, bc):
     eq = inner(trial, test) * dx == inner(F, test) * dx
     problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc)
     solver = LinearVariationalSolver(problem)
-    solver.parameters.update(ls_parameters_cg)
+    solver.parameters.update(copy_parameters_dict(ls_parameters_cg))
     solver.solve()
 
     return G
@@ -144,22 +167,45 @@ def project_NonlinearVariationalSolver(F, space, bc):
     solver = NonlinearVariationalSolver(problem)
     solver.parameters["nonlinear_solver"] = "newton"
     solver.parameters["symmetric"] = True
-    solver.parameters["newton_solver"].update(ns_parameters_newton_cg)
+    solver.parameters["newton_solver"].update(copy_parameters_dict(ns_parameters_newton_cg))  # noqa: E501
     solver.solve()
 
     return G
 
 
+def project_solve_linear(F, space, bc):
+    if DEFAULT_COMM.size > 1:
+        pytest.skip()
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+    A, b = assemble_system(inner(trial, test) * dx, inner(F, test) * dx,
+                           bcs=bc)
+    solve(A, G.vector(), b, "lu")
+    return G
+
+
+def project_solve_variational_problem(F, space, bc):
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+    solve(inner(trial, test) * dx == inner(F, test) * dx,
+          G, bc, solver_parameters=ls_parameters_cg)
+    return G
+
+
 @pytest.mark.fenics
 @pytest.mark.parametrize("project_fn", [project_project,
+                                        project_project_solver_parameters,
+                                        project_LUSolver,
                                         project_assemble_system_KrylovSolver,
                                         project_assemble_KrylovSolver,
                                         project_assemble_mult_KrylovSolver,
                                         project_LinearVariationalSolver,
-                                        project_NonlinearVariationalSolver])
+                                        project_NonlinearVariationalSolver,
+                                        project_solve_linear,
+                                        project_solve_variational_problem])
 @seed_test
-def test_project_overrides(setup_test, test_leaks,
-                           project_fn):
+def test_project_patches(setup_test, test_leaks,
+                         project_fn):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)

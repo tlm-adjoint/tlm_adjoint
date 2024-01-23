@@ -2,24 +2,24 @@ from .backend import (
     Form, KrylovSolver, LUSolver, LinearVariationalSolver,
     NonlinearVariationalProblem, NonlinearVariationalSolver, Parameters,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_Vector, backend_project, backend_solve, cpp_Assembler,
-    cpp_SystemAssembler, parameters)
+    backend_Vector, backend_assemble, backend_project, backend_solve,
+    cpp_Assembler, cpp_SystemAssembler, parameters)
 from ..interface import (
     VariableStateChangeError, is_var, space_id, space_new, var_assign,
     var_comm, var_new, var_space, var_state_is_locked, var_update_state)
 from .backend_code_generator_interface import (
-    copy_parameters_dict, update_parameters_dict)
+    copy_parameters_dict, linear_solver, update_parameters_dict)
 
 from ..equations import Assignment
-from ..manager import annotation_enabled, tlm_enabled
-from ..override import (
-    add_manager_controls, manager_method, override_function, override_method)
+from ..patch import (
+    add_manager_controls, manager_method, patch_function, patch_method)
 
 from .equations import (
     Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
     linear_equation_new_x)
 from .functions import Constant, define_var_alias
 
+import fenics
 import numbers
 try:
     import ufl_legacy as ufl
@@ -30,6 +30,7 @@ import weakref
 
 __all__ = \
     [
+        "assemble",
         "project",
         "solve"
     ]
@@ -96,7 +97,7 @@ def _setattr(self, key, value):
 # Aim for compatibility with FEniCS 2019.1.0 API
 
 
-@override_method(Form, "__init__")
+@patch_method(Form, "__init__")
 def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
                  **kwargs):
     if form_compiler_parameters is None:
@@ -108,7 +109,7 @@ def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
     self._tlm_adjoint__form_compiler_parameters = form_compiler_parameters
 
 
-@manager_method(cpp_Assembler, "assemble", override_without_manager=True)
+@manager_method(cpp_Assembler, "assemble", patch_without_manager=True)
 def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
     if isinstance(tensor, backend_Function):
         tensor = tensor.vector()
@@ -150,7 +151,7 @@ def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
     return return_value
 
 
-@override_method(cpp_SystemAssembler, "__init__")
+@patch_method(cpp_SystemAssembler, "__init__")
 def SystemAssembler__init__(self, orig, orig_args, A_form, b_form, bcs=None):
     if bcs is None:
         bcs = ()
@@ -166,7 +167,7 @@ def SystemAssembler__init__(self, orig, orig_args, A_form, b_form, bcs=None):
     _setattr(self, "bcs", bcs)
 
 
-@override_method(cpp_SystemAssembler, "assemble")
+@patch_method(cpp_SystemAssembler, "assemble")
 def SystemAssembler_assemble(self, orig, orig_args, *args):
     return_value = orig_args()
 
@@ -212,108 +213,13 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
                                              + form._tlm_adjoint__form)
             else:
                 tensor._tlm_adjoint__form = form._tlm_adjoint__form
-                tensor._tlm_adjoint__bcs = []
+                tensor._tlm_adjoint__bcs = list(_getattr(self, "bcs"))
                 tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value
 
 
-def solve_linear(orig, orig_args, A, x, b,
-                 linear_solver="default", preconditioner="default", /):
-    annotate = annotation_enabled()
-    tlm = tlm_enabled()
-
-    bcs = A._tlm_adjoint__bcs
-    if bcs != b._tlm_adjoint__bcs:
-        raise ValueError("Non-matching boundary conditions")
-    solver_parameters = {"linear_solver": linear_solver,
-                         "preconditioner": preconditioner}
-    form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
-            b._tlm_adjoint__form_compiler_parameters,
-            form_compiler_parameters):
-        raise ValueError("Non-matching form compiler parameters")
-
-    A_form = A._tlm_adjoint__form
-    x = x._tlm_adjoint__function
-    b_form = b._tlm_adjoint__form
-
-    eq = EquationSolver(
-        linear_equation_new_x(A_form == b_form, x,
-                              annotate=annotate, tlm=tlm),
-        x, bcs, solver_parameters=solver_parameters,
-        form_compiler_parameters=form_compiler_parameters,
-        cache_jacobian=False, cache_rhs_assembly=False)
-
-    eq._pre_process(annotate=annotate)
-    return_value = orig_args()
-    var_update_state(x)
-    if hasattr(b, "_tlm_adjoint__function"):
-        var_update_state(b._tlm_adjoint__function)
-    eq._post_process(annotate=annotate, tlm=tlm)
-    return return_value
-
-
-@add_manager_controls
-@override_function(backend_solve)
-def solve(orig, orig_args, *args, **kwargs):
-    if isinstance(args[0], ufl.classes.Equation):
-        return orig_args()
-    else:
-        return solve_linear(orig, orig_args, *args, **kwargs)
-
-
-@add_manager_controls
-@override_function(backend_project)
-def project(orig, orig_args, v, V=None, bcs=None, mesh=None, function=None,
-            solver_type="lu", preconditioner_type="default",
-            form_compiler_parameters=None, *, solver_parameters=None):
-    annotate = annotation_enabled()
-    tlm = tlm_enabled()
-
-    if annotate or tlm or solver_parameters is not None:
-        if function is None:
-            if V is None:
-                raise TypeError("V or function required")
-            x = space_new(V)
-        else:
-            x = function
-
-        if bcs is None:
-            bcs = ()
-        elif isinstance(bcs, backend_DirichletBC):
-            bcs = (bcs,)
-        else:
-            bcs = tuple(bcs)
-
-        solver_parameters_ = {"linear_solver": solver_type,
-                              "preconditioner": preconditioner_type}
-        if solver_parameters is not None:
-            solver_parameters_.update(solver_parameters)
-        solver_parameters = solver_parameters_
-        del solver_parameters_
-
-        eq = Projection(
-            x, expr_new_x(v, x, annotate=annotate, tlm=tlm), bcs,
-            solver_parameters=solver_parameters,
-            form_compiler_parameters=form_compiler_parameters,
-            cache_jacobian=False, cache_rhs_assembly=False)
-
-        if solver_parameters is None:
-            eq._pre_process(annotate=annotate)
-            return_value = orig_args()
-            var_update_state(return_value)
-            eq._post_process(annotate=annotate, tlm=tlm)
-        else:
-            eq.solve(annotate=annotate, tlm=tlm)
-            return_value = x
-    else:
-        return_value = orig_args()
-        var_update_state(return_value)
-    return return_value
-
-
-@override_method(backend_DirichletBC, "homogenize")
+@patch_method(backend_DirichletBC, "homogenize")
 def DirichletBC_homogenize(self, orig, orig_args, *args, **kwargs):
     bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
     if is_var(bc_value) and var_state_is_locked(bc_value):
@@ -322,7 +228,7 @@ def DirichletBC_homogenize(self, orig, orig_args, *args, **kwargs):
     return orig_args()
 
 
-@override_method(backend_DirichletBC, "set_value")
+@patch_method(backend_DirichletBC, "set_value")
 def DirichletBC_set_value(self, orig, orig_args, *args, **kwargs):
     bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
     if is_var(bc_value) and var_state_is_locked(bc_value):
@@ -331,7 +237,7 @@ def DirichletBC_set_value(self, orig, orig_args, *args, **kwargs):
     return orig_args()
 
 
-@override_method(backend_DirichletBC, "apply")
+@patch_method(backend_DirichletBC, "apply")
 def DirichletBC_apply(self, orig, orig_args, *args):
     A = None
     b = None
@@ -441,7 +347,7 @@ def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
     return return_value
 
 
-@manager_method(backend_Function, "assign", override_without_manager=True,
+@manager_method(backend_Function, "assign", patch_without_manager=True,
                 post_call=var_update_state_post_call)
 def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
     if isinstance(rhs, backend_Function):
@@ -474,7 +380,7 @@ def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
             eq._post_process(annotate=annotate, tlm=tlm)
 
 
-@manager_method(backend_Function, "copy", override_without_manager=True)
+@manager_method(backend_Function, "copy", patch_without_manager=True)
 def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
     F = orig_args()
     if deepcopy:
@@ -503,7 +409,7 @@ def Function_interpolate(self, orig, orig_args, u, *, annotate, tlm):
     return return_value
 
 
-@override_method(backend_Function, "vector")
+@patch_method(backend_Function, "vector")
 def Function_vector(self, orig, orig_args):
     vector = orig_args()
     vector._tlm_adjoint__function = self
@@ -533,7 +439,7 @@ def Matrix__mul__(self, orig, orig_args, other, *, annotate, tlm):
     return return_value
 
 
-@override_method(LUSolver, "__init__")
+@patch_method(LUSolver, "__init__")
 def LUSolver__init__(self, orig, orig_args, *args):
     orig_args()
 
@@ -547,15 +453,16 @@ def LUSolver__init__(self, orig, orig_args, *args):
         A = args[1]
         if len(args) >= 3:
             linear_solver = args[2]
-    else:
-        if len(args) >= 1:
-            linear_solver = args[0]
+    elif len(args) >= 2 and not isinstance(args[0], str):
+        linear_solver = args[1]
+    elif len(args) >= 1:
+        linear_solver = args[0]
 
     _setattr(self, "A", A)
     _setattr(self, "linear_solver", linear_solver)
 
 
-@override_method(LUSolver, "set_operator")
+@patch_method(LUSolver, "set_operator")
 def LUSolver_set_operator(self, orig, orig_args, A):
     orig_args()
     _setattr(self, "A", A)
@@ -629,7 +536,7 @@ def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     return return_value
 
 
-@override_method(KrylovSolver, "__init__")
+@patch_method(KrylovSolver, "__init__")
 def KrylovSolver__init__(self, orig, orig_args, *args):
     orig_args()
 
@@ -648,6 +555,10 @@ def KrylovSolver__init__(self, orig, orig_args, *args):
             linear_solver = args[2]
         if len(args) >= 4:
             preconditioner = args[3]
+    elif len(args) >= 2 and not isinstance(args[0], str):
+        linear_solver = args[1]
+        if len(args) >= 3:
+            preconditioner = args[2]
     else:
         if len(args) >= 1:
             linear_solver = args[0]
@@ -660,13 +571,13 @@ def KrylovSolver__init__(self, orig, orig_args, *args):
     _setattr(self, "preconditioner", preconditioner)
 
 
-@override_method(KrylovSolver, "set_operator")
+@patch_method(KrylovSolver, "set_operator")
 def KrylovSolver_set_operator(self, orig, orig_args, A):
     orig_args()
     _setattr(self, "A", A)
 
 
-@override_method(KrylovSolver, "set_operators")
+@patch_method(KrylovSolver, "set_operators")
 def KrylovSolver_set_operators(self, orig, orig_args, A, P):
     orig_args()
     _setattr(self, "A", A)
@@ -712,7 +623,7 @@ def KrylovSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     return return_value
 
 
-@override_method(LinearVariationalSolver, "__init__")
+@patch_method(LinearVariationalSolver, "__init__")
 def LinearVariationalSolver__init__(self, orig, orig_args, problem):
     orig_args()
     _setattr(self, "problem", problem)
@@ -748,7 +659,7 @@ def LinearVariationalSolver_solve(self, orig, orig_args, *,
     return return_value
 
 
-@override_method(NonlinearVariationalProblem, "__init__")
+@patch_method(NonlinearVariationalProblem, "__init__")
 def NonlinearVariationalProblem__init__(
         self, orig, orig_args, F, u, bcs=None, J=None,
         form_compiler_parameters=None):
@@ -765,14 +676,14 @@ def NonlinearVariationalProblem__init__(
     self._tlm_adjoint__has_bounds = False
 
 
-@override_method(NonlinearVariationalProblem, "set_bounds")
+@patch_method(NonlinearVariationalProblem, "set_bounds")
 def NonlinearVariationalProblem_set_bounds(self, orig, orig_args,
                                            *args, **kwargs):
     orig_args()
     self._tlm_adjoint__has_bounds = True
 
 
-@override_method(NonlinearVariationalSolver, "__init__")
+@patch_method(NonlinearVariationalSolver, "__init__")
 def NonlinearVariationalSolver__init__(self, orig, orig_args, problem):
     orig_args()
     _setattr(self, "problem", problem)
@@ -798,3 +709,67 @@ def NonlinearVariationalSolver_solve(self, orig, orig_args, *, annotate, tlm):
     return_value = orig_args()
     eq._post_process(annotate=annotate, tlm=tlm)
     return return_value
+
+
+assemble = add_manager_controls(backend_assemble)
+solve = add_manager_controls(backend_solve)
+
+
+@patch_function(backend_project)
+def project(orig, orig_args, *args, solver_parameters=None, **kwargs):
+    if solver_parameters is None:
+        return_value = orig(*args, **kwargs)
+    else:
+        return_value = _project(*args, **kwargs,
+                                solver_parameters=solver_parameters)
+
+    var_update_state(return_value)
+    return return_value
+
+
+@add_manager_controls
+def _project(v, V=None, bcs=None, mesh=None, function=None,
+             solver_type="lu", preconditioner_type="default",
+             form_compiler_parameters=None, *, solver_parameters=None):
+    if function is None:
+        if V is None:
+            raise TypeError("V or function required")
+        function = space_new(V)
+
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    else:
+        bcs = tuple(bcs)
+
+    solver_parameters_ = {"linear_solver": solver_type,
+                          "preconditioner": preconditioner_type}
+    if solver_parameters is not None:
+        solver_parameters_.update(copy_parameters_dict(solver_parameters))
+    solver_parameters = solver_parameters_
+    del solver_parameters_
+
+    Projection(
+        function, expr_new_x(v, function), bcs,
+        solver_parameters=solver_parameters,
+        form_compiler_parameters=form_compiler_parameters,
+        cache_jacobian=False, cache_rhs_assembly=False).solve()
+    return function
+
+
+@patch_function(fenics.cpp.la.solve)
+def la_solve(orig, orig_args, A, x, b, method="lu", preconditioner="none"):
+    solver = linear_solver(A, {"linear_solver": method,
+                               "preconditioner": preconditioner},
+                           comm=x.mpi_comm())
+    return_value = solver.solve(x, b)
+
+    if hasattr(x, "_tlm_adjoint__function"):
+        var_update_state(x._tlm_adjoint__function)
+    if hasattr(b, "_tlm_adjoint__function"):
+        var_update_state(b._tlm_adjoint__function)
+    return return_value
+
+
+fenics.cpp.la.solve = la_solve

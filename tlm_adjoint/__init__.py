@@ -13,7 +13,7 @@ from .linear_equation import *     # noqa: F401
 from .manager import *             # noqa: F401
 from .optimization import *        # noqa: F401
 from .overloaded_float import *    # noqa: F401
-from .override import *            # noqa: F401
+from .patch import *               # noqa: F401
 from .storage import *             # noqa: F401
 from .tangent_linear import *      # noqa: F401
 from .tlm_adjoint import *         # noqa: F401
