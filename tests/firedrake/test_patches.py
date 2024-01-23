@@ -647,7 +647,7 @@ def test_interpolate(setup_test, test_leaks,
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
 def test_assemble_arity_1(setup_test, test_leaks,
-                          assemble_rhs, test_rhs):
+                          assemble_rhs, test_rhs, assemble_action):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -658,7 +658,7 @@ def test_assemble_arity_1(setup_test, test_leaks,
         assemble_rhs(x, test_rhs(ufl.conj(F ** 3), test))
 
         J = Functional(name="J")
-        InnerProduct(J, F, x).solve()
+        assemble_action(J, x, F)
         return J
 
     F = Function(space, name="F", static=True)

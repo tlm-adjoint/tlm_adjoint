@@ -808,7 +808,8 @@ def test_Assembly_arity_0(setup_test, test_leaks):
 @pytest.mark.firedrake
 @pytest.mark.skipif(complex_mode, reason="real only")
 @seed_test
-def test_Assembly_arity_1(setup_test, test_leaks):
+def test_Assembly_arity_1(setup_test, test_leaks,
+                          assemble_action):
     mesh = UnitSquareMesh(20, 20)
     X = SpatialCoordinate(mesh)
     space = FunctionSpace(mesh, "Lagrange", 1)
@@ -819,7 +820,7 @@ def test_Assembly_arity_1(setup_test, test_leaks):
         Assembly(x, inner(ufl.conj(F ** 3), test) * dx).solve()
 
         J = Functional(name="J")
-        InnerProduct(J, F, x).solve()
+        assemble_action(J, x, F)
         return J
 
     F = Function(space, name="F", static=True)

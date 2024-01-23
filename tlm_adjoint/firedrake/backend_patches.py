@@ -511,16 +511,17 @@ def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
             for weight, comp in zip(expr.weights(), args):
                 rexpr = rexpr + weight * comp
             return tensor.assign(rexpr)
-        elif isinstance(expr, (ufl.classes.Argument,
+        elif isinstance(expr, (ufl.classes.Action,
+                               ufl.classes.Argument,
                                ufl.classes.Coargument,
                                ufl.classes.Coefficient,
                                ufl.classes.Cofunction,
                                ufl.classes.Interpolate,
                                ufl.classes.ZeroBaseForm)):
-            if tensor is None:
-                return orig_args()
-            else:
+            if isinstance(tensor, (backend_Function, backend_Cofunction)):
                 return tensor.assign(orig_args())
+            else:
+                return orig_args()
         elif isinstance(expr, ufl.classes.Form):
             # Handled via FormAssembler.assemble
             pass

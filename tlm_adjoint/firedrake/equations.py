@@ -5,7 +5,7 @@ variational problems.
 
 from .backend import (
     TestFunction, TrialFunction, adjoint, backend_Constant,
-    backend_DirichletBC, backend_Function, parameters)
+    backend_DirichletBC, backend_Function, complex_mode, parameters)
 from ..interface import (
     check_space_type, is_var, var_assign, var_axpy, var_id,
     var_increment_state_lock, var_is_scalar, var_new, var_new_conjugate_dual,
@@ -220,6 +220,18 @@ class Assembly(ExprEquation):
                             dF = assemble(
                                 dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
                             dep_B.sub((-var_scalar_value(adj_x), dF))
+                    elif isinstance(comp, ufl.classes.Action):
+                        if complex_mode:
+                            # See Firedrake issue #3346
+                            raise NotImplementedError("Complex case not "
+                                                      "implemented")
+                        dF = derivative(weight * comp, dep)
+                        dF = ufl.algorithms.expand_derivatives(dF)
+                        dF = eliminate_zeros(dF)
+                        for dF_weight, dF_comp in iter_expr(dF, evaluate_weights=True):  # noqa: E501
+                            dF_comp = self._nonlinear_replace(dF_comp, nl_deps)
+                            dF_comp = var_new_conjugate_dual(dep).assign(dF_comp)  # noqa: E501
+                            dep_B.sub((-var_scalar_value(adj_x) * dF_weight.conjugate(), dF_comp))  # noqa: E501
                     else:
                         raise TypeError(f"Unexpected type: {type(comp)}")
         elif self._arity == 1:

@@ -42,6 +42,7 @@ __all__ = \
         "test_leaks",
         "tmp_path",
 
+        "assemble_action",
         "assemble_rhs",
         "interpolate_expr",
         "solve_eq",
@@ -236,6 +237,20 @@ def assemble_assemble_tensor(b, rhs):
                         {"assemble_rhs": assemble_assemble_tensor}])
 def assemble_rhs(request):
     return request.param["assemble_rhs"]
+
+
+def assemble_action_InnerProduct(J, b, u):
+    InnerProduct(J, b, u).solve()
+
+
+def assemble_action_Action(J, b, u):
+    return Assembly(J, b(u)).solve()
+
+
+@pytest.fixture(params=[{"assemble_action": assemble_action_InnerProduct},
+                        {"assemble_action": assemble_action_Action}])
+def assemble_action(request):
+    return request.param["assemble_action"]
 
 
 def solve_eq_EquationSolver(eq, u, *, solver_parameters=None):
