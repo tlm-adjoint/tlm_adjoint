@@ -213,7 +213,7 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
                                              + form._tlm_adjoint__form)
             else:
                 tensor._tlm_adjoint__form = form._tlm_adjoint__form
-                tensor._tlm_adjoint__bcs = []
+                tensor._tlm_adjoint__bcs = list(_getattr(self, "bcs"))
                 tensor._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value

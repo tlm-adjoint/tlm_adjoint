@@ -61,10 +61,32 @@ def test_Constant_init(setup_test,
 
 
 def project_project(F, space, bc):
+    if DEFAULT_COMM.size > 1:
+        pytest.skip()
     G = Function(space, name="G")
+    project(F, space, bcs=bc, function=G, solver_type="lu")
+    return G
 
+
+def project_project_solver_parameters(F, space, bc):
+    G = Function(space, name="G")
     project(F, space, bcs=bc, function=G,
             solver_parameters=ls_parameters_cg)
+    return G
+
+
+def project_LUSolver(F, space, bc):
+    if DEFAULT_COMM.size > 1:
+        pytest.skip()
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+
+    A = assemble(inner(trial, test) * dx)
+    b = assemble(inner(F, test) * dx)
+    bc.apply(A, b)
+
+    solver = LUSolver(A)
+    solver.solve(G.vector(), b)
 
     return G
 
@@ -151,13 +173,36 @@ def project_NonlinearVariationalSolver(F, space, bc):
     return G
 
 
+def project_solve_linear(F, space, bc):
+    if DEFAULT_COMM.size > 1:
+        pytest.skip()
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+    A, b = assemble_system(inner(trial, test) * dx, inner(F, test) * dx,
+                           bcs=bc)
+    solve(A, G.vector(), b, "lu")
+    return G
+
+
+def project_solve_variational_problem(F, space, bc):
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+    solve(inner(trial, test) * dx == inner(F, test) * dx,
+          G, bc, solver_parameters=ls_parameters_cg)
+    return G
+
+
 @pytest.mark.fenics
 @pytest.mark.parametrize("project_fn", [project_project,
+                                        project_project_solver_parameters,
+                                        project_LUSolver,
                                         project_assemble_system_KrylovSolver,
                                         project_assemble_KrylovSolver,
                                         project_assemble_mult_KrylovSolver,
                                         project_LinearVariationalSolver,
-                                        project_NonlinearVariationalSolver])
+                                        project_NonlinearVariationalSolver,
+                                        project_solve_linear,
+                                        project_solve_variational_problem])
 @seed_test
 def test_project_patches(setup_test, test_leaks,
                          project_fn):
