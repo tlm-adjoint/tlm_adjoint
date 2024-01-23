@@ -4,7 +4,7 @@ and Dirichlet boundary conditions.
 
 from .backend import (
     FiniteElement, TensorElement, TestFunction, TrialFunction, VectorElement,
-    backend_Constant, backend_DirichletBC, backend_ScalarType)
+    backend_Constant, backend_DirichletBC, backend_ScalarType, complex_mode)
 from ..interface import (
     SpaceInterface, VariableInterface, VariableStateChangeError,
     add_replacement_interface, is_var, space_comm, var_comm, var_dtype,
@@ -444,9 +444,41 @@ def derivative(expr, x, argument=None, *,
                 raise ValueError("Invalid argument")
 
     expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
+    x = replace_map.get(x, x)
     if argument is not None:
         argument = ufl.replace(argument, replace_map)
-    dexpr = ufl.derivative(expr, replace_map.get(x, x), argument=argument)
+
+    if any(isinstance(comp, ufl.classes.Action)
+           for _, comp in iter_expr(expr)):
+        dexpr = None
+        for weight, comp in iter_expr(expr):
+            if isinstance(comp, ufl.classes.Action):
+                if complex_mode:
+                    # See Firedrake issue #3346
+                    raise NotImplementedError("Complex case not implemented")
+
+                dcomp = ufl.algorithms.expand_derivatives(
+                    ufl.derivative(ufl.as_ufl(weight), x, argument=argument))
+                if not isinstance(dcomp, ufl.classes.Zero):
+                    raise NotImplementedError("Weight derivatives not "
+                                              "implemented")
+
+                dcomp = ufl.algorithms.expand_derivatives(
+                    ufl.derivative(comp.left(), x, argument=argument))
+                dcomp = weight * ufl.classes.Action(dcomp, comp.right())
+                dexpr = dcomp if dexpr is None else dexpr + dcomp
+
+                dcomp = ufl.algorithms.expand_derivatives(
+                    ufl.derivative(comp.right(), x, argument=argument))
+                dcomp = weight * ufl.classes.Action(comp.left(), dcomp)
+                dexpr = dcomp if dexpr is None else dexpr + dcomp
+            else:
+                dcomp = ufl.derivative(weight * comp, x, argument=argument)
+                dexpr = dcomp if dexpr is None else dexpr + dcomp
+        assert dexpr is not None
+    else:
+        dexpr = ufl.derivative(expr, x, argument=argument)
+
     dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return ufl.replace(dexpr, replace_map_inverse)
 

@@ -7,7 +7,6 @@ from .test_base import *
 
 import numpy as np
 import pytest
-import ufl
 
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
@@ -32,13 +31,13 @@ def test_hessian_solve(setup_test,
 
     def B_inv(u):
         b = Cofunction(space.dual())
-        assemble(ufl.conj(beta) * inner(ufl.conj(u), test) * dx, tensor=b)
+        assemble(beta * inner(u, test) * dx, tensor=b)
         return b
 
     def B(b):
         u = Function(space)
         solver, _, _ = assemble_linear_solver(
-            ufl.conj(beta) * inner(ufl.conj(trial), test) * dx, bcs=bc,
+            beta * inner(trial, test) * dx, bcs=bc,
             linear_solver_parameters=ls_parameters_cg)
         solver.solve(u, var_copy(b))
         return u
