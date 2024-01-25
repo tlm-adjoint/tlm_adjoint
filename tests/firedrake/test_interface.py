@@ -2,6 +2,7 @@ from firedrake import *
 from tlm_adjoint.alias import WeakAlias
 from tlm_adjoint.interface import VariableStateChangeError
 from tlm_adjoint.firedrake import *
+from tlm_adjoint.firedrake.functions import bcs_is_static
 
 from .test_base import *
 
@@ -196,6 +197,22 @@ def test_scalar_var(setup_test, test_leaks):
     test_scalar(Constant((0.0, 0.0)), False)
     test_scalar(Function(space), False)
     test_scalar(Cofunction(space.dual()), False)
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_DirichletBC_vector(setup_test, test_leaks):
+    mesh = UnitSquareMesh(10, 10)
+    space = VectorFunctionSpace(mesh, "Lagrange", 1)
+
+    bc = DirichletBC(space, (0.0, 0.0), "on_boundary")
+    assert bcs_is_static(bc)
+
+    bc = DirichletBC(space, Function(space), "on_boundary")
+    assert not bcs_is_static(bc)
+
+    bc = DirichletBC(space, Function(space, static=True), "on_boundary")
+    assert bcs_is_static(bc)
 
 
 @pytest.mark.firedrake

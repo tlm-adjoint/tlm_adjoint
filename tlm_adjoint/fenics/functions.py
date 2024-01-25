@@ -16,6 +16,7 @@ from ..interface import (
 from ..caches import Caches
 from ..manager import paused_manager
 
+from collections.abc import Sequence
 import functools
 import numbers
 import numpy as np
@@ -347,10 +348,14 @@ def form_cached(key):
 @form_cached("_tlm_adjoint__form_coefficients")
 def extract_coefficients(expr):
     def as_ufl(expr):
-        if isinstance(expr, ufl.classes.Form):
-            return expr
-        else:
+        if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
             return ufl.as_ufl(expr)
+        elif isinstance(expr, ufl.classes.Form):
+            return expr
+        elif isinstance(expr, Sequence):
+            return ufl.as_vector(tuple(map(as_ufl, expr)))
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
 
     return ufl.algorithms.extract_coefficients(as_ufl(expr))
 
