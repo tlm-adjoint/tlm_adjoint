@@ -15,6 +15,7 @@ from ..interface import (
 from ..caches import Caches
 from ..manager import paused_manager
 
+from collections.abc import Sequence
 import functools
 import itertools
 import numbers
@@ -405,12 +406,22 @@ def form_cached(key):
 
 @form_cached("_tlm_adjoint__form_coefficients")
 def extract_coefficients(expr):
+    def as_ufl(expr):
+        if isinstance(expr, (ufl.classes.BaseForm,
+                             ufl.classes.Expr,
+                             numbers.Complex)):
+            return ufl.as_ufl(expr)
+        elif isinstance(expr, Sequence):
+            return ufl.as_vector(tuple(map(as_ufl, expr)))
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
+
     deps = []
     for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
         c_deps = {}
         for dep in itertools.chain.from_iterable(map(
-                lambda expr: ufl.algorithms.extract_type(ufl.as_ufl(expr), c),
-                itertools.chain.from_iterable(iter_expr(ufl.as_ufl(expr))))):
+                lambda expr: ufl.algorithms.extract_type(as_ufl(expr), c),
+                itertools.chain.from_iterable(iter_expr(as_ufl(expr))))):
             c_deps[dep.count()] = dep
         deps.extend(sorted(c_deps.values(), key=lambda dep: dep.count()))
     return deps
