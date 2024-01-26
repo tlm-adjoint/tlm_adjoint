@@ -101,12 +101,24 @@ class FunctionSpaceInterface(SpaceInterface):
             raise ValueError("Invalid space type")
 
 
+def new_space_id_cached(space):
+    mesh = space.mesh()
+    if not hasattr(mesh, "_tlm_adjoint__space_ids"):
+        mesh._tlm_adjoint__space_ids = {}
+    space_ids = mesh._tlm_adjoint__space_ids
+
+    key = (space, ufl.duals.is_primal(space))
+    if key not in space_ids:
+        space_ids[key] = new_space_id()
+    return space_ids[key]
+
+
 @patch_method(backend_FunctionSpace, "__init__")
 def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
                   {"space": self, "comm": comm_dup_cached(self.comm),
-                   "id": new_space_id()})
+                   "id": new_space_id_cached(self)})
 
 
 @patch_method(backend_FunctionSpace, "dual")
@@ -124,7 +136,7 @@ def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
     orig_args()
     add_interface(self, FunctionSpaceInterface,
                   {"space_dual": self, "comm": comm_dup_cached(self.comm),
-                   "id": new_space_id()})
+                   "id": new_space_id_cached(self)})
 
 
 @patch_method(backend_CofunctionSpace, "dual")
@@ -515,12 +527,12 @@ def to_firedrake(y, space, *, name=None):
 
     space_type = var_space_type(y)
     if space_type in {"primal", "conjugate"}:
-        if isinstance(space, backend_FunctionSpace):
+        if ufl.duals.is_primal(space):
             x = Function(space, space_type=space_type, name=name)
         else:
             x = Function(space.dual(), space_type=space_type, name=name)
     elif space_type in {"dual", "conjugate_dual"}:
-        if isinstance(space, backend_FunctionSpace):
+        if ufl.duals.is_primal(space):
             x = Cofunction(space.dual(), space_type=space_type, name=name)
         else:
             x = Cofunction(space, space_type=space_type, name=name)

@@ -94,8 +94,24 @@ def test_FunctionSpace_interface(setup_test, test_leaks):
 
     F_0 = F.subfunctions[0]
     assert space_id(var_space(F_0)) == space_id(F_0.function_space())
-    assert space_id(space) != space_id(var_space(F_0))
-    assert space_id(space) != space_id(F_0.function_space())
+    assert space_id(space) == space_id(var_space(F_0))
+    assert space_id(space) == space_id(F_0.function_space())
+
+
+@pytest.mark.firedrake
+@seed_test
+def test_FunctionSpace_space_id(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    space0 = FunctionSpace(mesh, "Lagrange", 1)
+    space1 = FunctionSpace(mesh, "Lagrange", 1)
+    space2 = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
+
+    assert space_id(space0) == space_id(space1)
+    assert space_id(space0) != space_id(space0.dual())
+    assert space_id(space0.dual()) == space_id(space1.dual())
+    assert space_id(space0) != space_id(space2)
+    assert space_id(space0) != space_id(space2.dual())
+    assert space_id(space0.dual()) != space_id(space2.dual())
 
 
 @pytest.mark.firedrake
