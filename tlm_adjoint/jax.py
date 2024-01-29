@@ -439,21 +439,16 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
 
         return self._name
 
-    def assign(self, y, *, annotate=None, tlm=None):
+    def assign(self, y):
         """:class:`.Vector` assignment.
 
         :arg y: A :class:`numbers.Complex`, :class:`.Vector`, or ndim 1 array
             defining the value.
-        :arg annotate: Whether the :class:`.EquationManager` should record the
-            solution of equations.
-        :arg tlm: Whether tangent-linear equations should be solved.
         :returns: The :class:`.Vector`.
         """
 
-        if annotate is None or annotate:
-            annotate = annotation_enabled()
-        if tlm is None or tlm:
-            tlm = tlm_enabled()
+        annotate = annotation_enabled()
+        tlm = tlm_enabled()
         if annotate or tlm:
             with paused_manager():
                 if isinstance(y, (numbers.Complex, np.ndarray, jax.Array)):
@@ -463,7 +458,7 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
                 else:
                     raise TypeError(f"Unexpected type: {type(y)}")
 
-            Assignment(self, y).solve(annotate=annotate, tlm=tlm)
+            Assignment(self, y).solve()
         else:
             if isinstance(y, (numbers.Complex, Vector)):
                 var_assign(self, y)
@@ -473,19 +468,16 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
                 raise TypeError(f"Unexpected type: {type(y)}")
         return self
 
-    def addto(self, y, *, annotate=None, tlm=None):
+    def addto(self, y):
         """:class:`.Vector` in-place addition.
 
         :arg y: A :class:`numbers.Complex`, :class:`.Vector`, or ndim 1 array
             defining the value to add.
-        :arg annotate: Whether the :class:`.EquationManager` should record the
-            solution of equations.
-        :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        x_old = self.new().assign(self, annotate=annotate, tlm=tlm)
-        y = self.new().assign(y, annotate=annotate, tlm=tlm)
-        Axpy(self, x_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
+        x_old = self.new().assign(self)
+        y = self.new().assign(y)
+        Axpy(self, x_old, 1.0, y).solve()
 
     @property
     def value(self):
@@ -542,9 +534,8 @@ class ReplacementVector:
         add_replacement_interface(self, x)
 
 
-def jax_forward(fn, X, Y, *, manager=None):
-    if manager is None:
-        manager = _manager()
+def jax_forward(fn, X, Y):
+    manager = _manager()
 
     for sub_tlm in manager._tlm.values():
         if len(sub_tlm) > 0:
@@ -678,27 +669,25 @@ class VectorEquation(Equation):
         _, vjp = self._vjp
         return vjp
 
-    def solve(self, *, manager=None, annotate=None, tlm=None):
-        if manager is None:
-            manager = _manager()
+    def solve(self, *, annotate=None, tlm=None):
+        manager = _manager()
         if annotate is None or annotate:
-            annotate = manager.annotation_enabled()
+            annotate = annotation_enabled()
         if tlm is None or tlm:
-            tlm = manager.tlm_enabled()
+            tlm = tlm_enabled()
 
         X = self.X()
         Y = self.dependencies()[len(X):]
         if self._with_tlm and tlm and len(manager._tlm) > 0:
-            tlm_X, tlm_Y, tlm_fn = jax_forward(self._fn, X, Y, manager=manager)
+            tlm_X, tlm_Y, tlm_fn = jax_forward(self._fn, X, Y)
             VectorEquation(tlm_X, tlm_Y, tlm_fn, _forward_eq=self).solve(
-                manager=manager, annotate=annotate, tlm=False)
+                annotate=annotate, tlm=False)
         else:
             eq = VectorEquation(X, Y, self._fn)
             if not manager._cp.store_data:
                 eq._annotate = False
             try:
-                return super(type(eq), eq).solve(manager=manager,
-                                                 annotate=annotate, tlm=tlm)
+                return super(type(eq), eq).solve(annotate=annotate, tlm=tlm)
             finally:
                 eq._annotate = True
 

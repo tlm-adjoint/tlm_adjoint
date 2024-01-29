@@ -627,6 +627,7 @@ class EquationManager:
 
             self._cp.add_initial_condition(x)
 
+    @restore_manager
     def add_equation(self, eq, *, annotate=None, tlm=None):
         """Process an :class:`.Equation` after it has been solved.
 
@@ -637,6 +638,7 @@ class EquationManager:
             solved.
         """
 
+        set_manager(self)
         self.drop_references()
 
         if annotate is None or annotate:
@@ -669,9 +671,7 @@ class EquationManager:
                 node_eq = self._tangent_linear(parent_eq, node_M, node_dM)
                 if node_eq is not None:
                     node_eq.solve(
-                        manager=self,
-                        annotate=annotate and node.is_annotated(),
-                        tlm=False)
+                        annotate=annotate and node.is_annotated(), tlm=False)
                     remaining_eqs.extend(
                         (node_eq, child_M_dM, child)
                         for child_M_dM, child in node.items())

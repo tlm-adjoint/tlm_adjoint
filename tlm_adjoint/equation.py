@@ -4,7 +4,7 @@ from .interface import (
 
 from .alias import gc_disabled
 from .manager import manager as _manager
-from .manager import paused_manager, restore_manager, set_manager
+from .manager import paused_manager
 
 from collections.abc import Sequence
 import inspect
@@ -338,35 +338,26 @@ class Equation(Referrer):
         else:
             return var_new(self.X(m), rel_space_type=self.adj_X_type(m))
 
-    def _pre_process(self, manager=None, annotate=None):
-        if manager is None:
-            manager = _manager()
+    def _pre_process(self, *, annotate=None):
+        manager = _manager()
         for dep in self.initial_condition_dependencies():
             manager.add_initial_condition(dep, annotate=annotate)
 
-    def _post_process(self, manager=None, annotate=None, tlm=None):
-        if manager is None:
-            manager = _manager()
+    def _post_process(self, *, annotate=None, tlm=None):
+        manager = _manager()
         manager.add_equation(self, annotate=annotate, tlm=tlm)
 
-    @restore_manager
-    def solve(self, *, manager=None, annotate=None, tlm=None):
+    def solve(self, *, annotate=None, tlm=None):
         """Compute the forward solution.
 
-        :arg manager: The :class:`.EquationManager`. Defaults to `manager()`.
         :arg annotate: Whether the :class:`.EquationManager` should record the
             solution of equations.
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        if manager is not None:
-            set_manager(manager)
-
         self._pre_process(annotate=annotate)
-
         with paused_manager():
             self.forward(self.X())
-
         self._post_process(annotate=annotate, tlm=tlm)
 
     def forward(self, X, deps=None):

@@ -11,13 +11,12 @@ from .backend_code_generator_interface import (
     copy_parameters_dict, linear_solver, update_parameters_dict)
 
 from ..equations import Assignment
+from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
-from .equations import (
-    Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
-    linear_equation_new_x)
-from .functions import Constant, define_var_alias
+from .equations import Assembly, EquationSolver, ExprInterpolation, Projection
+from .functions import Constant, define_var_alias, extract_coefficients
 
 import fenics
 import numbers
@@ -53,6 +52,31 @@ def parameters_dict_equal(parameters_a, parameters_b):
         if key_b not in parameters_a:
             return False
     return True
+
+
+def expr_new_x(expr, x):
+    if x in extract_coefficients(expr):
+        x_old = var_new(x)
+        x_old.assign(x)
+        return ufl.replace(expr, {x: x_old})
+    else:
+        return expr
+
+
+def linear_equation_new_x(eq, x):
+    lhs, rhs = eq.lhs, eq.rhs
+    lhs_x_dep = x in extract_coefficients(lhs)
+    rhs_x_dep = x in extract_coefficients(rhs)
+    if lhs_x_dep or rhs_x_dep:
+        x_old = var_new(x)
+        x_old.assign(x)
+        if lhs_x_dep:
+            lhs = ufl.replace(lhs, {x: x_old})
+        if rhs_x_dep:
+            rhs = ufl.replace(rhs, {x: x_old})
+        return lhs == rhs
+    else:
+        return eq
 
 
 class Attributes:
@@ -110,7 +134,9 @@ def Form__init__(self, orig, orig_args, form, *, form_compiler_parameters=None,
 
 
 @manager_method(cpp_Assembler, "assemble", patch_without_manager=True)
-def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
+def Assembler_assemble(self, orig, orig_args, tensor, form):
+    annotate = annotation_enabled()
+    tlm = tlm_enabled()
     if isinstance(tensor, backend_Function):
         tensor = tensor.vector()
     return_value = orig(self, tensor, form)
@@ -146,7 +172,7 @@ def Assembler_assemble(self, orig, orig_args, tensor, form, *, annotate, tlm):
             eq = Assembly(tensor._tlm_adjoint__function,
                           tensor._tlm_adjoint__form)
             assert len(eq.initial_condition_dependencies()) == 0
-            eq._post_process(annotate=annotate, tlm=tlm)
+            eq._post_process()
 
     return return_value
 
@@ -288,7 +314,7 @@ def DirichletBC_apply(self, orig, orig_args, *args):
             b._tlm_adjoint__bcs.append(self)
 
 
-def Constant_init_assign(self, value, annotate, tlm):
+def Constant_init_assign(self, value):
     if is_var(value):
         eq = Assignment(self, value)
     elif isinstance(value, ufl.classes.Expr):
@@ -298,24 +324,22 @@ def Constant_init_assign(self, value, annotate, tlm):
 
     if eq is not None:
         assert len(eq.initial_condition_dependencies()) == 0
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
 
 
 @manager_method(backend_Constant, "__init__")
-def backend_Constant__init__(self, orig, orig_args, value, *args,
-                             annotate, tlm, **kwargs):
+def backend_Constant__init__(self, orig, orig_args, value, *args, **kwargs):
     orig_args()
-    Constant_init_assign(self, value, annotate, tlm)
+    Constant_init_assign(self, value)
 
 
 # Patch the subclass constructor separately so that all variable attributes are
 # set before annotation
 @manager_method(Constant, "__init__")
-def Constant__init__(self, orig, orig_args, value=None, *args,
-                     annotate, tlm, **kwargs):
+def Constant__init__(self, orig, orig_args, value=None, *args, **kwargs):
     orig_args()
     if value is not None:
-        Constant_init_assign(self, value, annotate, tlm)
+        Constant_init_assign(self, value)
 
 
 def var_update_state_post_call(self, return_value, *args, **kwargs):
@@ -325,7 +349,7 @@ def var_update_state_post_call(self, return_value, *args, **kwargs):
 
 @manager_method(backend_Constant, "assign",
                 post_call=var_update_state_post_call)
-def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
+def Constant_assign(self, orig, orig_args, x):
     if isinstance(x, numbers.Real):
         eq = Assignment(self, Constant(x, comm=var_comm(self)))
     elif isinstance(x, backend_Constant):
@@ -334,8 +358,7 @@ def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
         else:
             eq = None
     elif isinstance(x, ufl.classes.Expr):
-        eq = ExprInterpolation(self, expr_new_x(x, self,
-                                                annotate=annotate, tlm=tlm))
+        eq = ExprInterpolation(self, expr_new_x(x, self))
     else:
         raise TypeError(f"Unexpected type: {type(x)}")
 
@@ -343,13 +366,15 @@ def Constant_assign(self, orig, orig_args, x, *, annotate, tlm):
         assert len(eq.initial_condition_dependencies()) == 0
     return_value = orig_args()
     if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
     return return_value
 
 
 @manager_method(backend_Function, "assign", patch_without_manager=True,
                 post_call=var_update_state_post_call)
-def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
+def Function_assign(self, orig, orig_args, rhs):
+    annotate = annotation_enabled()
+    tlm = tlm_enabled()
     if isinstance(rhs, backend_Function):
         # Prevent a new vector being created
 
@@ -360,7 +385,7 @@ def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
                 if annotate or tlm:
                     eq = Assignment(self, rhs)
                     assert len(eq.initial_condition_dependencies()) == 0
-                    eq._post_process(annotate=annotate, tlm=tlm)
+                    eq._post_process()
         else:
             value = var_new(self)
             orig(value, rhs)
@@ -369,25 +394,26 @@ def Function_assign(self, orig, orig_args, rhs, *, annotate, tlm):
             if annotate or tlm:
                 eq = ExprInterpolation(self, rhs)
                 assert len(eq.initial_condition_dependencies()) == 0
-                eq._post_process(annotate=annotate, tlm=tlm)
+                eq._post_process()
     else:
         orig_args()
 
         if annotate or tlm:
-            eq = ExprInterpolation(self, expr_new_x(rhs, self,
-                                                    annotate=annotate, tlm=tlm))  # noqa: E501
+            eq = ExprInterpolation(self, expr_new_x(rhs, self))
             assert len(eq.initial_condition_dependencies()) == 0
-            eq._post_process(annotate=annotate, tlm=tlm)
+            eq._post_process()
 
 
 @manager_method(backend_Function, "copy", patch_without_manager=True)
-def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
+def Function_copy(self, orig, orig_args, deepcopy=False):
+    annotate = annotation_enabled()
+    tlm = tlm_enabled()
     F = orig_args()
     if deepcopy:
         if annotate or tlm:
             eq = Assignment(F, self)
             assert len(eq.initial_condition_dependencies()) == 0
-            eq._post_process(annotate=annotate, tlm=tlm)
+            eq._post_process()
     else:
         define_var_alias(F, self, key=("copy",))
     return F
@@ -395,7 +421,7 @@ def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
 
 @manager_method(backend_Function, "interpolate",
                 post_call=var_update_state_post_call)
-def Function_interpolate(self, orig, orig_args, u, *, annotate, tlm):
+def Function_interpolate(self, orig, orig_args, u):
     if u is self:
         eq = None
     else:
@@ -405,7 +431,7 @@ def Function_interpolate(self, orig, orig_args, u, *, annotate, tlm):
         assert len(eq.initial_condition_dependencies()) == 0
     return_value = orig_args()
     if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
     return return_value
 
 
@@ -421,7 +447,7 @@ def Function_vector(self, orig, orig_args):
 
 
 @manager_method(backend_Matrix, "__mul__")
-def Matrix__mul__(self, orig, orig_args, other, *, annotate, tlm):
+def Matrix__mul__(self, orig, orig_args, other):
     return_value = orig_args()
 
     if hasattr(self, "_tlm_adjoint__form") \
@@ -505,7 +531,7 @@ def Solver_solve_post_call(self, return_value, *args):
 @manager_method(LUSolver, "solve",
                 pre_call=Solver_solve_pre_call,
                 post_call=Solver_solve_post_call)
-def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm):
+def LUSolver_solve(self, orig, orig_args, *args):
     A, x, b = Solver_solve_args(self, *args)
 
     bcs = A._tlm_adjoint__bcs
@@ -523,16 +549,15 @@ def LUSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     linear_solver = _getattr(self, "linear_solver")
 
     eq = EquationSolver(
-        linear_equation_new_x(A_form == b_form, x,
-                              annotate=annotate, tlm=tlm),
+        linear_equation_new_x(A_form == b_form, x),
         x, bcs,
         solver_parameters={"linear_solver": linear_solver,
                            "lu_solver": self.parameters},
         form_compiler_parameters=form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 
@@ -587,7 +612,7 @@ def KrylovSolver_set_operators(self, orig, orig_args, A, P):
 @manager_method(KrylovSolver, "solve",
                 pre_call=Solver_solve_pre_call,
                 post_call=Solver_solve_post_call)
-def KrylovSolver_solve(self, orig, orig_args, *args, annotate, tlm):
+def KrylovSolver_solve(self, orig, orig_args, *args):
     A, x, b = Solver_solve_args(self, *args)
     if _getattr(self, "P") is not None:
         raise NotImplementedError("Preconditioners not supported")
@@ -608,8 +633,7 @@ def KrylovSolver_solve(self, orig, orig_args, *args, annotate, tlm):
     preconditioner = _getattr(self, "preconditioner")
 
     eq = EquationSolver(
-        linear_equation_new_x(A_form == b_form, x,
-                              annotate=annotate, tlm=tlm),
+        linear_equation_new_x(A_form == b_form, x),
         x, bcs,
         solver_parameters={"linear_solver": linear_solver,
                            "preconditioner": preconditioner,
@@ -617,9 +641,9 @@ def KrylovSolver_solve(self, orig, orig_args, *args, annotate, tlm):
         form_compiler_parameters=form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
 
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 
@@ -638,24 +662,22 @@ def VariationalSolver_solve_post_call(self, return_value,
 
 @manager_method(LinearVariationalSolver, "solve",
                 post_call=VariationalSolver_solve_post_call)
-def LinearVariationalSolver_solve(self, orig, orig_args, *,
-                                  annotate, tlm):
+def LinearVariationalSolver_solve(self, orig, orig_args):
     problem = _getattr(self, "problem")
 
     x = problem.u_ufl
     lhs = problem.a_ufl
     rhs = problem.L_ufl
     eq = EquationSolver(
-        linear_equation_new_x(lhs == rhs, x,
-                              annotate=annotate, tlm=tlm),
+        linear_equation_new_x(lhs == rhs, x),
         x, problem.bcs(),
         solver_parameters=self.parameters,
         form_compiler_parameters=problem.form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
 
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 
@@ -691,7 +713,7 @@ def NonlinearVariationalSolver__init__(self, orig, orig_args, problem):
 
 @manager_method(NonlinearVariationalSolver, "solve",
                 post_call=VariationalSolver_solve_post_call)
-def NonlinearVariationalSolver_solve(self, orig, orig_args, *, annotate, tlm):
+def NonlinearVariationalSolver_solve(self, orig, orig_args):
     problem = _getattr(self, "problem")
     if problem._tlm_adjoint__has_bounds:
         raise NotImplementedError("Bounds not supported")
@@ -705,9 +727,9 @@ def NonlinearVariationalSolver_solve(self, orig, orig_args, *, annotate, tlm):
         form_compiler_parameters=problem.form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
 
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 

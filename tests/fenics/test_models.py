@@ -17,8 +17,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def oscillator_ref():
-    assert not manager().annotation_enabled()
-    assert not manager().tlm_enabled()
+    assert not annotation_enabled()
+    assert not tlm_enabled()
 
     nsteps = 20
     dt = Constant(0.01)
@@ -48,8 +48,8 @@ def oscillator_ref():
 
 
 def diffusion_ref():
-    assert not manager().annotation_enabled()
-    assert not manager().tlm_enabled()
+    assert not annotation_enabled()
+    assert not tlm_enabled()
 
     n_steps = 20
     dt = Constant(0.01)
