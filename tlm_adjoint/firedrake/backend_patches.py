@@ -17,9 +17,7 @@ from ..patch import (
     patch_property)
 
 from .backend_interface import Cofunction
-from .equations import (
-    Assembly, EquationSolver, ExprInterpolation, Projection, expr_new_x,
-    linear_equation_new_x)
+from .equations import Assembly, EquationSolver, ExprInterpolation, Projection
 from .functions import (
     Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
 from .firedrake_equations import ExprAssignment, LocalProjection
@@ -73,6 +71,31 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
     return solver_parameters
 
 
+def expr_new_x(expr, x):
+    if x in extract_coefficients(expr):
+        x_old = var_new(x)
+        x_old.assign(x)
+        return ufl.replace(expr, {x: x_old})
+    else:
+        return expr
+
+
+def linear_equation_new_x(eq, x):
+    lhs, rhs = eq.lhs, eq.rhs
+    lhs_x_dep = x in extract_coefficients(lhs)
+    rhs_x_dep = x in extract_coefficients(rhs)
+    if lhs_x_dep or rhs_x_dep:
+        x_old = var_new(x)
+        x_old.assign(x)
+        if lhs_x_dep:
+            lhs = ufl.replace(lhs, {x: x_old})
+        if rhs_x_dep:
+            rhs = ufl.replace(rhs, {x: x_old})
+        return lhs == rhs
+    else:
+        return eq
+
+
 # Aim for compatibility with Firedrake API
 
 
@@ -91,15 +114,14 @@ def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
 
 @manager_method(FormAssembler, "assemble",
                 post_call=FormAssembler_assemble_post_call)
-def FormAssembler_assemble(self, orig, orig_args, *args,
-                           annotate, tlm, **kwargs):
+def FormAssembler_assemble(self, orig, orig_args, *args, **kwargs):
     return_value = orig_args()
 
     if len(self._form.arguments()) == 1:
         eq = Assembly(return_value, self._form,
                       form_compiler_parameters=self._form_compiler_params)
         assert len(eq.initial_condition_dependencies()) == 0
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
 
     return return_value
 
@@ -121,7 +143,7 @@ def DirichletBC_function_arg(self, orig):
     return orig()
 
 
-def Constant_init_assign(self, value, annotate, tlm):
+def Constant_init_assign(self, value):
     if is_var(value):
         eq = Assignment(self, value)
     elif isinstance(value, ufl.classes.Expr):
@@ -131,24 +153,22 @@ def Constant_init_assign(self, value, annotate, tlm):
 
     if eq is not None:
         assert len(eq.initial_condition_dependencies()) == 0
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
 
 
 @manager_method(backend_Constant, "__init__")
-def backend_Constant__init__(self, orig, orig_args, value, *args,
-                             annotate, tlm, **kwargs):
+def backend_Constant__init__(self, orig, orig_args, value, *args, **kwargs):
     orig_args()
-    Constant_init_assign(self, value, annotate, tlm)
+    Constant_init_assign(self, value)
 
 
 # Patch the subclass constructor separately so that all variable attributes are
 # set before annotation
 @manager_method(Constant, "__init__")
-def Constant__init__(self, orig, orig_args, value=None, *args,
-                     annotate, tlm, **kwargs):
+def Constant__init__(self, orig, orig_args, value=None, *args, **kwargs):
     orig_args()
     if value is not None:
-        Constant_init_assign(self, value, annotate, tlm)
+        Constant_init_assign(self, value)
 
 
 def var_update_state_post_call(self, return_value, *args, **kwargs):
@@ -159,7 +179,7 @@ def var_update_state_post_call(self, return_value, *args, **kwargs):
 
 @manager_method(backend_Constant, "assign",
                 post_call=var_update_state_post_call)
-def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
+def Constant_assign(self, orig, orig_args, value):
     if isinstance(value, numbers.Complex):
         eq = Assignment(self, Constant(value, comm=var_comm(self)))
     elif isinstance(value, backend_Constant):
@@ -169,7 +189,7 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
             eq = None
     elif isinstance(value, ufl.classes.Expr):
         eq = ExprInterpolation(
-            self, expr_new_x(value, self, annotate=annotate, tlm=tlm))
+            self, expr_new_x(value, self))
     else:
         raise TypeError(f"Unexpected type: {type(value)}")
 
@@ -177,7 +197,7 @@ def Constant_assign(self, orig, orig_args, value, *, annotate, tlm):
         assert len(eq.initial_condition_dependencies()) == 0
     return_value = orig_args()
     if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
     return return_value
 
 
@@ -202,8 +222,7 @@ register_in_place(backend_Function, "__itruediv__", operator.truediv)
 
 @manager_method(backend_Function, "assign",
                 post_call=var_update_state_post_call)
-def Function_assign(self, orig, orig_args, expr, subset=None, *,
-                    annotate, tlm):
+def Function_assign(self, orig, orig_args, expr, subset=None):
     expr = ufl.as_ufl(expr)
 
     def assign(x, y, *,
@@ -212,13 +231,13 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
             x = var_new(y)
         if subset is None \
                 and isinstance(y, ufl.classes.Zero):
-            ZeroAssignment(x).solve(annotate=annotate, tlm=tlm)
+            ZeroAssignment(x).solve()
         elif subset is None \
                 and isinstance(y, backend_Function) \
                 and space_id(var_space(y)) == space_id(var_space(x)):
-            Assignment(x, y).solve(annotate=annotate, tlm=tlm)
+            Assignment(x, y).solve()
         else:
-            ExprAssignment(x, y, subset=subset).solve(annotate=annotate, tlm=tlm)  # noqa: E501
+            ExprAssignment(x, y, subset=subset).solve()
         return x
 
     if subset is None:
@@ -229,7 +248,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
             else:
                 eq = None
         elif isinstance(expr, ufl.classes.Expr):
-            expr = expr_new_x(expr, self, annotate=annotate, tlm=tlm)
+            expr = expr_new_x(expr, self)
             eq = ExprAssignment(self, expr)
         else:
             raise TypeError(f"Unexpected type: {type(expr)}")
@@ -247,7 +266,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
         assert len(eq.initial_condition_dependencies()) == 0
     orig(self, expr, subset=subset)
     if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
 
     if subset is not None:
         x_2 = assign(None, self)
@@ -260,8 +279,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None, *,
                 post_call=var_update_state_post_call)
 def Function_project(self, orig, orig_args, b, bcs=None,
                      solver_parameters=None, form_compiler_parameters=None,
-                     use_slate_for_inverse=True, name=None, ad_block_tag=None,
-                     *, annotate, tlm):
+                     use_slate_for_inverse=True, name=None, ad_block_tag=None):
     if use_slate_for_inverse:
         # Is a local solver actually used?
         projector = Projector(
@@ -277,27 +295,27 @@ def Function_project(self, orig, orig_args, b, bcs=None,
                                 or len(bcs) > 0):
             raise NotImplementedError("Boundary conditions not supported")
         eq = LocalProjection(
-            self, expr_new_x(b, self, annotate=annotate, tlm=tlm),
+            self, expr_new_x(b, self),
             form_compiler_parameters=form_compiler_parameters,
             cache_jacobian=False, cache_rhs_assembly=False)
     else:
         eq = Projection(
-            self, expr_new_x(b, self, annotate=annotate, tlm=tlm), bcs,
+            self, expr_new_x(b, self), bcs,
             solver_parameters=solver_parameters,
             form_compiler_parameters=form_compiler_parameters,
             cache_jacobian=False, cache_rhs_assembly=False)
 
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 
 @manager_method(backend_Function, "copy", patch_without_manager=True)
-def Function_copy(self, orig, orig_args, deepcopy=False, *, annotate, tlm):
+def Function_copy(self, orig, orig_args, deepcopy=False):
     if deepcopy:
         F = var_new(self)
-        F.assign(self, annotate=annotate, tlm=tlm)
+        F.assign(self)
     else:
         F = orig_args()
         define_var_alias(F, self, key=("copy",))
@@ -312,8 +330,7 @@ register_in_place(backend_Cofunction, "__imul__",
 
 @manager_method(backend_Cofunction, "assign",
                 post_call=var_update_state_post_call)
-def Cofunction_assign(self, orig, orig_args, expr, subset=None, *,
-                      annotate, tlm):
+def Cofunction_assign(self, orig, orig_args, expr, subset=None):
     if subset is not None:
         raise NotImplementedError("subset not supported")
 
@@ -336,7 +353,7 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None, *,
             if not isinstance(comp, backend_Cofunction):
                 raise TypeError(f"Unexpected type: {type(comp)}")
 
-        expr = expr_new_x(expr, self, annotate=annotate, tlm=tlm)
+        expr = expr_new_x(expr, self)
         # Note: Ignores weight dependencies
         eq = LinearCombination(self, *iter_expr(expr, evaluate_weights=True))
     else:
@@ -346,7 +363,7 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None, *,
         assert len(eq.initial_condition_dependencies()) == 0
     orig(self, expr, subset=subset)
     if eq is not None:
-        eq._post_process(annotate=annotate, tlm=tlm)
+        eq._post_process()
     return self
 
 
@@ -362,7 +379,7 @@ def LinearSolver_solve_post_call(self, return_value, x, b):
 
 @manager_method(LinearSolver, "solve",
                 post_call=LinearSolver_solve_post_call)
-def LinearSolver_solve(self, orig, orig_args, x, b, *, annotate, tlm):
+def LinearSolver_solve(self, orig, orig_args, x, b):
     if self.P is not self.A:
         raise NotImplementedError("Preconditioners not supported")
 
@@ -380,15 +397,14 @@ def LinearSolver_solve(self, orig, orig_args, x, b, *, annotate, tlm):
     form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
 
     eq = EquationSolver(
-        linear_equation_new_x(A.a == b, x,
-                              annotate=annotate, tlm=tlm),
+        linear_equation_new_x(A.a == b, x),
         x, bcs, solver_parameters=solver_parameters,
         form_compiler_parameters=form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
 
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 
@@ -422,7 +438,7 @@ def NonlinearVariationalSolver_solve_post_call(
 @manager_method(NonlinearVariationalSolver, "solve",
                 post_call=NonlinearVariationalSolver_solve_post_call)
 def NonlinearVariationalSolver_solve(
-        self, orig, orig_args, bounds=None, *, annotate, tlm):
+        self, orig, orig_args, bounds=None):
     if len(set(self._tlm_adjoint__appctx).difference({"state", "form_compiler_parameters"})) > 0:  # noqa: E501
         raise NotImplementedError("appctx not supported")
     if self._tlm_adjoint__pre_jacobian_callback is not None \
@@ -451,9 +467,9 @@ def NonlinearVariationalSolver_solve(
         cache_jacobian=self._problem._constant_jacobian,
         cache_rhs_assembly=False)
 
-    eq._pre_process(annotate=annotate)
+    eq._pre_process()
     return_value = orig_args()
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 
@@ -467,8 +483,7 @@ def SameMeshInterpolator_interpolate_post_call(
                 post_call=SameMeshInterpolator_interpolate_post_call)
 def SameMeshInterpolator_interpolate(
         self, orig, orig_args, *function, output=None, transpose=False,
-        default_missing_val=None,
-        annotate, tlm, **kwargs):
+        default_missing_val=None, **kwargs):
     if transpose:
         raise NotImplementedError("transpose not supported")
     if default_missing_val is not None:
@@ -480,11 +495,11 @@ def SameMeshInterpolator_interpolate(
     if len(args) != len(function):
         raise TypeError("Unexpected number of functions")
     expr = ufl.replace(self.expr, dict(zip(args, function)))
-    expr = expr_new_x(expr, return_value, annotate=annotate, tlm=tlm)
+    expr = expr_new_x(expr, return_value)
     eq = ExprInterpolation(return_value, expr)
 
     assert len(eq.initial_condition_dependencies()) == 0
-    eq._post_process(annotate=annotate, tlm=tlm)
+    eq._post_process()
     return return_value
 
 

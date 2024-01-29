@@ -33,7 +33,8 @@ class ReducedFunctional:
     def __init__(self, forward, *,
                  manager=None):
         if manager is None:
-            manager = _manager().new()
+            manager = _manager()
+        manager = manager.new()
 
         self._manager = manager
         self._forward = forward
@@ -124,7 +125,7 @@ class ReducedFunctional:
             if not issubclass(var_dtype(dm), np.floating):
                 raise ValueError("Invalid dtype")
 
-        ddJ = Hessian(self._forward, manager=self._manager.new())
+        ddJ = Hessian(self._forward, manager=self._manager)
         _, _, ddJ = ddJ.action(M, dM)
 
         for ddJ_i in ddJ:

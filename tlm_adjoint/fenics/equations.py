@@ -8,8 +8,8 @@ from .backend import (
     backend_DirichletBC, backend_Function, parameters)
 from ..interface import (
     check_space_type, is_var, var_assign, var_id, var_increment_state_lock,
-    var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space, var_update_caches, var_zero)
+    var_is_scalar, var_new_conjugate_dual, var_replacement, var_scalar_value,
+    var_space, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, homogenize, interpolate_expression,
@@ -18,7 +18,6 @@ from .backend_code_generator_interface import (
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
-from ..equations import Assignment
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
@@ -38,9 +37,7 @@ __all__ = \
         "DirichletBCApplication",
         "EquationSolver",
         "ExprInterpolation",
-        "Projection",
-        "expr_new_x",
-        "linear_equation_new_x"
+        "Projection"
     ]
 
 
@@ -726,61 +723,6 @@ class EquationSolver(ExprEquation):
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly)
-
-
-def expr_new_x(expr, x, *,
-               annotate=None, tlm=None):
-    """If an expression depends on `x`, then record the assignment `x_old =
-    x`, and replace `x` with `x_old` in the expression.
-
-    :arg expr: A :class:`ufl.core.expr.Expr`.
-    :arg x: Defines `x`.
-    :arg annotate: Whether the :class:`.EquationManager` should record the
-        solution of equations.
-    :arg tlm: Whether tangent-linear equations should be solved.
-    :returns: A :class:`ufl.core.expr.Expr` with `x` replaced with `x_old`, or
-        `expr` if the expression does not depend on `x`.
-    """
-
-    if x in extract_coefficients(expr):
-        x_old = var_new(x)
-        Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
-        return ufl.replace(expr, {x: x_old})
-    else:
-        return expr
-
-
-def linear_equation_new_x(eq, x, *,
-                          annotate=None, tlm=None):
-    """If a symbolic expression for a linear finite element variational problem
-    depends on the symbolic variable representing the problem solution `x`,
-    then record the assignment `x_old = x`, and replace `x` with `x_old` in the
-    symbolic expression.
-
-    :arg eq: A :class:`ufl.equation.Equation` defining the finite element
-        variational problem.
-    :arg x: A DOLFIN `Function` defining the solution to the finite element
-        variational problem.
-    :arg annotate: Whether the :class:`.EquationManager` should record the
-        solution of equations.
-    :arg tlm: Whether tangent-linear equations should be solved.
-    :returns: A :class:`ufl.equation.Equation` with `x` replaced with `x_old`,
-        or `eq` if the symbolic expression does not depend on `x`.
-    """
-
-    lhs, rhs = eq.lhs, eq.rhs
-    lhs_x_dep = x in extract_coefficients(lhs)
-    rhs_x_dep = x in extract_coefficients(rhs)
-    if lhs_x_dep or rhs_x_dep:
-        x_old = var_new(x)
-        Assignment(x_old, x).solve(annotate=annotate, tlm=tlm)
-        if lhs_x_dep:
-            lhs = ufl.replace(lhs, {x: x_old})
-        if rhs_x_dep:
-            rhs = ufl.replace(rhs, {x: x_old})
-        return lhs == rhs
-    else:
-        return eq
 
 
 class Projection(EquationSolver):

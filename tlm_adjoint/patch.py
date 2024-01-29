@@ -113,7 +113,7 @@ def manager_method(cls, name, *,
             if annotate or tlm or patch_without_manager:
                 return patch(self, wrapped_orig,
                              lambda: wrapped_orig(self, *args, **kwargs),
-                             *args, annotate=annotate, tlm=tlm, **kwargs)
+                             *args, **kwargs)
             else:
                 return wrapped_orig(self, *args, **kwargs)
 

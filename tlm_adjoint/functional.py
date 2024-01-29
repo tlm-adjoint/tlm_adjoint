@@ -26,44 +26,38 @@ class Functional(Float):
                           DeprecationWarning, stacklevel=2)
         super().__init__(*args, **kwargs)
 
-    def assign(self, y, *, annotate=None, tlm=None):
+    def assign(self, y):
         """Assign to the :class:`.Functional`.
 
         :arg y: The value.
-        :arg annotate: Whether the :class:`.EquationManager` should record the
-            solution of equations.
-        :arg tlm: Whether tangent-linear equations should be solved.
         :returns: The :class:`.Functional`.
         """
 
         if is_var(y) and var_is_scalar(y):
-            Assignment(self, y).solve(annotate=annotate, tlm=tlm)
+            Assignment(self, y).solve()
             return self
         elif isinstance(y, (numbers.Complex, sp.Expr)):
-            return super().assign(y, annotate=annotate, tlm=tlm)
+            return super().assign(y)
         else:
-            functional_term_eq(self, y).solve(annotate=annotate, tlm=tlm)
+            functional_term_eq(self, y).solve()
             return self
 
-    def addto(self, y, *, annotate=None, tlm=None):
+    def addto(self, y):
         """Add to the :class:`.Functional`.
 
         :arg y: The value to add.
-        :arg annotate: Whether the :class:`.EquationManager` should record the
-            solution of equations.
-        :arg tlm: Whether tangent-linear equations should be solved.
         """
 
         if is_var(y) and var_is_scalar(y):
-            J_old = self.new(self, annotate=annotate, tlm=tlm)
-            Axpy(self, J_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
+            J_old = self.new(self)
+            Axpy(self, J_old, 1.0, y).solve()
         elif isinstance(y, (numbers.Complex, sp.Expr)):
-            super().addto(y, annotate=annotate, tlm=tlm)
+            super().addto(y)
         else:
-            J_old = self.new(self, annotate=annotate, tlm=tlm)
+            J_old = self.new(self)
             b = self.new()
-            functional_term_eq(b, y).solve(annotate=annotate, tlm=tlm)
-            Axpy(self, J_old, 1.0, b).solve(annotate=annotate, tlm=tlm)
+            functional_term_eq(b, y).solve()
+            Axpy(self, J_old, 1.0, b).solve()
 
     def function(self):
         ""

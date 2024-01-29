@@ -341,15 +341,11 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     :arg dtype: The data type associated with the :class:`.SymbolicFloat`.
         Typically :class:`numpy.double` or :class:`numpy.cdouble`.
     :arg comm: The communicator associated with the :class:`.SymbolicFloat`.
-    :arg annotate: Whether the :class:`.EquationManager` should record the
-        solution of equations.
-    :arg tlm: Whether tangent-linear equations should be solved.
     """
 
     def __init__(self, value=0.0, *, name=None, space_type="primal",
                  static=False, cache=None,
-                 dtype=None, comm=None,
-                 annotate=None, tlm=None):
+                 dtype=None, comm=None):
         id = new_var_id()
         if name is None:
             # Following FEniCS 2019.1.0 behaviour
@@ -372,7 +368,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             if value != 0.0:
                 var_assign(self, value)
         else:
-            self.assign(value, annotate=annotate, tlm=tlm)
+            self.assign(value)
 
     def __new__(cls, *args, dtype=None, **kwargs):
         if dtype is None:
@@ -384,8 +380,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
     def new(self, value=0.0, *,
             name=None,
-            static=False, cache=None,
-            annotate=None, tlm=None):
+            static=False, cache=None):
         """Return a new object, which same type and space type as this
         :class:`.SymbolicFloat`.
 
@@ -399,9 +394,7 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             if value != 0.0:
                 var_assign(x, value)
         else:
-            x.assign(
-                value,
-                annotate=annotate, tlm=tlm)
+            x.assign(value)
         return x
 
     def __float__(self):
@@ -430,28 +423,21 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 
         return self._space_type
 
-    def assign(self, y, *, annotate=None, tlm=None):
+    def assign(self, y):
         """:class:`.SymbolicFloat` assignment.
 
         :arg y: A :class:`numbers.Complex` or :class:`sympy.core.expr.Expr`
             defining the value.
-        :arg annotate: Whether the :class:`.EquationManager` should record the
-            solution of equations.
-        :arg tlm: Whether tangent-linear equations should be solved.
         :returns: The :class:`.SymbolicFloat`.
         """
 
-        if annotate is None or annotate:
-            annotate = annotation_enabled()
-        if tlm is None or tlm:
-            tlm = tlm_enabled()
+        annotate = annotation_enabled()
+        tlm = tlm_enabled()
         if annotate or tlm:
             if isinstance(y, numbers.Complex):
-                Assignment(self, self.new(y)).solve(
-                    annotate=annotate, tlm=tlm)
+                Assignment(self, self.new(y)).solve()
             elif isinstance(y, sp.Expr):
-                FloatEquation(self, y).solve(
-                    annotate=annotate, tlm=tlm)
+                FloatEquation(self, y).solve()
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         else:
@@ -466,19 +452,16 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
                 raise TypeError(f"Unexpected type: {type(y)}")
         return self
 
-    def addto(self, y, *, annotate=None, tlm=None):
+    def addto(self, y):
         """:class:`.SymbolicFloat` in-place addition.
 
         :arg y: A :class:`numbers.Complex` or :class:`sympy.core.expr.Expr`
             defining the value to add.
-        :arg annotate: Whether the :class:`.EquationManager` should record the
-            solution of equations.
-        :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        x_old = self.new().assign(self, annotate=annotate, tlm=tlm)
-        y = self.new().assign(y, annotate=annotate, tlm=tlm)
-        Axpy(self, x_old, 1.0, y).solve(annotate=annotate, tlm=tlm)
+        x_old = self.new().assign(self)
+        y = self.new().assign(y)
+        Axpy(self, x_old, 1.0, y).solve()
 
     @property
     def value(self):
@@ -504,14 +487,13 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
 class SymbolicFloat(_tlm_adjoint__SymbolicFloat):
     def new(self, value=0.0, *,
             name=None,
-            static=False, cache=None,
-            annotate=None, tlm=None):
+            static=False, cache=None):
         pass
 
-    def assign(self, y, *, annotate=None, tlm=None):
+    def assign(self, y):
         pass
 
-    def addto(self, y, *, annotate=None, tlm=None):
+    def addto(self, y):
         pass
 
     @property
