@@ -610,16 +610,15 @@ class EquationManager:
         finally:
             self.start(annotate=annotate, tlm=tlm)
 
-    def add_initial_condition(self, x, *, annotate=None):
+    def add_initial_condition(self, x):
         """Process an 'initial condition' -- a variable whose associated value
         is needed prior to solving an equation.
 
         :arg x: A variable defining the initial condition.
-        :arg annotate: Whether the initial condition should be recorded.
         """
 
-        if annotate is None or annotate:
-            annotate = self.annotation_enabled()
+        annotate = self.annotation_enabled()
+
         if annotate:
             if self._annotation_state == AnnotationState.FINAL:
                 raise RuntimeError("Cannot add initial conditions after "
@@ -628,21 +627,18 @@ class EquationManager:
             self._cp.add_initial_condition(x)
 
     @restore_manager
-    def add_equation(self, eq, *, annotate=None, tlm=None):
+    def add_equation(self, eq):
         """Process an :class:`.Equation` after it has been solved.
 
         :arg eq: The :class:`.Equation`.
-        :arg annotate: Whether solution of this equation, and any
-            tangent-linear equations, should be recorded.
-        :arg tlm: Whether tangent-linear equations should be derived and
-            solved.
         """
 
         set_manager(self)
         self.drop_references()
 
-        if annotate is None or annotate:
-            annotate = self.annotation_enabled()
+        annotate = self.annotation_enabled()
+        tlm = self.tlm_enabled()
+
         if annotate:
             if self._annotation_state == AnnotationState.FINAL:
                 raise RuntimeError("Cannot add equations after finalization")
@@ -656,8 +652,6 @@ class EquationManager:
             self._cp.add_equation(
                 len(self._blocks), len(self._block) - 1, eq)
 
-        if tlm is None or tlm:
-            tlm = self.tlm_enabled()
         if tlm:
             if self._tlm_state == TangentLinearState.FINAL:
                 raise RuntimeError("Cannot add tangent-linear equations after "

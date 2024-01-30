@@ -5,8 +5,8 @@ from .backend import (
     backend_Vector, backend_assemble, backend_project, backend_solve,
     cpp_Assembler, cpp_SystemAssembler, parameters)
 from ..interface import (
-    VariableStateChangeError, is_var, space_id, space_new, var_assign,
-    var_comm, var_new, var_space, var_state_is_locked, var_update_state)
+    is_var, space_id, space_new, var_assign, var_comm, var_new, var_space,
+    var_update_state)
 from .backend_code_generator_interface import (
     copy_parameters_dict, linear_solver, update_parameters_dict)
 
@@ -171,7 +171,7 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
             # Inefficient when self.add_values=True
             eq = Assembly(tensor._tlm_adjoint__function,
                           tensor._tlm_adjoint__form)
-            assert len(eq.initial_condition_dependencies()) == 0
+            assert not eq._pre_process_required
             eq._post_process()
 
     return return_value
@@ -245,22 +245,19 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
     return return_value
 
 
-@patch_method(backend_DirichletBC, "homogenize")
-def DirichletBC_homogenize(self, orig, orig_args, *args, **kwargs):
-    bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
-    if is_var(bc_value) and var_state_is_locked(bc_value):
-        raise VariableStateChangeError("Cannot change DirichletBC if the "
-                                       "value state is locked")
-    return orig_args()
+@patch_method(backend_DirichletBC, "__init__")
+def DirichletBC__init__(self, orig, orig_args, *args):
+    orig_args()
 
-
-@patch_method(backend_DirichletBC, "set_value")
-def DirichletBC_set_value(self, orig, orig_args, *args, **kwargs):
-    bc_value = getattr(self, "_tlm_adjoint__bc_value", None)
-    if is_var(bc_value) and var_state_is_locked(bc_value):
-        raise VariableStateChangeError("Cannot change DirichletBC if the "
-                                       "value state is locked")
-    return orig_args()
+    if len(args) == 1:
+        self._tlm_adjoint__cache = getattr(args[0], "_tlm_adjoint__cache", False)  # noqa: E501
+        if hasattr(args[0], "_tlm_adjoint__hbc"):
+            self._tlm_adjoint__hbc = args[0]._tlm_adjoint__hbc
+    else:
+        self._tlm_adjoint__cache = len(extract_coefficients(args[1])) == 0
+        hbc = backend_DirichletBC(self)
+        hbc.homogenize()
+        self._tlm_adjoint__hbc = hbc._tlm_adjoint__hbc = hbc
 
 
 @patch_method(backend_DirichletBC, "apply")
@@ -323,7 +320,7 @@ def Constant_init_assign(self, value):
         eq = None
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
         eq._post_process()
 
 
@@ -363,7 +360,7 @@ def Constant_assign(self, orig, orig_args, x):
         raise TypeError(f"Unexpected type: {type(x)}")
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
     return_value = orig_args()
     if eq is not None:
         eq._post_process()
@@ -384,7 +381,7 @@ def Function_assign(self, orig, orig_args, rhs):
 
                 if annotate or tlm:
                     eq = Assignment(self, rhs)
-                    assert len(eq.initial_condition_dependencies()) == 0
+                    assert not eq._pre_process_required
                     eq._post_process()
         else:
             value = var_new(self)
@@ -393,14 +390,14 @@ def Function_assign(self, orig, orig_args, rhs):
 
             if annotate or tlm:
                 eq = ExprInterpolation(self, rhs)
-                assert len(eq.initial_condition_dependencies()) == 0
+                assert not eq._pre_process_required
                 eq._post_process()
     else:
         orig_args()
 
         if annotate or tlm:
             eq = ExprInterpolation(self, expr_new_x(rhs, self))
-            assert len(eq.initial_condition_dependencies()) == 0
+            assert not eq._pre_process_required
             eq._post_process()
 
 
@@ -412,7 +409,7 @@ def Function_copy(self, orig, orig_args, deepcopy=False):
     if deepcopy:
         if annotate or tlm:
             eq = Assignment(F, self)
-            assert len(eq.initial_condition_dependencies()) == 0
+            assert not eq._pre_process_required
             eq._post_process()
     else:
         define_var_alias(F, self, key=("copy",))
@@ -428,7 +425,7 @@ def Function_interpolate(self, orig, orig_args, u):
         eq = ExprInterpolation(self, u)
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
     return_value = orig_args()
     if eq is not None:
         eq._post_process()

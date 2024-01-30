@@ -4,7 +4,7 @@ from .interface import (
 
 from .alias import gc_disabled
 from .manager import manager as _manager
-from .manager import paused_manager
+from .manager import annotation_enabled, paused_manager, tlm_enabled
 
 from collections.abc import Sequence
 import inspect
@@ -338,14 +338,17 @@ class Equation(Referrer):
         else:
             return var_new(self.X(m), rel_space_type=self.adj_X_type(m))
 
-    def _pre_process(self, *, annotate=None):
+    @property
+    def _pre_process_required(self):
+        return len(self.initial_condition_dependencies()) > 0
+
+    def _pre_process(self):
         manager = _manager()
         for dep in self.initial_condition_dependencies():
-            manager.add_initial_condition(dep, annotate=annotate)
+            manager.add_initial_condition(dep)
 
-    def _post_process(self, *, annotate=None, tlm=None):
-        manager = _manager()
-        manager.add_equation(self, annotate=annotate, tlm=tlm)
+    def _post_process(self):
+        _manager().add_equation(self)
 
     def solve(self, *, annotate=None, tlm=None):
         """Compute the forward solution.
@@ -355,10 +358,17 @@ class Equation(Referrer):
         :arg tlm: Whether tangent-linear equations should be solved.
         """
 
-        self._pre_process(annotate=annotate)
+        if annotate is None or annotate:
+            annotate = annotation_enabled()
+        if tlm is None or tlm:
+            tlm = tlm_enabled()
+
+        with paused_manager(annotate=not annotate, tlm=not tlm):
+            self._pre_process()
         with paused_manager():
             self.forward(self.X())
-        self._post_process(annotate=annotate, tlm=tlm)
+        with paused_manager(annotate=not annotate, tlm=not tlm):
+            self._post_process()
 
     def forward(self, X, deps=None):
         """Wraps :meth:`.Equation.forward_solve` to handle cache invalidation.

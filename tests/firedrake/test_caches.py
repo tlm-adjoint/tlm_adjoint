@@ -1,7 +1,6 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.caches import split_form
-from tlm_adjoint.firedrake.functions import bcs_is_static
 
 from .test_base import *
 
@@ -89,24 +88,10 @@ def test_clear_caches(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
-@seed_test
-def test_static_DirichletBC(setup_test, test_leaks):
-    mesh = UnitIntervalMesh(20)
-    space = FunctionSpace(mesh, "Lagrange", 1)
-    assert bcs_is_static([DirichletBC(space, 0.0,
-                                      "on_boundary")])
-    assert bcs_is_static([DirichletBC(space, Function(space, static=True),
-                                      "on_boundary")])
-    assert not bcs_is_static([DirichletBC(space, Function(space, static=False),
-                                          "on_boundary")])
-
-
-@pytest.mark.firedrake
 @pytest.mark.parametrize("non_static_term", [True, False])
-@pytest.mark.parametrize("static_bc", [None, True, False])
 @seed_test
 def test_cached_rhs(setup_test, test_leaks,
-                    non_static_term, static_bc):
+                    non_static_term):
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
 
@@ -126,7 +111,7 @@ def test_cached_rhs(setup_test, test_leaks,
     interpolate_expression(non_static_2a, sqrt(1.0 + X[1] * X[1]))
     interpolate_expression(non_static_2b, 1 / (1 + X[0] * X[0] + X[1] * X[1]))
 
-    bc = DirichletBC(space_1, 1.0, "on_boundary", static=static_bc)
+    bc = DirichletBC(space_1, 1.0, "on_boundary")
 
     b = (
         # Static
@@ -157,18 +142,12 @@ def test_cached_rhs(setup_test, test_leaks,
                         solver_parameters=ls_parameters_cg)
     eq.solve()
 
-    if static_bc in {None, True}:
-        assert tuple(len(cache) for cache in caches) == (4, 1, 0)
-        assert eq._cache_jacobian
-    else:
-        assert tuple(len(cache) for cache in caches) == (3, 0, 0)
-        assert not eq._cache_jacobian
-    assert eq._forward_b_pa[0] is not None
-    assert len(eq._forward_b_pa[1]) == 3
-    if non_static_term:
-        assert eq._forward_b_pa[2] is not None
-    else:
-        assert eq._forward_b_pa[2] is None
+    assert tuple(len(cache) for cache in caches) == (5, 1, 0)
+    assert eq._cache_jacobian
+    assert eq._cache_adjoint_jacobian
+    assert not eq._forward_b_cache[0].empty()
+    assert len(eq._forward_b_cache[1]) == 4
+    assert isinstance(eq._forward_b_cache[2], ufl.classes.ZeroBaseForm) != non_static_term  # noqa: E501
 
     solve(inner(trial_1, test_1) * dx == b, F_ref, bc,
           solver_parameters=ls_parameters_cg)
@@ -220,19 +199,24 @@ def test_cached_adjoint(setup_test, test_leaks,
     J = forward(G)
     stop_manager()
 
-    assert tuple(len(cache) for cache in caches) == (2, 1, 0)
+    assert tuple(len(cache) for cache in caches) == (3, 1, 0)
 
     dJ = compute_gradient(J, G)
 
-    assert tuple(len(cache) for cache in caches) == (4, 2, 0)
+    assert tuple(len(cache) for cache in caches) == (4, 1, 0)
 
     assert len(manager()._block) == 0
     ((eq, _),) = manager()._blocks
-    adjoint_action, = tuple(eq._adjoint_action_cache.values())
-    assert isinstance(adjoint_action, CacheRef)
+    assert isinstance(eq, EquationSolver)
+    adjoint_action = []
+    for dep_index in range(len(eq.dependencies())):
+        key = ("cached_adjoint_rhs_mat", dep_index)
+        if key in eq._assembly_cache:
+            adjoint_action.append(eq._assembly_cache[key])
+    adjoint_action, = adjoint_action
     assert adjoint_action() is not None
-    assert isinstance(eq._adjoint_J_solver, CacheRef)
-    assert eq._adjoint_J_solver() is not None
+    eq._solver_cache["J_solver"]() is not None
+    eq._solver_cache["adjoint_J_solver"]() is not None
 
     min_order = taylor_test(forward, G, J_val=J.value, dJ=dJ)
     assert min_order > 1.99

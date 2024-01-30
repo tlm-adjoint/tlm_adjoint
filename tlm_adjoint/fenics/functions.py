@@ -4,17 +4,16 @@ and Dirichlet boundary conditions.
 
 from .backend import (
     FunctionSpace, TensorFunctionSpace, TestFunction, TrialFunction,
-    VectorFunctionSpace, backend_Constant, backend_DirichletBC,
-    backend_Function, backend_ScalarType, cpp_Constant)
+    VectorFunctionSpace, backend_Constant, backend_Function,
+    backend_ScalarType, cpp_Constant)
 from ..interface import (
     SpaceInterface, VariableInterface, VariableStateChangeError,
     add_replacement_interface, is_var, manager_disabled, space_comm, var_comm,
-    var_dtype, var_increment_state_lock, var_is_cached, var_is_replacement,
-    var_is_static, var_linf_norm, var_lock_state, var_replacement,
-    var_scalar_value, var_space, var_space_type)
+    var_dtype, var_is_cached, var_is_replacement, var_is_static,
+    var_linf_norm, var_lock_state, var_replacement, var_scalar_value,
+    var_space, var_space_type)
 
 from ..caches import Caches
-from ..manager import paused_manager
 
 from collections.abc import Sequence
 import functools
@@ -38,10 +37,7 @@ __all__ = \
         "ReplacementConstant",
         "ReplacementFunction",
         "ReplacementZeroConstant",
-        "ReplacementZeroFunction",
-
-        "DirichletBC",
-        "HomogeneousDirichletBC"
+        "ReplacementZeroFunction"
     ]
 
 
@@ -345,7 +341,7 @@ def form_cached(key):
     return wrapper
 
 
-@form_cached("_tlm_adjoint__form_coefficients")
+@form_cached("_tlm_adjoint__extract_coefficients")
 def extract_coefficients(expr):
     def as_ufl(expr):
         if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
@@ -438,7 +434,7 @@ def expr_zero(expr):
         raise TypeError(f"Unexpected type: {type(expr)}")
 
 
-@form_cached("_tlm_adjoint__simplified_form")
+@form_cached("_tlm_adjoint__eliminate_zeros")
 def eliminate_zeros(expr):
     """Apply zero elimination for :class:`.Zero` objects in the supplied
     :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
@@ -457,85 +453,6 @@ def eliminate_zeros(expr):
         simplified_expr = ufl.replace(expr, replace_map)
 
     return simplified_expr
-
-
-class DirichletBC(backend_DirichletBC):
-    """Extends the DOLFIN `DirichletBC` class.
-
-    :arg static: A flag that indicates that the value for the
-        :class:`.DirichletBC` will not change, and which determines whether
-        calculations involving this :class:`.DirichletBC` can be cached. If
-        `None` then autodetected from the value.
-
-    Remaining arguments are passed to the DOLFIN `DirichletBC` constructor.
-    """
-
-    # Based on FEniCS 2019.1.0 DirichletBC API
-    def __init__(self, V, g, sub_domain, *args,
-                 static=None, _homogeneous=False, **kwargs):
-        with paused_manager():
-            super().__init__(V, g, sub_domain, *args, **kwargs)
-
-        if static is None:
-            for dep in extract_coefficients(g):
-                if not is_var(dep) or not var_is_static(dep):
-                    static = False
-                    break
-            else:
-                static = True
-
-        if static and is_var(g):
-            var_increment_state_lock(g, self)
-
-        self._tlm_adjoint__bc_value = g
-        self._tlm_adjoint__static = static
-        self._tlm_adjoint__cache = static
-        self._tlm_adjoint__homogeneous = _homogeneous
-
-
-class HomogeneousDirichletBC(DirichletBC):
-    """A :class:`.DirichletBC` whose value is zero.
-
-    Arguments are passed to the :class:`.DirichletBC` constructor, together
-    with `static=True`.
-    """
-
-    # Based on FEniCS 2019.1.0 DirichletBC API
-    def __init__(self, V, sub_domain, *args, **kwargs):
-        shape = V.ufl_element().value_shape()
-        if len(shape) == 0:
-            g = 0.0
-        else:
-            g = np.zeros(shape, dtype=backend_ScalarType)
-        super().__init__(V, g, sub_domain, *args, static=True,
-                         _homogeneous=True, **kwargs)
-
-
-def bcs_is_static(bcs):
-    if isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    for bc in bcs:
-        if not getattr(bc, "_tlm_adjoint__static", False):
-            return False
-    return True
-
-
-def bcs_is_cached(bcs):
-    if isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    for bc in bcs:
-        if not getattr(bc, "_tlm_adjoint__cache", False):
-            return False
-    return True
-
-
-def bcs_is_homogeneous(bcs):
-    if isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    for bc in bcs:
-        if not getattr(bc, "_tlm_adjoint__homogeneous", False):
-            return False
-    return True
 
 
 class Replacement(ufl.classes.Coefficient):

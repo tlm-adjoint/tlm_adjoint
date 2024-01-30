@@ -11,7 +11,7 @@ np.random.seed(87838678 + DEFAULT_COMM.rank)
 mesh = UnitSquareMesh(50, 50)
 space = FunctionSpace(mesh, "Lagrange", 1)
 test, trial = TestFunction(space), TrialFunction(space)
-bc = HomogeneousDirichletBC(space, "on_boundary")
+bc = DirichletBC(space, 0.0, "on_boundary")
 
 dt = Constant(0.01, static=True)
 N = 10

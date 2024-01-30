@@ -304,7 +304,7 @@ def test_diffusion_2d(setup_test, test_leaks,
              constant(0.0, name="kappa_10", static=True),
              constant(0.0, name="kappa_01", static=True),
              constant(1.0, name="kappa_11", static=True)]
-    bc = HomogeneousDirichletBC(space, "on_boundary")
+    bc = DirichletBC(space, 0.0, "on_boundary")
 
     def forward(kappa_00, kappa_01, kappa_10, kappa_11):
         clear_caches()

@@ -27,8 +27,6 @@ __all__ = \
         "linear_solver",
         "matrix_multiply",
 
-        "homogenize",
-
         "interpolate_expression",
 
         "assemble",
@@ -51,12 +49,6 @@ if "cache_rhs_assembly" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("cache_rhs_assembly", True)
 if "match_quadrature" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("match_quadrature", False)
-if "assembly_verification" not in _parameters:
-    _parameters.add(Parameters("assembly_verification"))
-if "jacobian_tolerance" not in _parameters["assembly_verification"]:
-    _parameters["assembly_verification"].add("jacobian_tolerance", np.inf)
-if "rhs_tolerance" not in _parameters["assembly_verification"]:
-    _parameters["assembly_verification"].add("rhs_tolerance", np.inf)
 del _parameters
 
 
@@ -87,42 +79,6 @@ def update_parameters_dict(parameters, new_parameters):
             parameters[key] = copy_parameters_dict(value)
         else:
             parameters[key] = value
-
-
-def process_solver_parameters(solver_parameters, linear):
-    solver_parameters = copy_parameters_dict(solver_parameters)
-    if linear:
-        linear_solver_parameters = solver_parameters
-    else:
-        nl_solver = solver_parameters.setdefault("nonlinear_solver", "newton")
-        if nl_solver == "newton":
-            linear_solver_parameters = solver_parameters.setdefault("newton_solver", {})  # noqa: E501
-        elif nl_solver == "snes":
-            linear_solver_parameters = solver_parameters.setdefault("snes_solver", {})  # noqa: E501
-        else:
-            raise ValueError(f"Unsupported non-linear solver: {nl_solver}")
-
-    linear_solver = linear_solver_parameters.setdefault("linear_solver", "default")  # noqa: E501
-    is_lu_linear_solver = linear_solver in {"default", "direct", "lu"} \
-        or has_lu_solver_method(linear_solver)
-    if is_lu_linear_solver:
-        linear_solver_parameters.setdefault("lu_solver", {})
-        linear_solver_ic = False
-    else:
-        ks_parameters = linear_solver_parameters.setdefault("krylov_solver", {})  # noqa: E501
-        linear_solver_ic = ks_parameters.setdefault("nonzero_initial_guess", False)  # noqa: E501
-
-    return (solver_parameters, linear_solver_parameters,
-            not linear or linear_solver_ic, linear_solver_ic)
-
-
-def process_adjoint_solver_parameters(linear_solver_parameters):
-    # Copy not required
-    return linear_solver_parameters
-
-
-def assemble_arguments(arity, form_compiler_parameters, solver_parameters):
-    return {"form_compiler_parameters": form_compiler_parameters}
 
 
 def assemble_matrix(form, bcs=None, *,
@@ -222,12 +178,6 @@ def form_compiler_quadrature_parameters(form, form_compiler_parameters):
     return {"quadrature_rule": qr, "quadrature_degree": qd}
 
 
-def homogenize(bc):
-    hbc = backend_DirichletBC(bc)
-    hbc.homogenize()
-    return hbc
-
-
 def matrix_copy(A):
     return A.copy()
 
@@ -275,22 +225,6 @@ def parameters_key(parameters):
         else:
             key.append((name, sub_parameters))
     return tuple(key)
-
-
-def verify_assembly(J, rhs, J_mat, b, bcs, form_compiler_parameters,
-                    linear_solver_parameters, J_tolerance, b_tolerance):
-    if np.isposinf(J_tolerance) and np.isposinf(b_tolerance):
-        return
-
-    J_mat_debug, b_debug = backend_assemble_system(
-        J, rhs, bcs=bcs, form_compiler_parameters=form_compiler_parameters)
-
-    if J_mat is not None and not np.isposinf(J_tolerance):
-        assert (J_mat - J_mat_debug).norm("linf") \
-            <= J_tolerance * J_mat_debug.norm("linf")
-
-    if b is not None and not np.isposinf(b_tolerance):
-        assert (b - b_debug).norm("linf") <= b_tolerance * b_debug.norm("linf")
 
 
 @manager_disabled()
@@ -357,17 +291,27 @@ def interpolate_expression(x, expr, *, adj_x=None):
             raise TypeError(f"Unexpected type: {type(x)}")
 
 
-def assemble(form, tensor=None, *,
+def assemble(form, tensor=None, bcs=None, *,
              form_compiler_parameters=None):
     if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
         check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
 
-    return backend_assemble(form, tensor,
-                            form_compiler_parameters=form_compiler_parameters)
+    form = eliminate_zeros(form)
+    b = backend_assemble(form, tensor=tensor,
+                         form_compiler_parameters=form_compiler_parameters)
+    for bc in bcs:
+        bc.apply(b)
+    return b
 
 
 def assemble_system(A_form, b_form, bcs=None, *,
                     form_compiler_parameters=None):
+    A_form = eliminate_zeros(A_form)
+    b_form = eliminate_zeros(b_form)
     return backend_assemble_system(
         A_form, b_form, bcs=bcs,
         form_compiler_parameters=form_compiler_parameters)

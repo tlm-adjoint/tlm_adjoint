@@ -10,7 +10,7 @@ from ..interface import (
     var_id, var_inner, var_is_scalar, var_new, var_new_conjugate_dual,
     var_replacement, var_scalar_value, var_space, var_space_type,
     var_update_caches, var_zero, weakref_method)
-from .backend_code_generator_interface import assemble, matrix_multiply
+from .backend_code_generator_interface import matrix_multiply
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 
 from ..caches import Cache
@@ -19,8 +19,7 @@ from ..equation import Equation, ZeroAssignment
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
-from .functions import (
-    ReplacementConstant, eliminate_zeros, expr_zero, iter_expr)
+from .functions import ReplacementConstant, eliminate_zeros, expr_zero
 
 import itertools
 import numpy as np
@@ -160,71 +159,70 @@ class LocalProjection(EquationSolver):
             cache_rhs_assembly=cache_rhs_assembly,
             match_quadrature=match_quadrature)
 
+    def _local_solver(self, *args, cache_key=None, **kwargs):
+        if cache_key is None:
+            return self._assemble_local_solver(*args, **kwargs)
+        else:
+            return self._assemble_local_solver_cached(
+                cache_key, *args, **kwargs)
+
+    def _assemble_local_solver(self, form, *,
+                               eq_deps, deps):
+        if deps is not None:
+            assert len(eq_deps) == len(deps)
+            form = ufl.replace(form, dict(zip(eq_deps, deps)))
+
+        return LocalSolver(
+            form, form_compiler_parameters=self._form_compiler_parameters)
+
+    def _assemble_local_solver_cached(self, key, form, *,
+                                      eq_deps, deps):
+        if deps is not None:
+            assert len(eq_deps) == len(deps)
+            replace_map = dict(zip(eq_deps, deps))
+        else:
+            replace_map = None
+
+        var_update_caches(*eq_deps, value=deps)
+        value = self._solver_cache[key]()
+        if value is None:
+            self._solver_cache[key], value = \
+                local_solver_cache().local_solver(
+                    form,
+                    form_compiler_parameters=self._form_compiler_parameters,
+                    replace_map=replace_map)
+        return value
+
     def forward_solve(self, x, deps=None):
         eq_deps = self.dependencies()
 
-        if self._cache_rhs_assembly:
-            b = self._cached_rhs(deps)
-        elif deps is None:
-            b = assemble(
-                self._rhs,
-                form_compiler_parameters=self._form_compiler_parameters)
-        else:
-            b = assemble(
-                self._replace(self._rhs, deps),
-                form_compiler_parameters=self._form_compiler_parameters)
+        assert self._linear
+        assert len(self._hbcs) == 0
+        x_0, b = self._assemble_rhs(x, (), deps=deps)
+        assert x_0 is x
 
-        if self._cache_jacobian:
-            var_update_caches(*eq_deps, value=deps)
-            local_solver = self._forward_J_solver()
-            if local_solver is None:
-                self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(
-                        self._lhs,
-                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                        replace_map=self._replace_map(deps))
-        else:
-            local_solver = LocalSolver(
-                self._lhs,
-                form_compiler_parameters=self._form_compiler_parameters)
+        J_solver = self._local_solver(
+            self._J, eq_deps=eq_deps, deps=deps,
+            cache_key="J_solver_local" if self._cache_jacobian else None)
 
-        local_solver._tlm_adjoint__solve_local(x, b)
+        J_solver._tlm_adjoint__solve_local(x, b)
 
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         eq_nl_deps = self.nonlinear_dependencies()
 
-        if self._cache_jacobian:
-            var_update_caches(*eq_nl_deps, value=nl_deps)
-            local_solver = self._forward_J_solver()
-            if local_solver is None:
-                self._forward_J_solver, local_solver = \
-                    local_solver_cache().local_solver(
-                        self._lhs,
-                        form_compiler_parameters=self._form_compiler_parameters,  # noqa: E501
-                        replace_map=self._nonlinear_replace_map(nl_deps))
-        else:
-            local_solver = LocalSolver(
-                self._lhs,
-                form_compiler_parameters=self._form_compiler_parameters)
+        assert len(self._hbcs) == 0
+        J_solver = self._local_solver(
+            self._J, eq_deps=eq_nl_deps, deps=nl_deps,
+            cache_key="J_solver_local" if self._cache_jacobian else None)
 
         adj_x = self.new_adj_x()
-        local_solver._tlm_adjoint__solve_local(adj_x, b)
+        J_solver._tlm_adjoint__solve_local(adj_x, b)
         return adj_x
 
     def tangent_linear(self, M, dM, tlm_map):
         x = self.x()
-
-        tlm_rhs = expr_zero(self._rhs)
-        for dep in self.dependencies():
-            if dep != x:
-                tau_dep = tlm_map[dep]
-                if tau_dep is not None:
-                    for weight, comp in iter_expr(self._rhs):
-                        # Note: Ignores weight dependencies
-                        tlm_rhs = (tlm_rhs
-                                   + weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501
-
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
+        tlm_rhs = self._tangent_linear_rhs(tlm_map)
+        assert len(self._hbcs) == 0
         if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:

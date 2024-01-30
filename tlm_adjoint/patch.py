@@ -111,9 +111,10 @@ def manager_method(cls, name, *,
             if tlm is None or tlm:
                 tlm = tlm_enabled()
             if annotate or tlm or patch_without_manager:
-                return patch(self, wrapped_orig,
-                             lambda: wrapped_orig(self, *args, **kwargs),
-                             *args, **kwargs)
+                with paused_manager(annotate=not annotate, tlm=not tlm):
+                    return patch(self, wrapped_orig,
+                                 lambda: wrapped_orig(self, *args, **kwargs),
+                                 *args, **kwargs)
             else:
                 return wrapped_orig(self, *args, **kwargs)
 
