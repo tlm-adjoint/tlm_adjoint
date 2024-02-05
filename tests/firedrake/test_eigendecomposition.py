@@ -112,7 +112,7 @@ def test_CachedHessian(setup_test):
         EquationSolver(
             inner(grad(trial), grad(test)) * dx
             == inner(F, test) * dx + inner(zero * sin(F), test) * dx,
-            y, HomogeneousDirichletBC(space, "on_boundary"),
+            y, DirichletBC(space, 0.0, "on_boundary"),
             solver_parameters=ls_parameters_cg).solve()
 
         J = Functional(name="J")

@@ -2,10 +2,9 @@ from .backend import (
     FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
     Projector, SameMeshInterpolator, backend_Cofunction, backend_Constant,
     backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
-    backend_project, backend_solve, parameters)
+    backend_project, backend_solve, homogenize, parameters)
 from ..interface import (
-    VariableStateChangeError, is_var, space_id, var_comm, var_new, var_space,
-    var_state_is_locked, var_update_state)
+    is_var, space_id, var_comm, var_new, var_space, var_update_state)
 from .backend_code_generator_interface import (
     copy_parameters_dict, update_parameters_dict)
 
@@ -13,8 +12,7 @@ from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
 from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
-    add_manager_controls, manager_method, patch_function, patch_method,
-    patch_property)
+    add_manager_controls, manager_method, patch_function, patch_method)
 
 from .backend_interface import Cofunction
 from .equations import Assembly, EquationSolver, ExprInterpolation, Projection
@@ -120,39 +118,32 @@ def FormAssembler_assemble(self, orig, orig_args, *args, **kwargs):
     if len(self._form.arguments()) == 1:
         eq = Assembly(return_value, self._form,
                       form_compiler_parameters=self._form_compiler_params)
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
         eq._post_process()
 
     return return_value
 
 
-def DirichletBC_function_arg_fset(self, orig, orig_args, g):
-    if getattr(self, "_tlm_adjoint__function_arg_set", False) \
-            and is_var(self.function_arg) \
-            and var_state_is_locked(self.function_arg):
-        raise VariableStateChangeError("Cannot change DirichletBC if the "
-                                       "value state is locked")
-    return_value = orig_args()
-    self._tlm_adjoint__function_arg_set = True
-    return return_value
-
-
-@patch_property(backend_DirichletBC, "function_arg",
-                fset=DirichletBC_function_arg_fset)
-def DirichletBC_function_arg(self, orig):
-    return orig()
+@patch_method(backend_DirichletBC, "__init__")
+def DirichletBC__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    if isinstance(self._function_arg, ufl.classes.Zero):
+        self._tlm_adjoint__hbc = self
+    else:
+        self._tlm_adjoint__hbc = homogenize(self)
 
 
 def Constant_init_assign(self, value):
     if is_var(value):
         eq = Assignment(self, value)
-    elif isinstance(value, ufl.classes.Expr):
+    elif isinstance(value, ufl.classes.Expr) \
+            and len(tuple(dep for dep in extract_coefficients(value) if is_var(dep))) > 0:  # noqa: E501
         eq = ExprAssignment(self, value)
     else:
         eq = None
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
         eq._post_process()
 
 
@@ -194,7 +185,7 @@ def Constant_assign(self, orig, orig_args, value):
         raise TypeError(f"Unexpected type: {type(value)}")
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
     return_value = orig_args()
     if eq is not None:
         eq._post_process()
@@ -263,7 +254,7 @@ def Function_assign(self, orig, orig_args, expr, subset=None):
             raise TypeError(f"Unexpected type: {type(expr)}")
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
     orig(self, expr, subset=subset)
     if eq is not None:
         eq._post_process()
@@ -360,7 +351,7 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None):
         raise TypeError(f"Unexpected type: {type(expr)}")
 
     if eq is not None:
-        assert len(eq.initial_condition_dependencies()) == 0
+        assert not eq._pre_process_required
     orig(self, expr, subset=subset)
     if eq is not None:
         eq._post_process()
@@ -498,7 +489,7 @@ def SameMeshInterpolator_interpolate(
     expr = expr_new_x(expr, return_value)
     eq = ExprInterpolation(return_value, expr)
 
-    assert len(eq.initial_condition_dependencies()) == 0
+    assert not eq._pre_process_required
     eq._post_process()
     return return_value
 

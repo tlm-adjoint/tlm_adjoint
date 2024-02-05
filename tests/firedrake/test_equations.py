@@ -171,7 +171,7 @@ def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
         EquationSolver(
             inner(grad(trial), grad(test)) * dx
             == inner(F, test) * dx - inner(grad(x_1), grad(test)) * dx,
-            x_0, HomogeneousDirichletBC(space, "on_boundary"),
+            x_0, DirichletBC(space, 0.0, "on_boundary"),
             solver_parameters=ls_parameters_cg).solve()
 
         Axpy(x, x_0, 1.0, x_1).solve()
@@ -1249,6 +1249,86 @@ def test_EquationSolver_FormSum(setup_test, test_leaks, test_configurations,
 
     min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
                                         seed=1.0e-3)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("g", [  # Bc value is a control
+                                 lambda m: m,
+                                 # Bc value is a forward variable
+                                 # (extra copy operation)
+                                 lambda m: m.copy(deepcopy=True),
+                                 # Bc value is a function of a forward variable
+                                 # (extra operation via bc.function_arg)
+                                 lambda m: 2 * m])
+@pytest.mark.parametrize("sub_domains", [(1,),
+                                         (1, 3, 4),
+                                         ("on_boundary",)])
+@seed_test
+def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,  # noqa: E501
+                                    g, sub_domains):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def eq(u):
+        space = u.function_space()
+        test, trial = TestFunction(space), TrialFunction(space)
+        return (inner(trial, test) * dx + inner(trial.dx(0), test) * dx
+                == inner(Constant(1.0), test) * dx)
+
+    def bcs(space, m, sub_domains):
+        return tuple(DirichletBC(space, g(m), sub_domain)
+                     for sub_domain in sub_domains)
+
+    def forward(m):
+        with paused_manager():
+            u_ref = Function(space, name="u_ref")
+            solve(eq(u_ref), u_ref, bcs=bcs(space, m, sub_domains))
+
+        u = Function(space, name="u")
+        EquationSolver(eq(u), u, bcs=bcs(space, m, sub_domains)).solve()
+
+        with paused_manager():
+            error_norm = np.sqrt(abs(assemble(inner(u - u_ref,
+                                                    u - u_ref) * dx)))
+            assert error_norm < 1.0e-14
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(2.0)) ** 4) * dx)
+        return J
+
+    m = Function(space, name="m").assign(Constant(1.0))
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    # Perturbation direction which is non-zero on the overlapping bcs
+    dm = Function(space).interpolate(Constant(1.0) - X[0])
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, seed=5.0e-3, dM=dm)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=5.0e-3,
+                            dM=dm)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=5.0e-3,
+                                dMs=(dm,))
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
+                                        seed=5.0e-3, dMs=(dm,))
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
+                                        seed=5.0e-3)
     assert min_order > 1.99
 
 

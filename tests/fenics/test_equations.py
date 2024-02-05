@@ -172,7 +172,7 @@ def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
         EquationSolver(
             inner(grad(trial), grad(test)) * dx
             == inner(F, test) * dx - inner(grad(x_1), grad(test)) * dx,
-            x_0, HomogeneousDirichletBC(space, "on_boundary"),
+            x_0, DirichletBC(space, 0.0, "on_boundary"),
             solver_parameters=ls_parameters_cg).solve()
 
         Axpy(x, x_0, 1.0, x_1).solve()

@@ -25,7 +25,7 @@ def test_GaussNewton(setup_test, test_leaks):
         u = Function(space, name="u")
         solve(inner(grad(trial), grad(test)) * dx == -inner(F, test) * dx,
               u,
-              HomogeneousDirichletBC(space, "on_boundary"),
+              DirichletBC(space, 0.0, "on_boundary"),
               solver_parameters=ls_parameters_cg)
         return u
 
@@ -86,7 +86,7 @@ def test_CachedGaussNewton(setup_test):
         u = Function(space, name="u")
         solve(inner(grad(trial), grad(test)) * dx == -inner(F, test) * dx,
               u,
-              HomogeneousDirichletBC(space, "on_boundary"),
+              DirichletBC(space, 0.0, "on_boundary"),
               solver_parameters=ls_parameters_cg)
         return u
 

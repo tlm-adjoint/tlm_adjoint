@@ -608,7 +608,7 @@ class DirichletBCNullspace(Nullspace):
         for bc in bcs:
             if bc.function_space() != space:
                 raise ValueError("Invalid space")
-            if not isinstance(bc.function_arg, ufl.classes.Zero):
+            if not isinstance(bc._function_arg, ufl.classes.Zero):
                 raise ValueError("Homogeneous boundary conditions required")
 
         super().__init__()

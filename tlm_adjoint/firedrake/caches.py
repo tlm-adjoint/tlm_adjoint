@@ -8,14 +8,13 @@ from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state)
 from .backend_code_generator_interface import (
-    assemble, assemble_arguments, assemble_matrix, linear_solver, matrix_copy,
-    parameters_key)
+    assemble, assemble_matrix, linear_solver, matrix_copy, parameters_key)
 
 from ..caches import Cache
 
 from .functions import (
     ReplacementFunction, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients, iter_expr, replaced_form)
+    extract_coefficients, form_cached, iter_expr, replaced_form)
 
 from collections import defaultdict
 import itertools
@@ -33,6 +32,7 @@ __all__ = \
     ]
 
 
+@form_cached("_tlm_adjoint__is_cached")
 def is_cached(expr):
     for c in extract_coefficients(expr):
         if not is_var(c) or not var_is_cached(c):
@@ -386,8 +386,8 @@ class AssemblyCache(Cache):
         else:
             assemble_form = ufl.replace(form, replace_map)
         arity = len(form.arguments())
-        assemble_kwargs = assemble_arguments(arity, form_compiler_parameters,
-                                             linear_solver_parameters)
+        assemble_kwargs = {"form_compiler_parameters": form_compiler_parameters,  # noqa: E501
+                           "mat_type": linear_solver_parameters.get("mat_type", None)}  # noqa: E501
 
         key = (form_key(form, assemble_form),
                tuple(bcs),
