@@ -368,6 +368,69 @@ def test_Function_in_place(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("riesz_map, riesz_map_ref",
+                         [("L2", lambda u, test: inner(u, test) * dx),
+                          ("H1", lambda u, test: inner(u, test) * dx + inner(grad(u), grad(test)) * dx)])  # noqa: E501
+@pytest.mark.skipif(complex_mode, reason="real only")
+@seed_test
+def test_Function_riesz_representation(setup_test, test_leaks,
+                                       riesz_map, riesz_map_ref):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test, trial = TestFunction(space), TrialFunction(space)
+
+    def forward(m):
+        u = m.riesz_representation(riesz_map)
+        v = Function(space).interpolate(m - Constant(1.0))
+
+        J = Functional(name="J")
+        J.assign(u(v))
+        return u, J ** 2
+
+    m = Function(space, name="m")
+    interpolate_expression(m, Constant(1.5) - exp(X[0] * X[1]))
+    m_ref = var_copy(m)
+
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    m_u = Function(space, name="m_u")
+    solve(riesz_map_ref(trial, test) == u, m_u,
+          solver_parameters=ls_parameters_cg)
+    m_error = var_copy(m_ref)
+    var_axpy(m_error, -1.0, m_u)
+    assert var_linf_norm(m_error) < 1.0e-13
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-4)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-4)
+    assert min_order > 2.97
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
 @seed_test
 def test_Cofunction_in_place(setup_test, test_leaks):
     mesh = UnitIntervalMesh(10)
@@ -519,6 +582,66 @@ def test_Cofunction_assign(setup_test, test_leaks):
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
+    assert min_order > 1.99
+
+
+@pytest.mark.firedrake
+@pytest.mark.parametrize("riesz_map, riesz_map_ref",
+                         [("L2", lambda u, test: inner(u, test) * dx),
+                          ("H1", lambda u, test: inner(u, test) * dx + inner(grad(u), grad(test)) * dx)])  # noqa: E501
+@seed_test
+def test_Cofunction_riesz_representation(setup_test, test_leaks,
+                                         riesz_map, riesz_map_ref):
+    mesh = UnitSquareMesh(10, 10)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+    test = TestFunction(space)
+
+    def forward(m):
+        u = m.riesz_representation(riesz_map,
+                                   solver_parameters=ls_parameters_cg)
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(1.0)) ** 4) * dx)
+        return u, J
+
+    u_ref = Function(space, name="u_ref")
+    interpolate_expression(
+        u_ref, Constant(1.5 + (1.0j if complex_mode else 0.0)) - exp(X[0] * X[1]))  # noqa: E501
+    m = assemble(riesz_map_ref(u_ref, test))
+
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    u_error = var_copy(u_ref)
+    var_axpy(u_error, -1.0, u)
+    assert var_linf_norm(u_error) < 1.0e-13
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-4)
+    assert min_order > 1.98
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-4)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                        seed=1.0e-4)
     assert min_order > 1.99
 
 
