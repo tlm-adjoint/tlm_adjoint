@@ -251,7 +251,7 @@ def test_Function_assign_subset(setup_test, test_leaks,
     space = FunctionSpace(mesh, "Lagrange", 1)
 
     def forward(m):
-        # The following is a questionable forward calulation (we should not
+        # The following is a questionable forward calculation (we should not
         # usually set just the boundary dofs and then compute domain integrals)
         # but for this test we need the functional to depend on the interior
         # degrees of freedom
