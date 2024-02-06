@@ -781,6 +781,7 @@ class EquationSolver(ExprEquation):
                     elif isinstance(comp, ufl.classes.Cofunction):
                         # Note: Ignores weight dependencies
                         dF_term = ufl.conj(weight) * derivative(comp, dep)
+                        dF_term = ufl.algorithms.expand_derivatives(dF_term)
                         dF_term = eliminate_zeros(dF_term)
                         if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
                             dF_cofunctions = dF_cofunctions + dF_term
@@ -803,11 +804,10 @@ class EquationSolver(ExprEquation):
                     dep_B.sub(dF_forms)
 
             # Cofunctions
-            if not isinstance(dF_cofunctions, ufl.classes.ZeroBaseForm):
-                for weight, dF_term in iter_expr(dF_cofunctions,
-                                                 evaluate_weights=True):
-                    assert isinstance(dF_term, ufl.classes.Coargument)
-                    dep_B.sub((weight, adj_x_0))
+            for weight, dF_term in iter_expr(dF_cofunctions,
+                                             evaluate_weights=True):
+                assert isinstance(dF_term, ufl.classes.Coargument)
+                dep_B.sub((weight, adj_x_0))
 
             # Boundary conditions
             if dep_index in self._bc_nodes:
@@ -1046,8 +1046,6 @@ class ExprInterpolation(ExprEquation):
                     tlm_rhs = (tlm_rhs
                                + derivative(self._rhs, dep, argument=tau_dep))
 
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-            return ZeroAssignment(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])

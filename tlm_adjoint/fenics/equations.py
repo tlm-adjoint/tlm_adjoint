@@ -853,8 +853,6 @@ class ExprInterpolation(ExprEquation):
                     tlm_rhs = (tlm_rhs
                                + derivative(self._rhs, dep, argument=tau_dep))
 
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-            return ZeroAssignment(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])
