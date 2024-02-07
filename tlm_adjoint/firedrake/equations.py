@@ -7,7 +7,7 @@ from .backend import adjoint, backend_DirichletBC, complex_mode, parameters
 from ..interface import (
     check_space_type, is_var, var_assign, var_axpy, var_copy, var_id,
     var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space, var_update_caches, var_zero)
+    var_scalar_value, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
     form_compiler_quadrature_parameters, matrix_multiply, solve,
@@ -26,7 +26,6 @@ import ufl
 __all__ = \
     [
         "Assembly",
-        "DirichletBCApplication",
         "EquationSolver"
     ]
 
@@ -886,65 +885,3 @@ class EquationSolver(ExprEquation):
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly)
-
-
-class DirichletBCApplication(Equation):
-    r"""Represents the application of a Dirichlet boundary condition to a zero
-    valued :class:`firedrake.function.Function`. Specifically this represents:
-
-    .. code-block:: python
-
-        x.zero()
-        DirichletBC(x.function_space(), y, *args, **kwargs).apply(x)
-
-    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
-    \mathcal{F} / \partial x` is the identity.
-
-    :arg x: A :class:`firedrake.function.Function`, updated by the above
-        operations.
-    :arg y: A :class:`firedrake.function.Function`, defines the Dirichet
-        boundary condition.
-
-    Remaining arguments are passed to the :class:`firedrake.bcs.DirichletBC`
-    constructor.
-    """
-
-    def __init__(self, x, y, *args, **kwargs):
-        check_space_type(x, "primal")
-        check_space_type(y, "primal")
-
-        super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-        self._bc_args = args
-        self._bc_kwargs = kwargs
-
-    def forward_solve(self, x, deps=None):
-        _, y = self.dependencies() if deps is None else deps
-        var_zero(x)
-        backend_DirichletBC(
-            var_space(x), y,
-            *self._bc_args, **self._bc_kwargs).apply(x)
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index != 1:
-            raise ValueError("Unexpected dep_index")
-
-        _, y = self.dependencies()
-        F = var_new_conjugate_dual(y)
-        backend_DirichletBC(
-            var_space(y), adj_x,
-            *self._bc_args, **self._bc_kwargs).apply(F)
-        return (-1.0, F)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x, y = self.dependencies()
-
-        tau_y = tlm_map[y]
-        if tau_y is None:
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return DirichletBCApplication(
-                tlm_map[x], tau_y,
-                *self._bc_args, **self._bc_kwargs)

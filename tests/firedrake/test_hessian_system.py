@@ -44,9 +44,8 @@ def test_hessian_solve(setup_test,
 
     def forward(u_ref, m):
         m_1 = Function(space, name="m_1")
-        DirichletBCApplication(m_1, m, "on_boundary").solve()
-        m_0 = Function(space, name="m_0")
-        LinearCombination(m_0, (1.0, m), (-1.0, m_1)).solve()
+        DirichletBC(space, m, "on_boundary").apply(m_1)
+        m_0 = Function(space, name="m_0").assign(m - m_1)
         m = m_0
         del m_0, m_1
         assert np.sqrt(abs(assemble(inner(m, m) * ds))) == 0.0
