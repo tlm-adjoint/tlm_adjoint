@@ -2,27 +2,23 @@
 """
 
 from .backend import (
-    FunctionSpace, Interpolator, Tensor, TestFunction, TrialFunction,
-    VertexOnlyMesh, backend_Cofunction, backend_Constant, backend_Function,
-    backend_assemble, complex_mode)
+    Tensor, TestFunction, TrialFunction, backend_Cofunction, backend_Constant,
+    backend_Function, backend_assemble, complex_mode)
 from ..interface import (
-    check_space_type, comm_dup_cached, is_var, space_new, var_assign, var_comm,
-    var_id, var_inner, var_is_scalar, var_new, var_new_conjugate_dual,
-    var_replacement, var_scalar_value, var_space, var_space_type,
-    var_update_caches, var_zero, weakref_method)
+    var_assign, var_id, var_inner, var_new, var_new_conjugate_dual,
+    var_replacement, var_space, var_space_type, var_update_caches, var_zero,
+    weakref_method)
 from .backend_code_generator_interface import matrix_multiply
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 
 from ..caches import Cache
-from ..equation import Equation, ZeroAssignment
+from ..equation import ZeroAssignment
 
 from .caches import form_dependencies, form_key, parameters_key
 from .equations import (
     EquationSolver, ExprEquation, derivative, extract_dependencies)
 from .functions import ReplacementConstant, eliminate_zeros, expr_zero
 
-import itertools
-import numpy as np
 import pyop2
 import ufl
 
@@ -33,8 +29,7 @@ __all__ = \
         "set_local_solver_cache",
 
         "ExprAssignment",
-        "LocalProjection",
-        "PointInterpolation"
+        "LocalProjection"
     ]
 
 
@@ -231,130 +226,6 @@ class LocalProjection(EquationSolver):
                 form_compiler_parameters=self._form_compiler_parameters,
                 cache_jacobian=self._cache_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly)
-
-
-def vmesh_coords_map(vmesh, X_coords):
-    comm = comm_dup_cached(vmesh.comm)
-    N, _ = X_coords.shape
-
-    vmesh_coords = vmesh.coordinates.dat.data_ro
-    Nm, _ = vmesh_coords.shape
-
-    vmesh_coords_indices = {tuple(vmesh_coords[i, :]): i for i in range(Nm)}
-    vmesh_coords_map = np.full(Nm, -1, dtype=np.int_)
-    for i in range(N):
-        key = tuple(X_coords[i, :])
-        if key in vmesh_coords_indices:
-            vmesh_coords_map[vmesh_coords_indices[key]] = i
-    if (vmesh_coords_map < 0).any():
-        raise RuntimeError("Failed to find vertex map")
-
-    vmesh_coords_map = comm.allgather(vmesh_coords_map)
-    if len(tuple(itertools.chain(*vmesh_coords_map))) != N:
-        raise RuntimeError("Failed to find vertex map")
-
-    return vmesh_coords_map
-
-
-class PointInterpolation(Equation):
-    r"""Represents interpolation of a scalar-valued function at given points.
-
-    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
-    \mathcal{F} / \partial x` is the identity.
-
-    :arg X: A scalar variable, or a :class:`Sequence` of scalar variables,
-        defining the forward solution.
-    :arg y: A scalar-valued :class:`firedrake.function.Function` to
-        interpolate.
-    :arg X_coords: A :class:`numpy.ndarray` defining the coordinates at which
-        to interpolate `y`. Shape is `(n, d)` where `n` is the number of
-        interpolation points and `d` is the geometric dimension. Ignored if `P`
-        is supplied.
-    :arg tolerance: :class:`firedrake.mesh.VertexOnlyMesh` tolerance.
-    """
-
-    def __init__(self, X, y, X_coords=None, *, tolerance=None,
-                 _interp=None):
-        if is_var(X):
-            X = (X,)
-
-        for x in X:
-            check_space_type(x, "primal")
-            if not var_is_scalar(x):
-                raise ValueError("Solution must be a scalar variable, or a "
-                                 "Sequence of scalar variables")
-        check_space_type(y, "primal")
-
-        if X_coords is None:
-            if _interp is None:
-                raise TypeError("X_coords required")
-        else:
-            if len(X) != X_coords.shape[0]:
-                raise ValueError("Invalid number of variables")
-        if not isinstance(y, backend_Function):
-            raise TypeError("y must be a Function")
-        if len(y.ufl_shape) > 0:
-            raise ValueError("y must be a scalar-valued Function")
-
-        interp = _interp
-        if interp is None:
-            y_space = y.function_space()
-            vmesh = VertexOnlyMesh(y_space.mesh(), X_coords,
-                                   tolerance=tolerance)
-            vspace = FunctionSpace(vmesh, "Discontinuous Lagrange", 0)
-            interp = Interpolator(TestFunction(y_space), vspace)
-            if not hasattr(interp, "_tlm_adjoint__vmesh_coords_map"):
-                interp._tlm_adjoint__vmesh_coords_map = vmesh_coords_map(vmesh, X_coords)  # noqa: E501
-
-        super().__init__(X, list(X) + [y], nl_deps=[], ic=False, adj_ic=False)
-        self._interp = interp
-
-    def forward_solve(self, X, deps=None):
-        if is_var(X):
-            X = (X,)
-        y = (self.dependencies() if deps is None else deps)[-1]
-
-        Xm = space_new(self._interp.V)
-        self._interp._interpolate(y, output=Xm)
-
-        X_values = var_comm(Xm).allgather(Xm.dat.data_ro)
-        vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
-        for x_val, index in zip(itertools.chain(*X_values),
-                                itertools.chain(*vmesh_coords_map)):
-            X[index].assign(x_val)
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
-        if is_var(adj_X):
-            adj_X = (adj_X,)
-        if dep_index != len(self.X()):
-            raise ValueError("Unexpected dep_index")
-
-        adj_Xm = space_new(self._interp.V, space_type="conjugate_dual")
-
-        vmesh_coords_map = self._interp._tlm_adjoint__vmesh_coords_map
-        rank = var_comm(adj_Xm).rank
-        # This line must be outside the loop to avoid deadlocks
-        adj_Xm_data = adj_Xm.dat.data
-        for i, j in enumerate(vmesh_coords_map[rank]):
-            adj_Xm_data[i] = var_scalar_value(adj_X[j])
-
-        F = var_new_conjugate_dual(self.dependencies()[-1])
-        self._interp._interpolate(adj_Xm, transpose=True, output=F)
-        return (-1.0, F)
-
-    def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
-        return B
-
-    def tangent_linear(self, M, dM, tlm_map):
-        X = self.X()
-        y = self.dependencies()[-1]
-
-        tlm_y = tlm_map[y]
-        if tlm_y is None:
-            return ZeroAssignment([tlm_map[x] for x in X])
-        else:
-            return PointInterpolation([tlm_map[x] for x in X], tlm_y,
-                                      _interp=self._interp)
 
 
 class ExprAssignment(ExprEquation):

@@ -1,15 +1,12 @@
 from .backend import (
-    LinearSolver, Interpolator, Parameters, backend_Cofunction,
-    backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_assemble, backend_solve, extract_args, parameters)
+    LinearSolver, Parameters, backend_DirichletBC, backend_Function,
+    backend_Matrix, backend_assemble, backend_solve, extract_args, parameters)
 from ..interface import (
-    check_space_type, check_space_types, is_var, space_new, var_assign,
-    var_copy, var_inner, var_new_conjugate_dual, var_space, var_space_type)
+    check_space_type, check_space_types, space_new, var_space_type)
 
-from ..manager import manager_disabled
 from ..patch import patch_method
 
-from .functions import eliminate_zeros, extract_coefficients
+from .functions import eliminate_zeros
 
 from collections.abc import Sequence
 import petsc4py.PETSc as PETSc
@@ -21,8 +18,6 @@ __all__ = \
         "assemble_matrix",
         "linear_solver",
         "matrix_multiply",
-
-        "interpolate_expression",
 
         "assemble",
         "solve"
@@ -275,43 +270,6 @@ def parameters_key(parameters):
         else:
             key.append((name, sub_parameters))
     return tuple(key)
-
-
-@manager_disabled()
-def interpolate_expression(x, expr, *, adj_x=None):
-    if adj_x is None:
-        check_space_type(x, "primal")
-    else:
-        check_space_type(x, "conjugate_dual")
-        check_space_type(adj_x, "conjugate_dual")
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            check_space_type(dep, "primal")
-
-    expr = eliminate_zeros(expr)
-
-    if adj_x is None:
-        if isinstance(x, backend_Constant):
-            x.assign(expr)
-        elif isinstance(x, backend_Function):
-            x.interpolate(expr)
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-    elif isinstance(x, backend_Constant):
-        if len(x.ufl_shape) > 0:
-            raise ValueError("Scalar Constant required")
-        expr_val = var_new_conjugate_dual(adj_x)
-        interpolate_expression(expr_val, expr)
-        var_assign(x, var_inner(adj_x, expr_val))
-    elif isinstance(x, backend_Cofunction):
-        adj_x_space = var_space(adj_x).dual()
-        interp = Interpolator(expr, adj_x_space)
-        adj_x = var_copy(adj_x)
-        adj_x.dat.data[:] = adj_x.dat.data_ro.conjugate()
-        interp._interpolate(adj_x, transpose=True, output=x)
-        x.dat.data[:] = x.dat.data_ro.conjugate()
-    else:
-        raise TypeError(f"Unexpected type: {type(x)}")
 
 
 def solve(*args, **kwargs):

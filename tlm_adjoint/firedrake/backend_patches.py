@@ -15,10 +15,11 @@ from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
 from .backend_interface import Cofunction
-from .equations import Assembly, EquationSolver, ExprInterpolation, Projection
+from .equations import Assembly, EquationSolver, Projection
 from .functions import (
     Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
 from .firedrake_equations import ExprAssignment, LocalProjection
+from .interpolation import ExprInterpolation
 
 import numbers
 import operator

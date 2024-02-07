@@ -4,24 +4,23 @@ variational problems.
 """
 
 from .backend import (
-    TestFunction, TrialFunction, adjoint, backend_Constant,
-    backend_DirichletBC, complex_mode, parameters)
+    TestFunction, TrialFunction, adjoint, backend_DirichletBC, complex_mode,
+    parameters)
 from ..interface import (
     check_space_type, is_var, var_assign, var_axpy, var_copy, var_id,
     var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
     var_scalar_value, var_space, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, copy_parameters_dict,
-    form_compiler_quadrature_parameters, interpolate_expression,
-    matrix_multiply, solve, update_parameters_dict)
+    form_compiler_quadrature_parameters, matrix_multiply, solve,
+    update_parameters_dict)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
-    ReplacementConstant, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients, iter_expr)
+    derivative, eliminate_zeros, expr_zero, extract_coefficients, iter_expr)
 
 from collections import defaultdict
 import ufl
@@ -31,7 +30,6 @@ __all__ = \
         "Assembly",
         "DirichletBCApplication",
         "EquationSolver",
-        "ExprInterpolation",
         "Projection"
     ]
 
@@ -976,78 +974,3 @@ class DirichletBCApplication(Equation):
             return DirichletBCApplication(
                 tlm_map[x], tau_y,
                 *self._bc_args, **self._bc_kwargs)
-
-
-class ExprInterpolation(ExprEquation):
-    r"""Represents interpolation of `rhs` onto the space for `x`.
-
-    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
-    \mathcal{F} / \partial x` is the identity.
-
-    :arg x: The forward solution.
-    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
-        interpolate onto the space for `x`. Should not depend on `x`.
-    """
-
-    def __init__(self, x, rhs):
-        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
-        if var_id(x) in deps:
-            raise ValueError("Invalid dependency")
-        deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        deps.insert(0, x)
-
-        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
-        self._rhs = rhs
-
-    def drop_references(self):
-        replace_map = {dep: var_replacement(dep)
-                       for dep in self.dependencies()}
-
-        super().drop_references()
-        self._rhs = ufl.replace(self._rhs, replace_map)
-
-    def forward_solve(self, x, deps=None):
-        interpolate_expression(x, self._replace(self._rhs, deps))
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        eq_deps = self.dependencies()
-        if dep_index <= 0 or dep_index >= len(eq_deps):
-            raise ValueError("Unexpected dep_index")
-
-        dep = eq_deps[dep_index]
-
-        if isinstance(dep, (backend_Constant, ReplacementConstant)):
-            if len(dep.ufl_shape) > 0:
-                raise NotImplementedError("Case not implemented")
-            dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
-        else:
-            dF = derivative(self._rhs, dep)
-        dF = ufl.algorithms.expand_derivatives(dF)
-        dF = eliminate_zeros(dF)
-        dF = self._nonlinear_replace(dF, nl_deps)
-
-        F = var_new_conjugate_dual(dep)
-        interpolate_expression(F, dF, adj_x=adj_x)
-        return (-1.0, F)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x = self.x()
-
-        tlm_rhs = expr_zero(x)
-        for dep in self.dependencies():
-            if dep != x:
-                tau_dep = tlm_map[dep]
-                if tau_dep is not None:
-                    # Cannot use += as Firedrake might add to the *values* for
-                    # tlm_rhs
-                    tlm_rhs = (tlm_rhs
-                               + derivative(self._rhs, dep, argument=tau_dep))
-
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return ExprInterpolation(tlm_map[x], tlm_rhs)
