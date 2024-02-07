@@ -163,8 +163,6 @@ class ExprInterpolation(ExprEquation):
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    # Cannot use += as Firedrake might add to the *values* for
-                    # tlm_rhs
                     tlm_rhs = (tlm_rhs
                                + derivative(self._rhs, dep, argument=tau_dep))
 
