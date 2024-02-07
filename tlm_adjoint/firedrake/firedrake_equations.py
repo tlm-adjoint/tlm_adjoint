@@ -2,21 +2,16 @@
 """
 
 from .backend import (
-    Tensor, TestFunction, TrialFunction, backend_Cofunction, backend_Constant,
-    backend_Function, backend_assemble, complex_mode)
+    TestFunction, backend_Cofunction, backend_Constant, backend_Function,
+    complex_mode)
 from ..interface import (
     var_assign, var_id, var_inner, var_new, var_new_conjugate_dual,
-    var_replacement, var_space, var_space_type, var_update_caches, var_zero,
-    weakref_method)
-from .backend_code_generator_interface import matrix_multiply
+    var_replacement, var_space, var_space_type, var_zero)
 from .backend_interface import ReplacementCofunction, ReplacementFunction
 
-from ..caches import Cache
 from ..equation import ZeroAssignment
 
-from .caches import form_dependencies, form_key, parameters_key
-from .equations import (
-    EquationSolver, ExprEquation, derivative, extract_dependencies)
+from .equations import ExprEquation, derivative, extract_dependencies
 from .functions import ReplacementConstant, eliminate_zeros, expr_zero
 
 import pyop2
@@ -24,208 +19,8 @@ import ufl
 
 __all__ = \
     [
-        "LocalSolverCache",
-        "local_solver_cache",
-        "set_local_solver_cache",
-
-        "ExprAssignment",
-        "LocalProjection"
+        "ExprAssignment"
     ]
-
-
-def LocalSolver(form, *,
-                form_compiler_parameters=None):
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
-    form = eliminate_zeros(form)
-    if isinstance(form, ufl.classes.ZeroBaseForm):
-        raise ValueError("Form cannot be a ZeroBaseForm")
-    local_solver = backend_assemble(
-        Tensor(form).inv,
-        form_compiler_parameters=form_compiler_parameters)
-
-    def solve_local(self, x, b):
-        matrix_multiply(self, b, tensor=x)
-    local_solver._tlm_adjoint__solve_local = weakref_method(
-        solve_local, local_solver)
-
-    return local_solver
-
-
-class LocalSolverCache(Cache):
-    """A :class:`.Cache` for element-wise local block diagonal linear solver
-    data.
-    """
-
-    def local_solver(self, form, *,
-                     form_compiler_parameters=None, replace_map=None):
-        """Compute data for an element-wise local block diagonal linear
-        solver and cache the result, or return a previously cached result.
-
-        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
-            local block diagonal matrix.
-        :arg form_compiler_parameters: Form compiler parameters.
-        :arg replace_map: A :class:`Mapping` defining a map from symbolic
-            variables to values.
-        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
-            :class:`firedrake.matrix.Matrix` storing the assembled inverse
-            matrix, and `value_ref` is a :class:`.CacheRef` storing a reference
-            to `value`.
-        """
-
-        if form_compiler_parameters is None:
-            form_compiler_parameters = {}
-
-        form = eliminate_zeros(form)
-        if isinstance(form, ufl.classes.ZeroBaseForm):
-            raise ValueError("Form cannot be a ZeroBaseForm")
-        if replace_map is None:
-            assemble_form = form
-        else:
-            assemble_form = ufl.replace(form, replace_map)
-
-        key = (form_key(form, assemble_form),
-               parameters_key(form_compiler_parameters))
-
-        def value():
-            return LocalSolver(
-                assemble_form,
-                form_compiler_parameters=form_compiler_parameters)
-
-        return self.add(key, value,
-                        deps=form_dependencies(form, assemble_form))
-
-
-_local_solver_cache = LocalSolverCache()
-
-
-def local_solver_cache():
-    """
-    :returns: The default :class:`.LocalSolverCache`.
-    """
-
-    return _local_solver_cache
-
-
-def set_local_solver_cache(local_solver_cache):
-    """Set the default :class:`.LocalSolverCache`.
-
-    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
-    """
-
-    global _local_solver_cache
-    _local_solver_cache = local_solver_cache
-
-
-class LocalProjection(EquationSolver):
-    """Represents the solution of a finite element variational problem
-    performing a projection onto the space for `x`, for the case where the mass
-    matrix is element-wise local block diagonal.
-
-    :arg x: A :class:`firedrake.function.Function` defining the forward
-        solution.
-    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
-        right-hand-side of the finite element variational problem. Should not
-        depend on `x`.
-
-    Remaining arguments are passed to the
-    :class:`tlm_adjoint.firedrake.equations.EquationSolver` constructor.
-    """
-
-    def __init__(self, x, rhs, *,
-                 form_compiler_parameters=None, cache_jacobian=None,
-                 cache_rhs_assembly=None, match_quadrature=None):
-        if form_compiler_parameters is None:
-            form_compiler_parameters = {}
-
-        space = x.function_space()
-        test, trial = TestFunction(space), TrialFunction(space)
-        lhs = ufl.inner(trial, test) * ufl.dx
-        if not isinstance(rhs, ufl.classes.BaseForm):
-            rhs = ufl.inner(rhs, test) * ufl.dx
-
-        super().__init__(
-            lhs == rhs, x,
-            form_compiler_parameters=form_compiler_parameters,
-            solver_parameters={},
-            cache_jacobian=cache_jacobian,
-            cache_rhs_assembly=cache_rhs_assembly,
-            match_quadrature=match_quadrature)
-
-    def _local_solver(self, *args, cache_key=None, **kwargs):
-        if cache_key is None:
-            return self._assemble_local_solver(*args, **kwargs)
-        else:
-            return self._assemble_local_solver_cached(
-                cache_key, *args, **kwargs)
-
-    def _assemble_local_solver(self, form, *,
-                               eq_deps, deps):
-        if deps is not None:
-            assert len(eq_deps) == len(deps)
-            form = ufl.replace(form, dict(zip(eq_deps, deps)))
-
-        return LocalSolver(
-            form, form_compiler_parameters=self._form_compiler_parameters)
-
-    def _assemble_local_solver_cached(self, key, form, *,
-                                      eq_deps, deps):
-        if deps is not None:
-            assert len(eq_deps) == len(deps)
-            replace_map = dict(zip(eq_deps, deps))
-        else:
-            replace_map = None
-
-        var_update_caches(*eq_deps, value=deps)
-        value = self._solver_cache[key]()
-        if value is None:
-            self._solver_cache[key], value = \
-                local_solver_cache().local_solver(
-                    form,
-                    form_compiler_parameters=self._form_compiler_parameters,
-                    replace_map=replace_map)
-        return value
-
-    def forward_solve(self, x, deps=None):
-        eq_deps = self.dependencies()
-
-        assert self._linear
-        assert len(self._hbcs) == 0
-        x_0, b = self._assemble_rhs(x, (), deps=deps)
-        assert x_0 is x
-
-        J_solver = self._local_solver(
-            self._J, eq_deps=eq_deps, deps=deps,
-            cache_key="J_solver_local" if self._cache_jacobian else None)
-
-        J_solver._tlm_adjoint__solve_local(x, b)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        eq_nl_deps = self.nonlinear_dependencies()
-
-        assert len(self._hbcs) == 0
-        J_solver = self._local_solver(
-            self._J, eq_deps=eq_nl_deps, deps=nl_deps,
-            cache_key="J_solver_local" if self._cache_jacobian else None)
-
-        adj_x = self.new_adj_x()
-        J_solver._tlm_adjoint__solve_local(adj_x, b)
-        return adj_x
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x = self.x()
-        tlm_rhs = self._tangent_linear_rhs(tlm_map)
-        assert len(self._hbcs) == 0
-        if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return LocalProjection(
-                tlm_map[x], tlm_rhs,
-                form_compiler_parameters=self._form_compiler_parameters,
-                cache_jacobian=self._cache_jacobian,
-                cache_rhs_assembly=self._cache_rhs_assembly)
 
 
 class ExprAssignment(ExprEquation):

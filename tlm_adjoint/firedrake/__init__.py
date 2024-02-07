@@ -16,5 +16,6 @@ from .firedrake_equations import *  # noqa: E402,F401
 from .functions import *            # noqa: E402,F401
 from .hessian_system import *       # noqa: E402,F401
 from .interpolation import *        # noqa: E402,F401
+from .projection import *           # noqa: E402,F401
 
 from .backend_patches import *      # noqa: E402,F401

@@ -3,9 +3,7 @@
 variational problems.
 """
 
-from .backend import (
-    TestFunction, TrialFunction, adjoint, backend_DirichletBC, complex_mode,
-    parameters)
+from .backend import adjoint, backend_DirichletBC, complex_mode, parameters
 from ..interface import (
     check_space_type, is_var, var_assign, var_axpy, var_copy, var_id,
     var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
@@ -29,8 +27,7 @@ __all__ = \
     [
         "Assembly",
         "DirichletBCApplication",
-        "EquationSolver",
-        "Projection"
+        "EquationSolver"
     ]
 
 
@@ -889,29 +886,6 @@ class EquationSolver(ExprEquation):
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly)
-
-
-class Projection(EquationSolver):
-    """Represents the solution of a finite element variational problem
-    performing a projection onto the space for `x`.
-
-    :arg x: A :class:`firedrake.function.Function` defining the forward
-        solution.
-    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
-        right-hand-side of the finite element variational problem. Should not
-        depend on `x`.
-
-    Remaining arguments are passed to the :class:`.EquationSolver` constructor.
-    """
-
-    def __init__(self, x, rhs, *args, **kwargs):
-        space = var_space(x)
-        test, trial = TestFunction(space), TrialFunction(space)
-        if not isinstance(rhs, ufl.classes.BaseForm):
-            rhs = ufl.inner(rhs, test) * ufl.dx
-        super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
-                         *args, **kwargs)
 
 
 class DirichletBCApplication(Equation):
