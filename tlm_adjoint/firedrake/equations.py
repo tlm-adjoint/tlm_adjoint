@@ -9,9 +9,7 @@ from ..interface import (
     var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
     var_scalar_value, var_update_caches, var_zero)
 from .backend_code_generator_interface import (
-    assemble, assemble_linear_solver, copy_parameters_dict,
-    form_compiler_quadrature_parameters, matrix_multiply, solve,
-    update_parameters_dict)
+    assemble, assemble_linear_solver, matrix_multiply, solve)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
@@ -19,6 +17,10 @@ from ..equation import Equation, ZeroAssignment
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, iter_expr)
+from .parameters import (
+    form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
+    process_form_compiler_parameters, process_solver_parameters,
+    update_parameters)
 
 from collections import defaultdict
 import ufl
@@ -28,40 +30,6 @@ __all__ = \
         "Assembly",
         "EquationSolver"
     ]
-
-
-def process_form_compiler_parameters(form_compiler_parameters):
-    params = copy_parameters_dict(parameters["form_compiler"])
-    update_parameters_dict(params, form_compiler_parameters)
-    return params
-
-
-def process_solver_parameters(solver_parameters, *, linear):
-    solver_parameters = copy_parameters_dict(solver_parameters)
-
-    tlm_adjoint_parameters = solver_parameters.setdefault("tlm_adjoint", {})
-    tlm_adjoint_parameters.setdefault("options_prefix", None)
-    tlm_adjoint_parameters.setdefault("nullspace", None)
-    tlm_adjoint_parameters.setdefault("transpose_nullspace", None)
-    tlm_adjoint_parameters.setdefault("near_nullspace", None)
-
-    linear_solver_ic = solver_parameters.setdefault("ksp_initial_guess_nonzero", False)  # noqa: E501
-    ic = not linear or linear_solver_ic
-
-    return (solver_parameters, solver_parameters, ic, linear_solver_ic)
-
-
-def process_adjoint_solver_parameters(linear_solver_parameters):
-    tlm_adjoint_parameters = linear_solver_parameters.get("tlm_adjoint", {})
-    nullspace = tlm_adjoint_parameters.get("nullspace", None)
-    transpose_nullspace = tlm_adjoint_parameters.get("transpose_nullspace", None)  # noqa: E501
-
-    adjoint_solver_parameters = copy_parameters_dict(linear_solver_parameters)
-    adjoint_tlm_adjoint_parameters = adjoint_solver_parameters.setdefault("tlm_adjoint", {})  # noqa: E501
-    adjoint_tlm_adjoint_parameters["nullspace"] = transpose_nullspace
-    adjoint_tlm_adjoint_parameters["transpose_nullspace"] = nullspace
-
-    return adjoint_solver_parameters
 
 
 def extract_derivative_coefficients(expr, dep):
@@ -179,7 +147,7 @@ class Assembly(ExprEquation):
         form_compiler_parameters = \
             process_form_compiler_parameters(form_compiler_parameters)
         if match_quadrature:
-            update_parameters_dict(
+            update_parameters(
                 form_compiler_parameters,
                 form_compiler_quadrature_parameters(rhs, form_compiler_parameters))  # noqa: E501
 
@@ -510,7 +478,7 @@ class EquationSolver(ExprEquation):
         form_compiler_parameters = \
             process_form_compiler_parameters(form_compiler_parameters)
         if match_quadrature:
-            update_parameters_dict(
+            update_parameters(
                 form_compiler_parameters,
                 form_compiler_quadrature_parameters(F, form_compiler_parameters))  # noqa: E501
 

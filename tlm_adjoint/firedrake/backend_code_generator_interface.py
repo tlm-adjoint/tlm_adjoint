@@ -34,31 +34,6 @@ _parameters["EquationSolver"].setdefault("match_quadrature", False)
 del _parameters
 
 
-def copy_parameters_dict(parameters):
-    new_parameters = dict(parameters)
-    for key, value in parameters.items():
-        if isinstance(value, (Parameters, dict)):
-            value = copy_parameters_dict(value)
-        elif isinstance(value, list):
-            value = list(value)
-        elif isinstance(value, set):
-            value = set(value)
-        new_parameters[key] = value
-    return new_parameters
-
-
-def update_parameters_dict(parameters, new_parameters):
-    for key, value in new_parameters.items():
-        if key in parameters \
-           and isinstance(parameters[key], (Parameters, dict)) \
-           and isinstance(value, (Parameters, dict)):
-            update_parameters_dict(parameters[key], value)
-        elif isinstance(value, (Parameters, dict)):
-            parameters[key] = copy_parameters_dict(value)
-        else:
-            parameters[key] = value
-
-
 def _assemble(form, tensor=None, bcs=None, *,
               form_compiler_parameters=None, mat_type=None):
     if bcs is None:
@@ -208,13 +183,6 @@ def linear_solver(A, linear_solver_parameters):
                         nullspace=nullspace,
                         transpose_nullspace=transpose_nullspace,
                         near_nullspace=near_nullspace)
-
-
-def form_compiler_quadrature_parameters(form, form_compiler_parameters):
-    qd = form_compiler_parameters.get("quadrature_degree", "auto")
-    if qd in {None, "auto", -1}:
-        qd = ufl.algorithms.estimate_total_polynomial_degree(form)
-    return {"quadrature_degree": qd}
 
 
 def matrix_copy(A):

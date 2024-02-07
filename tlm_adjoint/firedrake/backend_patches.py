@@ -2,11 +2,9 @@ from .backend import (
     FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
     Projector, SameMeshInterpolator, backend_Cofunction, backend_Constant,
     backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
-    backend_project, backend_solve, homogenize, parameters)
+    backend_project, backend_solve, homogenize)
 from ..interface import (
     is_var, space_id, var_comm, var_new, var_space, var_update_state)
-from .backend_code_generator_interface import (
-    copy_parameters_dict, update_parameters_dict)
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
@@ -20,6 +18,7 @@ from .equations import Assembly, EquationSolver
 from .functions import (
     Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
 from .interpolation import ExprInterpolation
+from .parameters import process_form_compiler_parameters
 from .projection import Projection, LocalProjection
 
 import numbers
@@ -104,9 +103,7 @@ def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
         var_update_state(return_value)
 
     if len(self._form.arguments()) > 0:
-        form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-        update_parameters_dict(form_compiler_parameters,
-                               self._form_compiler_params)
+        form_compiler_parameters = process_form_compiler_parameters(self._form_compiler_params)  # noqa: E501
         return_value._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value
