@@ -2,7 +2,8 @@
 caching.
 """
 
-from .backend import TrialFunction, backend_DirichletBC, backend_Function
+from .backend import (
+    LocalSolver, TrialFunction, backend_DirichletBC, backend_Function)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state)
@@ -31,6 +32,10 @@ __all__ = \
         "LinearSolverCache",
         "linear_solver_cache",
         "set_linear_solver_cache",
+
+        "LocalSolverCache",
+        "local_solver_cache",
+        "set_local_solver_cache"
     ]
 
 
@@ -425,6 +430,49 @@ class LinearSolverCache(Cache):
                         deps=form_dependencies(form, assemble_form))
 
 
+class LocalSolverCache(Cache):
+    """A :class:`.Cache` for element-wise local block diagonal linear solvers.
+    """
+
+    def local_solver(self, form, solver_type=None, *,
+                     replace_map=None):
+        """Construct an element-wise local block diagonal linear solver and
+        cache the result, or return a previously cached result.
+
+        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
+            local block diagonal matrix.
+        :arg local_solver: `dolfin.LocalSolver.SolverType`. Defaults to
+            `dolfin.LocalSolver.SolverType.LU`.
+        :arg replace_map: A :class:`Mapping` defining a map from symbolic
+            variables to values.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
+            DOLFIN `LocalSolver` and `value_ref` is a :class:`.CacheRef`
+            storing a reference to `value`.
+        """
+
+        if solver_type is None:
+            solver_type = LocalSolver.SolverType.LU
+
+        form = eliminate_zeros(form)
+        if form.empty():
+            raise ValueError("Form cannot be empty")
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               solver_type)
+
+        def value():
+            local_solver = LocalSolver(assemble_form, solver_type=solver_type)
+            local_solver.factorize()
+            return local_solver
+
+        return self.add(key, value,
+                        deps=form_dependencies(form, assemble_form))
+
+
 _assembly_cache = AssemblyCache()
 
 
@@ -465,3 +513,24 @@ def set_linear_solver_cache(linear_solver_cache):
 
     global _linear_solver_cache
     _linear_solver_cache = linear_solver_cache
+
+
+_local_solver_cache = LocalSolverCache()
+
+
+def local_solver_cache():
+    """
+    :returns: The default :class:`.LocalSolverCache`.
+    """
+
+    return _local_solver_cache
+
+
+def set_local_solver_cache(local_solver_cache):
+    """Set the default :class:`.LocalSolverCache`.
+
+    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
+    """
+
+    global _local_solver_cache
+    _local_solver_cache = local_solver_cache

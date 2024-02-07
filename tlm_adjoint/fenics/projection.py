@@ -1,15 +1,13 @@
-"""This module includes additional functionality for use with FEniCS.
+"""Projection operations with FEniCS.
 """
 
 from .backend import LocalSolver, TestFunction, TrialFunction
-from ..interface import var_update_caches
+from ..interface import var_space, var_update_caches
 
-from ..caches import Cache
 from ..equation import ZeroAssignment
 
-from .caches import form_dependencies, form_key
+from .caches import local_solver_cache
 from .equations import EquationSolver
-from .functions import eliminate_zeros
 
 try:
     import ufl_legacy as ufl
@@ -18,76 +16,31 @@ except ImportError:
 
 __all__ = \
     [
-        "LocalSolverCache",
-        "local_solver_cache",
-        "set_local_solver_cache",
-
-        "LocalProjection"
+        "LocalProjection",
+        "Projection"
     ]
 
 
-class LocalSolverCache(Cache):
-    """A :class:`.Cache` for element-wise local block diagonal linear solvers.
+class Projection(EquationSolver):
+    """Represents the solution of a finite element variational problem
+    performing a projection onto the space for `x`.
+
+    :arg x: A DOLFIN `Function` defining the forward solution.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
+        onto the space for `x`, or a :class:`ufl.Form` defining the
+        right-hand-side of the finite element variational problem. Should not
+        depend on `x`.
+
+    Remaining arguments are passed to the :class:`.EquationSolver` constructor.
     """
 
-    def local_solver(self, form, solver_type=None, *,
-                     replace_map=None):
-        """Construct an element-wise local block diagonal linear solver and
-        cache the result, or return a previously cached result.
-
-        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
-            local block diagonal matrix.
-        :arg local_solver: `dolfin.LocalSolver.SolverType`. Defaults to
-            `dolfin.LocalSolver.SolverType.LU`.
-        :arg replace_map: A :class:`Mapping` defining a map from symbolic
-            variables to values.
-        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
-            DOLFIN `LocalSolver` and `value_ref` is a :class:`.CacheRef`
-            storing a reference to `value`.
-        """
-
-        if solver_type is None:
-            solver_type = LocalSolver.SolverType.LU
-
-        form = eliminate_zeros(form)
-        if form.empty():
-            raise ValueError("Form cannot be empty")
-        if replace_map is None:
-            assemble_form = form
-        else:
-            assemble_form = ufl.replace(form, replace_map)
-
-        key = (form_key(form, assemble_form),
-               solver_type)
-
-        def value():
-            local_solver = LocalSolver(assemble_form, solver_type=solver_type)
-            local_solver.factorize()
-            return local_solver
-
-        return self.add(key, value,
-                        deps=form_dependencies(form, assemble_form))
-
-
-_local_solver_cache = LocalSolverCache()
-
-
-def local_solver_cache():
-    """
-    :returns: The default :class:`.LocalSolverCache`.
-    """
-
-    return _local_solver_cache
-
-
-def set_local_solver_cache(local_solver_cache):
-    """Set the default :class:`.LocalSolverCache`.
-
-    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
-    """
-
-    global _local_solver_cache
-    _local_solver_cache = local_solver_cache
+    def __init__(self, x, rhs, *args, **kwargs):
+        space = var_space(x)
+        test, trial = TestFunction(space), TrialFunction(space)
+        if not isinstance(rhs, ufl.classes.Form):
+            rhs = ufl.inner(rhs, test) * ufl.dx
+        super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
+                         *args, **kwargs)
 
 
 class LocalProjection(EquationSolver):

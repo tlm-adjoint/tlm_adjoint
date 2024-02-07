@@ -15,9 +15,10 @@ from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
-from .equations import Assembly, EquationSolver, Projection
+from .equations import Assembly, EquationSolver
 from .functions import Constant, define_var_alias, extract_coefficients
 from .interpolation import ExprInterpolation
+from .projection import Projection
 
 import fenics
 import numbers
