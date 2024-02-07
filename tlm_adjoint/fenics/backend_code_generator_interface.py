@@ -1,16 +1,13 @@
 from .backend import (
-    LUSolver, KrylovSolver, Parameters, TestFunction, UserExpression,
-    as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
+    LUSolver, KrylovSolver, Parameters, TestFunction, as_backend_type,
+    backend_Constant, backend_DirichletBC, backend_Function,
     backend_ScalarType, backend_assemble, backend_assemble_system,
     backend_solve as solve, has_lu_solver_method, parameters)
 from ..interface import (
-    DEFAULT_COMM, check_space_type, check_space_types, is_var, space_new,
-    var_assign, var_get_values, var_inner, var_new_conjugate_dual,
-    var_set_values, var_space, var_space_type)
+    DEFAULT_COMM, check_space_type, check_space_types, space_new,
+    var_space_type)
 
-from ..manager import manager_disabled
-
-from .functions import eliminate_zeros, extract_coefficients
+from .functions import eliminate_zeros
 
 from collections.abc import Sequence
 import ffc
@@ -26,8 +23,6 @@ __all__ = \
         "assemble_matrix",
         "linear_solver",
         "matrix_multiply",
-
-        "interpolate_expression",
 
         "assemble",
         "solve"
@@ -225,70 +220,6 @@ def parameters_key(parameters):
         else:
             key.append((name, sub_parameters))
     return tuple(key)
-
-
-@manager_disabled()
-def interpolate_expression(x, expr, *, adj_x=None):
-    if adj_x is None:
-        check_space_type(x, "primal")
-    else:
-        check_space_type(x, "conjugate_dual")
-        check_space_type(adj_x, "conjugate_dual")
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            check_space_type(dep, "primal")
-
-    expr = eliminate_zeros(expr)
-
-    class Expr(UserExpression):
-        def eval(self, value, x):
-            value[:] = expr(tuple(x))
-
-        def value_shape(self):
-            return x.ufl_shape
-
-    if adj_x is None:
-        if isinstance(x, backend_Constant):
-            if isinstance(expr, backend_Constant):
-                value = expr
-            else:
-                if len(x.ufl_shape) > 0:
-                    raise ValueError("Scalar Constant required")
-                value = x.values()
-                Expr().eval(value, ())
-                value, = value
-            var_assign(x, value)
-        elif isinstance(x, backend_Function):
-            try:
-                x.assign(expr)
-            except RuntimeError:
-                x.interpolate(Expr())
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-    else:
-        expr_val = var_new_conjugate_dual(adj_x)
-        expr_arguments = ufl.algorithms.extract_arguments(expr)
-        if len(expr_arguments) > 0:
-            test, = expr_arguments
-            if len(test.ufl_shape) > 0:
-                raise NotImplementedError("Case not implemented")
-            expr = ufl.replace(expr, {test: ufl.classes.IntValue(1)})
-        interpolate_expression(expr_val, expr)
-
-        if isinstance(x, backend_Constant):
-            if len(x.ufl_shape) > 0:
-                raise ValueError("Scalar Constant required")
-            var_assign(x, var_inner(adj_x, expr_val))
-        elif isinstance(x, backend_Function):
-            x_space = var_space(x)
-            adj_x_space = var_space(adj_x)
-            if x_space.ufl_domains() != adj_x_space.ufl_domains() \
-                    or x_space.ufl_element() != adj_x_space.ufl_element():
-                raise ValueError("Unable to perform transpose interpolation")
-            var_set_values(
-                x, var_get_values(expr_val).conjugate() * var_get_values(adj_x))  # noqa: E501
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
 
 
 def assemble(form, tensor=None, bcs=None, *,

@@ -3,8 +3,7 @@ from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics import manager as _manager
 from tlm_adjoint.fenics.backend import (
     backend_Constant, backend_Function, complex_mode)
-from tlm_adjoint.fenics.backend_code_generator_interface import (
-    interpolate_expression)
+from tlm_adjoint.fenics.interpolation import interpolate_expression
 from tlm_adjoint.alias import gc_disabled
 from tlm_adjoint.patch import patch_method
 

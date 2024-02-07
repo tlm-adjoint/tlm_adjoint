@@ -12,5 +12,6 @@ from .caches import *              # noqa: E402,F401
 from .equations import *           # noqa: E402,F401
 from .fenics_equations import *    # noqa: E402,F401
 from .functions import *           # noqa: E402,F401
+from .interpolation import *       # noqa: E402,F401
 
 from .backend_patches import *     # noqa: E402,F401
