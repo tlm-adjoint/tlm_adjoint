@@ -14,11 +14,11 @@ from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
+from .assignment import ExprAssignment
 from .backend_interface import Cofunction
 from .equations import Assembly, EquationSolver
 from .functions import (
     Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
-from .firedrake_equations import ExprAssignment
 from .interpolation import ExprInterpolation
 from .projection import Projection, LocalProjection
 

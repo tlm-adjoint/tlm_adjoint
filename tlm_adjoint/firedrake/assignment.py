@@ -1,4 +1,4 @@
-"""This module includes additional functionality for use with Firedrake.
+"""Assignment operations with Firedrake.
 """
 
 from .backend import (
