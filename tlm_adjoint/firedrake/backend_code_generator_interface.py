@@ -1,11 +1,9 @@
 from .backend import (
-    LinearSolver, Parameters, backend_DirichletBC, backend_solve, extract_args,
-    parameters)
+    LinearSolver, backend_DirichletBC, backend_solve, extract_args, parameters)
 from ..interface import check_space_type
 
 from .assembly import _assemble_system
 
-from collections.abc import Sequence
 import ufl
 
 __all__ = \
@@ -66,20 +64,6 @@ def linear_solver(A, linear_solver_parameters):
                         nullspace=nullspace,
                         transpose_nullspace=transpose_nullspace,
                         near_nullspace=near_nullspace)
-
-
-def parameters_key(parameters):
-    key = []
-    for name in sorted(parameters.keys()):
-        sub_parameters = parameters[name]
-        if isinstance(sub_parameters, (Parameters, dict)):
-            key.append((name, parameters_key(sub_parameters)))
-        elif isinstance(sub_parameters, Sequence) \
-                and not isinstance(sub_parameters, str):
-            key.append((name, tuple(sub_parameters)))
-        else:
-            key.append((name, sub_parameters))
-    return tuple(key)
 
 
 def solve(*args, **kwargs):

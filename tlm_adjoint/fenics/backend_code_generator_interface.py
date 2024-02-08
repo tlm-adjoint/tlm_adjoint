@@ -6,8 +6,6 @@ from ..interface import DEFAULT_COMM
 from .assembly import assemble_matrix, assemble_system
 from .parameters import update_parameters
 
-from collections.abc import Sequence
-
 __all__ = \
     [
         "linear_solver",
@@ -81,20 +79,6 @@ def linear_solver(A, linear_solver_parameters, *, comm=None):
         solver.set_operator(A)
         update_parameters(solver.parameters, ks_parameters)
     return solver
-
-
-def parameters_key(parameters):
-    key = []
-    for name in sorted(parameters.keys()):
-        sub_parameters = parameters[name]
-        if isinstance(sub_parameters, (Parameters, dict)):
-            key.append((name, parameters_key(sub_parameters)))
-        elif isinstance(sub_parameters, Sequence) \
-                and not isinstance(sub_parameters, str):
-            key.append((name, tuple(sub_parameters)))
-        else:
-            key.append((name, sub_parameters))
-    return tuple(key)
 
 
 # def solve(*args, **kwargs):

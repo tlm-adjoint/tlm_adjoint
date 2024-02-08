@@ -3,12 +3,12 @@ caching.
 """
 
 from .backend import (
-    LocalSolver, TrialFunction, backend_DirichletBC, backend_Function)
+    Parameters, LocalSolver, TrialFunction, backend_DirichletBC,
+    backend_Function)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state)
-from .backend_code_generator_interface import (
-    linear_solver, parameters_key)
+from .backend_code_generator_interface import linear_solver
 
 from ..caches import Cache
 
@@ -19,6 +19,7 @@ from .expr import (
 from .functions import ReplacementFunction
 
 from collections import defaultdict
+from collections.abc import Sequence
 import itertools
 try:
     import ufl_legacy as ufl
@@ -290,6 +291,20 @@ def form_dependencies(*forms):
                 deps[dep_id] = dep
 
     return tuple(sorted(deps.values(), key=var_id))
+
+
+def parameters_key(parameters):
+    key = []
+    for name in sorted(parameters.keys()):
+        sub_parameters = parameters[name]
+        if isinstance(sub_parameters, (Parameters, dict)):
+            key.append((name, parameters_key(sub_parameters)))
+        elif isinstance(sub_parameters, Sequence) \
+                and not isinstance(sub_parameters, str):
+            key.append((name, tuple(sub_parameters)))
+        else:
+            key.append((name, sub_parameters))
+    return tuple(key)
 
 
 class AssemblyCache(Cache):
