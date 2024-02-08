@@ -14,9 +14,10 @@ from .backend_code_generator_interface import (
 
 from ..caches import Cache
 
-from .functions import (
-    ReplacementFunction, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients, form_cached, iter_expr, replaced_form)
+from .expr import (
+    derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
+    iter_expr, replaced_form)
+from .functions import ReplacementFunction
 
 from collections import defaultdict
 import itertools

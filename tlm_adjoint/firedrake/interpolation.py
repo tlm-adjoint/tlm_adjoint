@@ -12,10 +12,10 @@ from ..interface import (
 from ..equation import Equation, ZeroAssignment
 from ..manager import manager_disabled
 
-from .equations import ExprEquation, extract_dependencies
-from .functions import (
-    ReplacementConstant, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients)
+from .expr import (
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
+    extract_dependencies)
+from .functions import ReplacementConstant
 
 import itertools
 import numpy as np

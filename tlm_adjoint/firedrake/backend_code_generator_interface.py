@@ -6,7 +6,7 @@ from ..interface import (
 
 from ..patch import patch_method
 
-from .functions import eliminate_zeros
+from .expr import eliminate_zeros
 
 from collections.abc import Sequence
 import petsc4py.PETSc as PETSc

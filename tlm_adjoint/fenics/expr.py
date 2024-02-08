@@ -161,6 +161,16 @@ def derivative(expr, x, argument=None, *,
     return ufl.derivative(expr, x, argument=argument)
 
 
+class Zero:
+    """Mixin for defining a zero-valued variable. Used for zero-valued
+    variables for which UFL zero elimination should not be applied.
+    """
+
+    def _tlm_adjoint__var_interface_update_state(self):
+        raise VariableStateChangeError("Cannot call _update_state interface "
+                                       "of Zero")
+
+
 def expr_zero(expr):
     if isinstance(expr, ufl.classes.Form):
         return ufl.classes.Form([])
@@ -170,16 +180,6 @@ def expr_zero(expr):
                                 index_dimensions=expr.ufl_index_dimensions)
     else:
         raise TypeError(f"Unexpected type: {type(expr)}")
-
-
-class Zero:
-    """Mixin for defining a zero-valued variable. Used for zero-valued
-    variables for which UFL zero elimination should not be applied.
-    """
-
-    def _tlm_adjoint__var_interface_update_state(self):
-        raise VariableStateChangeError("Cannot call _update_state interface "
-                                       "of Zero")
 
 
 @form_cached("_tlm_adjoint__eliminate_zeros")

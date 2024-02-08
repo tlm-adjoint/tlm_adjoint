@@ -3,21 +3,18 @@ and Dirichlet boundary conditions.
 """
 
 from .backend import (
-    FiniteElement, TensorElement, TestFunction, TrialFunction, VectorElement,
-    backend_Constant, backend_ScalarType, complex_mode)
+    FiniteElement, TensorElement, VectorElement, backend_Constant,
+    backend_ScalarType)
 from ..interface import (
-    SpaceInterface, VariableInterface, VariableStateChangeError,
-    add_replacement_interface, is_var, space_comm, var_comm, var_dtype,
-    var_is_cached, var_is_replacement, var_is_static, var_linf_norm,
-    var_lock_state, var_replacement, var_scalar_value, var_space,
-    var_space_type)
+    SpaceInterface, VariableInterface, add_replacement_interface, space_comm,
+    var_comm, var_dtype, var_is_cached, var_is_static, var_linf_norm,
+    var_lock_state, var_scalar_value, var_space, var_space_type)
 
 from ..caches import Caches
 from ..manager import paused_manager
 
-from collections.abc import Sequence
-import functools
-import itertools
+from .expr import Replacement, Zero
+
 import numbers
 import numpy as np
 import ufl
@@ -27,11 +24,8 @@ __all__ = \
     [
         "Constant",
 
-        "Zero",
         "ZeroConstant",
-        "eliminate_zeros",
 
-        "Replacement",
         "ReplacementConstant",
         "ReplacementFunction",
         "ReplacementZeroConstant",
@@ -317,16 +311,6 @@ class Constant(backend_Constant):
             return F
 
 
-class Zero:
-    """Mixin for defining a zero-valued variable. Used for zero-valued
-    variables for which UFL zero elimination should not be applied.
-    """
-
-    def _tlm_adjoint__var_interface_update_state(self):
-        raise VariableStateChangeError("Cannot call _update_state interface "
-                                       "of Zero")
-
-
 class ZeroConstant(Constant, Zero):
     """A :class:`.Constant` which is flagged as having a value of zero.
 
@@ -364,183 +348,6 @@ def constant_space(shape, *, domain=None):
         element = TensorElement("R", cell, 0, shape=shape)
 
     return ufl.classes.FunctionSpace(domain, element)
-
-
-def iter_expr(expr, *, evaluate_weights=False):
-    if isinstance(expr, ufl.classes.FormSum):
-        for weight, comp in zip(expr.weights(), expr.components()):
-            if evaluate_weights:
-                weight = complex(weight)
-                if weight.imag == 0:
-                    weight = weight.real
-            yield (weight, comp)
-    elif isinstance(expr, (ufl.classes.Action, ufl.classes.Coargument,
-                           ufl.classes.Cofunction, ufl.classes.Expr,
-                           ufl.classes.Form)):
-        yield (1, expr)
-    elif isinstance(expr, ufl.classes.ZeroBaseForm):
-        return
-        yield
-    else:
-        raise TypeError(f"Unexpected type: {type(expr)}")
-
-
-def form_cached(key):
-    def wrapper(fn):
-        @functools.wraps(fn)
-        def wrapped(expr, *args, **kwargs):
-            if isinstance(expr, ufl.classes.Form) and key in expr._cache:
-                value = expr._cache[key]
-            else:
-                value = fn(expr, *args, **kwargs)
-                if isinstance(expr, ufl.classes.Form):
-                    assert key not in expr._cache
-                    expr._cache[key] = value
-            return value
-        return wrapped
-    return wrapper
-
-
-@form_cached("_tlm_adjoint__extract_coefficients")
-def extract_coefficients(expr):
-    def as_ufl(expr):
-        if isinstance(expr, (ufl.classes.BaseForm,
-                             ufl.classes.Expr,
-                             numbers.Complex)):
-            return ufl.as_ufl(expr)
-        elif isinstance(expr, Sequence):
-            return ufl.as_vector(tuple(map(as_ufl, expr)))
-        else:
-            raise TypeError(f"Unexpected type: {type(expr)}")
-
-    deps = []
-    for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
-        c_deps = {}
-        for dep in itertools.chain.from_iterable(map(
-                lambda expr: ufl.algorithms.extract_type(as_ufl(expr), c),
-                itertools.chain.from_iterable(iter_expr(as_ufl(expr))))):
-            c_deps[dep.count()] = dep
-        deps.extend(sorted(c_deps.values(), key=lambda dep: dep.count()))
-    return deps
-
-
-def with_coefficient(expr, x):
-    if isinstance(x, ufl.classes.Coefficient):
-        return expr, {}, {}
-    else:
-        x_coeff = ufl.classes.Coefficient(var_space(x))
-        replace_map = {x: x_coeff}
-        replace_map_inverse = {x_coeff: x}
-        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
-
-
-def derivative(expr, x, argument=None, *,
-               enable_automatic_argument=True):
-    expr_arguments = ufl.algorithms.extract_arguments(expr)
-    arity = len(expr_arguments)
-
-    if argument is None and enable_automatic_argument:
-        Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(var_space(x))
-
-    for expr_argument in expr_arguments:
-        if expr_argument.number() >= arity:
-            raise ValueError("Unexpected argument")
-    if argument is not None:
-        for expr_argument in ufl.algorithms.extract_arguments(argument):
-            if expr_argument.number() < arity - int(isinstance(x, ufl.classes.Cofunction)):  # noqa: E501
-                raise ValueError("Invalid argument")
-
-    expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
-    x = replace_map.get(x, x)
-    if argument is not None:
-        argument = ufl.replace(argument, replace_map)
-
-    if any(isinstance(comp, ufl.classes.Action)
-           for _, comp in iter_expr(expr)):
-        dexpr = None
-        for weight, comp in iter_expr(expr):
-            if isinstance(comp, ufl.classes.Action):
-                if complex_mode:
-                    # See Firedrake issue #3346
-                    raise NotImplementedError("Complex case not implemented")
-
-                dcomp = ufl.algorithms.expand_derivatives(
-                    ufl.derivative(ufl.as_ufl(weight), x, argument=argument))
-                if not isinstance(dcomp, ufl.classes.Zero):
-                    raise NotImplementedError("Weight derivatives not "
-                                              "implemented")
-
-                dcomp = ufl.algorithms.expand_derivatives(
-                    ufl.derivative(comp.left(), x, argument=argument))
-                dcomp = weight * ufl.classes.Action(dcomp, comp.right())
-                dexpr = dcomp if dexpr is None else dexpr + dcomp
-
-                dcomp = ufl.algorithms.expand_derivatives(
-                    ufl.derivative(comp.right(), x, argument=argument))
-                dcomp = weight * ufl.classes.Action(comp.left(), dcomp)
-                dexpr = dcomp if dexpr is None else dexpr + dcomp
-            else:
-                dcomp = ufl.derivative(weight * comp, x, argument=argument)
-                dexpr = dcomp if dexpr is None else dexpr + dcomp
-        assert dexpr is not None
-    else:
-        dexpr = ufl.derivative(expr, x, argument=argument)
-
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
-    return ufl.replace(dexpr, replace_map_inverse)
-
-
-def expr_zero(expr):
-    if isinstance(expr, ufl.classes.BaseForm):
-        return ufl.classes.ZeroBaseForm(expr.arguments())
-    elif isinstance(expr, ufl.classes.Expr):
-        return ufl.classes.Zero(shape=expr.ufl_shape,
-                                free_indices=expr.ufl_free_indices,
-                                index_dimensions=expr.ufl_index_dimensions)
-    else:
-        raise TypeError(f"Unexpected type: {type(expr)}")
-
-
-@form_cached("_tlm_adjoint__eliminate_zeros")
-def eliminate_zeros(expr):
-    """Apply zero elimination for :class:`.Zero` objects in the supplied
-    :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm`.
-
-    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm`.
-    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.form.BaseForm` with
-        zero elimination applied. May return `expr`.
-    """
-
-    replace_map = {c: expr_zero(c)
-                   for c in extract_coefficients(expr)
-                   if isinstance(c, Zero)}
-    if len(replace_map) == 0:
-        simplified_expr = expr
-    else:
-        simplified_expr = ufl.replace(expr, replace_map)
-
-    if isinstance(simplified_expr, ufl.classes.BaseForm):
-        nonempty_expr = expr_zero(expr)
-        for weight, comp in iter_expr(simplified_expr):
-            if not isinstance(comp, ufl.classes.Form) or not comp.empty():
-                nonempty_expr = nonempty_expr + weight * comp
-        simplified_expr = nonempty_expr
-
-    return simplified_expr
-
-
-class Replacement:
-    """Represents a symbolic variable but with no value.
-    """
-
-
-def new_count(counted_class):
-    # __slots__ workaround
-    class Counted(ufl.utils.counted.Counted):
-        pass
-
-    return Counted(counted_class=counted_class).count()
 
 
 class ReplacementConstant(Replacement, ufl.classes.ConstantValue,
@@ -598,16 +405,6 @@ class ReplacementZeroFunction(ReplacementFunction, Zero):
     def __init__(self, *args, **kwargs):
         ReplacementFunction.__init__(self, *args, **kwargs)
         Zero.__init__(self)
-
-
-def replaced_form(form):
-    replace_map = {}
-    for c in extract_coefficients(form):
-        if is_var(c) and not var_is_replacement(c):
-            c_rep = var_replacement(c)
-            if c_rep is not c:
-                replace_map[c] = c_rep
-    return ufl.replace(form, replace_map)
 
 
 def define_var_alias(x, parent, *, key):

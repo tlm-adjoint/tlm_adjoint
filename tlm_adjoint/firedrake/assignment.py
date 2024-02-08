@@ -11,8 +11,9 @@ from .backend_interface import ReplacementCofunction, ReplacementFunction
 
 from ..equation import ZeroAssignment
 
-from .equations import ExprEquation, derivative, extract_dependencies
-from .functions import ReplacementConstant, eliminate_zeros, expr_zero
+from .expr import (
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies)
+from .functions import ReplacementConstant
 
 import pyop2
 import ufl

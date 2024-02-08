@@ -13,6 +13,7 @@ from .block_system import \
     (ConstantNullspace, DirichletBCNullspace, NoneNullspace, UnityNullspace)  # noqa: E402,E501,F401
 from .caches import *               # noqa: E402,F401
 from .equations import *            # noqa: E402,F401
+from .expr import *                 # noqa: E402,F401
 from .functions import *            # noqa: E402,F401
 from .hessian_system import *       # noqa: E402,F401
 from .interpolation import *        # noqa: E402,F401
@@ -22,5 +23,5 @@ from .projection import *           # noqa: E402,F401
 from .backend_patches import *      # noqa: E402,F401
 
 del backend, backend_code_generator_interface, backend_interface, assignment, \
-    block_system, caches, equations, functions, hessian_system, \
+    block_system, caches, equations, expr, functions, hessian_system, \
     interpolation, parameters, projection, backend_patches  # noqa: F821

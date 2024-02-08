@@ -10,15 +10,16 @@ from ..interface import (
     relative_space_type, space_id, subtract_adjoint_derivative_action_base,
     var_is_alias, var_linf_norm, var_lock_state, var_space, var_space_type)
 
+from ..caches import Caches
 from ..equations import Conversion
 from ..manager import paused_manager
 from ..patch import patch_method, patch_property
 
 from .equations import Assembly
+from .expr import Replacement, Zero, new_count
 from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
-    ReplacementFunction, ReplacementZeroFunction, Zero, constant_space,
-    define_var_alias, new_count)
+    ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
+    ReplacementZeroFunction, constant_space, define_var_alias)
 
 import mpi4py.MPI as MPI
 import numbers
