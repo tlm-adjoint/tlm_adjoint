@@ -5,17 +5,16 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     add_replacement_interface, check_space_type, comm_dup_cached, comm_parent,
-    new_space_id, new_var_id, register_functional_term_eq,
-    register_garbage_cleanup, register_subtract_adjoint_derivative_action,
-    relative_space_type, space_id, subtract_adjoint_derivative_action_base,
-    var_is_alias, var_linf_norm, var_lock_state, var_space, var_space_type)
+    new_space_id, new_var_id, register_garbage_cleanup,
+    register_subtract_adjoint_derivative_action, relative_space_type, space_id,
+    subtract_adjoint_derivative_action_base, var_is_alias, var_linf_norm,
+    var_lock_state, var_space, var_space_type)
 
 from ..caches import Caches
 from ..equations import Conversion
 from ..manager import paused_manager
 from ..patch import patch_method, patch_property
 
-from .equations import Assembly
 from .expr import Replacement, Zero, new_count
 from .functions import (
     ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
@@ -562,14 +561,3 @@ register_subtract_adjoint_derivative_action(
     (backend_Constant, backend_Cofunction, backend_Function), object,
     subtract_adjoint_derivative_action_base,
     replace=True)
-
-
-def functional_term_eq_form(x, term):
-    if len(term.arguments()) > 0:
-        raise ValueError("Invalid number of arguments")
-    return Assembly(x, term)
-
-
-register_functional_term_eq(
-    ufl.classes.BaseForm,
-    functional_term_eq_form)

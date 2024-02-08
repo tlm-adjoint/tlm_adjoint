@@ -1,7 +1,6 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.backend_code_generator_interface import (
-    matrix_multiply)
+from tlm_adjoint.firedrake.assembly import matrix_multiply
 
 from .test_base import *
 

@@ -8,12 +8,11 @@ from .backend import (
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state, weakref_method)
-from .backend_code_generator_interface import (
-    assemble, assemble_matrix, linear_solver, matrix_copy, matrix_multiply,
-    parameters_key)
+from .backend_code_generator_interface import linear_solver, parameters_key
 
 from ..caches import Cache
 
+from .assembly import assemble, assemble_matrix, matrix_copy, matrix_multiply
 from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
     iter_expr, replaced_form)

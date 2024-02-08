@@ -1,145 +1,28 @@
 from .backend import (
-    LinearSolver, Parameters, backend_DirichletBC, backend_Function,
-    backend_Matrix, backend_assemble, backend_solve, extract_args, parameters)
-from ..interface import (
-    check_space_type, check_space_types, space_new, var_space_type)
+    LinearSolver, Parameters, backend_DirichletBC, backend_solve, extract_args,
+    parameters)
+from ..interface import check_space_type
 
-from ..patch import patch_method
-
-from .expr import eliminate_zeros
+from .assembly import _assemble_system
 
 from collections.abc import Sequence
-import petsc4py.PETSc as PETSc
 import ufl
 
 __all__ = \
     [
         "assemble_linear_solver",
-        "assemble_matrix",
         "linear_solver",
-        "matrix_multiply",
 
-        "assemble",
         "solve"
     ]
 
 
 _parameters = parameters.setdefault("tlm_adjoint", {})
-_parameters.setdefault("Assembly", {})
-_parameters["Assembly"].setdefault("match_quadrature", False)
 _parameters.setdefault("EquationSolver", {})
 _parameters["EquationSolver"].setdefault("enable_jacobian_caching", True)
 _parameters["EquationSolver"].setdefault("cache_rhs_assembly", True)
 _parameters["EquationSolver"].setdefault("match_quadrature", False)
 del _parameters
-
-
-def _assemble(form, tensor=None, bcs=None, *,
-              form_compiler_parameters=None, mat_type=None):
-    if bcs is None:
-        bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
-    form = eliminate_zeros(form)
-    if isinstance(form, ufl.classes.ZeroBaseForm):
-        raise ValueError("Form cannot be a ZeroBaseForm")
-    if len(form.arguments()) == 1:
-        b = backend_assemble(
-            form, tensor=tensor,
-            form_compiler_parameters=form_compiler_parameters,
-            mat_type=mat_type)
-        for bc in bcs:
-            bc.apply(b.riesz_representation("l2"))
-    else:
-        b = backend_assemble(
-            form, tensor=tensor, bcs=bcs,
-            form_compiler_parameters=form_compiler_parameters,
-            mat_type=mat_type)
-
-    return b
-
-
-def _assemble_system(A_form, b_form=None, bcs=None, *,
-                     form_compiler_parameters=None, mat_type=None):
-    if bcs is None:
-        bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
-    A = _assemble(
-        A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
-        mat_type=mat_type)
-
-    if len(bcs) > 0:
-        F = backend_Function(A_form.arguments()[0].function_space())
-        for bc in bcs:
-            bc.apply(F)
-
-        if b_form is None:
-            b = _assemble(
-                -ufl.action(A_form, F), bcs=bcs,
-                form_compiler_parameters=form_compiler_parameters,
-                mat_type=mat_type)
-
-            with b.dat.vec_ro as b_v:
-                if b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) == 0.0:
-                    b = None
-        else:
-            b = _assemble(
-                b_form - ufl.action(A_form, F), bcs=bcs,
-                form_compiler_parameters=form_compiler_parameters,
-                mat_type=mat_type)
-    else:
-        if b_form is None:
-            b = None
-        else:
-            b = _assemble(
-                b_form,
-                form_compiler_parameters=form_compiler_parameters,
-                mat_type=mat_type)
-
-    A._tlm_adjoint__lift_bcs = False
-
-    return A, b
-
-
-@patch_method(LinearSolver, "_lifted")
-def LinearSolver_lifted(self, orig, orig_args, b):
-    if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
-        return orig_args()
-    else:
-        return b
-
-
-def assemble_matrix(form, bcs=None, *,
-                    form_compiler_parameters=None, mat_type=None):
-    if bcs is None:
-        bcs = ()
-    elif isinstance(bcs, backend_DirichletBC):
-        bcs = (bcs,)
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
-    return _assemble_system(form, bcs=bcs,
-                            form_compiler_parameters=form_compiler_parameters,
-                            mat_type=mat_type)
-
-
-def assemble(form, tensor=None, bcs=None, *,
-             form_compiler_parameters=None, mat_type=None):
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
-    b = _assemble(
-        form, tensor=tensor, bcs=bcs,
-        form_compiler_parameters=form_compiler_parameters, mat_type=mat_type)
-
-    return b
 
 
 def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
@@ -183,47 +66,6 @@ def linear_solver(A, linear_solver_parameters):
                         nullspace=nullspace,
                         transpose_nullspace=transpose_nullspace,
                         near_nullspace=near_nullspace)
-
-
-def matrix_copy(A):
-    if not isinstance(A, backend_Matrix):
-        raise TypeError("Unexpected matrix type")
-
-    options_prefix = A.petscmat.getOptionsPrefix()
-    A_copy = backend_Matrix(A.a, A.bcs, A.mat_type,
-                            A.M.sparsity, A.M.dtype,
-                            options_prefix=options_prefix)
-
-    assert A.petscmat.assembled
-    A_copy.petscmat.axpy(1.0, A.petscmat)
-    assert A_copy.petscmat.assembled
-
-    # MatAXPY does not propagate the options prefix
-    A_copy.petscmat.setOptionsPrefix(options_prefix)
-
-    if hasattr(A, "_tlm_adjoint__lift_bcs"):
-        A_copy._tlm_adjoint__lift_bcs = A._tlm_adjoint__lift_bcs
-
-    return A_copy
-
-
-def matrix_multiply(A, x, *,
-                    tensor=None, addto=False, action_type="conjugate_dual"):
-    if tensor is None:
-        tensor = space_new(
-            A.a.arguments()[0].function_space(),
-            space_type=var_space_type(x, rel_space_type=action_type))
-    else:
-        check_space_types(tensor, x, rel_space_type=action_type)
-
-    if addto:
-        with x.dat.vec_ro as x_v, tensor.dat.vec as tensor_v:
-            A.petscmat.multAdd(x_v, tensor_v, tensor_v)
-    else:
-        with x.dat.vec_ro as x_v, tensor.dat.vec_wo as tensor_v:
-            A.petscmat.mult(x_v, tensor_v)
-
-    return tensor
 
 
 def parameters_key(parameters):

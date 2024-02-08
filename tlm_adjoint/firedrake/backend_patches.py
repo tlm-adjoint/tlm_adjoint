@@ -12,9 +12,10 @@ from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
+from .assembly import Assembly
 from .assignment import ExprAssignment
 from .backend_interface import Cofunction
-from .equations import Assembly, EquationSolver
+from .equations import EquationSolver
 from .expr import expr_zero, extract_coefficients, iter_expr
 from .functions import Constant, define_var_alias
 from .interpolation import ExprInterpolation
