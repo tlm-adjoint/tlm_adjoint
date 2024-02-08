@@ -1,8 +1,7 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend import backend_assemble, backend_Constant
-from tlm_adjoint.fenics.backend_code_generator_interface import (
-    assemble as backend_code_generator_interface_assemble)
+from tlm_adjoint.fenics.assembly import assemble as assembly_assemble
 from tlm_adjoint.fenics.parameters import copy_parameters
 
 from .test_base import *
@@ -342,7 +341,7 @@ def test_Function_assign(setup_test, test_leaks,
 @pytest.mark.parametrize("ZeroFunction", [Function, ZeroFunction])
 @pytest.mark.parametrize("assemble", [backend_assemble,
                                       assemble,
-                                      backend_code_generator_interface_assemble])  # noqa: E501
+                                      assembly_assemble])
 @seed_test
 def test_assemble_ZeroFunction(setup_test, test_leaks,
                                ZeroFunction, assemble):

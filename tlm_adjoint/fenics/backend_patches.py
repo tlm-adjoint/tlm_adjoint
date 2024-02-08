@@ -14,7 +14,8 @@ from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
-from .equations import Assembly, EquationSolver
+from .assembly import Assembly
+from .equations import EquationSolver
 from .expr import extract_coefficients
 from .functions import Constant, define_var_alias
 from .interpolation import ExprInterpolation

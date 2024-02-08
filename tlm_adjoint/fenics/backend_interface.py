@@ -4,8 +4,7 @@ from .backend import (
 from ..interface import (
     DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
     check_space_types, comm_dup_cached, comm_parent, is_var, new_space_id,
-    new_var_id, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, space_id,
+    new_var_id, register_subtract_adjoint_derivative_action, space_id,
     subtract_adjoint_derivative_action_base, var_axpy, var_copy, var_linf_norm,
     var_lock_state, var_new, var_space, var_space_type)
 
@@ -13,7 +12,6 @@ from ..caches import Caches
 from ..equations import Conversion
 from ..patch import patch_method
 
-from .equations import Assembly
 from .expr import Zero, new_count, r0_space
 from .functions import (
     ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
@@ -22,10 +20,6 @@ from .functions import (
 import functools
 import numbers
 import numpy as np
-try:
-    import ufl_legacy as ufl
-except ImportError:
-    import ufl
 
 __all__ = \
     [
@@ -408,14 +402,3 @@ register_subtract_adjoint_derivative_action(
 register_subtract_adjoint_derivative_action(
     backend_Function, backend_Vector,
     subtract_adjoint_derivative_action_backend_function_vector)
-
-
-def functional_term_eq_form(x, term):
-    if len(term.arguments()) > 0:
-        raise ValueError("Invalid number of arguments")
-    return Assembly(x, term)
-
-
-register_functional_term_eq(
-    ufl.classes.Form,
-    functional_term_eq_form)

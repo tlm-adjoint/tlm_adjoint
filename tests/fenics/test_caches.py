@@ -230,8 +230,7 @@ def test_cached_adjoint(setup_test, test_leaks,
 @seed_test
 def test_mat_terms(setup_test, test_leaks,
                    x_conjugate):
-    from tlm_adjoint.fenics.backend_code_generator_interface import (
-        assemble_matrix, matrix_multiply)
+    from tlm_adjoint.fenics.assembly import assemble_matrix, matrix_multiply
 
     mesh = UnitSquareMesh(10, 10)
     X = SpatialCoordinate(mesh)
