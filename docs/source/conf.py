@@ -10,7 +10,6 @@ autoapi_dirs = ["../../tlm_adjoint"]
 autoapi_ignore = ["*/checkpoint_schedules/__init__.py",
                   "*/fenics/__init__.py",
                   "*/fenics/backend.py",
-                  "*/fenics/backend_code_generator_interface.py",
                   "*/fenics/backend_patches.py",
                   "*/fenics/parameters.py",
                   "*/firedrake/__init__.py",

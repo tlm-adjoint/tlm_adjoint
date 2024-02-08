@@ -7,7 +7,7 @@ from ..interface import var_space, var_update_caches
 from ..equation import ZeroAssignment
 
 from .caches import local_solver_cache
-from .equations import EquationSolver
+from .solve import EquationSolver
 
 try:
     import ufl_legacy as ufl
@@ -31,7 +31,8 @@ class Projection(EquationSolver):
         right-hand-side of the finite element variational problem. Should not
         depend on `x`.
 
-    Remaining arguments are passed to the :class:`.EquationSolver` constructor.
+    Remaining arguments are passed to the
+    :class:`tlm_adjoint.fenics.solve.EquationSolver` constructor.
     """
 
     def __init__(self, x, rhs, *args, **kwargs):
@@ -55,7 +56,7 @@ class LocalProjection(EquationSolver):
         depend on `x`.
 
     Remaining arguments are passed to the
-    :class:`tlm_adjoint.fenics.equations.EquationSolver` constructor.
+    :class:`tlm_adjoint.fenics.solve.EquationSolver` constructor.
     """
 
     def __init__(self, x, rhs, *,

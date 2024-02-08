@@ -7,7 +7,6 @@ from .backend import (
 from ..interface import (
     is_var, space_id, space_new, var_assign, var_comm, var_new, var_space,
     var_update_state)
-from .backend_code_generator_interface import linear_solver
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
@@ -15,12 +14,12 @@ from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
 from .assembly import Assembly
-from .equations import EquationSolver
 from .expr import extract_coefficients
 from .functions import Constant, define_var_alias
 from .interpolation import ExprInterpolation
 from .parameters import copy_parameters, process_form_compiler_parameters
 from .projection import Projection
+from .solve import EquationSolver, linear_solver
 
 import fenics
 import numbers
