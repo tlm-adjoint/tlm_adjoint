@@ -3,16 +3,13 @@
 variational problems.
 """
 
-from .backend import (
-    adjoint, backend_DirichletBC, has_lu_solver_method, parameters)
+from .backend import adjoint, backend_DirichletBC, parameters
 from ..interface import (
     check_space_type, is_var, var_assign, var_axpy, var_copy, var_id,
     var_is_scalar, var_new_conjugate_dual, var_replacement, var_scalar_value,
     var_update_caches, var_zero)
 from .backend_code_generator_interface import (
-    assemble, assemble_linear_solver, copy_parameters_dict,
-    form_compiler_quadrature_parameters, matrix_multiply, solve,
-    update_parameters_dict)
+    assemble, assemble_linear_solver, matrix_multiply, solve)
 
 from ..caches import CacheRef
 from ..equation import Equation, ZeroAssignment
@@ -20,6 +17,10 @@ from ..equation import Equation, ZeroAssignment
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
 from .functions import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients)
+from .parameters import (
+    form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
+    process_form_compiler_parameters, process_solver_parameters,
+    update_parameters)
 
 from collections import defaultdict
 try:
@@ -32,43 +33,6 @@ __all__ = \
         "Assembly",
         "EquationSolver"
     ]
-
-
-def process_form_compiler_parameters(form_compiler_parameters):
-    params = copy_parameters_dict(parameters["form_compiler"])
-    update_parameters_dict(params, form_compiler_parameters)
-    return params
-
-
-def process_solver_parameters(solver_parameters, *, linear):
-    solver_parameters = copy_parameters_dict(solver_parameters)
-
-    if linear:
-        linear_solver_parameters = solver_parameters
-    else:
-        nl_solver = solver_parameters.setdefault("nonlinear_solver", "newton")
-        if nl_solver == "newton":
-            linear_solver_parameters = solver_parameters.setdefault("newton_solver", {})  # noqa: E501
-        elif nl_solver == "snes":
-            linear_solver_parameters = solver_parameters.setdefault("snes_solver", {})  # noqa: E501
-        else:
-            raise ValueError(f"Unexpected non-linear solver: {nl_solver}")
-
-    linear_solver = linear_solver_parameters.setdefault("linear_solver", "default")  # noqa: E501
-    if linear_solver in {"default", "direct", "lu"} \
-            or has_lu_solver_method(linear_solver):
-        linear_solver_parameters.setdefault("lu_solver", {})
-        linear_solver_ic = False
-    else:
-        ks_parameters = linear_solver_parameters.setdefault("krylov_solver", {})  # noqa: E501
-        linear_solver_ic = ks_parameters.setdefault("nonzero_initial_guess", False)  # noqa: E501
-    ic = not linear or linear_solver_ic
-
-    return (solver_parameters, linear_solver_parameters, ic, linear_solver_ic)
-
-
-def process_adjoint_solver_parameters(linear_solver_parameters):
-    return copy_parameters_dict(linear_solver_parameters)
 
 
 def extract_derivative_coefficients(expr, dep):
@@ -177,7 +141,7 @@ class Assembly(ExprEquation):
         form_compiler_parameters = \
             process_form_compiler_parameters(form_compiler_parameters)
         if match_quadrature:
-            update_parameters_dict(
+            update_parameters(
                 form_compiler_parameters,
                 form_compiler_quadrature_parameters(rhs, form_compiler_parameters))  # noqa: E501
 
@@ -412,7 +376,7 @@ class EquationSolver(ExprEquation):
         form_compiler_parameters = \
             process_form_compiler_parameters(form_compiler_parameters)
         if match_quadrature:
-            update_parameters_dict(
+            update_parameters(
                 form_compiler_parameters,
                 form_compiler_quadrature_parameters(F, form_compiler_parameters))  # noqa: E501
 

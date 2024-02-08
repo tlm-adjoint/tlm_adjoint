@@ -8,9 +8,9 @@ from ..interface import (
     var_space_type)
 
 from .functions import eliminate_zeros
+from .parameters import update_parameters
 
 from collections.abc import Sequence
-import ffc
 import numpy as np
 try:
     import ufl_legacy as ufl
@@ -45,35 +45,6 @@ if "cache_rhs_assembly" not in _parameters["EquationSolver"]:
 if "match_quadrature" not in _parameters["EquationSolver"]:
     _parameters["EquationSolver"].add("match_quadrature", False)
 del _parameters
-
-
-def copy_parameters_dict(parameters):
-    if isinstance(parameters, Parameters):
-        parameters = dict(parameters)
-    new_parameters = {}
-    for key in parameters:
-        value = parameters[key]
-        if isinstance(value, (Parameters, dict)):
-            value = copy_parameters_dict(value)
-        elif isinstance(value, list):
-            value = list(value)
-        elif isinstance(value, set):
-            value = set(value)
-        new_parameters[key] = value
-    return new_parameters
-
-
-def update_parameters_dict(parameters, new_parameters):
-    for key in new_parameters:
-        value = new_parameters[key]
-        if key in parameters \
-           and isinstance(parameters[key], (Parameters, dict)) \
-           and isinstance(value, (Parameters, dict)):
-            update_parameters_dict(parameters[key], value)
-        elif isinstance(value, (Parameters, dict)):
-            parameters[key] = copy_parameters_dict(value)
-        else:
-            parameters[key] = value
 
 
 def assemble_matrix(form, bcs=None, *,
@@ -149,28 +120,14 @@ def linear_solver(A, linear_solver_parameters, *, comm=None):
         solver = LUSolver(comm, linear_solver)
         solver.set_operator(A)
         lu_parameters = linear_solver_parameters.get("lu_solver", {})
-        update_parameters_dict(solver.parameters, lu_parameters)
+        update_parameters(solver.parameters, lu_parameters)
     else:
         pc = linear_solver_parameters.get("preconditioner", "default")
         ks_parameters = linear_solver_parameters.get("krylov_solver", {})
         solver = KrylovSolver(comm, linear_solver, pc)
         solver.set_operator(A)
-        update_parameters_dict(solver.parameters, ks_parameters)
+        update_parameters(solver.parameters, ks_parameters)
     return solver
-
-
-def form_compiler_quadrature_parameters(form, form_compiler_parameters):
-    (form_data,), _, _, _ \
-        = ffc.analysis.analyze_forms((form,), form_compiler_parameters)
-    integral_metadata = tuple(integral_data.metadata
-                              for integral_data in form_data.integral_data)
-    qr = form_compiler_parameters.get("quadrature_rule", "auto")
-    if qr in {None, "auto"}:
-        qr = ffc.analysis._extract_common_quadrature_rule(integral_metadata)
-    qd = form_compiler_parameters.get("quadrature_degree", "auto")
-    if qd in {None, "auto", -1}:
-        qd = ffc.analysis._extract_common_quadrature_degree(integral_metadata)
-    return {"quadrature_rule": qr, "quadrature_degree": qd}
 
 
 def matrix_copy(A):

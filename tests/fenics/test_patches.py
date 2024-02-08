@@ -2,8 +2,8 @@ from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend import backend_assemble, backend_Constant
 from tlm_adjoint.fenics.backend_code_generator_interface import (
-    assemble as backend_code_generator_interface_assemble,
-    copy_parameters_dict)
+    assemble as backend_code_generator_interface_assemble)
+from tlm_adjoint.fenics.parameters import copy_parameters
 
 from .test_base import *
 
@@ -150,7 +150,7 @@ def project_LinearVariationalSolver(F, space, bc):
     eq = inner(trial, test) * dx == inner(F, test) * dx
     problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc)
     solver = LinearVariationalSolver(problem)
-    solver.parameters.update(copy_parameters_dict(ls_parameters_cg))
+    solver.parameters.update(copy_parameters(ls_parameters_cg))
     solver.solve()
 
     return G
@@ -167,7 +167,7 @@ def project_NonlinearVariationalSolver(F, space, bc):
     solver = NonlinearVariationalSolver(problem)
     solver.parameters["nonlinear_solver"] = "newton"
     solver.parameters["symmetric"] = True
-    solver.parameters["newton_solver"].update(copy_parameters_dict(ns_parameters_newton_cg))  # noqa: E501
+    solver.parameters["newton_solver"].update(copy_parameters(ns_parameters_newton_cg))  # noqa: E501
     solver.solve()
 
     return G

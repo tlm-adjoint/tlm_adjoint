@@ -3,12 +3,11 @@ from .backend import (
     NonlinearVariationalProblem, NonlinearVariationalSolver, Parameters,
     backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
     backend_Vector, backend_assemble, backend_project, backend_solve,
-    cpp_Assembler, cpp_SystemAssembler, parameters)
+    cpp_Assembler, cpp_SystemAssembler)
 from ..interface import (
     is_var, space_id, space_new, var_assign, var_comm, var_new, var_space,
     var_update_state)
-from .backend_code_generator_interface import (
-    copy_parameters_dict, linear_solver, update_parameters_dict)
+from .backend_code_generator_interface import linear_solver
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
@@ -18,6 +17,7 @@ from ..patch import (
 from .equations import Assembly, EquationSolver
 from .functions import Constant, define_var_alias, extract_coefficients
 from .interpolation import ExprInterpolation
+from .parameters import copy_parameters, process_form_compiler_parameters
 from .projection import Projection
 
 import fenics
@@ -147,9 +147,8 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
 
     if hasattr(form, "_tlm_adjoint__form") and \
             len(form._tlm_adjoint__form.arguments()) > 0:
-        form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-        update_parameters_dict(form_compiler_parameters,
-                               form._tlm_adjoint__form_compiler_parameters)
+        form_compiler_parameters = process_form_compiler_parameters(
+            form._tlm_adjoint__form_compiler_parameters)
 
         if self.add_values and hasattr(tensor, "_tlm_adjoint__form"):
             if len(tensor._tlm_adjoint__bcs) > 0:
@@ -224,9 +223,8 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
             and hasattr(_getattr(self, "b_form"), "_tlm_adjoint__form"):
         for tensor, form in ((A_tensor, _getattr(self, "A_form")),
                              (b_tensor, _getattr(self, "b_form"))):
-            form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-            update_parameters_dict(form_compiler_parameters,
-                                   form._tlm_adjoint__form_compiler_parameters)
+            form_compiler_parameters = process_form_compiler_parameters(
+                form._tlm_adjoint__form_compiler_parameters)
 
             if self.add_values and hasattr(tensor, "_tlm_adjoint__form"):
                 if len(tensor._tlm_adjoint__bcs) > 0:
@@ -767,7 +765,7 @@ def _project(v, V=None, bcs=None, mesh=None, function=None,
     solver_parameters_ = {"linear_solver": solver_type,
                           "preconditioner": preconditioner_type}
     if solver_parameters is not None:
-        solver_parameters_.update(copy_parameters_dict(solver_parameters))
+        solver_parameters_.update(copy_parameters(solver_parameters))
     solver_parameters = solver_parameters_
     del solver_parameters_
 
