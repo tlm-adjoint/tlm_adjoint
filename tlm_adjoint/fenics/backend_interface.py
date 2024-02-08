@@ -9,13 +9,15 @@ from ..interface import (
     subtract_adjoint_derivative_action_base, var_axpy, var_copy, var_linf_norm,
     var_lock_state, var_new, var_space, var_space_type)
 
+from ..caches import Caches
 from ..equations import Conversion
 from ..patch import patch_method
 
 from .equations import Assembly
+from .expr import Zero, new_count, r0_space
 from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    ReplacementZeroFunction, Zero, define_var_alias, new_count, r0_space)
+    ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
+    ReplacementZeroFunction, define_var_alias)
 
 import functools
 import numbers

@@ -10,6 +10,7 @@ from .backend_code_generator_interface import linear_solver  # noqa: E402,F401
 from .backend_interface import *   # noqa: E402,F401
 from .caches import *              # noqa: E402,F401
 from .equations import *           # noqa: E402,F401
+from .expr import *                # noqa: E402,F401
 from .functions import *           # noqa: E402,F401
 from .interpolation import *       # noqa: E402,F401
 from .parameters import *          # noqa: E402,F401
@@ -18,5 +19,5 @@ from .projection import *          # noqa: E402,F401
 from .backend_patches import *     # noqa: E402,F401
 
 del backend, backend_code_generator_interface, backend_interface, caches, \
-    equations, functions, interpolation, parameters, projection, \
+    equations, expr, functions, interpolation, parameters, projection, \
     backend_patches  # noqa: F821

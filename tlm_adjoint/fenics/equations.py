@@ -12,11 +12,12 @@ from .backend_code_generator_interface import (
     assemble, assemble_linear_solver, matrix_multiply, solve)
 
 from ..caches import CacheRef
-from ..equation import Equation, ZeroAssignment
+from ..equation import ZeroAssignment
 
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
-from .functions import (
-    derivative, eliminate_zeros, expr_zero, extract_coefficients)
+from .expr import (
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
+    extract_dependencies)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -33,66 +34,6 @@ __all__ = \
         "Assembly",
         "EquationSolver"
     ]
-
-
-def extract_derivative_coefficients(expr, dep):
-    dexpr = derivative(expr, dep, enable_automatic_argument=False)
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
-    return extract_coefficients(dexpr)
-
-
-def extract_dependencies(expr, *, space_type=None):
-    deps = {}
-    nl_deps = {}
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            deps.setdefault(var_id(dep), dep)
-            for nl_dep in extract_derivative_coefficients(expr, dep):
-                if is_var(nl_dep):
-                    nl_deps.setdefault(var_id(dep), dep)
-                    nl_deps.setdefault(var_id(nl_dep), nl_dep)
-
-    deps = {dep_id: deps[dep_id]
-            for dep_id in sorted(deps.keys())}
-    nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
-               for nl_dep_id in sorted(nl_deps.keys())}
-
-    assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
-    if space_type is not None:
-        for dep in deps.values():
-            check_space_type(dep, space_type)
-
-    return deps, nl_deps
-
-
-class ExprEquation(Equation):
-    def _replace_map(self, deps):
-        if deps is None:
-            return None
-        else:
-            eq_deps = self.dependencies()
-            assert len(eq_deps) == len(deps)
-            return {eq_dep: dep
-                    for eq_dep, dep in zip(eq_deps, deps)
-                    if isinstance(eq_dep, ufl.classes.Expr)}
-
-    def _replace(self, expr, deps):
-        if deps is None:
-            return expr
-        else:
-            replace_map = self._replace_map(deps)
-            return ufl.replace(expr, replace_map)
-
-    def _nonlinear_replace_map(self, nl_deps):
-        eq_nl_deps = self.nonlinear_dependencies()
-        assert len(eq_nl_deps) == len(nl_deps)
-        return {eq_nl_dep: nl_dep
-                for eq_nl_dep, nl_dep in zip(eq_nl_deps, nl_deps)
-                if isinstance(eq_nl_dep, ufl.classes.Expr)}
-
-    def _nonlinear_replace(self, expr, nl_deps):
-        replace_map = self._nonlinear_replace_map(nl_deps)
-        return ufl.replace(expr, replace_map)
 
 
 class Assembly(ExprEquation):

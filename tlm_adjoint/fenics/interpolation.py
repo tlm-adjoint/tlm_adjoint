@@ -15,10 +15,10 @@ from ..equations import MatrixActionRHS
 from ..linear_equation import LinearEquation, Matrix
 from ..manager import manager_disabled
 
-from .equations import ExprEquation, extract_dependencies
-from .functions import (
-    ReplacementConstant, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients)
+from .expr import (
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
+    extract_dependencies)
+from .functions import ReplacementConstant
 
 import functools
 import mpi4py.MPI as MPI

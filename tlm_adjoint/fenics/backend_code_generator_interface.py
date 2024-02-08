@@ -7,7 +7,7 @@ from ..interface import (
     DEFAULT_COMM, check_space_type, check_space_types, space_new,
     var_space_type)
 
-from .functions import eliminate_zeros
+from .expr import eliminate_zeros
 from .parameters import update_parameters
 
 from collections.abc import Sequence

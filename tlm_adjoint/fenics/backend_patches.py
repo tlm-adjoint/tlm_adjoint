@@ -15,7 +15,8 @@ from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
 from .equations import Assembly, EquationSolver
-from .functions import Constant, define_var_alias, extract_coefficients
+from .expr import extract_coefficients
+from .functions import Constant, define_var_alias
 from .interpolation import ExprInterpolation
 from .parameters import copy_parameters, process_form_compiler_parameters
 from .projection import Projection
