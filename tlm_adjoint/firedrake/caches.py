@@ -3,20 +3,23 @@ caching.
 """
 
 from .backend import (
-    TrialFunction, backend_DirichletBC, backend_Function, complex_mode)
+    Parameters, Tensor, TrialFunction, backend_assemble, backend_DirichletBC,
+    backend_Function, complex_mode)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
-    var_replacement, var_space, var_state)
-from .backend_code_generator_interface import (
-    assemble, assemble_matrix, linear_solver, matrix_copy, parameters_key)
+    var_replacement, var_space, var_state, weakref_method)
 
 from ..caches import Cache
 
-from .functions import (
-    ReplacementFunction, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients, form_cached, iter_expr, replaced_form)
+from .backend_interface import (
+    assemble, assemble_matrix, linear_solver, matrix_copy, matrix_multiply)
+from .expr import (
+    derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
+    iter_expr, replaced_form)
+from .variables import ReplacementFunction
 
 from collections import defaultdict
+from collections.abc import Sequence
 import itertools
 import ufl
 
@@ -29,6 +32,10 @@ __all__ = \
         "LinearSolverCache",
         "linear_solver_cache",
         "set_linear_solver_cache",
+
+        "LocalSolverCache",
+        "local_solver_cache",
+        "set_local_solver_cache"
     ]
 
 
@@ -339,6 +346,20 @@ def form_dependencies(*forms):
     return tuple(sorted(deps.values(), key=var_id))
 
 
+def parameters_key(parameters):
+    key = []
+    for name in sorted(parameters.keys()):
+        sub_parameters = parameters[name]
+        if isinstance(sub_parameters, (Parameters, dict)):
+            key.append((name, parameters_key(sub_parameters)))
+        elif isinstance(sub_parameters, Sequence) \
+                and not isinstance(sub_parameters, str):
+            key.append((name, tuple(sub_parameters)))
+        else:
+            key.append((name, sub_parameters))
+    return tuple(key)
+
+
 class AssemblyCache(Cache):
     """A :class:`.Cache` for finite element assembly data.
     """
@@ -480,6 +501,70 @@ class LinearSolverCache(Cache):
                         deps=form_dependencies(form, assemble_form))
 
 
+def LocalSolver(form, *,
+                form_compiler_parameters=None):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
+    form = eliminate_zeros(form)
+    if isinstance(form, ufl.classes.ZeroBaseForm):
+        raise ValueError("Form cannot be a ZeroBaseForm")
+    local_solver = backend_assemble(
+        Tensor(form).inv,
+        form_compiler_parameters=form_compiler_parameters)
+
+    def solve_local(self, x, b):
+        matrix_multiply(self, b, tensor=x)
+    local_solver._tlm_adjoint__solve_local = weakref_method(
+        solve_local, local_solver)
+
+    return local_solver
+
+
+class LocalSolverCache(Cache):
+    """A :class:`.Cache` for element-wise local block diagonal linear solver
+    data.
+    """
+
+    def local_solver(self, form, *,
+                     form_compiler_parameters=None, replace_map=None):
+        """Compute data for an element-wise local block diagonal linear
+        solver and cache the result, or return a previously cached result.
+
+        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
+            local block diagonal matrix.
+        :arg form_compiler_parameters: Form compiler parameters.
+        :arg replace_map: A :class:`Mapping` defining a map from symbolic
+            variables to values.
+        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
+            :class:`firedrake.matrix.Matrix` storing the assembled inverse
+            matrix, and `value_ref` is a :class:`.CacheRef` storing a reference
+            to `value`.
+        """
+
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+
+        form = eliminate_zeros(form)
+        if isinstance(form, ufl.classes.ZeroBaseForm):
+            raise ValueError("Form cannot be a ZeroBaseForm")
+        if replace_map is None:
+            assemble_form = form
+        else:
+            assemble_form = ufl.replace(form, replace_map)
+
+        key = (form_key(form, assemble_form),
+               parameters_key(form_compiler_parameters))
+
+        def value():
+            return LocalSolver(
+                assemble_form,
+                form_compiler_parameters=form_compiler_parameters)
+
+        return self.add(key, value,
+                        deps=form_dependencies(form, assemble_form))
+
+
 _assembly_cache = AssemblyCache()
 
 
@@ -520,3 +605,24 @@ def set_linear_solver_cache(linear_solver_cache):
 
     global _linear_solver_cache
     _linear_solver_cache = linear_solver_cache
+
+
+_local_solver_cache = LocalSolverCache()
+
+
+def local_solver_cache():
+    """
+    :returns: The default :class:`.LocalSolverCache`.
+    """
+
+    return _local_solver_cache
+
+
+def set_local_solver_cache(local_solver_cache):
+    """Set the default :class:`.LocalSolverCache`.
+
+    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
+    """
+
+    global _local_solver_cache
+    _local_solver_cache = local_solver_cache

@@ -1,24 +1,34 @@
 from .backend import (
     Form, KrylovSolver, LUSolver, LinearVariationalSolver,
-    NonlinearVariationalProblem, NonlinearVariationalSolver, Parameters,
-    backend_Constant, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_Vector, backend_assemble, backend_project, backend_solve,
-    cpp_Assembler, cpp_SystemAssembler, parameters)
+    NonlinearVariationalProblem, NonlinearVariationalSolver, as_backend_type,
+    backend_Constant, backend_DirichletBC, backend_Function,
+    backend_FunctionSpace, backend_Matrix, backend_ScalarType, backend_Vector,
+    backend_assemble, backend_project, backend_solve, cpp_Assembler,
+    cpp_PETScVector, cpp_SystemAssembler)
 from ..interface import (
-    is_var, space_id, space_new, var_assign, var_comm, var_new, var_space,
-    var_update_state)
-from .backend_code_generator_interface import (
-    copy_parameters_dict, linear_solver, update_parameters_dict)
+    DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var,
+    new_space_id, new_var_id, space_id, space_new, var_assign, var_comm,
+    var_new, var_space, var_update_state)
 
 from ..equations import Assignment
 from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
-from .equations import Assembly, EquationSolver, ExprInterpolation, Projection
-from .functions import Constant, define_var_alias, extract_coefficients
+from .assembly import Assembly
+from .backend_interface import linear_solver
+from .expr import extract_coefficients, new_count
+from .interpolation import ExprInterpolation
+from .parameters import (
+    copy_parameters, parameters_equal, process_form_compiler_parameters)
+from .projection import Projection
+from .solve import EquationSolver
+from .variables import (
+    Constant, ConstantInterface, ConstantSpaceInterface, FunctionInterface,
+    FunctionSpaceInterface, define_var_alias)
 
 import fenics
+import functools
 import numbers
 try:
     import ufl_legacy as ufl
@@ -33,25 +43,6 @@ __all__ = \
         "project",
         "solve"
     ]
-
-
-def parameters_dict_equal(parameters_a, parameters_b):
-    for key_a in parameters_a:
-        if key_a not in parameters_b:
-            return False
-        value_a = parameters_a[key_a]
-        value_b = parameters_b[key_a]
-        if isinstance(value_a, (Parameters, dict)):
-            if not isinstance(value_b, (Parameters, dict)):
-                return False
-            elif not parameters_dict_equal(value_a, value_b):
-                return False
-        elif value_a != value_b:
-            return False
-    for key_b in parameters_b:
-        if key_b not in parameters_a:
-            return False
-    return True
 
 
 def expr_new_x(expr, x):
@@ -145,15 +136,14 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
 
     if hasattr(form, "_tlm_adjoint__form") and \
             len(form._tlm_adjoint__form.arguments()) > 0:
-        form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-        update_parameters_dict(form_compiler_parameters,
-                               form._tlm_adjoint__form_compiler_parameters)
+        form_compiler_parameters = process_form_compiler_parameters(
+            form._tlm_adjoint__form_compiler_parameters)
 
         if self.add_values and hasattr(tensor, "_tlm_adjoint__form"):
             if len(tensor._tlm_adjoint__bcs) > 0:
                 warnings.warn("Unexpected boundary conditions",
                               RuntimeWarning)
-            if not parameters_dict_equal(
+            if not parameters_equal(
                     tensor._tlm_adjoint_form_compiler_parameters,
                     form_compiler_parameters):
                 warnings.warn("Unexpected form compiler parameters",
@@ -222,15 +212,14 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
             and hasattr(_getattr(self, "b_form"), "_tlm_adjoint__form"):
         for tensor, form in ((A_tensor, _getattr(self, "A_form")),
                              (b_tensor, _getattr(self, "b_form"))):
-            form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-            update_parameters_dict(form_compiler_parameters,
-                                   form._tlm_adjoint__form_compiler_parameters)
+            form_compiler_parameters = process_form_compiler_parameters(
+                form._tlm_adjoint__form_compiler_parameters)
 
             if self.add_values and hasattr(tensor, "_tlm_adjoint__form"):
                 if len(tensor._tlm_adjoint__bcs) > 0:
                     warnings.warn("Unexpected boundary conditions",
                                   RuntimeWarning)
-                if not parameters_dict_equal(
+                if not parameters_equal(
                         tensor._tlm_adjoint__form_compiler_parameters,
                         form_compiler_parameters):
                     warnings.warn("Unexpected form compiler parameters",
@@ -324,10 +313,34 @@ def Constant_init_assign(self, value):
         eq._post_process()
 
 
-@manager_method(backend_Constant, "__init__")
-def backend_Constant__init__(self, orig, orig_args, value, *args, **kwargs):
-    orig_args()
-    Constant_init_assign(self, value)
+@patch_method(backend_Constant, "__init__")
+def backend_Constant__init__(self, orig, orig_args, value, *args,
+                             domain=None, space=None, comm=None, **kwargs):
+    if domain is not None and hasattr(domain, "ufl_domain"):
+        domain = domain.ufl_domain()
+    if comm is None:
+        if domain is None:
+            comm = DEFAULT_COMM
+        else:
+            comm = domain.ufl_cargo().mpi_comm()
+    comm = comm_parent(comm)
+
+    orig(self, value, *args, **kwargs)
+
+    if space is None:
+        space = self.ufl_function_space()
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm_dup_cached(comm), "domain": domain,
+                       "dtype": backend_ScalarType, "id": new_space_id()})
+    add_interface(self, ConstantInterface,
+                  {"id": new_var_id(), "name": lambda x: x.name(),
+                   "state": [0], "space": space,
+                   "space_type": "primal", "dtype": self.values().dtype.type,
+                   "static": False, "cache": False,
+                   "replacement_count": new_count()})
+
+    if annotation_enabled() or tlm_enabled():
+        Constant_init_assign(self, value)
 
 
 # Patch the subclass constructor separately so that all variable attributes are
@@ -365,6 +378,56 @@ def Constant_assign(self, orig, orig_args, x):
     if eq is not None:
         eq._post_process()
     return return_value
+
+
+_FunctionSpace_add_interface = True
+
+
+def FunctionSpace_add_interface_disabled(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(*args, **kwargs):
+        global _FunctionSpace_add_interface
+        add_interface = _FunctionSpace_add_interface
+        _FunctionSpace_add_interface = False
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _FunctionSpace_add_interface = add_interface
+    return wrapped_fn
+
+
+@patch_method(backend_FunctionSpace, "__init__")
+def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    if _FunctionSpace_add_interface:
+        add_interface(self, FunctionSpaceInterface,
+                      {"comm": comm_dup_cached(self.mesh().mpi_comm()),
+                       "id": new_space_id()})
+
+
+@patch_method(backend_Function, "__init__")
+@FunctionSpace_add_interface_disabled
+def Function__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    # Creates a reference to the vector so that unexpected changes can be
+    # detected
+    self.vector()
+
+    if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
+        raise RuntimeError("PETSc backend required")
+
+    space = self.function_space()
+    add_interface(self, FunctionInterface,
+                  {"id": new_var_id(), "state": [0], "space": space,
+                   "space_type": "primal", "static": False, "cache": False,
+                   "replacement_count": new_count()})
+
+    if isinstance(args[0], backend_FunctionSpace) and args[0].id() == space.id():  # noqa: E501
+        id = space_id(args[0])
+    else:
+        id = new_space_id()
+    add_interface(space, FunctionSpaceInterface,
+                  {"comm": comm_dup_cached(space.mesh().mpi_comm()), "id": id})
 
 
 @manager_method(backend_Function, "assign", patch_without_manager=True,
@@ -416,6 +479,14 @@ def Function_copy(self, orig, orig_args, deepcopy=False):
     return F
 
 
+@patch_method(backend_Function, "function_space")
+def Function_function_space(self, orig, orig_args):
+    if is_var(self):
+        return var_space(self)
+    else:
+        return orig_args()
+
+
 @manager_method(backend_Function, "interpolate",
                 post_call=var_update_state_post_call)
 def Function_interpolate(self, orig, orig_args, u):
@@ -430,6 +501,15 @@ def Function_interpolate(self, orig, orig_args, u):
     if eq is not None:
         eq._post_process()
     return return_value
+
+
+@patch_method(backend_Function, "split")
+def Function_split(self, orig, orig_args, deepcopy=False):
+    Y = orig_args()
+    if not deepcopy:
+        for i, y in enumerate(Y):
+            define_var_alias(y, self, key=("split", i))
+    return Y
 
 
 @patch_method(backend_Function, "vector")
@@ -535,7 +615,7 @@ def LUSolver_solve(self, orig, orig_args, *args):
     if bcs != b._tlm_adjoint__bcs:
         raise ValueError("Non-matching boundary conditions")
     form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
+    if not parameters_equal(
             b._tlm_adjoint__form_compiler_parameters,
             form_compiler_parameters):
         raise ValueError("Non-matching form compiler parameters")
@@ -618,7 +698,7 @@ def KrylovSolver_solve(self, orig, orig_args, *args):
     if bcs != b._tlm_adjoint__bcs:
         raise ValueError("Non-matching boundary conditions")
     form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
+    if not parameters_equal(
             b._tlm_adjoint__form_compiler_parameters,
             form_compiler_parameters):
         raise ValueError("Non-matching form compiler parameters")
@@ -765,7 +845,7 @@ def _project(v, V=None, bcs=None, mesh=None, function=None,
     solver_parameters_ = {"linear_solver": solver_type,
                           "preconditioner": preconditioner_type}
     if solver_parameters is not None:
-        solver_parameters_.update(copy_parameters_dict(solver_parameters))
+        solver_parameters_.update(copy_parameters(solver_parameters))
     solver_parameters = solver_parameters_
     del solver_parameters_
 

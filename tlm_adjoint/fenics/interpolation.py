@@ -1,22 +1,24 @@
-"""This module includes additional functionality for use with FEniCS.
+"""Interpolation operations with FEniCS.
 """
 
 from .backend import (
-    Cell, LocalSolver, Mesh, MeshEditor, Point, TestFunction, TrialFunction,
+    Cell, Mesh, MeshEditor, Point, UserExpression, backend_Constant,
     backend_Function, backend_ScalarType, parameters)
 from ..interface import (
     check_space_type, is_var, space_comm, var_assign, var_comm, var_get_values,
-    var_is_scalar, var_local_size, var_new, var_new_conjugate_dual,
-    var_scalar_value, var_set_values, var_update_caches)
+    var_id, var_inner, var_is_scalar, var_local_size, var_new,
+    var_new_conjugate_dual, var_replacement, var_scalar_value, var_set_values,
+    var_space)
 
-from ..caches import Cache
 from ..equation import Equation, ZeroAssignment
 from ..equations import MatrixActionRHS
 from ..linear_equation import LinearEquation, Matrix
+from ..manager import manager_disabled
 
-from .caches import form_dependencies, form_key
-from .equations import EquationSolver
-from .functions import eliminate_zeros
+from .expr import (
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
+    extract_dependencies)
+from .variables import ReplacementConstant
 
 import functools
 import mpi4py.MPI as MPI
@@ -28,14 +30,147 @@ except ImportError:
 
 __all__ = \
     [
-        "LocalSolverCache",
-        "local_solver_cache",
-        "set_local_solver_cache",
-
+        "ExprInterpolation",
         "Interpolation",
-        "LocalProjection",
         "PointInterpolation"
     ]
+
+
+@manager_disabled()
+def interpolate_expression(x, expr, *, adj_x=None):
+    if adj_x is None:
+        check_space_type(x, "primal")
+    else:
+        check_space_type(x, "conjugate_dual")
+        check_space_type(adj_x, "conjugate_dual")
+    for dep in extract_coefficients(expr):
+        if is_var(dep):
+            check_space_type(dep, "primal")
+
+    expr = eliminate_zeros(expr)
+
+    class Expr(UserExpression):
+        def eval(self, value, x):
+            value[:] = expr(tuple(x))
+
+        def value_shape(self):
+            return x.ufl_shape
+
+    if adj_x is None:
+        if isinstance(x, backend_Constant):
+            if isinstance(expr, backend_Constant):
+                value = expr
+            else:
+                if len(x.ufl_shape) > 0:
+                    raise ValueError("Scalar Constant required")
+                value = x.values()
+                Expr().eval(value, ())
+                value, = value
+            var_assign(x, value)
+        elif isinstance(x, backend_Function):
+            try:
+                x.assign(expr)
+            except RuntimeError:
+                x.interpolate(Expr())
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+    else:
+        expr_val = var_new_conjugate_dual(adj_x)
+        expr_arguments = ufl.algorithms.extract_arguments(expr)
+        if len(expr_arguments) > 0:
+            test, = expr_arguments
+            if len(test.ufl_shape) > 0:
+                raise NotImplementedError("Case not implemented")
+            expr = ufl.replace(expr, {test: ufl.classes.IntValue(1)})
+        interpolate_expression(expr_val, expr)
+
+        if isinstance(x, backend_Constant):
+            if len(x.ufl_shape) > 0:
+                raise ValueError("Scalar Constant required")
+            var_assign(x, var_inner(adj_x, expr_val))
+        elif isinstance(x, backend_Function):
+            x_space = var_space(x)
+            adj_x_space = var_space(adj_x)
+            if x_space.ufl_domains() != adj_x_space.ufl_domains() \
+                    or x_space.ufl_element() != adj_x_space.ufl_element():
+                raise ValueError("Unable to perform transpose interpolation")
+            var_set_values(
+                x, var_get_values(expr_val).conjugate() * var_get_values(adj_x))  # noqa: E501
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+
+
+class ExprInterpolation(ExprEquation):
+    r"""Represents interpolation of `rhs` onto the space for `x`.
+
+    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
+    \mathcal{F} / \partial x` is the identity.
+
+    :arg x: The forward solution.
+    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
+        interpolate onto the space for `x`. Should not depend on `x`.
+    """
+
+    def __init__(self, x, rhs):
+        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
+        if var_id(x) in deps:
+            raise ValueError("Invalid dependency")
+        deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
+        deps.insert(0, x)
+
+        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
+        self._rhs = rhs
+
+    def drop_references(self):
+        replace_map = {dep: var_replacement(dep)
+                       for dep in self.dependencies()}
+
+        super().drop_references()
+        self._rhs = ufl.replace(self._rhs, replace_map)
+
+    def forward_solve(self, x, deps=None):
+        interpolate_expression(x, self._replace(self._rhs, deps))
+
+    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
+        eq_deps = self.dependencies()
+        if dep_index <= 0 or dep_index >= len(eq_deps):
+            raise ValueError("Unexpected dep_index")
+
+        dep = eq_deps[dep_index]
+
+        if isinstance(dep, (backend_Constant, ReplacementConstant)):
+            if len(dep.ufl_shape) > 0:
+                raise NotImplementedError("Case not implemented")
+            dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
+        else:
+            dF = derivative(self._rhs, dep)
+        dF = ufl.algorithms.expand_derivatives(dF)
+        dF = eliminate_zeros(dF)
+        dF = self._nonlinear_replace(dF, nl_deps)
+
+        F = var_new_conjugate_dual(dep)
+        interpolate_expression(F, dF, adj_x=adj_x)
+        return (-1.0, F)
+
+    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
+        return b
+
+    def tangent_linear(self, M, dM, tlm_map):
+        x = self.x()
+
+        tlm_rhs = expr_zero(x)
+        for dep in self.dependencies():
+            if dep != x:
+                tau_dep = tlm_map[dep]
+                if tau_dep is not None:
+                    tlm_rhs = (tlm_rhs
+                               + derivative(self._rhs, dep, argument=tau_dep))
+
+        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
+        if isinstance(tlm_rhs, ufl.classes.Zero):
+            return ZeroAssignment(tlm_map[x])
+        else:
+            return ExprInterpolation(tlm_map[x], tlm_rhs)
 
 
 def function_coords(x):
@@ -189,180 +324,6 @@ def greedy_coloring(space):
         raise RuntimeError("Invalid graph coloring")
 
     return colors
-
-
-class LocalSolverCache(Cache):
-    """A :class:`.Cache` for element-wise local block diagonal linear solvers.
-    """
-
-    def local_solver(self, form, solver_type=None, *,
-                     replace_map=None):
-        """Construct an element-wise local block diagonal linear solver and
-        cache the result, or return a previously cached result.
-
-        :arg form: An arity two :class:`ufl.Form`, defining the element-wise
-            local block diagonal matrix.
-        :arg local_solver: `dolfin.LocalSolver.SolverType`. Defaults to
-            `dolfin.LocalSolver.SolverType.LU`.
-        :arg replace_map: A :class:`Mapping` defining a map from symbolic
-            variables to values.
-        :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
-            DOLFIN `LocalSolver` and `value_ref` is a :class:`.CacheRef`
-            storing a reference to `value`.
-        """
-
-        if solver_type is None:
-            solver_type = LocalSolver.SolverType.LU
-
-        form = eliminate_zeros(form)
-        if form.empty():
-            raise ValueError("Form cannot be empty")
-        if replace_map is None:
-            assemble_form = form
-        else:
-            assemble_form = ufl.replace(form, replace_map)
-
-        key = (form_key(form, assemble_form),
-               solver_type)
-
-        def value():
-            local_solver = LocalSolver(assemble_form, solver_type=solver_type)
-            local_solver.factorize()
-            return local_solver
-
-        return self.add(key, value,
-                        deps=form_dependencies(form, assemble_form))
-
-
-_local_solver_cache = LocalSolverCache()
-
-
-def local_solver_cache():
-    """
-    :returns: The default :class:`.LocalSolverCache`.
-    """
-
-    return _local_solver_cache
-
-
-def set_local_solver_cache(local_solver_cache):
-    """Set the default :class:`.LocalSolverCache`.
-
-    :arg local_solver_cache: The new default :class:`.LocalSolverCache`.
-    """
-
-    global _local_solver_cache
-    _local_solver_cache = local_solver_cache
-
-
-class LocalProjection(EquationSolver):
-    """Represents the solution of a finite element variational problem
-    performing a projection onto the space for `x`, for the case where the mass
-    matrix is element-wise local block diagonal.
-
-    :arg x: A DOLFIN `Function` defining the forward solution.
-    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.Form` defining the
-        right-hand-side of the finite element variational problem. Should not
-        depend on `x`.
-
-    Remaining arguments are passed to the
-    :class:`tlm_adjoint.fenics.equations.EquationSolver` constructor.
-    """
-
-    def __init__(self, x, rhs, *,
-                 form_compiler_parameters=None, cache_jacobian=None,
-                 cache_rhs_assembly=None, match_quadrature=None):
-        if form_compiler_parameters is None:
-            form_compiler_parameters = {}
-
-        space = x.function_space()
-        test, trial = TestFunction(space), TrialFunction(space)
-        lhs = ufl.inner(trial, test) * ufl.dx
-        if not isinstance(rhs, ufl.classes.Form):
-            rhs = ufl.inner(rhs, test) * ufl.dx
-
-        super().__init__(
-            lhs == rhs, x,
-            form_compiler_parameters=form_compiler_parameters,
-            solver_parameters={"linear_solver": "direct"},
-            cache_jacobian=cache_jacobian,
-            cache_rhs_assembly=cache_rhs_assembly,
-            match_quadrature=match_quadrature)
-        self._local_solver_type = LocalSolver.SolverType.Cholesky
-
-    def _local_solver(self, *args, cache_key=None, **kwargs):
-        if cache_key is None:
-            return self._assemble_local_solver(*args, **kwargs)
-        else:
-            return self._assemble_local_solver_cached(
-                cache_key, *args, **kwargs)
-
-    def _assemble_local_solver(self, form, *,
-                               eq_deps, deps):
-        if deps is not None:
-            assert len(eq_deps) == len(deps)
-            form = ufl.replace(form, dict(zip(eq_deps, deps)))
-
-        return LocalSolver(
-            form, solver_type=self._local_solver_type)
-
-    def _assemble_local_solver_cached(self, key, form, *,
-                                      eq_deps, deps):
-        if deps is not None:
-            assert len(eq_deps) == len(deps)
-            replace_map = dict(zip(eq_deps, deps))
-        else:
-            replace_map = None
-
-        var_update_caches(*eq_deps, value=deps)
-        value = self._solver_cache[key]()
-        if value is None:
-            self._solver_cache[key], value = \
-                local_solver_cache().local_solver(
-                    form, self._local_solver_type,
-                    replace_map=replace_map)
-        return value
-
-    def forward_solve(self, x, deps=None):
-        eq_deps = self.dependencies()
-
-        assert self._linear
-        assert len(self._hbcs) == 0
-        x_0, b = self._assemble_rhs(x, (), deps=deps)
-        assert x_0 is x
-
-        J_solver = self._local_solver(
-            self._J, eq_deps=eq_deps, deps=deps,
-            cache_key="J_solver_local" if self._cache_jacobian else None)
-
-        J_solver.solve_local(x.vector(), b, x.function_space().dofmap())
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        adj_x = self.new_adj_x()
-        eq_nl_deps = self.nonlinear_dependencies()
-
-        assert len(self._hbcs) == 0
-        J_solver = self._local_solver(
-            self._J, eq_deps=eq_nl_deps, deps=nl_deps,
-            cache_key="J_solver_local" if self._cache_jacobian else None)
-
-        J_solver.solve_local(adj_x.vector(), b.vector(),
-                             adj_x.function_space().dofmap())
-        return adj_x
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x = self.x()
-        tlm_rhs = self._tangent_linear_rhs(tlm_map)
-        assert len(self._hbcs) == 0
-        if tlm_rhs.empty():
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return LocalProjection(
-                tlm_map[x], tlm_rhs,
-                form_compiler_parameters=self._form_compiler_parameters,
-                cache_jacobian=self._cache_jacobian,
-                cache_rhs_assembly=self._cache_rhs_assembly)
 
 
 def point_owners(x_coords, y_space, *,

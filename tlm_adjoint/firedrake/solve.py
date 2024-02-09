@@ -1,320 +1,32 @@
-"""This module implements finite element calculations. In particular the
-:class:`.EquationSolver` class implements the solution of finite element
-variational problems.
+"""Finite element variational problem solution operations with Firedrake.
 """
 
-from .backend import (
-    TestFunction, TrialFunction, adjoint, backend_Constant,
-    backend_DirichletBC, complex_mode, parameters)
+from .backend import adjoint, backend_DirichletBC, parameters
 from ..interface import (
-    check_space_type, is_var, var_assign, var_axpy, var_copy, var_id,
-    var_is_scalar, var_new, var_new_conjugate_dual, var_replacement,
-    var_scalar_value, var_space, var_update_caches, var_zero)
-from .backend_code_generator_interface import (
-    assemble, assemble_linear_solver, copy_parameters_dict,
-    form_compiler_quadrature_parameters, interpolate_expression,
-    matrix_multiply, solve, update_parameters_dict)
+    check_space_type, is_var, var_axpy, var_copy, var_id, var_new,
+    var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
 
 from ..caches import CacheRef
-from ..equation import Equation, ZeroAssignment
+from ..equation import ZeroAssignment
 
+from .backend_interface import (
+    assemble, assemble_linear_solver, matrix_multiply, solve)
 from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
-from .functions import (
-    ReplacementConstant, derivative, eliminate_zeros, expr_zero,
-    extract_coefficients, iter_expr)
+from .expr import (
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
+    extract_dependencies, iter_expr)
+from .parameters import (
+    form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
+    process_form_compiler_parameters, process_solver_parameters,
+    update_parameters)
 
 from collections import defaultdict
 import ufl
 
 __all__ = \
     [
-        "Assembly",
-        "DirichletBCApplication",
-        "EquationSolver",
-        "ExprInterpolation",
-        "Projection"
+        "EquationSolver"
     ]
-
-
-def process_form_compiler_parameters(form_compiler_parameters):
-    params = copy_parameters_dict(parameters["form_compiler"])
-    update_parameters_dict(params, form_compiler_parameters)
-    return params
-
-
-def process_solver_parameters(solver_parameters, *, linear):
-    solver_parameters = copy_parameters_dict(solver_parameters)
-
-    tlm_adjoint_parameters = solver_parameters.setdefault("tlm_adjoint", {})
-    tlm_adjoint_parameters.setdefault("options_prefix", None)
-    tlm_adjoint_parameters.setdefault("nullspace", None)
-    tlm_adjoint_parameters.setdefault("transpose_nullspace", None)
-    tlm_adjoint_parameters.setdefault("near_nullspace", None)
-
-    linear_solver_ic = solver_parameters.setdefault("ksp_initial_guess_nonzero", False)  # noqa: E501
-    ic = not linear or linear_solver_ic
-
-    return (solver_parameters, solver_parameters, ic, linear_solver_ic)
-
-
-def process_adjoint_solver_parameters(linear_solver_parameters):
-    tlm_adjoint_parameters = linear_solver_parameters.get("tlm_adjoint", {})
-    nullspace = tlm_adjoint_parameters.get("nullspace", None)
-    transpose_nullspace = tlm_adjoint_parameters.get("transpose_nullspace", None)  # noqa: E501
-
-    adjoint_solver_parameters = copy_parameters_dict(linear_solver_parameters)
-    adjoint_tlm_adjoint_parameters = adjoint_solver_parameters.setdefault("tlm_adjoint", {})  # noqa: E501
-    adjoint_tlm_adjoint_parameters["nullspace"] = transpose_nullspace
-    adjoint_tlm_adjoint_parameters["transpose_nullspace"] = nullspace
-
-    return adjoint_solver_parameters
-
-
-def extract_derivative_coefficients(expr, dep):
-    dexpr = derivative(expr, dep, enable_automatic_argument=False)
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
-    return extract_coefficients(dexpr)
-
-
-def extract_dependencies(expr, *, space_type=None):
-    deps = {}
-    nl_deps = {}
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            deps.setdefault(var_id(dep), dep)
-            for nl_dep in extract_derivative_coefficients(expr, dep):
-                if is_var(nl_dep):
-                    nl_deps.setdefault(var_id(dep), dep)
-                    nl_deps.setdefault(var_id(nl_dep), nl_dep)
-
-    deps = {dep_id: deps[dep_id]
-            for dep_id in sorted(deps.keys())}
-    nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
-               for nl_dep_id in sorted(nl_deps.keys())}
-
-    assert len(set(nl_deps.keys()).difference(set(deps.keys()))) == 0
-    if space_type is not None:
-        for dep in deps.values():
-            check_space_type(dep, space_type)
-
-    return deps, nl_deps
-
-
-class ExprEquation(Equation):
-    def _replace_map(self, deps):
-        if deps is None:
-            return None
-        else:
-            eq_deps = self.dependencies()
-            assert len(eq_deps) == len(deps)
-            return {eq_dep: dep
-                    for eq_dep, dep in zip(eq_deps, deps)
-                    if isinstance(eq_dep, (ufl.classes.Expr,
-                                           ufl.classes.Cofunction))}
-
-    def _replace(self, expr, deps):
-        if deps is None:
-            return expr
-        else:
-            replace_map = self._replace_map(deps)
-            return ufl.replace(expr, replace_map)
-
-    def _nonlinear_replace_map(self, nl_deps):
-        eq_nl_deps = self.nonlinear_dependencies()
-        assert len(eq_nl_deps) == len(nl_deps)
-        return {eq_nl_dep: nl_dep
-                for eq_nl_dep, nl_dep in zip(eq_nl_deps, nl_deps)
-                if isinstance(eq_nl_dep, (ufl.classes.Expr,
-                                          ufl.classes.Cofunction))}
-
-    def _nonlinear_replace(self, expr, nl_deps):
-        replace_map = self._nonlinear_replace_map(nl_deps)
-        return ufl.replace(expr, replace_map)
-
-
-class Assembly(ExprEquation):
-    r"""Represents assignment to the result of finite element assembly:
-
-    .. code-block:: python
-
-        x = assemble(rhs)
-
-    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
-    \mathcal{F} / \partial x` is the identity.
-
-    :arg x: A variable defining the forward solution.
-    :arg rhs: A :class:`ufl.form.BaseForm`` to assemble. Should have arity 0 or
-        1, and should not depend on `x`.
-    :arg form_compiler_parameters: Form compiler parameters.
-    :arg match_quadrature: Whether to set quadrature parameters consistently in
-        the forward, adjoint, and tangent-linears. Defaults to
-        `parameters['tlm_adjoint']['Assembly']['match_quadrature']`.
-    """
-
-    def __init__(self, x, rhs, *,
-                 form_compiler_parameters=None, match_quadrature=None):
-        if form_compiler_parameters is None:
-            form_compiler_parameters = {}
-        if match_quadrature is None:
-            match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
-
-        for weight, _ in iter_expr(rhs):
-            if len(tuple(c for c in extract_coefficients(weight)
-                         if is_var(c))) > 0:
-                # See Firedrake issue #3292
-                raise NotImplementedError("FormSum weights cannot depend on "
-                                          "variables")
-
-        arity = len(rhs.arguments())
-        if arity == 0:
-            check_space_type(x, "primal")
-            if not var_is_scalar(x):
-                raise ValueError("Arity 0 forms can only be assigned to "
-                                 "scalar variables")
-        elif arity == 1:
-            check_space_type(x, "conjugate_dual")
-        else:
-            raise ValueError("Must be an arity 0 or arity 1 form")
-
-        deps, nl_deps = extract_dependencies(rhs)
-        if var_id(x) in deps:
-            raise ValueError("Invalid dependency")
-        deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        deps.insert(0, x)
-
-        form_compiler_parameters = \
-            process_form_compiler_parameters(form_compiler_parameters)
-        if match_quadrature:
-            update_parameters_dict(
-                form_compiler_parameters,
-                form_compiler_quadrature_parameters(rhs, form_compiler_parameters))  # noqa: E501
-
-        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
-        self._rhs = rhs
-        self._form_compiler_parameters = form_compiler_parameters
-        self._arity = arity
-
-    def drop_references(self):
-        replace_map = {dep: var_replacement(dep)
-                       for dep in self.dependencies()
-                       if isinstance(dep, (ufl.classes.Expr,
-                                           ufl.classes.Cofunction))}
-
-        super().drop_references()
-        self._rhs = ufl.replace(self._rhs, replace_map)
-
-    def forward_solve(self, x, deps=None):
-        rhs = self._replace(self._rhs, deps)
-
-        if self._arity == 0:
-            var_assign(
-                x,
-                assemble(rhs, form_compiler_parameters=self._form_compiler_parameters))  # noqa: E501
-        elif self._arity == 1:
-            assemble(
-                rhs, form_compiler_parameters=self._form_compiler_parameters,
-                tensor=x)
-        else:
-            raise ValueError("Must be an arity 0 or arity 1 form")
-
-    def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
-        eq_deps = self.dependencies()
-        if self._arity == 0:
-            for dep_index, dep_B in dep_Bs.items():
-                if dep_index <= 0 or dep_index >= len(eq_deps):
-                    raise ValueError("Unexpected dep_index")
-                dep = eq_deps[dep_index]
-
-                for weight, comp in iter_expr(self._rhs):
-                    if isinstance(comp, ufl.classes.Form):
-                        dF = derivative(weight * comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
-                            dF = ufl.classes.Form(
-                                [integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                                 for integral in dF.integrals()])
-                            dF = self._nonlinear_replace(dF, nl_deps)
-                            dF = assemble(
-                                dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
-                            dep_B.sub((-var_scalar_value(adj_x), dF))
-                    elif isinstance(comp, ufl.classes.Action):
-                        if complex_mode:
-                            # See Firedrake issue #3346
-                            raise NotImplementedError("Complex case not "
-                                                      "implemented")
-                        dF = derivative(weight * comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        for dF_weight, dF_comp in iter_expr(dF, evaluate_weights=True):  # noqa: E501
-                            dF_comp = self._nonlinear_replace(dF_comp, nl_deps)
-                            dF_comp = var_new_conjugate_dual(dep).assign(dF_comp)  # noqa: E501
-                            dep_B.sub((-var_scalar_value(adj_x) * dF_weight.conjugate(), dF_comp))  # noqa: E501
-                    else:
-                        raise TypeError(f"Unexpected type: {type(comp)}")
-        elif self._arity == 1:
-            for dep_index, dep_B in dep_Bs.items():
-                if dep_index <= 0 or dep_index >= len(eq_deps):
-                    raise ValueError("Unexpected dep_index")
-                dep = eq_deps[dep_index]
-
-                # Note: Ignores weight dependencies
-                for weight, comp in iter_expr(self._rhs,
-                                              evaluate_weights=True):
-                    if isinstance(comp, ufl.classes.Form):
-                        dF = derivative(comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
-                            dF = adjoint(dF)
-                            dF = ufl.action(dF, coefficient=adj_x)
-                            dF = self._nonlinear_replace(dF, nl_deps)
-                            dF = assemble(
-                                dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
-                            dep_B.sub((-weight.conjugate(), dF))
-                    elif isinstance(comp, ufl.classes.Cofunction):
-                        dF = derivative(comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        for dF_term_weight, dF_term in iter_expr(weight * dF,
-                                                                 evaluate_weights=True):  # noqa: E501
-                            assert isinstance(dF_term, ufl.classes.Coargument)
-                            dep_B.sub((-dF_term_weight.conjugate(), adj_x))
-                    else:
-                        raise TypeError(f"Unexpected type: {type(comp)}")
-        else:
-            raise ValueError("Must be an arity 0 or arity 1 form")
-
-    # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-    #     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
-    #     # reference below). Code first added 2017-12-07.
-    #     # Re-written 2018-01-28
-    #     # Updated to adjoint only form 2018-01-29
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x = self.x()
-
-        tlm_rhs = expr_zero(self._rhs)
-        for dep in self.dependencies():
-            if dep != x:
-                tau_dep = tlm_map[dep]
-                if tau_dep is not None:
-                    for weight, comp in iter_expr(self._rhs):
-                        # Note: Ignores weight dependencies
-                        tlm_rhs = (tlm_rhs
-                                   + weight * derivative(comp, dep,
-                                                         argument=tau_dep))
-
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return Assembly(
-                tlm_map[x], tlm_rhs,
-                form_compiler_parameters=self._form_compiler_parameters)
 
 
 def homogenized_bc(bc):
@@ -366,6 +78,14 @@ def unpack_bcs(bcs, *, deps=None):
                   for g in bc_gs)
 
     return deps, bc_nodes, bc_gs
+
+
+_parameters = parameters.setdefault("tlm_adjoint", {})
+_parameters.setdefault("EquationSolver", {})
+_parameters["EquationSolver"].setdefault("enable_jacobian_caching", True)
+_parameters["EquationSolver"].setdefault("cache_rhs_assembly", True)
+_parameters["EquationSolver"].setdefault("match_quadrature", False)
+del _parameters
 
 
 class EquationSolver(ExprEquation):
@@ -516,7 +236,7 @@ class EquationSolver(ExprEquation):
         form_compiler_parameters = \
             process_form_compiler_parameters(form_compiler_parameters)
         if match_quadrature:
-            update_parameters_dict(
+            update_parameters(
                 form_compiler_parameters,
                 form_compiler_quadrature_parameters(F, form_compiler_parameters))  # noqa: E501
 
@@ -891,163 +611,3 @@ class EquationSolver(ExprEquation):
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,
                 cache_rhs_assembly=self._cache_rhs_assembly)
-
-
-class Projection(EquationSolver):
-    """Represents the solution of a finite element variational problem
-    performing a projection onto the space for `x`.
-
-    :arg x: A :class:`firedrake.function.Function` defining the forward
-        solution.
-    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
-        right-hand-side of the finite element variational problem. Should not
-        depend on `x`.
-
-    Remaining arguments are passed to the :class:`.EquationSolver` constructor.
-    """
-
-    def __init__(self, x, rhs, *args, **kwargs):
-        space = var_space(x)
-        test, trial = TestFunction(space), TrialFunction(space)
-        if not isinstance(rhs, ufl.classes.BaseForm):
-            rhs = ufl.inner(rhs, test) * ufl.dx
-        super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
-                         *args, **kwargs)
-
-
-class DirichletBCApplication(Equation):
-    r"""Represents the application of a Dirichlet boundary condition to a zero
-    valued :class:`firedrake.function.Function`. Specifically this represents:
-
-    .. code-block:: python
-
-        x.zero()
-        DirichletBC(x.function_space(), y, *args, **kwargs).apply(x)
-
-    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
-    \mathcal{F} / \partial x` is the identity.
-
-    :arg x: A :class:`firedrake.function.Function`, updated by the above
-        operations.
-    :arg y: A :class:`firedrake.function.Function`, defines the Dirichet
-        boundary condition.
-
-    Remaining arguments are passed to the :class:`firedrake.bcs.DirichletBC`
-    constructor.
-    """
-
-    def __init__(self, x, y, *args, **kwargs):
-        check_space_type(x, "primal")
-        check_space_type(y, "primal")
-
-        super().__init__(x, [x, y], nl_deps=[], ic=False, adj_ic=False)
-        self._bc_args = args
-        self._bc_kwargs = kwargs
-
-    def forward_solve(self, x, deps=None):
-        _, y = self.dependencies() if deps is None else deps
-        var_zero(x)
-        backend_DirichletBC(
-            var_space(x), y,
-            *self._bc_args, **self._bc_kwargs).apply(x)
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        if dep_index != 1:
-            raise ValueError("Unexpected dep_index")
-
-        _, y = self.dependencies()
-        F = var_new_conjugate_dual(y)
-        backend_DirichletBC(
-            var_space(y), adj_x,
-            *self._bc_args, **self._bc_kwargs).apply(F)
-        return (-1.0, F)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x, y = self.dependencies()
-
-        tau_y = tlm_map[y]
-        if tau_y is None:
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return DirichletBCApplication(
-                tlm_map[x], tau_y,
-                *self._bc_args, **self._bc_kwargs)
-
-
-class ExprInterpolation(ExprEquation):
-    r"""Represents interpolation of `rhs` onto the space for `x`.
-
-    The forward residual :math:`\mathcal{F}` is defined so that :math:`\partial
-    \mathcal{F} / \partial x` is the identity.
-
-    :arg x: The forward solution.
-    :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to
-        interpolate onto the space for `x`. Should not depend on `x`.
-    """
-
-    def __init__(self, x, rhs):
-        deps, nl_deps = extract_dependencies(rhs, space_type="primal")
-        if var_id(x) in deps:
-            raise ValueError("Invalid dependency")
-        deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
-        deps.insert(0, x)
-
-        super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
-        self._rhs = rhs
-
-    def drop_references(self):
-        replace_map = {dep: var_replacement(dep)
-                       for dep in self.dependencies()}
-
-        super().drop_references()
-        self._rhs = ufl.replace(self._rhs, replace_map)
-
-    def forward_solve(self, x, deps=None):
-        interpolate_expression(x, self._replace(self._rhs, deps))
-
-    def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
-        eq_deps = self.dependencies()
-        if dep_index <= 0 or dep_index >= len(eq_deps):
-            raise ValueError("Unexpected dep_index")
-
-        dep = eq_deps[dep_index]
-
-        if isinstance(dep, (backend_Constant, ReplacementConstant)):
-            if len(dep.ufl_shape) > 0:
-                raise NotImplementedError("Case not implemented")
-            dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
-        else:
-            dF = derivative(self._rhs, dep)
-        dF = ufl.algorithms.expand_derivatives(dF)
-        dF = eliminate_zeros(dF)
-        dF = self._nonlinear_replace(dF, nl_deps)
-
-        F = var_new_conjugate_dual(dep)
-        interpolate_expression(F, dF, adj_x=adj_x)
-        return (-1.0, F)
-
-    def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
-        return b
-
-    def tangent_linear(self, M, dM, tlm_map):
-        x = self.x()
-
-        tlm_rhs = expr_zero(x)
-        for dep in self.dependencies():
-            if dep != x:
-                tau_dep = tlm_map[dep]
-                if tau_dep is not None:
-                    # Cannot use += as Firedrake might add to the *values* for
-                    # tlm_rhs
-                    tlm_rhs = (tlm_rhs
-                               + derivative(self._rhs, dep, argument=tau_dep))
-
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-            return ZeroAssignment(tlm_map[x])
-        else:
-            return ExprInterpolation(tlm_map[x], tlm_rhs)

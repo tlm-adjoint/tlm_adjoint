@@ -1,419 +1,172 @@
 from .backend import (
-    as_backend_type, backend_Constant, backend_Function, backend_FunctionSpace,
-    backend_ScalarType, backend_Vector, cpp_PETScVector)
+    KrylovSolver, LUSolver, TestFunction, as_backend_type, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_ScalarType,
+    backend_assemble, backend_assemble_system, has_lu_solver_method)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    check_space_types, comm_dup_cached, comm_parent, is_var, new_space_id,
-    new_var_id, register_functional_term_eq,
-    register_subtract_adjoint_derivative_action, space_id,
-    subtract_adjoint_derivative_action_base, var_axpy, var_copy, var_linf_norm,
-    var_lock_state, var_new, var_space, var_space_type)
+    DEFAULT_COMM, check_space_type, check_space_types, space_new,
+    var_space_type)
 
-from ..equations import Conversion
-from ..patch import patch_method
+from .expr import eliminate_zeros
+from .parameters import update_parameters
 
-from .equations import Assembly
-from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, ReplacementFunction,
-    ReplacementZeroFunction, Zero, define_var_alias, new_count, r0_space)
-
-import functools
-import numbers
 import numpy as np
 try:
     import ufl_legacy as ufl
 except ImportError:
     import ufl
 
-__all__ = \
-    [
-        "Function",
-
-        "ZeroFunction",
-
-        "to_fenics"
-    ]
+__all__ = [
+    "linear_solver"
+]
 
 
-@patch_method(backend_Constant, "__init__")
-def Constant__init__(self, orig, orig_args, *args, domain=None, space=None,
-                     comm=None, **kwargs):
-    if domain is not None and hasattr(domain, "ufl_domain"):
-        domain = domain.ufl_domain()
+def assemble_matrix(form, bcs=None, *,
+                    form_compiler_parameters=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
+    if len(bcs) > 0:
+        test = TestFunction(form.arguments()[0].function_space())
+        if len(test.ufl_shape) == 0:
+            zero = backend_Constant(0.0)
+        else:
+            zero = backend_Constant(np.zeros(test.ufl_shape,
+                                             dtype=backend_ScalarType))
+        dummy_rhs = ufl.inner(zero, test) * ufl.dx
+        A, b_bc = assemble_system(
+            form, dummy_rhs, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters)
+        if b_bc.norm("linf") == 0.0:
+            b_bc = None
+    else:
+        A = assemble(
+            form, form_compiler_parameters=form_compiler_parameters)
+        b_bc = None
+
+    return A, b_bc
+
+
+def assemble(form, tensor=None, bcs=None, *,
+             form_compiler_parameters=None):
+    if tensor is not None and hasattr(tensor, "_tlm_adjoint__function"):
+        check_space_type(tensor._tlm_adjoint__function, "conjugate_dual")
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+
+    form = eliminate_zeros(form)
+    b = backend_assemble(form, tensor=tensor,
+                         form_compiler_parameters=form_compiler_parameters)
+    for bc in bcs:
+        bc.apply(b)
+    return b
+
+
+def assemble_system(A_form, b_form, bcs=None, *,
+                    form_compiler_parameters=None):
+    A_form = eliminate_zeros(A_form)
+    b_form = eliminate_zeros(b_form)
+    return backend_assemble_system(
+        A_form, b_form, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters)
+
+
+def matrix_copy(A):
+    return A.copy()
+
+
+def matrix_multiply(A, x, *,
+                    tensor=None, addto=False, action_type="conjugate_dual"):
+    if isinstance(x, backend_Function):
+        x = x.vector()
+    if tensor is not None and isinstance(tensor, backend_Function):
+        tensor = tensor.vector()
+    if tensor is None:
+        if hasattr(A, "_tlm_adjoint__form") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+            tensor = space_new(
+                A._tlm_adjoint__form.arguments()[0].function_space(),
+                space_type=var_space_type(x._tlm_adjoint__function,
+                                          rel_space_type=action_type))
+            tensor = tensor.vector()
+        else:
+            return A * x
+    elif hasattr(tensor, "_tlm_adjoint__function") and hasattr(x, "_tlm_adjoint__function"):  # noqa: E501
+        check_space_types(tensor._tlm_adjoint__function,
+                          x._tlm_adjoint__function,
+                          rel_space_type=action_type)
+
+    x_v = as_backend_type(x).vec()
+    tensor_v = as_backend_type(tensor).vec()
+    if addto:
+        as_backend_type(A).mat().multAdd(x_v, tensor_v, tensor_v)
+    else:
+        as_backend_type(A).mat().mult(x_v, tensor_v)
+    tensor.apply("insert")
+
+    return tensor
+
+
+def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
+                           form_compiler_parameters=None,
+                           linear_solver_parameters=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if linear_solver_parameters is None:
+        linear_solver_parameters = {}
+
+    if b_form is None:
+        A, b = assemble_matrix(
+            A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters)
+    else:
+        A, b = assemble_system(
+            A_form, b_form, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters)
+
+    solver = linear_solver(A, linear_solver_parameters)
+
+    return solver, A, b
+
+
+def linear_solver(A, linear_solver_parameters, *, comm=None):
+    """Construct a DOLFIN `LUSolver` or `KrylovSolver`.
+
+    :arg A: A DOLFIN matrix.
+    :arg linear_solver_parameters: Linear solver parameters.
+    :arg comm: A communicator.
+    :returns: The DOLFIN `LUSolver` or `KrylovSolver`.
+    """
+
     if comm is None:
-        if domain is None:
+        if hasattr(A, "mpi_comm"):
+            comm = A.mpi_comm()
+        else:
             comm = DEFAULT_COMM
-        else:
-            comm = domain.ufl_cargo().mpi_comm()
-    comm = comm_parent(comm)
 
-    orig(self, *args, **kwargs)
-
-    if space is None:
-        space = self.ufl_function_space()
-        add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm_dup_cached(comm), "domain": domain,
-                       "dtype": backend_ScalarType, "id": new_space_id()})
-    add_interface(self, ConstantInterface,
-                  {"id": new_var_id(), "name": lambda x: x.name(),
-                   "state": [0], "space": space,
-                   "space_type": "primal", "dtype": self.values().dtype.type,
-                   "static": False, "cache": False,
-                   "replacement_count": new_count()})
-
-
-class FunctionSpaceInterface(SpaceInterface):
-    def _comm(self):
-        return self._tlm_adjoint__space_interface_attrs["comm"]
-
-    def _dtype(self):
-        return backend_ScalarType
-
-    def _id(self):
-        return self._tlm_adjoint__space_interface_attrs["id"]
-
-    def _new(self, *, name=None, space_type="primal", static=False,
-             cache=None):
-        return Function(self, name=name, space_type=space_type, static=static,
-                        cache=cache)
-
-
-_FunctionSpace_add_interface = True
-
-
-def FunctionSpace_add_interface_disabled(fn):
-    @functools.wraps(fn)
-    def wrapped_fn(*args, **kwargs):
-        global _FunctionSpace_add_interface
-        add_interface = _FunctionSpace_add_interface
-        _FunctionSpace_add_interface = False
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            _FunctionSpace_add_interface = add_interface
-    return wrapped_fn
-
-
-@patch_method(backend_FunctionSpace, "__init__")
-def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
-    orig_args()
-    if _FunctionSpace_add_interface:
-        add_interface(self, FunctionSpaceInterface,
-                      {"comm": comm_dup_cached(self.mesh().mpi_comm()),
-                       "id": new_space_id()})
-
-
-def check_vector(fn):
-    @functools.wraps(fn)
-    def wrapped_fn(self, *args, **kwargs):
-        def space_sizes(self):
-            dofmap = self.function_space().dofmap()
-            n0, n1 = dofmap.ownership_range()
-            return (n1 - n0, dofmap.global_dimension())
-
-        def vector_sizes(self):
-            return (self.vector().local_size(), self.vector().size())
-
-        space = self.function_space()
-        vector = self.vector()
-        if vector_sizes(self) != space_sizes(self):
-            raise RuntimeError("Unexpected vector size")
-
-        return_value = fn(self, *args, **kwargs)
-
-        if self.function_space() is not space:
-            raise RuntimeError("Unexpected space")
-        if self.vector() is not vector:
-            raise RuntimeError("Unexpected vector")
-        if vector_sizes(self) != space_sizes(self):
-            raise RuntimeError("Unexpected vector size")
-
-        return return_value
-    return wrapped_fn
-
-
-class FunctionInterface(VariableInterface):
-    def _space(self):
-        return self._tlm_adjoint__var_interface_attrs["space"]
-
-    def _space_type(self):
-        return self._tlm_adjoint__var_interface_attrs["space_type"]
-
-    def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
-
-    def _name(self):
-        return self.name()
-
-    def _state(self):
-        return self._tlm_adjoint__var_interface_attrs["state"][0]
-
-    def _update_state(self):
-        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
-
-    def _is_static(self):
-        return self._tlm_adjoint__var_interface_attrs["static"]
-
-    def _is_cached(self):
-        return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _caches(self):
-        if "caches" not in self._tlm_adjoint__var_interface_attrs:
-            self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
-        return self._tlm_adjoint__var_interface_attrs["caches"]
-
-    @check_vector
-    def _zero(self):
-        self.vector().zero()
-
-    @check_vector
-    def _assign(self, y):
-        if isinstance(y, numbers.Real):
-            if len(self.ufl_shape) != 0:
-                raise ValueError("Invalid shape")
-            self.assign(backend_Constant(y))
-        elif isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            self.vector().zero()
-            self.vector().axpy(1.0, y.vector())
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-    @check_vector
-    def _axpy(self, alpha, x, /):
-        if isinstance(x, backend_Function):
-            if space_id(x.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            self.vector().axpy(alpha, x.vector())
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-
-    @check_vector
-    def _inner(self, y):
-        if isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            return y.vector().inner(self.vector())
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-    @check_vector
-    def _linf_norm(self):
-        return self.vector().norm("linf")
-
-    @check_vector
-    def _local_size(self):
-        return self.vector().local_size()
-
-    @check_vector
-    def _global_size(self):
-        return self.function_space().dofmap().global_dimension()
-
-    @check_vector
-    def _local_indices(self):
-        return slice(*self.function_space().dofmap().ownership_range())
-
-    @check_vector
-    def _get_values(self):
-        return self.vector().get_local().copy()  # copy likely not required
-
-    @check_vector
-    def _set_values(self, values):
-        self.vector().set_local(values)
-        self.vector().apply("insert")
-
-    @check_vector
-    def _new(self, *, name=None, static=False, cache=None,
-             rel_space_type="primal"):
-        y = var_copy(self, name=name, static=static, cache=cache)
-        y.vector().zero()
-        space_type = var_space_type(self, rel_space_type=rel_space_type)
-        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        return y
-
-    @check_vector
-    def _copy(self, *, name=None, static=False, cache=None):
-        y = self.copy(deepcopy=True)
-        if name is not None:
-            y.rename(name, "a Function")
-        if cache is None:
-            cache = static
-        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", var_space_type(self))  # noqa: E501
-        y._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
-        y._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-        return y
-
-    def _replacement(self):
-        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
-            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            if isinstance(self, Zero):
-                self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                    ReplacementZeroFunction(self, count=count)
-            else:
-                self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                    ReplacementFunction(self, count=count)
-        return self._tlm_adjoint__var_interface_attrs["replacement"]
-
-    def _is_replacement(self):
-        return False
-
-    def _is_scalar(self):
-        return False
-
-    def _is_alias(self):
-        return "alias" in self._tlm_adjoint__var_interface_attrs
-
-
-class Function(backend_Function):
-    """Extends the DOLFIN `Function` class.
-
-    :arg space_type: The space type for the :class:`.Function`. `'primal'`,
-        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
-    :arg static: Defines whether the :class:`.Function` is static, meaning that
-        it is stored by reference in checkpointing/replay, and an associated
-        tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`.Function` may be
-        cached. Default `static`.
-
-    Remaining arguments are passed to the DOLFIN `Function` constructor.
-    """
-
-    def __init__(self, *args, space_type="primal", static=False, cache=None,
-                 **kwargs):
-        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
-            raise ValueError("Invalid space type")
-        if cache is None:
-            cache = static
-
-        super().__init__(*args, **kwargs)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-
-
-class ZeroFunction(Function, Zero):
-    """A :class:`.Function` which is flagged as having a value of zero.
-
-    Arguments are passed to the :class:`.Function` constructor, together with
-    `static=True` and `cache=True`.
-    """
-
-    def __init__(self, *args, **kwargs):
-        Function.__init__(
-            self, *args, **kwargs,
-            static=True, cache=True)
-        var_lock_state(self)
-        if var_linf_norm(self) != 0.0:
-            raise RuntimeError("ZeroFunction is not zero-valued")
-
-
-# Aim for compatibility with FEniCS 2019.1.0 API
-
-
-@patch_method(backend_Function, "__init__")
-@FunctionSpace_add_interface_disabled
-def Function__init__(self, orig, orig_args, *args, **kwargs):
-    orig_args()
-    # Creates a reference to the vector so that unexpected changes can be
-    # detected
-    self.vector()
-
-    if not isinstance(as_backend_type(self.vector()), cpp_PETScVector):
-        raise RuntimeError("PETSc backend required")
-
-    space = self.function_space()
-    add_interface(self, FunctionInterface,
-                  {"id": new_var_id(), "state": [0], "space": space,
-                   "space_type": "primal", "static": False, "cache": False,
-                   "replacement_count": new_count()})
-
-    if isinstance(args[0], backend_FunctionSpace) and args[0].id() == space.id():  # noqa: E501
-        id = space_id(args[0])
+    linear_solver = linear_solver_parameters.get("linear_solver", "default")
+    if linear_solver in {"direct", "lu"}:
+        linear_solver = "default"
+    elif linear_solver == "iterative":
+        linear_solver = "gmres"
+    is_lu_linear_solver = linear_solver == "default" \
+        or has_lu_solver_method(linear_solver)
+    if is_lu_linear_solver:
+        solver = LUSolver(comm, linear_solver)
+        solver.set_operator(A)
+        lu_parameters = linear_solver_parameters.get("lu_solver", {})
+        update_parameters(solver.parameters, lu_parameters)
     else:
-        id = new_space_id()
-    add_interface(space, FunctionSpaceInterface,
-                  {"comm": comm_dup_cached(space.mesh().mpi_comm()), "id": id})
-
-
-@patch_method(backend_Function, "function_space")
-def Function_function_space(self, orig, orig_args):
-    if is_var(self):
-        return var_space(self)
-    else:
-        return orig_args()
-
-
-@patch_method(backend_Function, "split")
-def Function_split(self, orig, orig_args, deepcopy=False):
-    Y = orig_args()
-    if not deepcopy:
-        for i, y in enumerate(Y):
-            define_var_alias(y, self, key=("split", i))
-    return Y
-
-
-def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
-    if hasattr(y, "_tlm_adjoint__function"):
-        check_space_types(x, y._tlm_adjoint__function)
-
-    if len(x.ufl_shape) == 0:
-        value = y.max()
-    else:
-        value = np.zeros_like(x.values()).flatten()
-        y_fn = backend_Function(r0_space(x))
-        y_fn.vector().axpy(1.0, y)
-        for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
-            value[i] = y_fn_c.vector().max()
-        value.shape = x.ufl_shape
-        value = backend_Constant(value)
-
-    y = var_new(x)
-    y.assign(value)
-    var_axpy(x, -alpha, y)
-
-
-def to_fenics(y, space, *, name=None):
-    """Convert a variable to a DOLFIN `Function`.
-
-    :arg y: A variable.
-    :arg space: The space for the return value.
-    :arg name: A :class:`str` name.
-    :returns: The DOLFIN `Function`.
-    """
-
-    x = Function(space, space_type=var_space_type(y), name=name)
-    Conversion(x, y).solve()
-    return x
-
-
-def subtract_adjoint_derivative_action_backend_function_vector(x, alpha, y):
-    if hasattr(y, "_tlm_adjoint__function"):
-        check_space_types(x, y._tlm_adjoint__function)
-
-    if x.vector().local_size() != y.local_size():
-        raise ValueError("Invalid function space")
-    x.vector().axpy(-alpha, y)
-
-
-register_subtract_adjoint_derivative_action(
-    (backend_Constant, backend_Function), object,
-    subtract_adjoint_derivative_action_base,
-    replace=True)
-register_subtract_adjoint_derivative_action(
-    backend_Constant, backend_Vector,
-    subtract_adjoint_derivative_action_backend_constant_vector)
-register_subtract_adjoint_derivative_action(
-    backend_Function, backend_Vector,
-    subtract_adjoint_derivative_action_backend_function_vector)
-
-
-def functional_term_eq_form(x, term):
-    if len(term.arguments()) > 0:
-        raise ValueError("Invalid number of arguments")
-    return Assembly(x, term)
-
-
-register_functional_term_eq(
-    ufl.classes.Form,
-    functional_term_eq_form)
+        pc = linear_solver_parameters.get("preconditioner", "default")
+        ks_parameters = linear_solver_parameters.get("krylov_solver", {})
+        solver = KrylovSolver(comm, linear_solver, pc)
+        solver.set_operator(A)
+        update_parameters(solver.parameters, ks_parameters)
+    return solver

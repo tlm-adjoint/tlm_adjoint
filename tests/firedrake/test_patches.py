@@ -1,8 +1,8 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
 from tlm_adjoint.firedrake.backend import backend_assemble, backend_Constant
-from tlm_adjoint.firedrake.backend_code_generator_interface import (
-    assemble as backend_code_generator_interface_assemble)
+from tlm_adjoint.firedrake.backend_interface import (
+    assemble as backend_interface_assemble)
 
 from .test_base import *
 
@@ -816,7 +816,7 @@ def test_assemble_arity_1(setup_test, test_leaks,
 @pytest.mark.parametrize("ZeroFunction", [Function, ZeroFunction])
 @pytest.mark.parametrize("assemble", [backend_assemble,
                                       assemble,
-                                      backend_code_generator_interface_assemble])  # noqa: E501
+                                      backend_interface_assemble])
 @seed_test
 def test_assemble_ZeroFunction(setup_test, test_leaks,
                                ZeroFunction, assemble):

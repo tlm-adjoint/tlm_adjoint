@@ -1,545 +1,275 @@
 from .backend import (
-    TestFunction, backend_Cofunction, backend_CofunctionSpace,
-    backend_Constant, backend_Function, backend_FunctionSpace,
-    backend_ScalarType)
+    LinearSolver, backend_DirichletBC, backend_Function, backend_Matrix,
+    backend_assemble, backend_solve, extract_args)
 from ..interface import (
-    DEFAULT_COMM, SpaceInterface, VariableInterface, add_interface,
-    add_replacement_interface, check_space_type, comm_dup_cached, comm_parent,
-    new_space_id, new_var_id, register_functional_term_eq,
-    register_garbage_cleanup, register_subtract_adjoint_derivative_action,
-    relative_space_type, space_id, subtract_adjoint_derivative_action_base,
-    var_is_alias, var_linf_norm, var_lock_state, var_space, var_space_type)
+    check_space_type, check_space_types, register_garbage_cleanup, space_new,
+    var_space_type)
 
-from ..equations import Conversion
-from ..manager import paused_manager
-from ..patch import patch_method, patch_property
+from ..patch import patch_method
 
-from .equations import Assembly
-from .functions import (
-    Caches, ConstantInterface, ConstantSpaceInterface, Replacement,
-    ReplacementFunction, ReplacementZeroFunction, Zero, constant_space,
-    define_var_alias, new_count)
+from .expr import eliminate_zeros
 
 import mpi4py.MPI as MPI
-import numbers
 import petsc4py.PETSc as PETSc
 import pyop2
 import ufl
 
-__all__ = \
-    [
-        "Cofunction",
-        "Function",
-
-        "ZeroFunction",
-
-        "ReplacementCofunction",
-
-        "to_firedrake"
-    ]
-
-
-# Aim for compatibility with Firedrake API
-
-
-@patch_method(backend_Constant, "__init__")
-def Constant__init__(self, orig, orig_args, value, domain=None, *,
-                     name=None, space=None, comm=None,
-                     **kwargs):
-    with paused_manager():
-        orig(self, value, domain=domain, name=name, **kwargs)
-
-    if name is None:
-        name = self.name
-    if comm is None:
-        if domain is None:
-            comm = DEFAULT_COMM
-        else:
-            comm = domain.comm
-    comm = comm_parent(comm)
-
-    if space is None:
-        space = constant_space(self.ufl_shape, domain=domain)
-        add_interface(space, ConstantSpaceInterface,
-                      {"comm": comm_dup_cached(comm), "domain": domain,
-                       "dtype": backend_ScalarType, "id": new_space_id()})
-    add_interface(self, ConstantInterface,
-                  {"id": new_var_id(), "name": lambda x: name,
-                   "state": [0], "space": space,
-                   "space_type": "primal", "dtype": self.dat.dtype.type,
-                   "static": False, "cache": False,
-                   "replacement_count": new_count(self._counted_class)})
-
-
-class FunctionSpaceInterface(SpaceInterface):
-    def _comm(self):
-        return self._tlm_adjoint__space_interface_attrs["comm"]
-
-    def _dtype(self):
-        return backend_ScalarType
-
-    def _id(self):
-        return self._tlm_adjoint__space_interface_attrs["id"]
-
-    def _new(self, *, name=None, space_type="primal", static=False,
-             cache=None):
-        if space_type in {"primal", "conjugate"}:
-            if "space" in self._tlm_adjoint__space_interface_attrs:
-                space = self._tlm_adjoint__space_interface_attrs["space"]
-            else:
-                space = self._tlm_adjoint__space_interface_attrs["space_dual"].dual()  # noqa: E501
-            return Function(space, name=name, space_type=space_type,
-                            static=static, cache=cache)
-        elif space_type in {"dual", "conjugate_dual"}:
-            if "space_dual" in self._tlm_adjoint__space_interface_attrs:
-                space_dual = self._tlm_adjoint__space_interface_attrs["space_dual"]  # noqa: E501
-            else:
-                space_dual = self._tlm_adjoint__space_interface_attrs["space"].dual()  # noqa: E501
-            return Cofunction(space_dual, name=name, space_type=space_type,
-                              static=static, cache=cache)
-        else:
-            raise ValueError("Invalid space type")
-
-
-def new_space_id_cached(space):
-    mesh = space.mesh()
-    if not hasattr(mesh, "_tlm_adjoint__space_ids"):
-        mesh._tlm_adjoint__space_ids = {}
-    space_ids = mesh._tlm_adjoint__space_ids
-
-    key = (space, ufl.duals.is_primal(space))
-    if key not in space_ids:
-        space_ids[key] = new_space_id()
-    return space_ids[key]
-
-
-@patch_method(backend_FunctionSpace, "__init__")
-def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
-    orig_args()
-    add_interface(self, FunctionSpaceInterface,
-                  {"space": self, "comm": comm_dup_cached(self.comm),
-                   "id": new_space_id_cached(self)})
-
-
-@patch_method(backend_FunctionSpace, "dual")
-def FunctionSpace_dual(self, orig, orig_args):
-    if "space_dual" not in self._tlm_adjoint__space_interface_attrs:
-        self._tlm_adjoint__space_interface_attrs["space_dual"] = orig_args()
-    space_dual = self._tlm_adjoint__space_interface_attrs["space_dual"]
-    if "space" not in space_dual._tlm_adjoint__space_interface_attrs:
-        space_dual._tlm_adjoint__space_interface_attrs["space"] = self
-    return space_dual
-
-
-@patch_method(backend_CofunctionSpace, "__init__")
-def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
-    orig_args()
-    add_interface(self, FunctionSpaceInterface,
-                  {"space_dual": self, "comm": comm_dup_cached(self.comm),
-                   "id": new_space_id_cached(self)})
-
-
-@patch_method(backend_CofunctionSpace, "dual")
-def CofunctionSpace_dual(self, orig, orig_args):
-    if "space" not in self._tlm_adjoint__space_interface_attrs:
-        self._tlm_adjoint__space_interface_attrs["space"] = orig_args()
-    space = self._tlm_adjoint__space_interface_attrs["space"]
-    if "space_dual" not in space._tlm_adjoint__space_interface_attrs:
-        space._tlm_adjoint__space_interface_attrs["space_dual"] = self
-    return space
-
-
-class FunctionInterfaceBase(VariableInterface):
-    def _comm(self):
-        return self._tlm_adjoint__var_interface_attrs["comm"]
-
-    def _space(self):
-        return self.function_space()
-
-    def _space_type(self):
-        return self._tlm_adjoint__var_interface_attrs["space_type"]
-
-    def _dtype(self):
-        return self.dat.dtype.type
-
-    def _id(self):
-        return self._tlm_adjoint__var_interface_attrs["id"]
-
-    def _name(self):
-        return self.name()
-
-    def _state(self):
-        dat, count = self._tlm_adjoint__var_interface_attrs["state"]
-        if count is not None and count > dat.dat_version:
-            raise RuntimeError("Invalid state")
-        return dat.dat_version
-
-    def _update_state(self):
-        dat, count = self._tlm_adjoint__var_interface_attrs["state"]
-        if count is None or count == dat.dat_version:
-            # Make sure that the dat version has been incremented at least once
-            dat.increment_dat_version()
-        elif count > dat.dat_version:
-            raise RuntimeError("Invalid state")
-        self._tlm_adjoint__var_interface_attrs["state"][1] = dat.dat_version
-
-    def _is_static(self):
-        return self._tlm_adjoint__var_interface_attrs["static"]
-
-    def _is_cached(self):
-        return self._tlm_adjoint__var_interface_attrs["cache"]
-
-    def _caches(self):
-        if "caches" not in self._tlm_adjoint__var_interface_attrs:
-            self._tlm_adjoint__var_interface_attrs["caches"] \
-                = Caches(self)
-        return self._tlm_adjoint__var_interface_attrs["caches"]
-
-    def _zero(self):
-        with self.dat.vec_wo as x_v:
-            x_v.zeroEntries()
-
-    def _linf_norm(self):
-        with self.dat.vec_ro as x_v:
-            linf_norm = x_v.norm(norm_type=PETSc.NormType.NORM_INFINITY)
-        return linf_norm
-
-    def _local_size(self):
-        with self.dat.vec_ro as x_v:
-            local_size = x_v.getLocalSize()
-        return local_size
-
-    def _global_size(self):
-        with self.dat.vec_ro as x_v:
-            size = x_v.getSize()
-        return size
-
-    def _local_indices(self):
-        with self.dat.vec_ro as x_v:
-            local_range = x_v.getOwnershipRange()
-        return slice(*local_range)
-
-    def _get_values(self):
-        with self.dat.vec_ro as x_v:
-            x_a = x_v.getArray(True)
-        return x_a.copy()
-
-    def _set_values(self, values):
-        with self.dat.vec_wo as x_v:
-            x_v.setArray(values)
-
-    def _is_replacement(self):
-        return False
-
-    def _is_scalar(self):
-        return False
-
-    def _is_alias(self):
-        return "alias" in self._tlm_adjoint__var_interface_attrs
-
-
-class FunctionInterface(FunctionInterfaceBase):
-    def _assign(self, y):
-        if isinstance(y, backend_Cofunction):
-            y = y.riesz_representation("l2")
-        if isinstance(y, numbers.Complex):
-            if len(self.ufl_shape) != 0:
-                raise ValueError("Invalid shape")
-            self.assign(backend_Constant(y))
-        elif isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
-                y_v.copy(result=x_v)
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-    def _axpy(self, alpha, x, /):
-        if isinstance(x, backend_Cofunction):
-            x = x.riesz_representation("l2")
-        if isinstance(x, backend_Function):
-            if space_id(x.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                y_v.axpy(alpha, x_v)
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-
-    def _inner(self, y):
-        if isinstance(y, backend_Function):
-            y = y.riesz_representation("l2")
-        if isinstance(y, backend_Cofunction):
-            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
-                raise ValueError("Invalid function space")
-            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
-                inner = x_v.dot(y_v)
-            return inner
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-    def _replacement(self):
-        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
-            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            if isinstance(self, Zero):
-                self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                    ReplacementZeroFunction(self, count=count)
-            else:
-                self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                    ReplacementFunction(self, count=count)
-        return self._tlm_adjoint__var_interface_attrs["replacement"]
-
-
-class Function(backend_Function):
-    """Extends :class:`firedrake.function.Function`.
-
-    :arg space_type: The space type for the :class:`.Function`. `'primal'` or
-        `'conjugate'`.
-    :arg static: Defines whether the :class:`.Function` is static, meaning that
-        it is stored by reference in checkpointing/replay, and an associated
-        tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`.Function` may
-        be cached. Default `static`.
-
-    Remaining arguments are passed to the :class:`firedrake.function.Function`
-    constructor.
-    """
-
-    def __init__(self, *args, space_type="primal", static=False, cache=None,
-                 **kwargs):
-        if space_type not in {"primal", "conjugate"}:
-            raise ValueError("Invalid space type")
-        if cache is None:
-            cache = static
-
-        super().__init__(*args, **kwargs)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-
-
-class ZeroFunction(Function, Zero):
-    """A :class:`.Function` which is flagged as having a value of zero.
-
-    Arguments are passed to the :class:`.Function` constructor, together with
-    `static=True` and `cache=True`.
-    """
-
-    def __init__(self, *args, **kwargs):
-        Function.__init__(
-            self, *args, **kwargs,
-            static=True, cache=True)
-        var_lock_state(self)
-        if var_linf_norm(self) != 0.0:
-            raise RuntimeError("ZeroFunction is not zero-valued")
-
-
-@patch_method(backend_Function, "__init__")
-def Function__init__(self, orig, orig_args, function_space, val=None,
-                     *args, **kwargs):
-    orig_args()
-    add_interface(self, FunctionInterface,
-                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
-                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
-                   "space_type": "primal", "static": False, "cache": False,
-                   "replacement_count": new_count(self._counted_class)})
-    if isinstance(val, backend_Function):
-        define_var_alias(self, val, key=("Function__init__",))
-
-
-@patch_method(backend_Function, "__getattr__")
-def Function__getattr__(self, orig, orig_args, key):
-    if "_data" not in self.__dict__:
-        raise AttributeError(f"No attribute '{key:s}'")
-    return orig_args()
-
-
-@patch_method(backend_Function, "riesz_representation")
-def Function_riesz_representation(self, orig, orig_args,
-                                  riesz_map="L2", *args, **kwargs):
-    if riesz_map != "l2":
-        check_space_type(self, "primal")
-    return_value = orig_args()
-    if riesz_map == "l2":
-        define_var_alias(return_value, self,
-                         key=("riesz_representation", "l2"))
-    # define_var_alias sets the space_type, so this has to appear after
-    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
-        "space_type",
-        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
-    return return_value
-
-
-@patch_property(backend_Function, "subfunctions", cached=True)
-def Function_subfunctions(self, orig):
-    Y = orig()
-    for i, y in enumerate(Y):
-        define_var_alias(y, self, key=("subfunctions", i))
-    return Y
-
-
-@patch_method(backend_Function, "sub")
-def Function_sub(self, orig, orig_args, i):
-    self.subfunctions
-    y = orig_args()
-    if not var_is_alias(y):
-        define_var_alias(y, self, key=("sub", i))
-    return y
-
-
-class CofunctionInterface(FunctionInterfaceBase):
-    def _assign(self, y):
-        if isinstance(y, backend_Function):
-            y = y.riesz_representation("l2")
-        if isinstance(y, backend_Cofunction):
-            if space_id(y.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            with self.dat.vec_wo as x_v, y.dat.vec_ro as y_v:
-                y_v.copy(result=x_v)
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-    def _axpy(self, alpha, x, /):
-        if isinstance(x, backend_Function):
-            x = x.riesz_representation("l2")
-        if isinstance(x, backend_Cofunction):
-            if space_id(x.function_space()) != space_id(self.function_space()):
-                raise ValueError("Invalid function space")
-            with self.dat.vec as y_v, x.dat.vec_ro as x_v:
-                y_v.axpy(alpha, x_v)
-        else:
-            raise TypeError(f"Unexpected type: {type(x)}")
-
-    def _inner(self, y):
-        if isinstance(y, backend_Cofunction):
-            y = y.riesz_representation("l2")
-        if isinstance(y, backend_Function):
-            if space_id(y.function_space()) != space_id(self.function_space().dual()):  # noqa: E501
-                raise ValueError("Invalid function space")
-            with self.dat.vec_ro as x_v, y.dat.vec_ro as y_v:
-                inner = x_v.dot(y_v)
-            return inner
-        else:
-            raise TypeError(f"Unexpected type: {type(y)}")
-
-    def _replacement(self):
-        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
-            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
-            self._tlm_adjoint__var_interface_attrs["replacement"] = \
-                ReplacementCofunction(self, count=count)
-        return self._tlm_adjoint__var_interface_attrs["replacement"]
-
-
-class Cofunction(backend_Cofunction):
-    """Extends the :class:`firedrake.cofunction.Cofunction` class.
-
-    :arg space_type: The space type for the :class:`.Cofunction`.
-        `'conjugate'` or `'conjugate_dual'`.
-    :arg static: Defines whether the :class:`.Cofunction` is static, meaning
-        that it is stored by reference in checkpointing/replay, and an
-        associated tangent-linear variable is zero.
-    :arg cache: Defines whether results involving the :class:`.Cofunction` may
-        be cached. Default `static`.
-
-    Remaining arguments are passed to the
-    :class:`firedrake.cofunction.Cofunction` constructor.
-    """
-
-    def __init__(self, *args, space_type="conjugate_dual", static=False,
-                 cache=None, **kwargs):
-        if space_type not in {"dual", "conjugate_dual"}:
-            raise ValueError("Invalid space type")
-        if cache is None:
-            cache = static
-
-        super().__init__(*args, **kwargs)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
-        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
-        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
-
-    def equals(self, other):
-        if self is other:
-            return True
-        else:
-            return ufl.classes.Cofunction.equals(self, other)
-
-
-@patch_method(backend_Cofunction, "__init__")
-def Cofunction__init__(self, orig, orig_args, function_space, val=None,
-                       *args, **kwargs):
-    orig_args()
-    add_interface(self, CofunctionInterface,
-                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
-                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
-                   "space_type": "conjugate_dual", "static": False,
-                   "cache": False,
-                   "replacement_count": new_count(self._counted_class)})
-    if isinstance(val, backend_Cofunction):
-        define_var_alias(self, val, key=("Cofunction__init__",))
-
-
-@patch_method(backend_Cofunction, "riesz_representation")
-def Cofunction_riesz_representation(self, orig, orig_args,
-                                    riesz_map="L2", *args, **kwargs):
-    if riesz_map != "l2":
-        check_space_type(self, "conjugate_dual")
-    return_value = orig_args()
-    if riesz_map == "l2":
-        define_var_alias(return_value, self,
-                         key=("riesz_representation", "l2"))
-    # define_var_alias sets the space_type, so this has to appear after
-    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
-        "space_type",
-        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
-    return return_value
-
-
-class ReplacementCofunction(Replacement, ufl.classes.Cofunction):
-    """Represents a symbolic :class:`firedrake.cofunction.Cofunction`, but has
-    no value.
-    """
-
-    def __init__(self, x, count):
-        Replacement.__init__(self)
-        ufl.classes.Cofunction.__init__(self, var_space(x), count=count)
-        add_replacement_interface(self, x)
-
-    def _analyze_form_arguments(self):
-        self._arguments = (TestFunction(var_space(self).dual()),)
-        self._coefficients = (self,)
-
-    def equals(self, other):
-        if self is other:
-            return True
-        else:
-            return ufl.classes.Cofunction.equals(self, other)
-
-
-def to_firedrake(y, space, *, name=None):
-    """Convert a variable to a :class:`firedrake.function.Function` or
-    :class:`firedrake.cofunction.Cofunction`.
-
-    :arg y: A variable.
-    :arg space: The space for the return value.
-    :arg name: A :class:`str` name.
-    :returns: The :class:`firedrake.function.Function` or
-        :class:`firedrake.cofunction.Cofunction`.
-    """
-
-    space_type = var_space_type(y)
-    if space_type in {"primal", "conjugate"}:
-        if ufl.duals.is_primal(space):
-            x = Function(space, space_type=space_type, name=name)
-        else:
-            x = Function(space.dual(), space_type=space_type, name=name)
-    elif space_type in {"dual", "conjugate_dual"}:
-        if ufl.duals.is_primal(space):
-            x = Cofunction(space.dual(), space_type=space_type, name=name)
-        else:
-            x = Cofunction(space, space_type=space_type, name=name)
+__all__ = [
+    "linear_solver"
+]
+
+
+def _assemble(form, tensor=None, bcs=None, *,
+              form_compiler_parameters=None, mat_type=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
+    form = eliminate_zeros(form)
+    if isinstance(form, ufl.classes.ZeroBaseForm):
+        raise ValueError("Form cannot be a ZeroBaseForm")
+    if len(form.arguments()) == 1:
+        b = backend_assemble(
+            form, tensor=tensor,
+            form_compiler_parameters=form_compiler_parameters,
+            mat_type=mat_type)
+        for bc in bcs:
+            bc.apply(b.riesz_representation("l2"))
     else:
-        raise ValueError("Invalid space type")
-    Conversion(x, y).solve()
-    return x
+        b = backend_assemble(
+            form, tensor=tensor, bcs=bcs,
+            form_compiler_parameters=form_compiler_parameters,
+            mat_type=mat_type)
+
+    return b
+
+
+def _assemble_system(A_form, b_form=None, bcs=None, *,
+                     form_compiler_parameters=None, mat_type=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
+    A = _assemble(
+        A_form, bcs=bcs, form_compiler_parameters=form_compiler_parameters,
+        mat_type=mat_type)
+
+    if len(bcs) > 0:
+        F = backend_Function(A_form.arguments()[0].function_space())
+        for bc in bcs:
+            bc.apply(F)
+
+        if b_form is None:
+            b = _assemble(
+                -ufl.action(A_form, F), bcs=bcs,
+                form_compiler_parameters=form_compiler_parameters,
+                mat_type=mat_type)
+
+            with b.dat.vec_ro as b_v:
+                if b_v.norm(norm_type=PETSc.NormType.NORM_INFINITY) == 0.0:
+                    b = None
+        else:
+            b = _assemble(
+                b_form - ufl.action(A_form, F), bcs=bcs,
+                form_compiler_parameters=form_compiler_parameters,
+                mat_type=mat_type)
+    else:
+        if b_form is None:
+            b = None
+        else:
+            b = _assemble(
+                b_form,
+                form_compiler_parameters=form_compiler_parameters,
+                mat_type=mat_type)
+
+    A._tlm_adjoint__lift_bcs = False
+
+    return A, b
+
+
+@patch_method(LinearSolver, "_lifted")
+def LinearSolver_lifted(self, orig, orig_args, b):
+    if getattr(self.A, "_tlm_adjoint__lift_bcs", True):
+        return orig_args()
+    else:
+        return b
+
+
+def assemble_matrix(form, bcs=None, *,
+                    form_compiler_parameters=None, mat_type=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
+    return _assemble_system(form, bcs=bcs,
+                            form_compiler_parameters=form_compiler_parameters,
+                            mat_type=mat_type)
+
+
+def assemble(form, tensor=None, bcs=None, *,
+             form_compiler_parameters=None, mat_type=None):
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+
+    b = _assemble(
+        form, tensor=tensor, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters, mat_type=mat_type)
+
+    return b
+
+
+def matrix_copy(A):
+    if not isinstance(A, backend_Matrix):
+        raise TypeError("Unexpected matrix type")
+
+    options_prefix = A.petscmat.getOptionsPrefix()
+    A_copy = backend_Matrix(A.a, A.bcs, A.mat_type,
+                            A.M.sparsity, A.M.dtype,
+                            options_prefix=options_prefix)
+
+    assert A.petscmat.assembled
+    A_copy.petscmat.axpy(1.0, A.petscmat)
+    assert A_copy.petscmat.assembled
+
+    # MatAXPY does not propagate the options prefix
+    A_copy.petscmat.setOptionsPrefix(options_prefix)
+
+    if hasattr(A, "_tlm_adjoint__lift_bcs"):
+        A_copy._tlm_adjoint__lift_bcs = A._tlm_adjoint__lift_bcs
+
+    return A_copy
+
+
+def matrix_multiply(A, x, *,
+                    tensor=None, addto=False, action_type="conjugate_dual"):
+    if tensor is None:
+        tensor = space_new(
+            A.a.arguments()[0].function_space(),
+            space_type=var_space_type(x, rel_space_type=action_type))
+    else:
+        check_space_types(tensor, x, rel_space_type=action_type)
+
+    if addto:
+        with x.dat.vec_ro as x_v, tensor.dat.vec as tensor_v:
+            A.petscmat.multAdd(x_v, tensor_v, tensor_v)
+    else:
+        with x.dat.vec_ro as x_v, tensor.dat.vec_wo as tensor_v:
+            A.petscmat.mult(x_v, tensor_v)
+
+    return tensor
+
+
+def assemble_linear_solver(A_form, b_form=None, bcs=None, *,
+                           form_compiler_parameters=None,
+                           linear_solver_parameters=None):
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if linear_solver_parameters is None:
+        linear_solver_parameters = {}
+
+    A, b = _assemble_system(
+        A_form, b_form=b_form, bcs=bcs,
+        form_compiler_parameters=form_compiler_parameters,
+        mat_type=linear_solver_parameters.get("mat_type", None))
+
+    solver = linear_solver(A, linear_solver_parameters)
+
+    return solver, A, b
+
+
+def linear_solver(A, linear_solver_parameters):
+    """Construct a :class:`firedrake.linear_solver.LinearSolver`.
+
+    :arg A: A :class:`firedrake.matrix.Matrix`.
+    :arg linear_solver_parameters: Linear solver parameters.
+    :returns: The :class:`firedrake.linear_solver.LinearSolver`.
+    """
+
+    if "tlm_adjoint" in linear_solver_parameters:
+        linear_solver_parameters = dict(linear_solver_parameters)
+        tlm_adjoint_parameters = linear_solver_parameters.pop("tlm_adjoint")
+        options_prefix = tlm_adjoint_parameters.get("options_prefix", None)
+        nullspace = tlm_adjoint_parameters.get("nullspace", None)
+        transpose_nullspace = tlm_adjoint_parameters.get("transpose_nullspace",
+                                                         None)
+        near_nullspace = tlm_adjoint_parameters.get("near_nullspace", None)
+    else:
+        options_prefix = None
+        nullspace = None
+        transpose_nullspace = None
+        near_nullspace = None
+    return LinearSolver(A, solver_parameters=linear_solver_parameters,
+                        options_prefix=options_prefix,
+                        nullspace=nullspace,
+                        transpose_nullspace=transpose_nullspace,
+                        near_nullspace=near_nullspace)
+
+
+def solve(*args, **kwargs):
+    if not isinstance(args[0], ufl.classes.Equation):
+        return backend_solve(*args, **kwargs)
+
+    eq, x, bcs, J, Jp, M, form_compiler_parameters, solver_parameters, \
+        nullspace, transpose_nullspace, near_nullspace, options_prefix = \
+        extract_args(*args, **kwargs)
+    check_space_type(x, "primal")
+    if bcs is None:
+        bcs = ()
+    elif isinstance(bcs, backend_DirichletBC):
+        bcs = (bcs,)
+    if form_compiler_parameters is None:
+        form_compiler_parameters = {}
+    if solver_parameters is None:
+        solver_parameters = {}
+
+    if "tlm_adjoint" in solver_parameters:
+        solver_parameters = dict(solver_parameters)
+        tlm_adjoint_parameters = solver_parameters.pop("tlm_adjoint")
+
+        if "options_prefix" in tlm_adjoint_parameters:
+            if options_prefix is not None:
+                raise TypeError("Cannot pass both options_prefix argument and "
+                                "solver parameter")
+            options_prefix = tlm_adjoint_parameters["options_prefix"]
+
+        if "nullspace" in tlm_adjoint_parameters:
+            if nullspace is not None:
+                raise TypeError("Cannot pass both nullspace argument and "
+                                "solver parameter")
+            nullspace = tlm_adjoint_parameters["nullspace"]
+
+        if "transpose_nullspace" in tlm_adjoint_parameters:
+            if transpose_nullspace is not None:
+                raise TypeError("Cannot pass both transpose_nullspace "
+                                "argument and solver parameter")
+            transpose_nullspace = tlm_adjoint_parameters["transpose_nullspace"]
+
+        if "near_nullspace" in tlm_adjoint_parameters:
+            if near_nullspace is not None:
+                raise TypeError("Cannot pass both near_nullspace argument and "
+                                "solver parameter")
+            near_nullspace = tlm_adjoint_parameters["near_nullspace"]
+
+    return backend_solve(eq, x, bcs, J=J, Jp=Jp, M=M,
+                         form_compiler_parameters=form_compiler_parameters,
+                         solver_parameters=solver_parameters,
+                         nullspace=nullspace,
+                         transpose_nullspace=transpose_nullspace,
+                         near_nullspace=near_nullspace,
+                         options_prefix=options_prefix)
 
 
 def garbage_cleanup_internal_comm(comm):
@@ -555,20 +285,3 @@ def garbage_cleanup_internal_comm(comm):
 
 
 register_garbage_cleanup(garbage_cleanup_internal_comm)
-
-
-register_subtract_adjoint_derivative_action(
-    (backend_Constant, backend_Cofunction, backend_Function), object,
-    subtract_adjoint_derivative_action_base,
-    replace=True)
-
-
-def functional_term_eq_form(x, term):
-    if len(term.arguments()) > 0:
-        raise ValueError("Invalid number of arguments")
-    return Assembly(x, term)
-
-
-register_functional_term_eq(
-    ufl.classes.BaseForm,
-    functional_term_eq_form)

@@ -1,6 +1,6 @@
 from fenics import *
 from tlm_adjoint.fenics import *
-from tlm_adjoint.fenics.backend_code_generator_interface import matrix_multiply
+from tlm_adjoint.fenics.backend_interface import matrix_multiply
 
 from .test_base import *
 

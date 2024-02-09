@@ -1,43 +1,39 @@
-"""This module includes functionality for interacting with FEniCS variables
-and Dirichlet boundary conditions.
+"""FEniCS variables.
 """
 
 from .backend import (
-    FunctionSpace, TensorFunctionSpace, TestFunction, TrialFunction,
-    VectorFunctionSpace, backend_Constant, backend_Function,
-    backend_ScalarType, cpp_Constant)
+    backend_Constant, backend_Function, backend_ScalarType, backend_Vector)
 from ..interface import (
-    SpaceInterface, VariableInterface, VariableStateChangeError,
-    add_replacement_interface, is_var, manager_disabled, space_comm, var_comm,
-    var_dtype, var_is_cached, var_is_replacement, var_is_static,
-    var_linf_norm, var_lock_state, var_replacement, var_scalar_value,
-    var_space, var_space_type)
+    SpaceInterface, VariableInterface, check_space_types,
+    register_subtract_adjoint_derivative_action,
+    subtract_adjoint_derivative_action_base, space_comm, space_id, var_axpy,
+    var_comm, var_copy, var_dtype, var_is_cached, var_is_static, var_linf_norm,
+    var_lock_state, var_new, var_scalar_value, var_space_type)
 
 from ..caches import Caches
+from ..equations import Conversion
 
-from collections.abc import Sequence
+from .expr import Replacement, Zero, r0_space
+
 import functools
 import numbers
 import numpy as np
-try:
-    import ufl_legacy as ufl
-except ImportError:
-    import ufl
 import weakref
 
 __all__ = \
     [
         "Constant",
+        "Function",
 
-        "Zero",
         "ZeroConstant",
-        "eliminate_zeros",
+        "ZeroFunction",
 
-        "Replacement",
         "ReplacementConstant",
         "ReplacementFunction",
         "ReplacementZeroConstant",
-        "ReplacementZeroFunction"
+        "ReplacementZeroFunction",
+
+        "to_fenics"
     ]
 
 
@@ -298,14 +294,209 @@ class Constant(backend_Constant):
         self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
 
 
-class Zero:
-    """Mixin for defining a zero-valued variable. Used for zero-valued
-    variables for which UFL zero elimination should not be applied.
+class FunctionSpaceInterface(SpaceInterface):
+    def _comm(self):
+        return self._tlm_adjoint__space_interface_attrs["comm"]
+
+    def _dtype(self):
+        return backend_ScalarType
+
+    def _id(self):
+        return self._tlm_adjoint__space_interface_attrs["id"]
+
+    def _new(self, *, name=None, space_type="primal", static=False,
+             cache=None):
+        return Function(self, name=name, space_type=space_type, static=static,
+                        cache=cache)
+
+
+def check_vector(fn):
+    @functools.wraps(fn)
+    def wrapped_fn(self, *args, **kwargs):
+        def space_sizes(self):
+            dofmap = self.function_space().dofmap()
+            n0, n1 = dofmap.ownership_range()
+            return (n1 - n0, dofmap.global_dimension())
+
+        def vector_sizes(self):
+            return (self.vector().local_size(), self.vector().size())
+
+        space = self.function_space()
+        vector = self.vector()
+        if vector_sizes(self) != space_sizes(self):
+            raise RuntimeError("Unexpected vector size")
+
+        return_value = fn(self, *args, **kwargs)
+
+        if self.function_space() is not space:
+            raise RuntimeError("Unexpected space")
+        if self.vector() is not vector:
+            raise RuntimeError("Unexpected vector")
+        if vector_sizes(self) != space_sizes(self):
+            raise RuntimeError("Unexpected vector size")
+
+        return return_value
+    return wrapped_fn
+
+
+class FunctionInterface(VariableInterface):
+    def _space(self):
+        return self._tlm_adjoint__var_interface_attrs["space"]
+
+    def _space_type(self):
+        return self._tlm_adjoint__var_interface_attrs["space_type"]
+
+    def _id(self):
+        return self._tlm_adjoint__var_interface_attrs["id"]
+
+    def _name(self):
+        return self.name()
+
+    def _state(self):
+        return self._tlm_adjoint__var_interface_attrs["state"][0]
+
+    def _update_state(self):
+        self._tlm_adjoint__var_interface_attrs["state"][0] += 1
+
+    def _is_static(self):
+        return self._tlm_adjoint__var_interface_attrs["static"]
+
+    def _is_cached(self):
+        return self._tlm_adjoint__var_interface_attrs["cache"]
+
+    def _caches(self):
+        if "caches" not in self._tlm_adjoint__var_interface_attrs:
+            self._tlm_adjoint__var_interface_attrs["caches"] = Caches(self)
+        return self._tlm_adjoint__var_interface_attrs["caches"]
+
+    @check_vector
+    def _zero(self):
+        self.vector().zero()
+
+    @check_vector
+    def _assign(self, y):
+        if isinstance(y, numbers.Real):
+            if len(self.ufl_shape) != 0:
+                raise ValueError("Invalid shape")
+            self.assign(backend_Constant(y))
+        elif isinstance(y, backend_Function):
+            if space_id(y.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            self.vector().zero()
+            self.vector().axpy(1.0, y.vector())
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
+
+    @check_vector
+    def _axpy(self, alpha, x, /):
+        if isinstance(x, backend_Function):
+            if space_id(x.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            self.vector().axpy(alpha, x.vector())
+        else:
+            raise TypeError(f"Unexpected type: {type(x)}")
+
+    @check_vector
+    def _inner(self, y):
+        if isinstance(y, backend_Function):
+            if space_id(y.function_space()) != space_id(self.function_space()):
+                raise ValueError("Invalid function space")
+            return y.vector().inner(self.vector())
+        else:
+            raise TypeError(f"Unexpected type: {type(y)}")
+
+    @check_vector
+    def _linf_norm(self):
+        return self.vector().norm("linf")
+
+    @check_vector
+    def _local_size(self):
+        return self.vector().local_size()
+
+    @check_vector
+    def _global_size(self):
+        return self.function_space().dofmap().global_dimension()
+
+    @check_vector
+    def _local_indices(self):
+        return slice(*self.function_space().dofmap().ownership_range())
+
+    @check_vector
+    def _get_values(self):
+        return self.vector().get_local().copy()  # copy likely not required
+
+    @check_vector
+    def _set_values(self, values):
+        self.vector().set_local(values)
+        self.vector().apply("insert")
+
+    @check_vector
+    def _new(self, *, name=None, static=False, cache=None,
+             rel_space_type="primal"):
+        y = var_copy(self, name=name, static=static, cache=cache)
+        y.vector().zero()
+        space_type = var_space_type(self, rel_space_type=rel_space_type)
+        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        return y
+
+    @check_vector
+    def _copy(self, *, name=None, static=False, cache=None):
+        y = self.copy(deepcopy=True)
+        if name is not None:
+            y.rename(name, "a Function")
+        if cache is None:
+            cache = static
+        y._tlm_adjoint__var_interface_attrs.d_setitem("space_type", var_space_type(self))  # noqa: E501
+        y._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        y._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
+        return y
+
+    def _replacement(self):
+        if "replacement" not in self._tlm_adjoint__var_interface_attrs:
+            count = self._tlm_adjoint__var_interface_attrs["replacement_count"]
+            if isinstance(self, Zero):
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementZeroFunction(self, count=count)
+            else:
+                self._tlm_adjoint__var_interface_attrs["replacement"] = \
+                    ReplacementFunction(self, count=count)
+        return self._tlm_adjoint__var_interface_attrs["replacement"]
+
+    def _is_replacement(self):
+        return False
+
+    def _is_scalar(self):
+        return False
+
+    def _is_alias(self):
+        return "alias" in self._tlm_adjoint__var_interface_attrs
+
+
+class Function(backend_Function):
+    """Extends the DOLFIN `Function` class.
+
+    :arg space_type: The space type for the :class:`.Function`. `'primal'`,
+        `'dual'`, `'conjugate'`, or `'conjugate_dual'`.
+    :arg static: Defines whether the :class:`.Function` is static, meaning that
+        it is stored by reference in checkpointing/replay, and an associated
+        tangent-linear variable is zero.
+    :arg cache: Defines whether results involving the :class:`.Function` may be
+        cached. Default `static`.
+
+    Remaining arguments are passed to the DOLFIN `Function` constructor.
     """
 
-    def _tlm_adjoint__var_interface_update_state(self):
-        raise VariableStateChangeError("Cannot call _update_state interface "
-                                       "of Zero")
+    def __init__(self, *args, space_type="primal", static=False, cache=None,
+                 **kwargs):
+        if space_type not in {"primal", "conjugate", "dual", "conjugate_dual"}:
+            raise ValueError("Invalid space type")
+        if cache is None:
+            cache = static
+
+        super().__init__(*args, **kwargs)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("space_type", space_type)  # noqa: E501
+        self._tlm_adjoint__var_interface_attrs.d_setitem("static", static)
+        self._tlm_adjoint__var_interface_attrs.d_setitem("cache", cache)
 
 
 class ZeroConstant(Constant, Zero):
@@ -325,147 +516,20 @@ class ZeroConstant(Constant, Zero):
             raise RuntimeError("ZeroConstant is not zero-valued")
 
 
-def form_cached(key):
-    def wrapper(fn):
-        @functools.wraps(fn)
-        def wrapped(expr, *args, **kwargs):
-            if isinstance(expr, ufl.classes.Form) and key in expr._cache:
-                value = expr._cache[key]
-            else:
-                value = fn(expr, *args, **kwargs)
-                if isinstance(expr, ufl.classes.Form):
-                    assert key not in expr._cache
-                    expr._cache[key] = value
-            return value
-        return wrapped
-    return wrapper
+class ZeroFunction(Function, Zero):
+    """A :class:`.Function` which is flagged as having a value of zero.
 
-
-@form_cached("_tlm_adjoint__extract_coefficients")
-def extract_coefficients(expr):
-    def as_ufl(expr):
-        if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
-            return ufl.as_ufl(expr)
-        elif isinstance(expr, ufl.classes.Form):
-            return expr
-        elif isinstance(expr, Sequence):
-            return ufl.as_vector(tuple(map(as_ufl, expr)))
-        else:
-            raise TypeError(f"Unexpected type: {type(expr)}")
-
-    return ufl.algorithms.extract_coefficients(as_ufl(expr))
-
-
-@manager_disabled()
-def is_valid_r0_space(space):
-    e = space.ufl_element()
-    if (e.family(), e.degree()) != ("Real", 0):
-        return False
-    elif len(e.value_shape()) == 0:
-        r = backend_Function(space)
-        r.assign(backend_Constant(-1.0))
-        return (r.vector().max() == -1.0)
-    else:
-        r = backend_Function(space)
-        r_arr = -np.arange(1, np.prod(r.ufl_shape) + 1,
-                           dtype=backend_ScalarType)
-        r_arr.shape = r.ufl_shape
-        r.assign(backend_Constant(r_arr))
-        for i, r_c in enumerate(r.split(deepcopy=True)):
-            if r_c.vector().max() != -(i + 1):
-                return False
-        else:
-            return True
-
-
-def r0_space(x):
-    domain = var_space(x)._tlm_adjoint__space_interface_attrs["domain"]
-    domain = domain.ufl_cargo()
-    if not hasattr(domain, "_tlm_adjoint__r0_space"):
-        if len(x.ufl_shape) == 0:
-            space = FunctionSpace(domain, "R", 0)
-        elif len(x.ufl_shape) == 1:
-            dim, = ufl.shape
-            space = VectorFunctionSpace(domain, "R", 0, dim=dim)
-        else:
-            space = TensorFunctionSpace(domain, "R", degree=0,
-                                        shape=x.ufl_shape)
-        if not is_valid_r0_space(space):
-            raise RuntimeError("Invalid space")
-        domain._tlm_adjoint__r0_space = space
-    return domain._tlm_adjoint__r0_space
-
-
-def derivative_space(x):
-    if isinstance(x, (backend_Constant, ReplacementConstant)):
-        return r0_space(x)
-    else:
-        return var_space(x)
-
-
-def derivative(expr, x, argument=None, *,
-               enable_automatic_argument=True):
-    expr_arguments = ufl.algorithms.extract_arguments(expr)
-    arity = len(expr_arguments)
-
-    if argument is None and enable_automatic_argument:
-        Argument = {0: TestFunction, 1: TrialFunction}[arity]
-        argument = Argument(derivative_space(x))
-
-    for expr_argument in expr_arguments:
-        if expr_argument.number() >= arity:
-            raise ValueError("Unexpected argument")
-    if argument is not None:
-        for expr_argument in ufl.algorithms.extract_arguments(argument):
-            if expr_argument.number() < arity:
-                raise ValueError("Invalid argument")
-
-    return ufl.derivative(expr, x, argument=argument)
-
-
-def expr_zero(expr):
-    if isinstance(expr, ufl.classes.Form):
-        return ufl.classes.Form([])
-    elif isinstance(expr, ufl.classes.Expr):
-        return ufl.classes.Zero(shape=expr.ufl_shape,
-                                free_indices=expr.ufl_free_indices,
-                                index_dimensions=expr.ufl_index_dimensions)
-    else:
-        raise TypeError(f"Unexpected type: {type(expr)}")
-
-
-@form_cached("_tlm_adjoint__eliminate_zeros")
-def eliminate_zeros(expr):
-    """Apply zero elimination for :class:`.Zero` objects in the supplied
-    :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
-
-    :arg expr: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form`.
-    :returns: A :class:`ufl.core.expr.Expr` or :class:`ufl.Form` with zero
-        elimination applied. May return `expr`.
+    Arguments are passed to the :class:`.Function` constructor, together with
+    `static=True` and `cache=True`.
     """
 
-    replace_map = {c: expr_zero(c)
-                   for c in extract_coefficients(expr)
-                   if isinstance(c, Zero)}
-    if len(replace_map) == 0:
-        simplified_expr = expr
-    else:
-        simplified_expr = ufl.replace(expr, replace_map)
-
-    return simplified_expr
-
-
-class Replacement(ufl.classes.Coefficient):
-    """Represents a symbolic variable but with no value.
-    """
-
-    def __init__(self, x, count):
-        super().__init__(var_space(x), count=count)
-        add_replacement_interface(self, x)
-
-
-def new_count():
-    return cpp_Constant(0.0).id()
+    def __init__(self, *args, **kwargs):
+        Function.__init__(
+            self, *args, **kwargs,
+            static=True, cache=True)
+        var_lock_state(self)
+        if var_linf_norm(self) != 0.0:
+            raise RuntimeError("ZeroFunction is not zero-valued")
 
 
 class ReplacementConstant(Replacement):
@@ -496,14 +560,18 @@ class ReplacementZeroFunction(ReplacementFunction, Zero):
         Zero.__init__(self)
 
 
-def replaced_form(form):
-    replace_map = {}
-    for c in extract_coefficients(form):
-        if is_var(c) and not var_is_replacement(c):
-            c_rep = var_replacement(c)
-            if c_rep is not c:
-                replace_map[c] = c_rep
-    return ufl.replace(form, replace_map)
+def to_fenics(y, space, *, name=None):
+    """Convert a variable to a DOLFIN `Function`.
+
+    :arg y: A variable.
+    :arg space: The space for the return value.
+    :arg name: A :class:`str` name.
+    :returns: The DOLFIN `Function`.
+    """
+
+    x = Function(space, space_type=var_space_type(y), name=name)
+    Conversion(x, y).solve()
+    return x
 
 
 def define_var_alias(x, parent, *, key):
@@ -525,3 +593,44 @@ def define_var_alias(x, parent, *, key):
                 "cache", var_is_cached(parent))
             x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "state", parent._tlm_adjoint__var_interface_attrs["state"])
+
+
+def subtract_adjoint_derivative_action_backend_constant_vector(x, alpha, y):
+    if hasattr(y, "_tlm_adjoint__function"):
+        check_space_types(x, y._tlm_adjoint__function)
+
+    if len(x.ufl_shape) == 0:
+        value = y.max()
+    else:
+        value = np.zeros_like(x.values()).flatten()
+        y_fn = backend_Function(r0_space(x))
+        y_fn.vector().axpy(1.0, y)
+        for i, y_fn_c in enumerate(y_fn.split(deepcopy=True)):
+            value[i] = y_fn_c.vector().max()
+        value.shape = x.ufl_shape
+        value = backend_Constant(value)
+
+    y = var_new(x)
+    y.assign(value)
+    var_axpy(x, -alpha, y)
+
+
+def subtract_adjoint_derivative_action_backend_function_vector(x, alpha, y):
+    if hasattr(y, "_tlm_adjoint__function"):
+        check_space_types(x, y._tlm_adjoint__function)
+
+    if x.vector().local_size() != y.local_size():
+        raise ValueError("Invalid function space")
+    x.vector().axpy(-alpha, y)
+
+
+register_subtract_adjoint_derivative_action(
+    (backend_Constant, backend_Function), object,
+    subtract_adjoint_derivative_action_base,
+    replace=True)
+register_subtract_adjoint_derivative_action(
+    backend_Constant, backend_Vector,
+    subtract_adjoint_derivative_action_backend_constant_vector)
+register_subtract_adjoint_derivative_action(
+    backend_Function, backend_Vector,
+    subtract_adjoint_derivative_action_backend_function_vector)

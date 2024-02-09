@@ -1,24 +1,32 @@
 from .backend import (
-    FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
-    Projector, SameMeshInterpolator, backend_Cofunction, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_Vector, backend_assemble,
-    backend_project, backend_solve, homogenize, parameters)
+    FormAssembler, LinearSolver, NonlinearVariationalSolver, Projector,
+    SameMeshInterpolator, backend_Cofunction, backend_CofunctionSpace,
+    backend_Constant, backend_DirichletBC, backend_Function,
+    backend_FunctionSpace, backend_ScalarType, backend_Vector,
+    backend_assemble, backend_project, backend_solve, homogenize)
 from ..interface import (
-    is_var, space_id, var_comm, var_new, var_space, var_update_state)
-from .backend_code_generator_interface import (
-    copy_parameters_dict, update_parameters_dict)
+    DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
+    comm_parent, is_var, new_space_id, new_var_id, relative_space_type,
+    space_id, var_comm, var_is_alias, var_new, var_space, var_update_state)
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
-from ..manager import annotation_enabled, tlm_enabled
+from ..manager import annotation_enabled, paused_manager, tlm_enabled
 from ..patch import (
-    add_manager_controls, manager_method, patch_function, patch_method)
+    add_manager_controls, manager_method, patch_function, patch_method,
+    patch_property)
 
-from .backend_interface import Cofunction
-from .equations import Assembly, EquationSolver, ExprInterpolation, Projection
-from .functions import (
-    Constant, define_var_alias, expr_zero, extract_coefficients, iter_expr)
-from .firedrake_equations import ExprAssignment, LocalProjection
+from .assembly import Assembly
+from .assignment import ExprAssignment
+from .expr import expr_zero, extract_coefficients, iter_expr, new_count
+from .interpolation import ExprInterpolation
+from .parameters import process_form_compiler_parameters
+from .projection import Projection, LocalProjection
+from .solve import EquationSolver
+from .variables import (
+    Cofunction, CofunctionInterface, Constant, ConstantInterface,
+    ConstantSpaceInterface, FunctionInterface, FunctionSpaceInterface,
+    constant_space, define_var_alias)
 
 import numbers
 import operator
@@ -30,21 +38,6 @@ __all__ = \
         "project",
         "solve"
     ]
-
-
-def parameters_dict_equal(parameters_a, parameters_b):
-    if set(parameters_a) != set(parameters_b):
-        return False
-    for key_a, value_a in parameters_a.items():
-        value_b = parameters_b[key_a]
-        if isinstance(value_a, (Parameters, dict)):
-            if not isinstance(value_b, (Parameters, dict)):
-                return False
-            elif not parameters_dict_equal(value_a, value_b):
-                return False
-        elif value_a != value_b:
-            return False
-    return True
 
 
 def packed_solver_parameters(solver_parameters, *, options_prefix=None,
@@ -102,9 +95,7 @@ def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
         var_update_state(return_value)
 
     if len(self._form.arguments()) > 0:
-        form_compiler_parameters = copy_parameters_dict(parameters["form_compiler"])  # noqa: E501
-        update_parameters_dict(form_compiler_parameters,
-                               self._form_compiler_params)
+        form_compiler_parameters = process_form_compiler_parameters(self._form_compiler_params)  # noqa: E501
         return_value._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value
@@ -147,10 +138,36 @@ def Constant_init_assign(self, value):
         eq._post_process()
 
 
-@manager_method(backend_Constant, "__init__")
-def backend_Constant__init__(self, orig, orig_args, value, *args, **kwargs):
-    orig_args()
-    Constant_init_assign(self, value)
+@patch_method(backend_Constant, "__init__")
+def backend_Constant__init__(self, orig, orig_args, value, domain=None, *,
+                             name=None, space=None, comm=None,
+                             **kwargs):
+    with paused_manager():
+        orig(self, value, domain=domain, name=name, **kwargs)
+
+    if name is None:
+        name = self.name
+    if comm is None:
+        if domain is None:
+            comm = DEFAULT_COMM
+        else:
+            comm = domain.comm
+    comm = comm_parent(comm)
+
+    if space is None:
+        space = constant_space(self.ufl_shape, domain=domain)
+        add_interface(space, ConstantSpaceInterface,
+                      {"comm": comm_dup_cached(comm), "domain": domain,
+                       "dtype": backend_ScalarType, "id": new_space_id()})
+    add_interface(self, ConstantInterface,
+                  {"id": new_var_id(), "name": lambda x: name,
+                   "state": [0], "space": space,
+                   "space_type": "primal", "dtype": self.dat.dtype.type,
+                   "static": False, "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
+
+    if annotation_enabled() or tlm_enabled():
+        Constant_init_assign(self, value)
 
 
 # Patch the subclass constructor separately so that all variable attributes are
@@ -190,6 +207,74 @@ def Constant_assign(self, orig, orig_args, value):
     if eq is not None:
         eq._post_process()
     return return_value
+
+
+def new_space_id_cached(space):
+    mesh = space.mesh()
+    if not hasattr(mesh, "_tlm_adjoint__space_ids"):
+        mesh._tlm_adjoint__space_ids = {}
+    space_ids = mesh._tlm_adjoint__space_ids
+
+    key = (space, ufl.duals.is_primal(space))
+    if key not in space_ids:
+        space_ids[key] = new_space_id()
+    return space_ids[key]
+
+
+@patch_method(backend_FunctionSpace, "__init__")
+def FunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    add_interface(self, FunctionSpaceInterface,
+                  {"space": self, "comm": comm_dup_cached(self.comm),
+                   "id": new_space_id_cached(self)})
+
+
+@patch_method(backend_FunctionSpace, "dual")
+def FunctionSpace_dual(self, orig, orig_args):
+    if "space_dual" not in self._tlm_adjoint__space_interface_attrs:
+        self._tlm_adjoint__space_interface_attrs["space_dual"] = orig_args()
+    space_dual = self._tlm_adjoint__space_interface_attrs["space_dual"]
+    if "space" not in space_dual._tlm_adjoint__space_interface_attrs:
+        space_dual._tlm_adjoint__space_interface_attrs["space"] = self
+    return space_dual
+
+
+@patch_method(backend_CofunctionSpace, "__init__")
+def CofunctionSpace__init__(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    add_interface(self, FunctionSpaceInterface,
+                  {"space_dual": self, "comm": comm_dup_cached(self.comm),
+                   "id": new_space_id_cached(self)})
+
+
+@patch_method(backend_CofunctionSpace, "dual")
+def CofunctionSpace_dual(self, orig, orig_args):
+    if "space" not in self._tlm_adjoint__space_interface_attrs:
+        self._tlm_adjoint__space_interface_attrs["space"] = orig_args()
+    space = self._tlm_adjoint__space_interface_attrs["space"]
+    if "space_dual" not in space._tlm_adjoint__space_interface_attrs:
+        space._tlm_adjoint__space_interface_attrs["space_dual"] = self
+    return space
+
+
+@patch_method(backend_Function, "__init__")
+def Function__init__(self, orig, orig_args, function_space, val=None,
+                     *args, **kwargs):
+    orig_args()
+    add_interface(self, FunctionInterface,
+                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
+                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
+                   "space_type": "primal", "static": False, "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
+    if isinstance(val, backend_Function):
+        define_var_alias(self, val, key=("Function__init__",))
+
+
+@patch_method(backend_Function, "__getattr__")
+def Function__getattr__(self, orig, orig_args, key):
+    if "_data" not in self.__dict__:
+        raise AttributeError(f"No attribute '{key:s}'")
+    return orig_args()
 
 
 def register_in_place(cls, name, op):
@@ -266,6 +351,17 @@ def Function_assign(self, orig, orig_args, expr, subset=None):
     return self
 
 
+@manager_method(backend_Function, "copy", patch_without_manager=True)
+def Function_copy(self, orig, orig_args, deepcopy=False):
+    if deepcopy:
+        F = var_new(self)
+        F.assign(self)
+    else:
+        F = orig_args()
+        define_var_alias(F, self, key=("copy",))
+    return F
+
+
 @manager_method(backend_Function, "project",
                 post_call=var_update_state_post_call)
 def Function_project(self, orig, orig_args, b, bcs=None,
@@ -302,15 +398,51 @@ def Function_project(self, orig, orig_args, b, bcs=None,
     return return_value
 
 
-@manager_method(backend_Function, "copy", patch_without_manager=True)
-def Function_copy(self, orig, orig_args, deepcopy=False):
-    if deepcopy:
-        F = var_new(self)
-        F.assign(self)
-    else:
-        F = orig_args()
-        define_var_alias(F, self, key=("copy",))
-    return F
+@patch_method(backend_Function, "riesz_representation")
+def Function_riesz_representation(self, orig, orig_args,
+                                  riesz_map="L2", *args, **kwargs):
+    if riesz_map != "l2":
+        check_space_type(self, "primal")
+    return_value = orig_args()
+    if riesz_map == "l2":
+        define_var_alias(return_value, self,
+                         key=("riesz_representation", "l2"))
+    # define_var_alias sets the space_type, so this has to appear after
+    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
+        "space_type",
+        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
+    return return_value
+
+
+@patch_property(backend_Function, "subfunctions", cached=True)
+def Function_subfunctions(self, orig):
+    Y = orig()
+    for i, y in enumerate(Y):
+        define_var_alias(y, self, key=("subfunctions", i))
+    return Y
+
+
+@patch_method(backend_Function, "sub")
+def Function_sub(self, orig, orig_args, i):
+    self.subfunctions
+    y = orig_args()
+    if not var_is_alias(y):
+        define_var_alias(y, self, key=("sub", i))
+    return y
+
+
+@patch_method(backend_Cofunction, "__init__")
+def Cofunction__init__(self, orig, orig_args, function_space, val=None,
+                       *args, **kwargs):
+    orig_args()
+    add_interface(self, CofunctionInterface,
+                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
+                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
+                   "space_type": "conjugate_dual", "static": False,
+                   "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
+    if isinstance(val, backend_Cofunction):
+        define_var_alias(self, val, key=("Cofunction__init__",))
 
 
 register_in_place(backend_Cofunction, "__iadd__", operator.add)
@@ -356,6 +488,22 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None):
     if eq is not None:
         eq._post_process()
     return self
+
+
+@patch_method(backend_Cofunction, "riesz_representation")
+def Cofunction_riesz_representation(self, orig, orig_args,
+                                    riesz_map="L2", *args, **kwargs):
+    if riesz_map != "l2":
+        check_space_type(self, "conjugate_dual")
+    return_value = orig_args()
+    if riesz_map == "l2":
+        define_var_alias(return_value, self,
+                         key=("riesz_representation", "l2"))
+    # define_var_alias sets the space_type, so this has to appear after
+    return_value._tlm_adjoint__var_interface_attrs.d_setitem(
+        "space_type",
+        relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
+    return return_value
 
 
 def LinearSolver_solve_post_call(self, return_value, x, b):
@@ -537,7 +685,6 @@ def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
 
 
 fn_globals(backend_assemble)["base_form_assembly_visitor"] = base_form_assembly_visitor  # noqa: E501
-
 
 assemble = add_manager_controls(backend_assemble)
 solve = add_manager_controls(backend_solve)

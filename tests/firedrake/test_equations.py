@@ -1,8 +1,7 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.backend_code_generator_interface import (
-    assemble_linear_solver)
-from tlm_adjoint.firedrake.functions import extract_coefficients
+from tlm_adjoint.firedrake.backend_interface import assemble_linear_solver
+from tlm_adjoint.firedrake.expr import extract_coefficients
 
 from .test_base import *
 
@@ -148,77 +147,6 @@ def test_Axpy(setup_test, test_leaks,
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2)
     assert min_order > 1.99
-
-
-@pytest.mark.firedrake
-@seed_test
-def test_DirichletBCApplication(setup_test, test_leaks, test_configurations):
-    mesh = UnitSquareMesh(20, 20)
-    X = SpatialCoordinate(mesh)
-    space = FunctionSpace(mesh, "Lagrange", 1)
-    test, trial = TestFunction(space), TrialFunction(space)
-
-    F = Function(space, name="F", static=True)
-    interpolate_expression(F, sin(pi * X[0]) * sin(3.0 * pi * X[1]))
-
-    def forward(bc):
-        x_0 = Function(space, name="x_0")
-        x_1 = Function(space, name="x_1")
-        x = Function(space, name="x")
-
-        DirichletBCApplication(x_1, bc, "on_boundary").solve()
-
-        EquationSolver(
-            inner(grad(trial), grad(test)) * dx
-            == inner(F, test) * dx - inner(grad(x_1), grad(test)) * dx,
-            x_0, DirichletBC(space, 0.0, "on_boundary"),
-            solver_parameters=ls_parameters_cg).solve()
-
-        Axpy(x, x_0, 1.0, x_1).solve()
-
-        J = Functional(name="J")
-        J.assign((dot(x, x) ** 2) * dx)
-        return x, J
-
-    bc = Function(space, name="bc", static=True)
-    bc.interpolate(Constant(1.0))
-
-    start_manager()
-    x, J = forward(bc)
-    stop_manager()
-
-    x_ref = Function(space, name="x_ref")
-    solve(inner(grad(trial), grad(test)) * dx == inner(F, test) * dx,
-          x_ref,
-          DirichletBC(space, 1.0, "on_boundary"),
-          solver_parameters=ls_parameters_cg)
-    error = Function(space, name="error")
-    var_assign(error, x_ref)
-    var_axpy(error, -1.0, x)
-    assert var_linf_norm(error) < 1.0e-14
-
-    J_val = J.value
-
-    dJ = compute_gradient(J, bc)
-
-    def forward_J(bc):
-        return forward(bc)[1]
-
-    min_order = taylor_test(forward_J, bc, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
-
-    ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, bc, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
-
-    min_order = taylor_test_tlm(forward_J, bc, tlm_order=1)
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=1)
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward_J, bc, adjoint_order=2)
-    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
