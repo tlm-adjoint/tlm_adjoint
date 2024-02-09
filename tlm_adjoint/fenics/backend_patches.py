@@ -1,7 +1,7 @@
 from .backend import (
     Form, KrylovSolver, LUSolver, LinearVariationalSolver,
-    NonlinearVariationalProblem, NonlinearVariationalSolver, Parameters,
-    as_backend_type, backend_Constant, backend_DirichletBC, backend_Function,
+    NonlinearVariationalProblem, NonlinearVariationalSolver, as_backend_type,
+    backend_Constant, backend_DirichletBC, backend_Function,
     backend_FunctionSpace, backend_Matrix, backend_ScalarType, backend_Vector,
     backend_assemble, backend_project, backend_solve, cpp_Assembler,
     cpp_PETScVector, cpp_SystemAssembler)
@@ -19,7 +19,8 @@ from .assembly import Assembly
 from .backend_interface import linear_solver
 from .expr import extract_coefficients, new_count
 from .interpolation import ExprInterpolation
-from .parameters import copy_parameters, process_form_compiler_parameters
+from .parameters import (
+    copy_parameters, parameters_equal, process_form_compiler_parameters)
 from .projection import Projection
 from .solve import EquationSolver
 from .variables import (
@@ -42,25 +43,6 @@ __all__ = \
         "project",
         "solve"
     ]
-
-
-def parameters_dict_equal(parameters_a, parameters_b):
-    for key_a in parameters_a:
-        if key_a not in parameters_b:
-            return False
-        value_a = parameters_a[key_a]
-        value_b = parameters_b[key_a]
-        if isinstance(value_a, (Parameters, dict)):
-            if not isinstance(value_b, (Parameters, dict)):
-                return False
-            elif not parameters_dict_equal(value_a, value_b):
-                return False
-        elif value_a != value_b:
-            return False
-    for key_b in parameters_b:
-        if key_b not in parameters_a:
-            return False
-    return True
 
 
 def expr_new_x(expr, x):
@@ -161,7 +143,7 @@ def Assembler_assemble(self, orig, orig_args, tensor, form):
             if len(tensor._tlm_adjoint__bcs) > 0:
                 warnings.warn("Unexpected boundary conditions",
                               RuntimeWarning)
-            if not parameters_dict_equal(
+            if not parameters_equal(
                     tensor._tlm_adjoint_form_compiler_parameters,
                     form_compiler_parameters):
                 warnings.warn("Unexpected form compiler parameters",
@@ -237,7 +219,7 @@ def SystemAssembler_assemble(self, orig, orig_args, *args):
                 if len(tensor._tlm_adjoint__bcs) > 0:
                     warnings.warn("Unexpected boundary conditions",
                                   RuntimeWarning)
-                if not parameters_dict_equal(
+                if not parameters_equal(
                         tensor._tlm_adjoint__form_compiler_parameters,
                         form_compiler_parameters):
                     warnings.warn("Unexpected form compiler parameters",
@@ -633,7 +615,7 @@ def LUSolver_solve(self, orig, orig_args, *args):
     if bcs != b._tlm_adjoint__bcs:
         raise ValueError("Non-matching boundary conditions")
     form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
+    if not parameters_equal(
             b._tlm_adjoint__form_compiler_parameters,
             form_compiler_parameters):
         raise ValueError("Non-matching form compiler parameters")
@@ -716,7 +698,7 @@ def KrylovSolver_solve(self, orig, orig_args, *args):
     if bcs != b._tlm_adjoint__bcs:
         raise ValueError("Non-matching boundary conditions")
     form_compiler_parameters = A._tlm_adjoint__form_compiler_parameters
-    if not parameters_dict_equal(
+    if not parameters_equal(
             b._tlm_adjoint__form_compiler_parameters,
             form_compiler_parameters):
         raise ValueError("Non-matching form compiler parameters")

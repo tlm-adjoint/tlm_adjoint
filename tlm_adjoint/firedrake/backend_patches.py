@@ -1,10 +1,9 @@
 from .backend import (
-    FormAssembler, LinearSolver, NonlinearVariationalSolver, Parameters,
-    Projector, SameMeshInterpolator, backend_Cofunction,
-    backend_CofunctionSpace, backend_Constant, backend_DirichletBC,
-    backend_Function, backend_FunctionSpace, backend_ScalarType,
-    backend_Vector, backend_assemble, backend_project, backend_solve,
-    homogenize)
+    FormAssembler, LinearSolver, NonlinearVariationalSolver, Projector,
+    SameMeshInterpolator, backend_Cofunction, backend_CofunctionSpace,
+    backend_Constant, backend_DirichletBC, backend_Function,
+    backend_FunctionSpace, backend_ScalarType, backend_Vector,
+    backend_assemble, backend_project, backend_solve, homogenize)
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
     comm_parent, is_var, new_space_id, new_var_id, relative_space_type,
@@ -39,21 +38,6 @@ __all__ = \
         "project",
         "solve"
     ]
-
-
-def parameters_dict_equal(parameters_a, parameters_b):
-    if set(parameters_a) != set(parameters_b):
-        return False
-    for key_a, value_a in parameters_a.items():
-        value_b = parameters_b[key_a]
-        if isinstance(value_a, (Parameters, dict)):
-            if not isinstance(value_b, (Parameters, dict)):
-                return False
-            elif not parameters_dict_equal(value_a, value_b):
-                return False
-        elif value_a != value_b:
-            return False
-    return True
 
 
 def packed_solver_parameters(solver_parameters, *, options_prefix=None,

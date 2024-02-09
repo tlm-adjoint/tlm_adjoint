@@ -34,6 +34,25 @@ def update_parameters(parameters, new_parameters):
             parameters[key] = value
 
 
+def parameters_equal(parameters_a, parameters_b):
+    for key_a in parameters_a:
+        if key_a not in parameters_b:
+            return False
+        value_a = parameters_a[key_a]
+        value_b = parameters_b[key_a]
+        if isinstance(value_a, (Parameters, dict)):
+            if not isinstance(value_b, (Parameters, dict)):
+                return False
+            elif not parameters_equal(value_a, value_b):
+                return False
+        elif value_a != value_b:
+            return False
+    for key_b in parameters_b:
+        if key_b not in parameters_a:
+            return False
+    return True
+
+
 def process_form_compiler_parameters(form_compiler_parameters):
     params = copy_parameters(parameters["form_compiler"])
     update_parameters(params, form_compiler_parameters)
