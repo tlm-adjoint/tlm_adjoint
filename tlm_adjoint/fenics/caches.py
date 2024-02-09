@@ -15,7 +15,7 @@ from .assembly import assemble, assemble_matrix, matrix_copy
 from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
     replaced_form)
-from .functions import ReplacementFunction
+from .variables import ReplacementFunction
 
 from collections import defaultdict
 from collections.abc import Sequence

@@ -10,13 +10,13 @@ from .backend_interface import *   # noqa: E402,F401
 from .assembly import *            # noqa: E402,F401
 from .caches import *              # noqa: E402,F401
 from .expr import *                # noqa: E402,F401
-from .functions import *           # noqa: E402,F401
 from .interpolation import *       # noqa: E402,F401
 from .parameters import *          # noqa: E402,F401
 from .projection import *          # noqa: E402,F401
 from .solve import *               # noqa: E402,F401
+from .variables import *           # noqa: E402,F401
 
 from .backend_patches import *     # noqa: E402,F401
 
-del backend, backend_interface, assembly, caches, expr, functions, \
-    interpolation, parameters, projection, solve, backend_patches  # noqa: F821
+del backend, backend_interface, assembly, caches, expr, interpolation, \
+    parameters, projection, solve, variables, backend_patches  # noqa: F821

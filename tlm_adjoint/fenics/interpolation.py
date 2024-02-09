@@ -18,7 +18,7 @@ from ..manager import manager_disabled
 from .expr import (
     ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
     extract_dependencies)
-from .functions import ReplacementConstant
+from .variables import ReplacementConstant
 
 import functools
 import mpi4py.MPI as MPI
