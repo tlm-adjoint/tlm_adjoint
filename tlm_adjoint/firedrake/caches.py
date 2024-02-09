@@ -8,7 +8,6 @@ from .backend import (
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state, weakref_method)
-from .backend_code_generator_interface import linear_solver
 
 from ..caches import Cache
 
@@ -488,6 +487,7 @@ class LinearSolverCache(Cache):
             assembly_cache = globals()["assembly_cache"]()
 
         def value():
+            from .solve import linear_solver
             _, (A, b_bc) = assembly_cache.assemble(
                 form, bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,

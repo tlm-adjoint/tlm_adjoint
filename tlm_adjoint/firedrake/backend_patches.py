@@ -15,12 +15,12 @@ from ..patch import (
 from .assembly import Assembly
 from .assignment import ExprAssignment
 from .backend_interface import Cofunction
-from .equations import EquationSolver
 from .expr import expr_zero, extract_coefficients, iter_expr
 from .functions import Constant, define_var_alias
 from .interpolation import ExprInterpolation
 from .parameters import process_form_compiler_parameters
 from .projection import Projection, LocalProjection
+from .solve import EquationSolver
 
 import numbers
 import operator

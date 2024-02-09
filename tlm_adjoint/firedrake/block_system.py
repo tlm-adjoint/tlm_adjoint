@@ -749,11 +749,11 @@ class Matrix(ABC):
 
 class PETScMatrix(Matrix):
     r"""A :class:`tlm_adjoint.firedrake.block_system.Matrix` associated with a
-    :class:`petsc4py.PETSc.Mat` :math:`A` mapping :math:`V \rightarrow W`.
+    :class:`firedrake.matrix.Matrix` :math:`A` mapping :math:`V \rightarrow W`.
 
     :arg arg_space: Defines the space `V`.
     :arg action_space: Defines the space `W`.
-    :arg a: The :class:`petsc4py.PETSc.Mat`.
+    :arg a: The :class:`firedrake.matrix.Matrix`.
     """
 
     def __init__(self, arg_space, action_space, a):
