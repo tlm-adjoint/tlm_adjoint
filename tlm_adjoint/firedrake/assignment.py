@@ -7,13 +7,13 @@ from .backend import (
 from ..interface import (
     var_assign, var_id, var_inner, var_new, var_new_conjugate_dual,
     var_replacement, var_space, var_space_type, var_zero)
-from .backend_interface import ReplacementCofunction, ReplacementFunction
 
 from ..equation import ZeroAssignment
 
 from .expr import (
     ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies)
-from .functions import ReplacementConstant
+from .variables import (
+    ReplacementCofunction, ReplacementConstant, ReplacementFunction)
 
 import pyop2
 import ufl
