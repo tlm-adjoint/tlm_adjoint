@@ -351,6 +351,17 @@ def Function_assign(self, orig, orig_args, expr, subset=None):
     return self
 
 
+@manager_method(backend_Function, "copy", patch_without_manager=True)
+def Function_copy(self, orig, orig_args, deepcopy=False):
+    if deepcopy:
+        F = var_new(self)
+        F.assign(self)
+    else:
+        F = orig_args()
+        define_var_alias(F, self, key=("copy",))
+    return F
+
+
 @manager_method(backend_Function, "project",
                 post_call=var_update_state_post_call)
 def Function_project(self, orig, orig_args, b, bcs=None,
@@ -387,17 +398,6 @@ def Function_project(self, orig, orig_args, b, bcs=None,
     return return_value
 
 
-@manager_method(backend_Function, "copy", patch_without_manager=True)
-def Function_copy(self, orig, orig_args, deepcopy=False):
-    if deepcopy:
-        F = var_new(self)
-        F.assign(self)
-    else:
-        F = orig_args()
-        define_var_alias(F, self, key=("copy",))
-    return F
-
-
 @patch_method(backend_Function, "riesz_representation")
 def Function_riesz_representation(self, orig, orig_args,
                                   riesz_map="L2", *args, **kwargs):
@@ -429,6 +429,20 @@ def Function_sub(self, orig, orig_args, i):
     if not var_is_alias(y):
         define_var_alias(y, self, key=("sub", i))
     return y
+
+
+@patch_method(backend_Cofunction, "__init__")
+def Cofunction__init__(self, orig, orig_args, function_space, val=None,
+                       *args, **kwargs):
+    orig_args()
+    add_interface(self, CofunctionInterface,
+                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
+                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
+                   "space_type": "conjugate_dual", "static": False,
+                   "cache": False,
+                   "replacement_count": new_count(self._counted_class)})
+    if isinstance(val, backend_Cofunction):
+        define_var_alias(self, val, key=("Cofunction__init__",))
 
 
 register_in_place(backend_Cofunction, "__iadd__", operator.add)
@@ -474,20 +488,6 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None):
     if eq is not None:
         eq._post_process()
     return self
-
-
-@patch_method(backend_Cofunction, "__init__")
-def Cofunction__init__(self, orig, orig_args, function_space, val=None,
-                       *args, **kwargs):
-    orig_args()
-    add_interface(self, CofunctionInterface,
-                  {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
-                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
-                   "space_type": "conjugate_dual", "static": False,
-                   "cache": False,
-                   "replacement_count": new_count(self._counted_class)})
-    if isinstance(val, backend_Cofunction):
-        define_var_alias(self, val, key=("Cofunction__init__",))
 
 
 @patch_method(backend_Cofunction, "riesz_representation")
