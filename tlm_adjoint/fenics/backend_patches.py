@@ -16,11 +16,12 @@ from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method)
 
 from .assembly import Assembly
+from .backend_interface import linear_solver
 from .expr import extract_coefficients, new_count
 from .interpolation import ExprInterpolation
 from .parameters import copy_parameters, process_form_compiler_parameters
 from .projection import Projection
-from .solve import EquationSolver, linear_solver
+from .solve import EquationSolver
 from .variables import (
     Constant, ConstantInterface, ConstantSpaceInterface, FunctionInterface,
     FunctionSpaceInterface, define_var_alias)

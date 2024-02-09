@@ -1,6 +1,6 @@
 from firedrake import *
 from tlm_adjoint.firedrake import *
-from tlm_adjoint.firedrake.solve import assemble_linear_solver
+from tlm_adjoint.firedrake.backend_interface import assemble_linear_solver
 
 from .test_base import *
 

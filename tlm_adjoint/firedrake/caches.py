@@ -11,7 +11,8 @@ from ..interface import (
 
 from ..caches import Cache
 
-from .assembly import assemble, assemble_matrix, matrix_copy, matrix_multiply
+from .backend_interface import (
+    assemble, assemble_matrix, linear_solver, matrix_copy, matrix_multiply)
 from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
     iter_expr, replaced_form)
@@ -487,7 +488,6 @@ class LinearSolverCache(Cache):
             assembly_cache = globals()["assembly_cache"]()
 
         def value():
-            from .solve import linear_solver
             _, (A, b_bc) = assembly_cache.assemble(
                 form, bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,

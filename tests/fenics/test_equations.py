@@ -1,7 +1,7 @@
 from fenics import *
 from tlm_adjoint.fenics import *
+from tlm_adjoint.fenics.backend_interface import assemble_linear_solver
 from tlm_adjoint.fenics.expr import extract_coefficients
-from tlm_adjoint.fenics.solve import assemble_linear_solver
 
 from .test_base import *
 
