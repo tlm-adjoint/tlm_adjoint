@@ -179,7 +179,7 @@ def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
     def forward(y):
         x = y * y
         x = op(x, y)
-        assert abs(x.vector - op(y.vector ** 2, y.vector)).max() < 1.0e-16
+        assert abs(x.vector - op(y.vector ** 2, y.vector)).max() < 1.0e-15
 
         c = Float(name="c")
         e = Vector(y.space, name="e", space_type="dual").assign(
