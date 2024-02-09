@@ -702,7 +702,6 @@ def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
 
 fn_globals(backend_assemble)["base_form_assembly_visitor"] = base_form_assembly_visitor  # noqa: E501
 
-
 assemble = add_manager_controls(backend_assemble)
 solve = add_manager_controls(backend_solve)
 project = add_manager_controls(backend_project)
