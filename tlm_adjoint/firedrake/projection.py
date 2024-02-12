@@ -25,9 +25,7 @@ class Projection(EquationSolver):
     :arg x: A :class:`firedrake.function.Function` defining the forward
         solution.
     :arg rhs: A :class:`ufl.core.expr.Expr` defining the expression to project
-        onto the space for `x`, or a :class:`ufl.form.BaseForm` defining the
-        right-hand-side of the finite element variational problem. Should not
-        depend on `x`.
+        onto the space for `x`. Should not depend on `x`.
 
     Remaining arguments are passed to the
     :class:`tlm_adjoint.firedrake.solve.EquationSolver` constructor.
@@ -36,10 +34,10 @@ class Projection(EquationSolver):
     def __init__(self, x, rhs, *args, **kwargs):
         space = var_space(x)
         test, trial = TestFunction(space), TrialFunction(space)
-        if not isinstance(rhs, ufl.classes.BaseForm):
-            rhs = ufl.inner(rhs, test) * ufl.dx
-        super().__init__(ufl.inner(trial, test) * ufl.dx == rhs, x,
-                         *args, **kwargs)
+        lhs = ufl.inner(trial, test) * ufl.dx
+        rhs = ufl.inner(rhs, test) * ufl.dx
+
+        super().__init__(lhs == rhs, x, *args, **kwargs)
 
 
 class LocalProjection(EquationSolver):
