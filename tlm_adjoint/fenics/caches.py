@@ -3,8 +3,8 @@ caching.
 """
 
 from .backend import (
-    Parameters, LocalSolver, TrialFunction, backend_DirichletBC,
-    backend_Function)
+    Parameters, TrialFunction, backend_DirichletBC, backend_Function,
+    backend_LocalSolver)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
     var_replacement, var_space, var_state)
@@ -12,7 +12,7 @@ from ..interface import (
 from ..caches import Cache
 
 from .backend_interface import (
-    assemble, assemble_matrix, linear_solver, matrix_copy)
+    LocalSolver, assemble, assemble_matrix, linear_solver, matrix_copy)
 from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
     replaced_form)
@@ -458,17 +458,17 @@ class LocalSolverCache(Cache):
 
         :arg form: An arity two :class:`ufl.Form`, defining the element-wise
             local block diagonal matrix.
-        :arg local_solver: `dolfin.LocalSolver.SolverType`. Defaults to
+        :arg solver_type: `dolfin.LocalSolver.SolverType`. Defaults to
             `dolfin.LocalSolver.SolverType.LU`.
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
         :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
-            DOLFIN `LocalSolver` and `value_ref` is a :class:`.CacheRef`
-            storing a reference to `value`.
+            `tlm_adjoint.fenics.backend_interface.LocalSolver` and `value_ref`
+            is a :class:`.CacheRef` storing a reference to `value`.
         """
 
         if solver_type is None:
-            solver_type = LocalSolver.SolverType.LU
+            solver_type = backend_LocalSolver.SolverType.LU
 
         form = eliminate_zeros(form)
         if form.empty():
@@ -482,9 +482,7 @@ class LocalSolverCache(Cache):
                solver_type)
 
         def value():
-            local_solver = LocalSolver(assemble_form, solver_type=solver_type)
-            local_solver.factorize()
-            return local_solver
+            return LocalSolver(assemble_form, solver_type=solver_type)
 
         return self.add(key, value,
                         deps=form_dependencies(form, assemble_form))
