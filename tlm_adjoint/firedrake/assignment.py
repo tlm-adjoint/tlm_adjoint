@@ -15,7 +15,6 @@ from .expr import (
 from .variables import (
     ReplacementCofunction, ReplacementConstant, ReplacementFunction)
 
-import pyop2
 import ufl
 
 __all__ = \
@@ -46,12 +45,9 @@ class ExprAssignment(ExprEquation):
         deps, nl_deps = extract_dependencies(
             rhs, space_type=var_space_type(x))
         if var_id(x) in deps:
-            raise ValueError("Invalid non-linear dependency")
+            raise ValueError("Invalid dependency")
         deps, nl_deps = list(deps.values()), tuple(nl_deps.values())
         deps.insert(0, x)
-
-        if subset is not None:
-            subset = pyop2.Subset(subset.superset, subset.indices)
 
         super().__init__(x, deps, nl_deps=nl_deps, ic=False, adj_ic=False)
         self._rhs = rhs
@@ -114,6 +110,7 @@ class ExprAssignment(ExprEquation):
                 F_ = var_new_conjugate_dual(F)
                 F_.dat.data[:] = F.dat.data_ro.conjugate()
                 F = F_
+                del F_
             else:
                 F = F.riesz_representation("l2")
         else:
@@ -153,13 +150,9 @@ class ExprAssignment(ExprEquation):
             if dep != x:
                 tau_dep = tlm_map[dep]
                 if tau_dep is not None:
-                    # Cannot use += as Firedrake might add to the *values* for
-                    # tlm_rhs
                     tlm_rhs = (tlm_rhs
                                + derivative(self._rhs, dep, argument=tau_dep))
 
-        if isinstance(tlm_rhs, ufl.classes.Zero):
-            return ZeroAssignment(tlm_map[x])
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])
