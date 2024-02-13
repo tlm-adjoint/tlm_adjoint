@@ -1,6 +1,6 @@
 from .backend import (
-    LinearSolver, backend_DirichletBC, backend_Function, backend_Matrix,
-    backend_assemble, backend_solve, extract_args)
+    LinearSolver, Tensor, backend_DirichletBC, backend_Function,
+    backend_Matrix, backend_assemble, backend_solve, extract_args)
 from ..interface import (
     check_space_type, check_space_types, register_garbage_cleanup, space_new,
     var_space_type)
@@ -270,6 +270,37 @@ def solve(*args, **kwargs):
                          transpose_nullspace=transpose_nullspace,
                          near_nullspace=near_nullspace,
                          options_prefix=options_prefix)
+
+
+class LocalSolver:
+    def __init__(self, form, *, form_compiler_parameters=None):
+        if form_compiler_parameters is None:
+            form_compiler_parameters = {}
+
+        arguments = form.arguments()
+        test, trial = arguments
+        assert test.number() < trial.number()
+        b_space = test.function_space()
+        x_space = trial.function_space()
+
+        form = eliminate_zeros(form)
+        mat = backend_assemble(
+            Tensor(form).inv,
+            form_compiler_parameters=form_compiler_parameters)
+
+        self._mat = mat
+        self._x_space = x_space
+        self._b_space = b_space
+
+    def solve(self, x, b):
+        if x.function_space() != self._x_space:
+            raise ValueError("Invalid space")
+        check_space_type(x, "primal")
+        if b.function_space() != self._b_space:
+            raise ValueError("Invalid space")
+        check_space_type(b, "conjugate_dual")
+
+        matrix_multiply(self._mat, b, tensor=x)
 
 
 def garbage_cleanup_internal_comm(comm):
