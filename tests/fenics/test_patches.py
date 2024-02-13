@@ -443,3 +443,68 @@ def test_LUSolver(setup_test, test_leaks):
 
     min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2)
     assert min_order > 1.99
+
+
+@pytest.mark.fenics
+@seed_test
+def test_LocalSolver(setup_test, test_leaks):
+    mesh = UnitSquareMesh(20, 20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Discontinuous Lagrange", 1)
+    test = TestFunction(space)
+
+    def a(space):
+        test, trial = TestFunction(space), TrialFunction(space)
+        return (inner(trial, test) * dx
+                + Constant(0.1) * inner(trial.dx(0), test) * dx)
+
+    def forward(m):
+        b = assemble(inner(m, test) * dx)
+
+        u = Function(space, name="u")
+        solver = LocalSolver(a(space))
+        solver.solve_local(u, b, space.dofmap())
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(1.0)) ** 4) * dx)
+        return u, J
+
+    m = Function(space, name="m")
+    interpolate_expression(m, X[0] * sin(pi * X[0]) * sin(2.0 * pi * X[1]))
+    u_ref = Function(space, name="u_ref")
+    solve(a(space) == inner(m, test) * dx,
+          u_ref, solver_parameters=ls_parameters_gmres)
+
+    start_manager()
+    u, J = forward(m)
+    stop_manager()
+
+    u_error_norm = np.sqrt(abs(assemble(inner(u - u_ref, u - u_ref) * dx)))
+    info(f"{u_error_norm=}")
+    assert u_error_norm < 1.0e-15
+
+    def forward_J(m):
+        _, J = forward(m)
+        return J
+
+    J_val = J.value
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward_J, m, J_val=J_val, dJ=dJ, seed=1.0e-3)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward_J)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=1,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward_J, m, adjoint_order=2,
+                                        seed=1.0e-3)
+    assert min_order > 1.99
