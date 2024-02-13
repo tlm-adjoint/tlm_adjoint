@@ -48,6 +48,7 @@ __all__ = \
         "test_rhs",
 
         "ls_parameters_cg",
+        "ls_parameters_gmres",
         "ns_parameters_newton_cg",
         "ns_parameters_newton_gmres"
     ]
@@ -312,6 +313,13 @@ ls_parameters_cg = {"ksp_type": "cg",
                     "pc_type": "sor",
                     "ksp_rtol": 1.0e-14,
                     "ksp_atol": 1.0e-16}
+
+
+ls_parameters_gmres = {"ksp_type": "gmres",
+                       "pc_type": "sor",
+                       "ksp_rtol": 1.0e-14,
+                       "ksp_atol": 1.0e-16}
+
 
 ns_parameters_newton_cg = {"snes_type": "newtonls",
                            "ksp_type": "cg",
