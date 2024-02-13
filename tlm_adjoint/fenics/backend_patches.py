@@ -523,6 +523,14 @@ def Function_vector(self, orig, orig_args):
     return vector
 
 
+@patch_method(backend_Vector, "apply")
+def Vector_apply(self, orig, orig_args, *args, **kwargs):
+    return_value = orig_args()
+    if hasattr(self, "_tlm_adjoint__function"):
+        var_update_state(self._tlm_adjoint__function)
+    return return_value
+
+
 @manager_method(backend_Matrix, "__mul__")
 def Matrix__mul__(self, orig, orig_args, other):
     return_value = orig_args()
