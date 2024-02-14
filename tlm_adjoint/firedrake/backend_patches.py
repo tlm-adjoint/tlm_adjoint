@@ -11,7 +11,7 @@ from ..interface import (
 
 from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
-from ..manager import annotation_enabled, paused_manager, tlm_enabled
+from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
     add_manager_controls, manager_method, patch_function, patch_method,
     patch_property)
@@ -138,12 +138,11 @@ def Constant_init_assign(self, value):
         eq._post_process()
 
 
-@patch_method(backend_Constant, "__init__")
+@manager_method(backend_Constant, "__init__", patch_without_manager=True)
 def backend_Constant__init__(self, orig, orig_args, value, domain=None, *,
                              name=None, space=None, comm=None,
                              **kwargs):
-    with paused_manager():
-        orig(self, value, domain=domain, name=name, **kwargs)
+    orig(self, value, domain=domain, name=name, **kwargs)
 
     if name is None:
         name = self.name

@@ -19,6 +19,7 @@ backend_Constant = Constant
 backend_DirichletBC = DirichletBC
 backend_Function = Function
 backend_FunctionSpace = FunctionSpace
+backend_LocalSolver = LocalSolver
 backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_Vector = fenics.cpp.la.GenericVector
 backend_assemble = assemble

@@ -2,9 +2,9 @@ from .backend import (
     Form, KrylovSolver, LUSolver, LinearVariationalSolver,
     NonlinearVariationalProblem, NonlinearVariationalSolver, as_backend_type,
     backend_Constant, backend_DirichletBC, backend_Function,
-    backend_FunctionSpace, backend_Matrix, backend_ScalarType, backend_Vector,
-    backend_assemble, backend_project, backend_solve, cpp_Assembler,
-    cpp_PETScVector, cpp_SystemAssembler)
+    backend_FunctionSpace, backend_LocalSolver, backend_Matrix,
+    backend_ScalarType, backend_Vector, backend_assemble, backend_project,
+    backend_solve, cpp_Assembler, cpp_PETScVector, cpp_SystemAssembler)
 from ..interface import (
     DEFAULT_COMM, add_interface, comm_dup_cached, comm_parent, is_var,
     new_space_id, new_var_id, space_id, space_new, var_assign, var_comm,
@@ -22,7 +22,7 @@ from .interpolation import ExprInterpolation
 from .parameters import (
     copy_parameters, parameters_equal, process_form_compiler_parameters)
 from .projection import Projection
-from .solve import EquationSolver
+from .solve import EquationSolver, LocalEquationSolver
 from .variables import (
     Constant, ConstantInterface, ConstantSpaceInterface, FunctionInterface,
     FunctionSpaceInterface, define_var_alias)
@@ -313,7 +313,7 @@ def Constant_init_assign(self, value):
         eq._post_process()
 
 
-@patch_method(backend_Constant, "__init__")
+@manager_method(backend_Constant, "__init__", patch_without_manager=True)
 def backend_Constant__init__(self, orig, orig_args, value, *args,
                              domain=None, space=None, comm=None, **kwargs):
     if domain is not None and hasattr(domain, "ufl_domain"):
@@ -523,7 +523,15 @@ def Function_vector(self, orig, orig_args):
     return vector
 
 
-@manager_method(backend_Matrix, "__mul__")
+@patch_method(backend_Vector, "apply")
+def Vector_apply(self, orig, orig_args, *args, **kwargs):
+    return_value = orig_args()
+    if hasattr(self, "_tlm_adjoint__function"):
+        var_update_state(self._tlm_adjoint__function)
+    return return_value
+
+
+@patch_method(backend_Matrix, "__mul__")
 def Matrix__mul__(self, orig, orig_args, other):
     return_value = orig_args()
 
@@ -716,6 +724,63 @@ def KrylovSolver_solve(self, orig, orig_args, *args):
                            "preconditioner": preconditioner,
                            "krylov_solver": self.parameters},
         form_compiler_parameters=form_compiler_parameters,
+        cache_jacobian=False, cache_rhs_assembly=False)
+
+    eq._pre_process()
+    return_value = orig_args()
+    eq._post_process()
+    return return_value
+
+
+@patch_method(backend_LocalSolver, "__init__")
+def LocalSolver__init__(self, orig, orig_args, a, L=None,
+                        solver_type=backend_LocalSolver.SolverType.LU):
+    orig_args()
+    self._tlm_adjoint__solver_type = solver_type
+    self._tlm_adjoint__factorized = False
+
+
+@patch_method(backend_LocalSolver, "factorize")
+def LocalSolver_factorize(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    self._tlm_adjoint__factorized = True
+
+
+@patch_method(backend_LocalSolver, "clear_factorization")
+def LocalSolver_clear_factorization(self, orig, orig_args, *args, **kwargs):
+    orig_args()
+    self._tlm_adjoint__factorized = False
+
+
+def LocalSolver_solve_local_pre_call(self, x, b, dofmap_b):
+    if isinstance(x, backend_Function):
+        x = x.vector()
+    if isinstance(b, backend_Function):
+        b = b.vector()
+    return (x, b, dofmap_b), {}
+
+
+def LocalSolver_solve_local_post_call(self, return_value, x, b, dofmap_b):
+    if hasattr(x, "_tlm_adjoint__function"):
+        var_update_state(x._tlm_adjoint__function)
+    return return_value
+
+
+@manager_method(backend_LocalSolver, "solve_local",
+                pre_call=LocalSolver_solve_local_pre_call,
+                post_call=LocalSolver_solve_local_post_call)
+def LocalSolver_solve_local(self, orig, orig_args, x, b, dofmap_b):
+    if isinstance(x, backend_Function):
+        x = x.vector()
+    if isinstance(b, backend_Function):
+        b = b.vector()
+    if self._tlm_adjoint__factorized:
+        raise NotImplementedError("Factorization not supported")
+
+    eq = LocalEquationSolver(
+        self.a_ufl == b._tlm_adjoint__form, x._tlm_adjoint__function,
+        solver_type=self._tlm_adjoint__solver_type,
+        form_compiler_parameters=b._tlm_adjoint__form_compiler_parameters,
         cache_jacobian=False, cache_rhs_assembly=False)
 
     eq._pre_process()

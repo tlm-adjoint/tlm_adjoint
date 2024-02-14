@@ -2,8 +2,8 @@
 """
 
 from .backend import (
-    Parameters, adjoint, backend_DirichletBC, backend_solve as solve,
-    parameters)
+    Parameters, adjoint, backend_DirichletBC, backend_LocalSolver,
+    backend_solve as solve, parameters)
 from ..interface import (
     check_space_type, is_var, var_axpy, var_copy, var_id,
     var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
@@ -12,8 +12,10 @@ from ..caches import CacheRef
 from ..equation import ZeroAssignment
 
 from .backend_interface import (
-    assemble, assemble_linear_solver, matrix_multiply)
-from .caches import assembly_cache, is_cached, linear_solver_cache, split_form
+    LocalSolver, assemble, assemble_linear_solver, matrix_multiply)
+from .caches import (
+    assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
+    split_form)
 from .expr import (
     ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
     extract_dependencies)
@@ -30,7 +32,8 @@ except ImportError:
 
 __all__ = \
     [
-        "EquationSolver"
+        "EquationSolver",
+        "LocalEquationSolver"
     ]
 
 
@@ -350,10 +353,11 @@ class EquationSolver(ExprEquation):
             assert len(eq_deps) == len(deps)
             form = ufl.replace(form, dict(zip(eq_deps, deps)))
 
-        return assemble_linear_solver(
+        solver, _, b_bc = assemble_linear_solver(
             form, bcs=bcs,
             form_compiler_parameters=self._form_compiler_parameters,
             linear_solver_parameters=linear_solver_parameters)
+        return solver, b_bc
 
     def _assemble_linear_solver_cached(self, key, form, bcs, *,
                                        linear_solver_parameters,
@@ -373,7 +377,8 @@ class EquationSolver(ExprEquation):
                     form_compiler_parameters=self._form_compiler_parameters,
                     linear_solver_parameters=linear_solver_parameters,
                     replace_map=replace_map)
-        return value
+        solver, _, b_bc = value
+        return solver, b_bc
 
     def forward_solve(self, x, deps=None):
         eq_deps = self.dependencies()
@@ -381,7 +386,7 @@ class EquationSolver(ExprEquation):
         if self._linear:
             x_0, b = self._assemble_rhs(x, self._bcs, deps=deps)
 
-            J_solver, _, _ = self._linear_solver(
+            J_solver, _ = self._linear_solver(
                 self._J, bcs=self._hbcs,
                 linear_solver_parameters=self._linear_solver_parameters,
                 eq_deps=eq_deps, deps=deps,
@@ -440,7 +445,7 @@ class EquationSolver(ExprEquation):
             adj_x = self.new_adj_x()
         eq_nl_deps = self.nonlinear_dependencies()
 
-        J_solver, _, _ = self._linear_solver(
+        J_solver, _ = self._linear_solver(
             adjoint(self._J), bcs=self._hbcs,
             linear_solver_parameters=self._adjoint_solver_parameters,
             eq_deps=eq_nl_deps, deps=nl_deps,
@@ -477,6 +482,87 @@ class EquationSolver(ExprEquation):
                 solver_parameters=self._tlm_solver_parameters,
                 adjoint_solver_parameters=self._adjoint_solver_parameters,
                 tlm_solver_parameters=self._tlm_solver_parameters,
+                cache_jacobian=self._cache_tlm_jacobian,
+                cache_adjoint_jacobian=self._cache_adjoint_jacobian,
+                cache_tlm_jacobian=self._cache_tlm_jacobian,
+                cache_rhs_assembly=self._cache_rhs_assembly)
+
+
+class LocalEquationSolver(EquationSolver):
+    """Represents the solution of a linear finite element variational problem,
+    for the case where the matrix is element-wise local block diagonal.
+
+    :arg solver_type: `dolfin.LocalSolver.SolverType`. Defaults to
+        `dolfin.LocalSolver.SolverType.LU`.
+
+    Remaining arguments are passed to the :class:`.EquationSolver` constructor.
+    """
+
+    def __init__(self, eq, x, *, solver_type=None,
+                 form_compiler_parameters=None, cache_jacobian=None,
+                 cache_adjoint_jacobian=None, cache_tlm_jacobian=None,
+                 cache_rhs_assembly=None, match_quadrature=None):
+        if solver_type is None:
+            solver_type = backend_LocalSolver.SolverType.LU
+
+        super().__init__(
+            eq, x,
+            form_compiler_parameters=form_compiler_parameters,
+            solver_parameters={"linear_solver": "direct"},
+            cache_jacobian=cache_jacobian,
+            cache_adjoint_jacobian=cache_adjoint_jacobian,
+            cache_tlm_jacobian=cache_tlm_jacobian,
+            cache_rhs_assembly=cache_rhs_assembly,
+            match_quadrature=match_quadrature)
+        if not self._linear:
+            raise ValueError("Must be a linear variational problem")
+        self._solver_type = solver_type
+
+    def _assemble_linear_solver(self, form, bcs, *,
+                                linear_solver_parameters,
+                                eq_deps, deps):
+        if len(bcs) > 0:
+            raise ValueError("Unexpected boundary conditions")
+        if deps is not None:
+            assert len(eq_deps) == len(deps)
+            form = ufl.replace(form, dict(zip(eq_deps, deps)))
+
+        solver = LocalSolver(
+            form, solver_type=self._solver_type)
+        return solver, None
+
+    def _assemble_linear_solver_cached(self, key, form, bcs, *,
+                                       linear_solver_parameters,
+                                       eq_deps, deps):
+        if len(bcs) > 0:
+            raise ValueError("Unexpected boundary conditions")
+        if deps is not None:
+            assert len(eq_deps) == len(deps)
+            replace_map = dict(zip(eq_deps, deps))
+        else:
+            replace_map = None
+
+        var_update_caches(*eq_deps, value=deps)
+        value = self._solver_cache[key]()
+        if value is None:
+            self._solver_cache[key], value = \
+                local_solver_cache().local_solver(
+                    form, solver_type=self._solver_type,
+                    replace_map=replace_map)
+        return value, None
+
+    def tangent_linear(self, M, dM, tlm_map):
+        x = self.x()
+        tlm_rhs = self._tangent_linear_rhs(tlm_map)
+        if len(self._hbcs) != 0:
+            raise RuntimeError("Unexpected boundary conditions")
+        if tlm_rhs.empty():
+            return ZeroAssignment(tlm_map[x])
+        else:
+            return LocalEquationSolver(
+                self._J == tlm_rhs, tlm_map[x],
+                solver_type=self._solver_type,
+                form_compiler_parameters=self._form_compiler_parameters,
                 cache_jacobian=self._cache_tlm_jacobian,
                 cache_adjoint_jacobian=self._cache_adjoint_jacobian,
                 cache_tlm_jacobian=self._cache_tlm_jacobian,

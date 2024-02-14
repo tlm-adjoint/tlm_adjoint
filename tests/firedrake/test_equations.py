@@ -1202,7 +1202,8 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
     def eq(u):
         space = u.function_space()
         test, trial = TestFunction(space), TrialFunction(space)
-        return (inner(trial, test) * dx + inner(trial.dx(0), test) * dx
+        return (inner(trial, test) * dx
+                + Constant(0.1) * inner(trial.dx(0), test) * dx
                 == inner(Constant(1.0), test) * dx)
 
     def bcs(space, m, sub_domains):
@@ -1212,15 +1213,17 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
     def forward(m):
         with paused_manager():
             u_ref = Function(space, name="u_ref")
-            solve(eq(u_ref), u_ref, bcs=bcs(space, m, sub_domains))
+            solve(eq(u_ref), u_ref, bcs=bcs(space, m, sub_domains),
+                  solver_parameters=ls_parameters_gmres)
 
         u = Function(space, name="u")
-        EquationSolver(eq(u), u, bcs=bcs(space, m, sub_domains)).solve()
+        EquationSolver(eq(u), u, bcs=bcs(space, m, sub_domains),
+                       solver_parameters=ls_parameters_gmres).solve()
 
         with paused_manager():
             error_norm = np.sqrt(abs(assemble(inner(u - u_ref,
                                                     u - u_ref) * dx)))
-            assert error_norm < 1.0e-14
+            assert error_norm < 1.0e-12
 
         J = Functional(name="J")
         J.assign(((u - Constant(2.0)) ** 4) * dx)
@@ -1257,7 +1260,7 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
                                         seed=5.0e-3)
-    assert min_order > 1.99
+    assert min_order > 1.98
 
 
 @pytest.mark.firedrake

@@ -3,16 +3,16 @@ caching.
 """
 
 from .backend import (
-    Parameters, Tensor, TrialFunction, backend_assemble, backend_DirichletBC,
-    backend_Function, complex_mode)
+    Parameters, TrialFunction, backend_DirichletBC, backend_Function,
+    complex_mode)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
-    var_replacement, var_space, var_state, weakref_method)
+    var_replacement, var_space, var_state)
 
 from ..caches import Cache
 
 from .backend_interface import (
-    assemble, assemble_matrix, linear_solver, matrix_copy, matrix_multiply)
+    LocalSolver, assemble, assemble_matrix, linear_solver, matrix_copy)
 from .expr import (
     derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
     iter_expr, replaced_form)
@@ -501,26 +501,6 @@ class LinearSolverCache(Cache):
                         deps=form_dependencies(form, assemble_form))
 
 
-def LocalSolver(form, *,
-                form_compiler_parameters=None):
-    if form_compiler_parameters is None:
-        form_compiler_parameters = {}
-
-    form = eliminate_zeros(form)
-    if isinstance(form, ufl.classes.ZeroBaseForm):
-        raise ValueError("Form cannot be a ZeroBaseForm")
-    local_solver = backend_assemble(
-        Tensor(form).inv,
-        form_compiler_parameters=form_compiler_parameters)
-
-    def solve_local(self, x, b):
-        matrix_multiply(self, b, tensor=x)
-    local_solver._tlm_adjoint__solve_local = weakref_method(
-        solve_local, local_solver)
-
-    return local_solver
-
-
 class LocalSolverCache(Cache):
     """A :class:`.Cache` for element-wise local block diagonal linear solver
     data.
@@ -537,9 +517,9 @@ class LocalSolverCache(Cache):
         :arg replace_map: A :class:`Mapping` defining a map from symbolic
             variables to values.
         :returns: A :class:`tuple` `(value_ref, value)`. `value` is a
-            :class:`firedrake.matrix.Matrix` storing the assembled inverse
-            matrix, and `value_ref` is a :class:`.CacheRef` storing a reference
-            to `value`.
+            `tlm_adjoint.firedrake.backend_interface.LocalSolver` and
+            `value_ref` is a :class:`.CacheRef` storing a reference to
+            `value`.
         """
 
         if form_compiler_parameters is None:

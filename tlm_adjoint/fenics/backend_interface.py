@@ -1,7 +1,8 @@
 from .backend import (
     KrylovSolver, LUSolver, TestFunction, as_backend_type, backend_Constant,
-    backend_DirichletBC, backend_Function, backend_ScalarType,
-    backend_assemble, backend_assemble_system, has_lu_solver_method)
+    backend_DirichletBC, backend_Function, backend_LocalSolver,
+    backend_ScalarType, backend_assemble, backend_assemble_system,
+    has_lu_solver_method)
 from ..interface import (
     DEFAULT_COMM, check_space_type, check_space_types, space_new,
     var_space_type)
@@ -170,3 +171,40 @@ def linear_solver(A, linear_solver_parameters, *, comm=None):
         solver.set_operator(A)
         update_parameters(solver.parameters, ks_parameters)
     return solver
+
+
+class LocalSolver:
+    def __init__(self, form, *, solver_type=None):
+        if solver_type is None:
+            solver_type = backend_LocalSolver.SolverType.LU
+
+        arguments = form.arguments()
+        test, trial = arguments
+        assert test.number() < trial.number()
+        b_space = test.function_space()
+        x_space = trial.function_space()
+
+        form = eliminate_zeros(form)
+        solver = backend_LocalSolver(form, solver_type=solver_type)
+        solver.factorize()
+
+        self._solver = solver
+        self._x_space = x_space
+        self._b_space = b_space
+
+    def solve(self, x, b):
+        if isinstance(x, backend_Function):
+            x = x.vector()
+        if isinstance(b, backend_Function):
+            b = b.vector()
+
+        if hasattr(x, "_tlm_adjoint__function"):
+            if x._tlm_adjoint__function.function_space() != self._x_space:
+                raise ValueError("Invalid space")
+            check_space_type(x._tlm_adjoint__function, "primal")
+        if hasattr(b, "_tlm_adjoint__function"):
+            if b._tlm_adjoint__function.function_space() != self._b_space:
+                raise ValueError("Invalid space")
+            check_space_type(b._tlm_adjoint__function, "conjugate_dual")
+
+        self._solver.solve_local(x, b, self._b_space.dofmap())
