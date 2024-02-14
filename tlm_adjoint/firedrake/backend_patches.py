@@ -489,6 +489,17 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None):
     return self
 
 
+@manager_method(backend_Cofunction, "copy", patch_without_manager=True)
+def Cofunction_copy(self, orig, orig_args, deepcopy=False):
+    if deepcopy:
+        F = var_new(self)
+        F.assign(self)
+    else:
+        F = orig_args()
+        define_var_alias(F, self, key=("copy",))
+    return F
+
+
 @patch_method(backend_Cofunction, "riesz_representation")
 def Cofunction_riesz_representation(self, orig, orig_args,
                                     riesz_map="L2", *args, **kwargs):

@@ -339,6 +339,52 @@ def test_Function_assign(setup_test, test_leaks,
 
 
 @pytest.mark.fenics
+@seed_test
+def test_Function_deepcopy(setup_test, test_leaks):
+    mesh = UnitIntervalMesh(20)
+    X = SpatialCoordinate(mesh)
+    space = FunctionSpace(mesh, "Lagrange", 1)
+
+    def forward(m):
+        u = m.copy(deepcopy=True)
+
+        J = Functional(name="J")
+        J.assign(((u - Constant(1.0)) ** 4) * dx)
+        return J
+
+    m = Function(space, name="m")
+    interpolate_expression(m, exp(X[0]) - Constant(0.75))
+
+    start_manager()
+    J = forward(m)
+    stop_manager()
+
+    J_val = J.value
+    assert abs(J_val - assemble(((m - Constant(1.0)) ** 4) * dx)) == 0.0
+
+    dJ = compute_gradient(J, m)
+
+    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, seed=1.0e-4)
+    assert min_order > 1.99
+
+    ddJ = Hessian(forward)
+    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=1.0e-4,
+                            size=3)
+    assert min_order > 2.99
+
+    min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
+                                        seed=1.0e-4)
+    assert min_order > 1.99
+
+    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
+                                        seed=1.0e-4)
+    assert min_order > 2.00
+
+
+@pytest.mark.fenics
 @pytest.mark.parametrize("ZeroFunction", [Function, ZeroFunction])
 @pytest.mark.parametrize("assemble", [backend_assemble,
                                       assemble,
