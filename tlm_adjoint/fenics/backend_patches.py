@@ -313,7 +313,7 @@ def Constant_init_assign(self, value):
         eq._post_process()
 
 
-@patch_method(backend_Constant, "__init__")
+@manager_method(backend_Constant, "__init__", patch_without_manager=True)
 def backend_Constant__init__(self, orig, orig_args, value, *args,
                              domain=None, space=None, comm=None, **kwargs):
     if domain is not None and hasattr(domain, "ufl_domain"):
