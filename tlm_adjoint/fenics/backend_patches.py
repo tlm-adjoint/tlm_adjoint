@@ -531,7 +531,7 @@ def Vector_apply(self, orig, orig_args, *args, **kwargs):
     return return_value
 
 
-@manager_method(backend_Matrix, "__mul__")
+@patch_method(backend_Matrix, "__mul__")
 def Matrix__mul__(self, orig, orig_args, other):
     return_value = orig_args()
 
