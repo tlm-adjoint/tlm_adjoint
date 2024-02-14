@@ -90,16 +90,13 @@ def add_manager_controls(orig):
 
 
 def manager_method(cls, name, *,
-                   patch_without_manager=False,
-                   pre_call=None, post_call=None):
+                   patch_without_manager=False, post_call=None):
     orig = getattr(cls, name)
 
     def wrapper(patch):
         @manager_disabled()
         @functools.wraps(orig)
         def wrapped_orig(self, *args, **kwargs):
-            if pre_call is not None:
-                args, kwargs = pre_call(self, *args, **kwargs)
             return_value = orig(self, *args, **kwargs)
             if post_call is not None:
                 return_value = post_call(self, return_value, *args, **kwargs)

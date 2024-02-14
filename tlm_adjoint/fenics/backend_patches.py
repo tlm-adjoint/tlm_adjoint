@@ -594,28 +594,21 @@ def Solver_solve_args(self, *args):
     return A, x, b
 
 
-def Solver_solve_pre_call(self, *args):
-    A_arg = _getattr(self, "A") is None
+@patch_method(LUSolver, "solve")
+def LUSolver_solve_patch(self, orig, orig_args, *args):
     A, x, b = Solver_solve_args(self, *args)
-    if A_arg:
-        return (A, x, b), {}
-    else:
-        return (x, b), {}
 
+    return_value = orig(self, A, x, b)
 
-def Solver_solve_post_call(self, return_value, *args):
-    _, x, b = Solver_solve_args(self, *args)
+    _setattr(self, "A", A)
     if hasattr(x, "_tlm_adjoint__function"):
         var_update_state(x._tlm_adjoint__function)
     if hasattr(b, "_tlm_adjoint__function"):
         var_update_state(b._tlm_adjoint__function)
-
     return return_value
 
 
-@manager_method(LUSolver, "solve",
-                pre_call=Solver_solve_pre_call,
-                post_call=Solver_solve_post_call)
+@manager_method(LUSolver, "solve")
 def LUSolver_solve(self, orig, orig_args, *args):
     A, x, b = Solver_solve_args(self, *args)
 
@@ -694,9 +687,27 @@ def KrylovSolver_set_operators(self, orig, orig_args, A, P):
     _setattr(self, "P", P)
 
 
-@manager_method(KrylovSolver, "solve",
-                pre_call=Solver_solve_pre_call,
-                post_call=Solver_solve_post_call)
+@patch_method(KrylovSolver, "solve")
+def KrylovSolver_solve_patch(self, orig, orig_args, *args):
+    A_arg = isinstance(args[0], backend_Matrix)
+    A, x, b = Solver_solve_args(self, *args)
+
+    if A_arg:
+        return_value = orig(self, A, x, b)
+    else:
+        return_value = orig(self, x, b)
+
+    if A_arg:
+        _setattr(self, "A", None)
+        _setattr(self, "P", None)
+    if hasattr(x, "_tlm_adjoint__function"):
+        var_update_state(x._tlm_adjoint__function)
+    if hasattr(b, "_tlm_adjoint__function"):
+        var_update_state(b._tlm_adjoint__function)
+    return return_value
+
+
+@manager_method(KrylovSolver, "solve")
 def KrylovSolver_solve(self, orig, orig_args, *args):
     A, x, b = Solver_solve_args(self, *args)
     if _getattr(self, "P") is not None:
@@ -752,23 +763,21 @@ def LocalSolver_clear_factorization(self, orig, orig_args, *args, **kwargs):
     self._tlm_adjoint__factorized = False
 
 
-def LocalSolver_solve_local_pre_call(self, x, b, dofmap_b):
+@patch_method(backend_LocalSolver, "solve_local")
+def LocalSolver_solve_local_patch(self, orig, orig_args, x, b, dofmap_b):
     if isinstance(x, backend_Function):
         x = x.vector()
     if isinstance(b, backend_Function):
         b = b.vector()
-    return (x, b, dofmap_b), {}
 
+    return_value = orig(self, x, b, dofmap_b)
 
-def LocalSolver_solve_local_post_call(self, return_value, x, b, dofmap_b):
     if hasattr(x, "_tlm_adjoint__function"):
         var_update_state(x._tlm_adjoint__function)
     return return_value
 
 
-@manager_method(backend_LocalSolver, "solve_local",
-                pre_call=LocalSolver_solve_local_pre_call,
-                post_call=LocalSolver_solve_local_post_call)
+@manager_method(backend_LocalSolver, "solve_local")
 def LocalSolver_solve_local(self, orig, orig_args, x, b, dofmap_b):
     if isinstance(x, backend_Function):
         x = x.vector()
