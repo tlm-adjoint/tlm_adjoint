@@ -111,22 +111,24 @@ def test_FunctionSpace_space_id(setup_test, test_leaks):
 
 
 @pytest.mark.firedrake
+@pytest.mark.parametrize("cls", [Function,
+                                 lambda space, *args, **kwargs: Cofunction(space.dual(), *args, **kwargs)])  # noqa: E501
 @pytest.mark.parametrize("dim", [1, 2, 3, 5])
 @seed_test
-def test_Function_alias(setup_test, test_leaks,
-                        dim):
+def test_var_alias(setup_test, test_leaks,
+                   cls, dim):
     mesh = UnitIntervalMesh(20)
 
     space = VectorFunctionSpace(mesh, "Lagrange", 1, dim=dim)
 
-    F = Function(space, name="F")
+    F = cls(space, name="F")
     for F_i in F.subfunctions:
         assert var_is_alias(F_i)
     for i in range(dim):
         F_i = F.sub(i)
         assert dim == 1 or var_is_alias(F_i)
 
-    F = Function(space, name="F")
+    F = cls(space, name="F")
     for i in range(dim):
         F_i = F.sub(i)
         assert dim == 1 or var_is_alias(F_i)
@@ -150,7 +152,7 @@ def test_Function_alias(setup_test, test_leaks,
         assert var_state(F_i) > state
         assert var_state(F_i) == var_state(F)
 
-    F = Function(space, name="F")
+    F = cls(space, name="F")
     for F_i in F.subfunctions:
         assert var_is_alias(F_i)
         test_state(F, F_i)
@@ -159,7 +161,7 @@ def test_Function_alias(setup_test, test_leaks,
         assert dim == 1 or var_is_alias(F_i)
         test_state(F, F_i)
 
-    F = Function(space, name="F")
+    F = cls(space, name="F")
     for i in range(dim):
         F_i = F.sub(i)
         assert dim == 1 or var_is_alias(F_i)

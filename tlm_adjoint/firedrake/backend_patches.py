@@ -489,6 +489,17 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None):
     return self
 
 
+@manager_method(backend_Cofunction, "copy", patch_without_manager=True)
+def Cofunction_copy(self, orig, orig_args, deepcopy=False):
+    if deepcopy:
+        F = var_new(self)
+        F.assign(self)
+    else:
+        F = orig_args()
+        define_var_alias(F, self, key=("copy",))
+    return F
+
+
 @patch_method(backend_Cofunction, "riesz_representation")
 def Cofunction_riesz_representation(self, orig, orig_args,
                                     riesz_map="L2", *args, **kwargs):
@@ -503,6 +514,23 @@ def Cofunction_riesz_representation(self, orig, orig_args,
         "space_type",
         relative_space_type(self._tlm_adjoint__var_interface_attrs["space_type"], "conjugate_dual"))  # noqa: E501
     return return_value
+
+
+@patch_property(backend_Cofunction, "subfunctions", cached=True)
+def Cofunction_subfunctions(self, orig):
+    Y = orig()
+    for i, y in enumerate(Y):
+        define_var_alias(y, self, key=("subfunctions", i))
+    return Y
+
+
+@patch_method(backend_Cofunction, "sub")
+def Cofunction_sub(self, orig, orig_args, i):
+    self.subfunctions
+    y = orig_args()
+    if not var_is_alias(y):
+        define_var_alias(y, self, key=("sub", i))
+    return y
 
 
 def LinearSolver_solve_post_call(self, return_value, x, b):
