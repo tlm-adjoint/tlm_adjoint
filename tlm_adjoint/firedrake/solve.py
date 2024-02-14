@@ -54,12 +54,13 @@ def unpack_bcs(bcs, *, deps=None):
     bc_gs = []
     for i, bc in enumerate(bcs):
         g = bc._function_arg
+        for g_previous, subset in bc_deps.items():
+            bc_deps[g_previous] = subset.difference(bc.node_set)
+
         if is_var(g):
             if var_id(g) in dep_ids:
                 raise ValueError("Invalid dependency")
 
-            for g_previous, subset in bc_deps.items():
-                bc_deps[g_previous] = subset.difference(bc.node_set)
             if g in bc_deps:
                 bc_deps[g] = bc_deps[g].union(bc.node_set)
             else:
