@@ -516,6 +516,23 @@ def Cofunction_riesz_representation(self, orig, orig_args,
     return return_value
 
 
+@patch_property(backend_Cofunction, "subfunctions", cached=True)
+def Cofunction_subfunctions(self, orig):
+    Y = orig()
+    for i, y in enumerate(Y):
+        define_var_alias(y, self, key=("subfunctions", i))
+    return Y
+
+
+@patch_method(backend_Cofunction, "sub")
+def Cofunction_sub(self, orig, orig_args, i):
+    self.subfunctions
+    y = orig_args()
+    if not var_is_alias(y):
+        define_var_alias(y, self, key=("sub", i))
+    return y
+
+
 def LinearSolver_solve_post_call(self, return_value, x, b):
     if isinstance(x, backend_Vector):
         x = x.function
