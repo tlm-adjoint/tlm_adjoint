@@ -1229,7 +1229,7 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
         J.assign(((u - Constant(2.0)) ** 4) * dx)
         return J
 
-    m = Function(space, name="m").interpolate(Constant(1.0))
+    m = Function(space, name="m").assign(Constant(1.0))
 
     start_manager()
     J = forward(m)
@@ -1239,7 +1239,8 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
 
     dJ = compute_gradient(J, m)
 
-    dm = Function(space).interpolate(Constant(1.0) + X[0])
+    # Perturbation direction which is non-zero on the overlapping bcs
+    dm = Function(space).interpolate(Constant(1.0) - X[0])
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, seed=5.0e-3, dM=dm)
     assert min_order > 1.99
@@ -1247,7 +1248,7 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, seed=5.0e-3,
                             dM=dm)
-    assert min_order > 2.98
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1, seed=5.0e-3,
                                 dMs=(dm,))
@@ -1260,51 +1261,6 @@ def test_EquationSolver_DirichletBC(setup_test, test_leaks, test_configurations,
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
                                         seed=5.0e-3)
     assert min_order > 1.98
-
-
-def test_DirichletBC_overlap(setup_test, test_leaks):
-    mesh = UnitSquareMesh(10, 10)
-    space = FunctionSpace(mesh, "Lagrange", 1)
-
-    def forward(m):
-        bc_1 = DirichletBC(space, 1.0, 1)
-        assert not is_var(bc_1._function_arg)
-        u = project(Constant(1.0), space,
-                    bcs=(DirichletBC(space, m, "on_boundary"),
-                         bc_1),
-                    solver_parameters=ls_parameters_cg)
-
-        J = Functional(name="J")
-        J.assign(((u + Constant(1.0)) ** 4) * dx)
-        return J
-
-    m = Function(space, name="m").interpolate(Constant(1.0))
-
-    start_manager()
-    J = forward(m)
-    stop_manager()
-
-    J_val = J.value
-
-    dJ = compute_gradient(J, m)
-
-    dm = Function(space).interpolate(Constant(1.0))
-
-    min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, dM=dm)
-    assert min_order > 2.00
-
-    ddJ = Hessian(forward)
-    min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm)
-    assert min_order > 3.00
-
-    min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(dm,))
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1, dMs=(dm,))
-    assert min_order > 2.00
-
-    min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
-    assert min_order > 2.00
 
 
 @pytest.mark.firedrake
