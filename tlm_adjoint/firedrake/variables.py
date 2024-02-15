@@ -581,8 +581,8 @@ class CofunctionInterface(FunctionInterfaceBase):
 class Cofunction(backend_Cofunction):
     """Extends the :class:`firedrake.cofunction.Cofunction` class.
 
-    :arg space_type: The space type for the :class:`.Cofunction`.
-        `'conjugate'` or `'conjugate_dual'`.
+    :arg space_type: The space type for the :class:`.Cofunction`. `'dual'` or
+        `'conjugate_dual'`.
     :arg static: Defines whether the :class:`.Cofunction` is static, meaning
         that it is stored by reference in checkpointing/replay, and an
         associated tangent-linear variable is zero.
