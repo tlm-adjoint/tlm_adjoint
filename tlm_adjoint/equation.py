@@ -1,6 +1,7 @@
 from .interface import (
-    check_space_types, is_var, var_id, var_is_alias, var_is_static, var_new,
-    var_replacement, var_update_caches, var_update_state, var_zero)
+    VariableStateLockDictionary, check_space_types, is_var, var_id,
+    var_is_alias, var_is_static, var_new, var_replacement, var_update_caches,
+    var_update_state, var_zero)
 
 from .alias import gc_disabled
 from .manager import manager as _manager
@@ -8,6 +9,7 @@ from .manager import annotation_enabled, paused_manager, tlm_enabled
 
 from collections.abc import Sequence
 import inspect
+import itertools
 from operator import itemgetter
 import warnings
 import weakref
@@ -374,10 +376,22 @@ class Equation(Referrer):
         """Wraps :meth:`.Equation.forward_solve` to handle cache invalidation.
         """
 
-        var_update_caches(*self.dependencies(), value=deps)
-        self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
-        var_update_state(*X)
-        var_update_caches(*self.X(), value=X)
+        eq_deps = self.dependencies()
+
+        lock = VariableStateLockDictionary()
+        if deps is None:
+            lock.update(zip(map(var_id, eq_deps), eq_deps))
+        else:
+            lock.update(zip(map(var_id, deps), deps))
+        for x in X:
+            del lock[var_id(x)]
+        try:
+            var_update_caches(*eq_deps, value=deps)
+            self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
+            var_update_state(*X)
+            var_update_caches(*self.X(), value=X)
+        finally:
+            lock.clear()
 
     def forward_solve(self, X, deps=None):
         """Compute the forward solution.
@@ -417,16 +431,20 @@ class Equation(Referrer):
             or `None` to indicate that the solution is zero.
         """
 
-        var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
+        lock = VariableStateLockDictionary(
+            zip(map(var_id, nl_deps), nl_deps))
+        try:
+            var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
-        if adj_X is not None and len(adj_X) == 1:
-            adj_X = adj_X[0]
-        adj_X = self.adjoint_jacobian_solve(
-            adj_X, nl_deps, B[0] if len(B) == 1 else B)
-        if adj_X is not None:
-            if is_var(adj_X):
+            adj_X = self.adjoint_jacobian_solve(
+                adj_X if adj_X is None or len(adj_X) != 1 else adj_X[0],
+                nl_deps, B[0] if len(B) == 1 else B)
+            if adj_X is None:
+                return None
+            elif is_var(adj_X):
                 adj_X = (adj_X,)
             var_update_state(*adj_X)
+
             for m, adj_x in enumerate(adj_X):
                 check_space_types(adj_x, self.X(m),
                                   rel_space_type=self.adj_X_type(m))
@@ -434,10 +452,9 @@ class Equation(Referrer):
             self.subtract_adjoint_derivative_actions(
                 adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
 
-        if adj_X is None:
-            return None
-        else:
             return tuple(adj_X)
+        finally:
+            lock.clear()
 
     def adjoint_cached(self, adj_X, nl_deps, dep_Bs):
         """Subtract terms from other adjoint right-hand-sides.
@@ -452,10 +469,16 @@ class Equation(Referrer):
             differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
-        var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
+        lock = VariableStateLockDictionary(itertools.chain(
+            zip(map(var_id, adj_X), adj_X),
+            zip(map(var_id, nl_deps), nl_deps)))
+        try:
+            var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
-        self.subtract_adjoint_derivative_actions(
-            adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
+            self.subtract_adjoint_derivative_actions(
+                adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
+        finally:
+            lock.clear()
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """Return the action of the adjoint of a derivative of the forward
