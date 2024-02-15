@@ -7,7 +7,7 @@ from .backend import (
     complex_mode)
 from ..interface import (
     is_var, var_caches, var_id, var_is_cached, var_is_replacement,
-    var_replacement, var_space, var_state)
+    var_lock_state, var_replacement, var_space, var_state)
 
 from ..caches import Cache
 
@@ -419,16 +419,21 @@ class AssemblyCache(Cache):
                 if len(bcs) > 0:
                     raise TypeError("Unexpected boundary conditions for arity "
                                     "0 form")
-                b = assemble(assemble_form, **assemble_kwargs)
+                return assemble(assemble_form, **assemble_kwargs)
             elif arity == 1:
                 b = assemble(assemble_form, **assemble_kwargs)
                 for bc in bcs:
                     bc.apply(b)
+                var_lock_state(b)
+                return b
             elif arity == 2:
-                b = assemble_matrix(assemble_form, bcs=bcs, **assemble_kwargs)
+                mat, b_bc = assemble_matrix(assemble_form, bcs=bcs,
+                                            **assemble_kwargs)
+                if b_bc is not None:
+                    var_lock_state(b_bc)
+                return mat, b_bc
             else:
                 raise ValueError(f"Unexpected form arity {arity:d}")
-            return b
 
         return self.add(key, value,
                         deps=form_dependencies(form, assemble_form))
