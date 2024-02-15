@@ -1,7 +1,6 @@
 from .interface import (
-    VariableStateLockDictionary, check_space_types, is_var, var_id,
-    var_is_alias, var_is_static, var_new, var_replacement, var_update_caches,
-    var_update_state, var_zero)
+    check_space_types, is_var, var_id, var_is_alias, var_is_static, var_locked,
+    var_new, var_replacement, var_update_caches, var_update_state, var_zero)
 
 from .alias import gc_disabled
 from .manager import manager as _manager
@@ -376,22 +375,15 @@ class Equation(Referrer):
         """Wraps :meth:`.Equation.forward_solve` to handle cache invalidation.
         """
 
+        X_ids = set(map(var_id, X))
         eq_deps = self.dependencies()
 
-        lock = VariableStateLockDictionary()
-        if deps is None:
-            lock.update(zip(map(var_id, eq_deps), eq_deps))
-        else:
-            lock.update(zip(map(var_id, deps), deps))
-        for x in X:
-            del lock[var_id(x)]
-        try:
+        with var_locked(*(dep for dep in (eq_deps if deps is None else deps)
+                          if var_id(dep) not in X_ids)):
             var_update_caches(*eq_deps, value=deps)
             self.forward_solve(X[0] if len(X) == 1 else X, deps=deps)
             var_update_state(*X)
             var_update_caches(*self.X(), value=X)
-        finally:
-            lock.clear()
 
     def forward_solve(self, X, deps=None):
         """Compute the forward solution.
@@ -431,9 +423,7 @@ class Equation(Referrer):
             or `None` to indicate that the solution is zero.
         """
 
-        lock = VariableStateLockDictionary(
-            zip(map(var_id, nl_deps), nl_deps))
-        try:
+        with var_locked(*nl_deps):
             var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
             adj_X = self.adjoint_jacobian_solve(
@@ -453,8 +443,6 @@ class Equation(Referrer):
                 adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
 
             return tuple(adj_X)
-        finally:
-            lock.clear()
 
     def adjoint_cached(self, adj_X, nl_deps, dep_Bs):
         """Subtract terms from other adjoint right-hand-sides.
@@ -469,16 +457,11 @@ class Equation(Referrer):
             differentiating with respect to `self.dependencies()[dep_index]`.
         """
 
-        lock = VariableStateLockDictionary(itertools.chain(
-            zip(map(var_id, adj_X), adj_X),
-            zip(map(var_id, nl_deps), nl_deps)))
-        try:
+        with var_locked(*itertools.chain(adj_X, nl_deps)):
             var_update_caches(*self.nonlinear_dependencies(), value=nl_deps)
 
             self.subtract_adjoint_derivative_actions(
                 adj_X[0] if len(adj_X) == 1 else adj_X, nl_deps, dep_Bs)
-        finally:
-            lock.clear()
 
     def adjoint_derivative_action(self, nl_deps, dep_index, adj_X):
         """Return the action of the adjoint of a derivative of the forward
