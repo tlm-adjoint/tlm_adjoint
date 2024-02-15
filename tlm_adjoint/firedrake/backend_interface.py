@@ -1,6 +1,7 @@
 from .backend import (
-    LinearSolver, Tensor, backend_DirichletBC, backend_Function,
-    backend_Matrix, backend_assemble, backend_solve, extract_args)
+    LinearSolver, Tensor, backend_Cofunction, backend_DirichletBC,
+    backend_Function, backend_Matrix, backend_assemble, backend_solve,
+    extract_args)
 from ..interface import (
     check_space_type, check_space_types, register_garbage_cleanup, space_new,
     var_space_type)
@@ -21,6 +22,8 @@ __all__ = [
 
 def _assemble(form, tensor=None, bcs=None, *,
               form_compiler_parameters=None, mat_type=None):
+    if not isinstance(form, ufl.classes.BaseForm):
+        raise ValueError("form must be a BaseForm")
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -29,13 +32,19 @@ def _assemble(form, tensor=None, bcs=None, *,
         form_compiler_parameters = {}
 
     form = eliminate_zeros(form)
-    if isinstance(form, ufl.classes.ZeroBaseForm):
-        raise ValueError("Form cannot be a ZeroBaseForm")
-    if len(form.arguments()) == 1:
-        b = backend_assemble(
+
+    arguments = form.arguments()
+    if len(arguments) == 1:
+        if tensor is None:
+            # Always want a new Cofunction, so that we don't later modify any
+            # Cofunction in form
+            tensor = backend_Cofunction(arguments[0].function_space().dual())
+        backend_assemble(
             form, tensor=tensor,
             form_compiler_parameters=form_compiler_parameters,
             mat_type=mat_type)
+        # Work around Firedrake issue #3407
+        b = tensor
         for bc in bcs:
             bc.apply(b.riesz_representation("l2"))
     else:

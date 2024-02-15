@@ -134,6 +134,7 @@ __all__ = \
 
         "VariableStateLockDictionary",
         "var_lock_state",
+        "var_locked",
 
         "is_function",
         "function_assign",
@@ -1028,6 +1029,30 @@ class VariableStateLockDictionary(MutableMapping):
 
     def __len__(self):
         return len(self._d)
+
+
+@contextlib.contextmanager
+def var_locked(*X):
+    """Construct a context manager which can be used to temporarily lock the
+    state of one or more variables.
+
+    :arg X: A :class:`tuple` of variables.
+    :returns: A context manager which can be used to temporarily lock the state
+        of the variables in `X`.
+    """
+
+    class Lock:
+        pass
+
+    lock = Lock()
+    for x in X:
+        var_increment_state_lock(x, lock)
+
+    try:
+        yield
+    finally:
+        for x in X:
+            var_decrement_state_lock(x, lock)
 
 
 def var_update_state(*X):
