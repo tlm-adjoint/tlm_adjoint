@@ -980,8 +980,22 @@ def var_state_is_locked(x):
     return count > 0
 
 
+_paused_var_state_lock_checking = set()
+
+
+@contextlib.contextmanager
+def paused_var_state_lock_checking(*X):
+    for x in X:
+        var_check_state_lock(x)
+    X_ids = set(map(var_id, X))
+    _paused_var_state_lock_checking.update(X_ids)
+    yield
+    _paused_var_state_lock_checking.difference_update(X_ids)
+
+
 def var_check_state_lock(x):
-    if var_state_is_locked(x) \
+    if var_id(x) not in _paused_var_state_lock_checking \
+            and var_state_is_locked(x) \
             and x._tlm_adjoint__state_lock_state != var_state(x):
         raise VariableStateChangeError("State change while locked")
 
@@ -1070,10 +1084,13 @@ def var_update_state(*X):
         if var_is_replacement(x):
             raise ValueError("x cannot be a replacement")
         var_check_state_lock(x)
-        if var_state_is_locked(x):
+        if var_id(x) not in _paused_var_state_lock_checking \
+                and var_state_is_locked(x):
             raise VariableStateChangeError("Cannot update state for locked "
                                            "variable")
         x._tlm_adjoint__var_interface_update_state()
+        if var_id(x) in _paused_var_state_lock_checking:
+            x._tlm_adjoint__state_lock_state = var_state(x)
     var_update_caches(*X)
 
 
