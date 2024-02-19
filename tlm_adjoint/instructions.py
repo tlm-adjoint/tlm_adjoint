@@ -53,7 +53,7 @@ class GarbageCollection(Instruction):
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         self._gc()
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         return GarbageCollection(
             self._comm,
             generation=self._generation, garbage_cleanup=self._garbage_cleanup)

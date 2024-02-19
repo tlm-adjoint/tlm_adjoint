@@ -723,7 +723,7 @@ class VectorEquation(Equation):
             dep_B.sub((-1.0, dF[dep_index - N_X].conjugate()))
         self._vjp = None
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         X = self._forward_eq.X()
         Y = self._forward_eq.dependencies()[len(X):]
         fn = self._forward_eq._fn

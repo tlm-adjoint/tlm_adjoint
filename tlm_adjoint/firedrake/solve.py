@@ -599,7 +599,7 @@ class EquationSolver(ExprEquation):
         tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         return tlm_rhs
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x = self.x()
         tlm_rhs = self._tangent_linear_rhs(tlm_map)
         tlm_bcs = self._reconstruct_bcs(tlm_map=tlm_map)
@@ -677,7 +677,7 @@ class LocalEquationSolver(EquationSolver):
                     replace_map=replace_map)
         return value, None
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x = self.x()
         tlm_rhs = self._tangent_linear_rhs(tlm_map)
         if len(self._hbcs) != 0:

@@ -217,7 +217,7 @@ class LinearEquation(Equation):
 
         return F
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         X = self.X()
 
         if self._A is None:

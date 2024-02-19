@@ -490,10 +490,10 @@ class FixedPointSolver(Equation, CustomNormSq):
                 eq_adj_X[0] if len(eq_adj_X) == 1 else eq_adj_X,
                 eq_nl_deps, eq_dep_Bs[i])
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         tlm_eqs = []
         for eq in self._eqs:
-            tlm_eq = eq.tangent_linear(M, dM, tlm_map)
+            tlm_eq = eq.tangent_linear(tlm_map)
             if tlm_eq is None:
                 warnings.warn("Equation.tangent_linear should return an "
                               "Equation",

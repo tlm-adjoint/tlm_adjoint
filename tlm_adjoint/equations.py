@@ -73,7 +73,7 @@ class Assignment(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x, y = self.dependencies()
         tau_y = tlm_map[y]
         if tau_y is None:
@@ -125,7 +125,7 @@ class Conversion(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x, y = self.dependencies()
         tau_y = tlm_map[y]
         if tau_y is None:
@@ -185,7 +185,7 @@ class LinearCombination(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         deps = self.dependencies()
         x, ys = deps[0], deps[1:]
         args = []

@@ -688,7 +688,7 @@ class EquationManager:
         if tlm_eq is None:
             for dep in eq.dependencies():
                 if dep in tlm_map:
-                    tlm_eq = eq.tangent_linear(M, dM, tlm_map)
+                    tlm_eq = eq.tangent_linear(tlm_map)
                     if tlm_eq is None:
                         warnings.warn("Equation.tangent_linear should return "
                                       "an Equation",
