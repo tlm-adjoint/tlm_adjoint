@@ -188,7 +188,7 @@ def test_Referrers_LinearEquation(setup_test, test_leaks):
                 var_assign(adj_x, b)
                 return adj_x
 
-            def tangent_linear_rhs(self, M, dM, tlm_map, x):
+            def tangent_linear_rhs(self, tlm_map, x):
                 return None
 
         x = Constant(0.0, name="x")

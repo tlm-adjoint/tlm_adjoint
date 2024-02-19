@@ -223,14 +223,14 @@ class LinearEquation(Equation):
         if self._A is None:
             tlm_B = []
         else:
-            tlm_B = self._A.tangent_linear_rhs(M, dM, tlm_map,
+            tlm_B = self._A.tangent_linear_rhs(tlm_map,
                                                X[0] if len(X) == 1 else X)
             if tlm_B is None:
                 tlm_B = []
             elif isinstance(tlm_B, RHS):
                 tlm_B = [tlm_B]
         for b in self._B:
-            tlm_b = b.tangent_linear_rhs(M, dM, tlm_map)
+            tlm_b = b.tangent_linear_rhs(tlm_map)
             if tlm_b is None:
                 pass
             elif isinstance(tlm_b, RHS):
@@ -413,7 +413,7 @@ class Matrix(Referrer):
 
         raise NotImplementedError("Method not overridden")
 
-    def tangent_linear_rhs(self, M, dM, tlm_map, X):
+    def tangent_linear_rhs(self, tlm_map, X):
         r"""Construct tangent-linear right-hand-side terms obtained by
         differentiation of
 
@@ -432,11 +432,6 @@ class Matrix(Referrer):
         include the term :math:`-A \tau_x` where :math:`\tau_x` is the
         tangent-linear variable associated with :math:`x`.
 
-        :arg M: A :class:`Sequence` of variables defining the control.
-        :arg dM: A :class:`Sequence` of variables defining the derivative
-            direction. The tangent-linear computes directional derivatives with
-            respect to the control defined by `M` and with direction defined by
-            `dM`.
         :arg tlm_map: A :class:`.TangentLinearMap` storing values for
             tangent-linear variables.
         :arg X: Defines :math:`x`. A variable if it has a single component, and
@@ -534,7 +529,7 @@ class RHS(Referrer):
 
         raise NotImplementedError("Method not overridden")
 
-    def tangent_linear_rhs(self, M, dM, tlm_map):
+    def tangent_linear_rhs(self, tlm_map):
         r"""Construct tangent-linear right-hand-side terms obtained by
         differentiation of this right-hand-side term. That is, construct
 
@@ -545,11 +540,6 @@ class RHS(Referrer):
         where :math:`b` is this right-hand-side term, and :math:`\tau_{y_i}` is
         the tangent-linear variable associated with a dependency :math:`y_i`.
 
-        :arg M: A :class:`Sequence` of variables defining the control.
-        :arg dM: A :class:`Sequence` of variables defining the derivative
-            direction. The tangent-linear computes directional derivatives with
-            respect to the control defined by `M` and with direction defined by
-            `dM`.
         :arg tlm_map: A :class:`.TangentLinearMap` storing values for
             tangent-linear variables.
         :returns: A :class:`.RHS`, or a :class:`Sequence` of :class:`.RHS`
