@@ -387,19 +387,10 @@ class FunctionInterfaceBase(VariableInterface):
         return self.name()
 
     def _state(self):
-        dat, count = self._tlm_adjoint__var_interface_attrs["state"]
-        if count is not None and count > dat.dat_version:
-            raise RuntimeError("Invalid state")
-        return dat.dat_version
+        return self.dat.dat_version
 
     def _update_state(self):
-        dat, count = self._tlm_adjoint__var_interface_attrs["state"]
-        if count is None or count == dat.dat_version:
-            # Make sure that the dat version has been incremented at least once
-            dat.increment_dat_version()
-        elif count > dat.dat_version:
-            raise RuntimeError("Invalid state")
-        self._tlm_adjoint__var_interface_attrs["state"][1] = dat.dat_version
+        pass
 
     def _is_static(self):
         return self._tlm_adjoint__var_interface_attrs["static"]
@@ -773,8 +764,9 @@ def define_var_alias(x, parent, *, key):
                 "static", var_is_static(parent))
             x._tlm_adjoint__var_interface_attrs.d_setitem(
                 "cache", var_is_cached(parent))
-            x._tlm_adjoint__var_interface_attrs.d_setitem(
-                "state", parent._tlm_adjoint__var_interface_attrs["state"])
+            if hasattr(x._tlm_adjoint__var_interface_attrs, "state"):
+                x._tlm_adjoint__var_interface_attrs.d_setitem(
+                    "state", parent._tlm_adjoint__var_interface_attrs["state"])
 
 
 register_subtract_adjoint_derivative_action(

@@ -140,17 +140,15 @@ def test_var_alias(setup_test, test_leaks,
         *[space.ufl_element() for _ in range(dim)]))
 
     def test_state(F, F_i):
-        state = var_state(F_i)
-        assert var_state(F_i) == var_state(F)
-        var_update_state(F)
-        assert var_state(F_i) > state
-        assert var_state(F_i) == var_state(F)
+        state_i = var_state(F_i)
+        with F.dat.vec as F_v:
+            F_v.shift(1.0)
+        assert var_state(F_i) > state_i
 
-        state = var_state(F_i)
-        assert var_state(F_i) == var_state(F)
-        var_update_state(F_i)
-        assert var_state(F_i) > state
-        assert var_state(F_i) == var_state(F)
+        state = var_state(F)
+        with F_i.dat.vec as F_i_v:
+            F_i_v.shift(1.0)
+        assert var_state(F) > state
 
     F = cls(space, name="F")
     for F_i in F.subfunctions:

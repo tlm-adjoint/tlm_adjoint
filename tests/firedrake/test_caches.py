@@ -57,7 +57,9 @@ def test_clear_caches(setup_test, test_leaks):
     # Clear on state update
     cached_form = cache_item(F)
     test_not_cleared(F, cached_form)
-    var_update_state(F)
+    with F.dat.vec as F_v:
+        F_v.shift(1.0)
+    var_update_caches(F)
     test_cleared(F, cached_form)
 
     # Clear on cache update, new Function
@@ -77,13 +79,17 @@ def test_clear_caches(setup_test, test_leaks):
     # Clear on state update of value
     cached_form = cache_item(F, F_value)
     test_not_cleared(F, cached_form, F_value)
-    var_update_state(F_value)
+    with F_value.dat.vec as F_v:
+        F_v.shift(1.0)
+    var_update_caches(F, value=F_value)
     test_cleared(F, cached_form, F_value)
 
     # Clear on state update of value, replacement
     cached_form = cache_item(var_replacement(F), F_value)
     test_not_cleared(F, cached_form, F_value)
-    var_update_state(F_value)
+    with F_value.dat.vec as F_v:
+        F_v.shift(1.0)
+    var_update_caches(var_replacement(F), value=F_value)
     test_cleared(F, cached_form, F_value)
 
 
