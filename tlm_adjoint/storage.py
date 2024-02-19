@@ -89,7 +89,7 @@ class Storage(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         return ZeroAssignment(tlm_map[self.x()])
 
 

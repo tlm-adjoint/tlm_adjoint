@@ -891,7 +891,7 @@ class FloatEquation(Equation):
             dep_B.sub(F)
 
     @no_float_overloading
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x = self.x()
         expr = 0
         deps = self.dependencies()

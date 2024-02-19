@@ -179,6 +179,8 @@ class TangentLinearMap:
         self._id_counter[0] += 1
 
         self._X = weakref.WeakValueDictionary()
+        self._M = M
+        self._dM = dM
 
         @gc_disabled
         def weakref_finalize(X, tlm_map_id):
@@ -242,6 +244,20 @@ class TangentLinearMap:
         """
 
         return self._id
+
+    @property
+    def M(self):
+        """A :class:`Sequence` of variables defining the control.
+        """
+
+        return self._M
+
+    @property
+    def dM(self):
+        """A :class:`Sequence` of variables defining the derivative direction.
+        """
+
+        return self._dM
 
 
 def J_tangent_linears(Js, blocks, *, max_adjoint_degree=None):

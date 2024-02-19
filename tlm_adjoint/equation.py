@@ -221,6 +221,18 @@ class Equation(Referrer):
             adjoint_jacobian_solve_orig = cls.adjoint_jacobian_solve
             cls.adjoint_jacobian_solve = adjoint_jacobian_solve
 
+        tangent_linear_sig = inspect.signature(cls.tangent_linear)
+        if tuple(tangent_linear_sig.parameters.keys()) == ("self", "M", "dM", "tlm_map"):  # noqa: E501
+            warnings.warn("Equation.tangent_linear(self, M, dM, tlm_map) "
+                          "method signature is deprecated",
+                          DeprecationWarning, stacklevel=2)
+
+            def tangent_linear(self, tlm_map):
+                return tangent_linear_orig(self, tlm_map.M, tlm_map.dM,
+                                           tlm_map)
+            tangent_linear_orig = cls.tangent_linear
+            cls.tangent_linear = tangent_linear
+
     def drop_references(self):
         self._X = tuple(map(var_replacement, self._X))
         self._deps = tuple(map(var_replacement, self._deps))
@@ -532,15 +544,10 @@ class Equation(Referrer):
 
         raise NotImplementedError("Method not overridden")
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         """Derive an :class:`.Equation` corresponding to a tangent-linear
         operation.
 
-        :arg M: A :class:`Sequence` of variables defining the control.
-        :arg dM: A :class:`Sequence` of variables defining the derivative
-            direction. The tangent-linear computes directional derivatives with
-            respect to the control defined by `M` and with direction defined by
-            `dM`.
         :arg tlm_map: A :class:`.TangentLinearMap` storing values for
             tangent-linear variables.
         :returns: An :class:`.Equation`, corresponding to the tangent-linear
@@ -581,7 +588,7 @@ class ZeroAssignment(Equation):
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         return ZeroAssignment([tlm_map[x] for x in self.X()])
 
 

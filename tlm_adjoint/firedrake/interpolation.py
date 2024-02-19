@@ -120,7 +120,7 @@ class ExprInterpolation(ExprEquation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x = self.x()
 
         tlm_rhs = expr_zero(x)
@@ -250,7 +250,7 @@ class PointInterpolation(Equation):
     def adjoint_jacobian_solve(self, adj_X, nl_deps, B):
         return B
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         X = self.X()
         y = self.dependencies()[-1]
 

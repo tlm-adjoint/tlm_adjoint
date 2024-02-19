@@ -73,7 +73,7 @@ class Assignment(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x, y = self.dependencies()
         tau_y = tlm_map[y]
         if tau_y is None:
@@ -125,7 +125,7 @@ class Conversion(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         x, y = self.dependencies()
         tau_y = tlm_map[y]
         if tau_y is None:
@@ -185,7 +185,7 @@ class LinearCombination(Equation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         return b
 
-    def tangent_linear(self, M, dM, tlm_map):
+    def tangent_linear(self, tlm_map):
         deps = self.dependencies()
         x, ys = deps[0], deps[1:]
         args = []
@@ -343,7 +343,7 @@ class MatrixActionRHS(RHS):
                                    b, b_index=self._x_indices[dep_index],
                                    method="sub")
 
-    def tangent_linear_rhs(self, M, dM, tlm_map):
+    def tangent_linear_rhs(self, tlm_map):
         deps = self.dependencies()
         N_A_nl_deps = len(self._A.nonlinear_dependencies())
 
@@ -352,7 +352,7 @@ class MatrixActionRHS(RHS):
         tlm_B = [MatrixActionRHS(self._A, tlm_X)]
 
         if N_A_nl_deps > 0:
-            tlm_b = self._A.tangent_linear_rhs(M, dM, tlm_map, X)
+            tlm_b = self._A.tangent_linear_rhs(tlm_map, X)
             if tlm_b is None:
                 pass
             elif isinstance(tlm_b, RHS):
@@ -433,7 +433,7 @@ class DotProductRHS(RHS):
         else:
             raise ValueError("Unexpected dep_index")
 
-    def tangent_linear_rhs(self, M, dM, tlm_map):
+    def tangent_linear_rhs(self, tlm_map):
         tlm_B = []
 
         if self._x_equals_y:
@@ -580,7 +580,7 @@ class InnerProductRHS(RHS):
         else:
             raise ValueError("Unexpected dep_index")
 
-    def tangent_linear_rhs(self, M, dM, tlm_map):
+    def tangent_linear_rhs(self, tlm_map):
         tlm_B = []
 
         if self._norm_sq:
