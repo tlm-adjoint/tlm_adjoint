@@ -262,7 +262,6 @@ def Function__init__(self, orig, orig_args, function_space, val=None,
     orig_args()
     add_interface(self, FunctionInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
-                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
                    "space_type": "primal", "static": False, "cache": False,
                    "replacement_count": new_count(self._counted_class)})
     if isinstance(val, backend_Function):
@@ -436,7 +435,6 @@ def Cofunction__init__(self, orig, orig_args, function_space, val=None,
     orig_args()
     add_interface(self, CofunctionInterface,
                   {"comm": comm_dup_cached(self.comm), "id": new_var_id(),
-                   "state": [self.dat, getattr(self.dat, "dat_version", None)],
                    "space_type": "conjugate_dual", "static": False,
                    "cache": False,
                    "replacement_count": new_count(self._counted_class)})

@@ -1057,11 +1057,7 @@ def var_locked(*X):
 
 def var_update_state(*X):
     """Ensure that variable state is updated, and check for cache invalidation.
-
-    May delegate updating of the state to a backend library, in which case this
-    function checks that the state has been updated since the last
-    :func:`.var_update_state` call (or since instantiation on the first call),
-    and updates the backend state again only if needed.
+    May delegate updating of the state to a backend library.
 
     :arg X: A :class:`tuple` of variables.
     """
