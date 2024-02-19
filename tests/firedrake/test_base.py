@@ -148,6 +148,8 @@ def test_leaks():
     manager._cp.clear(clear_refs=True)
     manager._cp_memory.clear()
     manager._tlm.clear()
+    for tlm_map in manager._tlm_map.values():
+        del tlm_map._M, tlm_map._dM
     manager._adj_cache.clear()
     for block in list(manager._blocks) + [manager._block]:
         for eq in block:
