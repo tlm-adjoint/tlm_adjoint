@@ -1,9 +1,10 @@
 from .backend import (
-    FormAssembler, LinearSolver, NonlinearVariationalSolver, Projector,
-    SameMeshInterpolator, backend_Cofunction, backend_CofunctionSpace,
-    backend_Constant, backend_DirichletBC, backend_Function,
-    backend_FunctionSpace, backend_ScalarType, backend_Vector,
-    backend_assemble, backend_project, backend_solve, homogenize)
+    BaseFormAssembler, LinearSolver, NonlinearVariationalSolver,
+    OneFormAssembler, Projector, SameMeshInterpolator, TwoFormAssembler,
+    backend_Cofunction, backend_CofunctionSpace, backend_Constant,
+    backend_DirichletBC, backend_Function, backend_FunctionSpace,
+    backend_ScalarType, backend_Vector, backend_assemble, backend_project,
+    backend_solve, homogenize)
 from ..interface import (
     DEFAULT_COMM, add_interface, check_space_type, comm_dup_cached,
     comm_parent, is_var, new_space_id, new_var_id, relative_space_type,
@@ -13,8 +14,7 @@ from ..equation import ZeroAssignment
 from ..equations import Assignment, LinearCombination
 from ..manager import annotation_enabled, tlm_enabled
 from ..patch import (
-    add_manager_controls, manager_method, patch_function, patch_method,
-    patch_property)
+    add_manager_controls, manager_method, patch_method, patch_property)
 
 from .assembly import Assembly
 from .assignment import ExprAssignment
@@ -90,27 +90,58 @@ def linear_equation_new_x(eq, x):
 # Aim for compatibility with Firedrake API
 
 
-def FormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
-    if is_var(return_value):
-        var_update_state(return_value)
+@patch_method(BaseFormAssembler, "base_form_assembly_visitor")
+def BaseFormAssembler_base_form_assembly_visitor(
+        self, orig, orig_args, expr, tensor, *args):
+    annotate = annotation_enabled()
+    tlm = tlm_enabled()
+    if annotate or tlm:
+        if isinstance(expr, ufl.classes.FormSum) \
+                and all(isinstance(comp, backend_Cofunction)
+                        for comp in args):
+            if tensor is None:
+                test, = expr.arguments()
+                tensor = Cofunction(test.function_space().dual())
+            rexpr = expr_zero(expr)
+            if len(expr.weights()) != len(args):
+                raise ValueError("Invalid args")
+            for weight, comp in zip(expr.weights(), args):
+                rexpr = rexpr + weight * comp
+            return tensor.assign(rexpr)
+        elif not isinstance(expr, ufl.classes.Form) \
+                and isinstance(tensor, (backend_Function, backend_Cofunction)):
+            return tensor.assign(orig_args())
+    return orig_args()
 
-    if len(self._form.arguments()) > 0:
-        form_compiler_parameters = process_form_compiler_parameters(self._form_compiler_params)  # noqa: E501
-        return_value._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
+
+def OneFormAssembler_assemble_post_call(self, return_value, *args, **kwargs):
+    var_update_state(return_value)
+
+    form_compiler_parameters = process_form_compiler_parameters(self._form_compiler_params)  # noqa: E501
+    return_value._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value
 
 
-@manager_method(FormAssembler, "assemble",
-                post_call=FormAssembler_assemble_post_call)
-def FormAssembler_assemble(self, orig, orig_args, *args, **kwargs):
+@manager_method(OneFormAssembler, "assemble",
+                post_call=OneFormAssembler_assemble_post_call)
+def OneFormAssembler_assemble(self, orig, orig_args, *args, **kwargs):
     return_value = orig_args()
 
-    if len(self._form.arguments()) == 1:
-        eq = Assembly(return_value, self._form,
-                      form_compiler_parameters=self._form_compiler_params)
-        assert not eq._pre_process_required
-        eq._post_process()
+    eq = Assembly(return_value, self._form,
+                  form_compiler_parameters=self._form_compiler_params)
+    assert not eq._pre_process_required
+    eq._post_process()
+
+    return return_value
+
+
+@patch_method(TwoFormAssembler, "assemble")
+def TwoFormAssembler_assemble(self, orig, orig_args, *args, **kwargs):
+    return_value = orig_args()
+
+    form_compiler_parameters = process_form_compiler_parameters(self._form_compiler_params)  # noqa: E501
+    return_value._tlm_adjoint__form_compiler_parameters = form_compiler_parameters  # noqa: E501
 
     return return_value
 
@@ -666,50 +697,6 @@ def SameMeshInterpolator_interpolate(
     eq._post_process()
     return return_value
 
-
-def fn_globals(fn):
-    while hasattr(fn, "__wrapped__"):
-        fn = fn.__wrapped__
-    return fn.__globals__
-
-
-@patch_function(fn_globals(backend_assemble)["base_form_assembly_visitor"])
-def base_form_assembly_visitor(orig, orig_args, expr, tensor, *args, **kwargs):
-    annotate = annotation_enabled()
-    tlm = tlm_enabled()
-    if annotate or tlm:
-        if isinstance(expr, ufl.classes.FormSum) \
-                and all(isinstance(comp, backend_Cofunction)
-                        for comp in args):
-            if tensor is None:
-                test, = expr.arguments()
-                tensor = Cofunction(test.function_space().dual())
-            rexpr = expr_zero(expr)
-            if len(expr.weights()) != len(args):
-                raise ValueError("Invalid args")
-            for weight, comp in zip(expr.weights(), args):
-                rexpr = rexpr + weight * comp
-            return tensor.assign(rexpr)
-        elif isinstance(expr, (ufl.classes.Action,
-                               ufl.classes.Argument,
-                               ufl.classes.Coargument,
-                               ufl.classes.Coefficient,
-                               ufl.classes.Cofunction,
-                               ufl.classes.Interpolate,
-                               ufl.classes.ZeroBaseForm)):
-            if isinstance(tensor, (backend_Function, backend_Cofunction)):
-                return tensor.assign(orig_args())
-            else:
-                return orig_args()
-        elif isinstance(expr, ufl.classes.Form):
-            # Handled via FormAssembler.assemble
-            pass
-        else:
-            raise NotImplementedError("Case not implemented")
-    return orig_args()
-
-
-fn_globals(backend_assemble)["base_form_assembly_visitor"] = base_form_assembly_visitor  # noqa: E501
 
 assemble = add_manager_controls(backend_assemble)
 solve = add_manager_controls(backend_solve)
