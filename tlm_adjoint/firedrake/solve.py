@@ -459,7 +459,8 @@ class EquationSolver(ExprEquation):
         eq_deps = self.dependencies()
         bcs = self._reconstruct_bcs(deps=deps)
 
-        if self._linear:
+        if self._solver_parameters.get("mat_type", "aij") != "matfree" \
+                and self._linear:
             x_0, b = self._assemble_rhs(x, bcs, deps=deps)
 
             J_solver, _ = self._linear_solver(
@@ -565,14 +566,6 @@ class EquationSolver(ExprEquation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if adj_x is None:
             adj_x = self.new_adj_x()
-        eq_nl_deps = self.nonlinear_dependencies()
-
-        J_solver, _ = self._linear_solver(
-            adjoint(self._J), bcs=self._hbcs,
-            linear_solver_parameters=self._adjoint_solver_parameters,
-            eq_deps=eq_nl_deps, deps=nl_deps,
-            cache_key="adjoint_J_solver" if self._cache_adjoint_jacobian else None)  # noqa: E501
-
         if len(self._hbcs) == 0:
             b_0 = b
         else:
@@ -580,7 +573,19 @@ class EquationSolver(ExprEquation):
             for bc in self._hbcs:
                 bc.apply(adj_x)
                 bc.apply(b_0)
-        J_solver.solve(adj_x, b_0)
+
+        if self._adjoint_solver_parameters.get("mat_type", "aij") != "matfree":
+            J_solver, _ = self._linear_solver(
+                adjoint(self._J), bcs=self._hbcs,
+                linear_solver_parameters=self._adjoint_solver_parameters,
+                eq_deps=self.nonlinear_dependencies(), deps=nl_deps,
+                cache_key="adjoint_J_solver" if self._cache_adjoint_jacobian else None)  # noqa: E501
+            J_solver.solve(adj_x, b_0)
+        else:
+            solve(self._nonlinear_replace(adjoint(self._J), nl_deps) == b_0,
+                  adj_x, self._hbcs,
+                  solver_parameters=self._adjoint_solver_parameters)
+
         for bc in self._hbcs:
             bc.reconstruct(g=b).apply(adj_x.riesz_representation("l2"))
         return adj_x

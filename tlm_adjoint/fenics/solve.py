@@ -443,18 +443,17 @@ class EquationSolver(ExprEquation):
     def adjoint_jacobian_solve(self, adj_x, nl_deps, b):
         if adj_x is None:
             adj_x = self.new_adj_x()
-        eq_nl_deps = self.nonlinear_dependencies()
+        for bc in self._hbcs:
+            bc.apply(adj_x)
+            bc.apply(b)
 
         J_solver, _ = self._linear_solver(
             adjoint(self._J), bcs=self._hbcs,
             linear_solver_parameters=self._adjoint_solver_parameters,
-            eq_deps=eq_nl_deps, deps=nl_deps,
+            eq_deps=self.nonlinear_dependencies(), deps=nl_deps,
             cache_key="adjoint_J_solver" if self._cache_adjoint_jacobian else None)  # noqa: E501
-
-        for bc in self._hbcs:
-            bc.apply(adj_x)
-            bc.apply(b)
         J_solver.solve(adj_x, b)
+
         return adj_x
 
     def _tangent_linear_rhs(self, tlm_map):

@@ -90,6 +90,26 @@ def project_LinearVariationalSolver(F, space, bc):
     return G
 
 
+def project_LinearVariationalSolver_matfree(F, space, bc):
+    test, trial = TestFunction(space), TrialFunction(space)
+    G = Function(space, name="G")
+
+    solver_parameters = dict(ls_parameters_cg)
+    solver_parameters.update({"mat_type": "matfree",
+                              "pc_type": "python",
+                              "pc_python_type": "firedrake.MassInvPC",
+                              "Mp_mat_type": "aij",
+                              "Mp_pc_type": "sor"})
+
+    eq = inner(trial, test) * dx == inner(F, test) * dx
+    problem = LinearVariationalProblem(eq.lhs, eq.rhs, G, bcs=bc)
+    solver = LinearVariationalSolver(
+        problem, solver_parameters=solver_parameters)
+    solver.solve()
+
+    return G
+
+
 def project_NonlinearVariationalSolver(F, space, bc):
     test, trial = TestFunction(space), TrialFunction(space)
     G = Function(space, name="G")
@@ -109,6 +129,7 @@ def project_NonlinearVariationalSolver(F, space, bc):
 @pytest.mark.parametrize("project_fn", [project_project,
                                         project_assemble_LinearSolver,
                                         project_LinearVariationalSolver,
+                                        project_LinearVariationalSolver_matfree,  # noqa: E501
                                         project_NonlinearVariationalSolver])
 @seed_test
 def test_project_patches(setup_test, test_leaks,
