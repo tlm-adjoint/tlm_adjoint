@@ -178,13 +178,12 @@ DEFAULT_COMM = None
 if MPI is None:
     # As for mpi4py 3.1.4 API
     class SerialComm:
-        _id_counter = [-1]
+        _id_counter = itertools.count(start=-1, step=-1)
 
         def __init__(self, *, _id=None):
             self._id = _id
             if self._id is None:
-                self._id, = self._id_counter
-                self._id_counter[0] -= 1
+                self._id = next(self._id_counter)
 
         @property
         def rank(self):
@@ -480,14 +479,11 @@ def space_dtype(space):
     return space._tlm_adjoint__space_interface_dtype()
 
 
-_space_id_counter = 0
+_space_id_counter = itertools.count()
 
 
 def new_space_id():
-    global _space_id_counter
-    space_id = _space_id_counter
-    _space_id_counter += 1
-    return space_id
+    return next(_space_id_counter)
 
 
 def space_id(space):
@@ -863,14 +859,11 @@ def var_dtype(x):
     return x._tlm_adjoint__var_interface_dtype()
 
 
-_var_id_counter = 0
+_var_id_counter = itertools.count()
 
 
 def new_var_id():
-    global _var_id_counter
-    var_id = _var_id_counter
-    _var_id_counter += 1
-    return var_id
+    return next(_var_id_counter)
 
 
 def var_id(x):
