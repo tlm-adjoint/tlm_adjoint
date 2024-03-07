@@ -23,14 +23,13 @@ __all__ = \
 
 
 class Referrer:
-    _id_counter = [0]
+    _id_counter = itertools.count()
 
     def __init__(self, referrers=None):
         if referrers is None:
             referrers = ()
 
-        self._id, = self._id_counter
-        self._id_counter[0] += 1
+        self._id = next(self._id_counter)
         self._referrers = weakref.WeakValueDictionary()
         self._references_dropped = False
 

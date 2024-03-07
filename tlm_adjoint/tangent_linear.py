@@ -170,13 +170,12 @@ class TangentLinearMap:
         direction defined by `dM`.
     """
 
-    _id_counter = [0]
+    _id_counter = itertools.count()
 
     def __init__(self, M, dM):
         (M, dM), _ = tlm_key(M, dM)
 
-        self._id, = self._id_counter
-        self._id_counter[0] += 1
+        self._id = next(self._id_counter)
 
         self._X = weakref.WeakValueDictionary()
         self._M = M

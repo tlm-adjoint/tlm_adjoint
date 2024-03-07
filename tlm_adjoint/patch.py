@@ -2,6 +2,7 @@ from .manager import (
     annotation_enabled, manager_disabled, paused_manager, tlm_enabled)
 
 import functools
+import itertools
 
 __all__ = []
 
@@ -54,11 +55,12 @@ def patch_property(cls, name, *,
 
         setattr(cls, name, wrapped_patch)
         if cached:
-            patch_counter = getattr(cls, _PATCH_PROPERTY_COUNTER_KEY, -1) + 1
-            setattr(cls, _PATCH_PROPERTY_COUNTER_KEY, patch_counter)
+            if not hasattr(cls, _PATCH_PROPERTY_COUNTER_KEY):
+                cls._PATCH_PROPERTY_COUNTER_KEY = itertools.count()
+            patch_count = next(cls._PATCH_PROPERTY_COUNTER_KEY)
             wrapped_patch.__set_name__(
                 wrapped_patch,
-                _PATCH_PROPERTY_NAME_KEY % patch_counter)
+                _PATCH_PROPERTY_NAME_KEY % patch_count)
         return wrapped_patch
 
     return wrapper

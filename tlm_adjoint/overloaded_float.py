@@ -31,6 +31,7 @@ from .manager import annotation_enabled, tlm_enabled
 
 import contextlib
 import functools
+import itertools
 import numbers
 import numpy as np
 import sympy as sp
@@ -61,13 +62,11 @@ __all__ = \
     ]
 
 
-_name_counter = 0
+_name_counter = itertools.count()
 
 
 def new_symbol_name():
-    global _name_counter
-    count = _name_counter
-    _name_counter += 1
+    count = next(_name_counter)
     return f"_tlm_adjoint_symbol__{count:d}"
 
 

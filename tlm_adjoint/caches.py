@@ -3,6 +3,7 @@ from .interface import var_caches, var_id, var_is_replacement, var_state
 from .alias import gc_disabled
 
 import functools
+import itertools
 from operator import itemgetter
 import weakref
 
@@ -84,7 +85,7 @@ class Cache:
     Cleared cache entries are removed from the :class:`.Cache`.
     """
 
-    _id_counter = [0]
+    _id_counter = itertools.count()
     _caches = weakref.WeakValueDictionary()
 
     def __init__(self):
@@ -92,8 +93,7 @@ class Cache:
         self._deps_map = {}
         self._dep_caches = {}
 
-        self._id, = self._id_counter
-        self._id_counter[0] += 1
+        self._id = next(self._id_counter)
         self._caches[self._id] = self
 
         def finalize_callback(cache):
