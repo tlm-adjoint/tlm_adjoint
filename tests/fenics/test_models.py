@@ -6,11 +6,6 @@ from .test_base import *
 import numpy as np
 import pytest
 
-try:
-    import hrevolve
-except ImportError:
-    hrevolve = None
-
 pytestmark = pytest.mark.skipif(
     DEFAULT_COMM.size not in {1, 4},
     reason="tests must be run in serial, or with 4 processes")
@@ -86,10 +81,7 @@ def diffusion_ref():
                      "snaps_in_ram": 2}),
      ("multistage", {"format": "hdf5", "snaps_on_disk": 1,
                      "snaps_in_ram": 2}),
-     pytest.param(
-         "H-Revolve", {"snapshots_on_disk": 1, "snapshots_in_ram": 2},
-         marks=pytest.mark.skipif(hrevolve is None,
-                                  reason="H-Revolve not available")),
+     ("H-Revolve", {"snapshots_on_disk": 1, "snapshots_in_ram": 2}),
      ("mixed", {"snapshots": 2, "storage": "disk"})])
 @seed_test
 def test_oscillator(setup_test, test_leaks,
