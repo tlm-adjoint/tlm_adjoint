@@ -81,6 +81,27 @@ def test_jax_assignment(setup_test, jax_tlm_config,  # noqa: F811
 
 
 @pytest.mark.base
+@seed_test
+def test_jax_self_assignment(setup_test):  # noqa: F811
+    set_default_jax_dtype(np.double)
+
+    def forward(y):
+        y.assign(y)
+        x = Vector(y.space, name="x")
+        x.assign(x + y)
+        return x ** 4
+
+    y = Vector(np.array([2.0], dtype=np.double))
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    dJ = compute_gradient(J, y)
+    assert abs(float(dJ) - 4 * float(y) ** 3) == 0.0
+
+
+@pytest.mark.base
 @pytest.mark.skipif(DEFAULT_COMM.size > 1, reason="serial only")
 @pytest.mark.parametrize("op", [operator.abs,
                                 operator.neg,

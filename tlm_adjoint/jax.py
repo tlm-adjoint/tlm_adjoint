@@ -450,15 +450,15 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
         annotate = annotation_enabled()
         tlm = tlm_enabled()
         if annotate or tlm:
-            with paused_manager():
-                if isinstance(y, (numbers.Complex, np.ndarray, jax.Array)):
+            if isinstance(y, (numbers.Complex, np.ndarray, jax.Array)):
+                with paused_manager():
                     y = self.new(y)
-                elif isinstance(y, Vector):
-                    pass
-                else:
-                    raise TypeError(f"Unexpected type: {type(y)}")
-
-            Assignment(self, y).solve()
+                Assignment(self, y).solve()
+            elif isinstance(y, Vector):
+                if y is not self:
+                    Assignment(self, y).solve()
+            else:
+                raise TypeError(f"Unexpected type: {type(y)}")
         else:
             if isinstance(y, (numbers.Complex, Vector)):
                 var_assign(self, y)
@@ -475,8 +475,8 @@ class Vector(np.lib.mixins.NDArrayOperatorsMixin):
             defining the value to add.
         """
 
-        x_old = self.new().assign(self)
-        y = self.new().assign(y)
+        x_old = self.new(self)
+        y = self.new(y)
         Axpy(self, x_old, 1.0, y).solve()
 
     @property

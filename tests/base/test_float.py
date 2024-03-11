@@ -86,6 +86,27 @@ def test_Float_assignment(setup_test,  # noqa: F811
 
 
 @pytest.mark.base
+@seed_test
+def test_Float_self_assignment(setup_test):  # noqa: F811
+    set_default_float_dtype(np.double)
+
+    def forward(y):
+        y.assign(y)
+        x = Float(name="x")
+        x.assign(x + y)
+        return x ** 4
+
+    y = Float(2.0)
+
+    start_manager()
+    J = forward(y)
+    stop_manager()
+
+    dJ = compute_gradient(J, y)
+    assert abs(float(dJ) - 4 * float(y) ** 3) == 0.0
+
+
+@pytest.mark.base
 @pytest.mark.parametrize("op", [operator.abs,
                                 operator.neg,
                                 np.sin,
