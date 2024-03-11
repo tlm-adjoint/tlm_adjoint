@@ -315,6 +315,13 @@ def expr_dependencies(expr):
     return sorted(deps, key=var_id)
 
 
+def expr_new_x(expr, x):
+    if x in expr.free_symbols:
+        return expr.subs(x, x.new(x))
+    else:
+        return expr
+
+
 # Float class name already used by SymPy
 class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
     """A :class:`sympy.core.symbol.Symbol` which is also a 'variable', defining
@@ -436,7 +443,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             if isinstance(y, numbers.Complex):
                 Assignment(self, self.new(y)).solve()
             elif isinstance(y, sp.Expr):
-                FloatEquation(self, y).solve()
+                if y is not self:
+                    FloatEquation(self, expr_new_x(y, self)).solve()
             else:
                 raise TypeError(f"Unexpected type: {type(y)}")
         else:
@@ -458,8 +466,8 @@ class _tlm_adjoint__SymbolicFloat(sp.Symbol):  # noqa: N801
             defining the value to add.
         """
 
-        x_old = self.new().assign(self)
-        y = self.new().assign(y)
+        x_old = self.new(self)
+        y = self.new(y)
         Axpy(self, x_old, 1.0, y).solve()
 
     @property

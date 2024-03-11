@@ -490,10 +490,7 @@ def Function_function_space(self, orig, orig_args):
 @manager_method(backend_Function, "interpolate",
                 post_call=var_update_state_post_call)
 def Function_interpolate(self, orig, orig_args, u):
-    if u is self:
-        eq = None
-    else:
-        eq = ExprInterpolation(self, u)
+    eq = ExprInterpolation(self, expr_new_x(u, self))
 
     if eq is not None:
         assert not eq._pre_process_required
