@@ -125,7 +125,6 @@ class Assembly(ExprEquation):
 
         dep = eq_deps[dep_index]
         dF = derivative(self._rhs, dep)
-        dF = ufl.algorithms.expand_derivatives(dF)
         dF = eliminate_zeros(dF)
         if dF.empty():
             return None
@@ -159,7 +158,6 @@ class Assembly(ExprEquation):
                 if tau_dep is not None:
                     tlm_rhs = tlm_rhs + derivative(self._rhs, dep, argument=tau_dep)  # noqa: E501
 
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if tlm_rhs.empty():
             return ZeroAssignment(tlm_map[x])
         else:

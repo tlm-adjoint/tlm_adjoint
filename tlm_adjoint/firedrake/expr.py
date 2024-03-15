@@ -1,18 +1,17 @@
 """Symbolic expression functionality.
 """
 
-from .backend import (
-    TestFunction, TrialFunction, backend_Constant, complex_mode)
+from .backend import TestFunction, TrialFunction, complex_mode
 from ..interface import (
     VariableStateChangeError, check_space_type, is_var, var_id,
     var_is_replacement, var_replacement, var_space)
 
 from ..equation import Equation
 
+from collections import defaultdict
 from collections.abc import Sequence
 import functools
 import itertools
-import numbers
 import ufl
 
 __all__ = \
@@ -61,30 +60,30 @@ def form_cached(key):
 
 @form_cached("_tlm_adjoint__extract_coefficients")
 def extract_coefficients(expr):
-    def as_ufl(expr):
-        if isinstance(expr, (ufl.classes.BaseForm,
-                             ufl.classes.Expr,
-                             numbers.Complex)):
-            return ufl.as_ufl(expr)
-        elif isinstance(expr, Sequence):
-            return ufl.as_vector(tuple(map(as_ufl, expr)))
-        else:
-            raise TypeError(f"Unexpected type: {type(expr)}")
+    if isinstance(expr, Sequence):
+        expr = ufl.as_vector(tuple(map(ufl.as_ufl, expr)))
+    else:
+        expr = ufl.as_ufl(expr)
+
+    counted_cls_deps = defaultdict(dict)
+    for c, c_counted_cls in ((ufl.coefficient.BaseCoefficient, ufl.coefficient.Coefficient),  # noqa: E501
+                             (ufl.classes.ConstantValue, ufl.utils.counted.Counted)):  # noqa: E501
+        for dep in itertools.chain.from_iterable(map(
+                lambda expr: ufl.algorithms.extract_type(ufl.as_ufl(expr), c),
+                itertools.chain.from_iterable(iter_expr(expr)))):
+            if isinstance(dep, ufl.utils.counted.Counted) \
+                    and dep._counted_class is c_counted_cls:
+                counted_cls_deps[c_counted_cls][dep.count()] = dep
 
     deps = []
-    for c in (ufl.coefficient.BaseCoefficient, backend_Constant):
-        c_deps = {}
-        for dep in itertools.chain.from_iterable(map(
-                lambda expr: ufl.algorithms.extract_type(as_ufl(expr), c),
-                itertools.chain.from_iterable(iter_expr(as_ufl(expr))))):
-            c_deps[dep.count()] = dep
+    for c_deps in counted_cls_deps.values():
         deps.extend(sorted(c_deps.values(), key=lambda dep: dep.count()))
+
     return deps
 
 
 def extract_derivative_coefficients(expr, dep):
     dexpr = derivative(expr, dep, enable_automatic_argument=False)
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return extract_coefficients(dexpr)
 
 
@@ -112,14 +111,42 @@ def extract_dependencies(expr, *, space_type=None):
     return deps, nl_deps
 
 
-def with_coefficient(expr, x):
-    if isinstance(x, ufl.classes.Coefficient):
-        return expr, {}, {}
+def with_coefficients(*exprs):
+    replace_map = {}
+    replace_map_inverse = {}
+    for c in itertools.chain.from_iterable(map(extract_coefficients, exprs)):
+        if not isinstance(c, ufl.classes.Coefficient):
+            c_coeff = ufl.classes.Coefficient(var_space(c))
+            replace_map[c] = c_coeff
+            replace_map_inverse[c_coeff] = c
+
+    return (tuple(ufl.replace(expr, replace_map) for expr in exprs),
+            replace_map_inverse)
+
+
+def _derivative(expr, x, argument=None):
+    expr = ufl.as_ufl(expr)
+    if argument is None:
+        dexpr = ufl.derivative(expr, x)
+        dexpr = ufl.algorithms.expand_derivatives(dexpr)
     else:
-        x_coeff = ufl.classes.Coefficient(var_space(x))
-        replace_map = {x: x_coeff}
-        replace_map_inverse = {x_coeff: x}
-        return ufl.replace(expr, replace_map), replace_map, replace_map_inverse
+        if isinstance(expr, ufl.classes.Expr):
+            dexpr = ufl.derivative(expr, x, argument=argument)
+            dexpr = ufl.algorithms.expand_derivatives(dexpr)
+        elif isinstance(expr, ufl.classes.BaseForm):
+            if len(ufl.algorithms.extract_arguments(argument)) > 0:
+                dexpr = ufl.derivative(expr, x, argument=argument)
+                dexpr = ufl.algorithms.expand_derivatives(dexpr)
+            else:
+                dexpr = ufl.derivative(expr, x)
+                dexpr = ufl.algorithms.expand_derivatives(dexpr)
+                if not isinstance(dexpr, ufl.classes.ZeroBaseForm) \
+                        and not (isinstance(dexpr, ufl.classes.Form)
+                                 and dexpr.empty()):
+                    dexpr = ufl.action(dexpr, argument)
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
+    return dexpr
 
 
 def derivative(expr, x, argument=None, *,
@@ -139,10 +166,12 @@ def derivative(expr, x, argument=None, *,
             if expr_argument.number() < arity - int(isinstance(x, ufl.classes.Cofunction)):  # noqa: E501
                 raise ValueError("Invalid argument")
 
-    expr, replace_map, replace_map_inverse = with_coefficient(expr, x)
-    x = replace_map.get(x, x)
-    if argument is not None:
-        argument = ufl.replace(argument, replace_map)
+    if argument is None:
+        (expr, x), replace_map_inverse = with_coefficients(
+            expr, x)
+    else:
+        (expr, x, argument), replace_map_inverse = with_coefficients(
+            expr, x, argument)
 
     if any(isinstance(comp, ufl.classes.Action)
            for _, comp in iter_expr(expr)):
@@ -153,29 +182,25 @@ def derivative(expr, x, argument=None, *,
                     # See Firedrake issue #3346
                     raise NotImplementedError("Complex case not implemented")
 
-                dcomp = ufl.algorithms.expand_derivatives(
-                    ufl.derivative(ufl.as_ufl(weight), x, argument=argument))
+                dcomp = _derivative(weight, x, argument=argument)
                 if not isinstance(dcomp, ufl.classes.Zero):
                     raise NotImplementedError("Weight derivatives not "
                                               "implemented")
 
-                dcomp = ufl.algorithms.expand_derivatives(
-                    ufl.derivative(comp.left(), x, argument=argument))
+                dcomp = _derivative(comp.left(), x, argument=argument)
                 dcomp = weight * ufl.classes.Action(dcomp, comp.right())
                 dexpr = dcomp if dexpr is None else dexpr + dcomp
 
-                dcomp = ufl.algorithms.expand_derivatives(
-                    ufl.derivative(comp.right(), x, argument=argument))
+                dcomp = _derivative(comp.right(), x, argument=argument)
                 dcomp = weight * ufl.classes.Action(comp.left(), dcomp)
                 dexpr = dcomp if dexpr is None else dexpr + dcomp
             else:
-                dcomp = ufl.derivative(weight * comp, x, argument=argument)
+                dcomp = _derivative(weight * comp, x, argument=argument)
                 dexpr = dcomp if dexpr is None else dexpr + dcomp
         assert dexpr is not None
     else:
-        dexpr = ufl.derivative(expr, x, argument=argument)
+        dexpr = _derivative(expr, x, argument=argument)
 
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return ufl.replace(dexpr, replace_map_inverse)
 
 

@@ -156,14 +156,13 @@ class EquationSolver(ExprEquation):
             F = lhs
             nl_solve_J = J
             J = derivative(F, x)
-            J = ufl.algorithms.expand_derivatives(J)
 
         deps, nl_deps = extract_dependencies(F, space_type="primal")
         if nl_solve_J is not None:
             for dep in extract_coefficients(nl_solve_J):
                 if is_var(dep):
                     deps.setdefault(var_id(dep), dep)
-        deps = list(deps.values())
+        deps = sorted(deps.values(), key=var_id)
         if x in deps:
             deps.remove(x)
         deps.insert(0, x)
@@ -412,7 +411,6 @@ class EquationSolver(ExprEquation):
             if dep_index not in self._adjoint_b_cache:
                 dep = self.dependencies()[dep_index]
                 dF = derivative(self._F, dep)
-                dF = ufl.algorithms.expand_derivatives(dF)
                 dF = eliminate_zeros(dF)
                 if not dF.empty():
                     dF = adjoint(dF)
@@ -465,7 +463,6 @@ class EquationSolver(ExprEquation):
                 if tau_dep is not None:
                     tlm_rhs = (tlm_rhs
                                - derivative(self._F, dep, argument=tau_dep))
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         return tlm_rhs
 
     def tangent_linear(self, tlm_map):

@@ -46,24 +46,27 @@ def form_cached(key):
     return wrapper
 
 
+def as_ufl(expr):
+    if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
+        return ufl.as_ufl(expr)
+    elif isinstance(expr, ufl.classes.Form):
+        return expr
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
+
+
 @form_cached("_tlm_adjoint__extract_coefficients")
 def extract_coefficients(expr):
-    def as_ufl(expr):
-        if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
-            return ufl.as_ufl(expr)
-        elif isinstance(expr, ufl.classes.Form):
-            return expr
-        elif isinstance(expr, Sequence):
-            return ufl.as_vector(tuple(map(as_ufl, expr)))
-        else:
-            raise TypeError(f"Unexpected type: {type(expr)}")
+    if isinstance(expr, Sequence):
+        expr = ufl.as_vector(tuple(map(as_ufl, expr)))
+    else:
+        expr = as_ufl(expr)
 
     return ufl.algorithms.extract_coefficients(as_ufl(expr))
 
 
 def extract_derivative_coefficients(expr, dep):
     dexpr = derivative(expr, dep, enable_automatic_argument=False)
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
     return extract_coefficients(dexpr)
 
 
@@ -141,6 +144,29 @@ def derivative_space(x):
         raise RuntimeError("Unable to determine space")
 
 
+def _derivative(expr, x, argument=None):
+    expr = as_ufl(expr)
+    if argument is None:
+        dexpr = ufl.derivative(expr, x)
+        dexpr = ufl.algorithms.expand_derivatives(dexpr)
+    else:
+        if isinstance(expr, ufl.classes.Expr):
+            dexpr = ufl.derivative(expr, x, argument=argument)
+            dexpr = ufl.algorithms.expand_derivatives(dexpr)
+        elif isinstance(expr, ufl.classes.Form):
+            if len(ufl.algorithms.extract_arguments(argument)) > 0:
+                dexpr = ufl.derivative(expr, x, argument=argument)
+                dexpr = ufl.algorithms.expand_derivatives(dexpr)
+            else:
+                dexpr = ufl.derivative(expr, x)
+                dexpr = ufl.algorithms.expand_derivatives(dexpr)
+                if not dexpr.empty():
+                    dexpr = ufl.action(dexpr, argument)
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
+    return dexpr
+
+
 def derivative(expr, x, argument=None, *,
                enable_automatic_argument=True):
     expr_arguments = ufl.algorithms.extract_arguments(expr)
@@ -158,7 +184,7 @@ def derivative(expr, x, argument=None, *,
             if expr_argument.number() < arity:
                 raise ValueError("Invalid argument")
 
-    return ufl.derivative(expr, x, argument=argument)
+    return _derivative(expr, x, argument=argument)
 
 
 class Zero:

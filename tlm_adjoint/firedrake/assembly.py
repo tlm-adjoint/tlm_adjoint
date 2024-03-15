@@ -126,7 +126,6 @@ class Assembly(ExprEquation):
                 for weight, comp in iter_expr(self._rhs):
                     if isinstance(comp, ufl.classes.Form):
                         dF = derivative(weight * comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
                         dF = eliminate_zeros(dF)
                         if not isinstance(dF, ufl.classes.ZeroBaseForm):
                             dF = ufl.classes.Form(
@@ -142,7 +141,6 @@ class Assembly(ExprEquation):
                             raise NotImplementedError("Complex case not "
                                                       "implemented")
                         dF = derivative(weight * comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
                         dF = eliminate_zeros(dF)
                         for dF_weight, dF_comp in iter_expr(dF, evaluate_weights=True):  # noqa: E501
                             dF_comp = self._nonlinear_replace(dF_comp, nl_deps)
@@ -161,7 +159,6 @@ class Assembly(ExprEquation):
                                               evaluate_weights=True):
                     if isinstance(comp, ufl.classes.Form):
                         dF = derivative(comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
                         dF = eliminate_zeros(dF)
                         if not isinstance(dF, ufl.classes.ZeroBaseForm):
                             dF = adjoint(dF)
@@ -172,7 +169,6 @@ class Assembly(ExprEquation):
                             dep_B.sub((-weight.conjugate(), dF))
                     elif isinstance(comp, ufl.classes.Cofunction):
                         dF = derivative(comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
                         dF = eliminate_zeros(dF)
                         for dF_term_weight, dF_term in iter_expr(weight * dF,
                                                                  evaluate_weights=True):  # noqa: E501
@@ -206,7 +202,6 @@ class Assembly(ExprEquation):
                                    + weight * derivative(comp, dep,
                                                          argument=tau_dep))
 
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:

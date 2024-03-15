@@ -189,7 +189,6 @@ class EquationSolver(ExprEquation):
             F = lhs
             nl_solve_J = J
             J = derivative(F, x)
-            J = ufl.algorithms.expand_derivatives(J)
 
         for weight, _ in iter_expr(F):
             if len(tuple(c for c in extract_coefficients(weight)
@@ -203,7 +202,7 @@ class EquationSolver(ExprEquation):
             for dep in extract_coefficients(nl_solve_J):
                 if is_var(dep):
                     deps.setdefault(var_id(dep), dep)
-        deps = list(deps.values())
+        deps = sorted(deps.values(), key=var_id)
         if x in deps:
             deps.remove(x)
         deps.insert(0, x)
@@ -501,14 +500,12 @@ class EquationSolver(ExprEquation):
                 for weight, comp in iter_expr(self._F):
                     if isinstance(comp, ufl.classes.Form):
                         dF_term = derivative(weight * comp, dep)
-                        dF_term = ufl.algorithms.expand_derivatives(dF_term)
                         dF_term = eliminate_zeros(dF_term)
                         if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
                             dF_forms = dF_forms + adjoint(dF_term)
                     elif isinstance(comp, ufl.classes.Cofunction):
                         # Note: Ignores weight dependencies
                         dF_term = ufl.conj(weight) * derivative(comp, dep)
-                        dF_term = ufl.algorithms.expand_derivatives(dF_term)
                         dF_term = eliminate_zeros(dF_term)
                         if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
                             dF_cofunctions = dF_cofunctions + dF_term
@@ -601,7 +598,6 @@ class EquationSolver(ExprEquation):
                         # Note: Ignores weight dependencies
                         tlm_rhs = (tlm_rhs
                                    - weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         return tlm_rhs
 
     def tangent_linear(self, tlm_map):

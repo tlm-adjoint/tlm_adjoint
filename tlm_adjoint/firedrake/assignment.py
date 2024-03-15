@@ -94,7 +94,6 @@ class ExprAssignment(ExprEquation):
             # dF = action(adjoint(dF), adj_x)
             # Missing a conjugate, see below
             dF = ufl.replace(dF, {test: adj_x})
-            dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = self._nonlinear_replace(dF, nl_deps)
 
@@ -115,7 +114,6 @@ class ExprAssignment(ExprEquation):
                 F = F.riesz_representation("l2")
         else:
             dF = derivative(self._rhs, dep, argument=ufl.classes.IntValue(1))
-            dF = ufl.algorithms.expand_derivatives(dF)
             dF = eliminate_zeros(dF)
             dF = self._nonlinear_replace(dF, nl_deps)
 
@@ -153,7 +151,6 @@ class ExprAssignment(ExprEquation):
                     tlm_rhs = (tlm_rhs
                                + derivative(self._rhs, dep, argument=tau_dep))
 
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.Zero):
             return ZeroAssignment(tlm_map[x])
         else:

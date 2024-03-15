@@ -104,14 +104,12 @@ def split_arity(form, x, argument):
 
     form_derivative = derivative(form, x, argument=argument,
                                  enable_automatic_argument=False)
-    form_derivative = ufl.algorithms.expand_derivatives(form_derivative)
     if x in extract_coefficients(form_derivative):
         # Non-linear
         return ufl.classes.Form([]), form
 
     try:
-        eq_form = ufl.algorithms.expand_derivatives(
-            ufl.replace(form, {x: argument}))
+        eq_form = ufl.replace(form, {x: argument})
         A = ufl.algorithms.formtransformations.compute_form_with_arity(
             eq_form, arity + 1)
         b = ufl.algorithms.formtransformations.compute_form_with_arity(
