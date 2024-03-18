@@ -16,8 +16,8 @@ from ..linear_equation import LinearEquation, Matrix
 from ..manager import manager_disabled
 
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies)
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
+    extract_variables)
 from .variables import ReplacementConstant
 
 import functools
@@ -43,9 +43,8 @@ def interpolate_expression(x, expr, *, adj_x=None):
     else:
         check_space_type(x, "conjugate_dual")
         check_space_type(adj_x, "conjugate_dual")
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            check_space_type(dep, "primal")
+    for dep in extract_variables(expr):
+        check_space_type(dep, "primal")
 
     expr = eliminate_zeros(expr)
 

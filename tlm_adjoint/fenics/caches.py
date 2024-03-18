@@ -14,8 +14,8 @@ from ..caches import Cache
 from .backend_interface import (
     LocalSolver, assemble, assemble_matrix, linear_solver, matrix_copy)
 from .expr import (
-    derivative, eliminate_zeros, expr_zero, extract_coefficients, form_cached,
-    replaced_form)
+    derivative, eliminate_zeros, expr_zero, extract_coefficients,
+    extract_variables, form_cached, replaced_form)
 from .variables import ReplacementFunction
 
 from collections import defaultdict
@@ -255,8 +255,7 @@ def form_key(*forms):
     key = []
 
     for form in forms:
-        deps = [dep for dep in extract_coefficients(form) if is_var(dep)]
-        deps = sorted(deps, key=var_id)
+        deps = extract_variables(form)
         deps_key = tuple((var_id(dep), var_state(dep)) for dep in deps)
 
         form = replaced_form(form)
@@ -274,19 +273,18 @@ def form_key(*forms):
 def form_dependencies(*forms):
     deps = {}
 
-    for dep in itertools.chain.from_iterable(map(extract_coefficients, forms)):
-        if is_var(dep):
-            dep_id = var_id(dep)
-            if dep_id in deps:
-                dep_old = deps[dep_id]
-                assert (dep is dep_old
-                        or dep is var_replacement(dep_old)
-                        or var_replacement(dep) is dep_old)
-                assert var_caches(dep) is var_caches(dep_old)
-                if var_is_replacement(dep_old):
-                    deps[dep_id] = dep
-            else:
+    for dep in itertools.chain.from_iterable(map(extract_variables, forms)):
+        dep_id = var_id(dep)
+        if dep_id in deps:
+            dep_old = deps[dep_id]
+            assert (dep is dep_old
+                    or dep is var_replacement(dep_old)
+                    or var_replacement(dep) is dep_old)
+            assert var_caches(dep) is var_caches(dep_old)
+            if var_is_replacement(dep_old):
                 deps[dep_id] = dep
+        else:
+            deps[dep_id] = dep
 
     return tuple(sorted(deps.values(), key=var_id))
 

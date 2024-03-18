@@ -62,27 +62,33 @@ def extract_coefficients(expr):
     else:
         expr = as_ufl(expr)
 
-    return ufl.algorithms.extract_coefficients(as_ufl(expr))
+    deps = ufl.algorithms.extract_coefficients(expr)
+
+    if len(set(map(var_id, deps))) != len(deps):
+        raise RuntimeError("Invalid dependencies")
+    return deps
 
 
-def extract_derivative_coefficients(expr, dep):
+@form_cached("_tlm_adjoint__extract_variables")
+def extract_variables(expr):
+    deps = sorted((dep for dep in extract_coefficients(expr) if is_var(dep)),
+                  key=var_id)
+    return tuple(deps)
+
+
+def extract_derivative_variables(expr, dep):
     dexpr = derivative(expr, dep, enable_automatic_argument=False)
-    return extract_coefficients(dexpr)
+    return extract_variables(dexpr)
 
 
 def extract_dependencies(expr, *, space_type=None):
-    deps = {}
-    nl_deps = {}
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            deps.setdefault(var_id(dep), dep)
-            for nl_dep in extract_derivative_coefficients(expr, dep):
-                if is_var(nl_dep):
-                    nl_deps.setdefault(var_id(dep), dep)
-                    nl_deps.setdefault(var_id(nl_dep), nl_dep)
+    deps = {var_id(dep): dep for dep in extract_variables(expr)}
 
-    deps = {dep_id: deps[dep_id]
-            for dep_id in sorted(deps.keys())}
+    nl_deps = {}
+    for dep in deps.values():
+        for nl_dep in extract_derivative_variables(expr, dep):
+            nl_deps.setdefault(var_id(dep), dep)
+            nl_deps.setdefault(var_id(nl_dep), nl_dep)
     nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
                for nl_dep_id in sorted(nl_deps.keys())}
 
@@ -219,7 +225,7 @@ def eliminate_zeros(expr):
     """
 
     replace_map = {c: expr_zero(c)
-                   for c in extract_coefficients(expr)
+                   for c in extract_variables(expr)
                    if isinstance(c, Zero)}
     if len(replace_map) == 0:
         simplified_expr = expr
@@ -244,8 +250,8 @@ def new_count():
 
 def replaced_form(form):
     replace_map = {}
-    for c in extract_coefficients(form):
-        if is_var(c) and not var_is_replacement(c):
+    for c in extract_variables(form):
+        if not var_is_replacement(c):
             c_rep = var_replacement(c)
             if c_rep is not c:
                 replace_map[c] = c_rep

@@ -3,15 +3,15 @@
 
 from .backend import adjoint, complex_mode, parameters
 from ..interface import (
-    check_space_type, is_var, register_functional_term_eq, var_assign, var_id,
+    check_space_type, register_functional_term_eq, var_assign, var_id,
     var_is_scalar, var_new_conjugate_dual, var_replacement, var_scalar_value)
 
 from ..equation import ZeroAssignment
 
 from .backend_interface import assemble
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies, iter_expr)
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
+    extract_variables, iter_expr)
 from .parameters import (
     form_compiler_quadrature_parameters, process_form_compiler_parameters,
     update_parameters)
@@ -57,8 +57,7 @@ class Assembly(ExprEquation):
             match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
         for weight, _ in iter_expr(rhs):
-            if len(tuple(c for c in extract_coefficients(weight)
-                         if is_var(c))) > 0:
+            if len(extract_variables(weight)) > 0:
                 # See Firedrake issue #3292
                 raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")

@@ -17,7 +17,7 @@ from ..patch import (
 
 from .assembly import Assembly
 from .backend_interface import linear_solver
-from .expr import extract_coefficients, new_count
+from .expr import extract_coefficients, extract_variables, new_count
 from .interpolation import ExprInterpolation
 from .parameters import (
     copy_parameters, parameters_equal, process_form_compiler_parameters)
@@ -46,7 +46,7 @@ __all__ = \
 
 
 def expr_new_x(expr, x):
-    if x in extract_coefficients(expr):
+    if x in extract_variables(expr):
         x_old = var_new(x)
         x_old.assign(x)
         return ufl.replace(expr, {x: x_old})
@@ -56,8 +56,8 @@ def expr_new_x(expr, x):
 
 def linear_equation_new_x(eq, x):
     lhs, rhs = eq.lhs, eq.rhs
-    lhs_x_dep = x in extract_coefficients(lhs)
-    rhs_x_dep = x in extract_coefficients(rhs)
+    lhs_x_dep = x in extract_variables(lhs)
+    rhs_x_dep = x in extract_variables(rhs)
     if lhs_x_dep or rhs_x_dep:
         x_old = var_new(x)
         x_old.assign(x)

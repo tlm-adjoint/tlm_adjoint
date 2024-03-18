@@ -15,8 +15,8 @@ from .caches import (
     assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
     split_form)
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies, iter_expr)
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
+    extract_variables, iter_expr)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -173,8 +173,8 @@ class EquationSolver(ExprEquation):
                 raise ValueError("Invalid left-hand-side arguments")
             if rhs.arguments() != (lhs.arguments()[0],):
                 raise ValueError("Invalid right-hand-side arguments")
-            if x in extract_coefficients(lhs) \
-                    or x in extract_coefficients(rhs):
+            if x in extract_variables(lhs) \
+                    or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
             F = ufl.action(lhs, coefficient=x) - rhs
@@ -191,17 +191,15 @@ class EquationSolver(ExprEquation):
             J = derivative(F, x)
 
         for weight, _ in iter_expr(F):
-            if len(tuple(c for c in extract_coefficients(weight)
-                         if is_var(c))) > 0:
+            if len(extract_variables(weight)) > 0:
                 # See Firedrake issue #3292
                 raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")
 
         deps, nl_deps = extract_dependencies(F)
         if nl_solve_J is not None:
-            for dep in extract_coefficients(nl_solve_J):
-                if is_var(dep):
-                    deps.setdefault(var_id(dep), dep)
+            for dep in extract_variables(nl_solve_J):
+                deps.setdefault(var_id(dep), dep)
         deps = sorted(deps.values(), key=var_id)
         if x in deps:
             deps.remove(x)

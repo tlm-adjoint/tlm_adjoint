@@ -18,7 +18,7 @@ from ..patch import (
 
 from .assembly import Assembly
 from .assignment import ExprAssignment
-from .expr import expr_zero, extract_coefficients, iter_expr, new_count
+from .expr import expr_zero, extract_variables, iter_expr, new_count
 from .interpolation import ExprInterpolation
 from .parameters import process_form_compiler_parameters
 from .projection import Projection, LocalProjection
@@ -63,7 +63,7 @@ def packed_solver_parameters(solver_parameters, *, options_prefix=None,
 
 
 def expr_new_x(expr, x):
-    if x in extract_coefficients(expr):
+    if x in extract_variables(expr):
         x_old = var_new(x)
         x_old.assign(x)
         return ufl.replace(expr, {x: x_old})
@@ -73,8 +73,8 @@ def expr_new_x(expr, x):
 
 def linear_equation_new_x(eq, x):
     lhs, rhs = eq.lhs, eq.rhs
-    lhs_x_dep = x in extract_coefficients(lhs)
-    rhs_x_dep = x in extract_coefficients(rhs)
+    lhs_x_dep = x in extract_variables(lhs)
+    rhs_x_dep = x in extract_variables(rhs)
     if lhs_x_dep or rhs_x_dep:
         x_old = var_new(x)
         x_old.assign(x)
@@ -159,7 +159,7 @@ def Constant_init_assign(self, value):
     if is_var(value):
         eq = Assignment(self, value)
     elif isinstance(value, ufl.classes.Expr) \
-            and len(tuple(dep for dep in extract_coefficients(value) if is_var(dep))) > 0:  # noqa: E501
+            and len(extract_variables(value)) > 0:
         eq = ExprAssignment(self, value)
     else:
         eq = None
@@ -496,8 +496,7 @@ def Cofunction_assign(self, orig, orig_args, expr, subset=None):
             eq = None
     elif isinstance(expr, ufl.classes.FormSum):
         for weight, comp in iter_expr(expr):
-            if len(tuple(c for c in extract_coefficients(weight)
-                         if is_var(c))) > 0:
+            if len(tuple(extract_variables(weight))) > 0:
                 # See Firedrake issue #3292
                 raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")

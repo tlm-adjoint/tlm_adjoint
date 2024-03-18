@@ -5,8 +5,8 @@ from .backend import (
     Parameters, adjoint, backend_DirichletBC, backend_LocalSolver,
     backend_solve as solve, parameters)
 from ..interface import (
-    check_space_type, is_var, var_axpy, var_copy, var_id,
-    var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
+    check_space_type, var_axpy, var_copy, var_id, var_new_conjugate_dual,
+    var_replacement, var_update_caches, var_zero)
 
 from ..caches import CacheRef
 from ..equation import ZeroAssignment
@@ -17,8 +17,8 @@ from .caches import (
     assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
     split_form)
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies)
+    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
+    extract_variables)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -140,8 +140,8 @@ class EquationSolver(ExprEquation):
                 raise ValueError("Invalid left-hand-side arguments")
             if rhs.arguments() != (lhs.arguments()[0],):
                 raise ValueError("Invalid right-hand-side arguments")
-            if x in extract_coefficients(lhs) \
-                    or x in extract_coefficients(rhs):
+            if x in extract_variables(lhs) \
+                    or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
             F = ufl.action(lhs, coefficient=x) - rhs
@@ -159,9 +159,8 @@ class EquationSolver(ExprEquation):
 
         deps, nl_deps = extract_dependencies(F, space_type="primal")
         if nl_solve_J is not None:
-            for dep in extract_coefficients(nl_solve_J):
-                if is_var(dep):
-                    deps.setdefault(var_id(dep), dep)
+            for dep in extract_variables(nl_solve_J):
+                deps.setdefault(var_id(dep), dep)
         deps = sorted(deps.values(), key=var_id)
         if x in deps:
             deps.remove(x)
