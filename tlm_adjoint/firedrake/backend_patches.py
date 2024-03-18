@@ -245,6 +245,7 @@ def new_space_id_cached(space):
         mesh._tlm_adjoint__space_ids = {}
     space_ids = mesh._tlm_adjoint__space_ids
 
+    # Work around Firedrake issue #3130
     key = (space, ufl.duals.is_primal(space))
     if key not in space_ids:
         space_ids[key] = new_space_id()

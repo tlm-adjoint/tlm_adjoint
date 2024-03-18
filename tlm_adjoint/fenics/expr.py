@@ -3,7 +3,7 @@
 
 from .backend import (
     FunctionSpace, TensorFunctionSpace, TestFunction, TrialFunction,
-    VectorFunctionSpace, backend_Constant, backend_Function,
+    VectorFunctionSpace, backend_action, backend_Constant, backend_Function,
     backend_ScalarType, cpp_Constant)
 from ..interface import (
     VariableStateChangeError, add_replacement_interface, check_space_type,
@@ -167,7 +167,7 @@ def _derivative(expr, x, argument=None):
                 dexpr = ufl.derivative(expr, x)
                 dexpr = ufl.algorithms.expand_derivatives(dexpr)
                 if not dexpr.empty():
-                    dexpr = ufl.action(dexpr, argument)
+                    dexpr = action(dexpr, argument)
         else:
             raise TypeError(f"Unexpected type: {type(expr)}")
     return dexpr
@@ -191,6 +191,10 @@ def derivative(expr, x, argument=None, *,
                 raise ValueError("Invalid argument")
 
     return _derivative(expr, x, argument=argument)
+
+
+def action(form, coefficient):
+    return backend_action(form, coefficient=coefficient)
 
 
 class Zero:

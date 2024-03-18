@@ -17,8 +17,8 @@ from .caches import (
     assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
     split_form)
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
-    extract_variables)
+    ExprEquation, action, derivative, eliminate_zeros, expr_zero,
+    extract_dependencies, extract_variables)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -144,7 +144,7 @@ class EquationSolver(ExprEquation):
                     or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
-            F = ufl.action(lhs, coefficient=x) - rhs
+            F = action(lhs, x) - rhs
             nl_solve_J = None
             J = lhs
         else:
@@ -170,7 +170,7 @@ class EquationSolver(ExprEquation):
         if len(bcs) == 0:
             rhs_bc = expr_zero(F)
         else:
-            rhs_bc = -ufl.action(J, coefficient=x)
+            rhs_bc = -action(J, x)
         bcs = tuple(map(backend_DirichletBC, bcs))
         hbcs = tuple(map(homogenized_bc, bcs))
 
@@ -424,7 +424,7 @@ class EquationSolver(ExprEquation):
                     dep_B.sub(matrix_multiply(mat, adj_x))
                 else:
                     # Cached form
-                    dF = ufl.action(dF, coefficient=adj_x)
+                    dF = action(dF, adj_x)
                     dF = self._assemble(dF,
                                         eq_deps=eq_nl_deps, deps=nl_deps)
                     dep_B.sub(dF)

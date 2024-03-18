@@ -1,7 +1,7 @@
 """Symbolic expression functionality.
 """
 
-from .backend import TestFunction, TrialFunction, complex_mode
+from .backend import TestFunction, TrialFunction, backend_action, complex_mode
 from ..interface import (
     VariableStateChangeError, check_space_type, is_var, var_id,
     var_is_replacement, var_replacement, var_space)
@@ -147,7 +147,7 @@ def _derivative(expr, x, argument=None):
                 if not isinstance(dexpr, ufl.classes.ZeroBaseForm) \
                         and not (isinstance(dexpr, ufl.classes.Form)
                                  and dexpr.empty()):
-                    dexpr = ufl.action(dexpr, argument)
+                    dexpr = action(dexpr, argument)
         else:
             raise TypeError(f"Unexpected type: {type(expr)}")
     return dexpr
@@ -206,6 +206,18 @@ def derivative(expr, x, argument=None, *,
         dexpr = _derivative(expr, x, argument=argument)
 
     return ufl.replace(dexpr, replace_map_inverse)
+
+
+def action(form, coefficient):
+    if isinstance(form, (ufl.classes.Argument,
+                         ufl.classes.Coargument)):
+        # Work around Firedrake issue #3130
+        if form.ufl_function_space() != coefficient.ufl_function_space() \
+                or ufl.duals.is_primal(form) != ufl.duals.is_primal(coefficient):  # noqa: E501
+            raise ValueError("Invalid space")
+        return coefficient
+    else:
+        return backend_action(form, coefficient)
 
 
 def expr_zero(expr):

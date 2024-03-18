@@ -15,8 +15,8 @@ from .caches import (
     assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
     split_form)
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies,
-    extract_variables, iter_expr)
+    ExprEquation, action, derivative, eliminate_zeros, expr_zero,
+    extract_dependencies, extract_variables, iter_expr)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -177,7 +177,7 @@ class EquationSolver(ExprEquation):
                     or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
-            F = ufl.action(lhs, coefficient=x) - rhs
+            F = action(lhs, x) - rhs
             nl_solve_J = None
             J = lhs
         else:
@@ -209,7 +209,7 @@ class EquationSolver(ExprEquation):
         if all(isinstance(bc._function_arg, ufl.classes.Zero) for bc in bcs):
             rhs_bc = expr_zero(F)
         else:
-            rhs_bc = -ufl.action(J, coefficient=x)
+            rhs_bc = -action(J, x)
         deps, bc_nodes, bc_gs = unpack_bcs(bcs, deps=deps)
         hbcs = tuple(map(homogenized_bc, bcs))
 
@@ -520,7 +520,7 @@ class EquationSolver(ExprEquation):
                         eq_deps=eq_nl_deps, deps=nl_deps)
                     dep_B.sub(matrix_multiply(mat, adj_x_0))
                 else:
-                    dF_forms = ufl.action(dF_forms, coefficient=adj_x_0)
+                    dF_forms = action(dF_forms, adj_x_0)
                     dF_forms = self._assemble(dF_forms,
                                               eq_deps=eq_nl_deps, deps=nl_deps)
                     dep_B.sub(dF_forms)
@@ -540,8 +540,7 @@ class EquationSolver(ExprEquation):
                             eq_deps=eq_nl_deps, deps=nl_deps)
                         dF_bc = matrix_multiply(mat, adj_x_0)
                     else:
-                        dF_bc = ufl.action(adjoint(self._J),
-                                           coefficient=adj_x_0)
+                        dF_bc = action(adjoint(self._J), adj_x_0)
                         dF_bc = self._assemble(dF_bc,
                                                eq_deps=eq_nl_deps, deps=nl_deps)  # noqa: E501
 

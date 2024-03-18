@@ -17,7 +17,7 @@ from ..patch import (
 
 from .assembly import Assembly
 from .backend_interface import linear_solver
-from .expr import extract_coefficients, extract_variables, new_count
+from .expr import action, extract_coefficients, extract_variables, new_count
 from .interpolation import ExprInterpolation
 from .parameters import (
     copy_parameters, parameters_equal, process_form_compiler_parameters)
@@ -537,9 +537,8 @@ def Matrix__mul__(self, orig, orig_args, other):
         if len(self._tlm_adjoint__bcs) > 0:
             raise NotImplementedError("Boundary conditions not supported")
 
-        return_value._tlm_adjoint__form = ufl.action(
-            self._tlm_adjoint__form,
-            coefficient=other._tlm_adjoint__function)
+        return_value._tlm_adjoint__form = action(
+            self._tlm_adjoint__form, other._tlm_adjoint__function)
         return_value._tlm_adjoint__bcs = []
         return_value._tlm_adjoint__form_compiler_parameters \
             = self._tlm_adjoint__form_compiler_parameters

@@ -10,7 +10,8 @@ from ..equation import ZeroAssignment
 
 from .backend_interface import assemble
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_dependencies)
+    ExprEquation, action, derivative, eliminate_zeros, expr_zero,
+    extract_dependencies)
 from .parameters import (
     form_compiler_quadrature_parameters, process_form_compiler_parameters,
     update_parameters)
@@ -131,14 +132,15 @@ class Assembly(ExprEquation):
 
         dF = self._nonlinear_replace(dF, nl_deps)
         if self._arity == 0:
+            # dF = adjoint(dF)
             dF = ufl.classes.Form(
                 [integral.reconstruct(integrand=ufl.conj(integral.integrand()))
-                 for integral in dF.integrals()])  # dF = adjoint(dF)
+                 for integral in dF.integrals()])
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-var_scalar_value(adj_x), dF)
         elif self._arity == 1:
-            dF = ufl.action(adjoint(dF), coefficient=adj_x)
+            dF = action(adjoint(dF), adj_x)
             dF = assemble(
                 dF, form_compiler_parameters=self._form_compiler_parameters)
             return (-1.0, dF)
