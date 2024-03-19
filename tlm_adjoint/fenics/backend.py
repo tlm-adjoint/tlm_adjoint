@@ -22,6 +22,7 @@ backend_FunctionSpace = FunctionSpace
 backend_LocalSolver = LocalSolver
 backend_Matrix = fenics.cpp.la.GenericMatrix
 backend_Vector = fenics.cpp.la.GenericVector
+backend_action = action
 backend_assemble = assemble
 backend_assemble_system = assemble_system
 backend_project = project

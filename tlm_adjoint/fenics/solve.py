@@ -5,8 +5,8 @@ from .backend import (
     Parameters, adjoint, backend_DirichletBC, backend_LocalSolver,
     backend_solve as solve, parameters)
 from ..interface import (
-    check_space_type, is_var, var_axpy, var_copy, var_id,
-    var_new_conjugate_dual, var_replacement, var_update_caches, var_zero)
+    check_space_type, var_axpy, var_copy, var_id, var_new_conjugate_dual,
+    var_replacement, var_update_caches, var_zero)
 
 from ..caches import CacheRef
 from ..equation import ZeroAssignment
@@ -17,8 +17,8 @@ from .caches import (
     assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
     split_form)
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies)
+    ExprEquation, action, derivative, eliminate_zeros, expr_zero,
+    extract_dependencies, extract_variables)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -140,11 +140,11 @@ class EquationSolver(ExprEquation):
                 raise ValueError("Invalid left-hand-side arguments")
             if rhs.arguments() != (lhs.arguments()[0],):
                 raise ValueError("Invalid right-hand-side arguments")
-            if x in extract_coefficients(lhs) \
-                    or x in extract_coefficients(rhs):
+            if x in extract_variables(lhs) \
+                    or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
-            F = ufl.action(lhs, coefficient=x) - rhs
+            F = action(lhs, x) - rhs
             nl_solve_J = None
             J = lhs
         else:
@@ -156,14 +156,12 @@ class EquationSolver(ExprEquation):
             F = lhs
             nl_solve_J = J
             J = derivative(F, x)
-            J = ufl.algorithms.expand_derivatives(J)
 
         deps, nl_deps = extract_dependencies(F, space_type="primal")
         if nl_solve_J is not None:
-            for dep in extract_coefficients(nl_solve_J):
-                if is_var(dep):
-                    deps.setdefault(var_id(dep), dep)
-        deps = list(deps.values())
+            for dep in extract_variables(nl_solve_J):
+                deps.setdefault(var_id(dep), dep)
+        deps = sorted(deps.values(), key=var_id)
         if x in deps:
             deps.remove(x)
         deps.insert(0, x)
@@ -172,7 +170,7 @@ class EquationSolver(ExprEquation):
         if len(bcs) == 0:
             rhs_bc = expr_zero(F)
         else:
-            rhs_bc = -ufl.action(J, coefficient=x)
+            rhs_bc = -action(J, x)
         bcs = tuple(map(backend_DirichletBC, bcs))
         hbcs = tuple(map(homogenized_bc, bcs))
 
@@ -412,7 +410,6 @@ class EquationSolver(ExprEquation):
             if dep_index not in self._adjoint_b_cache:
                 dep = self.dependencies()[dep_index]
                 dF = derivative(self._F, dep)
-                dF = ufl.algorithms.expand_derivatives(dF)
                 dF = eliminate_zeros(dF)
                 if not dF.empty():
                     dF = adjoint(dF)
@@ -427,7 +424,7 @@ class EquationSolver(ExprEquation):
                     dep_B.sub(matrix_multiply(mat, adj_x))
                 else:
                     # Cached form
-                    dF = ufl.action(dF, coefficient=adj_x)
+                    dF = action(dF, adj_x)
                     dF = self._assemble(dF,
                                         eq_deps=eq_nl_deps, deps=nl_deps)
                     dep_B.sub(dF)
@@ -465,7 +462,6 @@ class EquationSolver(ExprEquation):
                 if tau_dep is not None:
                     tlm_rhs = (tlm_rhs
                                - derivative(self._F, dep, argument=tau_dep))
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         return tlm_rhs
 
     def tangent_linear(self, tlm_map):

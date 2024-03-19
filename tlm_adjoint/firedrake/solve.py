@@ -15,8 +15,8 @@ from .caches import (
     assembly_cache, is_cached, linear_solver_cache, local_solver_cache,
     split_form)
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies, iter_expr)
+    ExprEquation, action, derivative, eliminate_zeros, expr_zero,
+    extract_dependencies, extract_variables, iter_expr)
 from .parameters import (
     form_compiler_quadrature_parameters, process_adjoint_solver_parameters,
     process_form_compiler_parameters, process_solver_parameters,
@@ -173,11 +173,11 @@ class EquationSolver(ExprEquation):
                 raise ValueError("Invalid left-hand-side arguments")
             if rhs.arguments() != (lhs.arguments()[0],):
                 raise ValueError("Invalid right-hand-side arguments")
-            if x in extract_coefficients(lhs) \
-                    or x in extract_coefficients(rhs):
+            if x in extract_variables(lhs) \
+                    or x in extract_variables(rhs):
                 raise ValueError("Invalid dependency")
 
-            F = ufl.action(lhs, coefficient=x) - rhs
+            F = action(lhs, x) - rhs
             nl_solve_J = None
             J = lhs
         else:
@@ -189,21 +189,18 @@ class EquationSolver(ExprEquation):
             F = lhs
             nl_solve_J = J
             J = derivative(F, x)
-            J = ufl.algorithms.expand_derivatives(J)
 
         for weight, _ in iter_expr(F):
-            if len(tuple(c for c in extract_coefficients(weight)
-                         if is_var(c))) > 0:
+            if len(extract_variables(weight)) > 0:
                 # See Firedrake issue #3292
                 raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")
 
         deps, nl_deps = extract_dependencies(F)
         if nl_solve_J is not None:
-            for dep in extract_coefficients(nl_solve_J):
-                if is_var(dep):
-                    deps.setdefault(var_id(dep), dep)
-        deps = list(deps.values())
+            for dep in extract_variables(nl_solve_J):
+                deps.setdefault(var_id(dep), dep)
+        deps = sorted(deps.values(), key=var_id)
         if x in deps:
             deps.remove(x)
         deps.insert(0, x)
@@ -212,7 +209,7 @@ class EquationSolver(ExprEquation):
         if all(isinstance(bc._function_arg, ufl.classes.Zero) for bc in bcs):
             rhs_bc = expr_zero(F)
         else:
-            rhs_bc = -ufl.action(J, coefficient=x)
+            rhs_bc = -action(J, x)
         deps, bc_nodes, bc_gs = unpack_bcs(bcs, deps=deps)
         hbcs = tuple(map(homogenized_bc, bcs))
 
@@ -501,14 +498,12 @@ class EquationSolver(ExprEquation):
                 for weight, comp in iter_expr(self._F):
                     if isinstance(comp, ufl.classes.Form):
                         dF_term = derivative(weight * comp, dep)
-                        dF_term = ufl.algorithms.expand_derivatives(dF_term)
                         dF_term = eliminate_zeros(dF_term)
                         if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
                             dF_forms = dF_forms + adjoint(dF_term)
                     elif isinstance(comp, ufl.classes.Cofunction):
                         # Note: Ignores weight dependencies
                         dF_term = ufl.conj(weight) * derivative(comp, dep)
-                        dF_term = ufl.algorithms.expand_derivatives(dF_term)
                         dF_term = eliminate_zeros(dF_term)
                         if not isinstance(dF_term, ufl.classes.ZeroBaseForm):
                             dF_cofunctions = dF_cofunctions + dF_term
@@ -525,7 +520,7 @@ class EquationSolver(ExprEquation):
                         eq_deps=eq_nl_deps, deps=nl_deps)
                     dep_B.sub(matrix_multiply(mat, adj_x_0))
                 else:
-                    dF_forms = ufl.action(dF_forms, coefficient=adj_x_0)
+                    dF_forms = action(dF_forms, adj_x_0)
                     dF_forms = self._assemble(dF_forms,
                                               eq_deps=eq_nl_deps, deps=nl_deps)
                     dep_B.sub(dF_forms)
@@ -545,8 +540,7 @@ class EquationSolver(ExprEquation):
                             eq_deps=eq_nl_deps, deps=nl_deps)
                         dF_bc = matrix_multiply(mat, adj_x_0)
                     else:
-                        dF_bc = ufl.action(adjoint(self._J),
-                                           coefficient=adj_x_0)
+                        dF_bc = action(adjoint(self._J), adj_x_0)
                         dF_bc = self._assemble(dF_bc,
                                                eq_deps=eq_nl_deps, deps=nl_deps)  # noqa: E501
 
@@ -601,7 +595,6 @@ class EquationSolver(ExprEquation):
                         # Note: Ignores weight dependencies
                         tlm_rhs = (tlm_rhs
                                    - weight * derivative(comp, dep, argument=tau_dep))  # noqa: E501
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         return tlm_rhs
 
     def tangent_linear(self, tlm_map):

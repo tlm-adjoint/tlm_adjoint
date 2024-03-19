@@ -3,15 +3,15 @@
 
 from .backend import adjoint, complex_mode, parameters
 from ..interface import (
-    check_space_type, is_var, register_functional_term_eq, var_assign, var_id,
-    var_is_scalar, var_new_conjugate_dual, var_replacement, var_scalar_value)
+    check_space_type, register_functional_term_eq, var_assign, var_id,
+    var_is_scalar, var_replacement, var_scalar_value)
 
 from ..equation import ZeroAssignment
 
 from .backend_interface import assemble
 from .expr import (
-    ExprEquation, derivative, eliminate_zeros, expr_zero, extract_coefficients,
-    extract_dependencies, iter_expr)
+    ExprEquation, action, derivative, eliminate_zeros, expr_zero,
+    extract_dependencies, extract_variables, iter_expr)
 from .parameters import (
     form_compiler_quadrature_parameters, process_form_compiler_parameters,
     update_parameters)
@@ -57,8 +57,7 @@ class Assembly(ExprEquation):
             match_quadrature = parameters["tlm_adjoint"]["Assembly"]["match_quadrature"]  # noqa: E501
 
         for weight, _ in iter_expr(rhs):
-            if len(tuple(c for c in extract_coefficients(weight)
-                         if is_var(c))) > 0:
+            if len(extract_variables(weight)) > 0:
                 # See Firedrake issue #3292
                 raise NotImplementedError("FormSum weights cannot depend on "
                                           "variables")
@@ -117,71 +116,41 @@ class Assembly(ExprEquation):
 
     def subtract_adjoint_derivative_actions(self, adj_x, nl_deps, dep_Bs):
         eq_deps = self.dependencies()
-        if self._arity == 0:
-            for dep_index, dep_B in dep_Bs.items():
-                if dep_index <= 0 or dep_index >= len(eq_deps):
-                    raise ValueError("Unexpected dep_index")
-                dep = eq_deps[dep_index]
+        for dep_index, dep_B in dep_Bs.items():
+            if dep_index <= 0 or dep_index >= len(eq_deps):
+                raise ValueError("Unexpected dep_index")
+            dep = eq_deps[dep_index]
 
-                for weight, comp in iter_expr(self._rhs):
-                    if isinstance(comp, ufl.classes.Form):
-                        dF = derivative(weight * comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
-                            dF = ufl.classes.Form(
-                                [integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
-                                 for integral in dF.integrals()])
-                            dF = self._nonlinear_replace(dF, nl_deps)
-                            dF = assemble(
-                                dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
-                            dep_B.sub((-var_scalar_value(adj_x), dF))
-                    elif isinstance(comp, ufl.classes.Action):
-                        if complex_mode:
-                            # See Firedrake issue #3346
-                            raise NotImplementedError("Complex case not "
-                                                      "implemented")
-                        dF = derivative(weight * comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        for dF_weight, dF_comp in iter_expr(dF, evaluate_weights=True):  # noqa: E501
-                            dF_comp = self._nonlinear_replace(dF_comp, nl_deps)
-                            dF_comp = var_new_conjugate_dual(dep).assign(dF_comp)  # noqa: E501
-                            dep_B.sub((-var_scalar_value(adj_x) * dF_weight.conjugate(), dF_comp))  # noqa: E501
-                    else:
-                        raise TypeError(f"Unexpected type: {type(comp)}")
-        elif self._arity == 1:
-            for dep_index, dep_B in dep_Bs.items():
-                if dep_index <= 0 or dep_index >= len(eq_deps):
-                    raise ValueError("Unexpected dep_index")
-                dep = eq_deps[dep_index]
-
+            for weight, comp in iter_expr(self._rhs,
+                                          evaluate_weights=True):
                 # Note: Ignores weight dependencies
-                for weight, comp in iter_expr(self._rhs,
-                                              evaluate_weights=True):
-                    if isinstance(comp, ufl.classes.Form):
-                        dF = derivative(comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        if not isinstance(dF, ufl.classes.ZeroBaseForm):
-                            dF = adjoint(dF)
-                            dF = ufl.action(dF, coefficient=adj_x)
-                            dF = self._nonlinear_replace(dF, nl_deps)
-                            dF = assemble(
-                                dF, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
-                            dep_B.sub((-weight.conjugate(), dF))
-                    elif isinstance(comp, ufl.classes.Cofunction):
-                        dF = derivative(comp, dep)
-                        dF = ufl.algorithms.expand_derivatives(dF)
-                        dF = eliminate_zeros(dF)
-                        for dF_term_weight, dF_term in iter_expr(weight * dF,
-                                                                 evaluate_weights=True):  # noqa: E501
-                            assert isinstance(dF_term, ufl.classes.Coargument)
-                            dep_B.sub((-dF_term_weight.conjugate(), adj_x))
-                    else:
-                        raise TypeError(f"Unexpected type: {type(comp)}")
-        else:
-            raise ValueError("Must be an arity 0 or arity 1 form")
+                dF = derivative(comp, dep)
+                for dF_weight, dF_comp in iter_expr(weight * dF):
+                    dF_comp = eliminate_zeros(dF_comp)
+                    if not isinstance(dF_comp, ufl.classes.ZeroBaseForm):
+                        if self._arity == 0:
+                            # dF_comp = adjoint(dF_comp)
+                            if isinstance(dF_comp, ufl.classes.Form):
+                                dF_comp = ufl.classes.Form(
+                                    [integral.reconstruct(integrand=ufl.conj(integral.integrand()))  # noqa: E501
+                                     for integral in dF_comp.integrals()])  # noqa: E501
+                            else:
+                                if complex_mode:
+                                    # See Firedrake issue #3346
+                                    raise NotImplementedError(
+                                        "Complex case not implemented")
+                        else:
+                            assert self._arity == 1
+                            dF_comp = adjoint(dF_comp)
+                            dF_comp = action(dF_comp, adj_x)
+                        dF_comp = self._nonlinear_replace(dF_comp, nl_deps)
+                        dF_comp = assemble(
+                            dF_comp, form_compiler_parameters=self._form_compiler_parameters)  # noqa: E501
+                        if self._arity == 0:
+                            dep_B.sub((-var_scalar_value(adj_x) * dF_weight.conjugate(), dF_comp))  # noqa: E501
+                        else:
+                            assert self._arity == 1
+                            dep_B.sub((-dF_weight.conjugate(), dF_comp))
 
     # def adjoint_derivative_action(self, nl_deps, dep_index, adj_x):
     #     # Derived from EquationSolver.derivative_action (see dolfin-adjoint
@@ -206,7 +175,6 @@ class Assembly(ExprEquation):
                                    + weight * derivative(comp, dep,
                                                          argument=tau_dep))
 
-        tlm_rhs = ufl.algorithms.expand_derivatives(tlm_rhs)
         if isinstance(tlm_rhs, ufl.classes.ZeroBaseForm):
             return ZeroAssignment(tlm_map[x])
         else:

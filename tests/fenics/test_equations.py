@@ -1,7 +1,7 @@
 from fenics import *
 from tlm_adjoint.fenics import *
 from tlm_adjoint.fenics.backend_interface import assemble_linear_solver
-from tlm_adjoint.fenics.expr import extract_coefficients
+from tlm_adjoint.fenics.expr import extract_variables
 
 from .test_base import *
 
@@ -898,8 +898,8 @@ def test_ZeroFunction_expand_derivatives(setup_test, test_leaks):
     F = ZeroFunction(space, name="F")
 
     expr = ufl.algorithms.expand_derivatives(F.dx(0))
-    assert F in extract_coefficients(expr)
-    assert F not in extract_coefficients(eliminate_zeros(expr))
+    assert F in extract_variables(expr)
+    assert F not in extract_variables(eliminate_zeros(expr))
 
 
 @pytest.mark.fenics

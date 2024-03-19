@@ -3,7 +3,7 @@
 
 from .backend import (
     FunctionSpace, TensorFunctionSpace, TestFunction, TrialFunction,
-    VectorFunctionSpace, backend_Constant, backend_Function,
+    VectorFunctionSpace, backend_action, backend_Constant, backend_Function,
     backend_ScalarType, cpp_Constant)
 from ..interface import (
     VariableStateChangeError, add_replacement_interface, check_space_type,
@@ -46,40 +46,49 @@ def form_cached(key):
     return wrapper
 
 
+def as_ufl(expr):
+    if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
+        return ufl.as_ufl(expr)
+    elif isinstance(expr, ufl.classes.Form):
+        return expr
+    else:
+        raise TypeError(f"Unexpected type: {type(expr)}")
+
+
 @form_cached("_tlm_adjoint__extract_coefficients")
 def extract_coefficients(expr):
-    def as_ufl(expr):
-        if isinstance(expr, (ufl.classes.Expr, numbers.Complex)):
-            return ufl.as_ufl(expr)
-        elif isinstance(expr, ufl.classes.Form):
-            return expr
-        elif isinstance(expr, Sequence):
-            return ufl.as_vector(tuple(map(as_ufl, expr)))
-        else:
-            raise TypeError(f"Unexpected type: {type(expr)}")
+    if isinstance(expr, Sequence):
+        expr = ufl.as_vector(tuple(map(as_ufl, expr)))
+    else:
+        expr = as_ufl(expr)
 
-    return ufl.algorithms.extract_coefficients(as_ufl(expr))
+    deps = ufl.algorithms.extract_coefficients(expr)
+
+    if len(set(map(var_id, deps))) != len(deps):
+        raise RuntimeError("Invalid dependencies")
+    return deps
 
 
-def extract_derivative_coefficients(expr, dep):
+@form_cached("_tlm_adjoint__extract_variables")
+def extract_variables(expr):
+    deps = sorted((dep for dep in extract_coefficients(expr) if is_var(dep)),
+                  key=var_id)
+    return tuple(deps)
+
+
+def extract_derivative_variables(expr, dep):
     dexpr = derivative(expr, dep, enable_automatic_argument=False)
-    dexpr = ufl.algorithms.expand_derivatives(dexpr)
-    return extract_coefficients(dexpr)
+    return extract_variables(dexpr)
 
 
 def extract_dependencies(expr, *, space_type=None):
-    deps = {}
-    nl_deps = {}
-    for dep in extract_coefficients(expr):
-        if is_var(dep):
-            deps.setdefault(var_id(dep), dep)
-            for nl_dep in extract_derivative_coefficients(expr, dep):
-                if is_var(nl_dep):
-                    nl_deps.setdefault(var_id(dep), dep)
-                    nl_deps.setdefault(var_id(nl_dep), nl_dep)
+    deps = {var_id(dep): dep for dep in extract_variables(expr)}
 
-    deps = {dep_id: deps[dep_id]
-            for dep_id in sorted(deps.keys())}
+    nl_deps = {}
+    for dep in deps.values():
+        for nl_dep in extract_derivative_variables(expr, dep):
+            nl_deps.setdefault(var_id(dep), dep)
+            nl_deps.setdefault(var_id(nl_dep), nl_dep)
     nl_deps = {nl_dep_id: nl_deps[nl_dep_id]
                for nl_dep_id in sorted(nl_deps.keys())}
 
@@ -141,6 +150,29 @@ def derivative_space(x):
         raise RuntimeError("Unable to determine space")
 
 
+def _derivative(expr, x, argument=None):
+    expr = as_ufl(expr)
+    if argument is None:
+        dexpr = ufl.derivative(expr, x)
+        dexpr = ufl.algorithms.expand_derivatives(dexpr)
+    else:
+        if isinstance(expr, ufl.classes.Expr):
+            dexpr = ufl.derivative(expr, x, argument=argument)
+            dexpr = ufl.algorithms.expand_derivatives(dexpr)
+        elif isinstance(expr, ufl.classes.Form):
+            if len(ufl.algorithms.extract_arguments(argument)) > 0:
+                dexpr = ufl.derivative(expr, x, argument=argument)
+                dexpr = ufl.algorithms.expand_derivatives(dexpr)
+            else:
+                dexpr = ufl.derivative(expr, x)
+                dexpr = ufl.algorithms.expand_derivatives(dexpr)
+                if not dexpr.empty():
+                    dexpr = action(dexpr, argument)
+        else:
+            raise TypeError(f"Unexpected type: {type(expr)}")
+    return dexpr
+
+
 def derivative(expr, x, argument=None, *,
                enable_automatic_argument=True):
     expr_arguments = ufl.algorithms.extract_arguments(expr)
@@ -158,7 +190,11 @@ def derivative(expr, x, argument=None, *,
             if expr_argument.number() < arity:
                 raise ValueError("Invalid argument")
 
-    return ufl.derivative(expr, x, argument=argument)
+    return _derivative(expr, x, argument=argument)
+
+
+def action(form, coefficient):
+    return backend_action(form, coefficient=coefficient)
 
 
 class Zero:
@@ -193,7 +229,7 @@ def eliminate_zeros(expr):
     """
 
     replace_map = {c: expr_zero(c)
-                   for c in extract_coefficients(expr)
+                   for c in extract_variables(expr)
                    if isinstance(c, Zero)}
     if len(replace_map) == 0:
         simplified_expr = expr
@@ -218,8 +254,8 @@ def new_count():
 
 def replaced_form(form):
     replace_map = {}
-    for c in extract_coefficients(form):
-        if is_var(c) and not var_is_replacement(c):
+    for c in extract_variables(form):
+        if not var_is_replacement(c):
             c_rep = var_replacement(c)
             if c_rep is not c:
                 replace_map[c] = c_rep

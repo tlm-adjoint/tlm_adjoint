@@ -8,7 +8,7 @@ from ..interface import (
 
 from ..patch import patch_method
 
-from .expr import eliminate_zeros
+from .expr import action, eliminate_zeros
 
 import mpi4py.MPI as MPI
 import petsc4py.PETSc as PETSc
@@ -22,8 +22,6 @@ __all__ = [
 
 def _assemble(form, tensor=None, bcs=None, *,
               form_compiler_parameters=None, mat_type=None):
-    if not isinstance(form, ufl.classes.BaseForm):
-        raise ValueError("form must be a BaseForm")
     if bcs is None:
         bcs = ()
     elif isinstance(bcs, backend_DirichletBC):
@@ -33,18 +31,14 @@ def _assemble(form, tensor=None, bcs=None, *,
 
     form = eliminate_zeros(form)
 
-    arguments = form.arguments()
-    if len(arguments) == 1:
+    if isinstance(form, ufl.classes.BaseForm) \
+            and len(form.arguments()) == 1:
         if tensor is None:
-            # Always want a new Cofunction, so that we don't later modify any
-            # Cofunction in form
-            tensor = backend_Cofunction(arguments[0].function_space().dual())
-        backend_assemble(
+            tensor = backend_Cofunction(form.arguments()[0].function_space().dual())  # noqa: E501
+        b = backend_assemble(
             form, tensor=tensor,
             form_compiler_parameters=form_compiler_parameters,
             mat_type=mat_type)
-        # Work around Firedrake issue #3407
-        b = tensor
         for bc in bcs:
             bc.apply(b.riesz_representation("l2"))
     else:
@@ -76,7 +70,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
 
         if b_form is None:
             b = _assemble(
-                -ufl.action(A_form, F), bcs=bcs,
+                -action(A_form, F), bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,
                 mat_type=mat_type)
 
@@ -85,7 +79,7 @@ def _assemble_system(A_form, b_form=None, bcs=None, *,
                     b = None
         else:
             b = _assemble(
-                b_form - ufl.action(A_form, F), bcs=bcs,
+                b_form - action(A_form, F), bcs=bcs,
                 form_compiler_parameters=form_compiler_parameters,
                 mat_type=mat_type)
     else:
