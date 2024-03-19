@@ -30,9 +30,7 @@ type' is defined relative to one of the 'primal', 'conjugate', 'dual', or
 space is the dual space, and the dual space associated with the dual space is
 the primal space.
 
-This module defines a default communicator `DEFAULT_COMM`, which is
-`mpi4py.MPI.COMM_WORLD` if mpi4py is available. If mpi4py is not available a
-dummy 'serial' communicator is used, of type :class:`.SerialComm`.
+This module defines a default communicator `DEFAULT_COMM`.
 """
 
 from .manager import manager_disabled
@@ -60,6 +58,10 @@ try:
     import petsc4py.PETSc as PETSc
 except ImportError:
     PETSc = None
+try:
+    import pyop2
+except ImportError:
+    pyop2 = None
 import sys
 import warnings
 import weakref
@@ -174,8 +176,11 @@ __all__ = \
     ]
 
 
-DEFAULT_COMM = None
-if MPI is None:
+if pyop2 is not None:
+    DEFAULT_COMM = pyop2.mpi.COMM_WORLD
+elif MPI is not None:
+    DEFAULT_COMM = MPI.COMM_WORLD
+else:
     # As for mpi4py 3.1.4 API
     class SerialComm:
         _id_counter = itertools.count(start=-1, step=-1)
@@ -225,13 +230,12 @@ if MPI is None:
 
     DEFAULT_COMM = SerialComm()
 
+if MPI is None:
     def comm_finalize(comm, finalize_callback,
                       *args, **kwargs):
         weakref.finalize(comm, finalize_callback,
                          *args, **kwargs)
 else:
-    DEFAULT_COMM = MPI.COMM_WORLD
-
     _comm_finalize_key = MPI.Comm.Create_keyval(
         delete_fn=lambda comm, key, finalizes:
         deque(map(call, finalizes), maxlen=0))
@@ -317,9 +321,8 @@ if MPI is not None and PETSc is not None and hasattr(PETSc, "garbage_cleanup"):
 
 
 def garbage_cleanup(comm=None):
-    """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, any
-    communicators duplicated from it, base communicators from which it was
-    duplicated, and any communicators duplicated from those base communicators.
+    """Call `petsc4py.PETSc.garbage_cleanup(comm)` for a communicator, and any
+    communicators duplicated from it using :func:`comm_dup_cached`.
 
     :arg comm: A communicator. Defaults to `DEFAULT_COMM`.
     """
@@ -329,7 +332,6 @@ def garbage_cleanup(comm=None):
 
     if comm is None:
         comm = DEFAULT_COMM
-    comm = comm_parent(comm)
     if comm.py2f() == MPI.COMM_NULL.py2f():
         return
 
