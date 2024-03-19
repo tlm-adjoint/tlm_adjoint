@@ -16,7 +16,7 @@ With the FEniCS backend tlm_adjoint requires:
 
   - `DOLFIN <https://bitbucket.org/fenics-project/dolfin>`_
   - `FFC <https://bitbucket.org/fenics-project/ffc>`_
-  - `UFL <https://github.com/FEniCS/ufl>`_
+  - `UFL legacy <https://github.com/FEniCS/ufl-legacy>`_
   - `mpi4py <https://github.com/mpi4py/mpi4py>`_
   - `PETSc <https://petsc.org>`_
 

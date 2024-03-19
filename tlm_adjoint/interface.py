@@ -652,7 +652,7 @@ def check_space_types(x, y, *, rel_space_type="primal"):
     :arg y: A variable.
     :arg rel_space_type: Check that the space type of `x` is `rel_space_type`
         relative to `y`. For example if `rel_space_type='dual'`, and the
-        space type of `y` is `'conjuguate_dual'`, checks that the space type of
+        space type of `y` is `'conjugate_dual'`, checks that the space type of
         `x` is `'conjugate'`.
     """
 
@@ -1091,7 +1091,7 @@ def var_is_cached(x):
 def var_is_checkpointed(x):
     ""
 
-    warnings.warn("var_is_checkpoint is deprecated -- "
+    warnings.warn("var_is_checkpointed is deprecated -- "
                   "use `not var_is_static(x)` instead",
                   DeprecationWarning, stacklevel=2)
     return var_is_static(x)
