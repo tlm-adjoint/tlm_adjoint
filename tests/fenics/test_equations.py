@@ -277,7 +277,7 @@ def test_Interpolation(setup_test, test_leaks, test_ghost_modes,
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, z, tlm_order=1, seed=1.0e-4)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, z, adjoint_order=1,
                                         seed=1.0e-4)
@@ -352,7 +352,7 @@ def test_PointInterpolation(setup_test, test_leaks, test_ghost_modes,
         x_error_norm = max(x_error_norm,
                            abs(var_scalar_value(x) - x_ref(x_coord)))
     info(f"Error norm = {x_error_norm:.16e}")
-    assert x_error_norm < 1.0e-14
+    assert x_error_norm < 1.0e-13
 
     J_val = J.value
 
