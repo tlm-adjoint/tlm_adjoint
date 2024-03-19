@@ -91,7 +91,7 @@ def test_jax_self_assignment(setup_test):  # noqa: F811
         x.assign(x + y)
         return x ** 4
 
-    y = Vector(np.array([2.0], dtype=np.double))
+    y = new_jax_float(dtype=np.double).assign(2.0)
 
     start_manager()
     J = forward(y)
