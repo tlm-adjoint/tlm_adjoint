@@ -160,7 +160,8 @@ def _derivative(expr, x, argument=None):
             dexpr = ufl.derivative(expr, x, argument=argument)
             dexpr = ufl.algorithms.expand_derivatives(dexpr)
         elif isinstance(expr, ufl.classes.Form):
-            if len(ufl.algorithms.extract_arguments(argument)) > 0:
+            if len(ufl.algorithms.extract_arguments(argument)) \
+                    > len(ufl.algorithms.extract_arguments(x)):
                 dexpr = ufl.derivative(expr, x, argument=argument)
                 dexpr = ufl.algorithms.expand_derivatives(dexpr)
             else:
