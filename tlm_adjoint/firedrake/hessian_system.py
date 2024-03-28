@@ -13,6 +13,7 @@ from .block_system import (
 from collections.abc import Sequence
 import numpy as np
 import petsc4py.PETSc as PETSc
+import ufl
 import warnings
 
 __all__ = \
@@ -33,8 +34,10 @@ class MixedSpace(_MixedSpace):
         spaces = tuple_sub(spaces, spaces)
 
         if space_types is None:
-            space_types = "primal"
-        if space_types in {"primal", "conjugate", "dual", "conjugate_dual"}:
+            space_types = tuple(
+                "primal" if ufl.duals.is_primal(space) else "conjugate_dual"
+                for space in iter_sub(spaces))
+        if space_types in ["primal", "conjugate", "dual", "conjugate_dual"]:
             space_types = tuple(space_types for _ in iter_sub(spaces))
         else:
             space_types = tuple(iter_sub(space_types))
@@ -66,9 +69,10 @@ class HessianMatrix(Matrix):
             M = (M,)
         else:
             M = tuple(M)
-        space = tuple(map(var_space, M))
+        arg_space = tuple(map(var_space, M))
+        action_space = tuple(var_space(m).dual() for m in M)
 
-        super().__init__(space, space)
+        super().__init__(arg_space, action_space)
         self._H = H
         self._M = M
 
@@ -118,7 +122,7 @@ class HessianSystem(System):
             (tuple(map(var_space, M)),),
             space_types=tuple(map(var_space_type, M)))
         action_spaces = MixedSpace(
-            (tuple(map(var_space, M)),),
+            (tuple(var_space(m).dual() for m in M),),
             space_types=tuple(var_space_type(m, rel_space_type="dual")
                               for m in M))
 
