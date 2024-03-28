@@ -239,14 +239,14 @@ class MixedSpace:
 
     @property
     def split_space(self):
-        """ The split space representation.
+        """The split space representation.
         """
 
         return self._spaces
 
     @property
     def flattened_space(self):
-        """ The flattened space representation.
+        """The flattened space representation.
         """
 
         return self._flattened_spaces
