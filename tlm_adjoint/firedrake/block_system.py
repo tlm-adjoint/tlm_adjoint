@@ -86,7 +86,7 @@ import ufl
 
 from abc import ABC, abstractmethod
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from functools import wraps
 import logging
 import mpi4py.MPI as MPI
@@ -784,7 +784,7 @@ def form_matrix(a, *args, **kwargs):
         assemble(a, *args, **kwargs))
 
 
-class BlockMatrix(Matrix):
+class BlockMatrix(Matrix, MutableMapping):
     r"""A matrix :math:`A` mapping :math:`V \rightarrow W`, where :math:`V` and
     :math:`W` are defined by mixed spaces.
 
@@ -798,8 +798,7 @@ class BlockMatrix(Matrix):
     """
 
     def __init__(self, arg_spaces, action_spaces, blocks=None):
-        if not isinstance(blocks, BlockMatrix) \
-                and isinstance(blocks, (Matrix, ufl.classes.Form)):
+        if not isinstance(blocks, Mapping):
             blocks = {(0, 0): blocks}
 
         super().__init__(arg_spaces, action_spaces)
@@ -808,12 +807,8 @@ class BlockMatrix(Matrix):
         if blocks is not None:
             self.update(blocks)
 
-    def __contains__(self, key):
-        i, j = key
-        return (i, j) in self._blocks
-
     def __iter__(self):
-        yield from self.keys()
+        yield from sorted(self._blocks)
 
     def __getitem__(self, key):
         i, j = key
@@ -838,24 +833,6 @@ class BlockMatrix(Matrix):
 
     def __len__(self):
         return len(self._blocks)
-
-    def keys(self):
-        yield from sorted(self._blocks)
-
-    def values(self):
-        for (i, j) in self:
-            yield self[(i, j)]
-
-    def items(self):
-        yield from zip(self.keys(), self.values())
-
-    def update(self, other):
-        for (i, j), block in other.items():
-            self[(i, j)] = block
-
-    def pop(self, key, *args, **kwargs):
-        i, j = key
-        return self._blocks.pop((i, j), *args, **kwargs)
 
     def mult_add(self, x, y):
         for (i, j), block in self.items():
