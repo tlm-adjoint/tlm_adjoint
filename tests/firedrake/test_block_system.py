@@ -424,7 +424,7 @@ def test_sub_block(setup_test):  # noqa: F811
     test_1, trial_1 = TestFunction(space_1), TrialFunction(space_1)
     test_2, trial_2 = TestFunction(space_2), TrialFunction(space_2)
 
-    block_00 = BlockMatrix((space_0, space_1), (space_0, space_1))
+    block_00 = BlockMatrix((space_0, space_1), (space_0.dual(), space_1.dual()))  # noqa: E501
     block_00[(0, 0)] = inner(trial_0, test_0) * dx
     block_00[(1, 1)] = inner(trial_1, test_1) * dx
     block_11 = inner(trial_2, test_2) * dx
