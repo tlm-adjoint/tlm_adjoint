@@ -80,7 +80,6 @@ representations of a mixed space solution.
 
 from firedrake import (
     Cofunction, Constant, DirichletBC, Function, TestFunction, assemble)
-from firedrake.functionspaceimpl import WithGeometry as FunctionSpaceBase
 
 import petsc4py.PETSc as PETSc
 import ufl
@@ -210,7 +209,7 @@ class MixedSpace:
         n = 0
         N = 0
         for space in flattened_spaces:
-            if isinstance(space, FunctionSpaceBase):
+            if ufl.duals.is_primal(space):
                 u_i = Function(space)
             else:
                 u_i = Cofunction(space)
@@ -258,7 +257,7 @@ class MixedSpace:
 
         u = []
         for space in self._flattened_spaces:
-            if isinstance(space, FunctionSpaceBase):
+            if ufl.duals.is_primal(space):
                 u.append(Function(space))
             else:
                 u.append(Cofunction(space))
@@ -781,7 +780,7 @@ def form_matrix(a, *args, **kwargs):
     assert test.number() < trial.number()
 
     return PETScMatrix(
-        trial.function_space(), test.function_space(),
+        trial.function_space(), test.function_space().dual(),
         assemble(a, *args, **kwargs))
 
 
