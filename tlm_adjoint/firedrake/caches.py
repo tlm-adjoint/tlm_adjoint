@@ -142,6 +142,7 @@ def split_arity(form, x, argument):
 
     try:
         eq_form = ufl.replace(form, {x: argument})
+        eq_form = ufl.algorithms.apply_algebra_lowering.apply_algebra_lowering(eq_form)  # noqa: E501
         A = ufl.algorithms.formtransformations.compute_form_with_arity(
             eq_form, arity + 1)
         b = ufl.algorithms.formtransformations.compute_form_with_arity(

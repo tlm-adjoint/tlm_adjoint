@@ -110,6 +110,7 @@ def split_arity(form, x, argument):
 
     try:
         eq_form = ufl.replace(form, {x: argument})
+        eq_form = ufl.algorithms.expand_compounds(eq_form)
         A = ufl.algorithms.formtransformations.compute_form_with_arity(
             eq_form, arity + 1)
         b = ufl.algorithms.formtransformations.compute_form_with_arity(
