@@ -136,7 +136,7 @@ def split_arity(form, x, argument):
 
     form_derivative = derivative(form, x, argument=argument,
                                  enable_automatic_argument=False)
-    if x in extract_coefficients(form_derivative):
+    if form_derivative.empty() or x in extract_coefficients(form_derivative):
         # Non-linear
         return ufl.classes.Form([]), form
 
