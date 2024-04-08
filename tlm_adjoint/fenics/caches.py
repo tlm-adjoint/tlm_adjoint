@@ -108,16 +108,13 @@ def split_arity(form, x, argument):
         # Non-linear
         return ufl.classes.Form([]), form
 
-    try:
-        eq_form = ufl.replace(form, {x: argument})
-        eq_form = ufl.algorithms.expand_compounds(eq_form)
-        A = ufl.algorithms.formtransformations.compute_form_with_arity(
-            eq_form, arity + 1)
-        b = ufl.algorithms.formtransformations.compute_form_with_arity(
-            eq_form, arity)
-    except ufl.UFLException:
-        # UFL error encountered
-        return ufl.classes.Form([]), form
+    eq_form = ufl.algorithms.expand_derivatives(form)
+    eq_form = ufl.replace(eq_form, {x: argument})
+    eq_form = ufl.algorithms.expand_compounds(eq_form)
+    A = ufl.algorithms.formtransformations.compute_form_with_arity(
+        eq_form, arity + 1)
+    b = ufl.algorithms.formtransformations.compute_form_with_arity(
+        eq_form, arity)
 
     try:
         ufl.algorithms.check_arities.check_form_arity(
