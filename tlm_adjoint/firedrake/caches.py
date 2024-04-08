@@ -146,7 +146,7 @@ def split_arity(form, x, argument):
             eq_form, arity + 1)
         b = ufl.algorithms.formtransformations.compute_form_with_arity(
             eq_form, arity)
-    except ufl.UFLException:
+    except Exception:
         # UFL error encountered
         return ufl.classes.Form([]), form
 
