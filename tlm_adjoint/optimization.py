@@ -14,6 +14,7 @@ from .manager import (
     start_manager, stop_manager)
 
 from collections import deque
+import contextlib
 import functools
 import logging
 import numbers
@@ -136,6 +137,15 @@ class ReducedFunctional:
         return ddJ
 
 
+@contextlib.contextmanager
+def duplicated_comm(comm):
+    dup_comm = comm.Dup()
+    try:
+        yield dup_comm
+    finally:
+        dup_comm.Free()
+
+
 @local_caches
 def minimize_scipy(forward, M0, *,
                    manager=None, **kwargs):
@@ -171,113 +181,114 @@ def minimize_scipy(forward, M0, *,
     manager = manager.new()
     comm = manager.comm()
 
-    N = [0]
-    for m0 in M0:
-        N.append(N[-1] + var_local_size(m0))
-    if comm.rank == 0:
-        size_global = comm.gather(np.array(N[-1], dtype=np.int_), root=0)
-        N_global = [0]
-        for size in size_global:
-            N_global.append(N_global[-1] + size)
-    else:
-        comm.gather(np.array(N[-1], dtype=np.int_), root=0)
-
-    def get(F):
-        x = np.full(N[-1], np.NAN, dtype=np.double)
-        for i, f in enumerate(F):
-            f_vals = var_get_values(f)
-            if not np.can_cast(f_vals, x.dtype):
-                raise ValueError("Invalid dtype")
-            x[N[i]:N[i + 1]] = f_vals
-
+    with duplicated_comm(comm) as comm:
+        N = [0]
+        for m0 in M0:
+            N.append(N[-1] + var_local_size(m0))
         if comm.rank == 0:
-            x_global = comm.gather(x, root=0)
-            X = np.full(N_global[-1], np.NAN, dtype=np.double)
-            for i, x_p in enumerate(x_global):
-                X[N_global[i]:N_global[i + 1]] = x_p
-            return X
+            size_global = comm.gather(np.array(N[-1], dtype=np.int_), root=0)
+            N_global = [0]
+            for size in size_global:
+                N_global.append(N_global[-1] + size)
         else:
-            comm.gather(x, root=0)
-            return None
+            comm.gather(np.array(N[-1], dtype=np.int_), root=0)
 
-    def set(F, x):
-        if comm.rank == 0:
-            x = comm.scatter([x[N_global[rank]:N_global[rank + 1]]
-                              for rank in range(comm.size)], root=0)
-        else:
-            assert x is None
-            x = comm.scatter(None, root=0)
-        for i, f in enumerate(F):
-            var_set_values(f, x[N[i]:N[i + 1]])
+        def get(F):
+            x = np.full(N[-1], np.NAN, dtype=np.double)
+            for i, f in enumerate(F):
+                f_vals = var_get_values(f)
+                if not np.can_cast(f_vals, x.dtype):
+                    raise ValueError("Invalid dtype")
+                x[N[i]:N[i + 1]] = f_vals
 
-    M = tuple(var_new(m0, static=var_is_static(m0),
-                      cache=var_is_cached(m0))
-              for m0 in M0)
-    J_hat = ReducedFunctional(forward, manager=manager)
-
-    def fun(x):
-        set(M, x)
-        return J_hat.objective(M)
-
-    def fun_bcast(x):
-        if comm.rank == 0:
-            comm.bcast(("fun", None), root=0)
-        return fun(x)
-
-    def jac(x):
-        set(M, x)
-        dJ = J_hat.gradient(M)
-        return get(dJ)
-
-    def jac_bcast(x):
-        if comm.rank == 0:
-            comm.bcast(("jac", None), root=0)
-        return jac(x)
-
-    def hessp(x, p):
-        set(M, x)
-        P = vars_new(M)
-        set(P, p)
-        ddJ = J_hat.hessian_action(M, P)
-        return get(ddJ)
-
-    def hessp_bcast(x, p):
-        if comm.rank == 0:
-            comm.bcast(("hessp", None), root=0)
-        return hessp(x, p)
-
-    from scipy.optimize import minimize
-    if comm.rank == 0:
-        x0 = get(M0)
-        return_value = minimize(fun_bcast, x0,
-                                jac=jac_bcast, hessp=hessp_bcast, **kwargs)
-        comm.bcast(("return", return_value), root=0)
-        set(M, return_value.x)
-    else:
-        get(M0)
-        while True:
-            action, data = comm.bcast(None, root=0)
-            if action == "fun":
-                assert data is None
-                fun(None)
-            elif action == "jac":
-                assert data is None
-                jac(None)
-            elif action == "hessp":
-                assert data is None
-                hessp(None, None)
-            elif action == "return":
-                assert data is not None
-                return_value = data
-                break
+            if comm.rank == 0:
+                x_global = comm.gather(x, root=0)
+                X = np.full(N_global[-1], np.NAN, dtype=np.double)
+                for i, x_p in enumerate(x_global):
+                    X[N_global[i]:N_global[i + 1]] = x_p
+                return X
             else:
-                raise ValueError(f"Unexpected action '{action:s}'")
-        set(M, None)
+                comm.gather(x, root=0)
+                return None
 
-    if not return_value.success:
-        raise RuntimeError("Convergence failure")
+        def set(F, x):
+            if comm.rank == 0:
+                x = comm.scatter([x[N_global[rank]:N_global[rank + 1]]
+                                  for rank in range(comm.size)], root=0)
+            else:
+                assert x is None
+                x = comm.scatter(None, root=0)
+            for i, f in enumerate(F):
+                var_set_values(f, x[N[i]:N[i + 1]])
 
-    return M, return_value
+        M = tuple(var_new(m0, static=var_is_static(m0),
+                          cache=var_is_cached(m0))
+                  for m0 in M0)
+        J_hat = ReducedFunctional(forward, manager=manager)
+
+        def fun(x):
+            set(M, x)
+            return J_hat.objective(M)
+
+        def fun_bcast(x):
+            if comm.rank == 0:
+                comm.bcast(("fun", None), root=0)
+            return fun(x)
+
+        def jac(x):
+            set(M, x)
+            dJ = J_hat.gradient(M)
+            return get(dJ)
+
+        def jac_bcast(x):
+            if comm.rank == 0:
+                comm.bcast(("jac", None), root=0)
+            return jac(x)
+
+        def hessp(x, p):
+            set(M, x)
+            P = vars_new(M)
+            set(P, p)
+            ddJ = J_hat.hessian_action(M, P)
+            return get(ddJ)
+
+        def hessp_bcast(x, p):
+            if comm.rank == 0:
+                comm.bcast(("hessp", None), root=0)
+            return hessp(x, p)
+
+        from scipy.optimize import minimize
+        if comm.rank == 0:
+            x0 = get(M0)
+            return_value = minimize(fun_bcast, x0,
+                                    jac=jac_bcast, hessp=hessp_bcast, **kwargs)
+            comm.bcast(("return", return_value), root=0)
+            set(M, return_value.x)
+        else:
+            get(M0)
+            while True:
+                action, data = comm.bcast(None, root=0)
+                if action == "fun":
+                    assert data is None
+                    fun(None)
+                elif action == "jac":
+                    assert data is None
+                    jac(None)
+                elif action == "hessp":
+                    assert data is None
+                    hessp(None, None)
+                elif action == "return":
+                    assert data is not None
+                    return_value = data
+                    break
+                else:
+                    raise ValueError(f"Unexpected action '{action:s}'")
+            set(M, None)
+
+        if not return_value.success:
+            raise RuntimeError("Convergence failure")
+
+        return M, return_value
 
 
 def conjugate_dual_identity_action(*X):
