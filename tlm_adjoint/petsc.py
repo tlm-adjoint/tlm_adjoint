@@ -6,10 +6,53 @@ try:
     import petsc4py.PETSc as PETSc
 except ImportError:
     PETSc = None
+import weakref
 
 __all__ = \
     [
     ]
+
+
+class PETScOptions:
+    def __init__(self, options_prefix):
+        if PETSc is None:
+            raise RuntimeError("PETSc not available")
+
+        self._options_prefix = options_prefix
+        self._options = PETSc.Options()
+        self._keys = {}
+
+        def finalize_callback(options_prefix, options, keys):
+            for key in keys:
+                key = f"{options_prefix:s}{key:s}"
+                if key in options:
+                    del options[key]
+
+        finalize = weakref.finalize(
+            self, finalize_callback,
+            self._options_prefix, self._options, self._keys)
+        finalize.atexit = False
+
+    @property
+    def options_prefix(self):
+        return self._options_prefix
+
+    def __getitem__(self, key):
+        if key not in self._keys:
+            raise KeyError(key)
+        return self._options[f"{self.options_prefix:s}{key:s}"]
+
+    def __setitem__(self, key, value):
+        self._keys[key] = None
+        self._options[f"{self.options_prefix:s}{key:s}"] = value
+
+    def __delitem__(self, key):
+        del self._keys[key]
+        del self._options[f"{self.options_prefix:s}{key:s}"]
+
+    def clear(self):
+        for key in tuple(self._keys):
+            del self[key]
 
 
 class PETScVecInterface:
