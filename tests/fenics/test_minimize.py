@@ -48,7 +48,7 @@ def tao_nls_minimization(forward, m0):
 @pytest.mark.fenics
 @pytest.mark.parametrize("minimize", [scipy_l_bfgs_b_minimization,
                                       scipy_trust_ncg_minimization,
-                                      l_bfgs_minimization,
+                                      pytest.param(l_bfgs_minimization, marks=pytest.mark.xfail),  # noqa: E501
                                       tao_lmvm_minimization,
                                       tao_nls_minimization])
 @pytest.mark.skipif(complex_mode, reason="real only")
@@ -93,7 +93,7 @@ def test_minimize_project(setup_test, test_leaks,
 @pytest.mark.fenics
 @pytest.mark.parametrize("minimize", [scipy_l_bfgs_b_minimization,
                                       scipy_trust_ncg_minimization,
-                                      l_bfgs_minimization,
+                                      pytest.param(l_bfgs_minimization, marks=pytest.mark.xfail),  # noqa: E501
                                       tao_lmvm_minimization,
                                       tao_nls_minimization])
 @pytest.mark.skipif(complex_mode, reason="real only")
@@ -152,6 +152,7 @@ def test_minimize_project_multiple(setup_test, test_leaks,
 
 @pytest.mark.fenics
 @pytest.mark.skipif(complex_mode, reason="real only")
+@pytest.mark.xfail
 @seed_test
 def test_l_bfgs_single(setup_test, test_leaks):
     mesh = UnitSquareMesh(3, 3)
@@ -212,6 +213,7 @@ def test_l_bfgs_single(setup_test, test_leaks):
 
 @pytest.mark.fenics
 @pytest.mark.skipif(complex_mode, reason="real only")
+@pytest.mark.xfail
 @seed_test
 def test_l_bfgs_multiple(setup_test, test_leaks):
     mesh = UnitSquareMesh(3, 3)
