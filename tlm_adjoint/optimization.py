@@ -1,13 +1,14 @@
 from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
-    var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_global_size,
-    var_is_cached, var_is_static, var_linf_norm, var_local_size, var_new,
+    var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_is_cached,
+    var_is_static, var_linf_norm, var_local_size, var_new,
     var_new_conjugate_dual, var_scalar_value, var_set_values, vars_assign,
     vars_axpy, vars_copy, vars_inner, vars_new, vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
+from .petsc import PETScVecInterface
 from .manager import (
     compute_gradient, reset_manager, restore_manager, set_manager,
     start_manager, stop_manager)
@@ -986,55 +987,9 @@ def minimize_tao(forward, M0, *,
     if M_inv_action is not None:
         M_inv_action = wrapped_action(M_inv_action, copy=False)
 
-    def from_petsc(y, X):
-        y_a = y.getArray(True)
-
-        if not issubclass(y_a.dtype.type, np.floating):
-            raise ValueError("Invalid dtype")
-        if len(y_a.shape) != 1:
-            raise ValueError("Invalid shape")
-
-        i0 = 0
-        if len(X) != len(indices):
-            raise ValueError("Invalid length")
-        for j, x in enumerate(X):
-            i1 = i0 + var_local_size(x)
-            if i1 > y_a.shape[0]:
-                raise ValueError("Invalid shape")
-            if (i0, i1) != indices[j]:
-                raise ValueError("Invalid shape")
-            var_set_values(x, y_a[i0:i1])
-            i0 = i1
-        if i0 != y_a.shape[0]:
-            raise ValueError("Invalid shape")
-
-    def to_petsc(x, Y):
-        x_a = np.zeros(n, dtype=PETSc.ScalarType)
-
-        i0 = 0
-        if len(Y) != len(indices):
-            raise ValueError("Invalid length")
-        for j, y in enumerate(Y):
-            y_a = var_get_values(y)
-
-            if not issubclass(y_a.dtype.type, np.floating):
-                raise ValueError("Invalid dtype")
-            if not np.can_cast(y_a, x_a.dtype):
-                raise ValueError("Invalid dtype")
-            if len(y_a.shape) != 1:
-                raise ValueError("Invalid shape")
-
-            i1 = i0 + y_a.shape[0]
-            if i1 > x_a.shape[0]:
-                raise ValueError("Invalid shape")
-                if (i0, i1) != indices[j]:
-                    raise ValueError("Invalid shape")
-            x_a[i0:i1] = y_a
-            i0 = i1
-        if i0 != x_a.shape[0]:
-            raise ValueError("Invalid shape")
-
-        x.setArray(x_a)
+    vec_interface = PETScVecInterface(M0, dtype=PETSc.RealType)
+    n, N = vec_interface.n, vec_interface.N
+    to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
     if manager is None:
         manager = _manager()
@@ -1095,13 +1050,6 @@ def minimize_tao(forward, M0, *,
             if self._shift != 0.0:
                 y.axpy(self._shift, x)
 
-    indices = []
-    n = 0
-    N = 0
-    for m0 in M0:
-        indices.append((n, n + var_local_size(m0)))
-        n += var_local_size(m0)
-        N += var_global_size(m0)
     H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         Hessian(), comm=comm)
     H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
