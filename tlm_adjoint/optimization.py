@@ -1,13 +1,14 @@
 from .interface import (
     comm_dup_cached, garbage_cleanup, is_var, paused_space_type_checking,
-    var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_global_size,
-    var_is_cached, var_is_static, var_linf_norm, var_local_size, var_new,
-    var_new_conjugate_dual, var_scalar_value, var_set_values, vars_assign,
-    vars_axpy, vars_copy, vars_inner, vars_new, vars_new_conjugate_dual)
+    var_axpy, var_comm, var_copy, var_dtype, var_get_values, var_is_cached,
+    var_is_static, var_linf_norm, var_local_size, var_new, var_scalar_value,
+    var_set_values, vars_assign, vars_axpy, vars_copy, vars_inner, vars_new,
+    vars_new_conjugate_dual)
 
 from .caches import clear_caches, local_caches
 from .hessian import GeneralHessian as Hessian
 from .manager import manager as _manager
+from .petsc import PETScOptions, PETScVecInterface
 from .manager import (
     compute_gradient, reset_manager, restore_manager, set_manager,
     start_manager, stop_manager)
@@ -24,6 +25,7 @@ __all__ = \
 
         "LBFGSHessianApproximation",
         "l_bfgs",
+        "line_search",
         "minimize_l_bfgs",
         "minimize_tao"
     ]
@@ -74,7 +76,7 @@ class ReducedFunctional:
             M = tuple(var_copy(m, static=var_is_static(m),
                                cache=var_is_cached(m))
                       for m in M)
-            M_val = tuple(map(var_copy, M))
+            M_val = vars_copy(M)
 
             reset_manager()
             clear_caches()
@@ -234,7 +236,7 @@ def minimize_scipy(forward, M0, *,
 
     def hessp(x, p):
         set(M, x)
-        P = tuple(map(var_new, M))
+        P = vars_new(M)
         set(P, p)
         ddJ = J_hat.hessian_action(M, P)
         return get(ddJ)
@@ -285,7 +287,7 @@ def conjugate_dual_identity_action(*X):
     return M_X
 
 
-def wrapped_action(M, *, copy=True):
+def wrapped_action(M):
     M_arg = M
 
     @functools.wraps(M_arg)
@@ -295,7 +297,7 @@ def wrapped_action(M, *, copy=True):
             M_X = (M_X,)
         if len(M_X) != len(X):
             raise ValueError("Incompatible shape")
-        return vars_copy(M_X) if copy else M_X
+        return vars_copy(M_X)
 
     return M
 
@@ -377,9 +379,9 @@ class LBFGSHessianApproximation:
         X = vars_copy(X)
 
         if H_0_action is None:
-            H_0_action = wrapped_action(conjugate_dual_identity_action, copy=False)  # noqa: E501
+            H_0_action = wrapped_action(conjugate_dual_identity_action)
         else:
-            H_0_action = wrapped_action(H_0_action, copy=True)
+            H_0_action = wrapped_action(H_0_action)
 
         alphas = []
         for rho, S, Y in reversed(self._iterates):
@@ -401,166 +403,140 @@ class LBFGSHessianApproximation:
         return R[0] if len(R) == 1 else R
 
 
-def line_search_rank0_scipy_line_search(
-        F, Fp, *,
-        c1, c2, old_F_val=None, old_Fp_val=None, **kwargs):
-
-    def f(x):
-        x, = x
-        return F(x)
-
-    def myfprime(x):
-        x, = x
-        return np.array([Fp(x)], dtype=np.double)
-
-    if old_Fp_val is not None:
-        old_Fp_val = np.array([old_Fp_val], dtype=np.double)
-
-    from scipy.optimize import line_search
-    alpha, _, _, new_fval, _, new_slope = line_search(
-        f, myfprime,
-        xk=np.array([0.0], dtype=np.double), pk=np.array([1.0], dtype=np.double),  # noqa: E501
-        gfk=old_Fp_val, old_fval=old_F_val,
-        c1=c1, c2=c2, **kwargs)
-    if new_slope is None:
-        alpha = None
-    if alpha is None:
-        new_fval = None
-    return alpha, new_fval
-
-
-def line_search_rank0_scipy_scalar_search_wolfe1(
-        F, Fp, *,
-        c1, c2, old_F_val=None, old_Fp_val=None, **kwargs):
-    from scipy.optimize.linesearch import scalar_search_wolfe1 as line_search
-    alpha, phi, _ = line_search(
-        F, Fp,
-        phi0=old_F_val, derphi0=old_Fp_val,
-        c1=c1, c2=c2, **kwargs)
-    if alpha is None:
-        phi = None
-    return alpha, phi
-
-
-_default_line_search_rank0 = line_search_rank0_scipy_scalar_search_wolfe1
-
-
 def line_search(F, Fp, X, minus_P, *,
                 c1=1.0e-4, c2=0.9,
                 old_F_val=None, old_Fp_val=None,
-                line_search_rank0=_default_line_search_rank0,
-                line_search_rank0_kwargs=None,
                 comm=None):
-    if line_search_rank0_kwargs is None:
-        line_search_rank0_kwargs = {}
+    """Line search using TAO.
 
-    Fp = wrapped_action(Fp, copy=False)
+    Uses the `PETSc.TAOLineSearch.Type.MORETHUENTE` line search type, yielding
+    a step which satisfies the Wolfe conditions (and the strong curvature
+    condition). See
 
+        - Jorge J. Moré and David J. Thuente, 'Line search algorithms with
+          guaranteed sufficient decrease', ACM Transactions on Mathematical
+          Software 20(3), 286--307, 1994, doi: 10.1145/192115.192132
+
+    :arg F: A callable defining the functional. Accepts one or more variables
+        as arguments, and returns the value of the functional.
+    :arg Fp: A callable defining the functional gradient. Accepts one or more
+        variables as inputs, and returns a variable or :class:`Sequence` of
+        variables storing the value of the gradient.
+    :arg X: A variable or a :class:`Sequence` of variables defining the
+        starting point for the line search.
+    :arg minus_P: A variable or a :class:`Sequence` of variables defining the
+        *negative* of the line search direction.
+    :arg c1: Armijo condition parameter. :math:`c_1` in equation (3.6a) of
+
+            - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
+              Springer, New York, NY, 2006, Second edition,
+              doi: 10.1007/978-0-387-40065-5
+
+    :arg c2: Curvature condition parameter. :math:`c_2` in equation (3.6b) of
+
+            - Jorge Nocedal and Stephen J. Wright, 'Numerical optimization',
+              Springer, New York, NY, 2006, Second edition,
+              doi: 10.1007/978-0-387-40065-5
+
+    :arg old_F_val: The value of `F` at the starting point of the line search.
+    :arg old_Fp_val: The value of `Fp` at the starting point of the line
+        search.
+    :arg comm: A communicator.
+    :returns: A :class:`tuple` `(alpha, new_F_val, new_Fp_val)`
+        where
+
+        - `alpha`: Defines the step size. The step is given by the product of
+          `alpha` with `-minus_P` (noting the *negative* sign for the latter).
+        - `new_F_val`: The new value of `F`.
+        - `new_Fp_val`: The new value of `Fp`.
+    """
+
+    import petsc4py.PETSc as PETSc
+
+    F_arg, F = F, lambda *X: F_arg(*vars_copy(X))
+    Fp = wrapped_action(Fp)
     if is_var(X):
-        X_rank1 = (X,)
-    else:
-        X_rank1 = X
-    del X
-
+        X = (X,)
     if is_var(minus_P):
         minus_P = (minus_P,)
-    if len(minus_P) != len(X_rank1):
-        raise ValueError("Incompatible shape")
+    if old_F_val is None:
+        old_F_val = F(*X)
+    if old_Fp_val is None:
+        old_Fp_val = Fp(*X)
+    elif is_var(old_Fp_val):
+        old_Fp_val = (old_Fp_val,)
+
+    vec_interface = PETScVecInterface(X, dtype=PETSc.RealType)
+    n, N = vec_interface.n, vec_interface.N
+    to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
+
+    Y = vars_new(X)
+
+    def objective(taols, x):
+        from_petsc(x, Y)
+        F_val = F(*Y) - old_F_val
+        return F_val
+
+    def gradient(taols, x, g):
+        from_petsc(x, Y)
+        dJ = Fp(*Y)
+        to_petsc(g, dJ)
+
+    def objective_gradient(taols, x, g):
+        from_petsc(x, Y)
+        F_val = F(*Y) - old_F_val
+        dJ = Fp(*Y)
+        to_petsc(g, dJ)
+        return F_val
 
     if comm is None:
-        comm = var_comm(X_rank1[0])
-    comm = comm_dup_cached(comm)
+        comm = var_comm(Y[0])
+    comm = comm_dup_cached(comm, key="line_search")
 
-    F_last_X_rank0 = None
-    F_last_F = None
+    taols = PETSc.TAOLineSearch().create(comm=comm)
+    taols.setObjective(objective)
+    taols.setGradient(gradient)
+    taols.setObjectiveGradient(objective_gradient)
+    taols.setType(PETSc.TAOLineSearch.Type.MORETHUENTE)
 
-    def F_rank0(x):
-        nonlocal F_last_X_rank0, F_last_F
+    options = PETScOptions(f"_tlm_adjoint__{taols.name:s}_")
+    options["tao_ls_ftol"] = c1
+    options["tao_ls_gtol"] = c2
+    taols.setOptionsPrefix(options.options_prefix)
 
-        X_rank0 = F_last_X_rank0 = float(x)
-        del x
+    taols.setUp()
+    taols.setFromOptions()
 
-        X = vars_copy(X_rank1)
-        vars_axpy(X, -X_rank0, minus_P)
+    x = PETSc.Vec().create(comm=comm)
+    x.setSizes((n, N))
+    x.setUp()
+    to_petsc(x, X)
 
-        F_last_F = F(*X)
-        return F_last_F
+    g = PETSc.Vec().create(comm=comm)
+    g.setSizes((n, N))
+    g.setUp()
+    to_petsc(g, old_Fp_val)
 
-    Fp_last_X_rank0 = None
-    Fp_last_Fp_rank1 = None
-    Fp_last_Fp_rank0 = None
+    s = PETSc.Vec().create(comm=comm)
+    s.setSizes((n, N))
+    s.setUp()
+    to_petsc(s, minus_P)
+    s.scale(-1.0)
 
-    def Fp_rank0(x):
-        nonlocal Fp_last_X_rank0, Fp_last_Fp_rank1, Fp_last_Fp_rank0
+    phi, alpha, reason = taols.apply(x, g, s)
+    if reason <= 0:
+        raise RuntimeError("Line search failure")
 
-        X_rank0 = Fp_last_X_rank0 = float(x)
-        del x
+    new_Fp_val = vars_new_conjugate_dual(X)
+    from_petsc(g, new_Fp_val)
 
-        X = vars_copy(X_rank1)
-        vars_axpy(X, -X_rank0, minus_P)
+    taols.destroy()
+    x.destroy()
+    g.destroy()
+    s.destroy()
+    options.clear()
 
-        Fp_last_Fp_rank1 = vars_copy(Fp(*X))
-        Fp_last_Fp_rank0 = -vars_inner(minus_P, Fp_last_Fp_rank1)
-        return Fp_last_Fp_rank0
-
-    if old_F_val is None:
-        old_F_val = F_rank0(0.0)
-
-    if old_Fp_val is None:
-        old_Fp_val_rank0 = Fp_rank0(0.0)
-    else:
-        if is_var(old_Fp_val):
-            old_Fp_val = (old_Fp_val,)
-        if len(old_Fp_val) != len(X_rank1):
-            raise ValueError("Incompatible shape")
-        old_Fp_val_rank0 = -vars_inner(minus_P, old_Fp_val)
-    del old_Fp_val
-
-    if comm.rank == 0:
-        def F_rank0_bcast(x):
-            comm.bcast(("F_rank0", (x,)), root=0)
-            return F_rank0(x)
-
-        def Fp_rank0_bcast(x):
-            comm.bcast(("Fp_rank0", (x,)), root=0)
-            return Fp_rank0(x)
-
-        alpha, new_F_val = line_search_rank0(
-            F_rank0_bcast, Fp_rank0_bcast, c1=c1, c2=c2,
-            old_F_val=old_F_val, old_Fp_val=old_Fp_val_rank0,
-            **line_search_rank0_kwargs)
-        comm.bcast(("return", (alpha, new_F_val)), root=0)
-    else:
-        while True:
-            action, data = comm.bcast(None, root=0)
-            if action == "F_rank0":
-                X_rank0, = data
-                F_rank0(X_rank0)
-            elif action == "Fp_rank0":
-                X_rank0, = data
-                Fp_rank0(X_rank0)
-            elif action == "return":
-                alpha, new_F_val = data
-                break
-            else:
-                raise ValueError(f"Unexpected action '{action:s}'")
-
-    if alpha is None:
-        return None, old_Fp_val_rank0, None, None, None
-    else:
-        if new_F_val is None:
-            if F_last_X_rank0 is None or F_last_X_rank0 != alpha:
-                F_rank0(alpha)
-            new_F_val = F_last_F
-
-        if Fp_last_X_rank0 is None or Fp_last_X_rank0 != alpha:
-            Fp_rank0(alpha)
-        new_Fp_val_rank1 = Fp_last_Fp_rank1
-        new_Fp_val_rank0 = Fp_last_Fp_rank0
-
-        return (alpha, old_Fp_val_rank0, new_F_val,
-                new_Fp_val_rank1[0] if len(new_Fp_val_rank1) == 1 else new_Fp_val_rank1,  # noqa: E501
-                new_Fp_val_rank0)
+    return alpha, phi + old_F_val, new_Fp_val
 
 
 def l_bfgs(F, Fp, X0, *,
@@ -612,13 +588,13 @@ def l_bfgs(F, Fp, X0, *,
     gradient, gradient change, and step, and where :math:`M^{-1}` and
     :math:`H_0` are defined by `M_inv_action` and `H_0_action` respectively.
 
+    The line search is performed using :func:`line_search`.
+
     :arg F: A callable defining the functional. Accepts one or more variables
-        as arguments, and returns the value of the functional. Input arguments
-        should not be modified.
+        as arguments, and returns the value of the functional.
     :arg Fp: A callable defining the functional gradient. Accepts one or more
         variables as inputs, and returns a variable or :class:`Sequence` of
-        variables storing the value of the gradient. Input arguments should not
-        be modified.
+        variables storing the value of the gradient.
     :arg X0: A variable or a :class:`Sequence` of variables defining the
         initial guess for the parameters.
     :arg m: The maximum number of step + gradient change pairs to use in the
@@ -732,12 +708,12 @@ def l_bfgs(F, Fp, X0, *,
         nonlocal Fp_calls
 
         Fp_calls += 1
-        Fp_val = Fp_arg(*X)
+        Fp_val = Fp_arg(*vars_copy(X))
         if is_var(Fp_val):
             Fp_val = (Fp_val,)
         if len(Fp_val) != len(X):
             raise ValueError("Incompatible shape")
-        return Fp_val
+        return vars_copy(Fp_val)
 
     if is_var(X0):
         X0 = (X0,)
@@ -768,7 +744,7 @@ def l_bfgs(F, Fp, X0, *,
             with paused_space_type_checking():
                 return abs(vars_inner(X, X))
     else:
-        H_0_norm_sq_H_0_action = wrapped_action(H_0_action, copy=True)
+        H_0_norm_sq_H_0_action = wrapped_action(H_0_action)
 
         def H_0_norm_sq(X):
             return abs(vars_inner(H_0_norm_sq_H_0_action(*X), X))
@@ -778,7 +754,7 @@ def l_bfgs(F, Fp, X0, *,
             with paused_space_type_checking():
                 return abs(vars_inner(X, X))
     else:
-        M_norm_sq_M_action = wrapped_action(M_action, copy=True)
+        M_norm_sq_M_action = wrapped_action(M_action)
 
         def M_norm_sq(X):
             return abs(vars_inner(X, M_norm_sq_M_action(*X)))
@@ -787,7 +763,7 @@ def l_bfgs(F, Fp, X0, *,
     if M_inv_action is None:
         M_inv_norm_sq = H_0_norm_sq
     else:
-        M_inv_norm_sq_M_inv_action = wrapped_action(M_inv_action, copy=True)
+        M_inv_norm_sq_M_inv_action = wrapped_action(M_inv_action)
 
         def M_inv_norm_sq(X):
             return abs(vars_inner(M_inv_norm_sq_M_inv_action(*X), X))
@@ -800,7 +776,7 @@ def l_bfgs(F, Fp, X0, *,
     X = vars_copy(X0)
     del X0
     old_F_val = F(*X)
-    old_Fp_val = vars_copy(Fp(*X))
+    old_Fp_val = Fp(*X)
     old_Fp_norm_sq = M_inv_norm_sq(old_Fp_val)
 
     hessian_approx = LBFGSHessianApproximation(m)
@@ -827,15 +803,14 @@ def l_bfgs(F, Fp, X0, *,
             H_0_action=H_0_action, theta=theta)
         if is_var(minus_P):
             minus_P = (minus_P,)
-        alpha, old_Fp_val_rank0, new_F_val, new_Fp_val, new_Fp_val_rank0 = line_search(  # noqa: E501
+        old_Fp_val_rank0 = -vars_inner(minus_P, old_Fp_val)
+        alpha, new_F_val, new_Fp_val = line_search(
             F, Fp, X, minus_P, c1=c1, c2=c2,
             old_F_val=old_F_val, old_Fp_val=old_Fp_val,
-            line_search_rank0=_default_line_search_rank0,
             comm=comm)
-        if is_var(new_Fp_val):
-            new_Fp_val = (new_Fp_val,)
+        new_Fp_val_rank0 = -vars_inner(minus_P, new_Fp_val)
 
-        if alpha is None or alpha * old_Fp_val_rank0 >= 0.0:
+        if alpha * old_Fp_val_rank0 >= 0.0:
             raise RuntimeError("L-BFGS: Line search failure")
         if new_F_val > old_F_val + c1 * alpha * old_Fp_val_rank0:
             raise RuntimeError("L-BFGS: Armijo condition not satisfied")
@@ -984,57 +959,11 @@ def minimize_tao(forward, M0, *,
         if not issubclass(var_dtype(m0), np.floating):
             raise ValueError("Invalid dtype")
     if M_inv_action is not None:
-        M_inv_action = wrapped_action(M_inv_action, copy=False)
+        M_inv_action = wrapped_action(M_inv_action)
 
-    def from_petsc(y, X):
-        y_a = y.getArray(True)
-
-        if not issubclass(y_a.dtype.type, np.floating):
-            raise ValueError("Invalid dtype")
-        if len(y_a.shape) != 1:
-            raise ValueError("Invalid shape")
-
-        i0 = 0
-        if len(X) != len(indices):
-            raise ValueError("Invalid length")
-        for j, x in enumerate(X):
-            i1 = i0 + var_local_size(x)
-            if i1 > y_a.shape[0]:
-                raise ValueError("Invalid shape")
-            if (i0, i1) != indices[j]:
-                raise ValueError("Invalid shape")
-            var_set_values(x, y_a[i0:i1])
-            i0 = i1
-        if i0 != y_a.shape[0]:
-            raise ValueError("Invalid shape")
-
-    def to_petsc(x, Y):
-        x_a = np.zeros(n, dtype=PETSc.ScalarType)
-
-        i0 = 0
-        if len(Y) != len(indices):
-            raise ValueError("Invalid length")
-        for j, y in enumerate(Y):
-            y_a = var_get_values(y)
-
-            if not issubclass(y_a.dtype.type, np.floating):
-                raise ValueError("Invalid dtype")
-            if not np.can_cast(y_a, x_a.dtype):
-                raise ValueError("Invalid dtype")
-            if len(y_a.shape) != 1:
-                raise ValueError("Invalid shape")
-
-            i1 = i0 + y_a.shape[0]
-            if i1 > x_a.shape[0]:
-                raise ValueError("Invalid shape")
-                if (i0, i1) != indices[j]:
-                    raise ValueError("Invalid shape")
-            x_a[i0:i1] = y_a
-            i0 = i1
-        if i0 != x_a.shape[0]:
-            raise ValueError("Invalid shape")
-
-        x.setArray(x_a)
+    vec_interface = PETScVecInterface(M0, dtype=PETSc.RealType)
+    n, N = vec_interface.n, vec_interface.N
+    to_petsc, from_petsc = vec_interface.to_petsc, vec_interface.from_petsc
 
     if manager is None:
         manager = _manager()
@@ -1088,20 +1017,13 @@ def minimize_tao(forward, M0, *,
             self._shift += alpha
 
         def mult(self, A, x, y):
-            dM = tuple(map(var_new, self._M))
+            dM = vars_new(self._M)
             from_petsc(x, dM)
             ddJ = J_hat.hessian_action(self._M, dM)
             to_petsc(y, ddJ)
             if self._shift != 0.0:
                 y.axpy(self._shift, x)
 
-    indices = []
-    n = 0
-    N = 0
-    for m0 in M0:
-        indices.append((n, n + var_local_size(m0)))
-        n += var_local_size(m0)
-        N += var_global_size(m0)
     H_matrix = PETSc.Mat().createPython(((n, N), (n, N)),
                                         Hessian(), comm=comm)
     H_matrix.setOption(PETSc.Mat.Option.SYMMETRIC, True)
@@ -1116,7 +1038,7 @@ def minimize_tao(forward, M0, *,
         class GradientNorm:
             @functools.cached_property
             def _dJ(self):
-                return tuple(map(var_new_conjugate_dual, M0))
+                return vars_new_conjugate_dual(M0)
 
             def mult(self, A, x, y):
                 from_petsc(x, self._dJ)
