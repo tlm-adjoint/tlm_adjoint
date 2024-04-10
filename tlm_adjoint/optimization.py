@@ -535,7 +535,7 @@ def line_search(F, Fp, X, minus_P, *,
     s.scale(-1.0)
 
     phi, alpha, reason = taols.apply(x, g, s)
-    if reason <= 0:
+    if reason != PETSc.TAOLineSearch.Reason.SUCCESS:
         raise RuntimeError("Line search failure")
 
     new_Fp_val = vars_new_conjugate_dual(X)
