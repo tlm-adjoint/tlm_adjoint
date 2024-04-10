@@ -599,7 +599,7 @@ def l_bfgs(F, Fp, X0, *,
     gradient, gradient change, and step, and where :math:`M^{-1}` and
     :math:`H_0` are defined by `M_inv_action` and `H_0_action` respectively.
 
-    The line search is performed using :func:`line_search`.
+    The line search is performed using :func:`.line_search`.
 
     :arg F: A callable defining the functional. Accepts one or more variables
         as arguments, and returns the value of the functional.
