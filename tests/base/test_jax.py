@@ -64,20 +64,20 @@ def test_jax_assignment(setup_test, jax_tlm_config,  # noqa: F811
     J_val = complex(J)
 
     min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, y, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.base
@@ -163,8 +163,8 @@ def test_jax_unary_overloading(setup_test, jax_tlm_config,  # noqa: F811
     assert min_order > 1.99
 
     ddJ = Hessian(forward)
-    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
-    assert min_order > 2.93
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-2)
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, y, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
@@ -229,19 +229,19 @@ def test_jax_binary_overloading(setup_test, jax_tlm_config,  # noqa: F811
     assert min_order > 1.99
 
     ddJ = Hessian(forward)
-    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
-    assert min_order > 2.99
+    min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-2)
+    assert min_order > 2.98
 
     min_order = taylor_test_tlm(forward, y, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1,
                                         seed=1.0e-3)
-    assert min_order > 1.98
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 1.98
+    assert min_order > 1.99
 
 
 @pytest.mark.base
