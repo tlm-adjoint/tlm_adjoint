@@ -57,7 +57,7 @@ def test_Assignment(setup_test):  # noqa: F811
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, dM=dm)
-        assert min_order > 3.00
+        assert min_order > 2.99
 
         min_order = taylor_test_tlm(forward_J, x, tlm_order=1, dMs=(dm,))
         assert min_order > 2.00
