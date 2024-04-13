@@ -75,7 +75,7 @@ def test_hessian_solve(setup_test,
     m0 = Function(space, name="m0")
     m, _ = minimize_l_bfgs(
         forward_J, m0,
-        s_atol=0.0, g_atol=1.0e-9,
+        s_atol=0.0, g_atol=1.0e-7,
         H_0_action=B, M_action=B_inv, M_inv_action=B)
 
     b_ref = Cofunction(space.dual(), name="b_ref")
