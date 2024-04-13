@@ -1,15 +1,15 @@
 from .interface import (
     Packed, check_space_types_conjugate_dual, packed, var_axpy, var_copy,
     var_copy_conjugate, var_is_cached, var_is_static, var_locked, var_name,
-    var_new, var_scalar_value)
+    var_scalar_value)
 
 from .caches import local_caches
-from .equations import InnerProduct
 from .functional import Functional
+from .markers import AdjointActionMarker
 from .manager import manager as _manager
 from .manager import (
-    compute_gradient, configure_tlm, var_tlm, paused_manager,
-    reset_manager, restore_manager, set_manager, start_manager, stop_manager)
+    compute_gradient, configure_tlm, var_tlm, reset_manager, restore_manager,
+    set_manager, start_manager, stop_manager)
 
 from abc import ABC, abstractmethod
 import warnings
@@ -252,12 +252,7 @@ class GaussNewton(ABC):
         # J^T action
         start_manager()
         J = Functional()
-        assert len(X) == len(R_inv_tau_X)
-        for x, R_inv_tau_x in zip(X, R_inv_tau_X):
-            J_term = var_new(J)
-            with paused_manager(annotate=False, tlm=True):
-                InnerProduct(J_term, x, var_copy(R_inv_tau_x)).solve()
-                J.addto(J_term)
+        AdjointActionMarker(J, X, tuple(map(var_copy, R_inv_tau_X))).solve()
         stop_manager()
 
         # Likelihood term: conj[ J^T R^{-1} J dM ]

@@ -5,6 +5,7 @@ from tlm_adjoint.firedrake.backend import (
     backend_Cofunction, backend_Constant, backend_Function, complex_mode)
 from tlm_adjoint.firedrake.interpolation import interpolate_expression
 from tlm_adjoint.alias import gc_disabled
+from tlm_adjoint.markers import AdjointActionMarker
 from tlm_adjoint.patch import patch_method
 
 from ..test_base import chdir_tmp_path, jax_tlm_config, seed_test, tmp_path
@@ -155,6 +156,8 @@ def test_leaks():
         for eq in block:
             if isinstance(eq, PointInterpolation):
                 del eq._interp
+            elif isinstance(eq, AdjointActionMarker):
+                del eq._adj_X
 
     gc.collect()
     garbage_cleanup(DEFAULT_COMM)

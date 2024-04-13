@@ -40,4 +40,5 @@ intersphinx_mapping = {"firedrake": ("https://www.firedrakeproject.org", None),
                        "python": ("https://docs.python.org/3", None),
                        "scipy": ("https://docs.scipy.org/doc/scipy", None),
                        "sympy": ("https://docs.sympy.org/latest", None),
+                       "torch": ("https://pytorch.org/docs/stable", None),
                        "ufl": ("https://fenics.readthedocs.io/projects/ufl/en/latest", None)}  # noqa: E501
