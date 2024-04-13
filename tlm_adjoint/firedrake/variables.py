@@ -20,6 +20,7 @@ from .expr import Replacement, Zero
 import numbers
 import numpy as np
 import petsc4py.PETSc as PETSc
+import pyop2
 import ufl
 import weakref
 
@@ -387,7 +388,10 @@ class FunctionInterfaceBase(VariableInterface):
         return self.name()
 
     def _state(self):
-        return self.dat.dat_version
+        if isinstance(self.dat, pyop2.DatView):
+            return self.dat._parent.dat_version
+        else:
+            return self.dat.dat_version
 
     def _update_state(self):
         pass
