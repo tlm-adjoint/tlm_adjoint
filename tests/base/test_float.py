@@ -65,24 +65,24 @@ def test_Float_assignment(setup_test,  # noqa: F811
 
     min_order = taylor_test(forward, y, J_val=J_val, dJ=dJ,
                             dM=None if dm is None else dm)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ,
                             dM=None if dm is None else dm)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, y, tlm_order=1,
                                 dMs=None if dm is None else (dm,))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=1,
                                         dMs=None if dm is None else (dm,))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, y, adjoint_order=2,
                                         dMs=None if dm is None else (dm, dm))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.base
@@ -240,7 +240,7 @@ def test_Float_binary_overloading(setup_test,  # noqa: F811
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
                             dM=None if dm is None else dm)
-    assert min_order > 2.94
+    assert min_order > 2.98
 
     min_order = taylor_test_tlm(forward, y, tlm_order=1, seed=1.0e-3,
                                 dMs=None if dm is None else (dm,))

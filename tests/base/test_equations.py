@@ -53,22 +53,22 @@ def test_Assignment(setup_test):  # noqa: F811
     for forward_J, J_val, dJ in ((lambda x: forward(x)[0], J.value, dJs[0]),
                                  (lambda x: forward(x)[1], K.value, dJs[1])):
         min_order = taylor_test(forward_J, x, J_val=J_val, dJ=dJ, dM=dm)
-        assert min_order > 2.00
+        assert min_order > 1.99
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, dM=dm)
-        assert min_order > 3.00
+        assert min_order > 2.99
 
         min_order = taylor_test_tlm(forward_J, x, tlm_order=1, dMs=(dm,))
-        assert min_order > 2.00
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=1,
                                             dMs=(dm,))
-        assert min_order > 2.00
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                             dMs=(dm, dm))
-        assert min_order > 2.00
+        assert min_order > 1.99
 
 
 @pytest.mark.base
@@ -102,19 +102,19 @@ def test_Axpy(setup_test):  # noqa: F811
     dm = Float(1.0, name="dm")
 
     min_order = taylor_test(forward, x, J_val=J_val, dJ=dJ, dM=dm)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, x, J_val=J_val, ddJ=ddJ, dM=dm,
                             seed=2.0e-2)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, x, tlm_order=1, dMs=(dm,))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=1, dMs=(dm,))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, x, adjoint_order=2,
                                         dMs=(dm, dm))
-    assert min_order > 2.00
+    assert min_order > 1.99

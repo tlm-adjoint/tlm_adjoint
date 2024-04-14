@@ -120,8 +120,10 @@ def wrapped_forward(forward):
 @manager_disabled()
 def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                 M0=None, size=5):
-    r"""Perform a Taylor remainder convergence test. Aims for similar behaviour
-    to the `taylor_test` function in dolfin-adjoint 2017.1.0.
+    r"""Perform a Taylor remainder convergence test.
+
+    Originally aimed for similar behaviour to the `taylor_test` function in
+    dolfin-adjoint 2017.1.0.
 
     Uncorrected and corrected Taylor remainder magnitudes are computed by
     repeatedly re-running the forward and evaluating the functional. The
@@ -130,8 +132,7 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     .. math::
 
-        \varepsilon = 2^{-p} \eta \max \left( 1,
-            \left\| m \right\|_{l_\infty} \right)
+        \varepsilon = 2^{-p} \eta
             \quad \text{ for } p \in \left\{ 0, \ldots, P - 1 \right\},
 
     where the norm appearing here is defined to be the :math:`l_\infty` norm of
@@ -140,38 +141,27 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
 
     :arg forward: A callable which accepts one or more variable arguments, and
         which returns a variable defining the forward functional :math:`J`.
-        Corresponds to the `J` argument in the dolfin-adjoint `taylor_test`
-        function.
     :arg M: A variable or a :class:`Sequence` of variables defining the control
-        :math:`m`. Corresponds to the `m` argument in the dolfin-adjoint
-        `taylor_test` function.
+        :math:`m`.
     :arg J_val: A scalar defining the value of the functional :math:`J` for
-        control value defined by `M0`. Corresponds to the `Jm` argument in the
-        dolfin-adjoint `taylor_test` function.
+        control value defined by `M0`.
     :arg dJ: A variable or a :class:`Sequence` of variables defining a value
         for the derivative of the functional with respect to the control.
-        Required if `ddJ` is not supplied. Corresponds to the `dJdm` argument
-        in the dolfin-adjoint `taylor_test` function.
+        Required if `ddJ` is not supplied.
     :arg ddJ: A :class:`.Hessian` used to compute the Hessian action on the
         considered perturbation direction. If supplied then a higher order
         corrected Taylor remainder magnitude is computed. If `dJ` is not
         supplied, also computes the first order directional derivative.
-        Corresponds to the `HJm` argument in the dolfin-adjoint `taylor_test`
-        function.
     :arg seed: Defines the value of :math:`\eta`. Controls the magnitude of the
-        perturbation. Corresponds to the `seed` argument in the dolfin-adjoint
-        `taylor_test` function.
-    :arg dM: Defines the perturbation direction :math:`\zeta`. A direction with
-        degrees of freedom vector real and (in the complex case) complex parts
-        set by :func:`numpy.random.random` is used if not supplied. Corresponds
-        to the `perturbation_direction` argument in the dolfin-adjoint
-        `taylor_test` function.
+        perturbation.
+    :arg dM: Defines the perturbation direction :math:`\zeta`. If not provided
+        then the direction used has degrees of freedom real and (in the complex
+        case) complex components set using :func:`numpy.random.random`, scaled
+        by the :math:`l_\infty` norm of the degree of freedom vector for `M` if
+        this is non-zero.
     :arg M0: Defines the value of the control at which the functional and
-        derivatives are evaluated. `M` is used if not supplied. Corresponds to
-        the `value` argument in the dolfin-adjoint `taylor_test` function.
+        derivatives are evaluated. `M` is used if not supplied.
     :arg size: The number of values of :math:`\varepsilon` to consider.
-        Corresponds to the `size` argument in the dolfin-adjoint `taylor_test`
-        function.
     :returns: The minimum order observed, via a power law fit between
         consecutive pairs of values of :math:`\varepsilon`, in the calculations
         for the corrected Taylor remainder magnitude. In a successful
@@ -198,17 +188,16 @@ def taylor_test(forward, M, J_val, *, dJ=None, ddJ=None, seed=1.0e-2, dM=None,
                        cache=var_is_cached(m))
                for m in M)
 
-    # This combination seems to reproduce dolfin-adjoint behaviour
-    eps = np.array([2 ** -p for p in range(size)], dtype=float)
-    eps = seed * eps * max(1.0, vars_linf_norm(M0))
+    eps = seed * np.array([2 ** -p for p in range(size)], dtype=float)
     if dM is None:
+        M_0_norm = vars_linf_norm(M)
         dM = tuple(var_new(m1, static=True) for m1 in M1)
         for dm in dM:
             dm_arr = np.random.random(var_local_size(dm))
             if issubclass(var_dtype(dm), np.complexfloating):
                 dm_arr = dm_arr \
                     + 1.0j * np.random.random(var_local_size(dm))
-            var_set_values(dm, dm_arr)
+            var_set_values(dm, dm_arr * (1.0 if M_0_norm == 0.0 else M_0_norm))
             del dm_arr
 
     J_vals = np.full(eps.shape, np.NAN, dtype=complex)
@@ -272,10 +261,11 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
         defined by successively taking the derivative of :math:`K` with respect
         to the control and with directions defined by the `dM[:-1]` (with the
         directions considered in order). The perturbation direction
-        :math:`\zeta` is defined by `dM[-1]` -- see :func:`.taylor_test`.
-        Directions with degrees of freedom vector real and (in the complex
-        case) complex parts set by :func:`numpy.random.random` are used if not
-        supplied.
+        :math:`\zeta` is defined by `dM[-1]` -- see :func:`.taylor_test`. By
+        default `dMs[:-1]` have real and (in the complex case) complex
+        components set using :func:`numpy.random.random`, and the default for
+        `dMs[-1]` is set as described in :func:`.taylor_test` (see the `dM`
+        argument).
     :arg size: The number of values of :math:`\varepsilon` to consider. See
         :func:`.taylor_test`.
     :arg manager: An :class:`.EquationManager` used to create an internal
@@ -307,9 +297,9 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                        cache=var_is_cached(m))
                for m in M)
 
-    eps = np.array([2 ** -p for p in range(size)], dtype=float)
-    eps = seed * eps * max(1.0, vars_linf_norm(M))
+    eps = seed * np.array([2 ** -p for p in range(size)], dtype=float)
     if dMs is None:
+        M_0_norm = vars_linf_norm(M)
         dMs = tuple(tuple(var_new(m, static=True) for m in M)
                     for _ in range(tlm_order))
         for dM in dMs:
@@ -318,7 +308,7 @@ def taylor_test_tlm(forward, M, tlm_order, *, seed=1.0e-2, dMs=None, size=5,
                 if issubclass(var_dtype(dm), np.complexfloating):
                     dm_arr = dm_arr \
                         + 1.0j * np.random.random(var_local_size(dm))
-                var_set_values(dm, dm_arr)
+                var_set_values(dm, dm_arr * (1.0 if M_0_norm == 0.0 else M_0_norm))  # noqa: E501
                 del dm_arr
 
     def forward_tlm(dMs, *M):
@@ -383,10 +373,11 @@ def taylor_test_tlm_adjoint(forward, M, adjoint_order, *, seed=1.0e-2,
         defined by successively taking the derivative of :math:`K` with respect
         to the control and with directions defined by the `dM[:-1]` (with the
         directions considered in order). The perturbation direction
-        :math:`\zeta` is defined by `dM[-1]` -- see :func:`.taylor_test`.
-        Directions with degrees of freedom vector real and (in the complex
-        case) complex parts set by :func:`numpy.random.random` are used if not
-        supplied.
+        :math:`\zeta` is defined by `dM[-1]` -- see :func:`.taylor_test`. By
+        default `dMs[:-1]` have real and (in the complex case) complex
+        components set using :func:`numpy.random.random`, and the default for
+        `dMs[-1]` is set as described in :func:`.taylor_test` (see the `dM`
+        argument).
     :arg size: The number of values of :math:`\varepsilon` to consider. See
         :func:`.taylor_test`.
     :arg manager: An :class:`.EquationManager` used to create an internal

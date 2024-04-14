@@ -101,17 +101,17 @@ def test_jax_integration(setup_test, jax_tlm_config):
     dJ = compute_gradient(J, m)
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99

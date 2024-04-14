@@ -156,20 +156,20 @@ def test_oscillator(setup_test, test_leaks,
     dJ = compute_gradient(J, T_0)
 
     min_order = taylor_test(forward, T_0, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, T_0, J_val=J_val, ddJ=ddJ)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, T_0, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, T_0, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -254,8 +254,7 @@ def test_diffusion_1d(setup_test, test_leaks,
 
         ddJ = Hessian(forward_J)
         min_order = taylor_test(
-            forward_J, m, J_val=J_val, ddJ=ddJ, size=3,
-            dM=dm)
+            forward_J, m, J_val=J_val, ddJ=ddJ, dM=dm, size=4)
         assert min_order > 2.98
 
         min_order = taylor_test_tlm(

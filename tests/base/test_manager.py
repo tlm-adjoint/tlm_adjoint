@@ -295,35 +295,35 @@ def test_random_computational_graph(setup_test,  # noqa: F811
 
             min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, dM=dm,
                                     size=3)
-            assert min_order > 2.00
+            assert min_order > 1.99
 
         ddJ = Hessian(forward)
         min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
                                 size=3)
-        assert min_order > 3.00
+        assert min_order > 2.99
 
         if cp_method == "memory":
             ddJ = CachedHessian(J, cache_adjoint=False)
             min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
                                     size=3)
-            assert min_order > 3.00
+            assert min_order > 2.99
 
             ddJ = CachedHessian(J, cache_adjoint=True)
             min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
                                     size=3)
-            assert min_order > 3.00
+            assert min_order > 2.99
             min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm,
                                     size=3)
-            assert min_order > 3.00
+            assert min_order > 2.99
 
         min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(dm,),
                                     size=3)
-        assert min_order > 2.00
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1,
                                             dMs=(dm,), size=3)
-        assert min_order > 2.00
+        assert min_order > 1.99
 
         min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2,
                                             dMs=(dm, dm), size=3)
-        assert min_order > 2.00
+        assert min_order > 1.99

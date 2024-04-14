@@ -436,20 +436,20 @@ def test_ExprAssignment_vector(setup_test, test_leaks,
     dJ = compute_gradient(J, M)
 
     min_order = taylor_test(forward_J, M, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, M, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, M, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, M, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -496,20 +496,20 @@ def test_ExprInterpolation(setup_test, test_leaks):
         return J
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, y, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, y, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -615,7 +615,7 @@ def test_ExprInterpolation_transpose_vector(setup_test, test_leaks):
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, y, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, y, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
@@ -673,17 +673,17 @@ def test_LocalProjection(setup_test, test_leaks):
         return forward(G)[1]
 
     min_order = taylor_test(forward_J, G, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
     min_order = taylor_test(forward_J, G, J_val=J_val, ddJ=ddJ)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, G, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward_J, G, adjoint_order=2)
     assert min_order > 1.99
@@ -717,20 +717,20 @@ def test_Assembly_arity_0(setup_test, test_leaks):
     dJ = compute_gradient(J, F)
 
     min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -764,20 +764,20 @@ def test_Assembly_arity_1(setup_test, test_leaks,
     dJ = compute_gradient(J, F)
 
     min_order = taylor_test(forward, F, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, F, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, F, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, F, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -821,7 +821,7 @@ def test_Assembly_arity_1_FormSum(setup_test, test_leaks,
     assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, size=4)
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-2)
     assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
@@ -909,9 +909,8 @@ def test_Storage(setup_test, test_leaks,
     assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
-                            size=4)
-    assert min_order > 2.99
+    min_order = taylor_test(forward_J, x, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 2.98
 
     min_order = taylor_test_tlm(forward_J, x, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
@@ -922,7 +921,7 @@ def test_Storage(setup_test, test_leaks,
 
     min_order = taylor_test_tlm_adjoint(forward_J, x, adjoint_order=2,
                                         seed=1.0e-3)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     h.close()
 
@@ -1068,7 +1067,7 @@ def test_initial_guess(setup_test, test_leaks,
         return J
 
     min_order = taylor_test(forward_J, y, J_val=J_val, dJ=dJdy)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -1164,9 +1163,8 @@ def test_EquationSolver_FormSum(setup_test, test_leaks, test_configurations,
     assert min_order > 1.99
 
     ddJ = Hessian(forward_J)
-    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3,
-                            size=4)
-    assert min_order > 2.99
+    min_order = taylor_test(forward_J, m, J_val=J_val, ddJ=ddJ, seed=1.0e-3)
+    assert min_order > 2.98
 
     min_order = taylor_test_tlm(forward_J, m, tlm_order=1, seed=1.0e-3)
     assert min_order > 1.99
@@ -1291,20 +1289,20 @@ def test_DirichletBC_overlap(setup_test, test_leaks):
     dm = Function(space).interpolate(Constant(1.0))
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ, dM=dm)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ, dM=dm)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1, dMs=(dm,))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1, dMs=(dm,))
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
 
 @pytest.mark.firedrake
@@ -1387,17 +1385,17 @@ def test_ZeroFunction(setup_test, test_leaks, test_configurations):
     J_val = J.value
 
     min_order = taylor_test(forward, m, J_val=J_val, dJ=dJ)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     ddJ = Hessian(forward)
     min_order = taylor_test(forward, m, J_val=J_val, ddJ=ddJ)
-    assert min_order > 3.00
+    assert min_order > 2.99
 
     min_order = taylor_test_tlm(forward, m, tlm_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=1)
-    assert min_order > 2.00
+    assert min_order > 1.99
 
     min_order = taylor_test_tlm_adjoint(forward, m, adjoint_order=2)
-    assert min_order > 2.00
+    assert min_order > 1.99
