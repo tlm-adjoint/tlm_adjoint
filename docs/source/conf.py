@@ -16,7 +16,8 @@ autoapi_ignore = ["*/checkpoint_schedules/__init__.py",
                   "*/firedrake/backend.py",
                   "*/firedrake/backend_patches.py",
                   "*/firedrake/parameters.py",
-                  "*/patch.py"]
+                  "*/patch.py",
+                  "*/petsc.py"]
 autoapi_add_toctree_entry = False
 autoapi_options = []
 

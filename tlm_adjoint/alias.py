@@ -45,8 +45,7 @@ class Alias:
         obj_cls = type(obj)
 
         class Alias(cls, obj_cls):
-            def __new__(cls, *args, **kwargs):
-                return obj_cls(*args, **kwargs)
+            pass
 
         Alias.__name__ = f"{obj_cls.__name__:s}Alias"
         return super().__new__(Alias)
